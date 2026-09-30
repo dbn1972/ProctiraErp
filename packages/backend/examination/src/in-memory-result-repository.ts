@@ -3,6 +3,8 @@
  *
  * Used for unit testing without database dependencies.
  * Implements the ResultRepository interface with simple Map-based stores.
+ * Every map is keyed by `${tenantId}:${examinationId}` so cross-tenant reads
+ * return empty results (PRC-L469), mirroring RLS on the Prisma repository.
  */
 import type {
   ResultRepository,
@@ -12,60 +14,65 @@ import type {
   ResultAnalysis,
 } from './result-repository.js';
 
+function key(tenantId: string, examinationId: string): string {
+  return `${tenantId}:${examinationId}`;
+}
 export class InMemoryResultRepository implements ResultRepository {
   private candidates: Map<string, ExaminationCandidate[]> = new Map();
   private publicationResults: Map<string, PublicationResult> = new Map();
-  private academicRecords: AcademicRecordUpdate[] = [];
+  private academicRecords: Array<AcademicRecordUpdate & { tenantId: string }> = [];
   private resultAnalyses: Map<string, ResultAnalysis> = new Map();
 
   /** Test helper: seed candidates for an examination */
-  seedCandidates(examinationId: string, candidates: ExaminationCandidate[]): void {
-    this.candidates.set(examinationId, candidates);
+  seedCandidates(
+    examinationId: string,
+    candidates: ExaminationCandidate[],
+    tenantId: string,
+  ): void {
+    this.candidates.set(key(tenantId, examinationId), candidates);
   }
 
   /** Test helper: get all academic record updates */
   getAcademicRecordUpdates(): AcademicRecordUpdate[] {
-    return [...this.academicRecords];
+    return this.academicRecords.map(({ tenantId: _tenantId, ...update }) => update);
   }
 
-  async getCandidates(examinationId: string, _tenantId: string): Promise<ExaminationCandidate[]> {
-    return this.candidates.get(examinationId) ?? [];
+  async getCandidates(examinationId: string, tenantId: string): Promise<ExaminationCandidate[]> {
+    return this.candidates.get(key(tenantId, examinationId)) ?? [];
   }
 
-  async upsertCandidates(_tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {
+  async upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {
     for (const candidate of candidates) {
-      const list = this.candidates.get(candidate.examinationId) ?? [];
+      const k = key(tenantId, candidate.examinationId);
+      const list = this.candidates.get(k) ?? [];
       const idx = list.findIndex((c) => c.studentId === candidate.studentId);
       if (idx >= 0) list[idx] = candidate;
       else list.push(candidate);
-      this.candidates.set(candidate.examinationId, list);
+      this.candidates.set(k, list);
     }
   }
 
   async savePublicationResult(result: PublicationResult): Promise<void> {
-    this.publicationResults.set(result.examinationId, result);
+    this.publicationResults.set(key(result.tenantId, result.examinationId), result);
   }
 
   async getPublicationResult(
     examinationId: string,
-    _tenantId: string,
+    tenantId: string,
   ): Promise<PublicationResult | null> {
-    return this.publicationResults.get(examinationId) ?? null;
+    return this.publicationResults.get(key(tenantId, examinationId)) ?? null;
   }
 
-  async updateAcademicRecords(_tenantId: string, updates: AcademicRecordUpdate[]): Promise<void> {
-    this.academicRecords.push(...updates);
+  async updateAcademicRecords(tenantId: string, updates: AcademicRecordUpdate[]): Promise<void> {
+    this.academicRecords.push(...updates.map((u) => ({ ...u, tenantId })));
   }
 
   async saveResultAnalysis(analysis: ResultAnalysis): Promise<void> {
-    this.resultAnalyses.set(analysis.examinationId, analysis);
+    this.resultAnalyses.set(key(analysis.tenantId, analysis.examinationId), analysis);
   }
 
-  async getResultAnalysis(
-    examinationId: string,
-    _tenantId: string,
-  ): Promise<ResultAnalysis | null> {
-    return this.resultAnalyses.get(examinationId) ?? null;
+  async getResultAnalysis(examinationId: string, tenantId: string): Promise<ResultAnalysis | null> {
+    return this.resultAnalyses.get(key(tenantId, examinationId)) ?? null;
   }
 
   /** Test helper: clear all data */

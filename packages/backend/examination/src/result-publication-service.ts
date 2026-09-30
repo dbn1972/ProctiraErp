@@ -56,6 +56,10 @@ export class ResultPublicationService {
   constructor(
     private readonly examinationRepository: ExaminationRepository,
     private readonly resultRepository: ResultRepository,
+    private readonly options: {
+      /** PRC-H057: unresolved double-entry variance pairs block publication. */
+      countUnresolvedVariances?: (tenantId: string, examinationId: string) => Promise<number>;
+    } = {},
   ) {}
 
   /**
@@ -83,20 +87,79 @@ export class ResultPublicationService {
       );
     }
 
-    // Fetch all candidates
-    const candidates = await this.resultRepository.getCandidates(examinationId, tenantId);
+    // PRC-H057: never publish while double-entry marks variances are unresolved.
+    if (this.options.countUnresolvedVariances) {
+      const unresolved = await this.options.countUnresolvedVariances(tenantId, examinationId);
+      if (unresolved > 0) {
+        throw new BusinessRuleError(
+          `Cannot publish results: ${unresolved} marks variance pair(s) are unresolved. Resolve them first.`,
+        );
+      }
+    }
+    // PRC-H056: the candidate population is the non-cancelled registrations
+    // (plus any legacy result-store rows without a registration), and each
+    // candidate's required subjects are their registration subjectIds.
+    const [storedCandidates, registrations] = await Promise.all([
+      this.resultRepository.getCandidates(examinationId, tenantId),
+      this.examinationRepository.listCandidateRegistrations(examinationId, tenantId),
+    ]);
+    const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r]));
+    const storedStudentIds = new Set(storedCandidates.map((c) => c.studentId));
+    const allExamSubjectIds = examination.subjects.map((s) => s.id);
+
+    const population: Array<{
+      candidateId: string;
+      studentId: string;
+      requiredSubjectIds: string[];
+      subjectResults: ExaminationCandidate['subjectResults'];
+    }> = [];
+    for (const candidate of storedCandidates) {
+      const registration = registrationByStudent.get(candidate.studentId);
+      if (registration?.status === 'CANCELLED') continue;
+      population.push({
+        candidateId: candidate.id,
+        studentId: candidate.studentId,
+        requiredSubjectIds: registration ? registration.subjectIds : allExamSubjectIds,
+        subjectResults: candidate.subjectResults,
+      });
+    }
+    for (const registration of registrations) {
+      if (registration.status === 'CANCELLED' || storedStudentIds.has(registration.studentId)) {
+        continue;
+      }
+      // Registered but no marks row at all: every registered subject is incomplete.
+      population.push({
+        candidateId: registration.id,
+        studentId: registration.studentId,
+        requiredSubjectIds: registration.subjectIds,
+        subjectResults: [],
+      });
+    }
 
     const gradeResults: CandidateGradeResult[] = [];
     const incompleteRecords: IncompleteRecord[] = [];
     let processedCount = 0;
 
     // Process each candidate
-    for (const candidate of candidates) {
+    for (const candidate of population) {
+      // PRC-H056: a registered subject with no marks row is flagged incomplete
+      // instead of being silently dropped.
+      const recordedSubjectIds = new Set(candidate.subjectResults.map((r) => r.subjectId));
+      for (const subjectId of new Set(candidate.requiredSubjectIds)) {
+        if (!recordedSubjectIds.has(subjectId)) {
+          incompleteRecords.push({
+            candidateId: candidate.candidateId,
+            studentId: candidate.studentId,
+            subjectId,
+            reason: 'No marks recorded for subject',
+          });
+        }
+      }
       for (const subjectResult of candidate.subjectResults) {
         // Requirement 10.5: If result data is incomplete, skip and flag
         if (!subjectResult.isComplete || subjectResult.score === null) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
             reason:
@@ -116,7 +179,7 @@ export class ResultPublicationService {
 
         if (!gradingScheme) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
             reason: 'No grading scheme found for subject',
@@ -124,12 +187,21 @@ export class ResultPublicationService {
           continue;
         }
 
-        // Calculate grade
-        const grade = this.calculateGrade(subjectResult.score, gradingScheme);
+        // Calculate grade (PRC-H054: out-of-range / unbanded scores are incomplete)
+        const grade = calculateGrade(subjectResult.score, gradingScheme);
+        if (grade === null) {
+          incompleteRecords.push({
+            candidateId: candidate.candidateId,
+            studentId: candidate.studentId,
+            subjectId: subjectResult.subjectId,
+            reason: `Score ${subjectResult.score} does not map to a grade band in scheme '${gradingScheme.name}'`,
+          });
+          continue;
+        }
         const passed = subjectResult.score >= gradingScheme.passThreshold;
 
         gradeResults.push({
-          candidateId: candidate.id,
+          candidateId: candidate.candidateId,
           studentId: candidate.studentId,
           subjectId: subjectResult.subjectId,
           score: subjectResult.score,
@@ -148,7 +220,7 @@ export class ResultPublicationService {
       examinationId,
       tenantId,
       publishedAt: new Date(),
-      totalCandidates: candidates.length,
+      totalCandidates: population.length,
       processedCount,
       incompleteCount: incompleteRecords.length,
       gradeResults,
@@ -385,8 +457,20 @@ export class ResultPublicationService {
     const errors: FieldError[] = [];
     const upserts: ExaminationCandidate[] = [];
     let subjectResultCount = 0;
+    const seenStudents = new Set<string>();
 
     input.entries.forEach((entry, entryIndex) => {
+      // PRC-L304: duplicate student entries would build divergent upserts from
+      // the same snapshot (last write wins silently) — reject them.
+      if (seenStudents.has(entry.studentId)) {
+        errors.push({
+          field: `entries[${entryIndex}].studentId`,
+          rule: 'unique',
+          message: `Student '${entry.studentId}' appears more than once in this request`,
+        });
+        return;
+      }
+      seenStudents.add(entry.studentId);
       const registration = registrationByStudent.get(entry.studentId);
       if (!registration) {
         errors.push({
@@ -401,7 +485,17 @@ export class ResultPublicationService {
       const results = new Map(
         (current?.subjectResults ?? []).map((r) => [r.subjectId, r] as const),
       );
+      const seenSubjects = new Set<string>();
       entry.marks.forEach((mark, markIndex) => {
+        if (seenSubjects.has(mark.subjectId)) {
+          errors.push({
+            field: `entries[${entryIndex}].marks[${markIndex}].subjectId`,
+            rule: 'unique',
+            message: `Subject '${mark.subjectId}' appears more than once for this student`,
+          });
+          return;
+        }
+        seenSubjects.add(mark.subjectId);
         const subject = subjectsById.get(mark.subjectId);
         if (!subject) {
           errors.push({
@@ -468,25 +562,6 @@ export class ResultPublicationService {
       return schemes.find((s) => s.id === gradingSchemeId);
     }
     return schemes[0];
-  }
-
-  /**
-   * Calculate the grade for a given score using the grading scheme thresholds.
-   * Returns the grade label that matches the score range.
-   */
-  private calculateGrade(score: number, scheme: ExaminationGradingScheme): string {
-    // Sort thresholds by minScore descending to find the highest matching grade
-    const sortedThresholds = [...scheme.thresholds].sort((a, b) => b.minScore - a.minScore);
-
-    for (const threshold of sortedThresholds) {
-      if (score >= threshold.minScore && score <= threshold.maxScore) {
-        return threshold.grade;
-      }
-    }
-
-    // If no threshold matches, return the lowest grade
-    const lowestThreshold = [...scheme.thresholds].sort((a, b) => a.minScore - b.minScore)[0];
-    return lowestThreshold?.grade ?? 'N/A';
   }
 
   /**
@@ -574,6 +649,27 @@ export class ResultPublicationService {
 
     return breakdowns;
   }
+}
+
+/**
+ * Calculate the grade for a score (PRC-H054).
+ *
+ * Grade = the band with the greatest minScore <= score, provided the score lies
+ * within the scheme range [minScore, maxScore]. Returns null when the score is
+ * outside the scheme range or no band starts at/below it; callers must flag
+ * such results as incomplete rather than defaulting to the lowest grade.
+ */
+export function calculateGrade(score: number, scheme: ExaminationGradingScheme): string | null {
+  if (!Number.isFinite(score) || score < scheme.minScore || score > scheme.maxScore) {
+    return null;
+  }
+  let match: ExaminationGradingScheme['thresholds'][number] | undefined;
+  for (const threshold of scheme.thresholds) {
+    if (threshold.minScore <= score && (!match || threshold.minScore > match.minScore)) {
+      match = threshold;
+    }
+  }
+  return match?.grade ?? null;
 }
 
 /**

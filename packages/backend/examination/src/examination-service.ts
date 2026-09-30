@@ -27,6 +27,7 @@ import type {
   ExaminationGradingScheme,
   GradeThreshold,
 } from './examination-repository.js';
+import type { ResultRepository } from './result-repository.js';
 import type {
   CreateExaminationInput,
   UpdateExaminationInput,
@@ -42,11 +43,61 @@ export const MAX_GRADING_SCHEMES = 10;
 /** Minimum number of grading schemes per examination */
 export const MIN_GRADING_SCHEMES = 1;
 
+/** Clock/timezone options for exam date rules (PRC-L104). */
+export interface ExaminationServiceOptions {
+  /** IANA timezone (or per-tenant resolver) used for calendar-date rules. Default: 'UTC'. */
+  timeZone?: string | ((tenantId: string) => string | Promise<string>);
+  /** Injectable clock for tests. */
+  now?: () => Date;
+}
+
+/** Calendar date (YYYY-MM-DD) of an instant in the given IANA timezone. */
+export function calendarDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Add whole days to a YYYY-MM-DD calendar date. */
+function addCalendarDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Calendar date of an exam date input; plain YYYY-MM-DD is taken verbatim. */
+function toCalendarDate(value: string, timeZone: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return isNaN(new Date(`${value}T00:00:00Z`).getTime()) ? null : value;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : calendarDateInZone(d, timeZone);
+}
+
 /**
  * Service handling examination business logic.
  */
 export class ExaminationService {
-  constructor(private readonly repository: ExaminationRepository) {}
+  constructor(
+    private readonly repository: ExaminationRepository,
+    /** Optional: enables marks/publication reference checks on update (PRC-H053). */
+    private readonly resultRepository?: Pick<
+      ResultRepository,
+      'getCandidates' | 'getPublicationResult'
+    >,
+    private readonly options: ExaminationServiceOptions = {},
+  ) {}
+
+  private async resolveTimeZone(tenantId: string): Promise<string> {
+    const tz = this.options.timeZone;
+    if (typeof tz === 'function') return (await tz(tenantId)) || 'UTC';
+    return tz || 'UTC';
+  }
 
   /**
    * Create a new examination.
@@ -107,7 +158,11 @@ export class ExaminationService {
     }
 
     // Validate exam dates are at least 7 days in the future
-    const dateErrors = this.validateExamDates(input.startDate, input.endDate);
+    const dateErrors = this.validateExamDates(
+      input.startDate,
+      input.endDate,
+      await this.resolveTimeZone(tenantId),
+    );
     errors.push(...dateErrors);
 
     // Validate grading scheme pass thresholds
@@ -118,6 +173,7 @@ export class ExaminationService {
         errors.push(...schemeErrors);
       }
     }
+    const bandErrors = collectGradeBandErrors(input.gradingSchemes);
 
     // Validate sessions if provided
     if (input.sessions) {
@@ -127,6 +183,11 @@ export class ExaminationService {
 
     if (errors.length > 0) {
       throw new ValidationError('Examination validation failed', errors);
+    }
+
+    // PRC-H054: grade bands must be sorted, non-overlapping and cover the scheme range.
+    if (bandErrors.length > 0) {
+      throw new BusinessRuleError(`Invalid grade bands: ${bandErrors.join('; ')}`);
     }
 
     // Build entity
@@ -267,12 +328,23 @@ export class ExaminationService {
         errors.push(...schemeErrors);
       }
     }
+    const bandErrors = collectGradeBandErrors(input.gradingSchemes);
 
     // Validate dates if provided
     const startDate = input.startDate ?? existing.startDate;
     const endDate = input.endDate ?? existing.endDate;
     if (input.startDate || input.endDate) {
-      const dateErrors = this.validateExamDates(startDate, endDate);
+      // PRC-L104: the future-date rule applies only to values that actually change,
+      // so an imminent exam's unchanged start date does not block editing endDate.
+      const dateErrors = this.validateExamDates(
+        startDate,
+        endDate,
+        await this.resolveTimeZone(tenantId),
+        {
+          start: input.startDate !== undefined && input.startDate !== existing.startDate,
+          end: input.endDate !== undefined && input.endDate !== existing.endDate,
+        },
+      );
       errors.push(...dateErrors);
     }
 
@@ -286,6 +358,11 @@ export class ExaminationService {
       throw new ValidationError('Examination validation failed', errors);
     }
 
+    // PRC-H054: grade bands must be sorted, non-overlapping and cover the scheme range.
+    if (bandErrors.length > 0) {
+      throw new BusinessRuleError(`Invalid grade bands: ${bandErrors.join('; ')}`);
+    }
+
     // Build update data
     const updateData: Partial<ExaminationEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
@@ -296,9 +373,12 @@ export class ExaminationService {
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.status !== undefined) updateData.status = input.status;
 
+    // PRC-H053: nested arrays are merged by id. Supplied ids are preserved;
+    // only entries without an id receive a new UUID.
+    const idErrors: FieldError[] = [];
     if (input.subjects !== undefined) {
-      updateData.subjects = input.subjects.map((s) => ({
-        id: uuidv4(),
+      updateData.subjects = input.subjects.map((s, i) => ({
+        id: resolveNestedId(s.id, existing.subjects, `subjects[${i}].id`, idErrors),
         examinationId: id,
         name: s.name,
         code: s.code,
@@ -308,8 +388,8 @@ export class ExaminationService {
     }
 
     if (input.centers !== undefined) {
-      updateData.centers = input.centers.map((c) => ({
-        id: uuidv4(),
+      updateData.centers = input.centers.map((c, i) => ({
+        id: resolveNestedId(c.id, existing.centers, `centers[${i}].id`, idErrors),
         examinationId: id,
         name: c.name,
         code: c.code,
@@ -319,8 +399,8 @@ export class ExaminationService {
     }
 
     if (input.sessions !== undefined) {
-      updateData.sessions = input.sessions.map((s) => ({
-        id: uuidv4(),
+      updateData.sessions = input.sessions.map((s, i) => ({
+        id: resolveNestedId(s.id, existing.sessions, `sessions[${i}].id`, idErrors),
         examinationId: id,
         subjectId: s.subjectId,
         date: s.date,
@@ -331,8 +411,8 @@ export class ExaminationService {
     }
 
     if (input.gradingSchemes !== undefined) {
-      updateData.gradingSchemes = input.gradingSchemes.map((gs) => ({
-        id: uuidv4(),
+      updateData.gradingSchemes = input.gradingSchemes.map((gs, i) => ({
+        id: resolveNestedId(gs.id, existing.gradingSchemes, `gradingSchemes[${i}].id`, idErrors),
         examinationId: id,
         name: gs.name,
         minScore: gs.minScore,
@@ -346,6 +426,12 @@ export class ExaminationService {
         })),
       }));
     }
+
+    if (idErrors.length > 0) {
+      throw new ValidationError('Examination validation failed', idErrors);
+    }
+
+    await this.assertStructuralEditAllowed(tenantId, existing, updateData);
 
     const updated = await this.repository.update(id, tenantId, updateData);
     if (!updated) {
@@ -516,6 +602,66 @@ export class ExaminationService {
   }
 
   /**
+   * PRC-H053: reject removal of subjects/centers that registrations or
+   * candidate marks reference, and block any structural change to
+   * subjects/centers/grading schemes once the exam is IN_PROGRESS or results
+   * have been published.
+   */
+  private async assertStructuralEditAllowed(
+    tenantId: string,
+    existing: ExaminationEntity,
+    updateData: Partial<ExaminationEntity>,
+  ): Promise<void> {
+    const subjectsChanged =
+      updateData.subjects !== undefined && !sameStructure(existing.subjects, updateData.subjects);
+    const centersChanged =
+      updateData.centers !== undefined && !sameStructure(existing.centers, updateData.centers);
+    const schemesChanged =
+      updateData.gradingSchemes !== undefined &&
+      !sameStructure(existing.gradingSchemes, updateData.gradingSchemes);
+    if (!subjectsChanged && !centersChanged && !schemesChanged) return;
+
+    const published = this.resultRepository
+      ? await this.resultRepository.getPublicationResult(existing.id, tenantId)
+      : null;
+    if (existing.status === 'IN_PROGRESS' || published) {
+      throw new BusinessRuleError(
+        'Subjects, centers and grading schemes cannot be changed once the examination is in progress or results exist',
+      );
+    }
+
+    const removedSubjects = removedIds(existing.subjects, updateData.subjects);
+    const removedCenters = removedIds(existing.centers, updateData.centers);
+    if (removedSubjects.size === 0 && removedCenters.size === 0) return;
+
+    const referencedSubjects = new Set<string>();
+    const referencedCenters = new Set<string>();
+    const registrations = await this.repository.listCandidateRegistrations(existing.id, tenantId);
+    for (const r of registrations) {
+      referencedCenters.add(r.centerId);
+      for (const sid of r.subjectIds) referencedSubjects.add(sid);
+    }
+    if (this.resultRepository) {
+      const candidates = await this.resultRepository.getCandidates(existing.id, tenantId);
+      for (const c of candidates) {
+        referencedCenters.add(c.centerId);
+        for (const sr of c.subjectResults) referencedSubjects.add(sr.subjectId);
+      }
+    }
+
+    const blockedSubjects = [...removedSubjects].filter((sid) => referencedSubjects.has(sid));
+    const blockedCenters = [...removedCenters].filter((cid) => referencedCenters.has(cid));
+    if (blockedSubjects.length > 0 || blockedCenters.length > 0) {
+      const parts: string[] = [];
+      if (blockedSubjects.length > 0) parts.push(`subjects [${blockedSubjects.join(', ')}]`);
+      if (blockedCenters.length > 0) parts.push(`centers [${blockedCenters.join(', ')}]`);
+      throw new BusinessRuleError(
+        `Cannot remove ${parts.join(' and ')}: referenced by candidate registrations or marks`,
+      );
+    }
+  }
+
+  /**
    * Validate candidate eligibility for an examination.
    *
    * Checks:
@@ -583,25 +729,28 @@ export class ExaminationService {
   /**
    * Validate that exam dates are at least 7 days in the future.
    * Also validates that endDate >= startDate.
+   * Compares calendar dates in the tenant/institution timezone (PRC-L104).
    */
-  private validateExamDates(startDate: string, endDate: string): FieldError[] {
+  private validateExamDates(
+    startDate: string,
+    endDate: string,
+    timeZone: string,
+    enforceFuture: { start: boolean; end: boolean } = { start: true, end: true },
+  ): FieldError[] {
     const errors: FieldError[] = [];
-    const now = new Date();
-    const minDate = new Date(now);
-    minDate.setDate(minDate.getDate() + MIN_DAYS_IN_FUTURE);
-    // Reset time to start of day for comparison
-    minDate.setHours(0, 0, 0, 0);
+    const today = calendarDateInZone((this.options.now ?? (() => new Date()))(), timeZone);
+    const minDate = addCalendarDays(today, MIN_DAYS_IN_FUTURE);
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const startDay = toCalendarDate(startDate, timeZone);
+    const endDay = toCalendarDate(endDate, timeZone);
 
-    if (isNaN(start.getTime())) {
+    if (startDay === null) {
       errors.push({
         field: 'startDate',
         message: 'Invalid start date format',
         rule: 'format',
       });
-    } else if (start < minDate) {
+    } else if (enforceFuture.start && startDay < minDate) {
       errors.push({
         field: 'startDate',
         message: `Examination start date must be at least ${MIN_DAYS_IN_FUTURE} days in the future`,
@@ -609,13 +758,13 @@ export class ExaminationService {
       });
     }
 
-    if (isNaN(end.getTime())) {
+    if (endDay === null) {
       errors.push({
         field: 'endDate',
         message: 'Invalid end date format',
         rule: 'format',
       });
-    } else if (end < minDate) {
+    } else if (enforceFuture.end && endDay < minDate) {
       errors.push({
         field: 'endDate',
         message: `Examination end date must be at least ${MIN_DAYS_IN_FUTURE} days in the future`,
@@ -623,7 +772,7 @@ export class ExaminationService {
       });
     }
 
-    if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+    if (startDay !== null && endDay !== null && endDay < startDay) {
       errors.push({
         field: 'endDate',
         message: 'End date must be on or after start date',
@@ -741,4 +890,104 @@ export class ExaminationService {
 
     return errors;
   }
+}
+
+/**
+ * Preserve a supplied nested id when it belongs to the existing examination;
+ * generate a new id for new entries (PRC-H053).
+ */
+function resolveNestedId(
+  suppliedId: string | undefined,
+  existing: ReadonlyArray<{ id: string }>,
+  field: string,
+  errors: FieldError[],
+): string {
+  if (suppliedId === undefined) return uuidv4();
+  if (!existing.some((e) => e.id === suppliedId)) {
+    errors.push({
+      field,
+      message: `Unknown id '${suppliedId}' for this examination; omit id for new entries`,
+      rule: 'reference',
+    });
+  }
+  return suppliedId;
+}
+
+function removedIds(
+  before: ReadonlyArray<{ id: string }>,
+  after: ReadonlyArray<{ id: string }> | undefined,
+): Set<string> {
+  if (after === undefined) return new Set();
+  const kept = new Set(after.map((a) => a.id));
+  return new Set(before.map((b) => b.id).filter((bid) => !kept.has(bid)));
+}
+
+function sameStructure(a: ReadonlyArray<unknown>, b: ReadonlyArray<unknown>): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+/** Key-order-insensitive JSON (undefined/null fields dropped) for structural comparison. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * PRC-H054: validate that a scheme's grade bands are non-overlapping and cover
+ * [minScore, maxScore] without gaps. Integer-edge bands (e.g. 80-89 / 90-100)
+ * are contiguous because grading uses the band with the greatest minScore <= score.
+ * Returns human-readable errors (empty when valid).
+ */
+export function validateGradeBands(scheme: {
+  name: string;
+  minScore: number;
+  maxScore: number;
+  thresholds: GradeThreshold[];
+}): string[] {
+  const errors: string[] = [];
+  const bands = [...scheme.thresholds].sort((a, b) => a.minScore - b.minScore);
+  const first = bands[0];
+  const last = bands[bands.length - 1];
+  if (!first || !last) {
+    return [`Scheme '${scheme.name}' has no grade bands`];
+  }
+  if (first.minScore !== scheme.minScore) {
+    errors.push(
+      `Scheme '${scheme.name}' bands must start at the scheme minimum (${scheme.minScore}); lowest band '${first.grade}' starts at ${first.minScore}`,
+    );
+  }
+  const highestMax = Math.max(...bands.map((b) => b.maxScore));
+  if (highestMax !== scheme.maxScore) {
+    errors.push(
+      `Scheme '${scheme.name}' bands must reach the scheme maximum (${scheme.maxScore}); highest band ends at ${highestMax}`,
+    );
+  }
+  for (let i = 1; i < bands.length; i++) {
+    const prev = bands[i - 1]!;
+    const next = bands[i]!;
+    if (next.minScore <= prev.maxScore) {
+      errors.push(
+        `Scheme '${scheme.name}' bands '${prev.grade}' (${prev.minScore}-${prev.maxScore}) and '${next.grade}' (${next.minScore}-${next.maxScore}) overlap`,
+      );
+    } else if (next.minScore > prev.maxScore + 1) {
+      errors.push(
+        `Scheme '${scheme.name}' has a gap between '${prev.grade}' (ends ${prev.maxScore}) and '${next.grade}' (starts ${next.minScore})`,
+      );
+    }
+  }
+  return errors;
+}
+
+function collectGradeBandErrors(
+  schemes:
+    | Array<{ name: string; minScore: number; maxScore: number; thresholds: GradeThreshold[] }>
+    | undefined,
+): string[] {
+  return (schemes ?? []).flatMap((scheme) => validateGradeBands(scheme));
 }

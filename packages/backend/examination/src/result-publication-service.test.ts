@@ -156,7 +156,7 @@ describe('ResultPublicationService', () => {
     it('should calculate final grades using the assigned grading scheme', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
 
       const result = await service.publishResults(tenantId, exam.id);
 
@@ -212,7 +212,7 @@ describe('ResultPublicationService', () => {
           ],
         },
       ];
-      resultRepository.seedCandidates(exam.id, candidates);
+      resultRepository.seedCandidates(exam.id, candidates, tenantId);
 
       const result = await service.publishResults(tenantId, exam.id);
 
@@ -265,7 +265,7 @@ describe('ResultPublicationService', () => {
           ],
         },
       ];
-      resultRepository.seedCandidates(exam.id, candidates);
+      resultRepository.seedCandidates(exam.id, candidates, tenantId);
 
       const result = await service.publishResults(tenantId, exam.id);
 
@@ -279,7 +279,7 @@ describe('ResultPublicationService', () => {
     it('should update student academic records on publication', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
 
       await service.publishResults(tenantId, exam.id);
 
@@ -301,7 +301,7 @@ describe('ResultPublicationService', () => {
     it('should update examination status to COMPLETED', async () => {
       const exam = createTestExamination({ status: 'IN_PROGRESS' });
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
 
       await service.publishResults(tenantId, exam.id);
 
@@ -330,7 +330,7 @@ describe('ResultPublicationService', () => {
     it('should handle examination with no candidates gracefully', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, []);
+      resultRepository.seedCandidates(exam.id, [], tenantId);
 
       const result = await service.publishResults(tenantId, exam.id);
 
@@ -343,7 +343,7 @@ describe('ResultPublicationService', () => {
     it('should record publication duration in milliseconds', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
 
       const result = await service.publishResults(tenantId, exam.id);
 
@@ -395,7 +395,7 @@ describe('ResultPublicationService', () => {
           ],
         },
       ];
-      resultRepository.seedCandidates(examId, candidates);
+      resultRepository.seedCandidates(examId, candidates, tenantId);
 
       const result = await service.publishResults(tenantId, examId);
 
@@ -408,7 +408,7 @@ describe('ResultPublicationService', () => {
     it('should generate overall pass rate and mean score', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
 
       // Publish first
       await service.publishResults(tenantId, exam.id);
@@ -430,7 +430,7 @@ describe('ResultPublicationService', () => {
     it('should generate breakdown by subject', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const analysis = await service.generateAnalysis(tenantId, exam.id);
@@ -458,7 +458,7 @@ describe('ResultPublicationService', () => {
     it('should generate breakdown by center', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const analysis = await service.generateAnalysis(tenantId, exam.id);
@@ -481,7 +481,7 @@ describe('ResultPublicationService', () => {
     it('should generate breakdown by gender', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const analysis = await service.generateAnalysis(tenantId, exam.id);
@@ -504,7 +504,7 @@ describe('ResultPublicationService', () => {
     it('should generate breakdown by area', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const analysis = await service.generateAnalysis(tenantId, exam.id);
@@ -527,7 +527,7 @@ describe('ResultPublicationService', () => {
     it('should include score distribution in analysis', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const analysis = await service.generateAnalysis(tenantId, exam.id);
@@ -564,7 +564,7 @@ describe('ResultPublicationService', () => {
     it('should return previously generated analysis', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
       await service.generateAnalysis(tenantId, exam.id);
 
@@ -590,7 +590,7 @@ describe('ResultPublicationService', () => {
     it('should return publication result after publishing', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
-      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id));
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
       await service.publishResults(tenantId, exam.id);
 
       const result = await service.getPublicationResult(tenantId, exam.id);
