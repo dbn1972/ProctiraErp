@@ -4,9 +4,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
 /**
- * PRC-H002: privileged write actions (tenant lifecycle, plan entitlements, theme and
- * break-glass decisions) throw when the gateway rejects or cannot be reached. Show that failure
- * to the operator instead of a silent refresh that looks like success.
+ * Segment error boundary for the admin console.
+ *
+ * PRC-H002: privileged write actions (tenant lifecycle, plan entitlements, theme and break-glass
+ * decisions) throw when the gateway rejects or cannot be reached, so the operator sees a failure
+ * instead of a silent refresh that looks like success. In production builds Next.js replaces
+ * server-action error messages with a generic one plus a digest, so the specific reason is only
+ * guaranteed in development and in server logs (look up the reference below).
  */
 export default function AdminError({
   error,
@@ -18,9 +22,12 @@ export default function AdminError({
   return (
     <div className="space-y-4 p-6">
       <Alert variant="destructive">
-        <AlertTitle>The action did not complete</AlertTitle>
+        <AlertTitle>Something went wrong</AlertTitle>
         <AlertDescription>
-          <p>{error.message || 'An unexpected error occurred.'}</p>
+          <p>
+            The request did not complete. If you submitted a change, it was not applied.
+          </p>
+          {error.message ? <p className="mt-1">{error.message}</p> : null}
           {error.digest ? <p className="mt-1 text-xs">Reference: {error.digest}</p> : null}
         </AlertDescription>
       </Alert>
