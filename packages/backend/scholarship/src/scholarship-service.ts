@@ -52,6 +52,8 @@ import type {
   PaymentStatus,
 } from './scholarship-repository.js';
 
+/** Evaluator ids are stored in a uuid column; non-UUID subjects are recorded as null. */
+const EVALUATOR_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
  * PRC-H085: allowed disbursement payment-status transitions.
  * `cancelled` is terminal. `paid` may only move to `cancelled` (the explicit
@@ -912,6 +914,8 @@ export class ScholarshipService {
   async recordCompliance(
     tenantId: string,
     input: RecipientComplianceInput,
+    /** Authenticated evaluator (JWT sub). Body evaluatorId is ignored (PRC-L345). */
+    evaluatorId: string | null = null,
   ): Promise<ComplianceRecordEntity> {
     const application = await this.repository.findApplicationById(input.applicationId, tenantId);
     if (!application) {
@@ -930,7 +934,7 @@ export class ScholarshipService {
       status: input.status as ComplianceRecordEntity['status'],
       evaluationDate: input.evaluationDate,
       details: input.details ?? null,
-      evaluatorId: input.evaluatorId ?? null,
+      evaluatorId: evaluatorId && EVALUATOR_UUID.test(evaluatorId) ? evaluatorId : null,
     };
 
     return this.repository.createComplianceRecord(record);

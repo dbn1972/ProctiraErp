@@ -593,6 +593,21 @@ describe('ScholarshipService', () => {
         expect(record.id).toBeDefined();
         expect(record.complianceType).toBe('academic_performance');
         expect(record.status).toBe('compliant');
+        // PRC-L345: body evaluatorId is ignored; the authenticated evaluator is recorded.
+        const evaluator = '00000000-0000-4000-8000-00000000e001';
+        const forged = await service.recordCompliance(
+          TENANT_ID,
+          {
+            applicationId: application.id,
+            complianceType: 'academic_performance',
+            status: 'compliant',
+            evaluationDate: '2024-06-02',
+            evaluatorId: '00000000-0000-4000-8000-00000000f999',
+          },
+          evaluator,
+        );
+        expect(forged.evaluatorId).toBe(evaluator);
+        expect(record.evaluatorId).toBeNull();
       } finally {
         vi.useRealTimers();
       }

@@ -339,7 +339,10 @@ export const RecipientComplianceSchema = Type.Object({
   }),
   details: Type.Optional(Type.String({ maxLength: 2000, description: 'Compliance details' })),
   evaluatorId: Type.Optional(
-    Type.String({ pattern: UUID_PATTERN, description: 'Evaluator user UUID' }),
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Deprecated and ignored; the evaluator is the authenticated user (PRC-L345)',
+    }),
   ),
 });
 

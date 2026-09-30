@@ -81,6 +81,7 @@ describe('parent scholarship routes', () => {
       documentStore: documents,
       documentBlobs: blobs,
       resolveLinkedStudentIds: async () => [CHILD],
+      resolveStudentInstitutionId: async () => INSTITUTION,
     });
     await app.ready();
 
@@ -97,6 +98,13 @@ describe('parent scholarship routes', () => {
       payload: { ...body, applicantId: CHILD },
     });
     expect(own.statusCode).toBe(201);
+    // PRC-L345: a client-chosen institution that differs from the enrolment is refused.
+    const wrongInstitution = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: CHILD, institutionId: OTHER },
+    });
+    expect(wrongInstitution.statusCode).toBe(422);
 
     const other = await app.inject({
       method: 'POST',

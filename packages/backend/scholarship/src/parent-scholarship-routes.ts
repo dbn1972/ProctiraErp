@@ -34,6 +34,8 @@ export interface ParentScholarshipRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Server-side institution of record for a student (PRC-L345). */
+  resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
 }
 
 async function actorFor(
@@ -69,6 +71,8 @@ export async function registerParentScholarshipRoutes(
   options: ParentScholarshipRouteOptions,
 ): Promise<void> {
   const { scholarshipService, documentService, resolveLinkedStudentIds } = options;
+  const resolveStudentInstitutionId =
+    options.resolveStudentInstitutionId ?? institutionIdForStudent;
   const prefix = options.prefix ?? '';
 
   fastify.get(`${prefix}/programs`, async (request, reply) => {
@@ -167,8 +171,19 @@ export async function registerParentScholarshipRoutes(
       });
     }
     const raw = (request.body ?? {}) as Record<string, unknown>;
-    if (typeof raw.applicantId === 'string' && typeof raw.institutionId !== 'string') {
-      raw.institutionId = (await institutionIdForStudent(tenantId, raw.applicantId)) ?? undefined;
+    if (typeof raw.applicantId === 'string') {
+      // PRC-L345: the institution comes from the student's enrolment, not the client.
+      const recorded = await resolveStudentInstitutionId(tenantId, raw.applicantId);
+      if (recorded) {
+        if (typeof raw.institutionId === 'string' && raw.institutionId !== recorded) {
+          return reply.status(422).send({
+            code: 'INSTITUTION_MISMATCH',
+            message: "institutionId does not match the student's current enrolment",
+            statusCode: 422,
+          });
+        }
+        raw.institutionId = recorded;
+      }
     }
     const parsed = validate(CreateApplicationSchema, { ...raw, asDraft: true });
     if (!parsed.success) {
@@ -219,6 +234,8 @@ export interface ParentScholarshipPluginOptions {
   documentStore?: ScholarshipDocumentStore;
   documentBlobs?: ScholarshipDocumentBlobStore;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Server-side institution of record for a student (PRC-L345). */
+  resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
 }
 
 export const parentScholarshipPlugin = fp(
@@ -237,6 +254,7 @@ export const parentScholarshipPlugin = fp(
       documentService,
       prefix: options.prefix ?? '',
       resolveLinkedStudentIds: options.resolveLinkedStudentIds,
+      resolveStudentInstitutionId: options.resolveStudentInstitutionId,
     });
   },
   { name: '@proctira/backend-scholarship-parent', fastify: '5.x' },
