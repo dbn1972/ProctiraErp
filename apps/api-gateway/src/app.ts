@@ -756,6 +756,28 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
   });
+  // PRC-H004: the onRequest gate above runs before Fastify parses the body, so a body-carried
+  // institutionId (POST/PUT/PATCH writes) was never checked and a school-bound user could write
+  // to another school. Re-run the scope decision on the parsed body in preValidation.
+  app.addHook('preValidation', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const user = request.user as InstitutionScopeUser | undefined;
+    if (!user) return;
+    const bodyInstitutionId = extractInstitutionId({ body: request.body });
+    if (!bodyInstitutionId) return;
+    const decision = decideInstitutionScope(user, url, bodyInstitutionId, request.method);
+    if (decision.action === 'deny') {
+      return reply.status(403).send({
+        code: 'INSTITUTION_OUT_OF_SCOPE',
+        message: 'Institution is outside the caller school scope',
+        institutionId: decision.institutionId,
+        statusCode: 403,
+      });
+    }
+  });
 
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works).
   // W1-ARCH-03: Redis required when IDEMPOTENCY_STORE=redis / REDIS_URL / production —
