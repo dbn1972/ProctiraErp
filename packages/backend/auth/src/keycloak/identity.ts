@@ -14,6 +14,11 @@ export class KeycloakIdentityError extends Error {
 export type KeycloakIdentityInput = {
   externalId: string;
   email: string;
+  /**
+   * True only when the IdP asserted `email_verified === true` for the `email`
+   * claim. Email-based linking/provisioning is refused otherwise (PRC-H042).
+   */
+  emailVerified?: boolean;
   displayName: string;
   firstName?: string;
   lastName?: string;
@@ -49,7 +54,8 @@ type StoredUser = {
 export interface KeycloakIdentityStore {
   findIdentity(externalId: string): Promise<StoredIdentity | null>;
   touchIdentity(id: string): Promise<void>;
-  findUserByEmail(email: string, tenantId?: string): Promise<StoredUser | null>;
+  /** Tenant scope is mandatory: email lookup never crosses tenants (PRC-H042). */
+  findUserByEmail(email: string, tenantId: string): Promise<StoredUser | null>;
   findTenantById(id: string): Promise<{ id: string } | null>;
   findTenantBySlug(slug: string): Promise<{ id: string } | null>;
   createUser(input: {
@@ -101,9 +107,23 @@ export async function linkKeycloakIdentity(
     };
   }
 
+  // PRC-H042: first-login linking is email based, so it must fail closed.
+  // An unverified email would let anyone who registers the victim's address in
+  // Keycloak take over the provisioned account, and a tenantless token must never
+  // search every tenant for a matching email.
+  if (input.emailVerified !== true) {
+    throw new KeycloakIdentityError(
+      'Keycloak email is not verified; refusing to link or provision an account',
+    );
+  }
   const tenantId = await resolveTenantId(input, store);
+  if (!tenantId) {
+    throw new KeycloakIdentityError(
+      'Keycloak user has no tenant mapping (set tenant_id or tenant_slug)',
+    );
+  }
   const provisioned = await store.findUserByEmail(email, tenantId);
-  if (provisioned) {
+  if (provisioned && provisioned.tenantId === tenantId) {
     await store.createIdentity({
       userId: provisioned.id,
       tenantId: provisioned.tenantId,
@@ -118,12 +138,6 @@ export async function linkKeycloakIdentity(
       displayName: provisioned.displayName,
       countryCode: provisioned.countryCode,
     };
-  }
-
-  if (!tenantId) {
-    throw new KeycloakIdentityError(
-      'Keycloak user has no tenant mapping (set tenant_id or tenant_slug)',
-    );
   }
 
   const names = splitDisplayName(input);
@@ -165,6 +179,8 @@ export function identityInputFromClaims(
   return {
     externalId: claims.sub || claims.preferred_username || claims.email || '',
     email: claims.email ?? claims.preferred_username ?? '',
+    // Only an explicit IdP assertion on a real `email` claim counts as verified.
+    emailVerified: Boolean(claims.email) && claims.email_verified === true,
     displayName,
     firstName: claims.given_name,
     lastName: claims.family_name,
@@ -210,15 +226,11 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
     }
   }
 
-  async findUserByEmail(email: string, tenantId?: string): Promise<StoredUser | null> {
+  async findUserByEmail(email: string, tenantId: string): Promise<StoredUser | null> {
+    if (!tenantId) return null;
     const normalized = email.trim().toLowerCase();
-    if (tenantId) {
-      return this.usersByKey.get(`${tenantId}:${normalized}`) ?? null;
-    }
-    for (const user of this.usersByKey.values()) {
-      if (user.email === normalized) return { ...user };
-    }
-    return null;
+    const user = this.usersByKey.get(`${tenantId}:${normalized}`);
+    return user ? { ...user } : null;
   }
 
   async findTenantById(id: string): Promise<{ id: string } | null> {
