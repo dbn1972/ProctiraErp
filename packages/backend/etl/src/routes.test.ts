@@ -285,6 +285,45 @@ describe('ETL Routes', () => {
       });
     }
 
+    it('denies GET /pipelines/:id/executions for a report-reader (403)', async () => {
+      // Create as ETL staff, then attempt to read executions as a parent.
+      principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      const created = JSON.parse(createResponse.payload);
+
+      principalRoles = [{ roleId: 'parent', roleName: 'Parent', areaId: null }];
+      const response = await app.inject({
+        method: 'GET',
+        url: `/pipelines/${created.id}/executions`,
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('does not echo raw source records in execution error rows', async () => {
+      principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      const created = JSON.parse(createResponse.payload);
+      const execResponse = await app.inject({
+        method: 'POST',
+        url: `/pipelines/${created.id}/execute`,
+      });
+      expect(execResponse.statusCode).toBe(202);
+      const execution = JSON.parse(execResponse.payload);
+      // The response shape must expose only a presence flag, never the raw source record.
+      for (const err of execution.errors ?? []) {
+        expect(err).not.toHaveProperty('data');
+        expect(err).toHaveProperty('hasData');
+      }
+    });
+
     it('allows an ETL engineer to list pipelines', async () => {
       principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
       const response = await app.inject({ method: 'GET', url: '/pipelines' });

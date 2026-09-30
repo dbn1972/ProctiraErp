@@ -28,6 +28,7 @@ import {
   type PipelineListQuery,
   type Pipeline,
   type PipelineExecution,
+  type ExecutionError,
 } from './schemas.js';
 
 /**
@@ -82,6 +83,22 @@ function formatPipelineResponse(entity: Pipeline) {
 }
 
 /**
+ * PRC-H050 (defense in depth): execution error rows carry the offending *source record* in
+ * `data` — for student/PII sources this is sensitive material. Diagnostics need to know which
+ * row failed and why (row index, field, message), not the raw record, so strip `data` to a
+ * boolean presence flag. This keeps the failure actionable without echoing source PII over the
+ * API even to authorized ETL staff (and stays safe if the route gate ever regresses).
+ */
+function redactExecutionError(error: ExecutionError) {
+  return {
+    row: error.row,
+    field: error.field,
+    message: error.message,
+    hasData: error.data != null,
+  };
+}
+
+/**
  * Format an execution entity for API response.
  */
 function formatExecutionResponse(entity: PipelineExecution) {
@@ -96,7 +113,7 @@ function formatExecutionResponse(entity: PipelineExecution) {
     transformedCount: entity.transformedCount,
     loadedCount: entity.loadedCount,
     errorCount: entity.errorCount,
-    errors: entity.errors,
+    errors: (entity.errors ?? []).map(redactExecutionError),
     lineage: entity.lineage ?? null,
   };
 }
