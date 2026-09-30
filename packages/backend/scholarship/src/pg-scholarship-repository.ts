@@ -189,6 +189,50 @@ function paginateMeta(totalItems: number, pagination: PaginationOptions) {
   };
 }
 
+/** PRC-L348: escape LIKE metacharacters so search is a literal substring match. */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/** PRC-L348: whitelisted sortBy -> column maps (never interpolate client input). */
+const PROGRAM_SORT_COLUMNS: Record<string, string> = {
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  name: 'name',
+  status: 'status',
+  applicationStartDate: 'application_start_date',
+  applicationEndDate: 'application_end_date',
+};
+const APPLICATION_SORT_COLUMNS: Record<string, string> = {
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  submittedAt: 'submitted_at',
+  status: 'status',
+};
+const DISBURSEMENT_SORT_COLUMNS: Record<string, string> = {
+  scheduledDate: 'scheduled_date',
+  paidDate: 'paid_date',
+  createdAt: 'created_at',
+  amount: 'amount_cents',
+  paymentStatus: 'payment_status',
+};
+
+export function orderByClause(
+  columns: Record<string, string>,
+  pagination: PaginationOptions,
+  fallback: { column: string; order: 'asc' | 'desc' },
+): string {
+  const mapped = pagination.sortBy ? columns[pagination.sortBy] : undefined;
+  const column = mapped ?? fallback.column;
+  const order = mapped
+    ? pagination.sortOrder === 'asc'
+      ? 'ASC'
+      : 'DESC'
+    : fallback.order.toUpperCase();
+  // Stable tie-break on id so pages do not overlap.
+  return `ORDER BY ${column} ${order}, id ${order}`;
+}
+
 export class PgScholarshipRepository implements ScholarshipRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -309,8 +353,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         conditions.push(`status = $${params.length}`);
       }
       if (filter.search) {
-        params.push(`%${filter.search.toLowerCase()}%`);
-        conditions.push(`lower(name) LIKE $${params.length}`);
+        params.push(`%${escapeLikePattern(filter.search.toLowerCase())}%`);
+        conditions.push(`lower(name) LIKE $${params.length} ESCAPE '\\'`);
       }
       const where = conditions.join(' AND ');
       const countResult = await client.query(
@@ -322,7 +366,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_programs WHERE ${where}
-         ORDER BY created_at DESC
+         ${orderByClause(PROGRAM_SORT_COLUMNS, pagination, { column: 'created_at', order: 'desc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -475,7 +519,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_applications WHERE ${where}
-         ORDER BY created_at DESC
+         ${orderByClause(APPLICATION_SORT_COLUMNS, pagination, { column: 'created_at', order: 'desc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -727,7 +771,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_disbursements WHERE ${where}
-         ORDER BY scheduled_date ASC
+         ${orderByClause(DISBURSEMENT_SORT_COLUMNS, pagination, { column: 'scheduled_date', order: 'asc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
