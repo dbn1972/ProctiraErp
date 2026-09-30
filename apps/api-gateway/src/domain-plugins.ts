@@ -313,18 +313,13 @@ function createOfferFeeInvoiceHook() {
 }
 
 function assertOfferFeePaidHook() {
-  return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+  // PRC-H079: read-only verification. Payment is recorded only by the verified
+  // PSP webhook / callback path; a client paymentRef is never payment proof.
+  return async (input: { tenantId: string; invoiceId: string }) => {
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
     if (invoice.status === 'paid') return;
-    if (input.paymentRef) {
-      await fees.recordPayment(input.tenantId, 'admissions-offer', {
-        invoiceId: input.invoiceId,
-        method: 'sandbox',
-      });
-      return;
-    }
-    throw new Error('Offer fee invoice must be paid before enrolment');
+    throw new BusinessRuleError('Offer fee invoice must be paid before enrolment');
   };
 }
 
