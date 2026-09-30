@@ -10,16 +10,22 @@
  *    accommodation plans, screenings ← screening programs, counselling ←
  *    sessions. Live rows win on id collisions.
  */
-import type {
-  AccommodationPlanEntity,
-  AllergyEntity,
-  CounsellingSessionEntity,
-  DiagnosisEntity,
-  HealthConditionEntity,
-  HealthRepository,
-  ScreeningProgramEntity,
+import {
+  hasHealthAccess,
+  isTenantWideHealthActor,
+  recordPhiReadAudit,
+  type AccommodationPlanEntity,
+  type AllergyEntity,
+  type CounsellingSessionEntity,
+  type DiagnosisEntity,
+  type HealthAccessContext,
+  type HealthConditionEntity,
+  type HealthRepository,
+  type PhiAccessLogInput,
+  type ScreeningProgramEntity,
 } from '@proctira/backend-health';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { AppError } from '@proctira/common';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import {
@@ -51,6 +57,7 @@ interface JwtUserLike {
   sub?: string;
   userId?: string;
   tenantId?: string;
+  institutions?: string[];
   roles?: Array<{ roleName?: string; roleId?: string } | string>;
   guardianOfStudentIds?: string[];
 }
@@ -108,7 +115,17 @@ function forTenant<T extends { tenantId: string }>(items: T[], tenantId: string)
   return items.filter((item) => item.tenantId === tenantId);
 }
 
-function mapDomainCounselling(entity: CounsellingSessionEntity): UiCounsellingSession {
+/** PRC-H006: counselling topic/reason is visible to counsellors (and tenant-wide health admins). */
+const COUNSELLING_TOPIC_ROLES = new Set(['counsellor', 'health_admin', 'system_admin']);
+
+export function canReadCounsellingTopic(context: HealthAccessContext): boolean {
+  return context.roles.some((role) => COUNSELLING_TOPIC_ROLES.has(role.toLowerCase()));
+}
+
+function mapDomainCounselling(
+  entity: CounsellingSessionEntity,
+  showTopic: boolean,
+): UiCounsellingSession {
   const statusMap: Record<string, UiCounsellingSession['status']> = {
     scheduled: 'SCHEDULED',
     completed: 'COMPLETED',
@@ -122,7 +139,8 @@ function mapDomainCounselling(entity: CounsellingSessionEntity): UiCounsellingSe
     studentName: entity.studentId.slice(0, 8),
     counsellorName: entity.counsellorId.slice(0, 8),
     sessionDate: entity.sessionDate,
-    topic: entity.reason,
+    // Schedule metadata only for nurses/health officers; the reason is counselling PHI.
+    topic: showTopic ? entity.reason : '',
     status: statusMap[entity.status] ?? 'SCHEDULED',
   };
 }
@@ -303,6 +321,72 @@ export const healthUiPlugin = fp(
       };
     });
 
+    /**
+     * PRC-H006: the aggregate routes read tenant-wide lists, so apply the same need-to-know rule
+     * as HealthService (hasHealthAccess): tenant-wide health admins see all students; school-bound
+     * roles only students whose active enrolment is in their (authoritative or JWT) institutions;
+     * missing scope sees nothing. Every returned student is written to the PHI read audit, which
+     * fails closed in production (503).
+     */
+    const accessContextOf = async (
+      request: FastifyRequest,
+      tenantId: string,
+    ): Promise<HealthAccessContext> => {
+      const base = (request as FastifyRequest & { healthAccessContext?: HealthAccessContext })
+        .healthAccessContext ?? { userId: '', roles: [], guardianOfStudentIds: [] };
+      if (isTenantWideHealthActor(base) || !repository?.findActorInstitutionAssignments) return base;
+      if (!base.userId) return base;
+      const assigned = await repository.findActorInstitutionAssignments(tenantId, base.userId);
+      return assigned === null ? base : { ...base, authoritativeInstitutionIds: assigned };
+    };
+
+    const makeStudentFilter = (tenantId: string, context: HealthAccessContext) => {
+      const cache = new Map<string, boolean>();
+      return async (studentId: string): Promise<boolean> => {
+        const hit = cache.get(studentId);
+        if (hit !== undefined) return hit;
+        const studentInstitutionId =
+          (await repository?.findStudentInstitutionId?.(tenantId, studentId)) ?? null;
+        const allowed = hasHealthAccess(context, studentId, { studentInstitutionId });
+        cache.set(studentId, allowed);
+        return allowed;
+      };
+    };
+
+    const filterByStudent = async <T extends { studentId: string }>(
+      rows: T[],
+      allowed: (studentId: string) => Promise<boolean>,
+    ): Promise<T[]> => {
+      const out: T[] = [];
+      for (const row of rows) if (await allowed(row.studentId)) out.push(row);
+      return out;
+    };
+
+    const auditReads = async (
+      tenantId: string,
+      context: HealthAccessContext,
+      studentIds: string[],
+      resourceType: string,
+    ) => {
+      const auditor = (repository as { logPhiAccess?: (entry: PhiAccessLogInput) => Promise<void> })
+        ?.logPhiAccess;
+      const logPhiAccess =
+        typeof auditor === 'function'
+          ? (entry: PhiAccessLogInput) => auditor.call(repository, entry)
+          : null;
+      for (const studentId of new Set(studentIds)) {
+        await recordPhiReadAudit({
+          logPhiAccess,
+          entry: { tenantId, actorUserId: context.userId, studentId, resourceType },
+        });
+      }
+    };
+
+    const sendError = (reply: FastifyReply, error: unknown) => {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    };
+
     const liveRecords = async (tenantId: string): Promise<UiHealthRecord[]> => {
       if (!repository?.listAllAllergies && !repository?.listAllConditions) return [];
       const [allergies, conditions] = await Promise.all([
@@ -315,12 +399,20 @@ export const healthUiPlugin = fp(
     fastify.get('/health/records', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
       if (!tenantId) return;
-      const seeded = forTenant(seed.records, tenantId);
-      const live = await liveRecords(tenantId);
-      const data = mergeById(seeded, live).sort((a, b) =>
-        b.lastUpdated.localeCompare(a.lastUpdated),
-      );
-      return reply.send({ data, meta: sourceMeta(repository, live.length, seeded.length) });
+      try {
+        const context = await accessContextOf(request, tenantId);
+        const allowed = makeStudentFilter(tenantId, context);
+        // Seed rows are dev/test demo data (empty in production, G-705); live rows are PHI.
+        const seeded = forTenant(seed.records, tenantId);
+        const live = await filterByStudent(await liveRecords(tenantId), allowed);
+        await auditReads(tenantId, context, live.map((r) => r.studentId), 'health_record.list');
+        const data = mergeById(seeded, live).sort((a, b) =>
+          b.lastUpdated.localeCompare(a.lastUpdated),
+        );
+        return reply.send({ data, meta: sourceMeta(repository, live.length, seeded.length) });
+      } catch (error) {
+        return sendError(reply, error);
+      }
     });
 
     fastify.get<{ Params: { studentId: string } }>(
@@ -329,47 +421,77 @@ export const healthUiPlugin = fp(
         const tenantId = assertHealthAccess(request, reply);
         if (!tenantId) return;
         const { studentId } = request.params;
-        const live = (await liveRecords(tenantId)).find((r) => r.studentId === studentId);
-        const record =
-          live ?? forTenant(seed.records, tenantId).find((r) => r.studentId === studentId);
-        if (!record) {
-          return deny(reply, 'NOT_FOUND', 'Health record not found', 404);
+        try {
+          const context = await accessContextOf(request, tenantId);
+          const live = (await liveRecords(tenantId)).find((r) => r.studentId === studentId);
+          if (live) {
+            // Out-of-scope students are indistinguishable from missing ones.
+            if (!(await makeStudentFilter(tenantId, context)(studentId))) {
+              return deny(reply, 'NOT_FOUND', 'Health record not found', 404);
+            }
+            await auditReads(tenantId, context, [studentId], 'health_record.detail');
+            return reply.send(live);
+          }
+          const seeded = forTenant(seed.records, tenantId).find((r) => r.studentId === studentId);
+          if (!seeded) return deny(reply, 'NOT_FOUND', 'Health record not found', 404);
+          return reply.send(seeded);
+        } catch (error) {
+          return sendError(reply, error);
         }
-        return reply.send(record);
       },
     );
 
     fastify.get('/health/special-needs', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
       if (!tenantId) return;
-      const seeded = forTenant(seed.specialNeeds, tenantId);
-      let live: UiSpecialNeedRecord[] = [];
-      if (repository?.listAllDiagnoses || repository?.listAllAccommodationPlans) {
-        const [diagnoses, plans] = await Promise.all([
-          repository.listAllDiagnoses?.(tenantId) ?? Promise.resolve([]),
-          repository.listAllAccommodationPlans?.(tenantId) ?? Promise.resolve([]),
-        ]);
-        live = buildDomainSpecialNeeds(tenantId, diagnoses, plans);
+      try {
+        const context = await accessContextOf(request, tenantId);
+        const allowed = makeStudentFilter(tenantId, context);
+        const seeded = forTenant(seed.specialNeeds, tenantId);
+        let live: UiSpecialNeedRecord[] = [];
+        if (repository?.listAllDiagnoses || repository?.listAllAccommodationPlans) {
+          const [diagnoses, plans] = await Promise.all([
+            repository.listAllDiagnoses?.(tenantId) ?? Promise.resolve([]),
+            repository.listAllAccommodationPlans?.(tenantId) ?? Promise.resolve([]),
+          ]);
+          live = await filterByStudent(buildDomainSpecialNeeds(tenantId, diagnoses, plans), allowed);
+        }
+        await auditReads(tenantId, context, live.map((r) => r.studentId), 'special_needs.list');
+        return reply.send({
+          data: mergeById(seeded, live),
+          meta: sourceMeta(repository, live.length, seeded.length),
+        });
+      } catch (error) {
+        return sendError(reply, error);
       }
-      return reply.send({
-        data: mergeById(seeded, live),
-        meta: sourceMeta(repository, live.length, seeded.length),
-      });
     });
 
     fastify.get('/health/counselling', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
       if (!tenantId) return;
-      const seeded = forTenant(seed.counselling, tenantId);
-      let live: UiCounsellingSession[] = [];
-      if (repository?.listAllCounsellingSessions) {
-        const entities = await repository.listAllCounsellingSessions(tenantId);
-        live = entities.map(mapDomainCounselling);
+      try {
+        const context = await accessContextOf(request, tenantId);
+        const allowed = makeStudentFilter(tenantId, context);
+        const showTopic = canReadCounsellingTopic(context);
+        const seeded = forTenant(seed.counselling, tenantId).map((row) =>
+          showTopic ? row : { ...row, topic: '' },
+        );
+        let live: UiCounsellingSession[] = [];
+        if (repository?.listAllCounsellingSessions) {
+          const entities = await filterByStudent(
+            await repository.listAllCounsellingSessions(tenantId),
+            allowed,
+          );
+          live = entities.map((entity) => mapDomainCounselling(entity, showTopic));
+        }
+        await auditReads(tenantId, context, live.map((r) => r.studentId), 'counselling_session.list');
+        const data = mergeById(seeded, live).sort((a, b) =>
+          b.sessionDate.localeCompare(a.sessionDate),
+        );
+        return reply.send({ data, meta: sourceMeta(repository, live.length, seeded.length) });
+      } catch (error) {
+        return sendError(reply, error);
       }
-      const data = mergeById(seeded, live).sort((a, b) =>
-        b.sessionDate.localeCompare(a.sessionDate),
-      );
-      return reply.send({ data, meta: sourceMeta(repository, live.length, seeded.length) });
     });
 
     fastify.get('/health/screenings', async (request, reply) => {
