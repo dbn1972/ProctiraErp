@@ -116,14 +116,16 @@ describe('CsvSourceConnector', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should pass validation with filePath', async () => {
+    // PRC-C003: a host filePath is a local-file-inclusion vector and is now rejected;
+    // tenant pipelines must supply inline fileContent.
+    it('should reject validation with a host filePath', async () => {
       const connector = new CsvSourceConnector({
         type: 'csv',
         filePath: '/path/to/file.csv',
       });
 
       const result = await connector.validate();
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
     });
 
     it('should fail validation without filePath or fileContent', async () => {

@@ -17,7 +17,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { examinationWritePreHandler } from './examination-http-guard.js';
+import { examinationReadWritePreHandler } from './examination-http-guard.js';
 import type { ResultPublicationService } from './result-publication-service.js';
 import {
   RecordMarksSchema,
@@ -45,10 +45,12 @@ export async function registerResultRoutes(
   const { resultPublicationService, prefix = '/examinations' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
+    // PRC-C004: reads (results, raw marks, analysis) require exam.read.staff; the write action
+    // depends on the route (publish/analysis-generate vs record-marks).
     const url = request.url;
-    const action =
+    const writeAction =
       url.includes('/publish') || url.includes('/analysis') ? 'exam.publish' : 'exam.update';
-    examinationWritePreHandler(request, reply, action);
+    examinationReadWritePreHandler(request, reply, 'exam.read.staff', writeAction);
   });
 
   /**

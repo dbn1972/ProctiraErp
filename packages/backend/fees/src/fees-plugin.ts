@@ -1,18 +1,23 @@
 /**
  * Fastify Fees Plugin — staff fees routes under `/fees`.
  */
-import { AppError } from '@proctira/common';
 import {
   appendAuditEntryOnClient,
   toCreateAuditLogInput,
 } from '@proctira/backend-audit';
+import { AppError } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import { isPgFeesEnabled } from './create-fees-repository.js';
-import { requireFeesAction, requireFeesRead } from './fees-http-guard.js';
+import {
+  requireFeesAction,
+  requireFeesStaffRead,
+  resolveFeesReadScope,
+} from './fees-http-guard.js';
 import type { FeesRepository } from './fees-repository.js';
 import {
   FeesService,
@@ -244,7 +249,7 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
   if (!isPgFeesEnabled()) return undefined;
   return {
     appendAuditInTxn: async (
-      client: import('@proctira/database').PgQueryable,
+      client: PgQueryable,
       settled: {
         payment: { id: string };
       },
@@ -283,6 +288,18 @@ function tenantRequired(reply: FastifyReply) {
     message: 'Tenant context is required',
     statusCode: 400,
   });
+}
+
+/**
+ * PRC-C005: body for a self-scope caller who cannot be safely scoped (no parent binding, or a
+ * staff-only surface). Fail closed rather than leak tenant-wide data.
+ */
+function forbiddenSelfScope() {
+  return {
+    code: 'FORBIDDEN',
+    message: 'Fee data for your account is not available on this endpoint',
+    statusCode: 403,
+  };
 }
 
 function formatPlan(entity: {
@@ -414,7 +431,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/plans`, async function listPlans(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: fee-plan catalogue is a staff surface — deny self-scope callers.
+      if (!requireFeesStaffRead(request, reply)) return;
       const plans = await feesService.listFeePlans(tenantId);
       return reply.status(200).send({ data: plans.map(formatPlan) });
     });
@@ -452,21 +470,22 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/invoices`, async function listInvoices(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: scope is derived from the caller's role, not a ?scope query param.
+      const readScope = resolveFeesReadScope(request, reply);
+      if (!readScope) return;
       const institutionId =
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
           : undefined;
-      let invoices = await feesService.listInvoices(tenantId);
-      const scope = String(
-        (request.query as { scope?: string; institutionId?: string }).scope ?? '',
-      ).toLowerCase();
-      if (scope === 'parent') {
-        if (!parentBinding) {
-          return reply.status(200).send({ data: [] });
-        }
+      let invoices: Awaited<ReturnType<typeof feesService.listInvoices>>;
+      if (readScope === 'self') {
+        // Self-scope callers may only ever see their own linked students' invoices. Fail closed
+        // when no binding is configured rather than falling through to a tenant-wide list.
+        if (!parentBinding) return reply.status(403).send(forbiddenSelfScope());
         const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
         invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
+      } else {
+        invoices = await feesService.listInvoices(tenantId);
       }
       if (institutionId) {
         invoices = invoices.filter((inv) => {
@@ -596,7 +615,10 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/payments`, async function listPayments(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: the tenant-wide payments list is a staff surface. A guardian's own payment
+      // history is served by the parent-portal self routes, not this endpoint — so a parent
+      // (even with ?scope=parent) is denied here.
+      if (!requireFeesStaffRead(request, reply)) return;
       const payments = await feesService.listPayments(tenantId);
       return reply.status(200).send({ data: payments.map(formatPayment) });
     });
@@ -644,9 +666,11 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/receipts`, async function listReceipts(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
-      const scope = String((request.query as { scope?: string }).scope ?? '').toLowerCase();
-      if (scope === 'parent' && parentBinding) {
+      // PRC-C005: role-derived scope, not the ?scope query param.
+      const readScope = resolveFeesReadScope(request, reply);
+      if (!readScope) return;
+      if (readScope === 'self') {
+        if (!parentBinding) return reply.status(403).send(forbiddenSelfScope());
         const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
         const invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
         const receipts = await feesService.listReceiptsForInvoiceIds(
@@ -676,9 +700,29 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        // PRC-C005: role-derived scope with per-receipt ownership for self-scope callers.
+        const readScope = resolveFeesReadScope(request, reply);
+        if (!readScope) return;
         try {
           const receipt = await feesService.getReceipt(tenantId, paramsResult.data.id);
+          if (readScope === 'self') {
+            if (!parentBinding) return reply.status(403).send(forbiddenSelfScope());
+            const studentIds = new Set(
+              await parentBinding.listLinkedStudentIds(tenantId, getActorId(request)),
+            );
+            // Resolve the receipt's invoice → student and confirm it belongs to a linked child.
+            const invoiceId = (receipt as { invoiceId?: string }).invoiceId;
+            const invoice = invoiceId ? await feesService.getInvoice(tenantId, invoiceId) : null;
+            const ownerStudentId = (invoice as { studentId?: string } | null)?.studentId;
+            if (!ownerStudentId || !studentIds.has(ownerStudentId)) {
+              // 404 (not 403) so a self-scope caller cannot probe which receipt ids exist.
+              return reply.status(404).send({
+                code: 'NOT_FOUND',
+                message: `Receipt with id '${paramsResult.data.id}' not found`,
+                statusCode: 404,
+              });
+            }
+          }
           return reply.status(200).send(formatReceipt(receipt));
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -692,6 +736,7 @@ export const feesPlugin = fp(
     // G-718 — double-entry ledger read models
     fastify.get(
       `${prefix}/invoices/:id/ledger`,
+      // PRC-C005: per-invoice double-entry ledger — staff only.
       async function getInvoiceLedger(
         request: FastifyRequest<{ Params: IdParams }>,
         reply: FastifyReply,
@@ -707,7 +752,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        if (!requireFeesStaffRead(request, reply)) return;
         try {
           const entries = await feesService.getInvoiceLedger(tenantId, paramsResult.data.id);
           return reply.status(200).send({
@@ -729,7 +774,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/ledger/trial-balance`, async function trialBalance(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: tenant-wide ledger — staff only.
+      if (!requireFeesStaffRead(request, reply)) return;
       const balance = await feesService.getTrialBalance(tenantId);
       return reply.status(200).send({
         ...balance,
@@ -740,7 +786,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/structures`, async function listStructures(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: fee-structure catalogue is a staff surface.
+      if (!requireFeesStaffRead(request, reply)) return;
       const asOf =
         typeof (request.query as { asOf?: unknown })?.asOf === 'string'
           ? (request.query as { asOf: string }).asOf
@@ -858,7 +905,10 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        // PRC-C005: instalment schedules are structure-level (not per-student PII); allow either
+        // staff or self-scope callers (parent UI reads plan instalments), but require a fees read
+        // permission via role — not a query param.
+        if (!resolveFeesReadScope(request, reply)) return;
         try {
           const instalments = await feesService.listInstalments(tenantId, paramsResult.data.id);
           return reply.status(200).send({
@@ -1198,7 +1248,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/reports/dues`, async function duesReport(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: tenant-wide dues report — staff only.
+      if (!requireFeesStaffRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const report = await feesService.duesReport(tenantId, asOf);
@@ -1265,7 +1316,8 @@ export const feesPlugin = fp(
       async function listReconBatches(request, reply) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        // PRC-C005: reconciliation is a finance-ops surface — staff only.
+        if (!requireFeesStaffRead(request, reply)) return;
         const batches = await feesService.listReconciliationBatches(tenantId);
         return reply.status(200).send({ data: batches.map(formatReconBatch) });
       },
@@ -1288,7 +1340,8 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        // PRC-C005: reconciliation rows — staff only.
+        if (!requireFeesStaffRead(request, reply)) return;
         const rows = await feesService.listReconciliationRows(tenantId, paramsResult.data.id);
         return reply.status(200).send({ data: rows.map(formatReconRow) });
       },
@@ -1352,7 +1405,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/reminders/overdue`, async function overdueReminders(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: tenant-wide overdue list — staff only.
+      if (!requireFeesStaffRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
@@ -1362,9 +1416,10 @@ export const feesPlugin = fp(
     fastify.get(
       `${prefix}/reminders/suppressions`,
       async function listSuppressions(request, reply) {
+        // PRC-C005: reminder suppressions are a staff surface.
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesRead(request, reply)) return;
+        if (!requireFeesStaffRead(request, reply)) return;
         const data = await feesService.listReminderSuppressions(tenantId);
         return reply.status(200).send({
           data: data.map((row) => ({
@@ -1437,7 +1492,8 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/reminders/audit`, async function listReminderAudit(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      if (!requireFeesRead(request, reply)) return;
+      // PRC-C005: reminder audit trail — staff only.
+      if (!requireFeesStaffRead(request, reply)) return;
       const data = await feesService.listReminderSendAudits(tenantId);
       return reply.status(200).send({
         data: data.map((row) => ({

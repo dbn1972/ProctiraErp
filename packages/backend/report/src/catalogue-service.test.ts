@@ -178,6 +178,33 @@ describe('G-909 catalogue plugin routes', () => {
     return app;
   }
 
+  // PRC-C009: build an app whose principal has the given roles + sub. Optionally share a
+  // store/blobs across apps so different principals hit the same artifacts.
+  async function buildAs(
+    roleNames: string[],
+    sub = 'principal',
+    shared?: { store: InMemoryReportStore; blobs: InMemoryReportBlobStore },
+  ) {
+    const app = Fastify();
+    apps.push(app);
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (
+        request as typeof request & {
+          user: { sub: string; roles: Array<{ roleId: string; roleName: string }> };
+        }
+      ).user = {
+        sub,
+        roles: roleNames.map((r) => ({ roleId: r, roleName: r })),
+      };
+    });
+    const store = shared?.store ?? new InMemoryReportStore();
+    const blobs = shared?.blobs ?? new InMemoryReportBlobStore();
+    await app.register(reportCataloguePlugin, { store, blobStore: blobs, disableScheduler: true });
+    await app.ready();
+    return app;
+  }
+
   it('lists catalogue aliases used by insights UI', async () => {
     const app = await build();
     const res = await app.inject({ method: 'GET', url: '/reports/templates' });
@@ -199,25 +226,36 @@ describe('G-909 catalogue plugin routes', () => {
       },
     });
     expect(create.statusCode).toBe(201);
-    const run = create.json() as { artifactId: string; sha256: string; status: string };
+    const run = create.json() as {
+      artifactId: string;
+      sha256: string;
+      status: string;
+      downloadUrl: string;
+    };
     expect(run.status).toBe('READY');
     expect(run.sha256).toMatch(/^[0-9a-f]{64}$/);
 
+    // PRC-C009: download requires the signed token (carried in the run's downloadUrl) and staff
+    // role (the harness principal is PRINCIPAL). Strip the /api/v1 gateway prefix for the
+    // in-plugin route.
+    const downloadPath = run.downloadUrl.replace('/api/v1', '');
     const download = await app.inject({
       method: 'GET',
-      url: `/reports/artifacts/${run.artifactId}/download`,
+      url: downloadPath,
       headers: { 'x-tenant-id': TENANT_A },
     });
     expect(download.statusCode).toBe(200);
     expect(download.headers['x-artifact-sha256']).toBe(run.sha256);
     expect(sha256Hex(Buffer.from(download.rawPayload))).toBe(run.sha256);
 
+    // Cross-tenant: the token is bound to (TENANT_A, artifact), so tenant B is rejected
+    // (403 on the token check, before the artifact is even looked up).
     const foreign = await app.inject({
       method: 'GET',
-      url: `/reports/artifacts/${run.artifactId}/download`,
+      url: downloadPath,
       headers: { 'x-tenant-id': TENANT_B },
     });
-    expect(foreign.statusCode).toBe(404);
+    expect([403, 404]).toContain(foreign.statusCode);
   });
 
   it('creates a schedule and records a forced run', async () => {
@@ -308,6 +346,117 @@ describe('G-909 catalogue plugin routes', () => {
     });
     expect(allowed.statusCode).toBe(200);
     expect((allowed.json() as { role: string }).role).toBe('parent');
+  });
+
+  // PRC-C009: the catalogue is a staff surface — parent/guardian/student are denied everywhere.
+  it('denies parent/guardian/student on generate, runs, artifacts, download, schedules', async () => {
+    for (const role of ['parent', 'guardian', 'student']) {
+      const app = await buildAs([role]);
+      const h = { 'x-tenant-id': TENANT_A };
+
+      const generate = await app.inject({
+        method: 'POST',
+        url: '/reports/generate',
+        headers: h,
+        payload: { reportKey: 'students_roster', format: 'CSV' },
+      });
+      expect(generate.statusCode, `${role} generate`).toBe(403);
+
+      const runs = await app.inject({ method: 'GET', url: '/reports/runs', headers: h });
+      expect(runs.statusCode, `${role} runs`).toBe(403);
+
+      const artifact = await app.inject({
+        method: 'GET',
+        url: '/reports/artifacts/00000000-0000-4000-8000-0000000000a1',
+        headers: h,
+      });
+      expect(artifact.statusCode, `${role} artifact`).toBe(403);
+
+      const download = await app.inject({
+        method: 'GET',
+        url: '/reports/artifacts/00000000-0000-4000-8000-0000000000a1/download?token=x',
+        headers: h,
+      });
+      expect(download.statusCode, `${role} download`).toBe(403);
+
+      const schedules = await app.inject({ method: 'GET', url: '/reports/schedules', headers: h });
+      expect(schedules.statusCode, `${role} schedules`).toBe(403);
+    }
+  });
+
+  it('enforces per-report entitlement: a finance clerk cannot generate exam_results but can fee_dues', async () => {
+    const app = await buildAs(['accountant']);
+    const h = { 'x-tenant-id': TENANT_A };
+
+    const exam = await app.inject({
+      method: 'POST',
+      url: '/reports/generate',
+      headers: h,
+      payload: { reportKey: 'exam_results', format: 'CSV' },
+    });
+    expect(exam.statusCode).toBe(403);
+
+    const fees = await app.inject({
+      method: 'POST',
+      url: '/reports/generate',
+      headers: h,
+      payload: { reportKey: 'fee_dues', format: 'CSV' },
+    });
+    expect(fees.statusCode).toBe(201);
+  });
+
+  it('download requires the signed token even for staff', async () => {
+    const app = await buildAs(['principal']);
+    const h = { 'x-tenant-id': TENANT_A };
+    const create = await app.inject({
+      method: 'POST',
+      url: '/reports/generate',
+      headers: h,
+      payload: { reportKey: 'students_roster', format: 'CSV' },
+    });
+    expect(create.statusCode).toBe(201);
+    const run = create.json() as { artifactId: string };
+    const noToken = await app.inject({
+      method: 'GET',
+      url: `/reports/artifacts/${run.artifactId}/download`,
+      headers: h,
+    });
+    expect(noToken.statusCode).toBe(403);
+  });
+
+  it('a non-owner staff cannot download another user artifact they are not entitled to', async () => {
+    // Shared store so both principals see the same artifact.
+    const shared = { store: new InMemoryReportStore(), blobs: new InMemoryReportBlobStore() };
+
+    // User A (accountant) generates a fee_dues report.
+    const appA = await buildAs(['accountant'], 'user-a', shared);
+    const created = await appA.inject({
+      method: 'POST',
+      url: '/reports/generate',
+      headers: { 'x-tenant-id': TENANT_A },
+      payload: { reportKey: 'fee_dues', format: 'CSV' },
+    });
+    expect(created.statusCode).toBe(201);
+    const run = created.json() as { artifactId: string; downloadUrl: string };
+    const path = run.downloadUrl.replace('/api/v1', '');
+
+    // User B is a teacher — not entitled to fee_dues and not the owner → 404 on the same token URL.
+    const appB = await buildAs(['teacher'], 'user-b', shared);
+    const denied = await appB.inject({
+      method: 'GET',
+      url: path,
+      headers: { 'x-tenant-id': TENANT_A },
+    });
+    expect(denied.statusCode).toBe(404);
+
+    // An admin (report manager) on the shared store CAN download it.
+    const appAdmin = await buildAs(['admin'], 'user-admin', shared);
+    const allowed = await appAdmin.inject({
+      method: 'GET',
+      url: path,
+      headers: { 'x-tenant-id': TENANT_A },
+    });
+    expect(allowed.statusCode).toBe(200);
   });
 });
 
