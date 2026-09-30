@@ -766,6 +766,31 @@ export class ParentPortalService {
     return receipt;
   }
 
+  /**
+   * PRC-C008: fetch a receipt for a guardian/student, enforcing ownership. The receipt's
+   * invoice must belong to a fee-visible linked student. Returns NotFound (404) — not a 403 —
+   * for a foreign or missing receipt so a guardian cannot probe which receipt ids exist.
+   */
+  async getReceiptForParent(tenantId: string, parentUserId: string, receiptId: string) {
+    const receipt = await this.getReceipt(tenantId, receiptId);
+    const invoiceId = (receipt as { invoiceId?: string }).invoiceId;
+    const visibleStudentIds = new Set(await this.getFeeVisibleStudentIds(tenantId, parentUserId));
+    let ownerStudentId: string | undefined;
+    if (invoiceId) {
+      if (this.fees) {
+        const invoice = await this.fees.getInvoice(tenantId, invoiceId);
+        ownerStudentId = invoice.studentId;
+      } else {
+        const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
+        ownerStudentId = invoice?.studentId;
+      }
+    }
+    if (!ownerStudentId || !visibleStudentIds.has(ownerStudentId)) {
+      throw new NotFoundError(`Receipt with id '${receiptId}' not found`);
+    }
+    return receipt;
+  }
+
   async payInvoice(
     tenantId: string,
     parentUserId: string,
