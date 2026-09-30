@@ -132,15 +132,11 @@ export const ReceiptParamsSchema = Type.Object({
 
 export type ReceiptParams = Static<typeof ReceiptParamsSchema>;
 
+// PRC-C001: a self-service caller may only request the honest 'sandbox' method. Real
+// settlement methods (upi/card/cash) must not be caller-selectable because this endpoint
+// performs no PSP verification; they would falsely imply that money moved.
 export const PayInvoiceSchema = Type.Object({
-  method: Type.Optional(
-    Type.Union([
-      Type.Literal('sandbox'),
-      Type.Literal('upi'),
-      Type.Literal('card'),
-      Type.Literal('cash'),
-    ]),
-  ),
+  method: Type.Optional(Type.Literal('sandbox')),
 });
 
 export type PayInvoiceInput = Static<typeof PayInvoiceSchema>;

@@ -401,6 +401,77 @@ describe('admissions pipeline service', () => {
     expect(accepted.status).toBe('accepted');
     expect(accepted.enrolledStudentId).toBeTruthy();
   });
+
+  // PRC-C002: a free-text paymentRef must NOT be accepted as proof of payment. The offer-fee
+  // guard mirrors the fixed gateway hook — it only passes when the invoice is genuinely paid.
+  it('rejects offer accept when the offer-fee invoice is unpaid (paymentRef is not proof)', async () => {
+    const store = new InMemoryAdmissionsPipelineStore();
+    const apps = new InMemoryRegistrationRepository();
+    const invoiceId = randomUUID();
+    const paidInvoices = new Set<string>();
+    let enrolCalls = 0;
+    let recordedPayments = 0;
+
+    // Fixed-hook contract: only a genuinely paid invoice passes. A paymentRef never settles.
+    const assertOfferFeePaid = vi.fn(async (input: { invoiceId: string }) => {
+      if (!paidInvoices.has(input.invoiceId)) {
+        throw new BusinessRuleError(
+          'Offer fee invoice must be paid through a verified payment before enrolment',
+        );
+      }
+    });
+
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      async () => {
+        enrolCalls += 1;
+        return { studentId: randomUUID(), enrollmentId: randomUUID() };
+      },
+      async () => {
+        recordedPayments += 0; // creating the invoice does not settle it
+        return { invoiceId };
+      },
+      assertOfferFeePaid,
+    );
+
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+    const enquiry = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Unpaid',
+      lastName: 'Offer',
+      dateOfBirth: '2012-01-01',
+      guardianName: 'Parent',
+      guardianPhone: '+91700',
+    });
+    const converted = await service.convertEnquiry(TENANT, enquiry.id);
+    const offer = await service.createOffer(TENANT, {
+      applicationId: converted.application.id,
+      feeAmount: 1000,
+    });
+    await service.sendOffer(TENANT, offer.id);
+
+    // Unpaid invoice + any free-text ref → refused, no enrolment, no fabricated payment.
+    await expect(
+      service.acceptOffer(TENANT, offer.id, { paymentRef: 'PROOF-THAT-IS-NOT-PROOF' }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+    expect(enrolCalls).toBe(0);
+    expect(recordedPayments).toBe(0);
+
+    // Once the invoice is genuinely paid, accept succeeds and enrols exactly once.
+    paidInvoices.add(invoiceId);
+    const accepted = await service.acceptOffer(TENANT, offer.id, { paymentRef: 'RECEIPT-REF' });
+    expect(accepted.status).toBe('accepted');
+    expect(accepted.enrolledStudentId).toBeTruthy();
+    expect(enrolCalls).toBe(1);
+  });
 });
 
 it('W2-ADM-02: declining an offer promotes the head of the waitlist into a draft offer', async () => {
