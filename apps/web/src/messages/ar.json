@@ -77,6 +77,7 @@
     "resendEmail": "إعادة إرسال البريد",
     "backToSignIn": "العودة لتسجيل الدخول",
     "passwordResetFailed": "تعذر إرسال البريد. يرجى المحاولة مرة أخرى.",
+    "passwordResetSuccess": "تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.",
     "createNewPassword": "أنشئ كلمة مرور جديدة",
     "createNewPasswordSubtitle": "اختر كلمة مرور قوية يمكنك تذكرها.",
     "updatePassword": "تحديث كلمة المرور",

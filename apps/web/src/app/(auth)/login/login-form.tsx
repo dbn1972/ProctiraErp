@@ -12,7 +12,6 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
   Input,
   Label,
 } from '@proctira/ui/components';
@@ -39,10 +38,10 @@ export function LoginForm(): JSX.Element {
   const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
   const wasExpired = searchParams.get('expired') === 'true';
   const oauthError = searchParams.get('error');
+  const wasReset = searchParams.get('reset') === 'true';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +88,11 @@ export function LoginForm(): JSX.Element {
           </Alert>
         )}
 
+        {wasReset && !error && (
+          <Alert variant="success" className="mb-4" role="status">
+            <AlertDescription>{t('passwordResetSuccess')}</AlertDescription>
+          </Alert>
+        )}
         {oauthError && !error && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{t('oauthFailed')}</AlertDescription>
@@ -156,16 +160,7 @@ export function LoginForm(): JSX.Element {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex min-h-12 items-center gap-3 text-sm text-foreground">
-              <Checkbox
-                checked={rememberMe}
-                onCheckedChange={(value) => setRememberMe(value === true)}
-                aria-label={t('rememberMe')}
-                className="h-12 w-12 min-h-12 min-w-12"
-              />
-              <span>{t('rememberMe')}</span>
-            </label>
+          <div className="flex items-center justify-end gap-3">
             <Link
               href="/forgot-password"
               className="inline-flex min-h-12 items-center text-sm font-medium text-primary hover:underline"

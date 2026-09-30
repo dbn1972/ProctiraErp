@@ -77,6 +77,7 @@
     "resendEmail": "ईमेल पुन्हा पाठवा",
     "backToSignIn": "साइन इन वर परत",
     "passwordResetFailed": "आम्ही रीसेट ईमेल पाठवू शकलो नाही. कृपया पुन्हा प्रयत्न करा.",
+    "passwordResetSuccess": "तुमचा पासवर्ड अपडेट झाला आहे. नवीन पासवर्डने साइन इन करा.",
     "createNewPassword": "नवीन पासवर्ड तयार करा",
     "createNewPasswordSubtitle": "तुम्हाला आठवेल असे काहीतरी मजबूत निवडा.",
     "updatePassword": "पासवर्ड अद्यतनित करा",
