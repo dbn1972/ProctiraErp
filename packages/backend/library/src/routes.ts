@@ -5,6 +5,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { hasLibraryAccess } from './library-access.js';
+import { requireLibraryAction, resolveLibraryAction } from './library-http-guard.js';
 import type { LibraryService } from './library-service.js';
 import {
   AssessFineSchema,
@@ -39,11 +41,6 @@ import {
   type ReturnBarcodeInput,
   type ReturnInput,
 } from './schemas.js';
-
-import {
-  requireLibraryAction,
-  resolveLibraryAction,
-} from './library-http-guard.js';
 
 /**
  * Parent/guardian → child linkage used to bind portal reads of loans and holds
@@ -85,16 +82,28 @@ type PortalScope =
   | { kind: 'student'; subject: string }
   | { kind: 'parent'; subject: string };
 
-/** Portal-only principals (no staff role) are bound; anyone holding a staff role is not. */
+/**
+ * Portal principals are bound to their own/linked student; only a genuine LIBRARY STAFF role
+ * (library.read) is treated as unbound staff.
+ *
+ * PRC-H068: staff was previously "has any non-portal role", so a hybrid identity like
+ * guardian+teacher resolved to unbound staff and could read every patron's loans/holds. Staff is
+ * now decided by the same guard the RBAC layer uses — hasLibraryAccess(roles, 'library.read') —
+ * so any caller lacking a library-staff role is bound, even if they hold other non-portal roles.
+ */
 function portalScope(request: FastifyRequest): PortalScope {
   const roles = roleIds(request);
   const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
   const subject = user?.sub ?? user?.userId ?? '';
-  const hasStaffRole = roles.some(
-    (role) => !PORTAL_PARENT_ROLES.has(role) && !PORTAL_STUDENT_ROLES.has(role),
-  );
-  if (hasStaffRole || roles.length === 0 || !subject) return { kind: 'staff' };
+  if (hasLibraryAccess(roles, 'library.read')) return { kind: 'staff' };
+  // Not library staff: must be bound. A portal role identifies parent vs student; a caller with
+  // neither a library-staff nor a portal role, or no subject, cannot be bound → fail closed.
+  if (!subject) return { kind: 'staff' };
   if (roles.some((role) => PORTAL_PARENT_ROLES.has(role))) return { kind: 'parent', subject };
+  if (roles.some((role) => PORTAL_STUDENT_ROLES.has(role))) return { kind: 'student', subject };
+  // No recognised library or portal role — treat as an (unbound) student pinned to self so
+  // reads are still scoped; the RBAC guard (library.portal) will already have rejected
+  // non-portal, non-staff callers before this point.
   return { kind: 'student', subject };
 }
 
@@ -103,6 +112,20 @@ function portalScope(request: FastifyRequest): PortalScope {
  * success or a reply-ready error. Students are pinned to their JWT subject;
  * parents must name a linked child.
  */
+/**
+ * PRC-H067: staff-only library reads (tenant-wide overdues, fine policy, catalog lookups by
+ * barcode/ISBN). Portal roles hold only library.portal and must be rejected here.
+ */
+function requireLibraryStaffRead(request: FastifyRequest, reply: FastifyReply): boolean {
+  if (hasLibraryAccess(roleIds(request), 'library.read')) return true;
+  void reply.status(403).send({
+    code: 'FORBIDDEN',
+    message: 'This library view is restricted to library staff',
+    statusCode: 403,
+  });
+  return false;
+}
+
 async function bindPatronStudent(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -498,6 +521,8 @@ export async function registerLibraryRoutes(
         });
       }
 
+      // PRC-H067: tenant-wide overdue list is staff-only.
+      if (!requireLibraryStaffRead(request, reply)) return reply;
       const overdues = await libraryService.listOverdues(tenantId);
       return reply.status(200).send({ data: overdues.map(formatLoan) });
     },
@@ -557,6 +582,15 @@ export async function registerLibraryRoutes(
         });
       }
 
+      // PRC-H067: a portal caller may only read clearance for their own/linked student.
+      const bound = await bindPatronStudent(
+        request,
+        reply,
+        tenantId,
+        paramsResult.data.studentId,
+        patronBinding,
+      );
+      if (!('studentId' in bound)) return bound;
       const clearance = await libraryService.getStudentClearance(
         tenantId,
         paramsResult.data.studentId,
@@ -633,11 +667,15 @@ export async function registerLibraryRoutes(
           statusCode: 400,
         });
       }
-      const studentId =
+      const requested =
         typeof (request.query as { studentId?: string }).studentId === 'string'
           ? (request.query as { studentId?: string }).studentId
           : undefined;
-      const fines = await libraryService.listFines(tenantId, studentId);
+      // PRC-H067: portal callers are bound to their own/linked student; staff read any (or all
+      // when no studentId is given).
+      const bound = await bindPatronStudent(request, reply, tenantId, requested, patronBinding);
+      if (!('studentId' in bound)) return bound;
+      const fines = await libraryService.listFines(tenantId, bound.studentId);
       return reply.status(200).send({ data: fines.map(formatFine) });
     },
   );
@@ -653,15 +691,18 @@ export async function registerLibraryRoutes(
           statusCode: 400,
         });
       }
-      const studentId = (request.query as { studentId?: string }).studentId;
-      if (!studentId) {
+      const requested = (request.query as { studentId?: string }).studentId;
+      // PRC-H067: bind portal callers; staff must still name a student for a summary.
+      const bound = await bindPatronStudent(request, reply, tenantId, requested, patronBinding);
+      if (!('studentId' in bound)) return bound;
+      if (!bound.studentId) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'studentId is required',
           statusCode: 400,
         });
       }
-      const summary = await libraryService.summarizeForStudent(tenantId, studentId);
+      const summary = await libraryService.summarizeForStudent(tenantId, bound.studentId);
       return reply.status(200).send(summary);
     },
   );
@@ -677,6 +718,8 @@ export async function registerLibraryRoutes(
           statusCode: 400,
         });
       }
+      // PRC-H067: fine policy is staff-only.
+      if (!requireLibraryStaffRead(request, reply)) return reply;
       const policy = await libraryService.getFinePolicy(tenantId);
       return reply.status(200).send({
         id: policy.id,
@@ -780,6 +823,8 @@ export async function registerLibraryRoutes(
           statusCode: 400,
         });
       }
+      // PRC-H067: external catalog lookups are staff-only.
+      if (!requireLibraryStaffRead(request, reply)) return reply;
       try {
         const meta = await libraryService.lookupIsbn(paramsResult.data.isbn);
         return reply.status(200).send(meta);
@@ -915,6 +960,8 @@ export async function registerLibraryRoutes(
           statusCode: 400,
         });
       }
+      // PRC-H067: copy-by-barcode lookup is a staff circulation tool.
+      if (!requireLibraryStaffRead(request, reply)) return reply;
       try {
         const found = await libraryService.lookupBarcode(tenantId, result.data.barcode);
         return reply.status(200).send({
