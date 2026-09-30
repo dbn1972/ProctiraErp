@@ -8,7 +8,7 @@
  *  - least-privilege mode (scope tags)
  *  - audit trail for every state transition
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-constants';
 export type { BreakGlassUseCase } from './break-glass-constants';
@@ -132,20 +132,8 @@ export async function createBreakGlassRequest(
   if (response.ok && response.data) {
     return { ok: true, request: response.data };
   }
-  if (response.status === 0) {
-    const stub: BreakGlassRequest = {
-      id: `bg_${Math.random().toString(36).slice(2, 8)}`,
-      requester: 'current-user@proctira.org',
-      targetTenantId: input.targetTenantId,
-      scope: input.scope,
-      justification: input.justification,
-      useCase: input.useCase,
-      durationMinutes: input.durationMinutes,
-      status: 'pending_approval',
-      createdAt: new Date().toISOString(),
-    };
-    return { ok: true, request: stub };
-  }
+  // PRC-H002: never fabricate a request (id, requester) when the gateway is unreachable.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Submission failed.' };
 }
 
@@ -159,6 +147,7 @@ export async function decideBreakGlassRequest(
     json: { reason },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Action failed.' };
 }

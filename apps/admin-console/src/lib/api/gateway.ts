@@ -21,6 +21,13 @@ export const GATEWAY_BASE_URL =
 /** API version prefix used by the gateway. */
 export const GATEWAY_API_PREFIX = '/api/v1';
 
+/**
+ * PRC-H002: returned by every privileged write helper when the gateway is unreachable
+ * (gatewayFetch status 0). Writes must fail visibly, never simulate success.
+ */
+export const GATEWAY_UNREACHABLE_WRITE_ERROR =
+  'Gateway unreachable: the change was not applied. Try again when the gateway is available.';
+
 export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   /** Optional structured body that will be JSON encoded. */
   json?: unknown;

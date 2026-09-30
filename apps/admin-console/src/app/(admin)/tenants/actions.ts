@@ -74,7 +74,9 @@ export async function tenantLifecycleAction(formData: FormData): Promise<void> {
 
   if (!id || !action) return;
 
-  await tenantAction(id, action, reason);
+  const result = await tenantAction(id, action, reason);
+  // PRC-H002: surface failed writes (incl. unreachable gateway) instead of silently revalidating.
+  if (!result.ok) throw new Error(result.error ?? 'Tenant action failed.');
   revalidatePath('/tenants');
   revalidatePath(`/tenants/${id}`);
 }

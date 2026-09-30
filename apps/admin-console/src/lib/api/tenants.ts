@@ -5,7 +5,7 @@
  * gateway is unavailable (developer running the admin console standalone)
  * we fall back to deterministic stub data so the screens still render.
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
@@ -155,22 +155,8 @@ export async function createTenant(input: CreateTenantInput): Promise<CreateTena
   if (response.ok && response.data) {
     return { ok: true, tenant: response.data };
   }
-  if (response.status === 0) {
-    // Gateway offline → simulate creation against stub fixtures.
-    const tenant: Tenant = {
-      id: `tnt_${Math.random().toString(36).slice(2, 8)}`,
-      slug: input.slug,
-      name: input.name,
-      status: 'provisioning',
-      plan: input.plan,
-      region: input.region,
-      createdAt: new Date().toISOString(),
-      contactEmail: input.contactEmail,
-      activeUsers: 0,
-      entitlements: ['core'],
-    };
-    return { ok: true, tenant };
-  }
+  // PRC-H002: never simulate tenant provisioning when the gateway is unreachable.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return {
     ok: false,
     error: response.error?.message ?? 'Failed to provision tenant.',
@@ -193,6 +179,7 @@ export async function tenantAction(
     json: { reason },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Action failed.' };
 }
