@@ -32,13 +32,17 @@ class SyncEngine {
     int maxAttempts = 3,
     Duration baseBackoff = const Duration(seconds: 2),
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _connectivity = connectivity,
-        _dispatchers = dispatchers,
-        _maxAttempts = maxAttempts,
-        _baseBackoff = baseBackoff,
-        _now = now;
+    Duration flushInterval = const Duration(seconds: 30),
+    Duration maxFlushInterval = const Duration(minutes: 5),
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _connectivity = connectivity,
+       _dispatchers = dispatchers,
+       _maxAttempts = maxAttempts,
+       _baseBackoff = baseBackoff,
+       _now = now,
+       _flushInterval = flushInterval,
+       _maxFlushInterval = maxFlushInterval;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -50,24 +54,88 @@ class SyncEngine {
   final Duration _baseBackoff;
   final DateTime Function() _now;
 
-  StreamSubscription<bool>? _connectivitySubscription;
-  bool _isFlushing = false;
+  final Duration _flushInterval;
+  final Duration _maxFlushInterval;
 
-  /// Begin listening for connectivity changes. When the device transitions to
-  /// online the engine runs [flushPending].
+  StreamSubscription<bool>? _connectivitySubscription;
+  Timer? _periodicTimer;
+  bool _running = false;
+  bool _isFlushing = false;
+  bool _rerunRequested = false;
+  int _idleBackoffLevel = 0;
+
+  /// Whether [start] has been called (and [stop] has not).
+  bool get isRunning => _running;
+
+  /// Begin automatic draining (PRC-H010). Once started the engine flushes:
+  /// - immediately (rows left over from a previous launch while online),
+  /// - whenever the device transitions to online,
+  /// - right after every [saveLocallyAndQueue] / [enqueue] (no-op offline),
+  /// - on [requestFlush] (app resume / login, see `SyncLifecycleFlusher`),
+  /// - on a periodic timer while pending rows exist, backing off
+  ///   exponentially (capped at `maxFlushInterval`) while nothing syncs.
   void start() {
-    _connectivitySubscription ??= _connectivity.onlineStream.listen((bool online) {
+    if (_running) return;
+    _running = true;
+    _connectivitySubscription ??= _connectivity.onlineStream.listen((
+      bool online,
+    ) {
       if (online) {
+        _idleBackoffLevel = 0;
         // Fire-and-forget; failures are recorded against the queued rows.
         unawaited(flushPending());
       }
     });
+    unawaited(flushPending());
+    _schedulePeriodic();
   }
 
-  /// Stop listening for connectivity events. Idempotent.
+  /// Stop automatic draining. Idempotent.
   Future<void> stop() async {
+    _running = false;
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
+  }
+
+  /// Ask the engine to drain now (e.g. app resumed, user logged in). Ignored
+  /// until [start] has run so nothing is sent before the app is ready.
+  void requestFlush() {
+    if (!_running) return;
+    _idleBackoffLevel = 0;
+    unawaited(flushPending());
+  }
+
+  void _afterEnqueue() {
+    if (_running) unawaited(flushPending());
+  }
+
+  void _schedulePeriodic() {
+    _periodicTimer?.cancel();
+    if (!_running) return;
+    final int factor = 1 << _idleBackoffLevel;
+    Duration delay = _flushInterval * factor;
+    if (delay > _maxFlushInterval) delay = _maxFlushInterval;
+    _periodicTimer = Timer(delay, () async {
+      if (!_running) return;
+      try {
+        if (await pendingCount() > 0) {
+          final SyncFlushResult result = await flushPending();
+          if (result.synced > 0) {
+            _idleBackoffLevel = 0;
+          } else if (_flushInterval * (1 << _idleBackoffLevel) <
+              _maxFlushInterval) {
+            _idleBackoffLevel += 1;
+          }
+        } else {
+          _idleBackoffLevel = 0;
+        }
+      } catch (_) {
+        // Database closed / tenant switched; try again on the next tick.
+      }
+      _schedulePeriodic();
+    });
   }
 
   // ------------------------------------------------------------------
@@ -93,7 +161,7 @@ class SyncEngine {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
 
-    return db.transaction<int>((Transaction txn) async {
+    final int queuedId = await db.transaction<int>((Transaction txn) async {
       await txn.insert(
         cacheTable,
         cachePayload,
@@ -116,6 +184,8 @@ class SyncEngine {
       });
       return id;
     });
+    _afterEnqueue();
+    return queuedId;
   }
 
   /// Queue an op without writing to a cache table (e.g. deletes where the row
@@ -131,7 +201,7 @@ class SyncEngine {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
     final String key = idempotencyKey ?? const Uuid().v4();
-    return db.insert('pending_sync', <String, Object?>{
+    final int queuedId = await db.insert('pending_sync', <String, Object?>{
       'tenant_id': tenantId,
       'entity_type': entityType.toWire(),
       'entity_id': entityId,
@@ -143,6 +213,8 @@ class SyncEngine {
       'status': SyncStatus.pending.toWire(),
       'idempotency_key': key,
     });
+    _afterEnqueue();
+    return queuedId;
   }
 
   // ------------------------------------------------------------------
@@ -188,9 +260,11 @@ class SyncEngine {
   // ------------------------------------------------------------------
 
   /// Drain the queue. Safe to call concurrently — additional callers no-op
-  /// while a flush is in progress.
+  /// while a flush is in progress, but a follow-up pass is scheduled so rows
+  /// queued mid-flush are not stranded until the next trigger.
   Future<SyncFlushResult> flushPending() async {
     if (_isFlushing) {
+      _rerunRequested = true;
       return const SyncFlushResult(
         processed: 0,
         synced: 0,
@@ -263,7 +337,10 @@ class SyncEngine {
           await _markPermanentFailure(row, outcome.message);
           parked += 1;
         } else if (outcome is DispatchTransient) {
-          final bool exhausted = await _markTransientFailure(row, outcome.message);
+          final bool exhausted = await _markTransientFailure(
+            row,
+            outcome.message,
+          );
           if (exhausted) {
             parked += 1;
           } else {
@@ -281,34 +358,36 @@ class SyncEngine {
       );
     } finally {
       _isFlushing = false;
+      if (_rerunRequested) {
+        _rerunRequested = false;
+        if (_running) unawaited(flushPending());
+      }
     }
   }
 
   bool _isReadyForRetry(PendingSyncRow row, int nowMs) {
     if (row.attempts == 0 || row.lastAttemptAt == null) return true;
-    final int waitMs =
-        _baseBackoff.inMilliseconds * (1 << (row.attempts - 1));
+    final int waitMs = _baseBackoff.inMilliseconds * (1 << (row.attempts - 1));
     return nowMs - row.lastAttemptAt! >= waitMs;
   }
 
   Future<void> _onSuccess(PendingSyncRow row, DispatchSuccess outcome) async {
     final Database db = await _database.database;
     await db.transaction((Transaction txn) async {
-      await txn.delete('pending_sync', where: 'id = ?', whereArgs: <Object>[row.id]);
+      await txn.delete(
+        'pending_sync',
+        where: 'id = ?',
+        whereArgs: <Object>[row.id],
+      );
       // Refresh local cache with server-canonical version when applicable.
       switch (row.entityType) {
         case SyncEntityType.attendance:
           if (outcome.serverVersion.isEmpty) break; // delete
           await txn.update(
             'attendance_offline',
-            <String, Object?>{
-              'version': outcome.serverVersion,
-              'synced': 1,
-            },
+            <String, Object?>{'version': outcome.serverVersion, 'synced': 1},
             where: 'id = ?',
-            whereArgs: <Object>[
-              outcome.serverEntityId ?? row.entityId ?? '',
-            ],
+            whereArgs: <Object>[outcome.serverEntityId ?? row.entityId ?? ''],
           );
           break;
         case SyncEntityType.student:
