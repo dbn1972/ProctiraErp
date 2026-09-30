@@ -6,6 +6,8 @@ import {
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
 
+import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
+
 import {
   identityInputFromClaims,
   linkKeycloakIdentity,
@@ -32,6 +34,8 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * Pass options to tune, or a prebuilt instance to share/inspect in tests.
    */
   passwordThrottle?: PasswordLoginThrottle | PasswordThrottleOptions;
+  /** Tenant repository used by GET /tenants for real name/slug/status (PRC-L084). */
+  tenantDirectory?: TenantDirectoryReader;
 };
 
 type IssuedTokens = {
@@ -519,8 +523,8 @@ export async function registerKeycloakAuthRoutes(
 
   /**
    * GET /auth/tenants — personal tenant directory for the signed-in user.
-   * Claim-based on main (no Prisma User model). Optional identityStore may
-   * still project Keycloak subjects onto an in-memory membership map.
+   * Name/slug/status come from the tenant repository when `tenantDirectory`
+   * is wired (PRC-L084); unknown tenants are omitted.
    */
   fastify.get(`${prefix}/tenants`, async (request: FastifyRequest, reply: FastifyReply) => {
     await fastify.authenticate(request, reply);
@@ -531,20 +535,9 @@ export async function registerKeycloakAuthRoutes(
       tenantId?: string;
       preferred_username?: string;
     };
-    const claimTenantId = user.tenantId;
-    if (claimTenantId) {
-      return reply.status(200).send({
-        data: [
-          {
-            id: claimTenantId,
-            name: claimTenantId,
-            slug: claimTenantId,
-            status: 'active',
-          },
-        ],
-      });
-    }
-    return reply.status(200).send({ data: [] });
+    return reply.status(200).send({
+      data: await resolveTenantDirectory(user.tenantId, config.tenantDirectory),
+    });
   });
 
   fastify.get(`${prefix}/roles`, async (_request, reply) => {

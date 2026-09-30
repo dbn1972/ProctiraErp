@@ -458,6 +458,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         process.env['KEYCLOAK_REDIRECT_URI'] ??
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
+      tenantDirectory: getTenantRepository(),
     });
   } else {
     await app.register(authPlugin, {
@@ -519,7 +520,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const inviteService = new InviteService({
       repository: createUserInviteRepository(),
     });
-    await registerInviteAndTenantDirectoryRoutes(app, { inviteService });
+    await registerInviteAndTenantDirectoryRoutes(app, {
+      inviteService,
+      tenantDirectory: getTenantRepository(),
+    });
   }
 
   // G-504 — secrets accepted during rotation (current first, then previous).
