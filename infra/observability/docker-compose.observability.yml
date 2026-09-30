@@ -33,14 +33,13 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=15d
-      - --web.enable-lifecycle
-      - --web.enable-admin-api
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
     ports:
-      - '9090:9090'
+      # PRC-H072: loopback only — expose through an authenticated proxy/ingress, never publicly.
+      - '127.0.0.1:9090:9090'
 
   # Renders alertmanager.yml from alertmanager.yml.tpl with receiver
   # credentials taken from the environment (G-725). Runs once, then exits.
@@ -80,7 +79,7 @@ services:
       - alertmanager_config:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager
     ports:
-      - '9093:9093'
+      - '127.0.0.1:9093:9093'
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -88,7 +87,8 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # PRC-H072: no default admin/admin — compose refuses to start without a password.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
     volumes:
@@ -96,6 +96,6 @@ services:
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - '3050:3000'
+      - '127.0.0.1:3050:3000'
     depends_on:
       - prometheus
