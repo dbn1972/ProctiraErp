@@ -22,6 +22,7 @@ import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
 import type { ExaminationRepository } from './examination-repository.js';
 import { ExaminationService } from './examination-service.js';
+import type { ExaminationServiceOptions } from './examination-service.js';
 import { registerExamOpsRoutes } from './ops-routes.js';
 import { ExamOpsService } from './ops-service.js';
 import type { ExamOpsStore } from './ops-store.js';
@@ -51,6 +52,8 @@ export interface ExaminationPluginOptions {
   examOpsStore?: ExamOpsStore;
   /** Route prefix for examinations (default: '/examinations') */
   prefix?: string;
+  /** Tenant/institution timezone for exam calendar-date rules (PRC-L104). Default 'UTC'. */
+  timeZone?: ExaminationServiceOptions['timeZone'];
 }
 
 // Extend Fastify types
@@ -80,10 +83,11 @@ export const examinationPlugin = fp(
       outboxStore,
       examOpsStore,
       prefix = '/examinations',
+      timeZone,
     } = options;
 
     // Create examination service instance
-    const examinationService = new ExaminationService(repository, resultRepository);
+    const examinationService = new ExaminationService(repository, resultRepository, { timeZone });
 
     // Decorate fastify with the examination service
     fastify.decorate('examinationService', examinationService);

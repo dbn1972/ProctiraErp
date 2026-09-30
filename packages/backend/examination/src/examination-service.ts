@@ -43,6 +43,42 @@ export const MAX_GRADING_SCHEMES = 10;
 /** Minimum number of grading schemes per examination */
 export const MIN_GRADING_SCHEMES = 1;
 
+/** Clock/timezone options for exam date rules (PRC-L104). */
+export interface ExaminationServiceOptions {
+  /** IANA timezone (or per-tenant resolver) used for calendar-date rules. Default: 'UTC'. */
+  timeZone?: string | ((tenantId: string) => string | Promise<string>);
+  /** Injectable clock for tests. */
+  now?: () => Date;
+}
+
+/** Calendar date (YYYY-MM-DD) of an instant in the given IANA timezone. */
+export function calendarDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Add whole days to a YYYY-MM-DD calendar date. */
+function addCalendarDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Calendar date of an exam date input; plain YYYY-MM-DD is taken verbatim. */
+function toCalendarDate(value: string, timeZone: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return isNaN(new Date(`${value}T00:00:00Z`).getTime()) ? null : value;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : calendarDateInZone(d, timeZone);
+}
+
 /**
  * Service handling examination business logic.
  */
@@ -54,7 +90,14 @@ export class ExaminationService {
       ResultRepository,
       'getCandidates' | 'getPublicationResult'
     >,
+    private readonly options: ExaminationServiceOptions = {},
   ) {}
+
+  private async resolveTimeZone(tenantId: string): Promise<string> {
+    const tz = this.options.timeZone;
+    if (typeof tz === 'function') return (await tz(tenantId)) || 'UTC';
+    return tz || 'UTC';
+  }
 
   /**
    * Create a new examination.
@@ -115,7 +158,11 @@ export class ExaminationService {
     }
 
     // Validate exam dates are at least 7 days in the future
-    const dateErrors = this.validateExamDates(input.startDate, input.endDate);
+    const dateErrors = this.validateExamDates(
+      input.startDate,
+      input.endDate,
+      await this.resolveTimeZone(tenantId),
+    );
     errors.push(...dateErrors);
 
     // Validate grading scheme pass thresholds
@@ -287,7 +334,17 @@ export class ExaminationService {
     const startDate = input.startDate ?? existing.startDate;
     const endDate = input.endDate ?? existing.endDate;
     if (input.startDate || input.endDate) {
-      const dateErrors = this.validateExamDates(startDate, endDate);
+      // PRC-L104: the future-date rule applies only to values that actually change,
+      // so an imminent exam's unchanged start date does not block editing endDate.
+      const dateErrors = this.validateExamDates(
+        startDate,
+        endDate,
+        await this.resolveTimeZone(tenantId),
+        {
+          start: input.startDate !== undefined && input.startDate !== existing.startDate,
+          end: input.endDate !== undefined && input.endDate !== existing.endDate,
+        },
+      );
       errors.push(...dateErrors);
     }
 
@@ -672,25 +729,28 @@ export class ExaminationService {
   /**
    * Validate that exam dates are at least 7 days in the future.
    * Also validates that endDate >= startDate.
+   * Compares calendar dates in the tenant/institution timezone (PRC-L104).
    */
-  private validateExamDates(startDate: string, endDate: string): FieldError[] {
+  private validateExamDates(
+    startDate: string,
+    endDate: string,
+    timeZone: string,
+    enforceFuture: { start: boolean; end: boolean } = { start: true, end: true },
+  ): FieldError[] {
     const errors: FieldError[] = [];
-    const now = new Date();
-    const minDate = new Date(now);
-    minDate.setDate(minDate.getDate() + MIN_DAYS_IN_FUTURE);
-    // Reset time to start of day for comparison
-    minDate.setHours(0, 0, 0, 0);
+    const today = calendarDateInZone((this.options.now ?? (() => new Date()))(), timeZone);
+    const minDate = addCalendarDays(today, MIN_DAYS_IN_FUTURE);
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const startDay = toCalendarDate(startDate, timeZone);
+    const endDay = toCalendarDate(endDate, timeZone);
 
-    if (isNaN(start.getTime())) {
+    if (startDay === null) {
       errors.push({
         field: 'startDate',
         message: 'Invalid start date format',
         rule: 'format',
       });
-    } else if (start < minDate) {
+    } else if (enforceFuture.start && startDay < minDate) {
       errors.push({
         field: 'startDate',
         message: `Examination start date must be at least ${MIN_DAYS_IN_FUTURE} days in the future`,
@@ -698,13 +758,13 @@ export class ExaminationService {
       });
     }
 
-    if (isNaN(end.getTime())) {
+    if (endDay === null) {
       errors.push({
         field: 'endDate',
         message: 'Invalid end date format',
         rule: 'format',
       });
-    } else if (end < minDate) {
+    } else if (enforceFuture.end && endDay < minDate) {
       errors.push({
         field: 'endDate',
         message: `Examination end date must be at least ${MIN_DAYS_IN_FUTURE} days in the future`,
@@ -712,7 +772,7 @@ export class ExaminationService {
       });
     }
 
-    if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+    if (startDay !== null && endDay !== null && endDay < startDay) {
       errors.push({
         field: 'endDate',
         message: 'End date must be on or after start date',
