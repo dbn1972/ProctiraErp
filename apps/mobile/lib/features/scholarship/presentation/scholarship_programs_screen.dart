@@ -68,9 +68,9 @@ class _ProgramsView extends StatelessWidget {
               return _ErrorView(
                 message: state.errorMessage ?? l10n.error,
                 onRetry: () {
-                  context
-                      .read<ScholarshipBloc>()
-                      .add(const ScholarshipProgramsRequested());
+                  context.read<ScholarshipBloc>().add(
+                    const ScholarshipProgramsRequested(),
+                  );
                 },
               );
             case ScholarshipStatus.loaded:
@@ -164,23 +164,25 @@ class _ProgramCard extends StatelessWidget {
     final ({Color color, String label}) chip = closed
         ? (color: const Color(0xFF64748B), label: 'Closed')
         : urgent
-            ? (color: const Color(0xFFF59E0B), label: 'Closing soon')
-            : (color: const Color(0xFF10B981), label: 'Open');
+        ? (color: const Color(0xFFF59E0B), label: 'Closing soon')
+        : (color: const Color(0xFF10B981), label: 'Open');
 
     final List<String> meta = <String>[
-      program.provider,
+      ?program.provider,
       if (program.amount != null)
         '${program.currency ?? "₹"}${program.amount!.toStringAsFixed(0)}/yr',
       if (daysLeft != null)
         passed
             ? 'Deadline passed'
             : daysLeft == 0
-                ? 'Closes today'
-                : 'Apply in $daysLeft days',
+            ? 'Closes today'
+            : 'Apply in $daysLeft days',
     ];
 
     return Semantics(
-      label: '${program.name} by ${program.provider}'
+      label:
+          '${program.name}'
+          '${program.provider != null ? " by ${program.provider}" : ""}'
           '${daysLeft != null ? ", $daysLeft days until deadline" : ""}',
       child: Card(
         child: InkWell(
@@ -210,10 +212,7 @@ class _ProgramCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        program.name,
-                        style: theme.textTheme.titleMedium,
-                      ),
+                      Text(program.name, style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
                       Text(
                         meta.join(' · '),
@@ -221,8 +220,9 @@ class _ProgramCard extends StatelessWidget {
                           color: urgent
                               ? const Color(0xFFF59E0B)
                               : theme.colorScheme.onSurfaceVariant,
-                          fontWeight:
-                              urgent ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: urgent
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -266,9 +266,9 @@ class _InfoBanner extends StatelessWidget {
             child: Text(
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: sky,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: sky,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -375,7 +375,11 @@ class _ErrorView extends StatelessWidget {
           children: <Widget>[
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text(message, style: theme.textTheme.bodyLarge, textAlign: TextAlign.center),
+            Text(
+              message,
+              style: theme.textTheme.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             Semantics(
               button: true,
@@ -423,7 +427,9 @@ class _EmptyView extends StatelessWidget {
             Text(
               'Check back later for new scholarship opportunities.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
               textAlign: TextAlign.center,
             ),

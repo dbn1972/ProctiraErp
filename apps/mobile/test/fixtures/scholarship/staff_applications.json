@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "id": "5d1c2b3a-0000-4000-8000-00000000000a",
+      "tenantId": "0b7f3a52-7c1e-4f0a-9d7e-000000000001",
+      "programId": "0b7f3a52-7c1e-4f0a-9d7e-111111111111",
+      "applicantId": "a0000000-0000-4000-8000-00000000000a",
+      "institutionId": "10000000-0000-4000-8000-000000000001",
+      "status": "under_review",
+      "academicRecords": [
+        { "institutionName": "Current school", "educationLevel": "secondary" }
+      ],
+      "financialInfo": { "familyIncome": 180000 },
+      "documents": [
+        {
+          "documentType": "transcript",
+          "fileName": "transcript.pdf",
+          "fileUrl": "scholarship-docs/t1/transcript.pdf",
+          "fileSize": 20480
+        }
+      ],
+      "personalStatement": null,
+      "areaId": null,
+      "gender": null,
+      "workflowInstanceId": null,
+      "submittedAt": "2026-02-01T10:00:00.000Z",
+      "reviewedAt": null,
+      "reviewerId": null,
+      "reviewNotes": null,
+      "createdAt": "2026-02-01T10:00:00.000Z",
+      "updatedAt": "2026-02-03T10:00:00.000Z"
+    },
+    {
+      "id": "5d1c2b3a-0000-4000-8000-00000000000b",
+      "tenantId": "0b7f3a52-7c1e-4f0a-9d7e-000000000001",
+      "programId": "0b7f3a52-7c1e-4f0a-9d7e-222222222222",
+      "applicantId": "b0000000-0000-4000-8000-00000000000b",
+      "institutionId": "10000000-0000-4000-8000-000000000001",
+      "status": "approved",
+      "academicRecords": [],
+      "financialInfo": {},
+      "documents": [],
+      "personalStatement": null,
+      "areaId": null,
+      "gender": null,
+      "workflowInstanceId": null,
+      "submittedAt": "2025-02-01T10:00:00.000Z",
+      "reviewedAt": "2025-02-10T10:00:00.000Z",
+      "reviewerId": "r0000000-0000-4000-8000-000000000001",
+      "reviewNotes": "Meets criteria",
+      "createdAt": "2025-02-01T10:00:00.000Z",
+      "updatedAt": "2025-02-10T10:00:00.000Z"
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 2, "totalPages": 1 }
+}
