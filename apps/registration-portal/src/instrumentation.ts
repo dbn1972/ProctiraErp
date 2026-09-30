@@ -5,5 +5,12 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
   const { getGatewayApiBaseUrl } = await import('./lib/gateway-config');
-  getGatewayApiBaseUrl();
+  try {
+    getGatewayApiBaseUrl();
+  } catch (error) {
+    // Next only logs instrumentation errors and keeps the process alive; exit so
+    // the orchestrator sees a failed start instead of a portal that cannot work.
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }
