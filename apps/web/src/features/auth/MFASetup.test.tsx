@@ -22,7 +22,7 @@ import { LanguageProvider } from '@/providers/LanguageProvider';
 import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 import enMessages from '@/messages/en.json';
 
-import MFASetup, { formatBackupCodesDocument } from './MFASetup';
+import MFASetup, { MFASetupView, formatBackupCodesDocument } from './MFASetup';
 
 // ─── jsdom shims ────────────────────────────────────────────────────────────
 
@@ -166,6 +166,34 @@ describe('<MFASetup>', () => {
     await screen.findByTestId('mfa-verify-page');
   });
 
+  it('MFASetupView completes via props without a router or history patching (PRC-L022)', async () => {
+    mockSetupMfa.mockResolvedValueOnce({ kind: 'ok', data: ENROLMENT_PAYLOAD });
+    const originalPush = window.history.pushState;
+    const originalReplace = window.history.replaceState;
+    const onComplete = vi.fn();
+    render(
+      <BrandConfigProvider initialBrand={SAMPLE_BRAND}>
+        <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
+          <MFASetupView
+            onComplete={onComplete}
+            renderSignInLink={(label) => <a href="/login">{label}</a>}
+          />
+        </LanguageProvider>
+      </BrandConfigProvider>,
+    );
+    const finishButton = (await screen.findByTestId('mfa-setup-finish')) as HTMLButtonElement;
+    expect(window.history.pushState).toBe(originalPush);
+    expect(window.history.replaceState).toBe(originalReplace);
+    expect(
+      screen.getByRole('link', { name: messages.auth!.backToSignIn }).getAttribute('href'),
+    ).toBe('/login');
+    fireEvent.click(screen.getByTestId('mfa-setup-ack'));
+    await waitFor(() => expect(finishButton.disabled).toBe(false));
+    await act(async () => {
+      fireEvent.click(finishButton);
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
   it('triggers a download with the formatted backup codes document', async () => {
     mockSetupMfa.mockResolvedValueOnce({
       kind: 'ok',

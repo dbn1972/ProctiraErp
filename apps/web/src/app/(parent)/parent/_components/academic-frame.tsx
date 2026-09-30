@@ -36,7 +36,7 @@ export async function AcademicFrame({
   description: string;
   childrenLinks?: ParentChildLink[];
   selectedId?: string;
-  status?: 'ok' | 'empty-children' | 'forbidden' | 'error';
+  status?: 'ok' | 'empty-children' | 'forbidden' | 'not-found' | 'error';
   errorMessage?: string;
   emptyMessage: string;
   hasRows: boolean;
@@ -74,11 +74,13 @@ export async function AcademicFrame({
               ? 'Link a child to see this information.'
               : status === 'forbidden'
                 ? 'This record is not available for your account.'
-                : status === 'error'
-                  ? 'Something went wrong loading this page.'
-                  : hasRows
-                    ? 'Latest information from the school.'
-                    : emptyMessage}
+                : status === 'not-found'
+                  ? 'This record could not be found.'
+                  : status === 'error'
+                    ? 'Something went wrong loading this page.'
+                    : hasRows
+                      ? 'Latest information from the school.'
+                      : emptyMessage}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,6 +91,10 @@ export async function AcademicFrame({
           ) : status === 'forbidden' ? (
             <p className="text-sm text-muted-foreground" role="status">
               You can only view records for students linked to your account.
+            </p>
+          ) : status === 'not-found' ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No record was found. It may not be set up yet for your school.
             </p>
           ) : status === 'error' ? (
             <p className="text-sm text-muted-foreground" role="status">

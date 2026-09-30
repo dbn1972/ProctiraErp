@@ -1,5 +1,8 @@
 /**
- * /assessments/outcomes — curriculum outcomes mapped to assessment items (G-907).
+ * /assessments/outcomes — curriculum outcomes per subject (G-907).
+ *
+ * Mapping outcomes onto assessment items is not yet exposed in the item form
+ * (PRC-L028), so the copy must not promise it.
  */
 import Link from 'next/link';
 
@@ -43,8 +46,8 @@ export default async function AssessmentOutcomesPage(props: PageProps) {
             Learning outcomes
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Curriculum outcomes for each subject. Add them here, then attach them when you define
-            assessment items.
+            Curriculum outcomes for each subject. Linking outcomes to assessment items is not
+            available yet.
           </p>
         </div>
       </div>

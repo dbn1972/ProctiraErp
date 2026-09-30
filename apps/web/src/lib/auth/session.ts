@@ -16,6 +16,8 @@ export const AUTH_COOKIES = {
   ACCESS_TOKEN: 'access_token',
   REFRESH_TOKEN: 'refresh_token',
   SESSION_ID: 'session_id',
+  /** httpOnly MFA challenge token — keeps it out of URLs (PRC-L024). */
+  MFA_CHALLENGE: 'mfa_challenge',
 } as const;
 
 /** Auth API endpoints (Next.js route handlers, not the upstream auth-service). */
@@ -159,13 +161,14 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 /**
  * Verifies an MFA challenge code (TOTP or SMS).
  */
-export async function verifyMfa(mfaToken: string, code: string): Promise<SignInResult> {
+export async function verifyMfa(mfaToken: string | null, code: string): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.VERIFY_MFA, {
       method: 'POST',
       credentials: 'include',
       headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ mfaToken, code }),
+      // With no explicit token the route reads the httpOnly challenge cookie.
+      body: JSON.stringify(mfaToken ? { mfaToken, code } : { code }),
     });
     const data: { message?: string } = await safeJson(response);
     if (response.ok) {
@@ -181,13 +184,13 @@ export async function verifyMfa(mfaToken: string, code: string): Promise<SignInR
 }
 
 /** Resend an SMS MFA challenge (no-op for authenticator-app challenges). */
-export async function resendMfa(mfaToken: string): Promise<SignInResult> {
+export async function resendMfa(mfaToken: string | null = null): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.RESEND_MFA, {
       method: 'POST',
       credentials: 'include',
       headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ mfaToken }),
+      body: JSON.stringify(mfaToken ? { mfaToken } : {}),
     });
     const data: { message?: string } = await safeJson(response);
     if (response.ok) {
