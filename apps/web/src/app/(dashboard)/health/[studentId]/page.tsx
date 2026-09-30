@@ -23,7 +23,11 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, getHealthRecord, listStudentVaccinations } from '@/lib/api/health';
+import {
+  canAccessHealthRecords,
+  getHealthRecordResult,
+  listStudentVaccinationsResult,
+} from '@/lib/api/health';
 import { getStudent } from '@/lib/api/students';
 import { cn } from '@/lib/utils';
 
@@ -82,9 +86,15 @@ export default async function HealthRecordPage(props: PageProps) {
     );
   }
 
-  const record = await getHealthRecord(params.studentId);
+  // PRC-H021: a failed or denied read must never render as "None recorded".
+  const recordResult = await getHealthRecordResult(params.studentId);
+  if (!recordResult.ok && recordResult.kind !== 'missing') {
+    return <HealthRecordLoadFailure status={recordResult.status} kind={recordResult.kind} />;
+  }
+  const record = recordResult.ok ? recordResult.record : null;
   const student = record ? null : await getStudent(params.studentId);
   if (!record && !student) notFound();
+  const hasRecord = record !== null;
 
   const displayName =
     record?.studentName ??
@@ -101,7 +111,8 @@ export default async function HealthRecordPage(props: PageProps) {
     lastUpdated: '',
   };
 
-  const vaccinations = await listStudentVaccinations(params.studentId);
+  const vaccinationsResult = await listStudentVaccinationsResult(params.studentId);
+  const vaccinations = vaccinationsResult.ok ? vaccinationsResult.items : [];
   const palette = avatarPalette(profile.studentName);
 
   return (
@@ -167,33 +178,46 @@ export default async function HealthRecordPage(props: PageProps) {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Main column */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-3">
-              <div className="rounded-lg bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-                <TriangleAlert className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Allergies</CardTitle>
-                <CardDescription>Reported allergies on file.</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {profile.allergies?.length ? (
-                <ul className="flex flex-wrap gap-2">
-                  {profile.allergies.map((a) => (
-                    <li
-                      key={a}
-                      className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                    >
-                      {a}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">None recorded.</p>
-              )}
-            </CardContent>
-          </Card>
+          {!hasRecord ? (
+            <Card data-testid="health-no-record">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">No health record on file</CardTitle>
+                <CardDescription>
+                  This student has no health record yet, so allergies and chronic conditions have
+                  not been captured. Do not treat this as confirmation that none exist.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : null}
+          {hasRecord ? (
+            <Card>
+              <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-3">
+                <div className="rounded-lg bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                  <TriangleAlert className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Allergies</CardTitle>
+                  <CardDescription>Reported allergies on file.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {profile.allergies?.length ? (
+                  <ul className="flex flex-wrap gap-2">
+                    {profile.allergies.map((a) => (
+                      <li
+                        key={a}
+                        className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                      >
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">None recorded.</p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader className="pb-3">
@@ -201,7 +225,16 @@ export default async function HealthRecordPage(props: PageProps) {
               <CardDescription>Immunisation doses on file for this student.</CardDescription>
             </CardHeader>
             <CardContent>
-              {vaccinations.length ? (
+              {!vaccinationsResult.ok ? (
+                <p
+                  className="text-sm text-destructive"
+                  role="alert"
+                  data-testid="health-vaccinations-error"
+                >
+                  Unable to load vaccinations (status {vaccinationsResult.status || 'network'}). The
+                  immunisation history may be incomplete — do not rely on this page.
+                </p>
+              ) : vaccinations.length ? (
                 <ul className="divide-y divide-border" role="list">
                   {vaccinations.map((v) => (
                     <li key={v.id} className="py-2 text-sm">
@@ -220,28 +253,30 @@ export default async function HealthRecordPage(props: PageProps) {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Chronic conditions</CardTitle>
-              <CardDescription>Ongoing conditions under monitoring.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {profile.chronicConditions?.length ? (
-                <ul className="flex flex-wrap gap-2">
-                  {profile.chronicConditions.map((c) => (
-                    <li
-                      key={c}
-                      className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
-                    >
-                      {c}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">None recorded.</p>
-              )}
-            </CardContent>
-          </Card>
+          {hasRecord ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Chronic conditions</CardTitle>
+                <CardDescription>Ongoing conditions under monitoring.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {profile.chronicConditions?.length ? (
+                  <ul className="flex flex-wrap gap-2">
+                    {profile.chronicConditions.map((c) => (
+                      <li
+                        key={c}
+                        className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                      >
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">None recorded.</p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
         {/* Sidebar */}
@@ -255,14 +290,22 @@ export default async function HealthRecordPage(props: PageProps) {
                 <FactRow label="Blood group" value={profile.bloodType ?? '—'} mono />
                 <FactRow
                   label="Allergies"
-                  value={profile.allergies?.length ? `${profile.allergies.length} on file` : 'None'}
+                  value={
+                    !hasRecord
+                      ? 'No record on file'
+                      : profile.allergies?.length
+                        ? `${profile.allergies.length} on file`
+                        : 'None'
+                  }
                 />
                 <FactRow
                   label="Chronic conditions"
                   value={
-                    profile.chronicConditions?.length
-                      ? `${profile.chronicConditions.length} on file`
-                      : 'None'
+                    !hasRecord
+                      ? 'No record on file'
+                      : profile.chronicConditions?.length
+                        ? `${profile.chronicConditions.length} on file`
+                        : 'None'
                   }
                 />
                 <FactRow label="Last updated" value={profile.lastUpdated || '—'} />
@@ -303,6 +346,39 @@ export default async function HealthRecordPage(props: PageProps) {
 }
 
 /* --------------------------------------------------------------- micro-components */
+
+/** PRC-H021: explicit failure state — clinical panels are hidden, never shown empty. */
+function HealthRecordLoadFailure({ status, kind }: { status: number; kind: string }) {
+  const denied = kind === 'denied' || kind === 'unauthenticated';
+  return (
+    <div className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/health">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Back to records
+        </Link>
+      </Button>
+      <div
+        role="alert"
+        data-testid="health-record-load-failure"
+        data-failure-kind={kind}
+        className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"
+      >
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+        <div>
+          <h1 className="text-base font-semibold text-foreground">Unable to load health record</h1>
+          <p className="mt-1 text-muted-foreground">
+            {denied
+              ? 'The health service refused access to this record.'
+              : 'The health service is unavailable.'}{' '}
+            Allergies, conditions and vaccinations are hidden because they could not be verified —
+            do not assume the student has none. (Status {status || 'network error'}.)
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function FactRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (

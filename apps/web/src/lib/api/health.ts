@@ -8,7 +8,13 @@
  * call requireSession() and pass the access token through gatewayFetch.
  */
 import { GatewayError, gatewayFetch } from './gateway';
-import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
+import {
+  classifyListFailure,
+  fetchList,
+  itemsOrEmpty,
+  type ListFailureKind,
+  type ListResult,
+} from './list-result';
 
 export interface HealthRecord {
   id: string;
@@ -158,6 +164,34 @@ export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): bool
  */
 export async function listHealthRecordsResult(): Promise<ListResult<HealthRecord>> {
   return fetchList<HealthRecord>('/health/records', { next: { revalidate: 0 } });
+}
+
+/**
+ * PRC-H021: single-record read that keeps *why* no record came back. A 404 means no
+ * record is on file; any other failure (403, 5xx, network) must never be rendered as
+ * an empty allergy list.
+ */
+export type HealthRecordResult =
+  { ok: true; record: HealthRecord } | { ok: false; kind: ListFailureKind; status: number };
+
+export async function getHealthRecordResult(studentId: string): Promise<HealthRecordResult> {
+  const result = await gatewayFetch<HealthRecord>(
+    `/health/records/${encodeURIComponent(studentId)}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  if (result.ok && result.data) return { ok: true, record: result.data };
+  const status = result.ok ? 404 : result.status;
+  return { ok: false, kind: classifyListFailure(status), status };
+}
+
+/** PRC-H021: vaccinations read that distinguishes "none on file" from a failed load. */
+export async function listStudentVaccinationsResult(
+  studentId: string,
+): Promise<ListResult<VaccinationRecord>> {
+  return fetchList<VaccinationRecord>(
+    `/health/vaccinations/student/${encodeURIComponent(studentId)}`,
+    { next: { revalidate: 0 } },
+  );
 }
 
 export async function getHealthRecord(studentId: string): Promise<HealthRecord | null> {
