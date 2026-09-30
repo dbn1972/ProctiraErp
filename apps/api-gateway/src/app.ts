@@ -63,7 +63,8 @@ import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
-  extractInstitutionId,
+  extractInstitutionIds,
+  institutionRecordIdFromParams,
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
@@ -729,12 +730,15 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
     const user = request.user as InstitutionScopeUser | undefined;
     if (!user) return;
-    const institutionId = extractInstitutionId({
-      query: request.query,
-      params: request.params,
-      body: request.body,
-    });
-    const decision = decideInstitutionScope(user, url, institutionId, request.method);
+    // PRC-H004: check every id the request names (query/params, both key spellings, and an
+    // /institutions/:id record id). The body is not parsed yet; preValidation below covers it.
+    const named = extractInstitutionIds({ query: request.query, params: request.params });
+    const recordId = institutionRecordIdFromParams(url, request.params);
+    if (recordId && !named.includes(recordId)) named.push(recordId);
+    const denied = named
+      .map((id) => decideInstitutionScope(user, url, id, request.method))
+      .find((d) => d.action === 'deny');
+    const decision = denied ?? decideInstitutionScope(user, url, named[0], request.method);
     if (decision.action === 'deny') {
       return reply.status(403).send({
         code: 'INSTITUTION_OUT_OF_SCOPE',
@@ -753,6 +757,28 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         writable: true,
         enumerable: true,
         configurable: true,
+      });
+    }
+  });
+  // PRC-H004: the onRequest gate above runs before Fastify parses the body, so a body-carried
+  // institutionId (POST/PUT/PATCH writes) was never checked and a school-bound user could write
+  // to another school. Re-run the scope decision on the parsed body in preValidation.
+  app.addHook('preValidation', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const user = request.user as InstitutionScopeUser | undefined;
+    if (!user) return;
+    const decision = extractInstitutionIds({ body: request.body })
+      .map((id) => decideInstitutionScope(user, url, id, request.method))
+      .find((d) => d.action === 'deny');
+    if (decision?.action === 'deny') {
+      return reply.status(403).send({
+        code: 'INSTITUTION_OUT_OF_SCOPE',
+        message: 'Institution is outside the caller school scope',
+        institutionId: decision.institutionId,
+        statusCode: 403,
       });
     }
   });

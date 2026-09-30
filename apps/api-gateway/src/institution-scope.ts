@@ -62,13 +62,41 @@ export function extractInstitutionId(input: {
   params?: unknown;
   body?: unknown;
 }): string | undefined {
+  return extractInstitutionIds(input)[0];
+}
+
+/**
+ * Every institution id a request names, from query, params and body, under both the camelCase
+ * and snake_case keys (PRC-H004: checking only the first match let `{institutionId: A,
+ * institution_id: B}` through). Callers deny when any of them is out of scope.
+ */
+export function extractInstitutionIds(input: {
+  query?: unknown;
+  params?: unknown;
+  body?: unknown;
+}): string[] {
+  const out: string[] = [];
   for (const source of [input.query, input.params, input.body]) {
-    if (!source || typeof source !== 'object') continue;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
     const record = source as Record<string, unknown>;
-    const value = record['institutionId'] ?? record['institution_id'];
-    if (typeof value === 'string' && value.length > 0) return value;
+    for (const key of ['institutionId', 'institution_id']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.length > 0 && !out.includes(value)) out.push(value);
+    }
   }
-  return undefined;
+  return out;
+}
+
+/**
+ * PRC-H004 (fix step 5): `/institutions/:id` routes address an institution record by `params.id`.
+ * Returns that id so a school-bound caller cannot read or change another school's record. Static
+ * sub-paths (e.g. `/institutions/directory-context`) have no `id` param and are unaffected.
+ */
+export function institutionRecordIdFromParams(urlPath: string, params: unknown): string | undefined {
+  if (firstPathSegment(urlPath) !== 'institutions') return undefined;
+  if (!params || typeof params !== 'object') return undefined;
+  const id = (params as Record<string, unknown>)['id'];
+  return typeof id === 'string' && id.length > 0 ? id : undefined;
 }
 
 export function firstPathSegment(urlPath: string): string | undefined {
@@ -105,6 +133,13 @@ export function decideInstitutionScope(
 ): InstitutionScopeDecision {
   if (!isSchoolBound(user)) return { action: 'allow' };
   const segment = firstPathSegment(urlPath);
+  if (segment === 'institutions') {
+    // Institution records: deny another school's id; never inject (list/directory untouched).
+    if (institutionId && !allowedInstitutions(user).includes(institutionId)) {
+      return { action: 'deny', institutionId };
+    }
+    return { action: 'allow' };
+  }
   if (!segment || !INSTITUTION_SCOPED_SEGMENTS.has(segment)) return { action: 'allow' };
   const allowed = allowedInstitutions(user);
   if (institutionId) {
