@@ -475,13 +475,18 @@ export class ResultPublicationService {
    * Returns the grade label that matches the score range.
    */
   private calculateGrade(score: number, scheme: ExaminationGradingScheme): string {
-    // Sort thresholds by minScore descending to find the highest matching grade
+    // Sort thresholds by minScore descending to find the highest matching grade.
+    // PRC-H114: half-open bands — a score in a sub-step gap (e.g. 79.995 between
+    // B ≤79.99 and A ≥80) takes the highest band whose minScore it reaches.
     const sortedThresholds = [...scheme.thresholds].sort((a, b) => b.minScore - a.minScore);
-
     for (const threshold of sortedThresholds) {
       if (score >= threshold.minScore && score <= threshold.maxScore) {
         return threshold.grade;
       }
+    }
+    const reached = sortedThresholds.find((threshold) => score >= threshold.minScore);
+    if (reached && score <= Math.max(...sortedThresholds.map((t) => t.maxScore))) {
+      return reached.grade;
     }
 
     // If no threshold matches, return the lowest grade
