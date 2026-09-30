@@ -54,12 +54,13 @@ export const APP_ROUTER_PATH_ALIASES: Readonly<Record<string, string>> = {
 
 export function getRoutePath(module: FeatureModule): string {
   switch (module.scope) {
-    case 'app':
+    case 'app': {
       if (module.routePrefix === 'dashboard' || module.routePrefix === '') {
         return '/';
       }
       const prefix = APP_ROUTER_PATH_ALIASES[module.routePrefix] ?? module.routePrefix;
       return `/${prefix}`;
+    }
     case 'mobile':
       return `/mobile/${module.routePrefix}`;
     case 'auth':
