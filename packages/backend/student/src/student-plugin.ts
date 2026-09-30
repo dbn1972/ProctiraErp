@@ -8,6 +8,12 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  InMemoryLifecycleCertificateRepository,
+  LifecycleCertificateService,
+  registerLifecycleCertificateRoutes,
+  type LifecycleCertificateRepository,
+} from './certificates/index.js';
 import { createEnrollmentRepository } from './enrollment/create-enrollment-repository.js';
 import type { EnrollmentRepository } from './enrollment/enrollment-repository.js';
 import { registerEnrollmentRoutes } from './enrollment/enrollment-routes.js';
@@ -18,6 +24,7 @@ import { ImportService } from './import/import-service.js';
 import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
 import type { ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
+import type { StudentPortalBinding } from './student-portal-access.js';
 import type { StudentRepository } from './student-repository.js';
 import {
   StudentService,
@@ -29,12 +36,6 @@ import { createStudents360Store } from './students-360/create-store.js';
 import { registerStudents360Routes } from './students-360/routes.js';
 import { Students360Service, type AttendanceHeatmapSource } from './students-360/service.js';
 import type { Students360Store } from './students-360/store.js';
-import {
-  InMemoryLifecycleCertificateRepository,
-  LifecycleCertificateService,
-  registerLifecycleCertificateRoutes,
-  type LifecycleCertificateRepository,
-} from './certificates/index.js';
 
 /**
  * Options for the student plugin.
@@ -65,6 +66,11 @@ export interface StudentPluginOptions {
    * Production gateway should always wire PrivacyService.
    */
   assertDestructiveDeleteAllowed?: AssertDestructiveDeleteAllowed;
+  /**
+   * PRC-C010/C011 — portal ownership binding (guardian/parent → children, student → self).
+   * When omitted, portal roles are denied on student read + students-360 routes (fail closed).
+   */
+  studentBinding?: StudentPortalBinding;
 }
 
 // Extend Fastify types
@@ -113,6 +119,7 @@ export const studentPlugin = fp(
     await registerStudentRoutes(fastify, {
       studentService,
       prefix,
+      studentBinding: options.studentBinding,
     });
 
     const lifecycleCertService = new LifecycleCertificateService(
@@ -138,7 +145,11 @@ export const studentPlugin = fp(
       blobs: options.studentBlobStore ?? createStudentBlobStore(),
       attendance: attendanceHeatmap,
     });
-    await registerStudents360Routes(fastify, { service: student360Service, prefix });
+    await registerStudents360Routes(fastify, {
+      service: student360Service,
+      prefix,
+      studentBinding: options.studentBinding,
+    });
 
     if (!registerEnrollmentAndImport) return;
 
