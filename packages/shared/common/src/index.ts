@@ -75,3 +75,5 @@ export type {
   RegisterGracefulShutdownOptions,
   ShutdownStep,
 } from './graceful-shutdown.js';
+
+export { routePathForAuthz, type RouteAuthzRequestLike } from './route-authz-path.js';

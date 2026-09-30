@@ -1,4 +1,4 @@
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -75,7 +75,7 @@ export async function registerAdmissionsPipelineRoutes(
   // This hook shares the plugin scope with public registration routes, so it
   // must only act on the admissions prefix.
   fastify.addHook('preHandler', async (request, reply) => {
-    const path = (request.url.split('?')[0] ?? request.url).replace(/^\/api\/v1/, '');
+    const path = routePathForAuthz(request).replace(/^\/api\/v1/, '');
     if (!(path === prefix || path.startsWith(`${prefix}/`))) return;
     if (!enforceAdmissionsRouteAccess(request, reply)) {
       return reply;

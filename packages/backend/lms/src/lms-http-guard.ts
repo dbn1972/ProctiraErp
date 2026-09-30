@@ -1,7 +1,7 @@
 /**
  * Fastify helpers for LMS domain RBAC (W1-SEC-02 residual).
  */
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
@@ -44,7 +44,7 @@ export function enforceLmsRouteAccess(
   request: FastifyRequest,
   reply: FastifyReply,
 ): boolean {
-  const path = request.url.split('?')[0] ?? request.url;
+  const path = routePathForAuthz(request);
   const action = lmsActionForRequest(request.method, path);
   return requireLmsAction(request, reply, action);
 }

@@ -1,7 +1,7 @@
 /**
  * Fastify helpers for registration / admissions domain RBAC (W1-SEC-02 residual).
  */
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
@@ -46,7 +46,7 @@ export function enforceRegistrationRouteAccess(
   request: FastifyRequest,
   reply: FastifyReply,
 ): boolean {
-  const path = request.url.split('?')[0] ?? request.url;
+  const path = routePathForAuthz(request);
   if (isPublicRegistrationPath(path)) {
     return true;
   }

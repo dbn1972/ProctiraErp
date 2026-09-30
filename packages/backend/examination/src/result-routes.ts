@@ -13,7 +13,7 @@
  * - 10.5: Handle incomplete result data gracefully
  * - 10.8: Provide result analysis with breakdowns by subject, center, gender, area
  */
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -45,7 +45,7 @@ export async function registerResultRoutes(
   const { resultPublicationService, prefix = '/examinations' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    const url = request.url;
+    const url = routePathForAuthz(request);
     const action =
       url.includes('/publish') || url.includes('/analysis') ? 'exam.publish' : 'exam.update';
     examinationWritePreHandler(request, reply, action);
