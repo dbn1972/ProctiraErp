@@ -1001,6 +1001,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         caseRepository,
         escalationPublisher: escalationHandle?.publisher,
+        // PRC-H110: in-process escalation consumer (dedicated connection).
+        escalationWorkerQueue: escalationHandle?.createConsumerAdapter(),
         prefix: '/workflow-engine',
       });
     },
