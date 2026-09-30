@@ -27,7 +27,7 @@ const AUTH_ROUTES: ReadonlyArray<{
   { path: '/signup', label: /full name|email/i, checkpoint: '/signup' },
   { path: '/forgot-password', label: /email/i, checkpoint: '/forgot-password' },
   { path: '/reset-password?token=matrix-token', label: /password/i, checkpoint: '/reset-password' },
-  { path: '/mfa?token=matrix-mfa', label: /digit 1|verification code|code/i, checkpoint: '/mfa' },
+  { path: '/mfa', label: /digit 1|verification code|code/i, checkpoint: '/mfa' },
 ];
 
 test.describe('Auth — ungated axe matrix', () => {
@@ -117,7 +117,7 @@ test.describe('Auth — ungated validation matrix', () => {
 
   test('mfa invalid code surfaces error (mocked)', async ({ page }) => {
     await mockMfaVerify(page, { invalid: 'That code is invalid or expired.' });
-    await page.goto('/mfa?token=matrix-mfa');
+    await page.goto('/mfa');
     const group = page.getByRole('group', { name: /verification code/i });
     await expect(group).toBeVisible();
     await page.keyboard.type('999999');

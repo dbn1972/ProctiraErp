@@ -14,11 +14,12 @@ const CODE_LENGTH = 6;
 /**
  * Multi-factor authentication code entry form.
  * Six individual input boxes per the Figma 08-mfa-verification.md spec.
+ * The challenge token is sent by the browser as an httpOnly cookie scoped to
+ * /api/auth/mfa; a missing/expired challenge surfaces the route's 401 message.
  */
 export function MfaForm(): JSX.Element {
   const t = useTranslations('auth');
   const searchParams = useSearchParams();
-  const token = searchParams.get('token') ?? '';
   const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
   const method = (searchParams.get('method') ?? searchParams.get('channel') ?? '').toLowerCase();
   const smsResend = method === 'sms';
@@ -34,18 +35,13 @@ export function MfaForm(): JSX.Element {
     setError(null);
     setStatus(null);
 
-    if (!token) {
-      setError(t('mfaTokenMissing'));
-      return;
-    }
-
     if (code.length !== CODE_LENGTH) {
       setError(t('mfaIncomplete'));
       return;
     }
 
     setIsSubmitting(true);
-    const result = await verifyMfa(token, code);
+    const result = await verifyMfa(null, code);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -59,12 +55,8 @@ export function MfaForm(): JSX.Element {
   async function handleResend() {
     setError(null);
     setStatus(null);
-    if (!token) {
-      setError(t('mfaTokenMissing'));
-      return;
-    }
     setIsResending(true);
-    const result = await resendMfa(token);
+    const result = await resendMfa();
     setIsResending(false);
     if (result.success) {
       setStatus(result.message ?? t('resend'));
@@ -117,7 +109,7 @@ export function MfaForm(): JSX.Element {
             <button
               type="button"
               className="inline-flex min-h-12 items-center font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isSubmitting || isResending || !token}
+              disabled={isSubmitting || isResending}
               onClick={() => {
                 void handleResend();
               }}

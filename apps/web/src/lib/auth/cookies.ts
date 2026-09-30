@@ -94,6 +94,47 @@ export function refreshTokenCookieOptions(
   };
 }
 
+/** MFA challenge lifetime — matches the short upstream challenge window. */
+export const MFA_CHALLENGE_MAX_AGE = 60 * 5;
+/** Only the MFA route handlers ever need to read the challenge cookie. */
+export const MFA_CHALLENGE_COOKIE_PATH = '/api/auth/mfa';
+
+/**
+ * Cookie options for the pending MFA challenge token (PRC-L024). httpOnly +
+ * SameSite=Strict + path-scoped so the token never reaches URLs, history,
+ * Referer headers, or client-side JavaScript.
+ */
+export function mfaChallengeCookieOptions(
+  maxAge: number = MFA_CHALLENGE_MAX_AGE,
+  request?: Request | null,
+): AuthCookieOptions {
+  return {
+    httpOnly: true,
+    secure: isSecureCookieContext(request),
+    sameSite: 'strict',
+    path: MFA_CHALLENGE_COOKIE_PATH,
+    maxAge,
+  };
+}
+
+/** Reads a single cookie value from a request's Cookie header. */
+export function readRequestCookie(request: Request, name: string): string | null {
+  const header = request.headers.get('cookie');
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    const raw = part.slice(eq + 1).trim();
+    try {
+      return decodeURIComponent(raw) || null;
+    } catch {
+      return raw || null;
+    }
+  }
+  return null;
+}
+
 /** Cookie options used to delete the access (or session) cookie. */
 export function clearCookieOptions(request?: Request | null): AuthCookieOptions {
   return {

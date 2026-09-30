@@ -29,7 +29,7 @@ import {
  * Client component for the login form. Submits credentials to
  * /api/auth/login and either:
  *  - navigates to `returnTo` on a successful login, or
- *  - navigates to /mfa with the challenge token when MFA is required.
+ *  - navigates to /mfa when MFA is required (challenge held in an httpOnly cookie).
  */
 export function LoginForm(): JSX.Element {
   const t = useTranslations('auth');
@@ -54,9 +54,9 @@ export function LoginForm(): JSX.Element {
     const result = await signIn(email, password);
 
     if (result.success) {
-      if (result.requiresMfa && result.mfaToken) {
+      if (result.requiresMfa) {
+        // PRC-L024: the challenge token lives in an httpOnly cookie, never the URL.
         const mfaUrl = new URL('/mfa', window.location.origin);
-        mfaUrl.searchParams.set('token', result.mfaToken);
         if (returnTo) mfaUrl.searchParams.set('returnTo', returnTo);
         router.push(`${mfaUrl.pathname}${mfaUrl.search}`);
         return;
