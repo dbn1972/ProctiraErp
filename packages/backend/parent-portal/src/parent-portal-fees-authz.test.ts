@@ -82,23 +82,80 @@ describe('PRC-C008 parent-portal staff fee routes', () => {
     }
   });
 
-  it('ignores ?scope=staff for a guardian and returns the self-scoped (empty) list, not tenant-wide', async () => {
-    // No linked children → parent-scope invoice/receipt lists are empty, never the staff list.
-    const invoices = await app.inject({
+  it('withholds tenant-wide data from a guardian using ?scope=staff, but a bursar sees it', async () => {
+    // Seed a tenant-wide invoice + receipt for an unrelated student.
+    const invoice = await repository.createInvoice({
+      id: '00000000-0000-4000-8000-000000000501',
+      tenantId: TENANT_A,
+      studentId: '00000000-0000-4000-8000-000000000502',
+      planId: null,
+      title: 'Unrelated child fee',
+      description: '',
+      amountCents: 8000,
+      currency: 'INR',
+      status: 'open',
+      dueAt: null,
+      createdBy: 'staff',
+    });
+    const payment = await repository.createPayment({
+      id: '00000000-0000-4000-8000-000000000503',
+      invoiceId: invoice.id,
+      tenantId: TENANT_A,
+      payerUserId: 'staff',
+      amountCents: 8000,
+      method: 'sandbox',
+      status: 'succeeded',
+      paidAt: new Date(),
+    });
+    await repository.createReceipt({
+      id: '00000000-0000-4000-8000-000000000504',
+      tenantId: TENANT_A,
+      paymentId: payment.id,
+      invoiceId: invoice.id,
+      receiptNumber: 'RCP-SCOPE-1',
+      amountCents: 8000,
+      currency: 'INR',
+      issuedAt: new Date(),
+    });
+
+    // Guardian (no linked children) with ?scope=staff → self-scoped, excludes the tenant row.
+    const parentInvoices = await app.inject({
       method: 'GET',
       url: '/parent-portal/fees/invoices?scope=staff',
       headers: as(parent),
     });
-    expect(invoices.statusCode).toBe(200);
-    expect(invoices.json().data).toEqual([]);
+    expect(parentInvoices.statusCode).toBe(200);
+    expect((parentInvoices.json().data as Array<{ id: string }>).map((r) => r.id)).not.toContain(
+      invoice.id,
+    );
+    expect(parentInvoices.json().data).toEqual([]);
 
-    const receipts = await app.inject({
+    const parentReceipts = await app.inject({
       method: 'GET',
       url: '/parent-portal/fees/receipts?scope=staff',
       headers: as(parent),
     });
-    expect(receipts.statusCode).toBe(200);
-    expect(receipts.json().data).toEqual([]);
+    expect(parentReceipts.statusCode).toBe(200);
+    expect(parentReceipts.json().data).toEqual([]);
+
+    // Bursar with ?scope=staff → tenant-wide list includes the seeded invoice + receipt.
+    const staffInvoices = await app.inject({
+      method: 'GET',
+      url: '/parent-portal/fees/invoices?scope=staff',
+      headers: as(bursar),
+    });
+    expect(staffInvoices.statusCode).toBe(200);
+    expect((staffInvoices.json().data as Array<{ id: string }>).map((r) => r.id)).toContain(
+      invoice.id,
+    );
+
+    const staffReceipts = await app.inject({
+      method: 'GET',
+      url: '/parent-portal/fees/receipts?scope=staff',
+      headers: as(bursar),
+    });
+    expect(staffReceipts.statusCode).toBe(200);
+    expect(staffReceipts.json().data.length).toBeGreaterThan(0);
   });
 
   it('denies a student on staff-only routes', async () => {
@@ -203,5 +260,14 @@ describe('PRC-C008 parent-portal staff fee routes', () => {
       headers: as(parent), // parent has no linked children
     });
     expect(res.statusCode).toBe(404);
+
+    // A bursar may read any receipt by id (staff read, no ownership restriction).
+    const staffRes = await app.inject({
+      method: 'GET',
+      url: `/parent-portal/fees/receipts/${receipt.id}`,
+      headers: as(bursar),
+    });
+    expect(staffRes.statusCode).toBe(200);
+    expect(staffRes.json().id).toBe(receipt.id);
   });
 });
