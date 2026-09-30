@@ -7,6 +7,7 @@ export type {
   CorrectionRequestEntity,
   ErasureRequestEntity,
   LegalHoldEntity,
+  ListPage,
   OffboardChecklistItem,
   PrivacyRepository,
   TenantOffboardJobEntity,

@@ -25,6 +25,7 @@ import type {
   ErasureRequestEntity,
   LegalHoldEntity,
   OffboardChecklistItem,
+  ListPage,
   PrivacyRepository,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -202,8 +203,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return updated!;
   }
 
-  async listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]> {
-    return this.repository.listActiveLegalHolds(tenantId);
+  async listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]> {
+    return this.repository.listActiveLegalHolds(tenantId, page);
   }
 
   async isOnLegalHold(
@@ -594,8 +595,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return this.repository.findCorrectionRequestById(requestId, tenantId);
   }
 
-  listCorrectionRequests(tenantId: string) {
-    return this.repository.listCorrectionRequests(tenantId);
+  listCorrectionRequests(tenantId: string, page?: ListPage) {
+    return this.repository.listCorrectionRequests(tenantId, page);
   }
 
   // ─── Tenant offboard wipe ────────────────────────────────────────────────
@@ -735,16 +736,16 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return this.repository.findTenantOffboardJobById(jobId, tenantId);
   }
 
-  listTenantOffboardJobs(tenantId: string) {
-    return this.repository.listTenantOffboardJobs(tenantId);
+  listTenantOffboardJobs(tenantId: string, page?: ListPage) {
+    return this.repository.listTenantOffboardJobs(tenantId, page);
   }
 
   getErasureRequest(requestId: string, tenantId: string) {
     return this.repository.findErasureRequestById(requestId, tenantId);
   }
 
-  listErasureRequests(tenantId: string) {
-    return this.repository.listErasureRequests(tenantId);
+  listErasureRequests(tenantId: string, page?: ListPage) {
+    return this.repository.listErasureRequests(tenantId, page);
   }
 
   getAnonymizationJob(jobId: string, tenantId: string) {

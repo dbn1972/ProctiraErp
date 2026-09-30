@@ -3,6 +3,7 @@ import type {
   CorrectionRequestEntity,
   ErasureRequestEntity,
   LegalHoldEntity,
+  ListPage,
   PrivacyRepository,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -46,8 +47,11 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return this.holds.find((h) => h.id === id && h.tenantId === tenantId) ?? null;
   }
 
-  async listActiveLegalHolds(tenantId: string) {
-    return this.holds.filter((h) => h.tenantId === tenantId && h.active);
+  async listActiveLegalHolds(tenantId: string, page?: ListPage) {
+    return applyPage(
+      this.holds.filter((h) => h.tenantId === tenantId && h.active),
+      page,
+    );
   }
 
   async createErasureRequest(
@@ -87,8 +91,11 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return this.erasures.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }
 
-  async listErasureRequests(tenantId: string) {
-    return this.erasures.filter((e) => e.tenantId === tenantId);
+  async listErasureRequests(tenantId: string, page?: ListPage) {
+    return applyPage(
+      this.erasures.filter((e) => e.tenantId === tenantId),
+      page,
+    );
   }
 
   async createCorrectionRequest(
@@ -132,8 +139,11 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return this.corrections.find((c) => c.id === id && c.tenantId === tenantId) ?? null;
   }
 
-  async listCorrectionRequests(tenantId: string) {
-    return this.corrections.filter((c) => c.tenantId === tenantId);
+  async listCorrectionRequests(tenantId: string, page?: ListPage) {
+    return applyPage(
+      this.corrections.filter((c) => c.tenantId === tenantId),
+      page,
+    );
   }
 
   async createAnonymizationJob(
@@ -220,8 +230,11 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return this.offboardJobs.find((j) => j.id === id && j.tenantId === tenantId) ?? null;
   }
 
-  async listTenantOffboardJobs(tenantId: string) {
-    return this.offboardJobs.filter((j) => j.tenantId === tenantId);
+  async listTenantOffboardJobs(tenantId: string, page?: ListPage) {
+    return applyPage(
+      this.offboardJobs.filter((j) => j.tenantId === tenantId),
+      page,
+    );
   }
 
   clear() {
@@ -231,4 +244,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     this.anonymizationJobs = [];
     this.offboardJobs = [];
   }
+}
+
+function applyPage<T>(rows: T[], page?: ListPage): T[] {
+  return page ? rows.slice(page.offset, page.offset + page.limit) : rows;
 }

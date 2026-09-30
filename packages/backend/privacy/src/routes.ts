@@ -23,6 +23,7 @@ import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import type { ListPage } from './privacy-repository.js';
 import type { PrivacyService } from './privacy-service.js';
 import {
   CorrectionStatusEnum,
@@ -31,8 +32,6 @@ import {
   ErasureStatusEnum,
   PlaceLegalHoldSchema,
   RequestTenantOffboardSchema,
-  type CorrectionStatus,
-  type ErasureStatus,
 } from './schemas.js';
 
 export interface PrivacyRoutesOptions {
@@ -42,19 +41,15 @@ export interface PrivacyRoutesOptions {
 }
 
 const HttpPlaceLegalHoldSchema = Type.Omit(PlaceLegalHoldSchema, ['tenantId', 'placedBy']);
-type HttpPlaceLegalHold = Static<typeof HttpPlaceLegalHoldSchema>;
 
 const HttpCreateErasureSchema = Type.Omit(CreateErasureRequestSchema, ['tenantId', 'requestedBy']);
-type HttpCreateErasure = Static<typeof HttpCreateErasureSchema>;
 
 const HttpCreateCorrectionSchema = Type.Omit(CreateCorrectionRequestSchema, [
   'tenantId',
   'requestedBy',
 ]);
-type HttpCreateCorrection = Static<typeof HttpCreateCorrectionSchema>;
 
 const HttpOffboardSchema = Type.Omit(RequestTenantOffboardSchema, ['tenantId', 'requestedBy']);
-type HttpOffboard = Static<typeof HttpOffboardSchema>;
 
 const TransitionBodySchema = Type.Object({
   status: ErasureStatusEnum,
@@ -67,6 +62,38 @@ const CorrectionTransitionBodySchema = Type.Object({
   statusReason: Type.Optional(Type.String({ maxLength: 2000 })),
 });
 type CorrectionTransitionBody = Static<typeof CorrectionTransitionBodySchema>;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+
+/** PRC-L137: reject non-UUID `:id` before it reaches Postgres (22P02 -> 500). */
+async function requireUuidIdParam(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const id = (request.params as { id?: unknown } | undefined)?.id;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    await reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Path parameter id must be a UUID',
+      statusCode: 400,
+    });
+  }
+}
+
+/** PRC-L137: bounded list window (`limit` default 50, max 100; `offset` >= 0). */
+function parseListPage(request: FastifyRequest, reply: FastifyReply): ListPage | null {
+  const query = (request.query ?? {}) as { limit?: unknown; offset?: unknown };
+  const limit = query.limit === undefined ? DEFAULT_PAGE_SIZE : Number(query.limit);
+  const offset = query.offset === undefined ? 0 : Number(query.offset);
+  if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(offset) || offset < 0) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'limit must be a positive integer and offset a non-negative integer',
+      statusCode: 400,
+    });
+    return null;
+  }
+  return { limit: Math.min(limit, MAX_PAGE_SIZE), offset };
+}
 
 function tenantIdOf(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -249,7 +276,7 @@ export async function registerPrivacyRoutes(
         errors: parsed.errors,
       });
     }
-    const body = parsed.data as HttpPlaceLegalHold;
+    const body = parsed.data;
     try {
       const hold = await privacyService.placeLegalHold({
         ...body,
@@ -265,12 +292,15 @@ export async function registerPrivacyRoutes(
   fastify.get(`${prefix}/legal-holds`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
-    const holds = await privacyService.listActiveLegalHolds(tenantId);
-    return reply.send({ data: holds.map(formatHold) });
+    const page = parseListPage(request, reply);
+    if (!page) return;
+    const holds = await privacyService.listActiveLegalHolds(tenantId, page);
+    return reply.send({ data: holds.map(formatHold), page });
   });
 
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/legal-holds/:id/release`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -299,7 +329,7 @@ export async function registerPrivacyRoutes(
         errors: parsed.errors,
       });
     }
-    const body = parsed.data as HttpCreateErasure;
+    const body = parsed.data;
     try {
       const erasure = await privacyService.createErasureRequest({
         ...body,
@@ -315,12 +345,15 @@ export async function registerPrivacyRoutes(
   fastify.get(`${prefix}/erasure-requests`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
-    const rows = await privacyService.listErasureRequests(tenantId);
-    return reply.send({ data: rows.map(formatErasure) });
+    const page = parseListPage(request, reply);
+    if (!page) return;
+    const rows = await privacyService.listErasureRequests(tenantId, page);
+    return reply.send({ data: rows.map(formatErasure), page });
   });
 
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/erasure-requests/:id`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -338,6 +371,7 @@ export async function registerPrivacyRoutes(
 
   fastify.post<{ Params: { id: string }; Body: TransitionBody }>(
     `${prefix}/erasure-requests/:id/transition`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -350,12 +384,12 @@ export async function registerPrivacyRoutes(
           errors: parsed.errors,
         });
       }
-      const body = parsed.data as TransitionBody;
+      const body = parsed.data;
       try {
         const row = await privacyService.transitionErasureRequest(
           request.params.id,
           tenantId,
-          body.status as ErasureStatus,
+          body.status,
           actorIdOf(request),
           body.statusReason,
         );
@@ -368,6 +402,7 @@ export async function registerPrivacyRoutes(
 
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/erasure-requests/:id/execute`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -398,7 +433,7 @@ export async function registerPrivacyRoutes(
         errors: parsed.errors,
       });
     }
-    const body = parsed.data as HttpCreateCorrection;
+    const body = parsed.data;
     try {
       const row = await privacyService.createCorrectionRequest({
         ...body,
@@ -414,12 +449,15 @@ export async function registerPrivacyRoutes(
   fastify.get(`${prefix}/correction-requests`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
-    const rows = await privacyService.listCorrectionRequests(tenantId);
-    return reply.send({ data: rows.map(formatCorrection) });
+    const page = parseListPage(request, reply);
+    if (!page) return;
+    const rows = await privacyService.listCorrectionRequests(tenantId, page);
+    return reply.send({ data: rows.map(formatCorrection), page });
   });
 
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/correction-requests/:id`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -437,6 +475,7 @@ export async function registerPrivacyRoutes(
 
   fastify.post<{ Params: { id: string }; Body: CorrectionTransitionBody }>(
     `${prefix}/correction-requests/:id/transition`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -449,12 +488,12 @@ export async function registerPrivacyRoutes(
           errors: parsed.errors,
         });
       }
-      const body = parsed.data as CorrectionTransitionBody;
+      const body = parsed.data;
       try {
         const row = await privacyService.transitionCorrectionRequest(
           request.params.id,
           tenantId,
-          body.status as CorrectionStatus,
+          body.status,
           actorIdOf(request),
           body.statusReason,
         );
@@ -467,6 +506,7 @@ export async function registerPrivacyRoutes(
 
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/correction-requests/:id/apply`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
@@ -497,7 +537,7 @@ export async function registerPrivacyRoutes(
         errors: parsed.errors,
       });
     }
-    const body = parsed.data as HttpOffboard;
+    const body = parsed.data;
     try {
       const job = await privacyService.requestTenantOffboardWipe({
         ...body,
@@ -513,12 +553,15 @@ export async function registerPrivacyRoutes(
   fastify.get(`${prefix}/tenant-offboard`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
-    const rows = await privacyService.listTenantOffboardJobs(tenantId);
-    return reply.send({ data: rows.map(formatOffboard) });
+    const page = parseListPage(request, reply);
+    if (!page) return;
+    const rows = await privacyService.listTenantOffboardJobs(tenantId, page);
+    return reply.send({ data: rows.map(formatOffboard), page });
   });
 
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/tenant-offboard/:id`,
+    { preValidation: requireUuidIdParam },
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;

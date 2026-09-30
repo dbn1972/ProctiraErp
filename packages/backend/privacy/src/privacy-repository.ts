@@ -107,7 +107,7 @@ export interface PrivacyRepository {
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
   ): Promise<LegalHoldEntity | null>;
   findLegalHoldById(id: string, tenantId: string): Promise<LegalHoldEntity | null>;
-  listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]>;
+  listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]>;
 
   createErasureRequest(
     data: Omit<ErasureRequestEntity, 'createdAt' | 'updatedAt'>,
@@ -125,7 +125,7 @@ export interface PrivacyRepository {
     options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
-  listErasureRequests(tenantId: string): Promise<ErasureRequestEntity[]>;
+  listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]>;
 
   createCorrectionRequest(
     data: Omit<CorrectionRequestEntity, 'createdAt' | 'updatedAt'>,
@@ -141,7 +141,7 @@ export interface PrivacyRepository {
     >,
   ): Promise<CorrectionRequestEntity | null>;
   findCorrectionRequestById(id: string, tenantId: string): Promise<CorrectionRequestEntity | null>;
-  listCorrectionRequests(tenantId: string): Promise<CorrectionRequestEntity[]>;
+  listCorrectionRequests(tenantId: string, page?: ListPage): Promise<CorrectionRequestEntity[]>;
 
   createAnonymizationJob(
     data: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
@@ -173,5 +173,11 @@ export interface PrivacyRepository {
     >,
   ): Promise<TenantOffboardJobEntity | null>;
   findTenantOffboardJobById(id: string, tenantId: string): Promise<TenantOffboardJobEntity | null>;
-  listTenantOffboardJobs(tenantId: string): Promise<TenantOffboardJobEntity[]>;
+  listTenantOffboardJobs(tenantId: string, page?: ListPage): Promise<TenantOffboardJobEntity[]>;
+}
+
+/** Bounded list window for HTTP list endpoints (PRC-L137). */
+export interface ListPage {
+  limit: number;
+  offset: number;
 }
