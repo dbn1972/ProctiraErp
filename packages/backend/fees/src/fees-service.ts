@@ -360,35 +360,45 @@ export class FeesService {
     return invoice;
   }
 
-  async voidInvoice(tenantId: string, invoiceId: string) {
-    // PRC-H058: status check, void update and reversal journal under one invoice lock.
+  /**
+   * Void an invoice.
+   * PRC-H058: status check, void update and reversal journal under one invoice lock.
+   * PRC-H059: refuses (422) while any collected cash is unrefunded, whatever the
+   * status — a part-paid open invoice must be refunded first. The reversal journal
+   * covers only the unpaid remainder (face − succeeded payments) so AR nets to zero
+   * instead of being credited twice, and it carries the acting user and reason.
+   */
+  async voidInvoice(
+    tenantId: string,
+    invoiceId: string,
+    options: { actorId?: string | null; reason?: string | null } = {},
+  ) {
+    const reason = options.reason?.trim() ?? '';
     return this.repository.withInvoiceLock(tenantId, invoiceId, async (tx, locked) => {
       const { invoice } = locked;
-      if (invoice.status === 'paid') {
-        const netCollected = Math.max(0, locked.paidCents - locked.refundedCents);
-        if (netCollected > 0) {
-          throw new BusinessRuleError(
-            'Cannot void a paid invoice with unreconciled collected cash',
-          );
-        }
-        return (await tx.updateInvoice(invoiceId, tenantId, { status: 'void' }))!;
-      }
       if (invoice.status === 'void') {
         return invoice;
       }
+      const netCollected = Math.max(0, locked.paidCents - locked.refundedCents);
+      if (netCollected > 0) {
+        throw new BusinessRuleError(
+          `Cannot void an invoice with ${netCollected} cents of collected cash — refund it first`,
+        );
+      }
       const updated = await tx.updateInvoice(invoiceId, tenantId, { status: 'void' });
-      // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
-      if (invoice.amountCents > 0) {
+      // G-718: reverse the unpaid issuance — DR fee_revenue / CR accounts_receivable
+      const unpaidRemainder = Math.max(0, invoice.amountCents - locked.paidCents);
+      if (unpaidRemainder > 0) {
         await this.postJournal(
           tx,
           invoice,
-          null,
-          'invoice voided',
+          options.actorId ?? null,
+          reason ? `invoice voided: ${reason}` : 'invoice voided',
           [
             ['fee_revenue', 'debit'],
             ['accounts_receivable', 'credit'],
           ],
-          invoice.amountCents,
+          unpaidRemainder,
         );
       }
       return updated!;

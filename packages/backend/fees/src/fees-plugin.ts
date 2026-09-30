@@ -1,11 +1,9 @@
 /**
  * Fastify Fees Plugin — staff fees routes under `/fees`.
  */
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { AppError } from '@proctira/common';
-import {
-  appendAuditEntryOnClient,
-  toCreateAuditLogInput,
-} from '@proctira/backend-audit';
+import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -102,7 +100,9 @@ const CreateFeeStructureSchema = Type.Object({
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   validFrom: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
-  validTo: Type.Optional(Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()])),
+  validTo: Type.Optional(
+    Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
+  ),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -134,6 +134,11 @@ const ApplyConcessionSchema = Type.Object({
 const RecordRefundSchema = Type.Object({
   paymentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+/** PRC-H059: a void must state why (stored on the reversal journal memo). */
+const VoidInvoiceSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
 });
 
@@ -235,16 +240,15 @@ function getActorDisplayName(request: FastifyRequest): string {
 const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
 function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
-  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
-    MUTATION_AUDIT_COMMITTED
-  ] = true;
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[MUTATION_AUDIT_COMMITTED] =
+    true;
 }
 
 function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
   if (!isPgFeesEnabled()) return undefined;
   return {
     appendAuditInTxn: async (
-      client: import('@proctira/database').PgQueryable,
+      client: PgQueryable,
       settled: {
         payment: { id: string };
       },
@@ -266,7 +270,7 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
           },
           metadata: {
             method: request.method,
-            path: (request.url.split('?')[0] ?? request.url),
+            path: request.url.split('?')[0] ?? request.url,
             regulated: 'fees.payment',
             atomic: true,
           },
@@ -514,7 +518,7 @@ export const feesPlugin = fp(
     fastify.post(
       `${prefix}/invoices/:id/void`,
       async function voidInvoice(
-        request: FastifyRequest<{ Params: IdParams }>,
+        request: FastifyRequest<{ Params: IdParams; Body: { reason: string } }>,
         reply: FastifyReply,
       ) {
         const paramsResult = validate(IdParamsSchema, request.params);
@@ -529,8 +533,20 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'invoice.void')) return;
+        const bodyResult = validate(VoidInvoiceSchema, request.body ?? {});
+        if (!bodyResult.success || bodyResult.data.reason.trim() === '') {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'A void reason is required',
+            statusCode: 400,
+            errors: bodyResult.success ? [] : bodyResult.errors,
+          });
+        }
         try {
-          const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id);
+          const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id, {
+            actorId: getActorId(request),
+            reason: bodyResult.data.reason,
+          });
           return reply.status(200).send(formatInvoice(invoice));
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -1089,7 +1105,6 @@ export const feesPlugin = fp(
         }
       },
     );
-
 
     fastify.post(
       `${prefix}/invoices/:id/credit-notes`,
