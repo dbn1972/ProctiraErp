@@ -63,6 +63,7 @@ import {
   createWebhookReplayStoreFromEnv,
   developerPortalPlugin,
   ensureDeveloperPortalPersistence,
+  parseWebhookFanOutEvents,
   type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
@@ -1287,6 +1288,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(developerPortalPlugin, {
         repository: createDeveloperPortalRepository(),
         deliveryPublisher: webhookDelivery?.publisher,
+        // PRC-H046: in-process delivery consumer + opt-in event fan-out
+        // (WEBHOOK_FANOUT_EVENTS=student.enrolled,... ; empty → no fan-out).
+        deliveryWorkerQueue: webhookDelivery?.createConsumerAdapter(),
+        fanOutEvents: webhookDelivery
+          ? parseWebhookFanOutEvents(process.env['WEBHOOK_FANOUT_EVENTS'])
+          : [],
+        createFanOutQueue: webhookDelivery
+          ? () => webhookDelivery.createConsumerAdapter()
+          : undefined,
         replayStore: webhookReplayStore,
         prefix: '/developer',
       });

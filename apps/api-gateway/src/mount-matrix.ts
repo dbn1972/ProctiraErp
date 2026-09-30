@@ -355,7 +355,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: true,
     notes:
-      'G-607: AuthZ via rbacPlugin; gateway rate-limit applies. Live IdP key mint residual. Postgres when DATABASE_URL is set — createDeveloperPortalRepository returns HybridDeveloperPortalRepository over four dedicated developer_portal_* tables (055/089/093/094); in-memory only via assertInMemoryFallbackAllowed, which throws in production.',
+      'G-607: AuthZ via rbacPlugin; gateway rate-limit applies. Live IdP key mint residual. Postgres when DATABASE_URL is set — createDeveloperPortalRepository returns HybridDeveloperPortalRepository over four dedicated developer_portal_* tables (055/089/093/094); in-memory only via assertInMemoryFallbackAllowed, which throws in production. PRC-H046: with QUEUE_BACKEND/RABBITMQ_URL the webhook delivery worker runs in-process (onReady/onClose); event fan-out is opt-in via WEBHOOK_FANOUT_EVENTS (no event catalogue by default) and fanned-out deliveries are unsigned (only secret hashes are stored).',
     registrarName: 'developer',
   },
 

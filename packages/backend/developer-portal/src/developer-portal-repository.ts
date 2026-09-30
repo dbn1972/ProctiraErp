@@ -126,6 +126,8 @@ export interface DeveloperPortalRepository {
     page: number,
     pageSize: number,
   ): Promise<{ data: WebhookEntity[]; total: number }>;
+  /** PRC-H046: all active webhooks of one tenant (event fan-out). Tenant-scoped. */
+  listActiveWebhooksForTenant(tenantId: string): Promise<WebhookEntity[]>;
   updateWebhook(
     id: string,
     updates: Partial<
