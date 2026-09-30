@@ -38,7 +38,10 @@ import type {
   ScholarshipRepository,
   UtilizationReportData,
   UtilizationReportFilter,
+  ApproveApplicationCommand,
+  ApproveApplicationOutcome,
 } from './scholarship-repository.js';
+import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -479,6 +482,99 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         data: result.rows.map((row) => mapApplication(row as Record<string, unknown>)),
         meta: paginateMeta(totalItems, pagination),
       };
+    });
+  }
+
+  /**
+   * PRC-H083: one withPgTenant transaction. Locks the application row, then
+   * claims a slot with a conditional UPDATE (used_slots < total_slots) and
+   * flips status with a status-guarded UPDATE, inserting the first instalment
+   * last. Any throw rolls every step back.
+   */
+  async approveApplicationAtomic(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const appResult = await client.query(
+        `SELECT * FROM scholarship_applications WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [id, tenantId],
+      );
+      const appRow = appResult.rows[0] as Record<string, unknown> | undefined;
+      if (!appRow) return { kind: 'application_not_found' } as const;
+      const application = mapApplication(appRow);
+      if (!APPROVABLE_APPLICATION_STATUSES.includes(application.status)) {
+        return { kind: 'invalid_status', status: application.status } as const;
+      }
+
+      const slotResult = await client.query(
+        `UPDATE scholarship_programs
+            SET used_slots = used_slots + 1, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND used_slots < total_slots
+          RETURNING *`,
+        [application.programId, tenantId],
+      );
+      const programRow = slotResult.rows[0] as Record<string, unknown> | undefined;
+      if (!programRow) {
+        const exists = await client.query(
+          `SELECT 1 FROM scholarship_programs WHERE id = $1 AND tenant_id = $2`,
+          [application.programId, tenantId],
+        );
+        return exists.rows[0]
+          ? ({ kind: 'no_slots' } as const)
+          : ({ kind: 'program_not_found' } as const);
+      }
+      const program = mapProgram(programRow);
+
+      const updatedApp = await client.query(
+        `UPDATE scholarship_applications
+            SET status = 'approved', reviewed_at = $3, reviewer_id = $4, review_notes = $5,
+                updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND status = ANY($6::text[])
+          RETURNING *`,
+        [
+          id,
+          tenantId,
+          command.reviewedAt,
+          command.reviewerId,
+          command.reviewNotes,
+          [...APPROVABLE_APPLICATION_STATUSES],
+        ],
+      );
+      if (!updatedApp.rows[0]) {
+        // Row is locked above, so this is unreachable unless RLS hides it;
+        // throw so the slot claim is rolled back.
+        throw new Error('scholarship approval lost its application row lock');
+      }
+
+      let disbursement: DisbursementEntity | null = null;
+      if (command.firstDisbursement) {
+        const inserted = await client.query(
+          `INSERT INTO scholarship_disbursements (
+             id, tenant_id, application_id, amount, amount_cents, scheduled_date,
+             paid_date, payment_status, payment_method, transaction_reference, notes
+           ) VALUES ($1,$2,$3,$4,$5,$6::date,NULL,'scheduled',NULL,NULL,$7) RETURNING *`,
+          [
+            command.firstDisbursement.id,
+            tenantId,
+            id,
+            program.amountPerRecipient,
+            program.amountPerRecipientCents,
+            command.firstDisbursement.scheduledDate,
+            command.firstDisbursement.notes,
+          ],
+        );
+        disbursement = mapDisbursement(inserted.rows[0] as Record<string, unknown>);
+      }
+
+      return {
+        kind: 'approved',
+        application: mapApplication(updatedApp.rows[0] as Record<string, unknown>),
+        program,
+        disbursement,
+      } as const;
     });
   }
 

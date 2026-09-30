@@ -18,7 +18,10 @@ import type {
   UtilizationReportFilter,
   UtilizationReportData,
   ScholarshipRepository,
+  ApproveApplicationCommand,
+  ApproveApplicationOutcome,
 } from './scholarship-repository.js';
+import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
 
 export class InMemoryScholarshipRepository implements ScholarshipRepository {
   private programs: Map<string, ScholarshipProgramEntity> = new Map();
@@ -207,6 +210,69 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     return {
       data,
       meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+    };
+  }
+
+  /**
+   * PRC-H083: the whole check-and-write runs without an `await`, so on the
+   * single JS thread it cannot interleave with another approval.
+   */
+  async approveApplicationAtomic(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome> {
+    const application = this.applications.get(id);
+    if (!application || application.tenantId !== tenantId) {
+      return { kind: 'application_not_found' };
+    }
+    const program = this.programs.get(application.programId);
+    if (!program || program.tenantId !== tenantId) return { kind: 'program_not_found' };
+    if (!APPROVABLE_APPLICATION_STATUSES.includes(application.status)) {
+      return { kind: 'invalid_status', status: application.status };
+    }
+    if (program.usedSlots >= program.totalSlots) return { kind: 'no_slots' };
+
+    const now = new Date();
+    const updatedProgram: ScholarshipProgramEntity = {
+      ...program,
+      usedSlots: program.usedSlots + 1,
+      updatedAt: now,
+    };
+    const updatedApplication: ScholarshipApplicationEntity = {
+      ...application,
+      status: 'approved',
+      reviewedAt: command.reviewedAt,
+      reviewerId: command.reviewerId,
+      reviewNotes: command.reviewNotes,
+      updatedAt: now,
+    };
+    let disbursement: DisbursementEntity | null = null;
+    if (command.firstDisbursement) {
+      disbursement = {
+        id: command.firstDisbursement.id,
+        tenantId,
+        applicationId: id,
+        amount: majorUnitsNumberFromCents(program.amountPerRecipientCents),
+        amountCents: program.amountPerRecipientCents,
+        scheduledDate: command.firstDisbursement.scheduledDate,
+        paidDate: null,
+        paymentStatus: 'scheduled',
+        paymentMethod: null,
+        transactionReference: null,
+        notes: command.firstDisbursement.notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+    this.programs.set(program.id, updatedProgram);
+    this.applications.set(id, updatedApplication);
+    if (disbursement) this.disbursements.set(disbursement.id, disbursement);
+    return {
+      kind: 'approved',
+      application: updatedApplication,
+      program: updatedProgram,
+      disbursement,
     };
   }
 

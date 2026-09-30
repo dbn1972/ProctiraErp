@@ -21,6 +21,8 @@ import type {
   DisbursementFilter,
   UtilizationReportFilter,
   UtilizationReportData,
+  ApproveApplicationCommand,
+  ApproveApplicationOutcome,
 } from './scholarship-repository.js';
 
 /** TTL for scholarship program entity cache (5 minutes) */
@@ -115,6 +117,18 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     return this.delegate.listApplications(tenantId, filter, pagination);
   }
 
+  async approveApplicationAtomic(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome> {
+    const outcome = await this.delegate.approveApplicationAtomic(id, tenantId, command);
+    // PRC-H083: used_slots changed — never serve a stale slot count afterwards.
+    if (outcome.kind === 'approved' && this.cache) {
+      await this.cache.del(tenantKey(tenantId, 'scholarship-program', outcome.program.id));
+    }
+    return outcome;
+  }
   async countApplicationsByProgram(programId: string, tenantId: string): Promise<number> {
     return this.delegate.countApplicationsByProgram(programId, tenantId);
   }

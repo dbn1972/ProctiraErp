@@ -585,47 +585,39 @@ export class ScholarshipService {
       );
     }
 
-    // Check slots
-    const program = await this.repository.findProgramById(application.programId, tenantId);
-    if (!program) {
-      throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
-    }
-
-    if (program.usedSlots >= program.totalSlots) {
-      throw new BusinessRuleError('No available slots remaining for this scholarship program');
-    }
-
-    // Update application status
-    const updated = await this.repository.updateApplication(id, tenantId, {
-      status: 'approved' as ApplicationStatus,
+    // PRC-H083: status guard, slot claim, status flip and first instalment are
+    // one atomic repository unit — the reads above are only for friendly errors.
+    const outcome = await this.repository.approveApplicationAtomic(id, tenantId, {
       reviewedAt: new Date(),
       reviewerId: decision.reviewerId ?? null,
       reviewNotes: normaliseNotes(decision.notes),
+      firstDisbursement: decision.scheduleFirstDisbursement
+        ? {
+            id: uuidv4(),
+            scheduledDate: new Date().toISOString().slice(0, 10),
+            notes: 'Scheduled on approval',
+          }
+        : null,
     });
 
-    // Increment used slots
-    await this.repository.updateProgram(application.programId, tenantId, {
-      usedSlots: program.usedSlots + 1,
-    });
-
-    if (decision.scheduleFirstDisbursement) {
-      assertMajorMatchesCents(program.amountPerRecipient, program.amountPerRecipientCents);
-      await this.repository.createDisbursement({
-        id: uuidv4(),
-        tenantId,
-        applicationId: id,
-        amount: program.amountPerRecipient,
-        amountCents: program.amountPerRecipientCents,
-        scheduledDate: new Date().toISOString().slice(0, 10),
-        paidDate: null,
-        paymentStatus: 'scheduled',
-        paymentMethod: null,
-        transactionReference: null,
-        notes: 'Scheduled on approval',
-      });
+    switch (outcome.kind) {
+      case 'approved':
+        if (outcome.disbursement) {
+          assertMajorMatchesCents(outcome.disbursement.amount, outcome.disbursement.amountCents);
+        }
+        return outcome.application;
+      case 'application_not_found':
+        throw new NotFoundError(`Scholarship application with id '${id}' not found`);
+      case 'program_not_found':
+        throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
+      case 'invalid_status':
+        // Status was reviewable when read, so another decision won the race.
+        throw new ConflictError(
+          `Application was already decided (now '${outcome.status}'); refresh and retry.`,
+        );
+      case 'no_slots':
+        throw new BusinessRuleError('No available slots remaining for this scholarship program');
     }
-
-    return updated!;
   }
 
   /**

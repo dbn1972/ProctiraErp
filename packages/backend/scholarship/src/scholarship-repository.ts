@@ -50,12 +50,7 @@ export interface ProgramFilter {
 // ─── Application Entity ──────────────────────────────────────────────────────
 
 export type ApplicationStatus =
-  | 'draft'
-  | 'submitted'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'withdrawn';
+  'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'withdrawn';
 
 export interface ScholarshipApplicationEntity {
   id: string;
@@ -123,10 +118,7 @@ export interface DisbursementFilter {
 // ─── Compliance Entity ───────────────────────────────────────────────────────
 
 export type ComplianceType =
-  | 'academic_performance'
-  | 'attendance'
-  | 'community_service'
-  | 'report_submission';
+  'academic_performance' | 'attendance' | 'community_service' | 'report_submission';
 export type ComplianceStatus = 'compliant' | 'non_compliant' | 'pending_review';
 
 export interface ComplianceRecordEntity {
@@ -179,6 +171,37 @@ export interface UtilizationReportFilter {
   groupBy?: 'program' | 'area' | 'gender' | 'institution';
 }
 
+// ─── Atomic approval (PRC-H083) ──────────────────────────────────────────────
+
+/** Statuses from which an application may be approved. */
+export const APPROVABLE_APPLICATION_STATUSES: readonly ApplicationStatus[] = [
+  'submitted',
+  'under_review',
+];
+
+export interface ApproveApplicationCommand {
+  reviewedAt: Date;
+  reviewerId: string | null;
+  reviewNotes: string | null;
+  /**
+   * When set, the on-approval instalment is inserted in the same transaction.
+   * Amount is taken from the locked program row (amountPerRecipientCents).
+   */
+  firstDisbursement: { id: string; scheduledDate: string; notes: string } | null;
+}
+
+export type ApproveApplicationOutcome =
+  | {
+      kind: 'approved';
+      application: ScholarshipApplicationEntity;
+      program: ScholarshipProgramEntity;
+      disbursement: DisbursementEntity | null;
+    }
+  | { kind: 'application_not_found' }
+  | { kind: 'program_not_found' }
+  | { kind: 'invalid_status'; status: ApplicationStatus }
+  | { kind: 'no_slots' };
+
 // ─── Repository Interface ────────────────────────────────────────────────────
 
 export interface ScholarshipRepository {
@@ -214,6 +237,17 @@ export interface ScholarshipRepository {
     filter: ApplicationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<ScholarshipApplicationEntity>>;
+  /**
+   * PRC-H083: status guard + slot increment + application update + optional
+   * first disbursement as ONE atomic unit. Implementations must not allow two
+   * concurrent callers to both approve the same application or to push
+   * used_slots past total_slots.
+   */
+  approveApplicationAtomic(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome>;
   countApplicationsByProgram(programId: string, tenantId: string): Promise<number>;
   findApplicationByApplicantAndProgram(
     applicantId: string,
