@@ -212,32 +212,29 @@ export class PrivacyService implements DestructiveDeleteGuard {
     subjectType?: string,
     subjectId?: string,
   ): Promise<boolean> {
-    const active = await this.listActiveLegalHolds(tenantId);
-    if (active.some((h) => h.scope === 'tenant')) return true;
-    if (subjectType && subjectId) {
-      return active.some(
-        (h) => h.scope === 'subject' && h.subjectType === subjectType && h.subjectId === subjectId,
-      );
-    }
-    return false;
+    // PRC-L138: single indexed query instead of listing every active hold.
+    const hold = await this.repository.findActiveHold(
+      tenantId,
+      subjectType && subjectId ? { subjectType, subjectId } : undefined,
+    );
+    return hold !== null;
   }
 
   async assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void> {
-    const active = await this.repository.listActiveLegalHolds(tenantId);
-    const tenantHold = active.find((h) => h.scope === 'tenant');
-    if (tenantHold) {
+    // PRC-L138: one indexed query per gate call.
+    const hold = await this.repository.findActiveHold(
+      tenantId,
+      subjectId ? { subjectId } : undefined,
+    );
+    if (!hold) return;
+    if (hold.scope === 'tenant') {
       throw new BusinessRuleError(
-        `Destructive delete blocked: tenant '${tenantId}' is under legal hold (${tenantHold.id})`,
+        `Destructive delete blocked: tenant '${tenantId}' is under legal hold (${hold.id})`,
       );
     }
-    if (subjectId) {
-      const subjectHold = active.find((h) => h.scope === 'subject' && h.subjectId === subjectId);
-      if (subjectHold) {
-        throw new BusinessRuleError(
-          `Destructive delete blocked: subject '${subjectId}' is under legal hold (${subjectHold.id})`,
-        );
-      }
-    }
+    throw new BusinessRuleError(
+      `Destructive delete blocked: subject '${subjectId ?? 'unknown'}' is under legal hold (${hold.id})`,
+    );
   }
 
   async createErasureRequest(input: CreateErasureRequestInput): Promise<ErasureRequestEntity> {

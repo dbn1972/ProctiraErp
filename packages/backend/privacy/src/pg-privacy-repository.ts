@@ -268,6 +268,32 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
+  async findActiveHold(
+    tenantId: string,
+    subject?: { subjectType?: string; subjectId?: string },
+  ): Promise<Pick<LegalHoldEntity, 'id' | 'scope'> | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // One query served by idx_privacy_legal_holds_tenant_active /
+      // idx_privacy_legal_holds_subject_active (db/sql/067).
+      const result = await client.query(
+        `SELECT id, scope FROM privacy_legal_holds
+         WHERE tenant_id = $1 AND active = true
+           AND (
+             scope = 'tenant'
+             OR (scope = 'subject' AND $3::text IS NOT NULL AND subject_id = $3::text
+                 AND ($2::text IS NULL OR subject_type = $2::text))
+           )
+         ORDER BY (scope = 'tenant') DESC
+         LIMIT 1`,
+        [tenantId, subject?.subjectType ?? null, subject?.subjectId ?? null],
+      );
+      const row = result.rows[0] as { id: unknown; scope: unknown } | undefined;
+      return row
+        ? { id: String(row.id), scope: String(row.scope) as LegalHoldEntity['scope'] }
+        : null;
+    });
+  }
   async listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {

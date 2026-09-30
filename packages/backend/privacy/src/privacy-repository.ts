@@ -108,6 +108,15 @@ export interface PrivacyRepository {
   ): Promise<LegalHoldEntity | null>;
   findLegalHoldById(id: string, tenantId: string): Promise<LegalHoldEntity | null>;
   listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]>;
+  /**
+   * Single indexed lookup for the destructive-op gate (PRC-L138): returns an
+   * active tenant-scope hold, or an active subject-scope hold matching
+   * `subjectId` (and `subjectType` when given). Tenant-scope wins.
+   */
+  findActiveHold(
+    tenantId: string,
+    subject?: { subjectType?: string; subjectId?: string },
+  ): Promise<Pick<LegalHoldEntity, 'id' | 'scope'> | null>;
 
   createErasureRequest(
     data: Omit<ErasureRequestEntity, 'createdAt' | 'updatedAt'>,

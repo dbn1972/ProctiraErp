@@ -47,6 +47,20 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return this.holds.find((h) => h.id === id && h.tenantId === tenantId) ?? null;
   }
 
+  async findActiveHold(tenantId: string, subject?: { subjectType?: string; subjectId?: string }) {
+    const active = this.holds.filter((h) => h.tenantId === tenantId && h.active);
+    const hit =
+      active.find((h) => h.scope === 'tenant') ??
+      (subject?.subjectId
+        ? active.find(
+            (h) =>
+              h.scope === 'subject' &&
+              h.subjectId === subject.subjectId &&
+              (subject.subjectType === undefined || h.subjectType === subject.subjectType),
+          )
+        : undefined);
+    return hit ? { id: hit.id, scope: hit.scope } : null;
+  }
   async listActiveLegalHolds(tenantId: string, page?: ListPage) {
     return applyPage(
       this.holds.filter((h) => h.tenantId === tenantId && h.active),
