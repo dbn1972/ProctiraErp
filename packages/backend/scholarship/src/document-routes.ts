@@ -32,9 +32,11 @@ import {
   verifyDocumentDownloadToken,
 } from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
+import { linkLookupUnavailable } from './parent-links.js';
 import type { ScholarshipService } from './scholarship-service.js';
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+// PRC-L346: accept any RFC 9562 UUID version (v1-v8), not only v4.
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 const IdParams = Type.Object({
   id: Type.String({ pattern: UUID_PATTERN }),
@@ -109,8 +111,13 @@ export async function registerScholarshipDocumentRoutes(
     try {
       const linked = await options.resolveLinkedStudentIds(tenantId, base.userId);
       return actorFromRequest(request, linked);
-    } catch {
-      return base;
+    } catch (error) {
+      // PRC-L346: an outage must not look like "not your child".
+      request.log.error(
+        { err: error, event: 'scholarship.parent_links.lookup_failed' },
+        'guardian link lookup failed',
+      );
+      throw linkLookupUnavailable('Guardian link lookup is unavailable', error);
     }
   }
 
@@ -480,8 +487,14 @@ export async function authorizeApplicationCreate(
   if (resolveLinkedStudentIds && actor.userId) {
     try {
       actor = actorFromRequest(request, await resolveLinkedStudentIds(tenantId, actor.userId));
-    } catch {
-      // JWT claims still apply when the link table is unavailable.
+    } catch (error) {
+      // PRC-L346: report the outage as 503 instead of an ambiguous 403.
+      request.log.error(
+        { err: error, event: 'scholarship.parent_links.lookup_failed' },
+        'guardian link lookup failed',
+      );
+      sendError(reply, linkLookupUnavailable('Guardian link lookup is unavailable', error));
+      return false;
     }
   }
   try {

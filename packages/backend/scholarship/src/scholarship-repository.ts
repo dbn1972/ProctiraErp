@@ -7,6 +7,7 @@
  * Requirements: 11.1, 11.2, 11.3, 11.4, 11.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   EligibilityCriteria,
   AcademicRecord,
@@ -79,6 +80,8 @@ export interface ScholarshipApplicationEntity {
 export interface ApplicationFilter {
   programId?: string;
   applicantId?: string;
+  /** Any of these applicants (PRC-L346: single query for a parent's children). */
+  applicantIds?: string[];
   institutionId?: string;
   status?: ApplicationStatus;
   areaId?: string;

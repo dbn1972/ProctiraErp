@@ -460,6 +460,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       };
       if (filter.programId) add('program_id = ?', filter.programId);
       if (filter.applicantId) add('applicant_id = ?', filter.applicantId);
+      if (filter.applicantIds) add('applicant_id = ANY(?)', filter.applicantIds);
       if (filter.institutionId) add('institution_id = ?', filter.institutionId);
       if (filter.status) add('status = ?', filter.status);
       if (filter.areaId) add('area_id = ?', filter.areaId);
