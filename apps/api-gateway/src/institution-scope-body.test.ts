@@ -71,7 +71,9 @@ describe('PRC-H004 body institutionId school scope', () => {
   const writes: Array<{ method: 'POST' | 'PUT' | 'PATCH'; url: string }> = [
     { method: 'POST', url: '/api/v1/students' },
     { method: 'POST', url: '/api/v1/staff' },
-    { method: 'POST', url: '/api/v1/attendance' },
+    { method: 'POST', url: '/api/v1/attendance/student' },
+    { method: 'POST', url: '/api/v1/attendance/student/bulk' },
+    { method: 'POST', url: '/api/v1/enrollments' },
     { method: 'POST', url: '/api/v1/fees/invoices' },
     { method: 'PUT', url: `/api/v1/students/${SCHOOL_A}` },
     { method: 'PATCH', url: `/api/v1/students/${SCHOOL_A}` },
@@ -101,6 +103,43 @@ describe('PRC-H004 body institutionId school scope', () => {
     expect(res.json().code).toBe('INSTITUTION_OUT_OF_SCOPE');
   });
 
+  it('rejects when either key spelling names another school', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/students',
+      headers: principalOfSchoolA(),
+      payload: { institutionId: SCHOOL_A, institution_id: SCHOOL_B },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('INSTITUTION_OUT_OF_SCOPE');
+  });
+
+  it("denies reading or changing another school's institution record by id", async () => {
+    for (const [method, url] of [
+      ['GET', `/api/v1/institutions/${SCHOOL_B}`],
+      ['PUT', `/api/v1/institutions/${SCHOOL_B}`],
+      ['POST', `/api/v1/institutions/${SCHOOL_B}/deactivate`],
+    ] as const) {
+      const res = await app.inject({
+        method,
+        url,
+        headers: principalOfSchoolA(),
+        ...(method === 'GET' ? {} : { payload: { name: 'Hijacked' } }),
+      });
+      expect(res.statusCode, `${method} ${url}`).toBe(403);
+      expect(res.json().code).toBe('INSTITUTION_OUT_OF_SCOPE');
+    }
+  });
+
+  it('does not scope-deny the caller own institution record', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/institutions/${SCHOOL_A}`,
+      headers: principalOfSchoolA(),
+    });
+    expect(res.json().code).not.toBe('INSTITUTION_OUT_OF_SCOPE');
+  });
+
   it("rejects another tenant's institutionId (cross-tenant)", async () => {
     const res = await app.inject({
       method: 'POST',
@@ -119,7 +158,8 @@ describe('PRC-H004 body institutionId school scope', () => {
       headers: principalOfSchoolA(),
       payload: { institutionId: SCHOOL_A },
     });
-    // The domain may reject the incomplete payload, but the school-scope gate must not.
+    // The gate lets it through to domain validation, which rejects the incomplete payload.
+    expect(res.statusCode).toBe(400);
     expect(res.json().code).not.toBe('INSTITUTION_OUT_OF_SCOPE');
   });
 });
