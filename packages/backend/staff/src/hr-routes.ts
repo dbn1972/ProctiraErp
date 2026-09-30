@@ -47,7 +47,8 @@ import {
   type VerifyQualificationInput,
 } from './hr-schemas.js';
 import type { StaffHrService } from './hr-service.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
+import { staffHrActionFor } from './staff-access.js';
+import { requireStaffAction } from './staff-http-guard.js';
 
 export interface StaffHrRoutesOptions {
   hrService: StaffHrService;
@@ -163,16 +164,13 @@ export async function registerStaffHrRoutes(
 ): Promise<void> {
   const { hrService, prefix = '/staff' } = options;
 
+  // PRC-H088: every HR route (reads included) is domain-gated. The old hook returned early for
+  // GET, so GET /payroll/export — which persists/reverses payroll runs — never asserted
+  // payroll.export, and salary/qualification/attendance reads had no domain role check.
+  // Scoped to this encapsulated HR route module only (see staff-plugin.ts).
   fastify.addHook('preHandler', async (request, reply) => {
-    const method = request.method.toUpperCase();
-    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
-    const url = request.url;
-    const action = url.includes('/import')
-      ? 'staff.import'
-      : url.includes('/payroll')
-        ? 'payroll.export'
-        : 'staff.hr.write';
-    staffWritePreHandler(request, reply, action);
+    const action = staffHrActionFor(request.method, request.url, prefix);
+    requireStaffAction(request, reply, action);
   });
 
   fastify.get(
