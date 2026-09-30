@@ -511,6 +511,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     store: createOtpChallengeStore(),
     sms: createSmsProviderFromEnv(),
     exposeCodeInResponse: exposeOtp,
+    // PRC-L281: shared HMAC pepper so any replica can verify a challenge.
+    pepper: process.env['MFA_OTP_PEPPER'] || config.jwt.secret,
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
