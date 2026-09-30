@@ -19,7 +19,7 @@ const CI_WORKFLOW = join(ROOT, '.github/workflows/ci.yml');
 
 /**
  * Expected path → filter buckets that must include the path (dorny globs).
- * Jobs required after those buckets flip are documented in the COMPLETE audit.
+ * Jobs required after those buckets flip are documented in the W1-OPS-05 audit pack.
  */
 export const PATH_FILTER_MATRIX = [
   {
@@ -45,9 +45,7 @@ export const PATH_FILTER_MATRIX = [
     buckets: ['backend'],
     // shared covered by tools/** (dorny prefix match); backend needs the
     // explicit glob so SQL apply / aggregate helpers trip integration.
-    triggers: [
-      'integration-test / backend chain (SQL apply helpers, aggregate, bootstrap)',
-    ],
+    triggers: ['integration-test / backend chain (SQL apply helpers, aggregate, bootstrap)'],
   },
   {
     path: 'tools/dod-checks/**',
@@ -62,9 +60,7 @@ export const PATH_FILTER_MATRIX = [
   {
     path: 'docs/**',
     buckets: ['shared'],
-    triggers: [
-      'lint / typecheck / unit / build / dod / tenant-isolation (no silent skip)',
-    ],
+    triggers: ['lint / typecheck / unit / build / dod / tenant-isolation (no silent skip)'],
   },
   {
     path: 'infrastructure/**',
@@ -101,7 +97,9 @@ export function parseDetectChangeFilters(yaml) {
   // Capture the `filters: |` block until the next top-level job key or blank
   // section outside the indented filter body.
   const after = yaml.slice(start);
-  const filtersMatch = after.match(/\n\s+filters:\s*\|\s*\n([\s\S]*?)(?=\n  [a-zA-Z-]+:|\n# ---|\njobs:)/);
+  const filtersMatch = after.match(
+    /\n\s+filters:\s*\|\s*\n([\s\S]*?)(?=\n  [a-zA-Z-]+:|\n# ---|\njobs:)/,
+  );
   if (!filtersMatch) {
     // Fallback: take until next job-level `name:` at column 2 after detect-changes.
     const alt = after.match(/\n\s+filters:\s*\|\s*\n([\s\S]*?)\n  # -+/);
@@ -166,13 +164,13 @@ export function evaluateJobIfs(yaml) {
   const requiredSnippets = [
     {
       id: 'lint-infra',
-      needle: 'needs.detect-changes.outputs.infra-changed == \'true\'',
+      needle: "needs.detect-changes.outputs.infra-changed == 'true'",
       context: 'lint',
     },
     {
       id: 'integration-infra',
       needle:
-        'needs.detect-changes.outputs.has-backend-changes == \'true\' || needs.detect-changes.outputs.has-shared-changes == \'true\' || needs.detect-changes.outputs.infra-changed == \'true\'',
+        "needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' || needs.detect-changes.outputs.infra-changed == 'true'",
       context: 'integration-test',
     },
     {

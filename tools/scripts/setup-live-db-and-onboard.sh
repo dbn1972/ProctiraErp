@@ -22,7 +22,7 @@ else
 fi
 
 echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh, APPLY_STRICT_FKS=1)"
-# W1-DATA-06 COMPLETE: certification onboard uses production tenant FK create +
+# W1-DATA-06: certification onboard uses production tenant FK create +
 # VALIDATE + repair posture (also the apply-sql.sh CI/production default).
 DATABASE_URL="$DB_URL" APPLY_STRICT_FKS=1 bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"

@@ -1421,6 +1421,8 @@ jobs:
 
       - name: Unit-test target migration contract
         run: node --test tools/scripts/target-database-migration-contract.test.mjs
+      - name: Unit-test tools/scripts hygiene contracts
+        run: node --test tools/scripts/no-completion-claims.test.mjs
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs

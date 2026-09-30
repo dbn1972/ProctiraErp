@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit tests for W1-DATA-04 Prisma↔SQL catalog drift gate (COMPLETE).
+ * Unit tests for W1-DATA-04 Prisma↔SQL catalog drift gate.
  * Run with: node --test tools/scripts/check-prisma-sql-drift.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -462,10 +462,7 @@ test('repo fixture: gate passes against a minimal on-disk tree', () => {
   writeFileSync(join(root, 'db/sql/066_auth_session_tables.sql'), SAMPLE_SQL);
   writeFileSync(join(root, 'tools/scripts/apply-sql.sh'), APPLY_OK);
   writeFileSync(join(root, 'db/README.md'), README_OK);
-  writeFileSync(
-    join(root, AUTHORITY_REL),
-    JSON.stringify(AUTHORITY_OK, null, 2),
-  );
+  writeFileSync(join(root, AUTHORITY_REL), JSON.stringify(AUTHORITY_OK, null, 2));
   writeFileSync(
     join(root, 'packages/shared/database/prisma/migrations/m1/migration.sql'),
     'CREATE TABLE tenants (id UUID PRIMARY KEY, name VARCHAR(255), slug VARCHAR(100) UNIQUE, config JSONB, status VARCHAR(20), created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ, deleted_at TIMESTAMPTZ);\n',

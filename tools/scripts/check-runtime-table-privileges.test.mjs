@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit tests for W1-DATA-11 COMPLETE runtime privilege catalog gate.
+ * Unit tests for W1-DATA-11 runtime privilege catalog gate.
  * Run with: node --test tools/scripts/check-runtime-table-privileges.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 `;
 
 const GOOD_CLASSIFY_SQL = `
--- W1-DATA-11 COMPLETE
+-- W1-DATA-11
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM proctira_app;
 INSERT INTO schema_migrations (filename)
