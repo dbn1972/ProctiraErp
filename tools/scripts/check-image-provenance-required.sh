@@ -43,6 +43,12 @@ for f in "${FILES[@]}"; do
   fi
 done
 
+# PRC-L181: prove cosign actually runs — installer + blocking sign + verify steps.
+if ! node "$ROOT/tools/scripts/check-workflow-step-contracts.mjs" --cosign "${FILES[@]}"; then
+  echo "W1-OPS-14: cosign sign/verify steps missing or soft-pass" >&2
+  fail=1
+fi
+
 if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
