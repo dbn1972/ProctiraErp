@@ -21,7 +21,8 @@ Applies only to closing PRC-* findings from `docs/audits/gap-analysis/Proctira_C
 
 ## Batching
 
-- One branch and one worktree per module batch (`fix/<module>-<severity>-batchN`), one commit per PRC id (`... (PRC-H054)`); findings fixed together cite every id.
+- Group similar findings (same module or same bug class) into one batch of about 10 findings: one branch, one worktree, one PR against `main` (`fix/<module>-batchN`). Never one PR per finding.
+- One commit per PRC id (`... (PRC-H054)`); findings fixed together cite every id.
 - Up to 3 batches run in parallel. Run `~/bin/server-guard.sh` before heavy commands; stop starting work when it fails.
 
 ## Validation
@@ -33,5 +34,5 @@ Applies only to closing PRC-* findings from `docs/audits/gap-analysis/Proctira_C
 ## Review and merge
 
 - One independent `semantic_reviewer` pass per batch branch. Fix blocking findings on the same branch; record non-blocking comments as PR follow-ups instead of another review round.
-- Batches merge (`--no-ff`) into a wave aggregation PR; update the PR body once per wave.
+- The batch PR body carries a ledger table: PRC id, status, one-line fix, residuals. Write it once when the batch is complete.
 - Merging to `main` still needs required CI and human approval. Never self-merge to `main`.
