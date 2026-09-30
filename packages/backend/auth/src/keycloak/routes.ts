@@ -12,6 +12,7 @@ import {
   type KeycloakIdentityStore,
   type LinkedKeycloakUser,
 } from './identity.js';
+import { PasswordLoginThrottle, type PasswordThrottleOptions } from './password-throttle.js';
 import { keycloakRoleCatalog } from './roles.js';
 import { decodeJwt, type KeycloakAuthConfig } from './verify.js';
 
@@ -26,6 +27,11 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * exists for tests and explicit DI.
    */
   revocationStore?: AccessTokenRevocationStore;
+  /**
+   * Per-account + per-IP failed-attempt limiter for POST /password (PRC-H043).
+   * Pass options to tune, or a prebuilt instance to share/inspect in tests.
+   */
+  passwordThrottle?: PasswordLoginThrottle | PasswordThrottleOptions;
 };
 
 type IssuedTokens = {
@@ -77,11 +83,7 @@ function authorizeUrl(config: KeycloakRouteConfig, state: string): string {
   return url.toString();
 }
 
-function logoutUrl(
-  config: KeycloakRouteConfig,
-  redirect?: string,
-  idTokenHint?: string,
-): string {
+function logoutUrl(config: KeycloakRouteConfig, redirect?: string, idTokenHint?: string): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`);
   url.searchParams.set('client_id', config.clientId);
   if (redirect) url.searchParams.set('post_logout_redirect_uri', redirect);
@@ -174,6 +176,11 @@ export async function registerKeycloakAuthRoutes(
   config: KeycloakRouteConfig,
   prefix = '/api/v1/auth',
 ): Promise<void> {
+  const passwordThrottle =
+    config.passwordThrottle instanceof PasswordLoginThrottle
+      ? config.passwordThrottle
+      : new PasswordLoginThrottle(config.passwordThrottle);
+
   fastify.get(
     `${prefix}/login`,
     async (
@@ -304,6 +311,17 @@ export async function registerKeycloakAuthRoutes(
         });
       }
 
+      // PRC-H043: refuse before contacting Keycloak when the account or source IP
+      // has exceeded its failed-attempt budget.
+      const throttle = passwordThrottle.check(username, request.ip);
+      if (!throttle.allowed) {
+        return reply.status(429).header('retry-after', String(throttle.retryAfterSeconds)).send({
+          code: 'TOO_MANY_ATTEMPTS',
+          message: 'Too many failed sign-in attempts. Try again later.',
+          statusCode: 429,
+        });
+      }
+
       const body = new URLSearchParams({
         grant_type: 'password',
         client_id: config.clientId,
@@ -323,12 +341,17 @@ export async function registerKeycloakAuthRoutes(
       );
 
       if (!tokenResponse.ok) {
+        // Only credential rejections count; IdP outages (5xx) must not lock users out.
+        if (tokenResponse.status === 400 || tokenResponse.status === 401) {
+          passwordThrottle.recordFailure(username, request.ip);
+        }
         return reply.status(401).send({
           code: 'INVALID_CREDENTIALS',
           message: 'Invalid email or password',
           statusCode: 401,
         });
       }
+      passwordThrottle.recordSuccess(username);
 
       const tokens = (await tokenResponse.json()) as {
         access_token: string;

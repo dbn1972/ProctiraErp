@@ -147,6 +147,8 @@ export { keycloakAuthPlugin } from './keycloak/plugin.js';
 export type { KeycloakAuthPluginOptions } from './keycloak/plugin.js';
 export { registerKeycloakAuthRoutes } from './keycloak/routes.js';
 export type { KeycloakRouteConfig } from './keycloak/routes.js';
+export { PasswordLoginThrottle } from './keycloak/password-throttle.js';
+export type { PasswordThrottleOptions } from './keycloak/password-throttle.js';
 export {
   KEYCLOAK_PROVIDER,
   KeycloakIdentityError,
