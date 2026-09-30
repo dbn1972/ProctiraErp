@@ -3,7 +3,7 @@
  * filename sanitisation, and a stable placeholder PDF for seeds/tests.
  * No ClamAV client exists in this repo; callers pass an optional scan hook.
  */
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { AppError, ValidationError } from '@proctira/common';
 
@@ -162,11 +162,83 @@ export interface DocumentDownloadClaims {
   exp: number;
 }
 
-function signingSecret(): string {
-  const configured = process.env['SCHOLARSHIP_DOC_URL_SECRET']?.trim();
-  if (configured) return configured;
-  // Dev/test only. Production must set SCHOLARSHIP_DOC_URL_SECRET.
-  return 'dev-scholarship-doc-url-secret';
+const DOC_SIGNING_KEY_MISSING_MESSAGE =
+  'SCHOLARSHIP_DOC_URL_SECRET is required in production. Scholarship document download links ' +
+  'are unauthenticated except for this signed token, so no key may be defaulted. Set a strong, ' +
+  'dedicated SCHOLARSHIP_DOC_URL_SECRET (not JWT_SECRET) before serving downloads.';
+
+/**
+ * PRC-H082: the scholarship document download endpoint is exempt from JWT auth, so the signed
+ * token is the *only* credential guarding applicants' income/caste/ID documents. A hard-coded
+ * default secret let anyone who read the source forge a token for any (tenantId, documentId).
+ * Issuance/verification now fail closed in production when the dedicated secret is unset.
+ */
+export class ScholarshipDocSigningKeyMissingError extends AppError {
+  constructor(detail?: string) {
+    super(detail ?? DOC_SIGNING_KEY_MISSING_MESSAGE, 'SCHOLARSHIP_DOC_SIGNING_KEY_MISSING', 503);
+    this.name = 'ScholarshipDocSigningKeyMissingError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export function isScholarshipDocSigningKeyMissingError(
+  error: unknown,
+): error is ScholarshipDocSigningKeyMissingError {
+  return (
+    error instanceof ScholarshipDocSigningKeyMissingError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: string }).code === 'SCHOLARSHIP_DOC_SIGNING_KEY_MISSING')
+  );
+}
+
+/** Process-local ephemeral key for non-production only. Never persisted, never used in prod. */
+let ephemeralDevSecret: { secret: string; logged: boolean } | null = null;
+
+/** Test hook. Production code must not call this. */
+export function resetScholarshipDocSigningForTests(): void {
+  ephemeralDevSecret = null;
+}
+
+function isProduction(env: NodeJS.ProcessEnv): boolean {
+  return (env.NODE_ENV ?? '').toLowerCase() === 'production';
+}
+
+/**
+ * Resolve the HMAC secret for scholarship document download tokens.
+ * - Configured `SCHOLARSHIP_DOC_URL_SECRET` is always used when present.
+ * - Production with no configured secret fails closed (503) — no key is invented.
+ * - Non-production with no configured secret uses a per-process ephemeral random key
+ *   (logged once) so local/dev/test flows work without shipping a guessable default.
+ * - The dedicated secret must not be aliased to `JWT_SECRET`.
+ */
+function signingSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env['SCHOLARSHIP_DOC_URL_SECRET']?.trim();
+  if (configured) {
+    const jwtSecret = env['JWT_SECRET']?.trim();
+    if (jwtSecret && configured === jwtSecret) {
+      throw new ScholarshipDocSigningKeyMissingError(
+        'SCHOLARSHIP_DOC_URL_SECRET must not equal JWT_SECRET (use a dedicated document key)',
+      );
+    }
+    return configured;
+  }
+  if (isProduction(env)) {
+    throw new ScholarshipDocSigningKeyMissingError();
+  }
+  if (!ephemeralDevSecret) {
+    ephemeralDevSecret = { secret: randomBytes(32).toString('base64url'), logged: false };
+  }
+  if (!ephemeralDevSecret.logged) {
+    ephemeralDevSecret.logged = true;
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[scholarship] SCHOLARSHIP_DOC_URL_SECRET is unset outside production; using an ephemeral ' +
+        'in-memory HMAC key for this process only. Tokens are not valid across restarts. Set ' +
+        'SCHOLARSHIP_DOC_URL_SECRET before production.',
+    );
+  }
+  return ephemeralDevSecret.secret;
 }
 
 export function signDocumentDownloadToken(
