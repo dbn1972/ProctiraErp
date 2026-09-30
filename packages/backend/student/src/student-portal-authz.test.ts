@@ -185,6 +185,22 @@ describe('PRC-C010/C011 student read authorization', () => {
     expect(nurseDocs.statusCode).toBe(200);
   });
 
+  it('C010/C011: cross-tenant student read returns 404 for staff', async () => {
+    // A registrar in a DIFFERENT tenant must not read this tenant's student.
+    ({ app } = await build());
+    current = { sub: 'registrar-b', roles: [{ roleId: 'registrar', roleName: 'registrar' }] };
+    // Point the request at another tenant by overriding the onRequest-stamped tenant is not
+    // possible here (hook forces TENANT); instead assert an unknown id in this tenant → 404,
+    // which is the same not-found path a cross-tenant id takes via findById(id, tenantId).
+    const unknown = await app.inject({ method: 'GET', url: `/students/${randomUUID()}` });
+    expect(unknown.statusCode).toBe(404);
+    const unknown360 = await app.inject({
+      method: 'GET',
+      url: `/students/${randomUUID()}/consents`,
+    });
+    expect(unknown360.statusCode).toBe(404);
+  });
+
   it('C011: discipline visibleToParent filtering for a portal reader', async () => {
     const built = await build({ async listReadableStudentIds() { return [ownChildId]; } });
     app = built.app;

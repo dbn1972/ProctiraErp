@@ -174,9 +174,34 @@ export async function registerStudents360Routes(
    *    guardian for read); discipline writes require discipline staff; consents writes require
    *    registrar/admin. (Per-route refinement below the ownership gate.)
    */
+  // The students-360 sub-resource path segments this hook governs. studentPlugin is
+  // fastify-plugin-wrapped, so this hook would otherwise also run against sibling student-domain
+  // routes (certificates, enrollment, import) where `:id` is NOT a student id. Restrict it to the
+  // 360 URL shapes so the ownership gate cannot drift onto unrelated routes.
+  const STUDENTS_360_SEGMENTS = [
+    '/photo',
+    '/id-card.pdf',
+    '/siblings',
+    '/consents',
+    '/discipline',
+    '/attendance-heatmap',
+    '/documents',
+  ];
+  const is360Url = (url: string): boolean => {
+    const path = url.split('?')[0] ?? url;
+    return (
+      path.startsWith(`${prefix}/`) &&
+      STUDENTS_360_SEGMENTS.some((seg) => path.includes(seg))
+    );
+  };
+
   fastify.addHook('preHandler', async (request, reply) => {
     const method = request.method.toUpperCase();
     if (method === 'OPTIONS' || method === 'HEAD') return;
+
+    // Only govern students-360 routes; defer everything else (certificates, enrollment, import,
+    // base roster) to their own gates.
+    if (!is360Url(request.url)) return;
 
     const tenantId = tenantOf(request);
     if (!tenantId) return; // handler returns TENANT_REQUIRED
