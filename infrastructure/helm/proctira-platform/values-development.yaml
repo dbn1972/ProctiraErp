@@ -215,6 +215,9 @@ reportService:
 
 config:
   tenantBaseDomain: proctira.localhost
+  # PRC-H027: localhost / port-forward access has no tenant subdomain; the web
+  # BFF uses this slug (seeded dev tenant, infra/keycloak/proctira-realm.json).
+  tenantFallbackSlug: india
 
 # W1-OPS-19 — sandbox: explicit dry-run (RETENTION_DRY_RUN=1); never inherit unset.
 dr:
