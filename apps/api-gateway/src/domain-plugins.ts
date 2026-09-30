@@ -563,6 +563,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
+        // PRC-H092: in-process consumer (dedicated connection) for queued imports.
+        importWorkerQueue: importHandle?.createConsumerAdapter(),
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
