@@ -7,8 +7,10 @@
 import http from 'node:http';
 import https from 'node:https';
 
+import { headers as requestHeaders } from 'next/headers';
+
 import type { RegistrationRequestInit, RegistrationTransport } from './api';
-import { getGatewayApiBaseUrl } from './gateway-config';
+import { getGatewayApiBaseUrl, resolvePublicHost } from './gateway-config';
 
 const GATEWAY_TIMEOUT_MS = 15_000;
 
@@ -16,6 +18,12 @@ const GATEWAY_TIMEOUT_MS = 15_000;
 export interface GatewayRequestOptions {
   /** Gateway API base; defaults to {@link getGatewayApiBaseUrl}. */
   baseUrl?: string;
+  /**
+   * Public hostname of the applicant's request, sent as `Host` so the gateway
+   * resolves the tenant (see resolvePublicHost). `fetch` cannot override Host,
+   * hence node:http.
+   */
+  publicHost?: string;
 }
 
 /**
@@ -31,6 +39,7 @@ export function gatewayRequest(
   const url = new URL(`${base.replace(/\/+$/, '')}${path}`);
   const transport = url.protocol === 'https:' ? https : http;
   const headers: Record<string, string> = { accept: 'application/json', ...(init.headers ?? {}) };
+  if (options.publicHost) headers.host = options.publicHost;
   if (init.body !== undefined) headers['content-length'] = String(Buffer.byteLength(init.body));
 
   return new Promise<Response>((resolve, reject) => {
@@ -70,5 +79,8 @@ export function gatewayRequest(
   });
 }
 
-/** Transport for server components and loaders. */
-export const serverTransport: RegistrationTransport = (path, init) => gatewayRequest(path, init);
+/** Transport for server components and loaders; forwards the applicant's host. */
+export const serverTransport: RegistrationTransport = async (path, init) => {
+  const publicHost = resolvePublicHost(await requestHeaders());
+  return gatewayRequest(path, init, { publicHost });
+};

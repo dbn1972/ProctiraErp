@@ -2,12 +2,13 @@
  * Same-origin proxy for browser calls to the public registration API.
  *
  * Browser code calls `/api/registrations/*` on the portal; this handler
- * forwards to `<GATEWAY_URL>/api/v1/registrations/*` at runtime.
+ * forwards to `<GATEWAY_URL>/api/v1/registrations/*` at runtime, sending the
+ * applicant's public hostname as Host so the gateway resolves the tenant.
  */
 import type { NextRequest } from 'next/server';
 
 import { gatewayRequest } from '@/lib/gateway';
-import { buildRegistrationProxyPath } from '@/lib/gateway-config';
+import { buildRegistrationProxyPath, resolvePublicHost } from '@/lib/gateway-config';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,11 +37,11 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   const body =
     request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
   try {
-    const upstream = await gatewayRequest(upstreamPath, {
-      method: request.method,
-      headers,
-      body,
-    });
+    const upstream = await gatewayRequest(
+      upstreamPath,
+      { method: request.method, headers, body },
+      { publicHost: resolvePublicHost(request.headers) },
+    );
     const responseHeaders = new Headers();
     for (const name of FORWARDED_RESPONSE_HEADERS) {
       for (const value of name === 'set-cookie'
