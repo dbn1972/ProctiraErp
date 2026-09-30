@@ -782,6 +782,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         institutionBrandingRepository: createInstitutionBrandingRepository(),
         reportCardJobRepository: createReportCardJobRepository(),
         taskQueuePublisher: reportCardQueueHandle?.publisher,
+        // PRC-H039: in-process consumer so queued jobs reach 'completed'.
+        reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
       });
     },
   },
