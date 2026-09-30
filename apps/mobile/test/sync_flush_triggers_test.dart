@@ -1,7 +1,6 @@
 // PRC-H010: the offline queue must drain without a connectivity-change event
 // when the device is already online (enqueue while online, rows left over
 // from a previous launch).
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
