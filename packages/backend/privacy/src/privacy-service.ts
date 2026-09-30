@@ -7,7 +7,13 @@
  * - Residuals → job status `failed` (never claim `completed` wipe)
  * - Every id op is tenant-bound (IDOR fail-closed)
  */
-import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '@proctira/common';
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -76,6 +82,17 @@ const CORRECTION_TRANSITIONS: Record<CorrectionStatus, readonly CorrectionStatus
   cancelled: [],
 };
 
+/**
+ * Raised when a destructive privacy operation is requested but no real domain
+ * executor is configured (PRC-H077). Surfaced as HTTP 501 so callers see
+ * "not implemented" instead of a 201 job that can only end failed/stuck.
+ */
+export class PrivacyExecutorNotConfiguredError extends AppError {
+  constructor(message: string) {
+    super(message, 'NOT_IMPLEMENTED', 501);
+  }
+}
+
 export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
@@ -94,6 +111,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
   private readonly tenantWipeExecutor: TenantWipeExecutor;
   private readonly anonymizationPublisher?: PrivacyAnonymizationPublisher;
   private readonly offboardPublisher?: PrivacyOffboardPublisher;
+  /** False when only the residual-recording default anonymizer is present. */
+  readonly erasureExecutionAvailable: boolean;
+  /** False when only the residual checklist wipe executor is present. */
+  readonly tenantWipeAvailable: boolean;
 
   constructor(
     private readonly repository: PrivacyRepository,
@@ -102,6 +123,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.audit = options.audit ?? new NoopPrivacyAuditPort();
     this.anonymizer = options.anonymizer ?? new RecordingSubjectAnonymizer();
     this.tenantWipeExecutor = options.tenantWipeExecutor ?? new ResidualTenantWipeExecutor();
+    this.erasureExecutionAvailable = options.anonymizer !== undefined;
+    this.tenantWipeAvailable = options.tenantWipeExecutor !== undefined;
     this.anonymizationPublisher = options.anonymizationPublisher;
     this.offboardPublisher = options.offboardPublisher;
   }
@@ -282,6 +305,14 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (existing.status !== 'approved') {
       throw new BusinessRuleError(
         `Erasure execute requires approved status; current=${existing.status}`,
+      );
+    }
+    if (!this.erasureExecutionAvailable) {
+      // PRC-H077: without injected domain anonymizers the default records a
+      // residual and the job can only fail. Refuse up front and leave the
+      // request `approved` rather than creating a job that can never complete.
+      throw new PrivacyExecutorNotConfiguredError(
+        'Erasure execution is not available: no domain anonymizer is configured',
       );
     }
     if (await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)) {
@@ -572,6 +603,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
   async requestTenantOffboardWipe(
     input: RequestTenantOffboardInput,
   ): Promise<TenantOffboardJobEntity> {
+    if (!this.tenantWipeAvailable) {
+      // PRC-H077: no real TenantWipeExecutor -> tenant offboard is disabled.
+      throw new PrivacyExecutorNotConfiguredError(
+        'Tenant offboard wipe is not available: no tenant wipe executor is configured',
+      );
+    }
     if (await this.isOnLegalHold(input.tenantId)) {
       throw new BusinessRuleError(
         `Tenant offboard wipe blocked: tenant '${input.tenantId}' is under legal hold (fail-closed)`,
