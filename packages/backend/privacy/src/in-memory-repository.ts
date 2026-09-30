@@ -65,10 +65,12 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
+    options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null> {
     const idx = this.erasures.findIndex((e) => e.id === id && e.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.erasures[idx]!;
+    if (options?.expectedStatus && existing.status !== options.expectedStatus) return null;
     const updated: ErasureRequestEntity = {
       ...existing,
       status: data.status ?? existing.status,
@@ -149,12 +151,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<
         AnonymizationJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'fieldsTouched'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<AnonymizationJobEntity | null> {
@@ -198,12 +195,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'checklist'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'checklist' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<TenantOffboardJobEntity | null> {

@@ -100,9 +100,7 @@ export interface TenantOffboardJobEntity {
  * W1-SEC-06: every find/update-by-id takes tenantId and filters by it (IDOR fail-closed).
  */
 export interface PrivacyRepository {
-  createLegalHold(
-    data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<LegalHoldEntity>;
+  createLegalHold(data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>): Promise<LegalHoldEntity>;
   updateLegalHold(
     id: string,
     tenantId: string,
@@ -120,6 +118,11 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
+    /**
+     * Compare-and-set guard: when set, the update applies only if the row is
+     * still in this status; otherwise `null` is returned (PRC-H076).
+     */
+    options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
   listErasureRequests(tenantId: string): Promise<ErasureRequestEntity[]>;
@@ -137,10 +140,7 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<CorrectionRequestEntity | null>;
-  findCorrectionRequestById(
-    id: string,
-    tenantId: string,
-  ): Promise<CorrectionRequestEntity | null>;
+  findCorrectionRequestById(id: string, tenantId: string): Promise<CorrectionRequestEntity | null>;
   listCorrectionRequests(tenantId: string): Promise<CorrectionRequestEntity[]>;
 
   createAnonymizationJob(
@@ -152,12 +152,7 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<
         AnonymizationJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'fieldsTouched'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<AnonymizationJobEntity | null>;
@@ -173,18 +168,10 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'checklist'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'checklist' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<TenantOffboardJobEntity | null>;
-  findTenantOffboardJobById(
-    id: string,
-    tenantId: string,
-  ): Promise<TenantOffboardJobEntity | null>;
+  findTenantOffboardJobById(id: string, tenantId: string): Promise<TenantOffboardJobEntity | null>;
   listTenantOffboardJobs(tenantId: string): Promise<TenantOffboardJobEntity[]>;
 }

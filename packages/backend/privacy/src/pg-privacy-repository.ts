@@ -315,6 +315,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
+    options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -324,6 +325,8 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!existing.rows[0]) return null;
       const cur = mapErasure(existing.rows[0] as Record<string, unknown>);
+      // $7 is the optional compare-and-set status (PRC-H076): a concurrent writer
+      // that moved the row since we read it makes this UPDATE a no-op.
       const result = await client.query(
         `UPDATE privacy_erasure_requests SET
            status = $3,
@@ -332,6 +335,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
            completed_at = $6,
            updated_at = NOW()
          WHERE id = $1 AND tenant_id = $2
+           AND ($7::text IS NULL OR status = $7::text)
          RETURNING *`,
         [
           id,
@@ -340,8 +344,10 @@ export class PgPrivacyRepository implements PrivacyRepository {
           data.reviewedBy !== undefined ? data.reviewedBy : cur.reviewedBy,
           data.statusReason !== undefined ? data.statusReason : cur.statusReason,
           data.completedAt !== undefined ? data.completedAt : cur.completedAt,
+          options?.expectedStatus ?? null,
         ],
       );
+      if (!result.rows[0]) return null;
       return mapErasure(result.rows[0] as Record<string, unknown>);
     });
   }
