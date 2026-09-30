@@ -63,6 +63,20 @@ export class TenantService {
     private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
   ) {}
 
+  /**
+   * PRC-H098: lifecycle status changes must reach enforcement (the gateway suspension gate).
+   * Listeners run after the status is persisted; a failing listener is logged, not rethrown.
+   */
+  private readonly statusListeners: Array<
+    (tenantId: string, status: TenantEntity['status']) => void | Promise<void>
+  > = [];
+
+  onStatusChange(
+    listener: (tenantId: string, status: TenantEntity['status']) => void | Promise<void>,
+  ): void {
+    this.statusListeners.push(listener);
+  }
+
   // ─── Tenant CRUD ─────────────────────────────────────────────────────────
 
   /**
@@ -372,6 +386,15 @@ export class TenantService {
     const updated = await this.repository.updateTenant(id, patch);
     if (!updated) {
       throw new NotFoundError(`Tenant with id '${id}' not found`);
+    }
+    if (patch.status) {
+      for (const listener of this.statusListeners) {
+        try {
+          await listener(id, updated.status);
+        } catch (error) {
+          logger.error({ tenantId: id, err: error }, 'Tenant status listener failed');
+        }
+      }
     }
     return updated;
   }
