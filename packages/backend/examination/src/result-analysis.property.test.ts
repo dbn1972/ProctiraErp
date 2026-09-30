@@ -233,7 +233,7 @@ describe('Property 24: Examination Result Analysis Accuracy', () => {
       })),
     }));
 
-    resultRepository.seedCandidates(examId, candidates);
+    resultRepository.seedCandidates(examId, candidates, tenantId);
 
     // Publish results
     await service.publishResults(tenantId, examId);

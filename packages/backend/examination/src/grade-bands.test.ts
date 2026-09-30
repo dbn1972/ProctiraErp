@@ -236,20 +236,24 @@ describe('publishResults with fractional scores (PRC-H054)', () => {
       updatedAt: new Date(),
     };
     await examRepo.create(exam);
-    resultRepo.seedCandidates(exam.id, [
-      {
-        id: 'c1',
-        examinationId: exam.id,
-        studentId: 'st1',
-        centerId: 'ctr',
-        gender: 'male',
-        areaId: 'a',
-        subjectResults: [
-          { candidateId: 'c1', subjectId: 's1', score: 89.5, isComplete: true },
-          { candidateId: 'c1', subjectId: 's2', score: 10, isComplete: true },
-        ],
-      },
-    ]);
+    resultRepo.seedCandidates(
+      exam.id,
+      [
+        {
+          id: 'c1',
+          examinationId: exam.id,
+          studentId: 'st1',
+          centerId: 'ctr',
+          gender: 'male',
+          areaId: 'a',
+          subjectResults: [
+            { candidateId: 'c1', subjectId: 's1', score: 89.5, isComplete: true },
+            { candidateId: 'c1', subjectId: 's2', score: 10, isComplete: true },
+          ],
+        },
+      ],
+      TENANT,
+    );
 
     const result = await svc.publishResults(TENANT, exam.id);
     expect(result.gradeResults).toHaveLength(1);

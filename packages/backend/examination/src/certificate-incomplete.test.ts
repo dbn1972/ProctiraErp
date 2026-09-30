@@ -129,26 +129,30 @@ describe('publishResults missing marks rows (PRC-H056)', () => {
     const examRepo = new InMemoryExaminationRepository();
     const resultRepo = new InMemoryResultRepository();
     await examRepo.create(exam('IN_PROGRESS'));
-    resultRepo.seedCandidates('exam-1', [
-      {
-        id: 'c1',
-        examinationId: 'exam-1',
-        studentId: 'st1',
-        centerId: 'ctr',
-        gender: 'female',
-        areaId: 'a',
-        subjectResults: [{ candidateId: 'c1', subjectId: 's1', score: 80, isComplete: true }],
-      },
-      {
-        id: 'c2',
-        examinationId: 'exam-1',
-        studentId: 'st2',
-        centerId: 'ctr',
-        gender: 'male',
-        areaId: 'a',
-        subjectResults: [],
-      },
-    ]);
+    resultRepo.seedCandidates(
+      'exam-1',
+      [
+        {
+          id: 'c1',
+          examinationId: 'exam-1',
+          studentId: 'st1',
+          centerId: 'ctr',
+          gender: 'female',
+          areaId: 'a',
+          subjectResults: [{ candidateId: 'c1', subjectId: 's1', score: 80, isComplete: true }],
+        },
+        {
+          id: 'c2',
+          examinationId: 'exam-1',
+          studentId: 'st2',
+          centerId: 'ctr',
+          gender: 'male',
+          areaId: 'a',
+          subjectResults: [],
+        },
+      ],
+      TENANT,
+    );
     const svc = new ResultPublicationService(examRepo, resultRepo);
     const result = await svc.publishResults(TENANT, 'exam-1');
     expect(result.gradeResults).toHaveLength(1);
