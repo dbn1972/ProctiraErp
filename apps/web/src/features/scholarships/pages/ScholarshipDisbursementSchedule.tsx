@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
+import { buildPaidUpdateBody } from '../disbursement-paid';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -78,6 +79,11 @@ export default function ScholarshipDisbursementSchedule() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | ''>('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  // Mark-as-paid form: the backend requires transactionReference + paidDate (PRC-H085).
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [paidReference, setPaidReference] = useState('');
+  const [paidDate, setPaidDate] = useState('');
+  const [paidFormError, setPaidFormError] = useState<string | null>(null);
 
   const fetchDisbursements = useCallback(async () => {
     setLoading(true);
@@ -111,29 +117,53 @@ export default function ScholarshipDisbursementSchedule() {
     void fetchDisbursements();
   }, [fetchDisbursements]);
 
-  const handleStatusUpdate = async (id: string, newStatus: PaymentStatus) => {
+  const sendUpdate = async (id: string, body: Record<string, string>): Promise<boolean> => {
     setUpdatingId(id);
     setActionError(null);
     try {
-      const body: Record<string, string> = { paymentStatus: newStatus };
-      if (newStatus === 'paid') {
-        body.paidDate = new Date().toISOString().split('T')[0]!;
-      }
-
       await scholarshipBrowserFetch<unknown>(`/scholarships/disbursements/${id}`, {
         method: 'PUT',
         json: body,
       });
       void fetchDisbursements();
+      return true;
     } catch (err) {
       if (err instanceof BrowserGatewayError) {
         setActionError(err.message);
       } else {
         setActionError('Failed to update disbursement status');
       }
+      return false;
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handleStatusUpdate = async (id: string, newStatus: Exclude<PaymentStatus, 'paid'>) => {
+    await sendUpdate(id, { paymentStatus: newStatus });
+  };
+
+  const openPaidForm = (id: string) => {
+    setPayingId(id);
+    setPaidReference('');
+    setPaidDate(new Date().toISOString().split('T')[0]!);
+    setPaidFormError(null);
+  };
+
+  const closePaidForm = () => {
+    setPayingId(null);
+    setPaidFormError(null);
+  };
+
+  const handleConfirmPaid = async (id: string) => {
+    const result = buildPaidUpdateBody({ transactionReference: paidReference, paidDate });
+    if (!result.ok) {
+      setPaidFormError(result.error);
+      return;
+    }
+    setPaidFormError(null);
+    const ok = await sendUpdate(id, result.body);
+    if (ok) closePaidForm();
   };
 
   // Summary stats
@@ -272,10 +302,11 @@ export default function ScholarshipDisbursementSchedule() {
                           Process
                         </button>
                       )}
-                      {d.paymentStatus === 'processing' && (
+                      {d.paymentStatus === 'processing' && payingId !== d.id && (
                         <div className="flex gap-1">
                           <button
-                            onClick={() => handleStatusUpdate(d.id, 'paid')}
+                            type="button"
+                            onClick={() => openPaidForm(d.id)}
                             disabled={updatingId === d.id}
                             className="rounded px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
                             aria-label={`Mark disbursement ${d.id} as paid`}
@@ -283,6 +314,7 @@ export default function ScholarshipDisbursementSchedule() {
                             Paid
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleStatusUpdate(d.id, 'failed')}
                             disabled={updatingId === d.id}
                             className="rounded px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
@@ -291,6 +323,73 @@ export default function ScholarshipDisbursementSchedule() {
                             Failed
                           </button>
                         </div>
+                      )}
+                      {d.paymentStatus === 'processing' && payingId === d.id && (
+                        <form
+                          noValidate
+                          aria-label={`Confirm payment for disbursement ${d.id}`}
+                          className="flex flex-col gap-2 min-w-[14rem]"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void handleConfirmPaid(d.id);
+                          }}
+                        >
+                          <label htmlFor={`paid-ref-${d.id}`} className="text-xs font-medium">
+                            Transaction reference{' '}
+                            <span aria-hidden="true" className="text-destructive">
+                              *
+                            </span>
+                          </label>
+                          <input
+                            id={`paid-ref-${d.id}`}
+                            type="text"
+                            required
+                            aria-required="true"
+                            maxLength={255}
+                            value={paidReference}
+                            onChange={(e) => setPaidReference(e.target.value)}
+                            aria-invalid={paidFormError ? true : undefined}
+                            aria-describedby={paidFormError ? `paid-err-${d.id}` : undefined}
+                            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          />
+                          <label htmlFor={`paid-date-${d.id}`} className="text-xs font-medium">
+                            Paid date
+                          </label>
+                          <input
+                            id={`paid-date-${d.id}`}
+                            type="date"
+                            required
+                            aria-required="true"
+                            value={paidDate}
+                            onChange={(e) => setPaidDate(e.target.value)}
+                            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          />
+                          {paidFormError && (
+                            <p
+                              id={`paid-err-${d.id}`}
+                              role="alert"
+                              className="text-xs text-destructive"
+                            >
+                              {paidFormError}
+                            </p>
+                          )}
+                          <div className="flex gap-1">
+                            <button
+                              type="submit"
+                              disabled={updatingId === d.id}
+                              className="rounded px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
+                            >
+                              Confirm paid
+                            </button>
+                            <button
+                              type="button"
+                              onClick={closePaidForm}
+                              className="rounded px-2 py-1 text-xs border hover:bg-muted"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
                       )}
                     </td>
                   </tr>
