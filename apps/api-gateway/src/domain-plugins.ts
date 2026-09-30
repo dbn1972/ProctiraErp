@@ -560,12 +560,25 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // W1-SEC-06: legal-hold gate on student soft-delete / merge — shared store
       // with /privacy plugin + tenant lifecycle delete guard.
       const privacyService = new PrivacyService(sharedPrivacyRepository);
+      // PRC-C010/C011: bind portal readers to the students they may see — guardians/parents to
+      // their linked children (parent-portal child-link table, same source as fees/gradebook),
+      // and a student to their own JWT subject. Without this, portal roles are denied.
+      const studentParentRepo = createParentPortalRepository();
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            // Guardians/parents → their linked children. A student's own-record read is served
+            // by the student portal (JWT sub) and is tracked as a follow-up; the child-link
+            // table is the authoritative ownership source here.
+            const links = await studentParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },

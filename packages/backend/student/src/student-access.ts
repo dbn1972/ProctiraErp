@@ -6,7 +6,12 @@ import { AppError } from '@proctira/common';
 
 export type StudentWriteAction = 'student.create' | 'student.update' | 'student.delete';
 
-/** Roles that may list/read student records (aligned with gateway student.read). */
+/**
+ * Staff roles that may list/read the student roster.
+ * PRC-C010: guardian/parent/student were removed here — portal roles must NOT read the tenant
+ * roster. Their own-child access is scoped separately (student-portal-access.ts) via the
+ * parent/student portal binding, not this staff read gate.
+ */
 const READ_ROLES = [
   'admin',
   'super-admin',
@@ -23,9 +28,6 @@ const READ_ROLES = [
   'teacher',
   'staff',
   'nurse',
-  'guardian',
-  'parent',
-  'student',
 ] as const;
 
 const ADMIN_ROLES = [

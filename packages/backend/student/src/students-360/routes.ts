@@ -23,6 +23,14 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { StudentParamsSchema } from '../schemas.js';
+import {
+  isDisciplineStaff,
+  isMedicalStaff,
+  isRegistrarOrAdmin,
+  isStudentReadStaff,
+  resolveStudentReadScope,
+  type StudentPortalBinding,
+} from '../student-portal-access.js';
 
 import {
   CreateDisciplineSchema,
@@ -52,6 +60,8 @@ import type {
 export interface Students360RoutesOptions {
   service: Students360Service;
   prefix?: string;
+  /** PRC-C011: portal ownership binding (guardian/parent → children, student → self). */
+  studentBinding?: StudentPortalBinding;
 }
 
 function tenantOf(request: FastifyRequest): string | null {
@@ -61,6 +71,19 @@ function tenantOf(request: FastifyRequest): string | null {
 function actorOf(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
   return user?.sub ?? user?.userId ?? 'system';
+}
+
+function rolesOf(request: FastifyRequest): unknown {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+  return user?.roles ?? [];
+}
+
+function forbid(reply: FastifyReply, message = 'Forbidden') {
+  return reply.status(403).send({ code: 'FORBIDDEN', message, statusCode: 403 });
+}
+
+function notFoundStudent(reply: FastifyReply) {
+  return reply.status(404).send({ code: 'NOT_FOUND', message: 'Student not found', statusCode: 404 });
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -139,7 +162,75 @@ export async function registerStudents360Routes(
   fastify: FastifyInstance,
   options: Students360RoutesOptions,
 ): Promise<void> {
-  const { service, prefix = '/students' } = options;
+  const { service, prefix = '/students', studentBinding } = options;
+
+  /**
+   * PRC-C011: central authorization for every students-360 route. These routes were previously
+   * open to any authenticated caller. Rules:
+   *  - all routes require the caller to be able to read the target student (staff, or a portal
+   *    owner via the binding); otherwise 403 (no scope) / 404 (not their student).
+   *  - mutations (POST/PUT/DELETE) require staff — portal owners are read-only here.
+   *  - sensitive sub-resources: documents require medical/registrar staff (or the owning
+   *    guardian for read); discipline writes require discipline staff; consents writes require
+   *    registrar/admin. (Per-route refinement below the ownership gate.)
+   */
+  fastify.addHook('preHandler', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (method === 'OPTIONS' || method === 'HEAD') return;
+
+    const tenantId = tenantOf(request);
+    if (!tenantId) return; // handler returns TENANT_REQUIRED
+
+    // The student id is the first :id path segment for every 360 route.
+    const studentId = (request.params as { id?: string } | undefined)?.id;
+    if (!studentId) return; // let the handler's schema validation produce 400
+
+    const roles = rolesOf(request);
+    const staff = isStudentReadStaff(roles);
+
+    // Mutations are staff-only.
+    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    if (isWrite && !staff) {
+      forbid(reply, 'Forbidden: portal roles cannot modify student records');
+      return;
+    }
+
+    // Ownership: staff pass; portal readers must own the target student.
+    if (!staff) {
+      const scope = await resolveStudentReadScope(
+        roles,
+        actorOf(request),
+        tenantId,
+        studentBinding,
+      );
+      if (scope.kind === 'denied') {
+        forbid(reply, 'Forbidden: role cannot read student records');
+        return;
+      }
+      if (scope.kind === 'self' && !scope.studentIds.has(studentId)) {
+        notFoundStudent(reply);
+        return;
+      }
+    }
+
+    // Sensitive sub-resources: student documents may contain medical/legal records and are
+    // restricted to medical/registrar staff — no portal reader and no non-medical staff.
+    const url = request.url;
+    if (url.includes('/documents') && !isMedicalStaff(roles)) {
+      forbid(reply, 'Forbidden: student documents require registrar/nurse/admin');
+      return;
+    }
+    // Consent writes require registrar/admin.
+    if (url.includes('/consents') && isWrite && !isRegistrarOrAdmin(roles)) {
+      forbid(reply, 'Forbidden: consents require registrar/admin');
+      return;
+    }
+    // Discipline writes require discipline staff.
+    if (url.includes('/discipline') && isWrite && !isDisciplineStaff(roles)) {
+      forbid(reply, 'Forbidden: discipline requires teacher/registrar/admin');
+      return;
+    }
+  });
 
   fastify.post(
     `${prefix}/:id/photo`,
@@ -403,7 +494,12 @@ export async function registerStudents360Routes(
       }
       try {
         const rows = await service.listDiscipline(tenantId, params.data.id);
-        return reply.status(200).send({ data: rows.map(formatDiscipline) });
+        // PRC-C011: a portal reader (owning guardian/student) only sees incidents explicitly
+        // marked visibleToParent; staff discipline roles see all.
+        const visible = isDisciplineStaff(rolesOf(request))
+          ? rows
+          : rows.filter((row) => row.visibleToParent);
+        return reply.status(200).send({ data: visible.map(formatDiscipline) });
       } catch (error) {
         return sendError(reply, error);
       }

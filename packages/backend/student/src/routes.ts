@@ -24,12 +24,24 @@ import {
   type StudentParams,
   type MergeStudentsInput,
 } from './schemas.js';
-import { assertStudentReadAccess, assertStudentWriteAccess } from './student-access.js';
+import { assertStudentWriteAccess } from './student-access.js';
+import {
+  forbidden,
+  isStudentReadStaff,
+  mayViewNationalId,
+  resolveStudentReadScope,
+  type StudentPortalBinding,
+} from './student-portal-access.js';
 import type { StudentService } from './student-service.js';
 
 function getRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
   return user?.roles ?? [];
+}
+
+function getActorId(request: FastifyRequest): string | null {
+  const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+  return user?.sub ?? user?.userId ?? null;
 }
 
 /**
@@ -39,6 +51,19 @@ export interface StudentRoutesOptions {
   studentService: StudentService;
   /** Route prefix (default: '/students') */
   prefix?: string;
+  /** PRC-C010: portal ownership binding (guardian/parent → children, student → self). */
+  studentBinding?: StudentPortalBinding;
+}
+
+/**
+ * PRC-C010: mask raw national ID / identity documents for non-registrar roles.
+ */
+function maskStudentPii<T extends { nationalId: string | null; identityDocuments: unknown[] }>(
+  student: T,
+  roles: unknown,
+): T {
+  if (mayViewNationalId(roles)) return student;
+  return { ...student, nationalId: null, identityDocuments: [] };
 }
 
 /**
@@ -89,7 +114,7 @@ export async function registerStudentRoutes(
   fastify: FastifyInstance,
   options: StudentRoutesOptions,
 ): Promise<void> {
-  const { studentService, prefix = '/students' } = options;
+  const { studentService, prefix = '/students', studentBinding } = options;
 
   /**
    * POST /students
@@ -266,14 +291,17 @@ export async function registerStudentRoutes(
       }
 
       try {
-        assertStudentReadAccess(getRoles(request));
+        // PRC-C010: search across all students is a staff surface; portal roles are denied
+        // (a guardian/student reads their own children via the parent/student portal).
+        const roles = getRoles(request);
+        if (!isStudentReadStaff(roles)) throw forbidden('Forbidden: role cannot search students');
         const page = Number(query.page) || 1;
         const pageSize = Number(query.pageSize) || 20;
 
         const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
 
         return reply.status(200).send({
-          data: result.data.map(formatStudentResponse),
+          data: result.data.map((s) => maskStudentPii(formatStudentResponse(s), roles)),
           meta: result.meta,
         });
       } catch (error: unknown) {
@@ -308,7 +336,9 @@ export async function registerStudentRoutes(
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       try {
-        assertStudentReadAccess(getRoles(request));
+        // PRC-C010: listing all students is a staff surface; portal roles are denied.
+        const roles = getRoles(request);
+        if (!isStudentReadStaff(roles)) throw forbidden('Forbidden: role cannot list students');
         const sortBy = query.sortBy ?? 'lastName';
         const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
 
@@ -323,7 +353,7 @@ export async function registerStudentRoutes(
         );
 
         return reply.status(200).send({
-          data: result.data.map(formatStudentResponse),
+          data: result.data.map((s) => maskStudentPii(formatStudentResponse(s), roles)),
           meta: result.meta,
         });
       } catch (error: unknown) {
@@ -365,9 +395,27 @@ export async function registerStudentRoutes(
       }
 
       try {
-        assertStudentReadAccess(getRoles(request));
+        // PRC-C010: staff read any; a portal caller (guardian/student) may read only a linked
+        // student, and gets 404 otherwise so ids cannot be probed.
+        const roles = getRoles(request);
+        const scope = await resolveStudentReadScope(
+          roles,
+          getActorId(request),
+          tenantId,
+          studentBinding,
+        );
+        if (scope.kind === 'denied') {
+          throw forbidden('Forbidden: role cannot read student records');
+        }
+        if (scope.kind === 'self' && !scope.studentIds.has(paramsResult.data.id)) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Student not found',
+            statusCode: 404,
+          });
+        }
         const student = await studentService.getById(tenantId, paramsResult.data.id);
-        return reply.status(200).send(formatStudentResponse(student));
+        return reply.status(200).send(maskStudentPii(formatStudentResponse(student), roles));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
