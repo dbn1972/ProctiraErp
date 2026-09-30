@@ -56,7 +56,11 @@ export function redactConnectorSecrets<T>(config: T): T {
  */
 export function restoreRedactedSecrets<T>(incoming: T, existing: unknown): T {
   if (!isRecord(incoming)) return incoming;
-  const stored = isRecord(existing) && existing.type === incoming.type ? existing : {};
+  // A stored credential is only restored when the connection target is
+  // unchanged; otherwise an editor could repoint host/url and have the saved
+  // secret sent to an endpoint of their choosing. Placeholders are then left
+  // in place and the caller rejects them.
+  const stored = isRecord(existing) && sameConnectionTarget(incoming, existing) ? existing : {};
   const out: Config = { ...incoming };
   for (const [key, value] of Object.entries(incoming)) {
     if (value === REDACTED_SECRET && typeof stored[key] === 'string') {
@@ -72,6 +76,30 @@ export function restoreRedactedSecrets<T>(incoming: T, existing: unknown): T {
     }
   }
   return out as T;
+}
+
+/**
+ * Config keys that identify where (and as whom) a credential is presented.
+ * `url` is compared by origin so path/query edits on the same service keep
+ * the saved secret.
+ */
+const TARGET_KEYS = ['type', 'host', 'port', 'database', 'username', 'authType', 'filePath'];
+
+function urlOrigin(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value;
+  }
+}
+
+/** True when both configs point at the same connector target. */
+export function sameConnectionTarget(incoming: Config, existing: Config): boolean {
+  for (const key of TARGET_KEYS) {
+    if (incoming[key] !== existing[key]) return false;
+  }
+  return urlOrigin(incoming['url']) === urlOrigin(existing['url']);
 }
 
 /** True when any value (shallow or one level deep) is still the placeholder. */

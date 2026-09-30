@@ -107,6 +107,52 @@ describe('PRC-H115 — ETL credential redaction', () => {
     expect((rotated!.destination as { password: string }).password).toBe('rotated');
   });
 
+  it('does not restore a stored secret when the connection target changes', async () => {
+    const id = await create();
+    const fetched = JSON.parse(
+      (await app.inject({ method: 'GET', url: `/pipelines/${id}` })).payload,
+    );
+    const repointDb = await app.inject({
+      method: 'PUT',
+      url: `/pipelines/${id}`,
+      payload: { destination: { ...fetched.destination, host: 'attacker.example.test' } },
+    });
+    expect(repointDb.statusCode).toBe(400);
+    const repointUser = await app.inject({
+      method: 'PUT',
+      url: `/pipelines/${id}`,
+      payload: { destination: { ...fetched.destination, username: 'someone-else' } },
+    });
+    expect(repointUser.statusCode).toBe(400);
+    const repointApi = await app.inject({
+      method: 'PUT',
+      url: `/pipelines/${id}`,
+      payload: { source: { ...fetched.source, url: 'https://attacker.example.test/records' } },
+    });
+    expect(repointApi.statusCode).toBe(400);
+    const stored = await repository.findById(id, tenantId);
+    expect((stored!.destination as { host: string; password: string }).host).toBe('db.internal');
+    expect((stored!.destination as { password: string }).password).toBe(DB_PASSWORD);
+    expect((stored!.source as { url: string }).url).toBe('https://api.example.test/records');
+  });
+
+  it('keeps the stored secret for a same-origin URL path change', async () => {
+    const id = await create();
+    const fetched = JSON.parse(
+      (await app.inject({ method: 'GET', url: `/pipelines/${id}` })).payload,
+    );
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/pipelines/${id}`,
+      payload: { source: { ...fetched.source, url: 'https://api.example.test/v2/records' } },
+    });
+    expect(put.statusCode).toBe(200);
+    const stored = await repository.findById(id, tenantId);
+    expect((stored!.source as { authConfig: Record<string, string> }).authConfig.apiKey).toBe(
+      API_TOKEN,
+    );
+  });
+
   it('rejects the placeholder on create (it is never a real credential)', async () => {
     const res = await app.inject({
       method: 'POST',

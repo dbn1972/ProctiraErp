@@ -3,7 +3,7 @@
  *
  * PRC-H115: connection strings are masked inputs, stored credentials are
  * never reloaded into the form, and a blank field on edit keeps the saved
- * secret (it is omitted from the PUT body).
+ * secret (the redaction placeholder is echoed so the API restores it).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -48,7 +48,7 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
     }
   });
 
-  it('does not reload stored credentials and omits blank secrets on update', async () => {
+  it('does not reload stored credentials and echoes the placeholder for blank secrets', async () => {
     fetchMock.mockImplementation(async (_url: string, init?: { method?: string }) => {
       if (init?.method === 'PUT') return {};
       return {
@@ -85,8 +85,41 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       source: Record<string, unknown>;
       destination: Record<string, unknown>;
     };
-    expect(json.source).not.toHaveProperty('connectionString');
-    expect(json.destination).not.toHaveProperty('connectionString');
+    // The API restores only the placeholder, so a saved secret is echoed as it.
+    expect(json.source.connectionString).toBe('__REDACTED__');
+    expect(json.destination.connectionString).toBe('__REDACTED__');
     expect(JSON.stringify(json)).not.toContain('stored-secret');
+  });
+
+  it('omits a blank credential on update when nothing was stored', async () => {
+    fetchMock.mockImplementation(async (_url: string, init?: { method?: string }) => {
+      if (init?.method === 'PUT') return {};
+      return {
+        id: 'p2',
+        name: 'CSV import',
+        source: { type: 'csv', query: '' },
+        destination: { type: 'postgresql', connectionString: '__REDACTED__', table: 't' },
+        fieldMappings: [],
+        schedule: null,
+        retryPolicy: { maxRetries: 3, backoffMs: 1000 },
+      };
+    });
+    renderAt('/pipelines/p2/edit');
+    await waitFor(() =>
+      expect((screen.getByLabelText(/pipeline name/i) as HTMLInputElement).value).toBe(
+        'CSV import',
+      ),
+    );
+    fireEvent.submit(screen.getByLabelText('Source connection string').closest('form')!);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/etl/pipelines/p2', expect.anything()),
+    );
+    const putCall = fetchMock.mock.calls.find((c) => c[1]?.method === 'PUT')!;
+    const json = putCall[1].json as {
+      source: Record<string, unknown>;
+      destination: Record<string, unknown>;
+    };
+    expect(json.source).not.toHaveProperty('connectionString');
+    expect(json.destination.connectionString).toBe('__REDACTED__');
   });
 });

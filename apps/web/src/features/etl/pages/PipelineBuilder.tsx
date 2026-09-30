@@ -175,6 +175,13 @@ const INITIAL_FORM_DATA: PipelineFormData = {
   },
 };
 
+/**
+ * PRC-H115: placeholder the ETL API returns for stored secrets and accepts on
+ * update as "keep the saved value" (mirrors REDACTED_SECRET in
+ * packages/backend/etl/src/secret-redaction.ts).
+ */
+const REDACTED_SECRET = '__REDACTED__';
+
 /* ------------------------------------------------------------------ Component */
 
 export default function PipelineBuilder() {
@@ -186,6 +193,8 @@ export default function PipelineBuilder() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PRC-H115: whether the loaded pipeline has a stored (redacted) credential.
+  const [savedSecrets, setSavedSecrets] = useState({ source: false, destination: false });
 
   // Load existing pipeline for editing
   const loadPipeline = useCallback(async () => {
@@ -202,6 +211,10 @@ export default function PipelineBuilder() {
       else if (result.schedule === '0 0 * * *') schedulePreset = 'daily';
       else if (result.schedule === '0 0 * * 1') schedulePreset = 'weekly';
 
+      setSavedSecrets({
+        source: Boolean(result.source.connectionString),
+        destination: Boolean(result.destination.connectionString),
+      });
       setFormData({
         name: result.name,
         source: {
@@ -319,15 +332,22 @@ export default function PipelineBuilder() {
     setError(null);
 
     // PRC-H115: when editing, a blank credential field means "keep saved".
-    const withoutBlankSecret = <T extends { connectionString: string }>(config: T) => {
+    // The API replaces source/destination wholesale and only restores values
+    // sent as the redaction placeholder, so echo the placeholder for a saved
+    // secret; omit the key only when nothing was stored.
+    const keepSavedSecret = <T extends { connectionString: string }>(
+      config: T,
+      hasSaved: boolean,
+    ) => {
       if (!isEditing || config.connectionString) return config;
+      if (hasSaved) return { ...config, connectionString: REDACTED_SECRET };
       const { connectionString: _omit, ...rest } = config;
       return rest;
     };
     const payload = {
       name: formData.name,
-      source: withoutBlankSecret(formData.source),
-      destination: withoutBlankSecret(formData.destination),
+      source: keepSavedSecret(formData.source, savedSecrets.source),
+      destination: keepSavedSecret(formData.destination, savedSecrets.destination),
       fieldMappings: formData.fieldMappings
         .filter((m) => m.sourceField && m.destinationField)
         .map((m) => ({
