@@ -56,6 +56,10 @@ export class ResultPublicationService {
   constructor(
     private readonly examinationRepository: ExaminationRepository,
     private readonly resultRepository: ResultRepository,
+    private readonly options: {
+      /** PRC-H057: unresolved double-entry variance pairs block publication. */
+      countUnresolvedVariances?: (tenantId: string, examinationId: string) => Promise<number>;
+    } = {},
   ) {}
 
   /**
@@ -83,6 +87,15 @@ export class ResultPublicationService {
       );
     }
 
+    // PRC-H057: never publish while double-entry marks variances are unresolved.
+    if (this.options.countUnresolvedVariances) {
+      const unresolved = await this.options.countUnresolvedVariances(tenantId, examinationId);
+      if (unresolved > 0) {
+        throw new BusinessRuleError(
+          `Cannot publish results: ${unresolved} marks variance pair(s) are unresolved. Resolve them first.`,
+        );
+      }
+    }
     // Fetch all candidates
     const candidates = await this.resultRepository.getCandidates(examinationId, tenantId);
 

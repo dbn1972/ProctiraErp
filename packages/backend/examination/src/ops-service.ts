@@ -36,6 +36,7 @@ import type {
   ExamSeatingRecord,
   ExamSessionRecord,
 } from './ops-store.js';
+import type { ResultRepository } from './result-repository.js';
 import { generateSeatingPlan } from './seating-generator.js';
 
 export const DEFAULT_VARIANCE_TOLERANCE = 2;
@@ -70,8 +71,25 @@ export interface ExamOpsServiceDeps {
   store: ExamOpsStore;
   examinations: ExaminationRepository;
   documents?: DocumentRepository;
+  /**
+   * PRC-H057: candidate result store. When set, resolved double-entry marks and
+   * completed re-evaluations are written back to candidate subjectResults.
+   */
+  results?: ResultRepository;
+  /**
+   * PRC-H057: re-grade and re-publish (academic records appended with a new
+   * publishedAt) when marks change after results were already published.
+   */
+  republish?: (tenantId: string, examinationId: string) => Promise<unknown>;
   varianceTolerance?: number;
   onAudit?: (entry: ExamOpsAuditRecord) => void | Promise<void>;
+}
+
+/** PRC-H057: outcome of writing final marks back to candidate results. */
+export interface FinalMarksWriteBack {
+  writtenBack: boolean;
+  previousScore: number | null;
+  republished: boolean;
 }
 
 export interface AllocateResult {
@@ -113,6 +131,8 @@ export class ExamOpsService {
   private readonly store: ExamOpsStore;
   private readonly examinations: ExaminationRepository;
   private readonly documents?: DocumentRepository;
+  private readonly results?: ResultRepository;
+  private readonly republish?: ExamOpsServiceDeps['republish'];
   private readonly varianceTolerance: number;
   private readonly onAudit?: ExamOpsServiceDeps['onAudit'];
   private readonly localAudits: ExamOpsAuditRecord[] = [];
@@ -121,6 +141,8 @@ export class ExamOpsService {
     this.store = deps.store;
     this.examinations = deps.examinations;
     this.documents = deps.documents;
+    this.results = deps.results;
+    this.republish = deps.republish;
     this.varianceTolerance = deps.varianceTolerance ?? DEFAULT_VARIANCE_TOLERANCE;
     this.onAudit = deps.onAudit;
   }
@@ -374,6 +396,59 @@ export class ExamOpsService {
     return saved;
   }
 
+  /** PRC-H057: count double-entry pairs flagged for variance and not yet resolved. */
+  async countUnresolvedVariances(tenantId: string, examinationId: string): Promise<number> {
+    const pairs = await this.listMarksPairs(tenantId, examinationId);
+    return pairs.filter((p) => p.varianceFlag && !p.resolved).length;
+  }
+
+  /**
+   * PRC-H057: write final marks for a registered candidate/subject back to the
+   * candidate result store (single source for publication), then re-publish
+   * when results were already published.
+   */
+  private async writeBackFinalMarks(
+    tenantId: string,
+    examinationId: string,
+    registrationId: string,
+    subjectId: string,
+    marks: number,
+  ): Promise<FinalMarksWriteBack> {
+    if (!this.results) return { writtenBack: false, previousScore: null, republished: false };
+    const registrations = await this.examinations.listCandidateRegistrations(
+      examinationId,
+      tenantId,
+    );
+    const registration = registrations.find((r) => r.id === registrationId);
+    if (!registration) {
+      throw new NotFoundError(`Candidate '${registrationId}' is not registered`);
+    }
+    const candidates = await this.results.getCandidates(examinationId, tenantId);
+    const current = candidates.find((c) => c.studentId === registration.studentId);
+    const candidateId = current?.id ?? randomUUID();
+    const subjectResults = (current?.subjectResults ?? []).filter((r) => r.subjectId !== subjectId);
+    const previous = current?.subjectResults.find((r) => r.subjectId === subjectId);
+    subjectResults.push({ candidateId, subjectId, score: marks, isComplete: true });
+    await this.results.upsertCandidates(tenantId, [
+      {
+        id: candidateId,
+        examinationId,
+        studentId: registration.studentId,
+        centerId: current?.centerId ?? registration.centerId,
+        gender: current?.gender ?? 'other',
+        areaId: current?.areaId ?? registration.centerId,
+        subjectResults,
+      },
+    ]);
+    let republished = false;
+    const published = await this.results.getPublicationResult(examinationId, tenantId);
+    if (published && this.republish) {
+      await this.republish(tenantId, examinationId);
+      republished = true;
+    }
+    return { writtenBack: true, previousScore: previous?.score ?? null, republished };
+  }
+
   async listMarksPairs(tenantId: string, examinationId: string): Promise<MarksPairView[]> {
     await this.requireExam(tenantId, examinationId);
     const entries = await this.store.listMarksEntries(tenantId, examinationId);
@@ -516,6 +591,13 @@ export class ExamOpsService {
         resolvedAt: new Date(),
       },
     );
+    const writeBack = await this.writeBackFinalMarks(
+      tenantId,
+      examinationId,
+      input.candidateId,
+      input.subjectId,
+      input.finalMarks,
+    );
     await this.audit(
       tenantId,
       examinationId,
@@ -523,7 +605,13 @@ export class ExamOpsService {
       'exam_marks_entry',
       input.candidateId,
       actor.userId,
-      { subjectId: input.subjectId, finalMarks: input.finalMarks },
+      {
+        subjectId: input.subjectId,
+        before: writeBack.previousScore,
+        finalMarks: input.finalMarks,
+        writtenBack: writeBack.writtenBack,
+        republished: writeBack.republished,
+      },
     );
     const views = await this.listMarksPairs(tenantId, examinationId);
     const view = views.find(
@@ -636,6 +724,15 @@ export class ExamOpsService {
     if (existing.status !== 'assigned') {
       throw new BusinessRuleError(`Cannot complete a re-evaluation in '${existing.status}' status`);
     }
+    // PRC-H057: write revised marks back (and re-publish) before marking the
+    // request completed, so a failure leaves it retryable in 'assigned'.
+    const writeBack = await this.writeBackFinalMarks(
+      tenantId,
+      examinationId,
+      existing.candidateId,
+      existing.subjectId,
+      input.revisedMarks,
+    );
     const notes = [existing.notes, input.notes?.trim()].filter(Boolean).join('\n') || null;
     const updated = await this.store.updateReevaluation(tenantId, requestId, {
       status: 'completed',
@@ -656,7 +753,10 @@ export class ExamOpsService {
         originalMarks: existing.originalMarks,
         revisedMarks: input.revisedMarks,
         delta,
-        published: true,
+        before: writeBack.previousScore,
+        writtenBack: writeBack.writtenBack,
+        // PRC-H057: report what actually happened instead of a hard-coded `published: true`.
+        republished: writeBack.republished,
       },
     );
     return updated;
