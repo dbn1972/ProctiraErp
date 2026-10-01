@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { registerETLRoutes } from './routes.js';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
+import { REDACTED_SECRET } from './secret-redaction.js';
 
 interface TestRole {
   roleId: string;
@@ -18,7 +19,9 @@ describe('ETL Routes', () => {
   let etlService: ETLService;
   // PRC-H050: ETL routes now require an ETL/admin role. Default the harness to an ETL engineer
   // so the functional route tests exercise the authorized path; individual tests override it.
-  let principalRoles: TestRole[] = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+  let principalRoles: TestRole[] = [
+    { roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null },
+  ];
   const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 
   const validPipelineBody = {
@@ -61,7 +64,11 @@ describe('ETL Routes', () => {
     // Add tenant + JWT-actor context hook for testing (getActor reads request.user).
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
-      (request as unknown as { user: unknown }).user = { sub: 'etl-user', tenantId, roles: principalRoles };
+      (request as unknown as { user: unknown }).user = {
+        sub: 'etl-user',
+        tenantId,
+        roles: principalRoles,
+      };
     });
 
     await registerETLRoutes(app, { etlService, prefix: '/pipelines' });
@@ -347,13 +354,13 @@ describe('ETL Routes', () => {
       const created = JSON.parse(createResponse.payload);
       // destination is postgresql with a password — it must not be echoed verbatim.
       expect(created.destination.password).not.toBe('pass');
-      expect(created.destination.password).toBe('__redacted__');
+      expect(created.destination.password).toBe(REDACTED_SECRET);
       // Non-secret fields are preserved.
       expect(created.destination.host).toBe('localhost');
       expect(created.destination.database).toBe('testdb');
 
       const getResponse = await app.inject({ method: 'GET', url: `/pipelines/${created.id}` });
-      expect(JSON.parse(getResponse.payload).destination.password).toBe('__redacted__');
+      expect(JSON.parse(getResponse.payload).destination.password).toBe(REDACTED_SECRET);
     });
   });
 });

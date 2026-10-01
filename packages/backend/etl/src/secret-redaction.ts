@@ -17,13 +17,12 @@ const SECRET_KEYS = new Set(['password', 'connectionString']);
 /** Config keys whose values are string maps where every value is a secret. */
 const SECRET_MAP_KEYS = new Set(['authConfig']);
 
-/** Header names treated as credentials (case-insensitive substring match). */
-const SECRET_HEADER_PATTERNS = ['authorization', 'cookie', 'token', 'secret', 'api-key', 'apikey'];
-
-function isSecretHeader(name: string): boolean {
-  const lower = name.toLowerCase();
-  return SECRET_HEADER_PATTERNS.some((pattern) => lower.includes(pattern));
-}
+/**
+ * Config keys whose values are maps where every value is masked. PRC-H050 (defense in depth):
+ * REST `headers` and request `body` may carry credentials under arbitrary names, so every
+ * value is masked rather than only auth-looking header names.
+ */
+const MASK_ALL_VALUES_KEYS = new Set(['headers', 'body']);
 
 type Config = Record<string, unknown>;
 
@@ -38,12 +37,10 @@ export function redactConnectorSecrets<T>(config: T): T {
   for (const [key, value] of Object.entries(config)) {
     if (SECRET_KEYS.has(key) && typeof value === 'string' && value.length > 0) {
       out[key] = REDACTED_SECRET;
-    } else if (SECRET_MAP_KEYS.has(key) && isRecord(value)) {
+    } else if ((SECRET_MAP_KEYS.has(key) || MASK_ALL_VALUES_KEYS.has(key)) && isRecord(value)) {
       out[key] = Object.fromEntries(Object.keys(value).map((k) => [k, REDACTED_SECRET]));
-    } else if (key === 'headers' && isRecord(value)) {
-      out[key] = Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, isSecretHeader(k) ? REDACTED_SECRET : v]),
-      );
+    } else if (MASK_ALL_VALUES_KEYS.has(key) && value !== undefined && value !== null) {
+      out[key] = REDACTED_SECRET;
     }
   }
   return out as T;
@@ -63,14 +60,15 @@ export function restoreRedactedSecrets<T>(incoming: T, existing: unknown): T {
   const stored = isRecord(existing) && sameConnectionTarget(incoming, existing) ? existing : {};
   const out: Config = { ...incoming };
   for (const [key, value] of Object.entries(incoming)) {
-    if (value === REDACTED_SECRET && typeof stored[key] === 'string') {
+    if (value === REDACTED_SECRET && stored[key] !== undefined && stored[key] !== null) {
       out[key] = stored[key];
     } else if (isRecord(value)) {
       const storedMap = isRecord(stored[key]) ? stored[key] : {};
       out[key] = Object.fromEntries(
         Object.entries(value).map(([k, v]) => [
           k,
-          v === REDACTED_SECRET && typeof storedMap[k] === 'string' ? storedMap[k] : v,
+          // body values may be non-string (PRC-H050 masks every body value).
+          v === REDACTED_SECRET && storedMap[k] !== undefined ? storedMap[k] : v,
         ]),
       );
     }

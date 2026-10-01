@@ -2,12 +2,19 @@
  * PRC-H115: pipeline responses never return stored credentials, and the
  * redaction placeholder round-trips on update without overwriting secrets.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerETLRoutes } from './routes.js';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import { REDACTED_SECRET } from './secret-redaction.js';
+
+// PRC-C003: REST connectors resolve their host at create/update time and reject non-public
+// addresses. Resolve the fixture host to a public address so these redaction tests exercise
+// H115 rather than DNS (no request is ever sent).
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn(async () => [{ address: '93.184.215.14', family: 4 }]),
+}));
 
 const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 const DB_PASSWORD = 'db-secret-value';
@@ -46,6 +53,12 @@ describe('PRC-H115 — ETL credential redaction', () => {
     });
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
+      // PRC-H050: pipeline routes require an ETL/admin role on the JWT actor.
+      (request as unknown as { user: unknown }).user = {
+        sub: 'etl-user',
+        tenantId,
+        roles: [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }],
+      };
     });
     await registerETLRoutes(app, { etlService, prefix: '/pipelines' });
     await app.ready();
@@ -69,7 +82,8 @@ describe('PRC-H115 — ETL credential redaction', () => {
     expect(parsed.destination.password).toBe(REDACTED_SECRET);
     expect(parsed.source.authConfig.apiKey).toBe(REDACTED_SECRET);
     expect(parsed.source.headers.Authorization).toBe(REDACTED_SECRET);
-    expect(parsed.source.headers.Accept).toBe('application/json');
+    // PRC-H050: every header value is masked, not only auth-looking names.
+    expect(parsed.source.headers.Accept).toBe(REDACTED_SECRET);
 
     const list = await app.inject({ method: 'GET', url: '/pipelines' });
     expect(list.payload).not.toContain(DB_PASSWORD);
