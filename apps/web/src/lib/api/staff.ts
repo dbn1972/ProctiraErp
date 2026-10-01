@@ -286,6 +286,17 @@ export async function listStaffCertifications(staffId: string): Promise<Training
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
+export interface TrainingProgramSummary {
+  id: string;
+  name: string;
+}
+export async function listTrainingPrograms(): Promise<TrainingProgramSummary[]> {
+  const result = await gatewayFetch<{ data: TrainingProgramSummary[] }>(
+    '/staff/training/programs?pageSize=100',
+    { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
+  );
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
 /* ------------------------------------------------------------- HR Leave */
 
 export interface StaffLeave {
