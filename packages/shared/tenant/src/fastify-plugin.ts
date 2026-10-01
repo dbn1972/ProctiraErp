@@ -62,15 +62,21 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
   resolveSlugToId?: boolean;
 }
 
+/** Request URL without its query string (PRC-L584: never log query values). */
+function pathnameOf(url: string): string {
+  return url.split('?')[0] ?? url;
+}
+
 /**
  * Checks if a request path matches any of the excluded paths.
  */
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
-  const pathname = path.split('?')[0] ?? path;
+  const pathname = pathnameOf(path);
   for (const excluded of excludePaths) {
     if (excluded.endsWith('/*')) {
-      const prefix = excluded.slice(0, -2);
-      if (pathname.startsWith(prefix)) return true;
+      // PRC-L584: '/x/*' matches '/x' and '/x/...', never sibling prefixes like '/xfoo'.
+      const base = excluded.slice(0, -2);
+      if (pathname === base || pathname.startsWith(`${base}/`)) return true;
     } else if (pathname === excluded) {
       return true;
     }
@@ -217,8 +223,18 @@ export const tenantPlugin = fp(
                   if (finder) {
                     const tenant = await finder.findUnique({ where: { slug } });
                     if (tenant && isValidUuid(tenant.id) && tenant.id !== tenantId) {
+                      // PRC-L584: tenant UUIDs/slug mapping stay in server logs only.
+                      logger.warn(
+                        {
+                          path: pathnameOf(request.url),
+                          jwtTenantId: tenantId,
+                          slug,
+                          hostTenantId: tenant.id,
+                        },
+                        'Conflicting tenant identities',
+                      );
                       throw new TenantResolutionError(
-                        `Conflicting tenant identities: JWT claim (${tenantId}) does not match host slug (${slug} → ${tenant.id})`,
+                        'Conflicting tenant identities: JWT tenant does not match host tenant',
                       );
                     }
                   }
@@ -236,12 +252,15 @@ export const tenantPlugin = fp(
           }
 
           logger.debug(
-            { tenantId, source: resolution.source, path: request.url },
+            { tenantId, source: resolution.source, path: pathnameOf(request.url) },
             'Tenant resolved',
           );
         } catch (error) {
           if (error instanceof TenantResolutionError) {
-            logger.warn({ path: request.url, error: error.message }, 'Tenant resolution failed');
+            logger.warn(
+              { path: pathnameOf(request.url), error: error.message },
+              'Tenant resolution failed',
+            );
             return reply.status(error.statusCode).send({
               code: error.code,
               message: error.message,
