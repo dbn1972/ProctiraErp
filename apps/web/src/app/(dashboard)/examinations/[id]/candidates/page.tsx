@@ -69,7 +69,13 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
           <Table aria-label="Candidates">
             <TableHeader>
               <TableRow>
-                <TableHead>Registration #</TableHead>
+                <TableHead>
+                  Candidate ref
+                  <span className="sr-only">
+                    {' '}
+                    (system reference, not a board registration number)
+                  </span>
+                </TableHead>
                 <TableHead>Student</TableHead>
                 <TableHead>Centre</TableHead>
                 <TableHead>Subjects</TableHead>
@@ -81,8 +87,8 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
               {candidates.map((candidate) => (
                 <TableRow key={candidate.id}>
                   <TableCell>
-                    <span className="text-xs text-muted-foreground">
-                      {resolveEntityLabel(candidate.id, {}, 'Reg')}
+                    <span className="text-xs text-muted-foreground" title={candidate.id}>
+                      {resolveEntityLabel(candidate.id, {}, 'Ref')}
                     </span>
                   </TableCell>
                   <TableCell>
