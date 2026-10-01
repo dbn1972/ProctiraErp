@@ -102,4 +102,28 @@ describe('createScholarshipDisbursementLookup (PRC-H020)', () => {
     expect(rows.map((r) => r.id)).toEqual(['disb-paid']);
     expect(await lookup.listPaidDisbursements(TENANT_B, {})).toEqual([]);
   });
+  it('treats a non-UUID id rejected by Postgres (22P02) as not found', async () => {
+    const repo = await seed();
+    const pgError = Object.assign(new Error('invalid input syntax for type uuid: "e2e-disb"'), {
+      code: '22P02',
+    });
+    repo.findDisbursementById = async () => {
+      throw pgError;
+    };
+    const lookup = createScholarshipDisbursementLookup(() => repo);
+    expect(await lookup.findDisbursement(TENANT_A, 'e2e-disb')).toBeNull();
+    const wrapped = new Error('repository failed', { cause: pgError });
+    repo.findDisbursementById = async () => {
+      throw wrapped;
+    };
+    expect(await lookup.findDisbursement(TENANT_A, 'e2e-disb')).toBeNull();
+  });
+  it('rethrows other repository errors', async () => {
+    const repo = await seed();
+    repo.findDisbursementById = async () => {
+      throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' });
+    };
+    const lookup = createScholarshipDisbursementLookup(() => repo);
+    await expect(lookup.findDisbursement(TENANT_A, 'disb-paid')).rejects.toThrow('connection reset');
+  });
 });

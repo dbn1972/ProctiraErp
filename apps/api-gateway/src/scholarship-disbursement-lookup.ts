@@ -9,6 +9,12 @@ import type {
 import type { DisbursementEntity, ScholarshipRepository } from '@proctira/backend-scholarship';
 
 const MAX_PAID_ROWS = 200;
+/** Postgres SQLSTATE 22P02 (e.g. a non-UUID string bound to a uuid column). */
+function isInvalidTextRepresentation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, cause } = error as { code?: unknown; cause?: unknown };
+  return code === '22P02' || (cause !== error && isInvalidTextRepresentation(cause));
+}
 
 async function toNettable(
   repository: ScholarshipRepository,
@@ -40,7 +46,16 @@ export function createScholarshipDisbursementLookup(
   return {
     async findDisbursement(tenantId, disbursementId) {
       const repository = getRepository();
-      const disbursement = await repository.findDisbursementById(disbursementId, tenantId);
+      let disbursement: DisbursementEntity | null;
+      try {
+        disbursement = await repository.findDisbursementById(disbursementId, tenantId);
+      } catch (error) {
+        // An operator-typed id that is not a UUID cannot name a real
+        // disbursement; treat Postgres invalid_text_representation as "not found"
+        // so netting answers 4xx instead of a 500.
+        if (isInvalidTextRepresentation(error)) return null;
+        throw error;
+      }
       if (!disbursement) return null;
       return toNettable(repository, tenantId, disbursement);
     },
