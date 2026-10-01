@@ -10,12 +10,17 @@ export const BellScheduleIdParamsSchema = Type.Object({
 });
 export type BellScheduleIdParams = Static<typeof BellScheduleIdParamsSchema>;
 
+/** Comma-separated ISO weekdays 1–7 (PRC-L260). */
+const DayPatternSchema = Type.String({ minLength: 1, maxLength: 64, pattern: '^[1-7](,[1-7])*$' });
+/** 24-hour HH:mm, 00:00–23:59 (PRC-L260). */
+const HhMmSchema = Type.String({ pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' });
+
 export const CreateBellScheduleSchema = Type.Object({
   institutionId: Type.String({ minLength: 1 }),
   academicPeriodId: Type.String({ minLength: 1 }),
   name: Type.String({ minLength: 1, maxLength: 255 }),
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
-  dayPattern: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  dayPattern: Type.Optional(DayPatternSchema),
   status: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
 });
 export type CreateBellScheduleInput = Static<typeof CreateBellScheduleSchema>;
@@ -25,7 +30,7 @@ export const UpdateBellScheduleSchema = Type.Object({
   academicPeriodId: Type.Optional(Type.String({ minLength: 1 })),
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
-  dayPattern: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  dayPattern: Type.Optional(DayPatternSchema),
   status: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
 });
 export type UpdateBellScheduleInput = Static<typeof UpdateBellScheduleSchema>;
@@ -33,8 +38,8 @@ export type UpdateBellScheduleInput = Static<typeof UpdateBellScheduleSchema>;
 export const CreatePeriodSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 120 }),
   periodOrder: Type.Integer({ minimum: 1 }),
-  startTime: Type.String({ pattern: '^\\d{2}:\\d{2}$' }),
-  endTime: Type.String({ pattern: '^\\d{2}:\\d{2}$' }),
+  startTime: HhMmSchema,
+  endTime: HhMmSchema,
 });
 export type CreatePeriodInput = Static<typeof CreatePeriodSchema>;
 

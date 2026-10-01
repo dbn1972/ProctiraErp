@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@proctira/ui/components';
 
 import { createBellScheduleAction, createPeriodAction } from '@/app/(dashboard)/timetable-actions';
+import {
+  bellScheduleInputSchema,
+  firstIssue,
+  periodInputSchema,
+} from '@/lib/timetable/bell-schedule-validation';
 
 export function BellScheduleCreateForm(props: { academicPeriodId: string; institutionId: string }) {
   const router = useRouter();
@@ -19,6 +24,11 @@ export function BellScheduleCreateForm(props: { academicPeriodId: string; instit
       className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
       onSubmit={(event) => {
         event.preventDefault();
+        const issue = firstIssue(bellScheduleInputSchema.safeParse({ name, dayPattern }));
+        if (issue) {
+          setError(issue);
+          return;
+        }
         setError(null);
         startTransition(async () => {
           const result = await createBellScheduleAction({
@@ -28,11 +38,7 @@ export function BellScheduleCreateForm(props: { academicPeriodId: string; instit
             dayPattern,
           });
           if (!result.ok) {
-            setError(
-              result.code === 'TIMETABLE_SCHEMA_MISSING'
-                ? `${result.error} (apply db/sql/003_sis_timetable_schedule_schema.sql)`
-                : result.error,
-            );
+            setError(result.error);
             return;
           }
           router.refresh();
@@ -91,6 +97,18 @@ export function PeriodCreateForm(props: {
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
       onSubmit={(event) => {
         event.preventDefault();
+        const issue = firstIssue(
+          periodInputSchema.safeParse({
+            name,
+            periodOrder: Number(periodOrder),
+            startTime,
+            endTime,
+          }),
+        );
+        if (issue) {
+          setError(issue);
+          return;
+        }
         setError(null);
         startTransition(async () => {
           const result = await createPeriodAction({
@@ -122,7 +140,7 @@ export function PeriodCreateForm(props: {
         <span className="font-medium">Order</span>
         <input
           type="number"
-          min={0}
+          min={1}
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={periodOrder}
           onChange={(e) => setPeriodOrder(e.target.value)}

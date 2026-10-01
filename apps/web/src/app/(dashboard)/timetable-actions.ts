@@ -19,6 +19,12 @@ import {
   markTeacherAbsent,
 } from '@/lib/api/timetable';
 import type { MeetingClash } from '@/lib/timetable/meeting-conflict-label';
+import {
+  bellScheduleInputSchema,
+  firstIssue,
+  periodInputSchema,
+  TIMETABLE_NOT_PROVISIONED_MESSAGE,
+} from '@/lib/timetable/bell-schedule-validation';
 
 export type TimetableActionResult =
   | { ok: true; id: string }
@@ -31,6 +37,18 @@ function clashList(details: unknown): MeetingClash[] | undefined {
 }
 
 function fail(error: unknown): TimetableActionResult {
+  if (error instanceof GatewayError && error.code === 'TIMETABLE_SCHEMA_MISSING') {
+    // Operator hint stays in server logs; users get a generic message (PRC-L260).
+    console.warn(
+      '[timetable] TIMETABLE_SCHEMA_MISSING — apply db/sql/003_sis_timetable_schedule_schema.sql',
+    );
+    return {
+      ok: false,
+      error: TIMETABLE_NOT_PROVISIONED_MESSAGE,
+      code: error.code,
+      status: error.status,
+    };
+  }
   if (error instanceof GatewayError) {
     return {
       ok: false,
@@ -52,8 +70,16 @@ export async function createBellScheduleAction(input: {
   name: string;
   dayPattern?: string;
 }): Promise<TimetableActionResult> {
+  const checked = bellScheduleInputSchema.safeParse({
+    name: input.name,
+    dayPattern: input.dayPattern ?? '1,2,3,4,5',
+  });
+  const issue = firstIssue(checked);
+  if (issue || !checked.success) {
+    return { ok: false, error: issue ?? 'Invalid input.', code: 'VALIDATION_ERROR' };
+  }
   try {
-    const row = await createBellSchedule(input);
+    const row = await createBellSchedule({ ...input, ...checked.data });
     revalidatePath(`/academic-periods/${input.academicPeriodId}/bell-schedules`);
     return { ok: true, id: row.id };
   } catch (error) {
@@ -69,9 +95,14 @@ export async function createPeriodAction(input: {
   startTime: string;
   endTime: string;
 }): Promise<TimetableActionResult> {
+  const { bellScheduleId, academicPeriodId, ...body } = input;
+  const checked = periodInputSchema.safeParse(body);
+  const issue = firstIssue(checked);
+  if (issue || !checked.success) {
+    return { ok: false, error: issue ?? 'Invalid input.', code: 'VALIDATION_ERROR' };
+  }
   try {
-    const { bellScheduleId, academicPeriodId, ...body } = input;
-    const row = await createPeriod(bellScheduleId, body);
+    const row = await createPeriod(bellScheduleId, checked.data);
     revalidatePath(`/academic-periods/${academicPeriodId}/bell-schedules`);
     return { ok: true, id: row.id };
   } catch (error) {
