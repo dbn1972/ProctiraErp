@@ -57,6 +57,24 @@ function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
+/**
+ * PRC-L161: node-pg parses DATE columns as *local* midnight, so under a
+ * positive UTC offset (e.g. Asia/Kolkata) `toISOString()` yields the previous
+ * day. Normalise DATE values to UTC midnight of the stored calendar day.
+ */
+export function toDateOnly(value: unknown): Date {
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00.000Z`) : new Date(text);
+}
+
+/** Serialise a calendar-date param as YYYY-MM-DD (UTC) so ::date never shifts by TZ. */
+function toDateParam(value: Date | null | undefined): string | null {
+  return value == null ? null : value.toISOString().slice(0, 10);
+}
+
 function mapEnrollment(row: Record<string, unknown>): EnrollmentEntity {
   return {
     id: String(row.id),
@@ -67,8 +85,8 @@ function mapEnrollment(row: Record<string, unknown>): EnrollmentEntity {
     classId: row.class_id == null ? null : String(row.class_id),
     academicPeriodId: String(row.academic_period_id),
     status: String(row.status) as EnrollmentEntity['status'],
-    enrolledAt: toDate(row.enrolled_at),
-    exitedAt: row.exited_at == null ? null : toDate(row.exited_at),
+    enrolledAt: toDateOnly(row.enrolled_at),
+    exitedAt: row.exited_at == null ? null : toDateOnly(row.exited_at),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -81,7 +99,7 @@ function mapHistory(row: Record<string, unknown>): EnrollmentHistoryEntity {
     enrollmentId: String(row.enrollment_id),
     previousStatus: row.previous_status == null ? null : String(row.previous_status),
     newStatus: String(row.new_status),
-    effectiveDate: toDate(row.effective_date),
+    effectiveDate: toDateOnly(row.effective_date),
     institutionId: String(row.institution_id),
     academicPeriodId: String(row.academic_period_id),
     reason: row.reason == null ? null : String(row.reason),
@@ -98,7 +116,7 @@ function mapTransfer(row: Record<string, unknown>): TransferRecordEntity {
     sourceEnrollmentId: String(row.source_enrollment_id),
     destinationInstitutionId: String(row.destination_institution_id),
     destinationEnrollmentId: String(row.destination_enrollment_id),
-    transferDate: toDate(row.transfer_date),
+    transferDate: toDateOnly(row.transfer_date),
     reason: String(row.reason),
     createdAt: toDate(row.created_at),
   };
@@ -139,8 +157,8 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
             data.classId,
             data.academicPeriodId,
             data.status,
-            data.enrolledAt,
-            data.exitedAt,
+            toDateParam(data.enrolledAt),
+            toDateParam(data.exitedAt),
           ],
         );
         return mapEnrollment(result.rows[0] as Record<string, unknown>);
@@ -191,8 +209,8 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
           next.classId,
           next.academicPeriodId,
           next.status,
-          next.enrolledAt,
-          next.exitedAt,
+          toDateParam(next.enrolledAt),
+          toDateParam(next.exitedAt),
           options?.expectedStatus ?? null,
         ],
       );
