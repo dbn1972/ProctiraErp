@@ -8,3 +8,10 @@ export type {
   FieldOption,
   ValidationRule,
 } from './types';
+export {
+  compileSchemaPattern,
+  validateSchemaPatterns,
+  MAX_PATTERN_LENGTH,
+  type PatternCheck,
+  type SchemaPatternIssue,
+} from './pattern-safety';

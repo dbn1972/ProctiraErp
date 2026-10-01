@@ -2,6 +2,8 @@
 
 import React, { useMemo } from 'react';
 import { useForm, type RegisterOptions } from 'react-hook-form';
+
+import { compileSchemaPattern } from './pattern-safety';
 import type { FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
 
 /**
@@ -77,13 +79,27 @@ export function FormBuilder({
         case 'max':
           options.max = { value: Number(rule.value), message: rule.message };
           break;
-        case 'pattern':
-          options.pattern = { value: new RegExp(String(rule.value)), message: rule.message };
+        case 'pattern': {
+          // Never compile untrusted patterns unguarded: invalid or catastrophic
+          // patterns are skipped (and logged) instead of crashing/hanging render.
+          const compiled = compileSchemaPattern(rule.value);
+          if (compiled.ok) {
+            options.pattern = { value: compiled.regex, message: rule.message };
+          } else {
+            console.error(`[FormBuilder] Ignoring pattern rule: ${compiled.reason}`);
+          }
           break;
+        }
       }
     }
     return options;
   };
+
+  // Compile validation once per schema change, not on every render.
+  const validationByField = useMemo(
+    () => new Map(allFields.map((f) => [f.name, buildValidation(f.validation)])),
+    [allFields],
+  );
 
   const isFieldVisible = (field: FormFieldSchema): boolean => {
     if (!field.visibleWhen) return true;
@@ -98,7 +114,7 @@ export function FormBuilder({
     const errorId = `${fieldId}-error`;
     const helpId = `${fieldId}-help`;
     const error = errors[field.name];
-    const validation = buildValidation(field.validation);
+    const validation = validationByField.get(field.name) ?? {};
 
     const ariaDescribedBy =
       [field.helpText ? helpId : null, error ? errorId : null].filter(Boolean).join(' ') ||
@@ -108,7 +124,7 @@ export function FormBuilder({
       id: fieldId,
       disabled: field.disabled || loading,
       readOnly: field.readOnly,
-      'aria-invalid': !!error as boolean,
+      'aria-invalid': !!error,
       'aria-describedby': ariaDescribedBy,
       'aria-required': validation.required ? true : undefined,
       className: `proctira-form__input ${error ? 'proctira-form__input--error' : ''}`,
@@ -227,7 +243,7 @@ export function FormBuilder({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(e) => void handleSubmit(onSubmit)(e)}
       className={`proctira-form ${className}`}
       aria-label={ariaLabel ?? schema.title ?? 'Form'}
       noValidate
