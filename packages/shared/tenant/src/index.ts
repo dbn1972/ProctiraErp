@@ -22,8 +22,13 @@ export {
   DEFAULT_TENANT_TIMEZONE,
   isValidIanaTimezone,
   resolveTenantTimezone,
+  resolveTenantTimezoneDetailed,
 } from './tenant-timezone.js';
-export type { TenantTimezoneSource } from './tenant-timezone.js';
+export type {
+  TenantTimezoneSource,
+  TenantTimezoneOrigin,
+  TenantTimezoneResolution,
+} from './tenant-timezone.js';
 
 // Fastify Plugin
 export { tenantPlugin } from './fastify-plugin.js';

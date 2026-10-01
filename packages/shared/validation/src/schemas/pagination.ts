@@ -6,12 +6,12 @@ import { Type, type TObject } from '@sinclair/typebox';
  * Provides page and pageSize with sensible defaults and limits.
  */
 export const PaginationSchema: TObject = Type.Object({
-  page: Type.Number({
+  page: Type.Integer({
     minimum: 1,
     default: PAGINATION_DEFAULTS.PAGE,
     description: 'Page number (1-based)',
   }),
-  pageSize: Type.Number({
+  pageSize: Type.Integer({
     minimum: 1,
     maximum: PAGINATION_DEFAULTS.MAX_PAGE_SIZE,
     default: PAGINATION_DEFAULTS.PAGE_SIZE,

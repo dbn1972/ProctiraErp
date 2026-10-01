@@ -30,10 +30,19 @@ function scoreMatch(body: string, title: string, query: string): number {
   return titleHit ? 0.9 : 0.75;
 }
 
+/** PRC-L494: fail closed on a missing/blank tenant scope. */
+function requireTenantId(tenantId: unknown, op: string): string {
+  if (typeof tenantId !== 'string' || tenantId.trim() === '') {
+    throw new Error(`search-index.${op}: tenantId is required`);
+  }
+  return tenantId;
+}
+
 export class InMemorySearchIndex implements SearchIndexAdapter {
   private readonly docs = new Map<string, SearchDocument[]>();
 
   indexSync(document: SearchDocumentInput, options: IndexOptions): void {
+    requireTenantId(options.tenantId, 'index');
     const bucket = this.docs.get(options.tenantId) ?? [];
     const id = buildDocumentId(document.entityType, document.entityId);
     const next: SearchDocument = {
@@ -57,6 +66,7 @@ export class InMemorySearchIndex implements SearchIndexAdapter {
   }
 
   removeSync(tenantId: string, entityType: string, entityId: string): void {
+    requireTenantId(tenantId, 'remove');
     const bucket = this.docs.get(tenantId);
     if (!bucket) return;
     const id = buildDocumentId(entityType, entityId);
@@ -67,6 +77,9 @@ export class InMemorySearchIndex implements SearchIndexAdapter {
   }
 
   searchSync(options: SearchOptions): SearchHit[] {
+    requireTenantId(options.tenantId, 'search');
+    // PRC-L494: an empty query would substring-match every document; return nothing.
+    if (typeof options.query !== 'string' || options.query.trim() === '') return [];
     const bucket = this.docs.get(options.tenantId) ?? [];
     const allowedTypes = options.entityTypes ? new Set(options.entityTypes) : null;
     const limit = options.limit ?? 50;

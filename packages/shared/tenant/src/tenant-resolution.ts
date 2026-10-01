@@ -16,8 +16,11 @@
 
 import type { FastifyRequest } from 'fastify';
 
-/** UUID v4 regex for validating tenant IDs */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/**
+ * RFC 4122 / RFC 9562 UUID (versions 1-8, RFC variant) for validating tenant IDs.
+ * Accepts v4 (gen_random_uuid) as well as time-ordered v7 and name-based v5 ids (PRC-L357).
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Error thrown when tenant cannot be resolved from the request.

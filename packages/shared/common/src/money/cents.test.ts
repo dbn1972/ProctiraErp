@@ -86,3 +86,28 @@ describe('W1-DATA-09 pgNumericMajorToCents / majorUnitsNumberFromCents', () => {
     expect(majorUnitsNumberFromCents(100_000)).toBe(1000);
   });
 });
+
+describe('majorUnitsToCents allowNegative (PRC-L490)', () => {
+  it('converts negative strings and numbers when allowNegative is set', () => {
+    expect(majorUnitsToCents('-1.50', { allowNegative: true })).toBe(-150);
+    expect(majorUnitsToCents(-1.5, { allowNegative: true })).toBe(-150);
+    expect(majorUnitsToCents('-0.00', { allowNegative: true })).toBe(0);
+    expect(Object.is(majorUnitsToCents('-0', { allowNegative: true }), -0)).toBe(false);
+  });
+
+  it('still rejects negatives by default', () => {
+    expect(() => majorUnitsToCents('-1.50')).toThrow(BusinessRuleError);
+    expect(() => majorUnitsToCents(-1.5)).toThrow(BusinessRuleError);
+  });
+
+  it('rejects malformed negatives even with allowNegative', () => {
+    expect(() => majorUnitsToCents('--1', { allowNegative: true })).toThrow(BusinessRuleError);
+    expect(() => majorUnitsToCents('-', { allowNegative: true })).toThrow(BusinessRuleError);
+    expect(() => majorUnitsToCents('-1.505', { allowNegative: true })).toThrow(BusinessRuleError);
+  });
+
+  it('reconciles negative amounts with a generic message', () => {
+    expect(() => assertMajorMatchesCents('-2.00', -200, { allowNegative: true })).not.toThrow();
+    expect(() => assertMajorMatchesCents('2.00', 199)).toThrow(/^Money amount 2\.00 does not/);
+  });
+});

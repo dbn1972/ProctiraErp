@@ -34,7 +34,7 @@ export { createPrismaClient, getPrismaClient, disconnectPrisma } from './client'
 
 // Export batch insert utilities
 export { batchInsert, batchInsertRaw } from './batch-insert';
-export type { BatchInsertOptions } from './batch-insert';
+export type { BatchInsertOptions, BatchInsertRawOptions } from './batch-insert';
 
 // Export read replica utilities
 export {
