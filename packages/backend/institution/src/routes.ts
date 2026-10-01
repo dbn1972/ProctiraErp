@@ -9,7 +9,7 @@
  * GET    /institutions/:id   - Get a single institution
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { InstitutionService } from './institution-service.js';
@@ -19,6 +19,7 @@ import {
   DeactivateInstitutionSchema,
   ReactivateInstitutionSchema,
   InstitutionParamsSchema,
+  InstitutionListQuerySchema,
   type CreateInstitutionInput,
   type UpdateInstitutionInput,
   type DeactivateInstitutionInput,
@@ -409,18 +410,27 @@ export async function registerInstitutionRoutes(
         });
       }
 
-      // Parse query with defaults (query params come as strings)
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L126: validate + coerce the query (strings → numbers) before it reaches Prisma.
+      const parsed = validateQuery(InstitutionListQuerySchema, request.query ?? {});
+      if (!parsed.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid list query',
+          statusCode: 400,
+          errors: parsed.errors,
+        });
+      }
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'name';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      const sortOrder = query.sortOrder ?? 'asc';
 
       const result = await institutionService.list(
         tenantId,
         {
           areaId: query.areaId,
-          status: query.status as 'ACTIVE' | 'INACTIVE' | undefined,
+          status: query.status,
           search: query.search,
         },
         { page, pageSize, sortBy, sortOrder },

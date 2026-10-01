@@ -12,6 +12,7 @@
  */
 import {
   assertInMemoryFallbackAllowed,
+  createDatabaseSchemaReadinessCheck,
   createPrismaClient,
   getSharedPgPool,
   type PrismaClient,
@@ -51,6 +52,12 @@ export interface AcademicsDeps {
   calendarStore: CalendarStore;
   /** 'prisma+pg' when DATABASE_URL is set, else 'in-memory'. */
   persistence: 'prisma+pg' | 'in-memory';
+  /**
+   * Schema readiness gate awaited by institutionPlugin at registration (PRC-L121).
+   * Rejects when operator-applied tables (infrastructure 027, calendar 030) are missing,
+   * so the service fails startup instead of 500-ing on first use.
+   */
+  ready?: () => Promise<void>;
 }
 
 export interface AcademicsDepsConfig {
@@ -150,6 +157,11 @@ export class TenantPartitionedConditionOptionStore implements ConditionOptionSto
   }
 }
 
+const ensureAcademicCalendarSchemaReady = createDatabaseSchemaReadinessCheck(
+  'institution academic calendar',
+  ['public.academic_calendar_events'],
+);
+
 export function isPgAcademicsEnabled(databaseUrl = process.env['DATABASE_URL']): boolean {
   return Boolean(databaseUrl?.trim());
 }
@@ -171,8 +183,6 @@ export function createAcademicsDeps(config: AcademicsDepsConfig = {}): Academics
 
   const pool = getSharedPgPool(databaseUrl);
   if (!pool) throw new Error('DATABASE_URL resolved but no pg pool could be created');
-  // Fire-and-forget: CI applies 027 through apply-sql.sh; this covers local boots.
-  void ensureInfrastructureSchema(pool).catch(() => undefined);
 
   return {
     // Every academics model op runs under withTenantTransaction (FORCE RLS).
@@ -183,5 +193,10 @@ export function createAcademicsDeps(config: AcademicsDepsConfig = {}): Academics
     conditionStore: new PgConditionOptionStore(pool),
     calendarStore: new PgCalendarStore(pool),
     persistence: 'prisma+pg',
+    // PRC-L121: awaited at plugin registration; a missing table fails startup.
+    ready: async () => {
+      await ensureInfrastructureSchema(pool);
+      await ensureAcademicCalendarSchemaReady(pool);
+    },
   };
 }
