@@ -42,6 +42,16 @@ export const REQUIRED_WEIGHT_TOTAL = 100;
 /**
  * Service handling assessment business logic.
  */
+
+/**
+ * PRC-H114: largest allowed distance between one band's max and the next band's min.
+ * Grades are assigned half-open (highest band whose min the score reaches), so a
+ * whole-mark step such as B 80–89 / A 90–100 is contiguous; skipping a mark
+ * (F 0–49 / P 51–100) is rejected as a gap.
+ */
+const MAX_BAND_GAP = 1;
+const GRADE_EPSILON = 1e-9;
+
 export class AssessmentService {
   constructor(
     private readonly gradingSchemeRepo: GradingSchemeRepository,
@@ -128,7 +138,14 @@ export class AssessmentService {
 
     // Validate thresholds if provided
     const newThresholds = input.thresholds ?? existing.thresholds;
-    this.validateThresholds(newThresholds, newMinValue, newMaxValue);
+    // PRC-H114: coverage is enforced whenever the bands or range change; a rename-only
+    // update of a legacy scheme is not blocked.
+    this.validateThresholds(newThresholds, newMinValue, newMaxValue, {
+      requireCoverage:
+        input.thresholds !== undefined ||
+        input.minValue !== undefined ||
+        input.maxValue !== undefined,
+    });
 
     const updateData: Partial<GradingSchemeEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
@@ -357,6 +374,7 @@ export class AssessmentService {
     thresholds: GradeThreshold[],
     minValue: number,
     maxValue: number,
+    options: { requireCoverage: boolean } = { requireCoverage: true },
   ): void {
     for (const threshold of thresholds) {
       if (threshold.minScore > threshold.maxScore) {
@@ -382,6 +400,26 @@ export class AssessmentService {
           `Grade thresholds overlap: '${previous.grade}' [${previous.minScore}-${previous.maxScore}] and '${current.grade}' [${current.minScore}-${current.maxScore}]`,
         );
       }
+      // PRC-H114: no gap wider than the 2-dp input step, or a score falls between grades.
+      if (current.minScore - previous.maxScore > MAX_BAND_GAP + GRADE_EPSILON) {
+        throw new BusinessRuleError(
+          `Grade thresholds leave a gap between '${previous.grade}' (ends ${previous.maxScore}) and '${current.grade}' (starts ${current.minScore})`,
+        );
+      }
+    }
+    // PRC-H114: the bands must cover the whole scheme range.
+    if (!options.requireCoverage) return;
+    const first = sorted[0];
+    const topMax = Math.max(...sorted.map((t) => t.maxScore));
+    if (first && Math.abs(first.minScore - minValue) > GRADE_EPSILON) {
+      throw new BusinessRuleError(
+        `Grade thresholds must start at the scheme minimum ${minValue} (lowest band starts at ${first.minScore})`,
+      );
+    }
+    if (sorted.length > 0 && Math.abs(topMax - maxValue) > GRADE_EPSILON) {
+      throw new BusinessRuleError(
+        `Grade thresholds must end at the scheme maximum ${maxValue} (highest band ends at ${topMax})`,
+      );
     }
   }
 }

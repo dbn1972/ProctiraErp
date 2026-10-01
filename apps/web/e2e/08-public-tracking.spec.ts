@@ -13,43 +13,26 @@ import { runAxe } from './helpers/axe';
 
 const TRACKING_NUMBER = 'REG-A1B2C3D4';
 
+const DOB = '2012-03-15';
+/** PRC-H029: shape of the backend `RegistrationStatusResponse`. */
 const SAMPLE_RESPONSE = {
   trackingNumber: TRACKING_NUMBER,
   status: 'under_review',
-  currentStep: 'Document review',
+  institutionName: 'Sunrise Public School',
+  applicantName: 'Asha Rao',
   submittedAt: '2025-01-01T00:00:00Z',
   updatedAt: '2025-01-03T00:00:00Z',
-  expectedCompletionAt: '2025-01-15T00:00:00Z',
-  history: [
-    {
-      status: 'pending',
-      timestamp: '2025-01-01T00:00:00Z',
-      note: 'Application received',
-    },
-    {
-      status: 'under_review',
-      timestamp: '2025-01-03T00:00:00Z',
-      note: 'Documents being verified',
-    },
-  ],
-  followUpActions: [
-    {
-      code: 'UPLOAD_BIRTH_CERT',
-      message: 'Please upload a birth certificate',
-    },
-  ],
+  remarks: 'Documents being verified',
+  interviewBookings: [{ id: 'b1', slotId: 's1', status: 'booked' }],
 };
-
 test.describe('Public Application Tracking page', () => {
-  test('renders the form, submits a tracking number, and shows the status timeline', async ({
-    page,
-  }) => {
+  test('renders the form, submits a tracking number, and shows the status', async ({ page }) => {
     let requestedUrl: string | null = null;
 
     // Intercept the public read-only endpoint and reply with the sample
     // payload. We match by URL path so the test does not care which port
     // the dev server is on.
-    await page.route('**/api/v1/registration/applications/**', async (route) => {
+    await page.route('**/api/v1/registrations/*/status**', async (route) => {
       requestedUrl = route.request().url();
       await route.fulfill({
         status: 200,
@@ -70,34 +53,30 @@ test.describe('Public Application Tracking page', () => {
     await runAxe(page, { checkpointLabel: '/track (form)' });
 
     await input.fill(TRACKING_NUMBER);
+    await page.getByLabel(/date of birth/i).fill(DOB);
     await page.getByRole('button', { name: /check status/i }).click();
 
-    // The status timeline appears with both history entries.
     await expect(page.getByTestId('tracking-result')).toBeVisible();
-    await expect(page.getByTestId('history-timeline')).toBeVisible();
-    const items = page.getByTestId('timeline-item');
-    await expect(items).toHaveCount(2);
-
-    // The follow-up section shows the action message.
-    await expect(page.getByText(/please upload a birth certificate/i)).toBeVisible();
-
+    await expect(page.getByText('Sunrise Public School')).toBeVisible();
+    await expect(page.getByTestId('tracking-remarks')).toHaveText(/documents being verified/i);
+    await expect(page.getByTestId('interviews-booked')).toBeVisible();
     // The status badge shows the localized "Under review" label.
     await expect(page.getByTestId('status-badge')).toHaveText(/under review/i);
 
     // The browser actually called the public registration endpoint with
     // the encoded tracking number from the form.
     expect(requestedUrl).not.toBeNull();
-    expect(requestedUrl).toContain(`/api/v1/registration/applications/${TRACKING_NUMBER}`);
+    expect(requestedUrl).toContain(`/api/v1/registrations/${TRACKING_NUMBER}/status?dob=${DOB}`);
 
     // Task 56.7 — populated result state must also pass WCAG 2.1 AA.
-    // The badge, timeline, and follow-up alert each introduce
+    // The badge, remarks, and interview sections each introduce
     // additional roles and color-coded statuses, so we run axe a
     // second time once the data has rendered.
     await runAxe(page, { checkpointLabel: '/track (result)' });
   });
 
   test('shows the friendly "not found" alert on a 404', async ({ page }) => {
-    await page.route('**/api/v1/registration/applications/**', async (route) => {
+    await page.route('**/api/v1/registrations/*/status**', async (route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -107,6 +86,7 @@ test.describe('Public Application Tracking page', () => {
 
     await page.goto('/track');
     await page.getByLabel(/tracking number/i).fill('REG-MISSING');
+    await page.getByLabel(/date of birth/i).fill(DOB);
     await page.getByRole('button', { name: /check status/i }).click();
 
     await expect(page.getByTestId('tracking-not-found')).toBeVisible();
@@ -115,7 +95,7 @@ test.describe('Public Application Tracking page', () => {
 
   test('rejects an empty tracking number client-side', async ({ page }) => {
     let networkCalls = 0;
-    await page.route('**/api/v1/registration/applications/**', async (route) => {
+    await page.route('**/api/v1/registrations/*/status**', async (route) => {
       networkCalls += 1;
       await route.fulfill({ status: 200, body: '{}' });
     });

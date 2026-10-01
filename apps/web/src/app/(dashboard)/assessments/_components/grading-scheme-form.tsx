@@ -198,6 +198,11 @@ export function GradingSchemeForm({ mode, schemeId, initialValues }: GradingSche
           </Button>
         </div>
 
+        {errors.thresholds?.message || errors.thresholds?.root?.message ? (
+          <p role="alert" className="text-sm text-destructive" data-testid="thresholds-error">
+            {errors.thresholds?.message ?? errors.thresholds?.root?.message}
+          </p>
+        ) : null}
         {thresholds.fields.length === 0 ? (
           <p className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]">
             Add at least one grade threshold.

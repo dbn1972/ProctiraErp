@@ -62,6 +62,22 @@ function newQuestion(): QuestionDraft {
   };
 }
 
+/**
+ * PRC-H023: drop blank options and remap the answer key onto the kept options, so
+ * `['', 'B', 'C']` with 'B' marked submits `['B', 'C']` with index 0 (not 1 = 'C').
+ * Returns -1 when the marked option is itself blank (validation rejects that case).
+ */
+export function compactQuizOptions(
+  options: readonly string[],
+  correctOptionIndex: number,
+): { options: string[]; correctOptionIndex: number } {
+  const kept = options.map((o) => o.trim()).filter(Boolean);
+  const marked = options[correctOptionIndex]?.trim();
+  if (!marked) return { options: kept, correctOptionIndex: -1 };
+  const remapped = options.slice(0, correctOptionIndex).filter((o) => o.trim()).length;
+  return { options: kept, correctOptionIndex: remapped };
+}
+
 export function NewAssignmentForm({
   initialKind,
   institutions,
@@ -155,8 +171,7 @@ export function NewAssignmentForm({
               .filter((q) => q.prompt.trim())
               .map((q) => ({
                 prompt: q.prompt.trim(),
-                options: q.options.map((o) => o.trim()).filter(Boolean),
-                correctOptionIndex: q.correctOptionIndex,
+                ...compactQuizOptions(q.options, q.correctOptionIndex),
                 points: q.points,
                 skillId: q.skillId || undefined,
                 explanation: q.explanation?.trim() || undefined,

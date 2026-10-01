@@ -9,6 +9,8 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { registerApplicationDraftRoutes } from './application-draft-routes.js';
+import type { ApplicantStudentLookup } from './application-intake.js';
 import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
@@ -42,6 +44,8 @@ export interface ScholarshipPluginOptions {
   documentBlobs?: ScholarshipDocumentBlobStore;
   /** Active guardian → student links for applicant authz. */
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** PRC-H030: tenant-scoped student existence check for application subjects. */
+  applicantExists?: ApplicantStudentLookup;
 }
 
 // Extend Fastify types
@@ -67,6 +71,7 @@ export const scholarshipPlugin = fp(
       documentStore,
       documentBlobs,
       resolveLinkedStudentIds,
+      applicantExists,
     } = options;
 
     // Create scholarship service instance
@@ -84,6 +89,13 @@ export const scholarshipPlugin = fp(
     // Register scholarship routes
     await registerScholarshipRoutes(fastify, {
       scholarshipService,
+      prefix,
+      resolveLinkedStudentIds,
+      applicantExists,
+    });
+    // PRC-H031: drafts can be updated until they are submitted.
+    await registerApplicationDraftRoutes(fastify, {
+      repository,
       prefix,
       resolveLinkedStudentIds,
     });

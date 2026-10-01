@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 
 import {
@@ -18,9 +18,7 @@ import {
 
 import { useLanguage } from '@/providers/LanguageProvider';
 import {
-  type ApplicationFollowUpAction,
   type ApplicationStatus,
-  type ApplicationStatusHistoryEntry,
   type ApplicationTrackingResult,
   type GetApplicationByTrackingNumberResult,
   getApplicationByTrackingNumber,
@@ -29,8 +27,10 @@ import {
 /**
  * Public Application Tracking client (Requirement 16.6, 16.11 / Task 51.4).
  *
- * Renders the tracking-number entry form and the results view (status,
- * status history with timestamps, and any required follow-up actions).
+ * Renders the tracking-number + date-of-birth entry form and the results view
+ * (status, institution, reviewer remarks, waitlist position, booked interviews).
+ * PRC-H029: the backend requires the applicant's DOB so a tracking number alone
+ * cannot disclose applicant data.
  * All copy is routed through `useLanguage().t()` so RTL locales and tenant
  * branding work without source edits.
  *
@@ -42,6 +42,7 @@ import {
 /** Fetcher signature exposed for tests. */
 export type TrackingFetcher = (
   trackingNumber: string,
+  dateOfBirth: string,
 ) => Promise<GetApplicationByTrackingNumberResult>;
 
 export interface ApplicationTrackingProps {
@@ -65,22 +66,26 @@ export function ApplicationTracking({
 }: ApplicationTrackingProps): JSX.Element {
   const { t } = useLanguage();
   const inputId = useId();
+  const dobId = useId();
 
   const [trackingNumber, setTrackingNumber] = useState(initialTrackingNumber);
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [dobError, setDobError] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ kind: 'idle' });
 
   const lookup = useCallback(
-    async (raw: string) => {
+    async (raw: string, rawDob: string) => {
       const trimmed = raw.trim();
-      if (trimmed.length === 0) {
-        setValidationError(t('tracking.trackingNumberRequired'));
-        return;
-      }
-      setValidationError(null);
+      const dob = rawDob.trim();
+      const numberMissing = trimmed.length === 0;
+      const dobMissing = !/^\d{4}-\d{2}-\d{2}$/.test(dob);
+      setValidationError(numberMissing ? t('tracking.trackingNumberRequired') : null);
+      setDobError(dobMissing ? t('tracking.dateOfBirthRequired') : null);
+      if (numberMissing || dobMissing) return;
       setView({ kind: 'loading' });
 
-      const call = fetcher ? fetcher(trimmed) : getApplicationByTrackingNumber(trimmed);
+      const call = fetcher ? fetcher(trimmed, dob) : getApplicationByTrackingNumber(trimmed, dob);
       const result = await call;
 
       if (result.kind === 'ok') {
@@ -97,14 +102,15 @@ export function ApplicationTracking({
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      void lookup(trackingNumber);
+      void lookup(trackingNumber, dateOfBirth);
     },
-    [lookup, trackingNumber],
+    [lookup, trackingNumber, dateOfBirth],
   );
 
   const handleReset = useCallback(() => {
     setView({ kind: 'idle' });
     setValidationError(null);
+    setDobError(null);
   }, []);
 
   const isLoading = view.kind === 'loading';
@@ -145,6 +151,32 @@ export function ApplicationTracking({
               )}
             </div>
 
+            <div className="mt-4 space-y-2">
+              <Label htmlFor={dobId}>{t('tracking.dateOfBirthLabel')}</Label>
+              <Input
+                id={dobId}
+                name="dateOfBirth"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                autoComplete="bday"
+                required
+                aria-required="true"
+                aria-invalid={dobError !== null}
+                aria-describedby={dobError ? `${dobId}-error` : `${dobId}-hint`}
+                disabled={isLoading}
+                className="h-12 min-h-12"
+              />
+              <p id={`${dobId}-hint`} className="text-xs text-muted-foreground">
+                {t('tracking.dateOfBirthHint')}
+              </p>
+              {dobError !== null && (
+                <p id={`${dobId}-error`} role="alert" className="text-sm text-destructive">
+                  {dobError}
+                </p>
+              )}
+            </div>
+
             <Button type="submit" className="mt-4 w-full" disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -164,7 +196,7 @@ export function ApplicationTracking({
       {view.kind === 'error' && (
         <ErrorView
           onRetry={() => {
-            void lookup(view.trackingNumber);
+            void lookup(view.trackingNumber, dateOfBirth);
           }}
         />
       )}
@@ -193,27 +225,38 @@ function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element 
         </header>
 
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
-          {data.currentStep && <Field label={t('tracking.currentStep')} value={data.currentStep} />}
+          {data.institutionName && (
+            <Field label={t('tracking.institution')} value={data.institutionName} />
+          )}
           {data.submittedAt && (
             <Field label={t('tracking.submittedAt')} value={formatTimestamp(data.submittedAt)} />
           )}
           {data.updatedAt && (
             <Field label={t('tracking.lastUpdated')} value={formatTimestamp(data.updatedAt)} />
           )}
-          {data.expectedCompletionAt && (
-            <Field
-              label={t('tracking.expectedCompletionAt')}
-              value={formatTimestamp(data.expectedCompletionAt)}
-            />
+          {data.waitlistPosition !== undefined && (
+            <Field label={t('tracking.waitlistPosition')} value={String(data.waitlistPosition)} />
           )}
         </dl>
 
-        <Section title={t('tracking.history')}>
-          <Timeline entries={data.history} />
-        </Section>
+        {data.remarks && (
+          <Section title={t('tracking.remarks')}>
+            <p className="text-sm text-foreground" data-testid="tracking-remarks">
+              {data.remarks}
+            </p>
+          </Section>
+        )}
 
-        <Section title={t('tracking.followUp')}>
-          <FollowUpList actions={data.followUpActions} />
+        <Section title={t('tracking.interviews')}>
+          {data.interviewBookings.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="interviews-empty">
+              {t('tracking.interviewsEmpty')}
+            </p>
+          ) : (
+            <p className="text-sm text-foreground" data-testid="interviews-booked">
+              {t('tracking.interviewsBooked', { count: data.interviewBookings.length })}
+            </p>
+          )}
         </Section>
       </CardContent>
     </Card>
@@ -263,104 +306,6 @@ function StatusBadge({ status }: { status: ApplicationStatus }): JSX.Element {
     <Badge variant={variant?.variant ?? 'outline'} data-testid="status-badge">
       {label}
     </Badge>
-  );
-}
-
-// ─── Timeline ──────────────────────────────────────────────────────────────
-
-function Timeline({ entries }: { entries: ApplicationStatusHistoryEntry[] }): JSX.Element {
-  const { t } = useLanguage();
-
-  // Sort newest → oldest for display so the most recent change is at top.
-  // Memoized BEFORE the early return below so the hook order stays stable
-  // across renders (React Hooks rule).
-  const sorted = useMemo(() => {
-    return [...entries].sort((a, b) => {
-      const aTime = Date.parse(a.timestamp);
-      const bTime = Date.parse(b.timestamp);
-      if (Number.isNaN(aTime) || Number.isNaN(bTime)) return 0;
-      return bTime - aTime;
-    });
-  }, [entries]);
-
-  if (entries.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground" data-testid="history-empty">
-        {t('tracking.historyEmpty')}
-      </p>
-    );
-  }
-
-  return (
-    <ol className="relative space-y-4 border-s border-border ps-6" data-testid="history-timeline">
-      {sorted.map((entry, index) => (
-        <TimelineItem
-          // Timestamp + status is sufficiently unique within an applicant's
-          // own history; index disambiguates the (rare) duplicate case.
-          key={`${entry.timestamp}-${entry.status}-${index}`}
-          entry={entry}
-        />
-      ))}
-    </ol>
-  );
-}
-
-function TimelineItem({ entry }: { entry: ApplicationStatusHistoryEntry }): JSX.Element {
-  const { t } = useLanguage();
-  const variant = STATUS_VARIANTS[entry.status];
-  const label = variant
-    ? t(variant.labelKey)
-    : t('tracking.statusUnknown', { status: entry.status });
-
-  return (
-    <li className="relative" data-testid="timeline-item">
-      <span
-        aria-hidden="true"
-        className="absolute -start-[0.42rem] top-1.5 h-3 w-3 rounded-full bg-primary"
-      />
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{label}</span>
-          {entry.actor && <span className="text-xs text-muted-foreground">· {entry.actor}</span>}
-        </div>
-        <time dateTime={entry.timestamp} className="text-xs text-muted-foreground">
-          {formatTimestamp(entry.timestamp)}
-        </time>
-        {entry.note && <p className="text-sm text-muted-foreground">{entry.note}</p>}
-      </div>
-    </li>
-  );
-}
-
-// ─── Follow-up actions ─────────────────────────────────────────────────────
-
-function FollowUpList({ actions }: { actions: ApplicationFollowUpAction[] }): JSX.Element {
-  const { t } = useLanguage();
-
-  if (actions.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground" data-testid="follow-up-empty">
-        {t('tracking.followUpEmpty')}
-      </p>
-    );
-  }
-
-  return (
-    <ul className="space-y-2" data-testid="follow-up-list">
-      {actions.map((action) => (
-        <li
-          key={action.code}
-          className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-        >
-          <p className="font-medium">{action.message}</p>
-          {action.dueAt && (
-            <time dateTime={action.dueAt} className="mt-1 block text-xs text-amber-700">
-              {formatTimestamp(action.dueAt)}
-            </time>
-          )}
-        </li>
-      ))}
-    </ul>
   );
 }
 

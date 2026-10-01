@@ -126,6 +126,7 @@ import {
   linkedStudentIdsForParent,
   scholarshipPlugin,
   parentScholarshipPlugin,
+  type ScholarshipRepository,
 } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -159,6 +160,7 @@ import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
 import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
+import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
@@ -177,6 +179,15 @@ function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
   return workflowRepositoriesCache;
 }
 
+/**
+ * PRC-H020: the fees netting routes verify disbursements against the repository
+ * mounted by the scholarship registrar (same instance in in-memory mode).
+ */
+let mountedScholarshipRepository: ScholarshipRepository | null = null;
+function scholarshipRepositoryForFees(): ScholarshipRepository {
+  mountedScholarshipRepository ??= createScholarshipRepository();
+  return mountedScholarshipRepository;
+}
 /** Trusted dependencies composed once by the gateway root. */
 export interface DomainPluginDependencies {
   publicTenantResolver: PublicTenantResolver;
@@ -838,6 +849,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/016_scholarships_schema.sql); else in-memory.
       const repository = createScholarshipRepository();
+      mountedScholarshipRepository = repository;
       // G-705: demo rows only when explicitly requested or in dev/test without
       // a database; never seed into a production Postgres.
       if (shouldSeedDemoData()) {
@@ -853,6 +865,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        // PRC-H030: with Postgres, applicants must be real students of the tenant.
+        applicantExists: isPgScholarshipEnabled()
+          ? async (tenantId: string, studentId: string) =>
+              (await createStudentRepository().findById(studentId, tenantId)) !== null
+          : undefined,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
@@ -1134,6 +1151,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(feesPlugin, {
         repository,
         prefix: '/fees',
+        scholarshipDisbursements: createScholarshipDisbursementLookup(scholarshipRepositoryForFees),
         parentBinding: {
           listLinkedStudentIds: async (tenantId, parentUserId) => {
             const links = await parentRepo.listChildLinksForParent(tenantId, parentUserId);

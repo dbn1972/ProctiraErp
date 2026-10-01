@@ -140,7 +140,10 @@ describe('AssessmentService', () => {
         type: 'numeric' as const,
         minValue: 0,
         maxValue: 100,
-        thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+        thresholds: [
+          { grade: 'A', minScore: 90, maxScore: 100 },
+          { grade: 'F', minScore: 0, maxScore: 89 },
+        ],
       };
 
       await service.createGradingScheme(tenantId, input);
@@ -184,7 +187,10 @@ describe('AssessmentService', () => {
         type: 'numeric',
         minValue: 0,
         maxValue: 100,
-        thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+        thresholds: [
+          { grade: 'A', minScore: 90, maxScore: 100 },
+          { grade: 'F', minScore: 0, maxScore: 89 },
+        ],
       });
 
       const updated = await service.updateGradingScheme(tenantId, created.id, {
@@ -209,7 +215,10 @@ describe('AssessmentService', () => {
         type: 'numeric',
         minValue: 0,
         maxValue: 100,
-        thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+        thresholds: [
+          { grade: 'A', minScore: 90, maxScore: 100 },
+          { grade: 'F', minScore: 0, maxScore: 89 },
+        ],
       });
 
       await service.deleteGradingScheme(tenantId, created.id);

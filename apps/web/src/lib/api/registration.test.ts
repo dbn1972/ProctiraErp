@@ -1,22 +1,24 @@
 /**
- * Tests for the public registration tracking API client (Task 51.4).
+ * Tests for the public registration tracking API client (Task 51.4, PRC-H029).
  *
  * Validates:
- *   • the request is dispatched against `/api/v1/registration/applications/{trackingNumber}`
- *   • a 200 JSON body is normalized to the strict client shape
+ *   • the request is dispatched against `/api/v1/registrations/{trackingNumber}/status?dob=`
+ *   • a 200 `RegistrationStatusResponse` body is mapped to the UI model
  *   • a 404 response collapses to `kind: 'not_found'` (Requirement 16.6)
  *   • non-2xx responses become `kind: 'error'`
  *   • network failures become `kind: 'error'`
- *   • empty / whitespace tracking numbers are rejected before the network call
+ *   • empty tracking numbers / missing DOB are rejected before the network call
+ *
+ * The real-route contract lives in apps/api-gateway/src/registration-public-client.contract.test.ts.
  */
-
 import { describe, expect, it, vi } from 'vitest';
-
 import {
   REGISTRATION_API_PREFIX,
   getApplicationByTrackingNumber,
   normalizeTrackingResult,
 } from './registration';
+
+const DOB = '2012-03-15';
 
 function makeFetcher(response: Partial<Response> & { jsonValue?: unknown }) {
   return vi.fn(
@@ -32,110 +34,85 @@ function makeFetcher(response: Partial<Response> & { jsonValue?: unknown }) {
 describe('getApplicationByTrackingNumber', () => {
   it('returns kind:"error" without calling fetch when the tracking number is empty', async () => {
     const fetcher = vi.fn();
-    const result = await getApplicationByTrackingNumber('   ', { fetcher });
+    const result = await getApplicationByTrackingNumber('   ', DOB, { fetcher });
     expect(result.kind).toBe('error');
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it('calls the public endpoint with the encoded tracking number', async () => {
+  it('returns kind:"error" without calling fetch when the DOB is missing', async () => {
+    const fetcher = vi.fn();
+    const result = await getApplicationByTrackingNumber('REG-A1B2C3D4', '', { fetcher });
+    expect(result.kind).toBe('error');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('calls the backend status route with the encoded tracking number and dob', async () => {
     const fetcher = makeFetcher({
-      ok: true,
-      status: 200,
-      jsonValue: {
-        trackingNumber: 'REG-A1B2C3D4',
-        status: 'pending',
-        submittedAt: '2025-01-01T00:00:00Z',
-        updatedAt: '2025-01-02T00:00:00Z',
-        history: [],
-        followUpActions: [],
-      },
+      jsonValue: { trackingNumber: 'REG-A1B2C3D4', status: 'pending' },
     });
-
-    await getApplicationByTrackingNumber('REG-A1B2C3D4', { fetcher });
-
+    await getApplicationByTrackingNumber('REG-A1B2C3D4', DOB, { fetcher });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    const firstCall = fetcher.mock.calls[0];
-    expect(firstCall).toBeDefined();
-    const [url, init] = firstCall as [RequestInfo | URL, RequestInit?];
-    expect(String(url)).toContain(`${REGISTRATION_API_PREFIX}/REG-A1B2C3D4`);
+    const [url, init] = fetcher.mock.calls[0] as [RequestInfo | URL, RequestInit?];
+    expect(REGISTRATION_API_PREFIX).toBe('/api/v1/registrations');
+    expect(String(url)).toContain(`/api/v1/registrations/REG-A1B2C3D4/status?dob=${DOB}`);
     expect(init?.method).toBe('GET');
   });
 
   it('encodes special characters in the tracking number path segment', async () => {
-    const fetcher = makeFetcher({
-      ok: true,
-      status: 200,
-      jsonValue: { history: [], followUpActions: [] },
-    });
-    await getApplicationByTrackingNumber('REG/with space', { fetcher });
-    const firstCall = fetcher.mock.calls[0];
-    expect(firstCall).toBeDefined();
-    const [url] = firstCall as [RequestInfo | URL, RequestInit?];
-    expect(String(url)).toContain('REG%2Fwith%20space');
+    const fetcher = makeFetcher({ jsonValue: {} });
+    await getApplicationByTrackingNumber('REG/with space', DOB, { fetcher });
+    const [url] = fetcher.mock.calls[0] as [RequestInfo | URL, RequestInit?];
+    expect(String(url)).toContain('REG%2Fwith%20space/status');
   });
 
-  it('returns kind:"ok" with normalized data on 200', async () => {
+  it('maps a RegistrationStatusResponse on 200', async () => {
     const fetcher = makeFetcher({
-      ok: true,
-      status: 200,
       jsonValue: {
         trackingNumber: 'REG-XYZ',
-        status: 'under_review',
+        status: 'waitlisted',
+        institutionName: 'Sunrise School',
+        applicantName: 'Asha Rao',
         submittedAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-03T00:00:00Z',
-        currentStep: 'Document review',
-        history: [
-          { status: 'pending', timestamp: '2025-01-01T00:00:00Z' },
-          {
-            status: 'under_review',
-            timestamp: '2025-01-03T00:00:00Z',
-            note: 'Documents received',
-          },
-        ],
-        followUpActions: [
-          { code: 'UPLOAD_BIRTH_CERT', message: 'Please upload a birth certificate' },
-        ],
+        remarks: 'Documents verified',
+        waitlistPosition: 3,
+        interviewBookings: [{ id: 'b1', slotId: 's1', status: 'booked' }],
       },
     });
-
-    const result = await getApplicationByTrackingNumber('REG-XYZ', { fetcher });
-
+    const result = await getApplicationByTrackingNumber('REG-XYZ', DOB, { fetcher });
     expect(result.kind).toBe('ok');
     if (result.kind === 'ok') {
-      expect(result.data.trackingNumber).toBe('REG-XYZ');
-      expect(result.data.status).toBe('under_review');
-      expect(result.data.currentStep).toBe('Document review');
-      expect(result.data.history).toHaveLength(2);
-      expect(result.data.followUpActions).toHaveLength(1);
+      expect(result.data).toMatchObject({
+        trackingNumber: 'REG-XYZ',
+        status: 'waitlisted',
+        institutionName: 'Sunrise School',
+        remarks: 'Documents verified',
+        waitlistPosition: 3,
+      });
+      expect(result.data.interviewBookings).toHaveLength(1);
     }
   });
 
   it('collapses 404 to kind:"not_found"', async () => {
     const fetcher = makeFetcher({ ok: false, status: 404 });
-    const result = await getApplicationByTrackingNumber('REG-MISSING', {
-      fetcher,
-    });
+    const result = await getApplicationByTrackingNumber('REG-MISSING', DOB, { fetcher });
     expect(result.kind).toBe('not_found');
   });
 
   it('returns kind:"error" for 5xx responses', async () => {
     const fetcher = makeFetcher({ ok: false, status: 500 });
-    const result = await getApplicationByTrackingNumber('REG-X', { fetcher });
+    const result = await getApplicationByTrackingNumber('REG-X', DOB, { fetcher });
     expect(result.kind).toBe('error');
-    if (result.kind === 'error') {
-      expect(result.message).toContain('500');
-    }
+    if (result.kind === 'error') expect(result.message).toContain('500');
   });
 
   it('returns kind:"error" when fetch throws (network failure)', async () => {
     const fetcher = vi.fn(async () => {
       throw new Error('Network down');
     });
-    const result = await getApplicationByTrackingNumber('REG-X', { fetcher });
+    const result = await getApplicationByTrackingNumber('REG-X', DOB, { fetcher });
     expect(result.kind).toBe('error');
-    if (result.kind === 'error') {
-      expect(result.message).toBe('Network down');
-    }
+    if (result.kind === 'error') expect(result.message).toBe('Network down');
   });
 
   it('returns kind:"error" on malformed JSON', async () => {
@@ -149,7 +126,7 @@ describe('getApplicationByTrackingNumber', () => {
           },
         }) as unknown as Response,
     );
-    const result = await getApplicationByTrackingNumber('REG-X', { fetcher });
+    const result = await getApplicationByTrackingNumber('REG-X', DOB, { fetcher });
     expect(result.kind).toBe('error');
   });
 });
@@ -161,17 +138,8 @@ describe('normalizeTrackingResult', () => {
       'REG-DEFAULT',
     );
     expect(data.trackingNumber).toBe('REG-DEFAULT');
-    expect(data.history).toEqual([]);
-    expect(data.followUpActions).toEqual([]);
+    expect(data.interviewBookings).toEqual([]);
     expect(data.updatedAt).toBe('2025-01-01T00:00:00Z');
-  });
-
-  it('defaults updatedAt to submittedAt when only submittedAt is provided', () => {
-    const data = normalizeTrackingResult(
-      { status: 'pending', submittedAt: '2025-02-02T00:00:00Z' },
-      'REG-DEFAULT',
-    );
-    expect(data.updatedAt).toBe('2025-02-02T00:00:00Z');
   });
 
   it('keeps the trackingNumber from the payload when present', () => {
