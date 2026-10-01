@@ -3,7 +3,7 @@
  * PRC-L154 / PRC-L155 / PRC-L156 / PRC-L158.
  */
 import Fastify, { type FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   InMemoryCertificationRepository,
@@ -15,6 +15,7 @@ import { registerTrainingRoutes } from './training-routes.js';
 import { TrainingService, clampTrainingPagination } from './training-service.js';
 
 const TENANT_A = '550e8400-e29b-41d4-a716-446655440000';
+const TENANT_B = '660e8400-e29b-41d4-a716-446655440001';
 
 interface Ctx {
   tenantId: string | undefined;
@@ -229,5 +230,142 @@ describe('PRC-L156 training attendance is insert-once', () => {
       url: `/staff/training/sessions/${sessionId}/attendance`,
     });
     expect(list.json().data).toHaveLength(1);
+  });
+});
+
+describe('PRC-L158 training routes authz, tenant context and isolation', () => {
+  const PID = '880e8400-e29b-41d4-a716-446655440003';
+  const writes: { method: 'POST' | 'PUT'; url: string; payload: Record<string, unknown> }[] = [
+    {
+      method: 'POST',
+      url: '/staff/training/programs',
+      payload: { name: 'X', startDate: '2026-01-01', endDate: '2026-02-01' },
+    },
+    { method: 'PUT', url: `/staff/training/programs/${PID}`, payload: { name: 'Y' } },
+    {
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId: PID, title: 'S', date: '2026-01-10' },
+    },
+    {
+      method: 'POST',
+      url: '/staff/training/attendance',
+      payload: { sessionId: PID, staffId: STAFF_ID, status: 'PRESENT' },
+    },
+    {
+      method: 'POST',
+      url: '/staff/training/certifications',
+      payload: {
+        staffId: STAFF_ID,
+        programId: PID,
+        certificationName: 'C',
+        issuedDate: '2026-01-01',
+      },
+    },
+    { method: 'POST', url: '/staff/training/certifications/process-expiry', payload: {} },
+  ];
+
+  it.each(
+    writes.flatMap((w) =>
+      [['teacher'], ['parent'], ['student'], []].map((roles) => ({ ...w, roles })),
+    ),
+  )('$method $url with roles $roles -> 403 FORBIDDEN', async ({ method, url, payload, roles }) => {
+    const { app: a, service } = await mount({ roles });
+    const spies = [
+      vi.spyOn(service, 'createProgram'),
+      vi.spyOn(service, 'updateProgram'),
+      vi.spyOn(service, 'createSession'),
+      vi.spyOn(service, 'recordAttendance'),
+      vi.spyOn(service, 'issueCertification'),
+      vi.spyOn(service, 'processExpiredCertifications'),
+    ];
+    const res = await a.inject({ method, url, payload });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN');
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+  });
+
+  it.each(writes)('$method $url without tenant context -> 400 TENANT_REQUIRED', async (w) => {
+    const { app: a } = await mount({ tenantId: undefined });
+    const res = await a.inject(w);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('TENANT_REQUIRED');
+  });
+
+  it.each([
+    '/staff/training/programs',
+    '/staff/training/certifications',
+    `/staff/training/programs/${PID}`,
+  ])('GET %s without tenant context -> 400', async (url) => {
+    const { app: a } = await mount({ tenantId: undefined });
+    expect((await a.inject({ method: 'GET', url })).statusCode).toBe(400);
+  });
+
+  it('records from tenant A are 404 / invisible for tenant B', async () => {
+    const { app: a, ctx } = await mount();
+    const programId = await createProgram(a);
+    const sessionId = await createSession(a, programId);
+    const cert = await a.inject({
+      method: 'POST',
+      url: '/staff/training/certifications',
+      payload: { staffId: STAFF_ID, programId, certificationName: 'C', issuedDate: '2026-01-05' },
+    });
+    expect(cert.statusCode).toBe(201);
+    const certId = cert.json().id as string;
+
+    ctx.tenantId = TENANT_B;
+    const get = (url: string) => a.inject({ method: 'GET', url });
+    expect((await get(`/staff/training/programs/${programId}`)).statusCode).toBe(404);
+    expect((await get(`/staff/training/sessions/${sessionId}`)).statusCode).toBe(404);
+    expect((await get(`/staff/training/certifications/${certId}`)).statusCode).toBe(404);
+    expect((await get('/staff/training/programs')).json().data).toHaveLength(0);
+    expect((await get('/staff/training/certifications')).json().data).toHaveLength(0);
+    expect((await get(`/staff/training/programs/${programId}/sessions`)).json().data).toHaveLength(
+      0,
+    );
+    const put = await a.inject({
+      method: 'PUT',
+      url: `/staff/training/programs/${programId}`,
+      payload: { name: 'hijack' },
+    });
+    expect(put.statusCode).toBe(404);
+    const att = await a.inject({
+      method: 'POST',
+      url: '/staff/training/attendance',
+      payload: { sessionId, staffId: STAFF_ID, status: 'PRESENT' },
+    });
+    expect(att.statusCode).toBe(404);
+    const sess = await a.inject({
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId, title: 'S', date: '2026-03-01' },
+    });
+    expect(sess.statusCode).toBe(404);
+  });
+
+  it('body and param validation errors -> 400 VALIDATION_ERROR', async () => {
+    const { app: a } = await mount();
+    const bad = [
+      a.inject({ method: 'POST', url: '/staff/training/programs', payload: { name: '' } }),
+      a.inject({ method: 'GET', url: '/staff/training/programs/not-a-uuid' }),
+      a.inject({
+        method: 'POST',
+        url: '/staff/training/attendance',
+        payload: { sessionId: PID, staffId: STAFF_ID, status: 'LATE' },
+      }),
+      a.inject({ method: 'GET', url: '/staff/training/certifications?status=BOGUS' }),
+    ];
+    for (const res of await Promise.all(bad)) {
+      expect(`${res.statusCode} ${res.body}`).toMatch(/^400 /);
+      expect(res.json().code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  it('HR officer reads and writes succeed (positive control)', async () => {
+    const { app: a } = await mount({ roles: ['hr_officer'] });
+    const programId = await createProgram(a);
+    expect(
+      (await a.inject({ method: 'GET', url: `/staff/training/programs/${programId}` })).statusCode,
+    ).toBe(200);
   });
 });

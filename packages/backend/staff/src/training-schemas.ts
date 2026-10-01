@@ -116,8 +116,8 @@ export type CreateTrainingSessionInput = Static<typeof CreateTrainingSessionSche
 export const RecordTrainingAttendanceSchema = Type.Object({
   sessionId: Type.String({ pattern: UUID_PATTERN, description: 'Training session UUID' }),
   staffId: Type.String({ pattern: UUID_PATTERN, description: 'Staff member UUID' }),
-  status: Type.String({
-    enum: ['PRESENT', 'ABSENT', 'EXCUSED'],
+  // PRC-L158: TypeBox Value.Check ignores `enum` on Type.String, so use literal unions.
+  status: Type.Union([Type.Literal('PRESENT'), Type.Literal('ABSENT'), Type.Literal('EXCUSED')], {
     description: 'Attendance status',
   }),
   comment: Type.Optional(Type.String({ maxLength: 500, description: 'Attendance comment' })),
@@ -202,8 +202,7 @@ export const CertificationListQuerySchema = Type.Object({
     Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' }),
   ),
   status: Type.Optional(
-    Type.String({
-      enum: ['ACTIVE', 'EXPIRED', 'REVOKED'],
+    Type.Union([Type.Literal('ACTIVE'), Type.Literal('EXPIRED'), Type.Literal('REVOKED')], {
       description: 'Filter by certification status',
     }),
   ),
