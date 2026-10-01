@@ -5,7 +5,7 @@
  * request Host does not resolve a tenant, using the access token's own tenant
  * claim, and must never take the tenant from a client X-Tenant-ID header.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const cookieValues = new Map<string, string>();
 vi.mock('next/headers', () => ({
@@ -31,11 +31,13 @@ function logoutRequest(host: string, headers: Record<string, string> = {}): Requ
   });
 }
 
-let fetchMock: ReturnType<typeof vi.fn<unknown[], Promise<Response>>>;
+let fetchMock: Mock<(...args: unknown[]) => Promise<Response>>;
 
 beforeEach(() => {
   cookieValues.clear();
-  fetchMock = vi.fn<unknown[], Promise<Response>>(async () => new Response('{}', { status: 200 }));
+  fetchMock = vi.fn<(...args: unknown[]) => Promise<Response>>(
+    async () => new Response('{}', { status: 200 }),
+  );
   vi.stubGlobal('fetch', fetchMock);
   vi.stubEnv('TENANT_BASE_DOMAIN', 'proctira.io');
   vi.stubEnv('TENANT_FALLBACK_SLUG', '');
