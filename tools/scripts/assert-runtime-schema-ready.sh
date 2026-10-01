@@ -41,15 +41,21 @@ if ! URL="$(resolve_database_url)"; then
 fi
 [[ -n "${URL// }" ]] || fail "runtime DATABASE_URL is required"
 
-ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
+# PRC-L381: derive the contract from packages/shared/database (the list the app
+# enforces at boot) instead of a duplicated 6-entry shell list that went stale.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=required-migrations-lib.sh
+source "$ROOT/tools/scripts/required-migrations-lib.sh"
+REQUIRED_MIGRATIONS="$(
+  required_runtime_migrations "$ROOT/packages/shared/database/src/schema-readiness.ts"
+)" || fail "cannot derive REQUIRED_RUNTIME_MIGRATIONS from schema-readiness.ts"
+REQUIRED_MIGRATIONS_CSV="$(paste -sd, - <<<"$REQUIRED_MIGRATIONS")"
+EXPECTED_REQUIRED_COUNT="$(wc -l <<<"$REQUIRED_MIGRATIONS" | tr -d ' ')"
+
+ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' \
+  -v required_migrations="$REQUIRED_MIGRATIONS_CSV" <<'SQL'
   WITH required(filename) AS (
-    VALUES
-      ('082_repair_strict_tenant_fk_validate.sql'),
-      ('092_hostel_assignment_uniqueness.sql'),
-      ('093_developer_portal_tenant_fks.sql'),
-      ('094_developer_portal_api_key_lookup.sql'),
-      ('095_w1_data_02_rls_safe_deny.sql'),
-      ('096_w1_data_14_audit_fk_integrity.sql')
+    SELECT unnest(string_to_array(:'required_migrations', ','))
   ), status AS (
     SELECT required.filename,
            migration.migration_applied
@@ -69,12 +75,15 @@ ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
              FILTER (WHERE migration_applied IS DISTINCT FROM true),
            ''
          )
-    FROM status
-")"
+    FROM status;
+SQL
+)"
 IFS=$'\t' read -r CURRENT_ROLE MISSING_COUNT REQUIRED_COUNT REQUIRED_NAMES MISSING_NAMES <<<"$ROW"
 EXPECTED_ROLE="${RUNTIME_ROLE_EXPECTED:-proctira_app}"
 [[ "$CURRENT_ROLE" == "$EXPECTED_ROLE" ]] \
   || fail "current_user is ${CURRENT_ROLE:-unknown}, expected ${EXPECTED_ROLE}"
+[[ "${REQUIRED_COUNT:-0}" == "$EXPECTED_REQUIRED_COUNT" ]] \
+  || fail "verified ${REQUIRED_COUNT:-0} migrations, expected ${EXPECTED_REQUIRED_COUNT}"
 [[ "${MISSING_COUNT:-1}" == "0" ]] \
   || fail "required target migrations missing: ${MISSING_NAMES:-unknown}"
 
