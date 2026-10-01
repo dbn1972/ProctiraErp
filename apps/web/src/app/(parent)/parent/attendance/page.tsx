@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/auth/server';
-import { getChildAttendance, listChildren } from '@/lib/api/parent-portal';
+import { getChildAttendance, listChildrenResult } from '@/lib/api/parent-portal';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,25 @@ export default async function ParentAttendancePage({
 }) {
   await requireSession();
   const params = await searchParams;
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    // PRC-L062: a failed lookup is not the same as a family with no links.
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Attendance"
+        description="See presence, absences, and recent days for your child."
+        testId="parent-attendance"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No attendance to show."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {

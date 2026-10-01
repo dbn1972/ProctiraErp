@@ -1,5 +1,5 @@
 import { requireSession } from '@/lib/auth/server';
-import { listChildren } from '@/lib/api/parent-portal';
+import { listChildrenResult } from '@/lib/api/parent-portal';
 import {
   listLibraryHoldsResult,
   listLibraryLoansResult,
@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/library';
 import type { ListFailureKind, ListResult } from '@/lib/api/list-result';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,25 @@ export default async function ParentLibraryPage({
   await requireSession();
   const params = await searchParams;
   const q = firstSearchParam(params.q) ?? '';
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    // PRC-L062: a failed lookup is not the same as a family with no links.
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Library"
+        description="Search the catalogue and see your child's loans and holds."
+        testId="parent-library"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No catalogue results."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
