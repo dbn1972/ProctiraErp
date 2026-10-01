@@ -11,13 +11,17 @@ import { ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@proctira/ui/components';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { getTenantSettings } from '@/lib/api/admin.server';
+import { requireSession } from '@/lib/auth/server';
+import { canSeePlatformSections } from '@/lib/auth/permission-guards';
 
 import { ADMIN_SECTIONS, PLATFORM_SECTIONS, type AdminSection } from './admin-sections';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminLandingPage() {
-  const { source } = await getTenantSettings();
+  const [session, { source }] = await Promise.all([requireSession('/admin'), getTenantSettings()]);
+  // PRC-L234: only advertise platform surfaces to callers holding the platform resource.
+  const showPlatform = canSeePlatformSections(session);
 
   return (
     <section aria-labelledby="admin-heading" className="space-y-6">
@@ -42,16 +46,18 @@ export default async function AdminLandingPage() {
 
       <SectionGrid sections={ADMIN_SECTIONS} label="Tenant administration" />
 
-      <section aria-labelledby="platform-heading" className="space-y-3">
-        <h2
-          id="platform-heading"
-          className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          <span>Platform</span>
-          <span className="h-px flex-1 bg-border" aria-hidden="true" />
-        </h2>
-        <SectionGrid sections={PLATFORM_SECTIONS} label="Platform administration" />
-      </section>
+      {showPlatform ? (
+        <section aria-labelledby="platform-heading" className="space-y-3">
+          <h2
+            id="platform-heading"
+            className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            <span>Platform</span>
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
+          </h2>
+          <SectionGrid sections={PLATFORM_SECTIONS} label="Platform administration" />
+        </section>
+      ) : null}
     </section>
   );
 }

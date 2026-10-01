@@ -17,14 +17,28 @@ import {
 import {
   bulkTransitionGradeFormSchema,
   commentsBankFormSchema,
+  computeGpaActionSchema,
   computeRankFormSchema,
+  createReportCardJobActionSchema,
+  issueTranscriptActionSchema,
   transitionGradeFormSchema,
+  upsertGradeEntryActionSchema,
 } from '@/lib/validation/gradebook-workflow-schema';
 
 export type GradebookActionResult =
   | { ok: true; id: string; extra?: Record<string, unknown> }
   | { ok: false; error: string; code?: string; status?: number };
 
+function invalid(error: { issues: Array<{ path: PropertyKey[]; message: string }> }) {
+  const issue = error.issues[0];
+  const where = issue?.path.length ? `${issue.path.join('.')}: ` : '';
+  return {
+    ok: false as const,
+    error: `${where}${issue?.message ?? 'Invalid input'}`,
+    code: 'VALIDATION_ERROR',
+    status: 400,
+  };
+}
 function fail(error: unknown): GradebookActionResult {
   if (error instanceof GatewayError) {
     return {
@@ -51,8 +65,10 @@ export async function upsertGradeEntryAction(input: {
   commentBankId?: string | null;
   institutionId?: string;
 }): Promise<GradebookActionResult> {
+  const parsed = upsertGradeEntryActionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
   try {
-    const { institutionId, ...payload } = input;
+    const { institutionId, ...payload } = parsed.data;
     const row = await upsertGradeEntry(payload);
     if (institutionId) {
       revalidatePath(`/institutions/${institutionId}/gradebook`);
@@ -70,10 +86,13 @@ export async function computeGpaAction(input: {
   boardId?: string | null;
   institutionId?: string;
 }): Promise<GradebookActionResult> {
+  const parsed = computeGpaActionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
   try {
-    const snap = await computeGpa(input);
-    if (input.institutionId) {
-      revalidatePath(`/institutions/${input.institutionId}/gradebook`);
+    const { institutionId, ...payload } = parsed.data;
+    const snap = await computeGpa(payload);
+    if (institutionId) {
+      revalidatePath(`/institutions/${institutionId}/gradebook`);
     }
     revalidatePath('/students/records');
     return {
@@ -94,8 +113,10 @@ export async function issueTranscriptAction(input: {
   studentId: string;
   gpaSnapshotId?: string | null;
 }): Promise<GradebookActionResult> {
+  const parsed = issueTranscriptActionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
   try {
-    const row = await issueTranscript(input);
+    const row = await issueTranscript(parsed.data);
     revalidatePath('/students/records');
     return {
       ok: true,
@@ -113,11 +134,13 @@ export async function createReportCardJobAction(input: {
   institutionId?: string | null;
   academicPeriodId?: string | null;
 }): Promise<GradebookActionResult> {
+  const parsed = createReportCardJobActionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
   try {
-    const job = await createReportCardJob(input);
+    const job = await createReportCardJob(parsed.data);
     revalidatePath('/students/records');
-    if (input.institutionId) {
-      revalidatePath(`/institutions/${input.institutionId}/gradebook`);
+    if (parsed.data.institutionId) {
+      revalidatePath(`/institutions/${parsed.data.institutionId}/gradebook`);
     }
     return {
       ok: true,

@@ -20,15 +20,33 @@ export const bulkInvoiceFormSchema = z.object({
   dueAt: z.string().optional(),
 });
 
-export const concessionFormSchema = z.object({
-  studentId: z.string().regex(UUID, 'Student must be a UUID'),
-  structureId: z.string().regex(UUID, 'Structure must be a UUID'),
-  invoiceId: z.string().regex(UUID).optional().or(z.literal('')),
-  kind: z.enum(['percent', 'amount']),
-  percent: z.coerce.number().min(0).max(100).optional(),
-  amount: z.coerce.number().min(0).optional(),
-  reason: z.string().min(1, 'Reason is required').max(2000),
-});
+export const concessionFormSchema = z
+  .object({
+    studentId: z.string().regex(UUID, 'Student must be a UUID'),
+    structureId: z.string().regex(UUID, 'Structure must be a UUID'),
+    invoiceId: z.string().regex(UUID).optional().or(z.literal('')),
+    kind: z.enum(['percent', 'amount']),
+    percent: z.coerce.number().min(0).max(100, 'Percent must be at most 100').optional(),
+    amount: z.coerce.number().min(0).optional(),
+    reason: z.string().trim().min(1, 'Reason is required').max(2000),
+  })
+  // PRC-L238: a blank/0 value must not silently apply a 0% (or 0 amount) concession.
+  .superRefine((value, ctx) => {
+    if (value.kind === 'percent' && !(value.percent != null && value.percent > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['percent'],
+        message: 'Enter a percent greater than 0 and at most 100',
+      });
+    }
+    if (value.kind === 'amount' && !(value.amount != null && value.amount > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['amount'],
+        message: 'Enter an amount greater than 0',
+      });
+    }
+  });
 
 export const refundFormSchema = z.object({
   invoiceId: z.string().regex(UUID, 'Invoice is required'),

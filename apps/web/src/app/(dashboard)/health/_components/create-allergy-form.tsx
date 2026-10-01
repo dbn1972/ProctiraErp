@@ -24,6 +24,10 @@ export function CreateAllergyForm({ studentOptionsJson = '[]' }: { studentOption
   const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // PRC-L240: per-field errors so the invalid control is announced, not just a page alert.
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<'studentId' | 'allergyType' | 'description', string>>
+  >({});
   const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -37,16 +41,18 @@ export function CreateAllergyForm({ studentOptionsJson = '[]' }: { studentOption
     const treatment = String(fd.get('treatment') ?? '').trim();
     const diagnosedDate = String(fd.get('diagnosedDate') ?? '').trim();
 
+    const nextErrors: typeof fieldErrors = {};
     if (!UUID_RE.test(studentId)) {
-      setError(
+      nextErrors.studentId =
         studentOptions.length === 0
           ? 'Student directory is empty — add students before recording an allergy.'
-          : 'Select a student.',
-      );
-      return;
+          : 'Select a student.';
     }
-    if (!allergyType || !description) {
-      setError('Type and description are required.');
+    if (!allergyType) nextErrors.allergyType = 'Allergy type is required.';
+    if (!description) nextErrors.description = 'Description is required.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(null);
       return;
     }
 
@@ -77,8 +83,13 @@ export function CreateAllergyForm({ studentOptionsJson = '[]' }: { studentOption
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-allergy-form">
-          <HealthStudentSelect options={studentOptions} />
-          <FormField label="Allergy type" htmlFor="allergyType">
+          <HealthStudentSelect options={studentOptions} error={fieldErrors.studentId} />
+          <FormField
+            label="Allergy type"
+            htmlFor="allergyType"
+            required
+            error={fieldErrors.allergyType}
+          >
             <Input
               id="allergyType"
               name="allergyType"
@@ -87,7 +98,12 @@ export function CreateAllergyForm({ studentOptionsJson = '[]' }: { studentOption
               className="min-h-11"
             />
           </FormField>
-          <FormField label="Description" htmlFor="description">
+          <FormField
+            label="Description"
+            htmlFor="description"
+            required
+            error={fieldErrors.description}
+          >
             <Input id="description" name="description" required className="min-h-11" />
           </FormField>
           <FormField label="Severity" htmlFor="severity">

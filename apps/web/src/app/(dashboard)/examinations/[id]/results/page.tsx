@@ -46,18 +46,6 @@ export default async function ExaminationResultsPage(props: PageProps) {
   ]);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
-  const csv = [
-    ['studentId', ...view.subjects.map((s) => s.code), 'total', 'status'].join(','),
-    ...view.rows.map((row) =>
-      [
-        row.studentId,
-        ...row.subjects.map((s) => (s.score === null ? '' : String(s.score))),
-        row.totalScore === null ? '' : String(row.totalScore),
-        row.status,
-      ].join(','),
-    ),
-  ].join('\n');
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
@@ -75,7 +63,6 @@ export default async function ExaminationResultsPage(props: PageProps) {
           examination={examination}
           published={view.published}
           subjects={view.subjects}
-          csv={csv}
         />
       </CardHeader>
       <CardContent>

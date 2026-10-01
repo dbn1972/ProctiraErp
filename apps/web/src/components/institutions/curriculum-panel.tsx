@@ -48,7 +48,8 @@ export function CurriculumPanel({
   plansByUnit: Record<string, LessonPlan[]>;
   outcomes: LearningOutcome[];
   coverage: CoverageSummary | null;
-  coverageRows: Array<{ unitId: string; taughtAt: string }>;
+  /** `taughtAt` is null when the API did not report a taught date (PRC-L242). */
+  coverageRows: Array<{ unitId: string; taughtAt: string | null }>;
   defaultSubjectId: string;
   defaultGradeId: string;
   defaultPeriodId: string;

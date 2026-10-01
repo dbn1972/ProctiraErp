@@ -20,6 +20,13 @@ import {
   createSyllabusUnitFormSchema,
   markTaughtFormSchema,
 } from '@/lib/validation/curriculum-schema';
+// PRC-L241: uuid-only ids for update/delete actions that interpolate into gateway paths.
+import {
+  curriculumIdSchema,
+  firstIssue,
+  updateLearningOutcomeSchema,
+  updateLessonPlanSchema,
+} from '@/lib/validation/campus-actions-schema';
 
 export type CurriculumActionResult =
   { ok: true; id: string; extra?: Record<string, unknown> } | { ok: false; error: string };
@@ -146,10 +153,12 @@ export async function updateLessonPlanAction(
   institutionId: string,
   values: { id: string; title: string; plannedDate?: string },
 ): Promise<CurriculumActionResult> {
+  const v = updateLessonPlanSchema.safeParse({ institutionId, ...values });
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
-    const row = await updateLessonPlan(values.id, {
-      title: values.title,
-      plannedDate: values.plannedDate || null,
+    const row = await updateLessonPlan(v.data.id, {
+      title: v.data.title,
+      plannedDate: v.data.plannedDate || null,
     });
     revalidateCurriculum(institutionId);
     return { ok: true, id: row.id };
@@ -162,6 +171,8 @@ export async function deleteLessonPlanAction(
   institutionId: string,
   id: string,
 ): Promise<CurriculumActionResult> {
+  const v = curriculumIdSchema.safeParse({ institutionId, id });
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
     await deleteLessonPlan(id);
     revalidateCurriculum(institutionId);
@@ -175,6 +186,8 @@ export async function unmarkUnitTaughtAction(
   institutionId: string,
   unitId: string,
 ): Promise<CurriculumActionResult> {
+  const v = curriculumIdSchema.safeParse({ institutionId, id: unitId });
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
     await unmarkUnitTaught(unitId);
     revalidateCurriculum(institutionId);
@@ -188,6 +201,8 @@ export async function deleteLearningOutcomeAction(
   institutionId: string,
   id: string,
 ): Promise<CurriculumActionResult> {
+  const v = curriculumIdSchema.safeParse({ institutionId, id });
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
     await deleteLearningOutcome(id);
     revalidateCurriculum(institutionId);
@@ -201,11 +216,13 @@ export async function updateLearningOutcomeAction(
   institutionId: string,
   values: { id: string; code: string; statement: string; unitId?: string },
 ): Promise<CurriculumActionResult> {
+  const v = updateLearningOutcomeSchema.safeParse({ institutionId, ...values });
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
-    const row = await updateLearningOutcome(values.id, {
-      code: values.code,
-      statement: values.statement,
-      unitId: values.unitId || null,
+    const row = await updateLearningOutcome(v.data.id, {
+      code: v.data.code,
+      statement: v.data.statement,
+      unitId: v.data.unitId || null,
     });
     revalidateCurriculum(institutionId);
     return { ok: true, id: row.id };

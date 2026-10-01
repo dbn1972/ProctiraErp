@@ -12,6 +12,7 @@ import {
   listSyllabusUnits,
   type LessonPlan,
 } from '@/lib/api/curriculum';
+import { coverageRowsFrom } from '@/lib/curriculum/coverage-rows';
 import {
   listAcademicPeriods,
   listGrades,
@@ -89,10 +90,9 @@ export default async function InstitutionCurriculumPage(props: PageProps) {
         })
       : { ok: true as const, data: null };
   const coverage = coverageResult.ok ? coverageResult.data : null;
-  const coverageRows = (coverage?.taughtUnitIds ?? []).map((unitId) => ({
-    unitId,
-    taughtAt: 'taught',
-  }));
+  // PRC-L242: never fabricate a taught timestamp. Use real per-unit dates when the
+  // coverage endpoint returns them; otherwise the date is unknown (null).
+  const coverageRows = coverageRowsFrom(coverage);
 
   return (
     <div className="space-y-6" data-testid="institution-curriculum">
