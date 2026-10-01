@@ -17,6 +17,7 @@ import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import { TenantService } from './tenant-service.js';
 import { InMemoryTenantRepository } from './in-memory-repository.js';
 import type { CreateTenantInput, ThemeTokens } from './schemas.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 describe('TenantService — branding versioning (Task 58.2)', () => {
   let service: TenantService;
@@ -45,7 +46,7 @@ describe('TenantService — branding versioning (Task 58.2)', () => {
 
   beforeEach(async () => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
     const tenant = await service.createTenant(createInput);
     tenantId = tenant.id;
   });

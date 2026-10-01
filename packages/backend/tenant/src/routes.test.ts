@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { TenantService } from './tenant-service.js';
 import { InMemoryTenantRepository } from './in-memory-repository.js';
 import { registerTenantRoutes } from './routes.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 describe('Tenant Routes', () => {
   let app: FastifyInstance;
@@ -31,7 +32,7 @@ describe('Tenant Routes', () => {
 
   beforeEach(async () => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
     app = Fastify();
     await registerTenantRoutes(app, { tenantService: service });
     await app.ready();

@@ -9,10 +9,16 @@
  * 5. Generates materialized path for area hierarchy
  */
 
-import { Pool, PoolClient } from 'pg';
-import { loadConfig } from './config.js';
-import { MigrationConfig, MigrationStepResult, TableMapping, ColumnTransform } from './types.js';
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
+
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import type {
+  MigrationConfig,
+  MigrationStepResult,
+  TableMapping,
+  ColumnTransform,
+} from './types.js';
 
 /**
  * Builds the SQL expression for a column transformation.
@@ -39,8 +45,10 @@ export function buildTransformExpression(
       const cases = Object.entries(transform.mapping)
         .map(([from, to]) => `WHEN CAST(s."${sourceColumn}" AS text) = '${from}' THEN '${to}'`)
         .join(' ');
-      const fallback = Object.values(transform.mapping)[0] ?? 'unknown';
-      return `CASE ${cases} ELSE '${fallback}' END`;
+      // Unknown or NULL legacy codes map to NULL — never to an arbitrary
+      // mapped value. The pre-flight (findUnmappedEnumCodes) fails the step
+      // before any row with an unmapped non-NULL code is written.
+      return `CASE ${cases} ELSE NULL END`;
     }
 
     case 'json_wrap':
@@ -78,6 +86,89 @@ export function buildTransformSQL(
     ${filterClause}
     ON CONFLICT DO NOTHING;
   `;
+}
+
+/** Distinct non-NULL legacy codes of a map_enum column that have no mapping. */
+export interface UnmappedEnumCodes {
+  sourceTable: string;
+  sourceColumn: string;
+  targetColumn: string;
+  codes: { code: string; count: number }[];
+}
+
+/**
+ * Builds the pre-flight query that lists source codes of a map_enum column not
+ * covered by its mapping. Returns null for non-enum columns.
+ */
+export function buildUnmappedEnumSQL(
+  mapping: TableMapping,
+  column: TableMapping['columns'][number],
+  stagingSchema: string,
+): string | null {
+  if (column.transform?.type !== 'map_enum') return null;
+  const known = Object.keys(column.transform.mapping)
+    .map((code) => `'${code.replace(/'/g, "''")}'`)
+    .join(', ');
+  const src = `CAST(s."${column.source}" AS text)`;
+  const filter = mapping.sourceFilter ? `AND (${mapping.sourceFilter})` : '';
+  const notIn = known ? `AND ${src} NOT IN (${known})` : '';
+  return `
+    SELECT ${src} AS code, COUNT(*)::int AS count
+    FROM "${stagingSchema}"."${mapping.sourceTable}" s
+    WHERE s."${column.source}" IS NOT NULL ${notIn} ${filter}
+    GROUP BY 1
+    ORDER BY 1;
+  `;
+}
+
+/**
+ * Pre-flight: reports every map_enum column of a mapping with source codes that
+ * are not in the mapping. Any non-empty result must fail the transform step.
+ */
+export async function findUnmappedEnumCodes(
+  client: Pick<PoolClient, 'query'>,
+  mapping: TableMapping,
+  stagingSchema: string,
+): Promise<UnmappedEnumCodes[]> {
+  const found: UnmappedEnumCodes[] = [];
+  for (const column of mapping.columns) {
+    const sql = buildUnmappedEnumSQL(mapping, column, stagingSchema);
+    if (!sql) continue;
+    const result = await client.query<{ code: string; count: number }>(sql);
+    if (result.rows.length > 0) {
+      found.push({
+        sourceTable: mapping.sourceTable,
+        sourceColumn: column.source,
+        targetColumn: column.target,
+        codes: result.rows.map((r) => ({ code: String(r.code), count: Number(r.count) })),
+      });
+    }
+  }
+  return found;
+}
+
+/**
+ * Transforms one mapping after the unmapped-enum pre-flight. Throws (without
+ * writing any row) when a legacy code has no mapping.
+ */
+export async function transformTable(
+  client: Pick<PoolClient, 'query'>,
+  mapping: TableMapping,
+  stagingSchema: string,
+  targetSchema: string,
+): Promise<number> {
+  const unmapped = await findUnmappedEnumCodes(client, mapping, stagingSchema);
+  if (unmapped.length > 0) {
+    const detail = unmapped
+      .map(
+        (u) =>
+          `${u.sourceColumn}→${u.targetColumn}: ${u.codes.map((c) => `${c.code}(${c.count})`).join(', ')}`,
+      )
+      .join('; ');
+    throw new Error(`Unmapped legacy enum codes in ${mapping.sourceTable}: ${detail}`);
+  }
+  const result = await client.query(buildTransformSQL(mapping, stagingSchema, targetSchema));
+  return result.rowCount ?? 0;
 }
 
 /**
@@ -139,9 +230,7 @@ export async function transformSchema(config: MigrationConfig): Promise<Migratio
       try {
         console.log(`[transform] Processing: ${mapping.sourceTable} → ${mapping.targetTable}`);
 
-        const sql = buildTransformSQL(mapping, config.stagingSchema, config.pg.schema);
-        const result = await client.query(sql);
-        const rows = result.rowCount ?? 0;
+        const rows = await transformTable(client, mapping, config.stagingSchema, config.pg.schema);
 
         console.log(`[transform]   ✓ ${rows} rows transformed`);
         tablesProcessed++;
