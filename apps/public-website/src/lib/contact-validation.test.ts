@@ -84,4 +84,40 @@ describe('validateContactInput', () => {
       expect(result.errors.message).toBeDefined();
     }
   });
+  it('rejects CR/LF header-injection style names and organizations', () => {
+    const name = validateContactInput({ ...valid, name: 'a\r\nBcc:x' });
+    expect(name.ok).toBe(false);
+    if (!name.ok) expect(name.errors.name).toMatch(/single line/);
+    const org = validateContactInput({ ...valid, organization: 'Org\nX-Injected: 1' });
+    expect(org.ok).toBe(false);
+    if (!org.ok) expect(org.errors.organization).toMatch(/single line/);
+    expect(validateContactInput({ ...valid, name: 'Ada\u0000' }).ok).toBe(false);
+  });
+  it('keeps message newlines but strips other control characters', () => {
+    const result = validateContactInput({
+      ...valid,
+      message: 'Line one\r\nLine two\u0007 with bell\u001b[31m',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.message).toBe('Line one\nLine two with bell[31m');
+  });
+  it('uses stricter email validation', () => {
+    for (const email of [
+      'a@b.c',
+      'a..b@example.org',
+      'a@-x.org',
+      'a@x.123',
+      'a b@x.org',
+      'a\r\n@x.org',
+    ]) {
+      expect(validateContactInput({ ...valid, email }).ok, email).toBe(false);
+    }
+    for (const email of [
+      'first.last+tag@sub.example.co.in',
+      "o'neil@example.org",
+      'a@xn--p1ai.xn--p1ai',
+    ]) {
+      expect(validateContactInput({ ...valid, email }).ok, email).toBe(true);
+    }
+  });
 });

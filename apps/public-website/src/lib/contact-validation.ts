@@ -13,7 +13,20 @@ export const CONTACT_LIMITS = {
   messageMax: 4_000,
 } as const;
 
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/**
+ * Dot-atom local part + hostname labels (letters/digits/hyphen, no leading or
+ * trailing hyphen) + alphabetic or punycode TLD. Stricter than "x@y.z" while
+ * still accepting plus-addressing and subdomains.
+ */
+export const EMAIL_RE =
+  /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})$/;
+
+/** Any C0/C1 control character (includes CR/LF/TAB) or DEL. */
+// eslint-disable-next-line no-control-regex
+const CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]/;
+/** Control characters other than LF/TAB, which a multi-line message may keep. */
+// eslint-disable-next-line no-control-regex
+const MESSAGE_STRIP_RE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g;
 
 export interface ContactInput {
   name?: unknown;
@@ -59,23 +72,35 @@ export function validateContactInput(
   const name = asString(input.name).trim();
   const email = asString(input.email).trim();
   const organization = asString(input.organization).trim();
-  const message = asString(input.message).trim();
+  // Normalise CRLF/CR to LF, then drop other control characters from the body.
+  const message = asString(input.message)
+    .replace(/\r\n?/g, '\n')
+    .replace(MESSAGE_STRIP_RE, '')
+    .trim();
 
   const errors: ContactFieldErrors = {};
 
   if (!name) {
     errors.name = 'Name is required.';
+  } else if (CONTROL_RE.test(name)) {
+    errors.name = 'Name must be a single line without control characters.';
   } else if (name.length > CONTACT_LIMITS.nameMax) {
     errors.name = `Name must be at most ${CONTACT_LIMITS.nameMax} characters.`;
   }
 
   if (!email) {
     errors.email = 'A valid email address is required.';
-  } else if (email.length > CONTACT_LIMITS.emailMax || !EMAIL_RE.test(email)) {
+  } else if (
+    email.length > CONTACT_LIMITS.emailMax ||
+    CONTROL_RE.test(email) ||
+    !EMAIL_RE.test(email)
+  ) {
     errors.email = 'A valid email address is required.';
   }
 
-  if (organization.length > CONTACT_LIMITS.organizationMax) {
+  if (CONTROL_RE.test(organization)) {
+    errors.organization = 'Organization must be a single line without control characters.';
+  } else if (organization.length > CONTACT_LIMITS.organizationMax) {
     errors.organization = `Organization must be at most ${CONTACT_LIMITS.organizationMax} characters.`;
   }
 
