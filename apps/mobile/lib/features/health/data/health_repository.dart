@@ -37,13 +37,13 @@ class HealthMeasurement {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'type': type,
-        'value': value,
-        'unit': unit,
-        'recordedAt': recordedAt,
-        'notes': notes,
-      };
+    'id': id,
+    'type': type,
+    'value': value,
+    'unit': unit,
+    'recordedAt': recordedAt,
+    'notes': notes,
+  };
 }
 
 /// Vaccination record.
@@ -79,14 +79,14 @@ class VaccinationRecord {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'vaccineName': vaccineName,
-        'doseNumber': doseNumber,
-        'administeredAt': administeredAt,
-        'batchNumber': batchNumber,
-        'administeredBy': administeredBy,
-        'nextDueDate': nextDueDate,
-      };
+    'id': id,
+    'vaccineName': vaccineName,
+    'doseNumber': doseNumber,
+    'administeredAt': administeredAt,
+    'batchNumber': batchNumber,
+    'administeredBy': administeredBy,
+    'nextDueDate': nextDueDate,
+  };
 }
 
 /// Health condition record.
@@ -119,13 +119,13 @@ class HealthCondition {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'name': name,
-        'severity': severity,
-        'diagnosedAt': diagnosedAt,
-        'notes': notes,
-        'isActive': isActive,
-      };
+    'id': id,
+    'name': name,
+    'severity': severity,
+    'diagnosedAt': diagnosedAt,
+    'notes': notes,
+    'isActive': isActive,
+  };
 }
 
 /// Aggregated health records for a student.
@@ -151,10 +151,10 @@ class HealthRepository {
     required TenantProvider tenantProvider,
     required Dio dio,
     required CacheCrypto cacheCrypto,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _dio = dio,
-        _cacheCrypto = cacheCrypto;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _dio = dio,
+       _cacheCrypto = cacheCrypto;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
@@ -171,29 +171,34 @@ class HealthRepository {
         queryParameters: <String, dynamic>{'studentId': studentId},
       );
 
-      final Map<String, dynamic> data =
-          response.data as Map<String, dynamic>;
+      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
 
       final List<HealthMeasurement> measurements =
           (data['measurements'] as List<dynamic>?)
-                  ?.map((dynamic e) =>
-                      HealthMeasurement.fromJson(e as Map<String, dynamic>))
-                  .toList(growable: false) ??
-              const <HealthMeasurement>[];
+              ?.map(
+                (dynamic e) =>
+                    HealthMeasurement.fromJson(e as Map<String, dynamic>),
+              )
+              .toList(growable: false) ??
+          const <HealthMeasurement>[];
 
       final List<VaccinationRecord> vaccinations =
           (data['vaccinations'] as List<dynamic>?)
-                  ?.map((dynamic e) =>
-                      VaccinationRecord.fromJson(e as Map<String, dynamic>))
-                  .toList(growable: false) ??
-              const <VaccinationRecord>[];
+              ?.map(
+                (dynamic e) =>
+                    VaccinationRecord.fromJson(e as Map<String, dynamic>),
+              )
+              .toList(growable: false) ??
+          const <VaccinationRecord>[];
 
       final List<HealthCondition> conditions =
           (data['conditions'] as List<dynamic>?)
-                  ?.map((dynamic e) =>
-                      HealthCondition.fromJson(e as Map<String, dynamic>))
-                  .toList(growable: false) ??
-              const <HealthCondition>[];
+              ?.map(
+                (dynamic e) =>
+                    HealthCondition.fromJson(e as Map<String, dynamic>),
+              )
+              .toList(growable: false) ??
+          const <HealthCondition>[];
 
       final HealthRecords records = HealthRecords(
         measurements: measurements,
@@ -215,25 +220,34 @@ class HealthRepository {
   ) async {
     final Database db = await _database.database;
     final String payload = jsonEncode(<String, dynamic>{
-      'measurements':
-          records.measurements.map((HealthMeasurement m) => m.toJson()).toList(),
-      'vaccinations':
-          records.vaccinations.map((VaccinationRecord v) => v.toJson()).toList(),
-      'conditions':
-          records.conditions.map((HealthCondition c) => c.toJson()).toList(),
+      'measurements': records.measurements
+          .map((HealthMeasurement m) => m.toJson())
+          .toList(),
+      'vaccinations': records.vaccinations
+          .map((VaccinationRecord v) => v.toJson())
+          .toList(),
+      'conditions': records.conditions
+          .map((HealthCondition c) => c.toJson())
+          .toList(),
     });
 
-    await db.insert(
-      'health_records_cache',
-      <String, Object?>{
-        'tenant_id': tenantId,
-        'student_id': studentId,
-        'payload': await _cacheCrypto.encrypt(payload),
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('health_records_cache', <String, Object?>{
+      'tenant_id': tenantId,
+      'student_id': studentId,
+      'payload': await _cacheCrypto.encrypt(
+        payload,
+        context: _rowContext(tenantId, studentId),
+      ),
+      'updated_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
+
+  String _rowContext(String tenantId, String studentId) =>
+      CacheCrypto.rowContext(
+        tenantId: tenantId,
+        table: 'health_records_cache',
+        id: studentId,
+      );
 
   Future<HealthRecords> _getCachedRecords(
     String tenantId,
@@ -249,25 +263,36 @@ class HealthRepository {
 
     if (rows.isEmpty) return const HealthRecords();
 
-    final String payloadRaw =
-        await _cacheCrypto.decrypt(rows.first['payload'] as String);
+    final String payloadRaw = await _cacheCrypto.decrypt(
+      rows.first['payload'] as String,
+      context: _rowContext(tenantId, studentId),
+    );
     final Map<String, dynamic> data =
         jsonDecode(payloadRaw) as Map<String, dynamic>;
 
     return HealthRecords(
-      measurements: (data['measurements'] as List<dynamic>?)
-              ?.map((dynamic e) =>
-                  HealthMeasurement.fromJson(e as Map<String, dynamic>))
+      measurements:
+          (data['measurements'] as List<dynamic>?)
+              ?.map(
+                (dynamic e) =>
+                    HealthMeasurement.fromJson(e as Map<String, dynamic>),
+              )
               .toList(growable: false) ??
           const <HealthMeasurement>[],
-      vaccinations: (data['vaccinations'] as List<dynamic>?)
-              ?.map((dynamic e) =>
-                  VaccinationRecord.fromJson(e as Map<String, dynamic>))
+      vaccinations:
+          (data['vaccinations'] as List<dynamic>?)
+              ?.map(
+                (dynamic e) =>
+                    VaccinationRecord.fromJson(e as Map<String, dynamic>),
+              )
               .toList(growable: false) ??
           const <VaccinationRecord>[],
-      conditions: (data['conditions'] as List<dynamic>?)
-              ?.map((dynamic e) =>
-                  HealthCondition.fromJson(e as Map<String, dynamic>))
+      conditions:
+          (data['conditions'] as List<dynamic>?)
+              ?.map(
+                (dynamic e) =>
+                    HealthCondition.fromJson(e as Map<String, dynamic>),
+              )
               .toList(growable: false) ??
           const <HealthCondition>[],
     );
