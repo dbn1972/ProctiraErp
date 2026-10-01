@@ -19,11 +19,14 @@ const assetCategoryArb: fc.Arbitrary<AssetCategory> = fc.constantFrom(
   'document',
 );
 
-const safePathSegmentArb = fc.string({
-  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
-  minLength: 1,
-  maxLength: 20,
-});
+// PRC-L580: '.' / '..' segments are rejected by buildAssetUrl.
+const safePathSegmentArb = fc
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
+    minLength: 1,
+    maxLength: 20,
+  })
+  .filter((s) => s !== '.' && s !== '..');
 
 const assetPathArb = fc
   .array(safePathSegmentArb, { minLength: 1, maxLength: 4 })
@@ -72,7 +75,8 @@ const cdnConfigArb: fc.Arbitrary<CdnConfig> = fc.record({
 const assetUrlOptionsArb: fc.Arbitrary<AssetUrlOptions> = fc.record({
   path: assetPathArb,
   category: assetCategoryArb,
-  tenantId: fc.option(tenantIdArb, { nil: undefined }),
+  // PRC-L580: tenant-aware non-static assets require a tenant id (missing → throws).
+  tenantId: tenantIdArb,
   version: versionArb,
 });
 

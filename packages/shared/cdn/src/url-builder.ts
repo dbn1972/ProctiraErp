@@ -47,6 +47,47 @@ export function normalizePath(path: string): string {
   return normalized;
 }
 
+/** PRC-L580: thrown when an asset path or tenant id is unsafe or missing. */
+export class CdnPathError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CdnPathError';
+  }
+}
+
+// eslint-disable-next-line no-control-regex -- intentionally matching control characters
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+const SAFE_TENANT_ID = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * PRC-L580: validates a caller asset path and percent-encodes each segment.
+ * Rejects `.`/`..` segments, backslashes and control characters so a path can
+ * never escape its category/tenant prefix.
+ */
+function encodeAssetPath(path: string): string {
+  if (path.includes('\\') || CONTROL_CHARS.test(path)) {
+    throw new CdnPathError('CDN asset path must not contain backslashes or control characters');
+  }
+  const segments = path
+    .trim()
+    .split('/')
+    .filter((segment) => segment.length > 0);
+  for (const segment of segments) {
+    if (segment === '.' || segment === '..') {
+      throw new CdnPathError('CDN asset path must not contain "." or ".." segments');
+    }
+  }
+  return segments.map((segment) => encodeURIComponent(segment)).join('/');
+}
+
+/** PRC-L580: tenant ids are a single safe segment (no '/', '.', spaces). */
+function assertSafeTenantId(tenantId: string): string {
+  if (!SAFE_TENANT_ID.test(tenantId)) {
+    throw new CdnPathError('CDN tenantId must contain only letters, digits, "-" or "_"');
+  }
+  return tenantId;
+}
+
 /**
  * Strips the trailing slash from a base URL.
  */
@@ -71,13 +112,21 @@ export function buildAssetUrl(options: AssetUrlOptions, config: CdnConfig): Asse
   const segments: string[] = [categoryPrefix];
 
   // Add tenant segment for tenant-aware categories
+  // PRC-L580: fail closed — a tenant-aware asset without a tenant would resolve
+  // to a shared (cross-tenant) path.
   const needsTenant = config.tenantAware && options.category !== 'static';
-  if (needsTenant && options.tenantId) {
-    segments.push(options.tenantId);
+  if (needsTenant) {
+    const tenantId = options.tenantId?.trim();
+    if (!tenantId) {
+      throw new CdnPathError(
+        `CDN tenantId is required for tenant-aware ${options.category} assets`,
+      );
+    }
+    segments.push(assertSafeTenantId(tenantId));
   }
 
-  // Add the asset path
-  segments.push(options.path);
+  // Add the validated, segment-encoded asset path
+  segments.push(encodeAssetPath(options.path));
 
   // Normalize the full path
   const resolvedPath = normalizePath(segments.join('/'));
