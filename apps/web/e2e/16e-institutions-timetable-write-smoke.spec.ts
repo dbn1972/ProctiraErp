@@ -15,7 +15,7 @@ const MAYUR = '00000000-0000-4000-8000-00000000a551';
 test.describe('Institutions timetable — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
   test.afterAll(() => {
-    cleanupSunriseE2E();
+    cleanupSunriseE2E('timetable');
   });
 
   test.beforeEach(async ({ page }) => {

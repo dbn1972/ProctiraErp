@@ -29,10 +29,8 @@ import {
   type DashboardQueryResult,
 } from '../api';
 
-const useBoardAdminDashboardDataMock = vi.fn<
-  [string?],
-  DashboardQueryResult<BoardAdminDashboardData>
->();
+const useBoardAdminDashboardDataMock =
+  vi.fn<(...args: [string?]) => DashboardQueryResult<BoardAdminDashboardData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();

@@ -28,7 +28,7 @@ import {
 
 // ─── Test helpers ────────────────────────────────────────────────────────
 
-type FetchSpy = ReturnType<typeof vi.fn<unknown[], unknown>>;
+type FetchSpy = ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
 
 function makeFetchSpy(
   handler: (url: string, init?: RequestInit) => Response | Promise<Response>,

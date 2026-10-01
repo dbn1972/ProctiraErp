@@ -26,10 +26,8 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 
 import { BOARD_COMPARISON_MOCK, type BoardComparisonData, type DashboardQueryResult } from '../api';
 
-const useBoardComparisonDataMock = vi.fn<
-  [ReadonlyArray<string>?],
-  DashboardQueryResult<BoardComparisonData>
->();
+const useBoardComparisonDataMock =
+  vi.fn<(...args: [ReadonlyArray<string>?]) => DashboardQueryResult<BoardComparisonData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
