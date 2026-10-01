@@ -154,19 +154,29 @@ export type CertificationParams = Static<typeof CertificationParamsSchema>;
  * Schema for training program list query parameters.
  */
 export const TrainingProgramListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
   search: Type.Optional(Type.String({ description: 'Search by program name' })),
 });
 
 export type TrainingProgramListQuery = Static<typeof TrainingProgramListQuerySchema>;
 
 /**
+ * Schema for session list query parameters (PRC-L154).
+ */
+export const TrainingSessionListQuerySchema = Type.Object({
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+});
+
+export type TrainingSessionListQuery = Static<typeof TrainingSessionListQuerySchema>;
+
+/**
  * Schema for certification list query parameters.
  */
 export const CertificationListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
   staffId: Type.Optional(
     Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' }),
   ),

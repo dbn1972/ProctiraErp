@@ -45,6 +45,15 @@ export interface NotificationIntegration {
   ): Promise<void>;
 }
 
+/** PRC-L154: defense in depth — never let non-positive/unbounded paging reach SQL. */
+export const TRAINING_MAX_PAGE_SIZE = 100;
+
+export function clampTrainingPagination(p: PaginationOptions): PaginationOptions {
+  const page = Number.isFinite(p.page) ? Math.max(1, Math.floor(p.page)) : 1;
+  const size = Number.isFinite(p.pageSize) ? Math.floor(p.pageSize) : 20;
+  return { ...p, page, pageSize: Math.min(TRAINING_MAX_PAGE_SIZE, Math.max(1, size)) };
+}
+
 /**
  * Service handling training program business logic.
  */
@@ -155,7 +164,7 @@ export class TrainingService {
     search: string | undefined,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TrainingProgramEntity>> {
-    return this.programRepository.list(tenantId, search, pagination);
+    return this.programRepository.list(tenantId, search, clampTrainingPagination(pagination));
   }
 
   // ─── Training Sessions ───────────────────────────────────────────────
@@ -221,7 +230,11 @@ export class TrainingService {
     programId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TrainingSessionEntity>> {
-    return this.sessionRepository.listByProgram(tenantId, programId, pagination);
+    return this.sessionRepository.listByProgram(
+      tenantId,
+      programId,
+      clampTrainingPagination(pagination),
+    );
   }
 
   // ─── Training Attendance ─────────────────────────────────────────────
@@ -357,7 +370,7 @@ export class TrainingService {
     filter: CertificationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CertificationEntity>> {
-    return this.certificationRepository.list(tenantId, filter, pagination);
+    return this.certificationRepository.list(tenantId, filter, clampTrainingPagination(pagination));
   }
 
   /**

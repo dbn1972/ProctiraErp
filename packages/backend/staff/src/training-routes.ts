@@ -20,7 +20,7 @@
  * - 7.8: Certification expiry and notification triggering
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { staffWritePreHandler } from './staff-http-guard.js';
@@ -33,6 +33,9 @@ import {
   TrainingProgramParamsSchema,
   TrainingSessionParamsSchema,
   CertificationParamsSchema,
+  TrainingProgramListQuerySchema,
+  TrainingSessionListQuerySchema,
+  CertificationListQuerySchema,
   type CreateTrainingProgramInput,
   type UpdateTrainingProgramInput,
   type CreateTrainingSessionInput,
@@ -221,9 +224,19 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L154: validate + coerce paging instead of Number(x) || default.
+      const queryResult = validateQuery(TrainingProgramListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await trainingService.listPrograms(tenantId, query.search, { page, pageSize });
       return reply.status(200).send({
@@ -437,9 +450,17 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query as { page?: string; pageSize?: string };
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = validateQuery(TrainingSessionListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const page = queryResult.data.page ?? 1;
+      const pageSize = queryResult.data.pageSize ?? 20;
 
       const result = await trainingService.listSessions(tenantId, paramsResult.data.programId, {
         page,
@@ -592,9 +613,18 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = validateQuery(CertificationListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await trainingService.listCertifications(
         tenantId,
