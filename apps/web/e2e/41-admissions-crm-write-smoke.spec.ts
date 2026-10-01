@@ -26,6 +26,16 @@ const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 const GUARDIAN_SUB = 'guardian-a5';
 const GUARDIAN_EMAIL = `${GUARDIAN_SUB}@tenant.test`;
 
+/** Record the offer-fee payment through the staff sandbox cashier path (PRC-H079). */
+async function payOfferFeeInvoice(request: APIRequestContext, invoiceId: string | null) {
+  expect(invoiceId, 'offer send must raise an offer-fee invoice').toBeTruthy();
+  const pay = await request.post(`${GATEWAY_URL}/api/v1/fees/invoices/${invoiceId}/pay`, {
+    headers: headers(),
+    data: { method: 'sandbox' },
+  });
+  expect(pay.status(), await pay.text()).toBe(201);
+}
+
 function headers(tenantId = TENANT_A) {
   const token = createSignedJwt({
     sub: 'e2e-admin',
@@ -326,9 +336,11 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
       }),
     ]);
     expect([200, 422], await sendRetry.text()).toContain(sendRetry.status());
-    expect((await jsonStatus(sendRes, 200)) as { status: string }).toMatchObject({
-      status: 'sent',
-    });
+    const sentOffer = (await jsonStatus(sendRes, 200)) as {
+      status: string;
+      offerFeeInvoiceId: string | null;
+    };
+    expect(sentOffer).toMatchObject({ status: 'sent' });
     const offerInvoices = await request.get(`${GATEWAY_URL}/api/v1/fees/invoices`, {
       headers: headers(),
     });
@@ -341,6 +353,14 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
       invoiceRows.filter((row) => row.description === `Admission application ${applicationId}`),
     ).toHaveLength(1);
 
+    // PRC-H079: a client paymentRef is not payment proof; acceptance before the
+    // offer-fee invoice is paid is refused.
+    const unpaidAccept = await request.post(
+      `${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/accept`,
+      { headers: headers(), data: { paymentRef: 'SANDBOX-PAY' } },
+    );
+    expect(unpaidAccept.status(), await unpaidAccept.text()).toBe(422);
+    await payOfferFeeInvoice(request, sentOffer.offerFeeInvoiceId);
     const acceptRes = await request.post(
       `${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/accept`,
       { headers: headers(), data: { paymentRef: 'SANDBOX-PAY' } },
@@ -493,6 +513,8 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
       data: Array<{ id: string; status: string; feeAmount: number }>;
     };
     expect(listed.data.some((row) => row.id === offer.id && row.status === 'sent')).toBe(true);
+    // PRC-H079: the fee is settled through the server-side payment path first.
+    await payOfferFeeInvoice(request, sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId);
 
     const payRes = await request.post(
       `${GATEWAY_URL}/api/v1/parent-portal/offers/${offer.id}/accept`,
