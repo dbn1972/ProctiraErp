@@ -51,8 +51,11 @@ export function useReducedMotion(): boolean {
       return () => mql.removeEventListener('change', handleChange);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy Safari fallback
-    const legacy = mql as any;
+    // Legacy Safari fallback (deprecated addListener/removeListener API).
+    const legacy = mql as unknown as {
+      addListener?: (cb: (event: MediaQueryListEvent) => void) => void;
+      removeListener: (cb: (event: MediaQueryListEvent) => void) => void;
+    };
     if (typeof legacy.addListener === 'function') {
       legacy.addListener(handleChange);
       return () => legacy.removeListener(handleChange);
