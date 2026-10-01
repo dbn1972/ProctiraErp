@@ -73,13 +73,29 @@ export async function inviteUserAction(
   }
 }
 
+/** Opaque gateway ids: bounded, no path separators or whitespace (PRC-L232). */
+const SafeId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
+const UserRolesSchema = z.object({
+  userId: SafeId,
+  // Mirrors AssignRolesToUserSchema (maxItems 50) in the tenant service.
+  roleIds: z.array(SafeId).max(50, 'Too many roles'),
+});
+const UserStatusSchema = z.object({
+  userId: SafeId,
+  status: z.enum(['ACTIVE', 'SUSPENDED']),
+});
+
 export async function setUserRolesAction(
   userId: string,
   roleIds: string[],
 ): Promise<AdminActionState> {
   if (!userId) return { status: 'error', message: 'Missing user' };
+  const parsed = UserRolesSchema.safeParse({ userId, roleIds });
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid roles' };
+  }
   try {
-    await setTenantUserRoles(userId, roleIds);
+    await setTenantUserRoles(parsed.data.userId, [...new Set(parsed.data.roleIds)]);
     revalidatePath('/admin/users');
     return { status: 'success', message: 'Roles updated' };
   } catch (error) {
@@ -92,8 +108,12 @@ export async function setUserStatusAction(
   status: 'ACTIVE' | 'SUSPENDED',
 ): Promise<AdminActionState> {
   if (!userId) return { status: 'error', message: 'Missing user' };
+  const parsed = UserStatusSchema.safeParse({ userId, status });
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid status' };
+  }
   try {
-    await setTenantUserStatus(userId, status);
+    await setTenantUserStatus(parsed.data.userId, parsed.data.status);
     revalidatePath('/admin/users');
     return {
       status: 'success',

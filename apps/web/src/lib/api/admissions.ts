@@ -49,10 +49,13 @@ export async function updateApplicationStatus(
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted',
   remarks?: string,
 ): Promise<void> {
-  const result = await gatewayFetch(`/registrations/applications/${id}/status`, {
-    method: 'POST',
-    json: { status, remarks },
-  });
+  const result = await gatewayFetch(
+    `/registrations/applications/${encodeURIComponent(id)}/status`,
+    {
+      method: 'POST',
+      json: { status, remarks },
+    },
+  );
   if (!result.data && result.status >= 400) {
     throw new GatewayError({
       status: result.status,
@@ -249,7 +252,7 @@ export async function updateEnquiry(
   id: string,
   input: { stage?: string; interviewScore?: number; testScore?: number },
 ): Promise<void> {
-  const result = await gatewayFetch(`/admissions/enquiries/${id}`, {
+  const result = await gatewayFetch(`/admissions/enquiries/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     json: input,
   });
@@ -266,10 +269,13 @@ export async function addEnquiryFollowup(
   id: string,
   input: { dueAt: string; ownerId?: string; notes?: string },
 ): Promise<EnquiryFollowup> {
-  const result = await gatewayFetch<EnquiryFollowup>(`/admissions/enquiries/${id}/follow-ups`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<EnquiryFollowup>(
+    `/admissions/enquiries/${encodeURIComponent(id)}/follow-ups`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -286,7 +292,7 @@ export async function convertEnquiry(
   const result = await gatewayFetch<{
     enquiry: AdmissionEnquiry;
     application: AdmissionApplication;
-  }>(`/admissions/enquiries/${id}/convert`, { method: 'POST' });
+  }>(`/admissions/enquiries/${encodeURIComponent(id)}/convert`, { method: 'POST' });
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -368,10 +374,13 @@ export async function getMeritList(input: {
 }
 
 export async function getApplicationBundle(id: string): Promise<ApplicationBundle | null> {
-  const result = await gatewayFetch<ApplicationBundle>(`/admissions/applications/${id}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<ApplicationBundle>(
+    `/admissions/applications/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data ?? null;
 }
 
@@ -386,7 +395,7 @@ export async function setApplicationPlacement(
   },
 ): Promise<ApplicationBundle['placement']> {
   const result = await gatewayFetch<NonNullable<ApplicationBundle['placement']>>(
-    `/admissions/applications/${applicationId}/placement`,
+    `/admissions/applications/${encodeURIComponent(applicationId)}/placement`,
     {
       method: 'PATCH',
       json: input,
@@ -423,9 +432,12 @@ export async function createAdmissionOffer(input: {
 }
 
 export async function sendAdmissionOffer(id: string): Promise<AdmissionOffer> {
-  const result = await gatewayFetch<AdmissionOffer>(`/admissions/offers/${id}/send`, {
-    method: 'POST',
-  });
+  const result = await gatewayFetch<AdmissionOffer>(
+    `/admissions/offers/${encodeURIComponent(id)}/send`,
+    {
+      method: 'POST',
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -440,10 +452,13 @@ export async function acceptAdmissionOffer(
   id: string,
   input: { paymentRef: string; offerFeeInvoiceId?: string },
 ): Promise<AdmissionOffer> {
-  const result = await gatewayFetch<AdmissionOffer>(`/admissions/offers/${id}/accept`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<AdmissionOffer>(
+    `/admissions/offers/${encodeURIComponent(id)}/accept`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -455,9 +470,12 @@ export async function acceptAdmissionOffer(
 }
 
 export async function declineAdmissionOffer(id: string): Promise<AdmissionOffer> {
-  const result = await gatewayFetch<AdmissionOffer>(`/admissions/offers/${id}/decline`, {
-    method: 'POST',
-  });
+  const result = await gatewayFetch<AdmissionOffer>(
+    `/admissions/offers/${encodeURIComponent(id)}/decline`,
+    {
+      method: 'POST',
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
