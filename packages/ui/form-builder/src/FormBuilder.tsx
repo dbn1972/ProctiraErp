@@ -2,7 +2,22 @@
 
 import React, { useMemo } from 'react';
 import { useForm, type RegisterOptions } from 'react-hook-form';
+
 import type { FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
+
+/**
+ * Schema mistakes (unknown rule type / validator name) throw in development
+ * and test so they are caught early, and log in production so a bad schema
+ * never silently drops validation nor crashes a live form.
+ */
+function reportSchemaError(message: string): void {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env?.['NODE_ENV'];
+  if (env === 'development' || env === 'test') {
+    throw new Error(`[FormBuilder] ${message}`);
+  }
+  console.error(`[FormBuilder] ${message}`);
+}
 
 /**
  * FormBuilder component for dynamic form rendering from JSON schema.
@@ -29,6 +44,7 @@ export function FormBuilder({
   loading = false,
   className = '',
   ariaLabel,
+  validators = {},
 }: FormBuilderProps) {
   const allFields = useMemo(
     () => schema.sections.flatMap((section) => section.fields),
@@ -63,7 +79,7 @@ export function FormBuilder({
     for (const rule of rules) {
       switch (rule.type) {
         case 'required':
-          options.required = rule.message;
+          if (rule.value !== false) options.required = rule.message;
           break;
         case 'minLength':
           options.minLength = { value: Number(rule.value), message: rule.message };
@@ -80,6 +96,30 @@ export function FormBuilder({
         case 'pattern':
           options.pattern = { value: new RegExp(String(rule.value)), message: rule.message };
           break;
+        case 'custom': {
+          const name = String(rule.value ?? '');
+          const validator = validators[name];
+          if (!validator) {
+            reportSchemaError(`No validator registered for custom rule "${name}"`);
+            break;
+          }
+          const existing =
+            typeof options.validate === 'object' && options.validate !== null
+              ? options.validate
+              : {};
+          options.validate = {
+            ...existing,
+            [`custom:${name}`]: async (value: unknown, values: Record<string, unknown>) => {
+              const result = await validator(value, values);
+              return result === true ? true : typeof result === 'string' ? result : rule.message;
+            },
+          };
+          break;
+        }
+        default:
+          reportSchemaError(
+            `Unknown validation rule type "${String((rule as { type: unknown }).type)}"`,
+          );
       }
     }
     return options;
@@ -108,7 +148,7 @@ export function FormBuilder({
       id: fieldId,
       disabled: field.disabled || loading,
       readOnly: field.readOnly,
-      'aria-invalid': !!error as boolean,
+      'aria-invalid': !!error,
       'aria-describedby': ariaDescribedBy,
       'aria-required': validation.required ? true : undefined,
       className: `proctira-form__input ${error ? 'proctira-form__input--error' : ''}`,
@@ -227,7 +267,7 @@ export function FormBuilder({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(e) => void handleSubmit(onSubmit)(e)}
       className={`proctira-form ${className}`}
       aria-label={ariaLabel ?? schema.title ?? 'Form'}
       noValidate
