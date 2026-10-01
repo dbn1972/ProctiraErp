@@ -29,7 +29,8 @@ import {
   type LmsRubric,
   type LmsSubmission,
 } from '@/lib/api/lms';
-import { isUuidLike } from '@/lib/entity-label';
+import { isUuidLike, resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
 import { KindPill, ScopePill, StatusPill, SubmissionPill } from '../../_components/badges';
 import { loadCriterionOptions } from '../../_components/criterion-options';
@@ -81,6 +82,9 @@ export default async function AssignmentDetailPage({
 
   // Learners get 403 on the roster; treat as "no roster" rather than an error.
   const submissions: LmsSubmission[] = await listSubmissions(id).catch(() => []);
+  const studentLabels = await loadStudentLabelsForIds(submissions.map((s) => s.studentId)).catch(
+    () => new Map<string, string>(),
+  );
   const files = await listAssignmentFiles(id).catch(() => []);
   const quizAnalytics =
     assignment.kind === 'quiz' ? await getQuizAnalytics(id).catch(() => null) : null;
@@ -310,7 +314,9 @@ export default async function AssignmentDetailPage({
                 <TableBody>
                   {submissions.map((s) => (
                     <TableRow key={s.id} data-testid="submission-row">
-                      <TableCell className="ps-4 font-mono text-xs">{s.studentId}</TableCell>
+                      <TableCell className="ps-4 text-sm" data-testid="submission-student">
+                        {resolveEntityLabel(s.studentId, studentLabels, 'Student')}
+                      </TableCell>
                       <TableCell className="text-sm tabular-nums">{fmt(s.submittedAt)}</TableCell>
                       <TableCell>
                         <SubmissionPill status={s.status} label={t(SUBMISSION_KEYS[s.status])} />

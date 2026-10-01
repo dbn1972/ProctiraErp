@@ -52,7 +52,8 @@ export function NewLibraryItemForm() {
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const fd = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const fd = new FormData(formEl);
     const nextTitle = String(fd.get('title') ?? '').trim();
     const nextAuthor = String(fd.get('author') ?? '').trim();
     const nextIsbn = String(fd.get('isbn') ?? '').trim();
@@ -83,7 +84,8 @@ export function NewLibraryItemForm() {
       setTitle('');
       setAuthor('');
       setIsbn('');
-      (event.target as HTMLFormElement).reset();
+      formEl.reset();
+      setMessage(`Added “${nextTitle}” to the catalog.`);
       router.refresh();
     });
   }

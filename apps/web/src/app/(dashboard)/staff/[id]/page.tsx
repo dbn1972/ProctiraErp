@@ -39,17 +39,27 @@ import {
   TabsTrigger,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { workloadBand } from '@/lib/status-label';
 import {
   getStaff,
+  listAppraisalTemplates,
   listStaffAppraisals,
   listStaffAssignments,
   listStaffCertifications,
+  listStaffLeavesResult,
+  listTrainingPrograms,
   type Appraisal,
   type Assignment,
   type Staff,
   type TrainingCertification,
 } from '@/lib/api/staff';
+import {
+  formatAppraisalScore,
+  parseServiceHistory,
+  sortAppraisalsDesc,
+  summariseLeaveUsage,
+  type LeaveUsage,
+  type ServiceEvent,
+} from './profile-data';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { listInstitutions } from '@/lib/api/institutions';
 import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
@@ -154,11 +164,6 @@ function readArr(cd: Record<string, unknown> | null | undefined, key: string): s
   return [];
 }
 
-function readNum(cd: Record<string, unknown> | null | undefined, key: string): number | null {
-  const v = cd?.[key];
-  return typeof v === 'number' ? v : null;
-}
-
 /* ──────────────────────────────────────────── Status pill ── */
 
 const STATUS_PILL: Record<string, string> = {
@@ -214,14 +219,10 @@ function AssignmentCard({
   const classLabel = resolveEntityLabel(assignment.classId, labelMaps.classLabels, 'Class');
   const subject = resolveEntityLabel(assignment.subjectId, labelMaps.subjectLabels, 'Subject');
   const roleNote = assignment.role !== 'SUBJECT_TEACHER' ? assignment.role : '';
-  const room: string | null = null;
-  const periods: number | null = null;
-
   const meta = [
     roleNote,
     assignment.startDate &&
       `Effective ${new Date(assignment.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
-    room && `Room ${room}`,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -238,23 +239,11 @@ function AssignmentCard({
         <p className="text-sm font-semibold">{subject}</p>
         {meta && <p className="mt-0.5 text-[11px] text-muted-foreground">{meta}</p>}
       </div>
-      {periods !== null && (
-        <span className="shrink-0 text-xs font-bold text-foreground/70">
-          {periods}&nbsp;periods/wk
-        </span>
-      )}
     </div>
   );
 }
 
 /* ──────────────────────────────────────────── Service history timeline ── */
-
-interface ServiceEvent {
-  date?: string | null;
-  title?: string | null;
-  detail?: string | null;
-  type?: string;
-}
 
 const TL_DOT_COLORS: Record<string, string> = {
   assignment: 'bg-primary   text-primary-foreground',
@@ -324,33 +313,34 @@ function ServiceHistoryCard({ events }: { events: ServiceEvent[] }) {
 
 /* ──────────────────────────────────────────── Leave balance sidebar ── */
 
-interface LeaveBalance {
-  label: string;
-  used: number;
-  total: number;
-}
-
-function LeaveBalanceCard({ balances, staffId }: { balances: LeaveBalance[]; staffId: string }) {
+function LeaveBalanceCard({ usage, staffId }: { usage: LeaveUsage[] | null; staffId: string }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">Leave balance</CardTitle>
-        <CardDescription className="text-xs">Current year</CardDescription>
+        <CardTitle className="text-sm font-semibold">Leave taken</CardTitle>
+        <CardDescription className="text-xs">
+          This calendar year, from approved leave records
+        </CardDescription>
       </CardHeader>
       <CardContent className="pb-4">
-        {balances.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No leave data available.</p>
+        {usage === null ? (
+          <p className="text-xs text-muted-foreground" role="status">
+            Leave records are unavailable for your role right now.
+          </p>
+        ) : usage.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No leave recorded this year.</p>
         ) : (
-          <div className="space-y-2">
-            {balances.map((b) => (
-              <div key={b.label} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">{b.label}</span>
-                <span className="font-semibold tabular-nums">
-                  {b.total - b.used} of {b.total} left
-                </span>
+          <dl className="space-y-2" data-testid="staff-leave-usage">
+            {usage.map((u) => (
+              <div key={u.leaveType} className="flex items-center justify-between text-xs">
+                <dt className="text-muted-foreground">{titleCase(u.leaveType)}</dt>
+                <dd className="font-semibold tabular-nums">
+                  {u.approvedDays} day{u.approvedDays === 1 ? '' : 's'} approved
+                  {u.pendingRequests > 0 ? ` · ${u.pendingRequests} pending` : ''}
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         )}
         <Button asChild variant="outline" size="sm" className="mt-4 w-full">
           <Link href={`/staff/${staffId}/leaves/new`}>Apply for leave</Link>
@@ -364,9 +354,11 @@ function LeaveBalanceCard({ balances, staffId }: { balances: LeaveBalance[]; sta
 
 function LatestAppraisalCard({
   appraisal,
+  scoreMax,
   staffId,
 }: {
   appraisal: Appraisal | null;
+  scoreMax: number | null;
   staffId: string;
 }) {
   return (
@@ -378,7 +370,7 @@ function LatestAppraisalCard({
         {appraisal ? (
           <div className="flex items-start gap-3">
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-              {appraisal.totalScore.toFixed(1)} / 5
+              {formatAppraisalScore(appraisal.totalScore, scoreMax)}
             </span>
             <div className="text-xs text-muted-foreground">
               <p className="font-medium text-foreground">
@@ -409,31 +401,24 @@ function OverviewTab({
   staff,
   assignments,
   appraisals,
+  leaveUsage,
+  templateScoreMax,
   labelMaps,
 }: {
   staff: Staff;
   assignments: Assignment[];
+  /** Sorted newest first. */
   appraisals: Appraisal[];
+  leaveUsage: LeaveUsage[] | null;
+  templateScoreMax: Map<string, number>;
   labelMaps: LabelMaps;
 }) {
   const cd = staff.customData ?? {};
 
   // Assignments
   const activeAssignments = assignments.filter((a) => a.status === 'ACTIVE');
-  // periodsPerWeek is not in the Assignment type; use allocation% as proxy
-  const totalPeriods = 0;
-  const maxPeriods = readNum(cd, 'maxWeeklyPeriods') ?? 24;
-
-  // Service history from customData
-  const rawHistory = cd['serviceHistory'];
-  const serviceEvents: ServiceEvent[] = Array.isArray(rawHistory)
-    ? (rawHistory as ServiceEvent[])
-    : [];
-
-  // Leave balance
-  const rawLeave = cd['leaveBalance'];
-  const leaveBalances: LeaveBalance[] = Array.isArray(rawLeave) ? (rawLeave as LeaveBalance[]) : [];
-
+  // Service history from customData, validated (malformed entries dropped)
+  const serviceEvents: ServiceEvent[] = parseServiceHistory(cd['serviceHistory']);
   // Latest appraisal
   const latestAppraisal = appraisals.length > 0 ? (appraisals[0] ?? null) : null;
 
@@ -453,11 +438,7 @@ function OverviewTab({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Teaching assignments</CardTitle>
-                <CardDescription>
-                  {totalPeriods > 0
-                    ? `${totalPeriods} of ${maxPeriods} weekly periods allocated`
-                    : 'Current academic year'}
-                </CardDescription>
+                <CardDescription>Current academic year</CardDescription>
               </div>
               <Button asChild variant="outline" size="sm">
                 <Link href={`/staff/${staff.id}/assignments/new`}>
@@ -474,37 +455,6 @@ function OverviewTab({
               activeAssignments.map((a) => (
                 <AssignmentCard key={a.id} assignment={a} labelMaps={labelMaps} />
               ))
-            )}
-            {totalPeriods > 0 && (
-              <div className="pt-2">
-                <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Weekly workload</span>
-                  <span className="font-bold text-foreground">
-                    {workloadBand((totalPeriods / maxPeriods) * 100)} · {totalPeriods} /{' '}
-                    {maxPeriods} periods
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-all',
-                      totalPeriods / maxPeriods >= 0.9
-                        ? 'bg-red-500'
-                        : totalPeriods / maxPeriods >= 0.7
-                          ? 'bg-emerald-500'
-                          : 'bg-primary',
-                    )}
-                    style={{
-                      width: `${Math.min(100, (totalPeriods / maxPeriods) * 100).toFixed(1)}%`,
-                    }}
-                    role="progressbar"
-                    aria-valuenow={totalPeriods}
-                    aria-valuemin={0}
-                    aria-valuemax={maxPeriods}
-                    aria-label="Weekly workload"
-                  />
-                </div>
-              </div>
             )}
           </CardContent>
         </Card>
@@ -561,8 +511,14 @@ function OverviewTab({
           </CardContent>
         </Card>
 
-        <LeaveBalanceCard balances={leaveBalances} staffId={staff.id} />
-        <LatestAppraisalCard appraisal={latestAppraisal} staffId={staff.id} />
+        <LeaveBalanceCard usage={leaveUsage} staffId={staff.id} />
+        <LatestAppraisalCard
+          appraisal={latestAppraisal}
+          scoreMax={
+            latestAppraisal ? (templateScoreMax.get(latestAppraisal.templateId) ?? null) : null
+          }
+          staffId={staff.id}
+        />
       </aside>
     </div>
   );
@@ -650,7 +606,15 @@ function AssignmentsTab({
 
 /* ──────────────────────────────────────────── Appraisals tab ── */
 
-function AppraisalsTab({ appraisals, staffId }: { appraisals: Appraisal[]; staffId: string }) {
+function AppraisalsTab({
+  appraisals,
+  templates,
+  staffId,
+}: {
+  appraisals: Appraisal[];
+  templates: Map<string, { name: string; scoreMax: number }>;
+  staffId: string;
+}) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between">
@@ -684,8 +648,10 @@ function AppraisalsTab({ appraisals, staffId }: { appraisals: Appraisal[]; staff
               {appraisals.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell>{a.appraisalDate}</TableCell>
-                  <TableCell>{a.templateId}</TableCell>
-                  <TableCell>{a.totalScore.toFixed(2)}</TableCell>
+                  <TableCell>{templates.get(a.templateId)?.name ?? 'Unknown template'}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatAppraisalScore(a.totalScore, templates.get(a.templateId)?.scoreMax, 2)}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={a.status === 'APPROVED' ? 'success' : 'secondary'}>
                       {titleCase(a.status)}
@@ -703,7 +669,13 @@ function AppraisalsTab({ appraisals, staffId }: { appraisals: Appraisal[]; staff
 
 /* ──────────────────────────────────────────── Training tab ── */
 
-function TrainingTab({ certifications }: { certifications: TrainingCertification[] }) {
+function TrainingTab({
+  certifications,
+  programNames,
+}: {
+  certifications: TrainingCertification[];
+  programNames: Map<string, string>;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -730,7 +702,7 @@ function TrainingTab({ certifications }: { certifications: TrainingCertification
               {certifications.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>{c.certificationName}</TableCell>
-                  <TableCell>{c.programId}</TableCell>
+                  <TableCell>{programNames.get(c.programId) ?? 'Unknown program'}</TableCell>
                   <TableCell>{c.issuedDate}</TableCell>
                   <TableCell>{c.expiryDate ?? '—'}</TableCell>
                   <TableCell>
@@ -753,16 +725,31 @@ function TrainingTab({ certifications }: { certifications: TrainingCertification
 export default async function StaffProfilePage(props: PageProps) {
   const params = await props.params;
   const staffId = params.id;
-  const [staff, assignments, appraisals, certifications] = await Promise.all([
-    getStaff(staffId),
-    listStaffAssignments(staffId),
-    listStaffAppraisals(staffId),
-    listStaffCertifications(staffId),
-  ]);
-
+  const [staff, assignments, appraisalsRaw, certifications, templates, programs, leaves] =
+    await Promise.all([
+      getStaff(staffId),
+      listStaffAssignments(staffId),
+      listStaffAppraisals(staffId),
+      listStaffCertifications(staffId),
+      listAppraisalTemplates().catch(() => []),
+      listTrainingPrograms(),
+      listStaffLeavesResult(),
+    ]);
   if (!staff) {
     notFound();
   }
+  const appraisals = sortAppraisalsDesc(appraisalsRaw);
+  const templateMap = new Map(
+    templates.map((t) => [t.id, { name: t.name, scoreMax: t.scoreMax }] as const),
+  );
+  const templateScoreMax = new Map(templates.map((t) => [t.id, t.scoreMax] as const));
+  const programNames = new Map(
+    (programs.ok ? programs.items : []).map((p) => [p.id, p.name] as const),
+  );
+  // null = leave records could not be read (denied/unavailable), not "no leave".
+  const leaveUsage = leaves.ok
+    ? summariseLeaveUsage(leaves.items, staff.id, new Date().getUTCFullYear())
+    : null;
 
   const labelMaps = await buildAssignmentLabelMaps(assignments);
 
@@ -911,6 +898,8 @@ export default async function StaffProfilePage(props: PageProps) {
             staff={staff}
             assignments={assignments}
             appraisals={appraisals}
+            leaveUsage={leaveUsage}
+            templateScoreMax={templateScoreMax}
             labelMaps={labelMaps}
           />
         </TabsContent>
@@ -920,11 +909,11 @@ export default async function StaffProfilePage(props: PageProps) {
         </TabsContent>
 
         <TabsContent value="appraisals" className="space-y-4 pt-5">
-          <AppraisalsTab appraisals={appraisals} staffId={staff.id} />
+          <AppraisalsTab appraisals={appraisals} templates={templateMap} staffId={staff.id} />
         </TabsContent>
 
         <TabsContent value="training" className="space-y-4 pt-5">
-          <TrainingTab certifications={certifications} />
+          <TrainingTab certifications={certifications} programNames={programNames} />
         </TabsContent>
       </Tabs>
     </section>

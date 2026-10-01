@@ -12,6 +12,7 @@
  */
 import { gatewayFetch } from './gateway';
 import { clampPageSize } from './pagination';
+import { fetchList, type ListResult } from './list-result';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -232,6 +233,23 @@ export async function listStaffAssignments(staffId: string): Promise<Assignment[
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
+/** Like {@link listStaffAssignments} but keeps 401/403/5xx distinct from "none". */
+export async function listStaffAssignmentsResult(staffId: string): Promise<ListResult<Assignment>> {
+  return fetchList<Assignment>(
+    `/staff/assignments?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
+    { next: { revalidate: 0 } },
+  );
+}
+/** Every staff assignment for one class + subject (section coverage). */
+export async function listSectionAssignments(
+  classId: string,
+  subjectId: string,
+): Promise<ListResult<Assignment>> {
+  const qs = new URLSearchParams({ classId, subjectId, pageSize: '100' });
+  return fetchList<Assignment>(`/staff/assignments?${qs.toString()}`, {
+    next: { revalidate: 0 },
+  });
+}
 export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
   const result = await gatewayFetch<Assignment>('/staff/assignments', {
     method: 'POST',
@@ -286,6 +304,15 @@ export async function listStaffCertifications(staffId: string): Promise<Training
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
+export interface TrainingProgramSummary {
+  id: string;
+  name: string;
+}
+export async function listTrainingPrograms(): Promise<ListResult<TrainingProgramSummary>> {
+  return fetchList<TrainingProgramSummary>('/staff/training/programs?pageSize=100', {
+    next: { revalidate: 30 },
+  });
+}
 /* ------------------------------------------------------------- HR Leave */
 
 export interface StaffLeave {
@@ -320,6 +347,10 @@ export async function listStaffLeaves(): Promise<StaffLeave[]> {
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
+/** Like {@link listStaffLeaves} but keeps 401/403/5xx distinct from "no leave". */
+export async function listStaffLeavesResult(): Promise<ListResult<StaffLeave>> {
+  return fetchList<StaffLeave>('/staff/leaves', { next: { revalidate: 0 } });
+}
 export async function createStaffLeave(input: CreateStaffLeaveInput): Promise<StaffLeave> {
   const result = await gatewayFetch<StaffLeave>('/staff/leaves', {
     method: 'POST',

@@ -210,23 +210,13 @@ export default async function InstitutionTimetablePage(props: PageProps) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
-          >
+          <Button asChild variant="outline" size="sm" className="min-h-11 gap-1.5">
             <Link href={`/institutions/${institutionId}/timetable/generate`}>
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               Generate
             </Link>
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
-          >
+          <Button asChild variant="outline" size="sm" className="min-h-11 gap-1.5">
             <Link href={`/institutions/${institutionId}/timetable/substitutions`}>
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
               Substitutions
