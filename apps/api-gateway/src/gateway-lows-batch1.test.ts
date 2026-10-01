@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
+import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.js';
 import { brandingPermissionGranted, tenantAdminPlugin } from './tenant-admin-plugin.js';
 
 delete process.env['DATABASE_URL'];
@@ -265,6 +266,77 @@ describe('gateway lows batch 1', () => {
       expect(brandingPermissionGranted({ roles: [{ roleId: 'admin' }] }, 'branding:edit')).toBe(
         true,
       );
+    });
+  });
+  describe('PRC-L206 sandbox IdP token route', () => {
+    const mintUrl = '/api/v1/providers/idp/sandbox/token';
+
+    it('is not mounted in production (404)', async () => {
+      const bare = Fastify();
+      await bare.register(providersPlugin, {
+        prefix: '/api/v1',
+        sandboxIdp: sandboxIdpEnabled({ NODE_ENV: 'production' }, 'production'),
+      });
+      const res = await bare.inject({
+        method: 'POST',
+        url: mintUrl,
+        payload: { subject: 's', tenantId: TENANT_A },
+      });
+      expect(res.statusCode).toBe(404);
+      await bare.close();
+    });
+
+    it('enable policy: production off, explicit flag on, non-production on', () => {
+      expect(sandboxIdpEnabled({ NODE_ENV: 'production' }, 'production')).toBe(false);
+      expect(sandboxIdpEnabled({ NODE_ENV: 'test' }, 'production')).toBe(false);
+      expect(sandboxIdpEnabled({ NODE_ENV: 'production', ALLOW_SANDBOX_IDP: '1' })).toBe(true);
+      expect(sandboxIdpEnabled({ NODE_ENV: 'test' }, 'test')).toBe(true);
+    });
+
+    it('is served only under /api/v1 (not at the server root, outside RBAC)', async () => {
+      for (const url of ['/providers/idp/sandbox/token', '/providers/capabilities']) {
+        const res = await app.inject({
+          method: url.endsWith('token') ? 'POST' : 'GET',
+          url,
+          headers: headersFor(app, 'guardian'),
+          payload: url.endsWith('token') ? { subject: 's', tenantId: TENANT_A } : undefined,
+        });
+        expect(res.statusCode, url).toBe(404);
+      }
+      const guardianMint = await app.inject({
+        method: 'POST',
+        url: mintUrl,
+        headers: headersFor(app, 'guardian'),
+        payload: { subject: 's', tenantId: TENANT_A },
+      });
+      expect(guardianMint.statusCode).toBe(403);
+    });
+
+    it('rejects roles outside the role catalogue (400)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: mintUrl,
+        headers: headersFor(app, 'super-admin'),
+        payload: { subject: 'sandbox-user', tenantId: TENANT_A, roles: ['root'] },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('a minted sandbox token is rejected by the gateway (401)', async () => {
+      const minted = await app.inject({
+        method: 'POST',
+        url: mintUrl,
+        headers: headersFor(app, 'super-admin'),
+        payload: { subject: 'sandbox-user', tenantId: TENANT_A, roles: ['admin'] },
+      });
+      expect(minted.statusCode, minted.body).toBe(200);
+      const { accessToken } = minted.json<{ accessToken: string }>();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/students',
+        headers: { authorization: `Bearer ${accessToken}`, 'x-tenant-id': TENANT_A },
+      });
+      expect(res.statusCode).toBe(401);
     });
   });
 });
