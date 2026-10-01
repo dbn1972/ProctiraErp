@@ -16,7 +16,10 @@ vi.mock('@/lib/fees/actions', () => ({
   applyScholarshipNettingAction: (values: unknown) => applyMock(values),
 }));
 vi.mock('@/hooks/useHydrated', () => ({ useHydrated: () => true }));
+// PRC-L040: amounts are formatted with the viewer locale from next-intl.
+vi.mock('next-intl', () => ({ useLocale: () => 'en-IN' }));
 
+import { formatAmount } from './format-amount';
 import { ScholarshipNettingForm } from './scholarship-netting-form';
 
 const STUDENT = '00000000-0000-4000-8000-000000000099';
@@ -59,7 +62,7 @@ describe('ScholarshipNettingForm (PRC-H020)', () => {
       />,
     );
     const select = screen.getByLabelText('Paid disbursement') as HTMLSelectElement;
-    expect(select.textContent).toContain('STU-1 · Asha · INR 25.00');
+    expect(select.textContent).toContain(`STU-1 · Asha · ${formatAmount(2500, 'INR', 'en-IN')}`);
     fireEvent.change(select, { target: { value: 'disb-paid' } });
     fireEvent.submit(screen.getByTestId('scholarship-netting-form'));
     fireEvent.click(await screen.findByRole('button', { name: 'Apply credit' }));
