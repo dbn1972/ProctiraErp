@@ -102,4 +102,9 @@ export interface FormBuilderProps {
   className?: string;
   /** Accessible label for the form */
   ariaLabel?: string;
+  /**
+   * Called when `onSubmit` rejects. The form also shows the error message in a
+   * role="alert" region and re-enables submit.
+   */
+  onSubmitError?: (error: unknown) => void;
 }

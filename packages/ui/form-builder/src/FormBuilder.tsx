@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { get, useForm, type RegisterOptions } from 'react-hook-form';
 
 import { compileSchemaPattern } from './pattern-safety';
@@ -38,6 +38,18 @@ function unsetPath(target: Record<string, unknown>, path: string): void {
   }
 }
 
+/** Module constant so the default prop keeps a stable identity across renders. */
+const EMPTY_DEFAULTS: Record<string, unknown> = Object.freeze({}) as Record<string, unknown>;
+
+/** Content key for defaultValues so inline object literals do not trigger resets. */
+function defaultsKeyOf(values: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(values);
+  } catch {
+    return String(Math.random());
+  }
+}
+
 /** Deep-copy plain form data (falls back to a shallow copy for non-cloneable values). */
 function structuredCloneSafe(data: Record<string, unknown>): Record<string, unknown> {
   try {
@@ -68,16 +80,18 @@ export function FormBuilder({
   schema,
   onSubmit,
   onCancel,
-  defaultValues = {},
+  defaultValues = EMPTY_DEFAULTS,
   loading = false,
   className = '',
   ariaLabel,
+  onSubmitError,
 }: FormBuilderProps) {
   const allFields = useMemo(
     () => schema.sections.flatMap((section) => section.fields),
     [schema.sections],
   );
 
+  const defaultsKey = defaultsKeyOf(defaultValues);
   const computedDefaults = useMemo(() => {
     const defaults: Record<string, unknown> = { ...defaultValues };
     for (const field of allFields) {
@@ -86,16 +100,28 @@ export function FormBuilder({
       }
     }
     return defaults;
-  }, [allFields, defaultValues]);
+    // defaultsKey tracks defaultValues by content, not identity.
+  }, [allFields, defaultsKey]);
 
   const {
     register,
     handleSubmit,
     watch,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: computedDefaults,
   });
+
+  // Re-populate the form when defaults change after mount (e.g. async-loaded record).
+  const mountedDefaults = useRef(computedDefaults);
+  useEffect(() => {
+    if (mountedDefaults.current === computedDefaults) return;
+    mountedDefaults.current = computedDefaults;
+    reset(computedDefaults);
+  }, [computedDefaults, reset]);
+
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const watchedValues = watch();
 
@@ -154,10 +180,26 @@ export function FormBuilder({
   };
 
   // RHF also passes the submit event; forward it to keep the existing call shape.
-  const submitVisible = (data: Record<string, unknown>, event?: React.BaseSyntheticEvent) =>
-    (
-      onSubmit as (d: Record<string, unknown>, e?: React.BaseSyntheticEvent) => void | Promise<void>
-    )(withoutHiddenFields(data), event);
+  // A rejected onSubmit is caught and surfaced (role=alert) instead of becoming an
+  // unhandled rejection; isSubmitting then clears so the submit button re-enables.
+  const submitVisible = async (data: Record<string, unknown>, event?: React.BaseSyntheticEvent) => {
+    setSubmitError(null);
+    try {
+      await (
+        onSubmit as (
+          d: Record<string, unknown>,
+          e?: React.BaseSyntheticEvent,
+        ) => void | Promise<void>
+      )(withoutHiddenFields(data), event);
+    } catch (err) {
+      onSubmitError?.(err);
+      setSubmitError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Something went wrong. Please try again.',
+      );
+    }
+  };
 
   const renderField = (field: FormFieldSchema) => {
     if (!isFieldVisible(field)) return null;
@@ -312,6 +354,12 @@ export function FormBuilder({
           <div className="proctira-form__fields">{section.fields.map(renderField)}</div>
         </fieldset>
       ))}
+
+      {submitError && (
+        <div className="proctira-form__submit-error" role="alert">
+          {submitError}
+        </div>
+      )}
 
       <div className="proctira-form__actions">
         {onCancel && (
