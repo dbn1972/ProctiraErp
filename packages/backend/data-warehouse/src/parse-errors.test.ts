@@ -83,3 +83,29 @@ describe('GIS / translation parse failures (PRC-L456)', () => {
     expect(result.errors[0]).toMatchObject({ row: 2 });
   });
 });
+
+describe('GIS CRS validation (PRC-L457, partial)', () => {
+  it('rejects a CRS outside supportedCRS with 400 on create and update', async () => {
+    const repo = new InMemoryWarehouseRepository();
+    const dw = new DataWarehouseService(repo, { maxImportBatchSize: 100 });
+    const wh = (await dw.createWarehouse(T, { name: 'DW' })).id;
+    const areaId = (await dw.createArea(T, wh, { name: 'A', areaId: 'A', gid: 'A', level: 0 })).id;
+    const gis = new GISService(new InMemoryGISRepository(repo), repo, {
+      maxLayerFileSize: 1_000_000,
+      supportedCRS: ['EPSG:4326', 'EPSG:3857'],
+    });
+    await expect(
+      gis.createLayer(T, wh, { areaId, name: 'x', layerType: 'geojson', crs: 'EPSG:9999' }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    const layer = await gis.createLayer(T, wh, {
+      areaId,
+      name: 'ok',
+      layerType: 'geojson',
+      crs: 'EPSG:3857',
+    });
+    expect(layer.crs).toBe('EPSG:3857');
+    await expect(gis.updateLayer(T, wh, layer.id, { crs: 'BOGUS' })).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+});

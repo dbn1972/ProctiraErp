@@ -2,7 +2,8 @@
  * GIS Service
  *
  * Manages GIS layers (Shapefile and GeoJSON) linked to area hierarchies.
- * Supports PostGIS geometry storage and spatial queries.
+ * Geometry is stored as GeoJSON on the layer record (no PostGIS column yet; PRC-L457).
+ * Shapefile input is a base64 JSON FeatureCollection, not binary .shp/.dbf.
  * Implements Requirement 15.3: GIS visualization with Shapefile/GeoJSON map layers.
  */
 import { AppError, NotFoundError, ValidationError } from '@proctira/common';
@@ -131,7 +132,7 @@ export class GISService {
       areaId: input.areaId,
       name: input.name,
       layerType: input.layerType,
-      crs: input.crs || 'EPSG:4326',
+      crs: this.assertSupportedCrs(input.crs || 'EPSG:4326'),
       featureCount: features.length,
       metadata: input.metadata || {},
       features,
@@ -182,7 +183,7 @@ export class GISService {
       if (input.layerType) updates.layerType = input.layerType;
     }
 
-    if (input.crs !== undefined) updates.crs = input.crs;
+    if (input.crs !== undefined) updates.crs = this.assertSupportedCrs(input.crs);
 
     return this.audit.wrap(
       ctx,
@@ -268,6 +269,21 @@ export class GISService {
     }
 
     return this.gisRepository.findLayersByAreaHierarchy(warehouseId, tenantId, areaId);
+  }
+
+  /** Reject coordinate reference systems not listed in config.supportedCRS. */
+  private assertSupportedCrs(crs: string): string {
+    const supported = this.config.supportedCRS;
+    if (supported.length > 0 && !supported.includes(crs)) {
+      throw new ValidationError('Validation failed', [
+        {
+          field: 'crs',
+          message: `Unsupported CRS '${crs}'. Supported: ${supported.join(', ')}`,
+          rule: 'enum',
+        },
+      ]);
+    }
+    return crs;
   }
 
   /**
