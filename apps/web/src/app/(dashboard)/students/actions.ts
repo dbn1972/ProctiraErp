@@ -30,6 +30,7 @@ import {
   removeStudentDiscipline,
   setStudentConsent,
   submitBulkImport,
+  validateBulkImportSize,
   transferStudent,
   updateEnrollmentStatus,
   updateStudent,
@@ -187,6 +188,10 @@ export async function submitBulkImportAction(
 ): Promise<ActionState<ImportResult | ImportProgress>> {
   if (!input.fileBase64 || !input.fileName) {
     return { status: 'error', message: 'A file is required to start the import.' };
+  }
+  const sizeError = validateBulkImportSize(input.fileBase64);
+  if (sizeError) {
+    return { status: 'error', message: sizeError };
   }
   try {
     const request: BulkImportRequest = {
