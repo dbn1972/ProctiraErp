@@ -28,6 +28,7 @@ export function AreaPicker({
   disabled = false,
   loading = false,
   onLoadChildren,
+  onLoadError,
   ariaLabel,
   className = '',
   searchable = false,
@@ -39,6 +40,7 @@ export function AreaPicker({
   // Lazily loaded children are kept in state (keyed by parent id) instead of
   // mutating the caller's `areas` prop, so they are reflected in nodeMap and render.
   const [loadedChildren, setLoadedChildren] = useState<Map<string, AreaNode[]>>(new Map());
+  const [loadErrors, setLoadErrors] = useState<Map<string, string>>(new Map());
   // Cache of every node ever seen, so selected labels survive collapse/refetch.
   const selectedCacheRef = useRef<Map<string, AreaNode>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,9 +118,21 @@ export function AreaPicker({
         const existing = node ? getChildren(node) : undefined;
         if (onLoadChildren && node && (!existing || existing.length === 0)) {
           setLoadingNodes((prev) => new Set(prev).add(nodeId));
+          setLoadErrors((prev) => {
+            if (!prev.has(nodeId)) return prev;
+            const next = new Map(prev);
+            next.delete(nodeId);
+            return next;
+          });
           try {
             const children = await onLoadChildren(nodeId);
             setLoadedChildren((prev) => new Map(prev).set(nodeId, children));
+          } catch (error) {
+            // Surface the failure in-tree (role=alert + retry) instead of an
+            // unhandled rejection; keep the node collapsed so retry re-fetches.
+            setLoadErrors((prev) => new Map(prev).set(nodeId, `Could not load ${node.name}.`));
+            onLoadError?.(nodeId, error);
+            return;
           } finally {
             setLoadingNodes((prev) => {
               const next = new Set(prev);
@@ -130,7 +144,7 @@ export function AreaPicker({
       }
       setExpandedIds(newExpanded);
     },
-    [expandedIds, nodeMap, onLoadChildren, getChildren],
+    [expandedIds, nodeMap, onLoadChildren, onLoadError, getChildren],
   );
 
   const handleSelect = useCallback(
@@ -178,6 +192,7 @@ export function AreaPicker({
     const children = getChildren(node);
     const hasChildren = (children && children.length > 0) || !!onLoadChildren;
     const isLoading = loadingNodes.has(node.id);
+    const loadError = loadErrors.get(node.id);
     const isSelectable = node.selectable !== false;
 
     return (
@@ -229,6 +244,25 @@ export function AreaPicker({
             <span className="proctira-area-picker__node-name">{node.name}</span>
           </button>
         </div>
+        {loadError && (
+          <div
+            role="alert"
+            className="proctira-area-picker__load-error"
+            style={{ paddingLeft: `${(depth + 1) * 1.5}rem` }}
+          >
+            <span>{loadError}</span>{' '}
+            <button
+              type="button"
+              onClick={() => void toggleExpand(node.id)}
+              className="proctira-area-picker__retry-btn"
+              aria-label={`Retry loading ${node.name}`}
+              disabled={disabled}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {hasChildren && isExpanded && children && (
           <ul role="group" className="proctira-area-picker__children">
             {children.map((child) => renderNode(child, depth + 1))}

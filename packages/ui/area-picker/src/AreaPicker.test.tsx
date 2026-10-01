@@ -197,4 +197,37 @@ describe('AreaPicker', () => {
       expect(screen.getByText('Lazy Child')).toBeInTheDocument();
     });
   });
+
+  describe('lazy load errors (PRC-L191)', () => {
+    it('shows an alert on rejection, reports it, and retries successfully', async () => {
+      const unhandled = vi.fn();
+      process.on('unhandledRejection', unhandled);
+      const areas: AreaNode[] = [{ id: 'root', name: 'Root', parentId: null, level: 0 }];
+      const onLoadChildren = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('network'))
+        .mockResolvedValueOnce([{ id: 'kid', name: 'Kid', parentId: 'root', level: 1 }]);
+      const onLoadError = vi.fn();
+      render(
+        <AreaPicker
+          areas={areas}
+          onSelect={vi.fn()}
+          onLoadChildren={onLoadChildren}
+          onLoadError={onLoadError}
+          ariaLabel="Select area"
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /select area/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Expand Root' }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Could not load Root.');
+      expect(onLoadError).toHaveBeenCalledWith('root', expect.any(Error));
+      fireEvent.click(screen.getByRole('button', { name: 'Retry loading Root' }));
+      expect(await screen.findByRole('button', { name: 'Select Kid' })).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await new Promise((r) => setTimeout(r, 0));
+      process.off('unhandledRejection', unhandled);
+      expect(unhandled).not.toHaveBeenCalled();
+    });
+  });
 });
