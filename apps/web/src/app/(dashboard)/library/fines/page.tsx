@@ -12,6 +12,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryFines } from '@/lib/api/library';
 import { resolveEntityLabel } from '@/lib/entity-label';
+import { formatMoney } from '@/lib/format-money';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { MarkPaidButton } from '../_components/mark-paid-button';
 
@@ -66,7 +67,7 @@ export default async function LibraryFinesPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground">
                       {resolveEntityLabel(fine.studentId, studentLabels, 'Student')} ·{' '}
-                      {fine.amountCents} cents · {fine.status}
+                      {formatMoney(fine.amountCents, fine.currency)} · {fine.status}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {resolveEntityLabel(fine.loanId, {}, 'Loan')} · {fine.overdueDays} overdue day
