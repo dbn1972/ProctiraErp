@@ -33,6 +33,13 @@ declare module 'fastify' {
   }
 }
 
+/** PRC-L148 — client-supplied ids must be short opaque tokens; anything else is replaced. */
+const SAFE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+function safeHeaderId(value: string | string[] | undefined): string {
+  return typeof value === 'string' && SAFE_ID.test(value) ? value : uuidv4();
+}
+
 const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   fastify: FastifyInstance,
   options: LoggingPluginOptions = {},
@@ -62,10 +69,10 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   // Hook: onRequest - attach IDs and create request-scoped logger
   fastify.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
     // Extract or generate request ID
-    const requestId = (request.headers[requestIdHeader] as string) || uuidv4();
+    const requestId = safeHeaderId(request.headers[requestIdHeader]); // PRC-L148
 
     // Extract or generate correlation ID
-    const correlationId = (request.headers[correlationIdHeader] as string) || uuidv4();
+    const correlationId = safeHeaderId(request.headers[correlationIdHeader]);
 
     // Get tenant ID if already set on request (by tenant resolution plugin)
     const tenantId = (request as unknown as { tenantId?: string }).tenantId;
@@ -102,6 +109,14 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
     }
   });
 
+  // Hook: preHandler - tenant resolution runs after this plugin's onRequest, so
+  // re-bind the request logger with tenant_id once it is known (PRC-L148).
+  fastify.addHook('preHandler', async (request: FastifyRequest) => {
+    const tenantId = (request as unknown as { tenantId?: string }).tenantId;
+    if (!tenantId || !request.requestLog) return;
+    if (request.requestLog.bindings()['tenant_id'] === tenantId) return;
+    request.requestLog = request.requestLog.child({ tenant_id: tenantId });
+  });
   // Hook: onResponse - log response with duration
   fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
     if (ignorePaths.includes(request.url)) {
