@@ -70,6 +70,19 @@ function sendError(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+/**
+ * PRC-L367: RFC 6266/5987 Content-Disposition — ASCII fallback plus UTF-8
+ * `filename*`, so non-Latin1 names never break the header (Node ERR_INVALID_CHAR).
+ */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 function tenantRequired(reply: FastifyReply) {
   return reply
     .status(400)
@@ -206,6 +219,7 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {
@@ -583,10 +597,7 @@ export async function registerStudents360Routes(
 
   fastify.get(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);
@@ -610,7 +621,8 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
-          .header('content-disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`)
+          .header('content-disposition', attachmentDisposition(fileName))
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {
@@ -621,10 +633,7 @@ export async function registerStudents360Routes(
 
   fastify.delete(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);
