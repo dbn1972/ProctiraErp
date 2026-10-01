@@ -19,6 +19,7 @@ import { LockKeyhole, ServerCrash, SearchX, UserX } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 
 import type { ListFailureKind } from '@/lib/api/list-result';
+import { sanitizeReturnTo } from '@/lib/auth/return-to';
 
 const COPY: Record<
   ListFailureKind,
@@ -63,6 +64,9 @@ export function ListLoadFailure({
   returnTo?: string;
 }) {
   const { title, description, Icon } = COPY[kind];
+  // `returnTo` is the param login-form and middleware read; sanitize so an unsafe
+  // value falls back to a plain /login link instead of carrying an open redirect.
+  const safeReturnTo = returnTo ? sanitizeReturnTo(returnTo, '') : '';
   return (
     <div
       role="status"
@@ -79,7 +83,9 @@ export function ListLoadFailure({
         // The one kind whose copy names an action the user can take, so it ships the
         // control to take it rather than leaving them to find the login page.
         <Button asChild size="sm">
-          <Link href={returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : '/login'}>
+          <Link
+            href={safeReturnTo ? `/login?returnTo=${encodeURIComponent(safeReturnTo)}` : '/login'}
+          >
             Sign in
           </Link>
         </Button>
