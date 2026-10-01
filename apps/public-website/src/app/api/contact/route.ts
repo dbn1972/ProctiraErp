@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server';
 
-import { allowContactRequest } from '@/lib/contact-rate-limit';
+import { allowContactRequest, resolveClientKey } from '@/lib/contact-rate-limit';
+import {
+  BodyTooLargeError,
+  checkJsonContentType,
+  checkSameOrigin,
+  readBodyWithLimit,
+  resolveWebhookUrl,
+} from '@/lib/contact-request-guard';
 import { validateContactInput } from '@/lib/contact-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function clientKey(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0]?.trim() || 'unknown';
-  }
-  return request.headers.get('x-real-ip') ?? 'unknown';
-}
 
 async function forwardToWebhook(payload: {
   name: string;
@@ -20,8 +19,13 @@ async function forwardToWebhook(payload: {
   organization: string;
   message: string;
 }): Promise<'forwarded' | 'skipped' | 'failed'> {
-  const webhookUrl = process.env.CONTACT_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return 'skipped';
+  if (!process.env.CONTACT_WEBHOOK_URL?.trim()) return 'skipped';
+  const webhookUrl = resolveWebhookUrl();
+  if (!webhookUrl) {
+    // eslint-disable-next-line no-console
+    console.warn('[contact] CONTACT_WEBHOOK_URL ignored: must be a valid https URL');
+    return 'failed';
+  }
 
   try {
     const response = await fetch(webhookUrl, {
@@ -38,6 +42,8 @@ async function forwardToWebhook(payload: {
       }),
       // Avoid hanging the contact UX on a slow CRM.
       signal: AbortSignal.timeout(5_000),
+      // Never follow a redirect off the configured CRM endpoint.
+      redirect: 'error',
     });
     if (!response.ok) {
       // eslint-disable-next-line no-console
@@ -66,7 +72,12 @@ async function forwardToWebhook(payload: {
  * emits a structured log entry without echoing the message body.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  if (!allowContactRequest(clientKey(request))) {
+  for (const verdict of [checkSameOrigin(request.headers), checkJsonContentType(request.headers)]) {
+    if (!verdict.ok) {
+      return NextResponse.json({ error: verdict.error }, { status: verdict.status });
+    }
+  }
+  if (!allowContactRequest(resolveClientKey(request.headers))) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 },
@@ -75,8 +86,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = JSON.parse(await readBodyWithLimit(request));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
