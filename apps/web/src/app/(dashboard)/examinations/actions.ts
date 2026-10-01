@@ -25,6 +25,9 @@ import {
   type ExaminationDocumentType,
 } from '@/lib/api/examinations';
 import { GatewayError } from '@/lib/api/gateway';
+// PRC-L237: every action below is a gateway write; deny read-only roles
+// (teacher/staff/student hold examination.read only) before any request.
+import { requirePermission } from '@/lib/auth/require-permission';
 import {
   createExaminationFormSchema,
   type CreateExaminationFormValues,
@@ -58,6 +61,8 @@ function toErrorState<T = unknown>(error: unknown, fallback: string): ActionStat
 export async function createExaminationAction(
   values: CreateExaminationFormValues,
 ): Promise<ActionState<{ examinationId: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = createExaminationFormSchema.safeParse(values);
   if (!parsed.success) {
     return {
@@ -95,6 +100,8 @@ const registerCandidateSchema = z.object({
 export async function registerCandidateAction(
   input: z.input<typeof registerCandidateSchema>,
 ): Promise<ActionState<{ candidateId: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = registerCandidateSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -132,6 +139,8 @@ const recordMarksSchema = z.object({
 export async function recordMarksAction(
   input: z.input<typeof recordMarksSchema>,
 ): Promise<ActionState<{ candidateCount: number; subjectResultCount: number }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = recordMarksSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -158,6 +167,8 @@ export async function recordMarksAction(
 export async function publishResultsAction(
   examinationId: string,
 ): Promise<ActionState<{ processedCount: number; incompleteCount: number }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   if (!UUID.safeParse(examinationId).success) {
     return { status: 'error', message: 'Invalid examination id' };
   }
@@ -179,6 +190,8 @@ export async function generateDocumentsAction(
   examinationId: string,
   documentType: ExaminationDocumentType,
 ): Promise<ActionState<{ jobId: string; status: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   if (!UUID.safeParse(examinationId).success) {
     return { status: 'error', message: 'Invalid examination id' };
   }
@@ -215,6 +228,8 @@ const createSessionSchema = z.object({
 export async function createExamSessionAction(
   input: z.input<typeof createSessionSchema>,
 ): Promise<ActionState<{ sessionId: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = createSessionSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -248,6 +263,8 @@ const allocateSchema = z.object({
 export async function allocateInvigilatorAction(
   input: z.input<typeof allocateSchema>,
 ): Promise<ActionState<{ allocationId: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = allocateSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -276,6 +293,8 @@ export async function allocateInvigilatorAction(
 export async function generateSeatingAction(
   examinationId: string,
 ): Promise<ActionState<{ count: number }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   if (!UUID.safeParse(examinationId).success) {
     return { status: 'error', message: 'Invalid examination id' };
   }
@@ -303,6 +322,8 @@ const doubleEntrySchema = z.object({
 export async function recordDoubleEntryAction(
   input: z.input<typeof doubleEntrySchema>,
 ): Promise<ActionState<{ varianceFlag: boolean }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = doubleEntrySchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -339,6 +360,8 @@ const resolveSchema = z.object({
 export async function resolveMarksAction(
   input: z.input<typeof resolveSchema>,
 ): Promise<ActionState<{ finalMarks: number | null }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = resolveSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -375,6 +398,8 @@ const reevalRequestSchema = z.object({
 export async function requestReevaluationAction(
   input: z.input<typeof reevalRequestSchema>,
 ): Promise<ActionState<{ requestId: string }>> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = reevalRequestSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -406,6 +431,8 @@ const assignSchema = z.object({
 export async function assignReevaluationAction(
   input: z.input<typeof assignSchema>,
 ): Promise<ActionState> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = assignSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -437,6 +464,8 @@ const completeSchema = z.object({
 export async function completeReevaluationAction(
   input: z.input<typeof completeSchema>,
 ): Promise<ActionState> {
+  const denied = await requirePermission('examination', 'create');
+  if (denied) return denied;
   const parsed = completeSchema.safeParse(input);
   if (!parsed.success) {
     return {

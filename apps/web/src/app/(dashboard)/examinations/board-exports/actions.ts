@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import { createBoardExportJob } from '@/lib/api/gradebook';
+import { getSession } from '@/lib/auth/server';
+import { FORBIDDEN_MESSAGE } from '@/lib/auth/require-permission';
+import { canModerateGrades } from '@/lib/gradebook-roles';
 
 export type BoardExportActionResult =
   | { ok: true; id: string; status: string; artifactUri: string | null; checksum?: string }
@@ -15,6 +18,11 @@ export async function createBoardExportJobAction(input: {
   institutionId: string;
   studentIds?: string[];
 }): Promise<BoardExportActionResult> {
+  // PRC-L237: mirror gradebook `board_export.create` (registrar roles) before the gateway call.
+  const session = await getSession();
+  if (!session || session.isExpired || !canModerateGrades(session.user.roles)) {
+    return { ok: false, error: FORBIDDEN_MESSAGE, code: 'FORBIDDEN', status: 403 };
+  }
   try {
     const job = await createBoardExportJob(input);
     revalidatePath('/examinations/board-exports');
