@@ -19,6 +19,8 @@ import {
   type SubjectSummary,
 } from '@/lib/institutions/api';
 import type { AcademicPeriod, Grade } from '@/lib/institutions/types';
+import { pickActiveAcademicPeriod } from '@/lib/academic-defaults';
+import { getTenantToday } from '@/lib/tenant-today';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,10 +34,11 @@ export default async function InstitutionCurriculumPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const institutionId = params.id;
 
-  const [subjects, grades, periods] = await Promise.all([
+  const [subjects, grades, periods, today] = await Promise.all([
     listSubjects().catch(() => [] as SubjectSummary[]),
     listGrades().catch(() => [] as Grade[]),
     listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    getTenantToday(),
   ]);
 
   const subjectId =
@@ -49,7 +52,7 @@ export default async function InstitutionCurriculumPage(props: PageProps) {
   const academicPeriodId =
     searchParams?.academicPeriodId && periods.some((p) => p.id === searchParams.academicPeriodId)
       ? searchParams.academicPeriodId
-      : (periods[0]?.id ?? '');
+      : (pickActiveAcademicPeriod(periods, today)?.id ?? '');
 
   const unitsResult =
     subjectId && gradeId && academicPeriodId
