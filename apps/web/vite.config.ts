@@ -41,9 +41,8 @@ export default defineConfig({
         ]
       : []),
     // Pre-compression: emit `.gz` and `.br` siblings of compressible
-    // artifacts. The CDN / API_Gateway selects the right encoding
-    // based on `Accept-Encoding`. See `apps/api-gateway/src/plugins/
-    // static-assets.ts` for the negotiation logic.
+    // artifacts. The CDN / static host selects the right encoding
+    // based on `Accept-Encoding` (the gateway does not serve web assets).
     compression({
       include: COMPRESSIBLE_PATTERN,
       threshold: COMPRESSION_THRESHOLD_BYTES,

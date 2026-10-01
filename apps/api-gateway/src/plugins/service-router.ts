@@ -226,6 +226,43 @@ function buildForwardBody(request: FastifyRequest): string | Buffer | Uint8Array
   return JSON.stringify(body);
 }
 
+/** Encoded `.`, `/`, `\` (and double-encoded `%25`) in the raw request path. */
+const ENCODED_PATH_META = /%(2e|2f|5c|25)/i;
+
+/**
+ * PRC-L528: build the upstream URL for a proxied request, or return null when the wildcard
+ * sub-path could escape `route.prefix` on the upstream host. Rejects `.`/`..` segments,
+ * backslashes, NUL and encoded separators/dots in the raw path; re-encodes each decoded
+ * segment; and asserts the final pathname stays under the route prefix on the same origin.
+ */
+export function buildUpstreamUrl(
+  route: Pick<ServiceRoute, 'target' | 'prefix'>,
+  wildcard: string,
+  rawPath: string,
+  queryString: string,
+): string | null {
+  if (ENCODED_PATH_META.test(rawPath)) return null;
+  if (/[\\\0]/.test(wildcard)) return null;
+  const segments = wildcard.split('/');
+  if (segments.some((segment) => segment === '.' || segment === '..')) return null;
+  const subPath = wildcard
+    ? `/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`
+    : '';
+  let base: URL;
+  let url: URL;
+  try {
+    base = new URL(route.target);
+    url = new URL(`${route.target}${route.prefix}${subPath}${queryString}`);
+  } catch {
+    return null;
+  }
+  const basePath = base.pathname.replace(/\/$/, '');
+  const prefixPath = `${basePath}${route.prefix}`;
+  if (url.origin !== base.origin) return null;
+  if (url.pathname !== prefixPath && !url.pathname.startsWith(`${prefixPath}/`)) return null;
+  return url.toString();
+}
+
 /**
  * Creates a proxy handler that forwards requests to the target service via
  * global `fetch`, wrapped with a CircuitBreaker that fails fast (and trips)
@@ -238,10 +275,18 @@ function createProxyHandler(serviceName: string, route: ServiceRoute, _fullPrefi
 
   return async function proxyHandler(request: FastifyRequest, reply: FastifyReply) {
     const params = request.params as { '*'?: string };
-    const subPath = params['*'] ? `/${params['*']}` : '';
     const queryIndex = request.url.indexOf('?');
     const queryString = queryIndex >= 0 ? request.url.slice(queryIndex) : '';
-    const targetUrl = `${route.target}${route.prefix}${subPath}${queryString}`;
+    const rawPath = queryIndex >= 0 ? request.url.slice(0, queryIndex) : request.url;
+    const targetUrl = buildUpstreamUrl(route, params['*'] ?? '', rawPath, queryString);
+    if (!targetUrl) {
+      // PRC-L528: never forward dot-segment / encoded-separator paths upstream.
+      return reply.status(400).send({
+        code: 'INVALID_PROXY_PATH',
+        message: 'Request path contains disallowed segments',
+        statusCode: 400,
+      });
+    }
 
     try {
       const upstream = await breaker.execute(async () => {
