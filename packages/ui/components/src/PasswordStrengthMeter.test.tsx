@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { axe } from 'vitest-axe';
 
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 
@@ -60,9 +61,12 @@ describe('<PasswordStrengthMeter />', () => {
         ratingLabel="Good"
       />,
     );
-    const meter = screen.getByTestId('password-meter');
-    expect(meter).toHaveAttribute('role', 'status');
-    expect(meter).toHaveAttribute('aria-live', 'polite');
+    // PRC-L196: the live region is scoped to the rating label, not the checklist.
+    const live = screen.getByRole('status');
+    expect(live).toBe(screen.getByTestId('password-meter-label'));
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    expect(live).toHaveTextContent('Good');
+    expect(screen.getByTestId('password-meter')).not.toHaveAttribute('aria-live');
   });
 
   it('uses the rating-specific bar class so colour conveys severity', () => {
@@ -81,5 +85,54 @@ describe('<PasswordStrengthMeter />', () => {
       />,
     );
     expect(screen.getByTestId('password-meter-bar').className).toContain('bg-emerald-500');
+  });
+
+  describe('non-colour rule state (PRC-L196)', () => {
+    const rules = [
+      { key: 'length', label: 'At least 8 characters', satisfied: true },
+      { key: 'symbol', label: 'One symbol', satisfied: false },
+    ];
+
+    it('exposes met / not met text and distinct icons per rule', () => {
+      render(
+        <PasswordStrengthMeter
+          grade={{ rating: 'fair', satisfied: 1, percent: 50 }}
+          ratingLabel="Fair"
+          rules={rules}
+        />,
+      );
+      const met = screen.getByTestId('password-meter-rule-length');
+      const notMet = screen.getByTestId('password-meter-rule-symbol');
+      expect(met).toHaveTextContent('At least 8 characters: met');
+      expect(notMet).toHaveTextContent('One symbol: not met');
+      expect(met.querySelector('[data-icon="met"]')).not.toBeNull();
+      expect(notMet.querySelector('[data-icon="not-met"]')).not.toBeNull();
+    });
+
+    it('accepts translated met / not met labels', () => {
+      render(
+        <PasswordStrengthMeter
+          grade={{ rating: 'fair', satisfied: 1, percent: 50 }}
+          ratingLabel="Moyen"
+          rules={rules}
+          metLabel="respecté"
+          notMetLabel="non respecté"
+        />,
+      );
+      expect(screen.getByTestId('password-meter-rule-symbol')).toHaveTextContent(
+        'One symbol: non respecté',
+      );
+    });
+
+    it('has no axe violations', async () => {
+      const { container } = render(
+        <PasswordStrengthMeter
+          grade={{ rating: 'fair', satisfied: 1, percent: 50 }}
+          ratingLabel="Fair"
+          rules={rules}
+        />,
+      );
+      expect(await axe(container)).toHaveNoViolations();
+    });
   });
 });
