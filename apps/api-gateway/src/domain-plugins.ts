@@ -97,7 +97,7 @@ import {
   type RolloverSummary,
 } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
-import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
+import { createLmsRepository, LmsService, lmsPlugin } from '@proctira/backend-lms';
 import {
   createNotificationDeliveryPublisherFromEnv,
   createNotificationStack,
@@ -139,7 +139,11 @@ import {
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
-import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
+import {
+  createTimetableRepository,
+  TimetableService,
+  timetablePlugin,
+} from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
   createEscalationPublisherFromEnv,
@@ -589,43 +593,37 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
       const feesForRollover = new FeesService(createFeesRepository());
-      // Timetable + LMS clones are best-effort — packages may be memory or PG.
-      type Dry = { dryRun?: boolean };
-      let copyTimetable:
-        | undefined
-        | ((
-            tenantId: string,
-            actorId: string,
-            sourcePeriodId: string,
-            targetPeriodId: string,
-            options?: Dry,
-          ) => Promise<{ sectionsCloned: number; meetingsCloned: number }>);
-      let copyLmsAssignments:
-        | undefined
-        | ((
-            tenantId: string,
-            actorId: string,
-            sourcePeriodId: string,
-            targetPeriodId: string,
-            options?: Dry,
-          ) => Promise<{ cloned: number; source: number }>);
-      try {
-        const { createTimetableRepository, TimetableService } =
-          await import('@proctira/backend-timetable');
-        const tt = new TimetableService(createTimetableRepository());
-        copyTimetable = (tenantId, _actor, sourcePeriodId, targetPeriodId, options) =>
-          tt.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId, options);
-      } catch {
-        copyTimetable = async () => ({ sectionsCloned: 0, meetingsCloned: 0 });
-      }
-      try {
-        const { createLmsRepository, LmsService } = await import('@proctira/backend-lms');
-        const lms = new LmsService(createLmsRepository());
-        copyLmsAssignments = (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
-          lms.cloneAssignmentsForPeriod(tenantId, actorId, sourcePeriodId, targetPeriodId, options);
-      } catch {
-        copyLmsAssignments = async () => ({ cloned: 0, source: 0 });
-      }
+      // PRC-L320: timetable/LMS clone hooks are wired directly (no catch-and-zero
+      // fallback that reported success with zero counts on an import failure).
+      const timetableForRollover = new TimetableService(createTimetableRepository());
+      const lmsForRollover = new LmsService(createLmsRepository());
+      const copyTimetable = (
+        tenantId: string,
+        _actorId: string,
+        sourcePeriodId: string,
+        targetPeriodId: string,
+        options?: { dryRun?: boolean },
+      ) =>
+        timetableForRollover.cloneForAcademicPeriod(
+          tenantId,
+          sourcePeriodId,
+          targetPeriodId,
+          options,
+        );
+      const copyLmsAssignments = (
+        tenantId: string,
+        actorId: string,
+        sourcePeriodId: string,
+        targetPeriodId: string,
+        options?: { dryRun?: boolean },
+      ) =>
+        lmsForRollover.cloneAssignmentsForPeriod(
+          tenantId,
+          actorId,
+          sourcePeriodId,
+          targetPeriodId,
+          options,
+        );
       const pgPool = getSharedPgPool();
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),

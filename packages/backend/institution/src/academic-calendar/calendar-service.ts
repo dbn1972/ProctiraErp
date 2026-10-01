@@ -232,6 +232,20 @@ export class AcademicCalendarService {
         { field: 'targetPeriodId', rule: 'distinct', message: 'Target must differ from source' },
       ]);
     }
+    // PRC-L320: fail before any write when a requested extra has no wired hook,
+    // instead of reporting success with zero counts.
+    const unavailable = [
+      dto.copyFeeStructures && !this.rolloverExtras?.copyFeeStructures ? 'copyFeeStructures' : null,
+      dto.copyTimetable && !this.rolloverExtras?.copyTimetable ? 'copyTimetable' : null,
+      dto.copyLmsAssignments && !this.rolloverExtras?.copyLmsAssignments
+        ? 'copyLmsAssignments'
+        : null,
+    ].filter((name): name is string => name !== null);
+    if (unavailable.length > 0) {
+      throw new BusinessRuleError(
+        `Rollover extras not available in this deployment: ${unavailable.join(', ')}`,
+      );
+    }
     const [source, target] = await Promise.all([
       this.requirePeriod(tenantId, sourcePeriodId),
       this.requirePeriod(tenantId, dto.targetPeriodId),
@@ -422,8 +436,6 @@ export class AcademicCalendarService {
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.feeStructures = { cloned: 0, source: 0 };
       }
     }
     if (dto.copyTimetable) {
@@ -435,8 +447,6 @@ export class AcademicCalendarService {
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.timetable = { sectionsCloned: 0, meetingsCloned: 0 };
       }
     }
     if (dto.copyLmsAssignments) {
@@ -448,8 +458,6 @@ export class AcademicCalendarService {
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.lmsAssignments = { cloned: 0, source: 0 };
       }
     }
 
