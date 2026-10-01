@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { feeBandSchema, type FeeBandInput } from './_components/fee-band-schema';
 import {
   createDriverAssignment,
   createStudentAssignment,
@@ -309,18 +310,8 @@ export async function acknowledgeAlertAction(id: string): Promise<TransportActio
   }
 }
 
-const feeBandSchema = z.object({
-  name: z.string().min(1).max(255),
-  routeId: uuid.optional(),
-  stopId: uuid.optional(),
-  minDistanceKm: z.number().min(0).optional(),
-  maxDistanceKm: z.number().min(0).optional(),
-  amountCents: z.number().int().min(0),
-  currency: z.string().length(3).optional(),
-});
-
 export async function createTransportFeeStructureAction(
-  input: z.infer<typeof feeBandSchema>,
+  input: FeeBandInput,
 ): Promise<TransportActionState> {
   const parsed = feeBandSchema.safeParse({
     ...input,
@@ -331,11 +322,13 @@ export async function createTransportFeeStructureAction(
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid fee band' };
   }
   try {
-    await createTransportFeeStructure(parsed.data);
+    const band = await createTransportFeeStructure(parsed.data);
     revalidatePath('/transport/fees');
     return {
       status: 'success',
-      message: 'Fee band created (Fees category=transport when G-903 is wired).',
+      message: band.feesStructureId
+        ? 'Fee band created and linked to Fees.'
+        : 'Fee band created but not linked to Fees — assigned students will not be invoiced until Fees is connected.',
     };
   } catch (error) {
     return fail(error, 'Failed to create fee band');
