@@ -30,8 +30,25 @@ describe('tenant-resolution', () => {
     it('should reject invalid UUIDs', () => {
       expect(isValidUuid('')).toBe(false);
       expect(isValidUuid('not-a-uuid')).toBe(false);
-      expect(isValidUuid('550e8400-e29b-11d4-a716-446655440000')).toBe(false); // v1
+      expect(isValidUuid('550e8400-e29b-01d4-a716-446655440000')).toBe(false); // version 0
+      expect(isValidUuid('550e8400-e29b-91d4-a716-446655440000')).toBe(false); // version 9
+      expect(isValidUuid('550e8400e29b41d4a716446655440000')).toBe(false); // no hyphens
+      expect(isValidUuid('550e8400-e29b-71d4-a716-44665544000z')).toBe(false); // non-hex
       expect(isValidUuid('550e8400-e29b-41d4-c716-446655440000')).toBe(false); // wrong variant
+    });
+  });
+
+  describe('isValidUuid non-v4 versions (PRC-L357)', () => {
+    it('accepts v7, v5 and v1 UUIDs', () => {
+      expect(isValidUuid('01890a5d-ac96-774b-bcce-b302099a8057')).toBe(true); // v7
+      expect(isValidUuid('886313e1-3b8a-5372-9b90-0c9aee199e5d')).toBe(true); // v5
+      expect(isValidUuid('550e8400-e29b-11d4-a716-446655440000')).toBe(true); // v1
+    });
+
+    it('resolves a v7 tenant id from the JWT claim', () => {
+      const v7 = '01890a5d-ac96-774b-bcce-b302099a8057';
+      const result = resolveTenantId(createMockRequest({ user: { tenantId: v7 } }));
+      expect(result).toMatchObject({ tenantId: v7, source: 'jwt' });
     });
   });
 

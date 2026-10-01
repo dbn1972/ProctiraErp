@@ -40,8 +40,9 @@ export interface TenantTransactionOptions {
   isolationLevel?: Prisma.TransactionIsolationLevel;
 }
 
-// Matches the canonical UUID v4 used for tenant IDs across the platform.
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Matches RFC 4122 / RFC 9562 UUIDs (versions 1-8) so any tenant id accepted by
+// tenant resolution can also bind the RLS GUC (PRC-L357).
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Runs `fn` inside a transaction whose connection has the canonical tenant GUC
@@ -49,9 +50,9 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
  * by RLS.
  *
  * The tenant id is passed as a bound parameter (not string-interpolated) and is
- * validated as a UUID v4 up front, so it can never be used to inject SQL.
+ * validated as an RFC 4122 UUID up front, so it can never be used to inject SQL.
  *
- * @throws {Error} if `tenantId` is not a valid UUID v4.
+ * @throws {Error} if `tenantId` is not a valid UUID.
  */
 export async function withTenantTransaction<T>(
   prisma: PrismaClient,
@@ -60,7 +61,7 @@ export async function withTenantTransaction<T>(
   options?: TenantTransactionOptions,
 ): Promise<T> {
   if (!UUID_V4.test(tenantId)) {
-    throw new Error(`withTenantTransaction: invalid tenantId "${tenantId}" (expected UUID v4)`);
+    throw new Error(`withTenantTransaction: invalid tenantId "${tenantId}" (expected UUID)`);
   }
 
   return prisma.$transaction(async (tx) => {
