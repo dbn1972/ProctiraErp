@@ -81,3 +81,55 @@ describe('DataGrid error state (PRC-L510)', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('DataGrid server mode and export scope (PRC-L512)', () => {
+  const names = () =>
+    screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((r) => r.textContent);
+
+  it('with totalRows, a header click does not reorder the local page', () => {
+    const onSortingChange = vi.fn();
+    render(
+      <DataGrid
+        data={data}
+        columns={columns}
+        totalRows={30}
+        onSortingChange={onSortingChange}
+        ariaLabel="G"
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Sort by Name/ }));
+    expect(onSortingChange).toHaveBeenCalledWith([{ id: 'name', desc: false }]);
+    expect(names()).toEqual(['Charlie', 'Alice', 'Bob']);
+  });
+
+  it('exports only filtered rows in client mode', () => {
+    const onExport = vi.fn();
+    render(
+      <DataGrid
+        data={data}
+        columns={columns}
+        enableFiltering
+        enableExport
+        onExport={onExport}
+        ariaLabel="G"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Filter by Name'), { target: { value: 'li' } });
+    fireEvent.click(screen.getByRole('button', { name: /export data to excel/i }));
+    const exported = onExport.mock.calls[0]![0] as Row[];
+    expect(exported.map((r) => r.name).sort()).toEqual(['Alice', 'Charlie']);
+  });
+
+  it('exports all filtered rows across pages, not just the visible page', () => {
+    const onExport = vi.fn();
+    const many = Array.from({ length: 25 }, (_, i) => ({ id: i, name: `P${i}` }));
+    render(
+      <DataGrid data={many} columns={columns} enableExport onExport={onExport} ariaLabel="G" />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /export data to excel/i }));
+    expect((onExport.mock.calls[0]![0] as Row[]).length).toBe(25);
+  });
+});

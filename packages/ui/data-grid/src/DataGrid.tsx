@@ -128,19 +128,31 @@ export function DataGrid<TData>({
     getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
     getFilteredRowModel: enableFiltering ? getFilteredRowModel() : undefined,
     getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
+    // Server-side mode: `data` is one page, so sorting/filtering must be done
+    // by the server (via onSortingChange/onFilterChange), not on that page.
     manualPagination: totalRows !== undefined,
+    manualSorting: totalRows !== undefined,
+    manualFiltering: totalRows !== undefined,
     pageCount: totalRows !== undefined ? Math.ceil(totalRows / pagination.pageSize) : undefined,
   });
 
   const handleExport = useCallback(() => {
     if (onExport) {
-      onExport(data, {
+      // Client mode: export every filtered + sorted row (all pages), matching
+      // what the user sees. Server mode: `data` is only the current page, so
+      // callers must run a server export with the current sort/filter state
+      // (and audit it there).
+      const rowsToExport =
+        totalRows !== undefined
+          ? data
+          : table.getPrePaginationRowModel().rows.map((row) => row.original);
+      onExport(rowsToExport, {
         filename: exportOptions.filename ?? 'export',
         sheetName: exportOptions.sheetName ?? 'Sheet1',
         includeHeaders: exportOptions.includeHeaders ?? true,
       });
     }
-  }, [data, exportOptions, onExport]);
+  }, [data, exportOptions, onExport, table, totalRows]);
 
   const getSortAriaLabel = (columnId: string, isSorted: false | 'asc' | 'desc') => {
     if (!isSorted) return `Sort by ${columnId}`;
