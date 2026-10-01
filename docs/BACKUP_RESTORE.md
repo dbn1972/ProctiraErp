@@ -639,6 +639,7 @@ Variables actually read by `pg-backup.sh` / Helm CronJob (not legacy aliases):
 | `BACKUP_AGE_IDENTITY`      | age private key inline (optional)                | —                                       |
 | `BACKUP_GPG_RECIPIENT`     | GPG recipient — encrypt dumps at rest            | —                                       |
 | `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | set by CronJob when encrypt enabled     |
+| `BACKUP_ALLOW_PLAINTEXT`   | `1` keeps an unencrypted dump; otherwise refused (PRC-L383) | CronJob sets it only when encrypt is disabled (non-prod) |
 | `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | `dr.backup.offsite.uri`                 |
 | `BACKUP_REQUIRE_OFFSITE`   | Fail if offsite URI missing (`1` / `true`)       | set when `offsite.enabled`              |
 | `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)  | `dr.backup.offsite.sse`                 |

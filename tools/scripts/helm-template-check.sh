@@ -325,6 +325,31 @@ grep -q 'BACKUP_S3_OBJECT_LOCK_MODE' "$prod_backup_out" \
   || die "W1-OPS-04: production pg-backup CronJob must set Object Lock mode"
 grep -q 's3://proctira-prod-pg-backups/logical/' "$prod_backup_out" \
   || die "W1-OPS-04: production render must include documented offsite URI"
+# PRC-L383: assert rendered env *values* on the pg-backup container, not text.
+python3 - "$prod_backup_out" <<'PY' || die "W1-OPS-04: production pg-backup env contract failed (PRC-L383)"
+import sys, yaml
+docs = [d for d in yaml.safe_load_all(open(sys.argv[1], encoding="utf-8")) if d]
+jobs = [d for d in docs if d.get("kind") == "CronJob"
+        and any(c.get("name") == "pg-backup" for c in
+                d["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"])]
+if len(jobs) != 1:
+    sys.exit(f"expected exactly one pg-backup CronJob, found {len(jobs)}")
+c = next(c for c in jobs[0]["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"]
+         if c.get("name") == "pg-backup")
+env = {e["name"]: e for e in c.get("env", [])}
+errs = []
+if env.get("BACKUP_ENCRYPT", {}).get("value") != "1":
+    errs.append("BACKUP_ENCRYPT must be \"1\"")
+if "secretKeyRef" not in (env.get("BACKUP_AGE_RECIPIENT", {}).get("valueFrom") or {}):
+    errs.append("BACKUP_AGE_RECIPIENT must come from a secretKeyRef")
+if env.get("BACKUP_REQUIRE_OFFSITE", {}).get("value") != "1":
+    errs.append("BACKUP_REQUIRE_OFFSITE must be \"1\"")
+if "BACKUP_ALLOW_PLAINTEXT" in env:
+    errs.append("BACKUP_ALLOW_PLAINTEXT must not be set in production")
+for e in errs:
+    print(f"helm-template-check: {e}", file=sys.stderr)
+sys.exit(1 if errs else 0)
+PY
 rm -f "$prod_backup_out"
 
 no_encrypt_err="$(mktemp)"
