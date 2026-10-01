@@ -15,7 +15,9 @@ describe('breadcrumb entity labels (PRC-L070)', () => {
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('reflects a rename after revalidation instead of serving the cached name', async () => {
     fetchMock.mockReturnValueOnce(respond({ name: 'Old School' }));
