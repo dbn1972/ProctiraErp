@@ -131,7 +131,7 @@ export interface KafkaAdapterConfig {
   requestTimeout?: number;
   /** Number of retries for failed operations */
   retries?: number;
-  /** SSL configuration */
+  /** SSL configuration (required when NODE_ENV=production — PRC-L356) */
   ssl?: boolean;
   /** SASL authentication */
   sasl?: {
@@ -167,8 +167,17 @@ export interface RabbitMQAdapterConfig {
 export interface SQSAdapterConfig {
   /** AWS region */
   region: string;
-  /** SQS queue URL prefix (messages will be routed to tenant-prefixed queues) */
+  /**
+   * SQS queue URL prefix (messages will be routed to tenant-prefixed queues).
+   * Resolved queue URLs must start with this prefix (PRC-L356).
+   */
   queueUrlPrefix: string;
+  /**
+   * Create missing queues on lookup (`QueueDoesNotExist` only). Defaults to true
+   * outside production and false in production, where queues are provisioned by
+   * infrastructure (PRC-L356).
+   */
+  autoCreateQueues?: boolean;
   /** AWS access key ID (optional, uses default credential chain if not provided) */
   accessKeyId?: string;
   /** AWS secret access key */

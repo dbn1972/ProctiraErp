@@ -14,7 +14,11 @@ import {
   GetQueueAttributesCommand,
 } from '@aws-sdk/client-sqs';
 
-import { assertTenantScopedSubscribeTopic, messageTenantMatchesRoute } from '../tenant-scope';
+import {
+  assertTenantScopedSubscribeTopic,
+  isProductionEnv,
+  messageTenantMatchesRoute,
+} from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -42,6 +46,26 @@ export class SQSAdapter implements QueueAdapter {
 
   constructor(config: SQSAdapterConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /** PRC-L356: only a definite "queue does not exist" may trigger CreateQueue. */
+  private static isQueueDoesNotExist(error: unknown): boolean {
+    const e = error as { name?: string; Code?: string; code?: string } | null;
+    const ids = [e?.name, e?.Code, e?.code];
+    return ids.some(
+      (id) => id === 'QueueDoesNotExist' || id === 'AWS.SimpleQueueService.NonExistentQueue',
+    );
+  }
+
+  /** PRC-L356: resolved URLs must live under the configured queueUrlPrefix. */
+  private assertUnderPrefix(url: string): string {
+    const prefix = this.config.queueUrlPrefix?.replace(/\/+$/, '');
+    if (prefix && !url.startsWith(`${prefix}/`)) {
+      throw new Error(
+        `SQSAdapter: queue URL ${url} is outside queueUrlPrefix ${prefix} (PRC-L356)`,
+      );
+    }
+    return url;
   }
 
   async connect(): Promise<void> {
@@ -217,11 +241,16 @@ export class SQSAdapter implements QueueAdapter {
 
     try {
       const result = await this.client.send(new GetQueueUrlCommand({ QueueName: sqsQueueName }));
-      const url = result.QueueUrl!;
+      const url = this.assertUnderPrefix(result.QueueUrl!);
       this.queueUrlCache.set(queueName, url);
       return url;
-    } catch {
-      // Queue doesn't exist, create it
+    } catch (error) {
+      // PRC-L356: AccessDenied / throttling / network errors must not create queues,
+      // and production relies on provisioned queues unless explicitly enabled.
+      const autoCreate = this.config.autoCreateQueues ?? !isProductionEnv();
+      if (!autoCreate || !SQSAdapter.isQueueDoesNotExist(error)) {
+        throw error;
+      }
       const isFifo = sqsQueueName.endsWith('.fifo');
       const attributes: Record<string, string> = {
         VisibilityTimeout: String(this.config.visibilityTimeout ?? 30),
@@ -240,7 +269,7 @@ export class SQSAdapter implements QueueAdapter {
         }),
       );
 
-      const url = createResult.QueueUrl!;
+      const url = this.assertUnderPrefix(createResult.QueueUrl!);
       this.queueUrlCache.set(queueName, url);
       return url;
     }
