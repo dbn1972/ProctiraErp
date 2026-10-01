@@ -15,9 +15,9 @@ export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
  * Subscribes to the OS-level `prefers-reduced-motion: reduce` media query and
  * returns `true` when the user has requested reduced motion.
  *
- * SSR-safe: when `window` is unavailable (server render, build-time, jsdom
- * without `matchMedia`) the hook returns `false` so animations render as
- * usual until hydration confirms the user preference.
+ * SSR-safe: the first render always returns `false` (on server and client
+ * alike, so hydration markup matches); the real preference is read from
+ * `matchMedia` in an effect right after mount and on every change.
  *
  * @example
  * ```tsx
@@ -26,9 +26,9 @@ export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
  * ```
  */
 export function useReducedMotion(): boolean {
-  // SSR-safe initial value: assume motion is allowed until the client tells
-  // us otherwise. This avoids hydration mismatches.
-  const [reduced, setReduced] = useState<boolean>(() => getInitialReducedMotion());
+  // Always start from `false`: reading matchMedia during render would make the
+  // client's first render differ from the server markup (hydration mismatch).
+  const [reduced, setReduced] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -37,9 +37,7 @@ export function useReducedMotion(): boolean {
 
     const mql = window.matchMedia(REDUCED_MOTION_QUERY);
 
-    // Sync initial value once on the client. The state initializer above runs
-    // during render, so on the first commit we re-read in case anything
-    // changed between mount and effect (e.g. user toggled the OS setting).
+    // Read the real preference after mount (client only).
     setReduced(mql.matches);
 
     const handleChange = (event: MediaQueryListEvent) => {
@@ -64,15 +62,4 @@ export function useReducedMotion(): boolean {
   }, []);
 
   return reduced;
-}
-
-function getInitialReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false;
-  }
-  try {
-    return window.matchMedia(REDUCED_MOTION_QUERY).matches;
-  } catch {
-    return false;
-  }
 }
