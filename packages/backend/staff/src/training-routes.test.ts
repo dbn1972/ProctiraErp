@@ -97,3 +97,116 @@ describe('PRC-L154 training list pagination bounds', () => {
     });
   });
 });
+
+const STAFF_ID = '770e8400-e29b-41d4-a716-446655440002';
+
+async function createProgram(a: FastifyInstance, overrides: Record<string, unknown> = {}) {
+  const res = await a.inject({
+    method: 'POST',
+    url: '/staff/training/programs',
+    payload: {
+      name: 'Safeguarding',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      certificationValidityDays: 30,
+      ...overrides,
+    },
+  });
+  expect(res.statusCode).toBe(201);
+  return res.json().id as string;
+}
+
+async function createSession(a: FastifyInstance, programId: string, date = '2026-03-01') {
+  const res = await a.inject({
+    method: 'POST',
+    url: '/staff/training/sessions',
+    payload: { programId, title: 'S1', date },
+  });
+  expect(res.statusCode).toBe(201);
+  return res.json().id as string;
+}
+
+describe('PRC-L155 training date/time validation', () => {
+  it('POST program with impossible date -> 400', async () => {
+    const { app: a } = await mount();
+    const res = await a.inject({
+      method: 'POST',
+      url: '/staff/training/programs',
+      payload: { name: 'X', startDate: '2026-02-31', endDate: '2026-12-31' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().errors[0].field).toBe('startDate');
+  });
+
+  it('POST session with date 2026-02-31 -> 400', async () => {
+    const { app: a } = await mount();
+    const programId = await createProgram(a);
+    const res = await a.inject({
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId, title: 'S1', date: '2026-02-31' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST session with endTime < startTime -> 400', async () => {
+    const { app: a } = await mount();
+    const programId = await createProgram(a);
+    const res = await a.inject({
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId, title: 'S1', date: '2026-03-01', startTime: '14:00', endTime: '09:30' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().errors[0].field).toBe('endTime');
+  });
+
+  it('POST session with malformed time -> 400; valid HH:MM -> 201', async () => {
+    const { app: a } = await mount();
+    const programId = await createProgram(a);
+    const bad = await a.inject({
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId, title: 'S1', date: '2026-03-01', startTime: '25:99' },
+    });
+    expect(bad.statusCode).toBe(400);
+    const ok = await a.inject({
+      method: 'POST',
+      url: '/staff/training/sessions',
+      payload: { programId, title: 'S1', date: '2026-03-01', startTime: '09:00', endTime: '10:30' },
+    });
+    expect(ok.statusCode).toBe(201);
+  });
+
+  it('leap day only in leap years; certificate dates and asOfDate are calendar-checked', async () => {
+    const { app: a } = await mount();
+    const programId = await createProgram(a);
+    const cert = (issuedDate: string) =>
+      a.inject({
+        method: 'POST',
+        url: '/staff/training/certifications',
+        payload: { staffId: STAFF_ID, programId, certificationName: 'C', issuedDate },
+      });
+    expect((await cert('2026-02-29')).statusCode).toBe(400);
+    expect((await cert('2028-02-29')).statusCode).toBe(201);
+    const expiry = await a.inject({
+      method: 'POST',
+      url: '/staff/training/certifications/process-expiry',
+      payload: { asOfDate: '2026-13-01' },
+    });
+    expect(expiry.statusCode).toBe(400);
+  });
+
+  it('PG date cast errors map to 400, not 500', async () => {
+    const { app: a, service } = await mount();
+    const pgErr = Object.assign(new Error('date/time field value out of range'), { code: '22008' });
+    service.listPrograms = () => Promise.reject(pgErr);
+    service.createProgram = () => Promise.reject(pgErr);
+    const res = await a.inject({
+      method: 'POST',
+      url: '/staff/training/programs',
+      payload: { name: 'X', startDate: '2026-01-01', endDate: '2026-02-01' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
