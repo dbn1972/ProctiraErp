@@ -32,6 +32,12 @@ export interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
   /** Callback when validation errors occur */
   onValidationError?: (errors: FileValidationError[]) => void;
+  /**
+   * Render rejected files as a visible `role="alert"` list inside the
+   * component. Defaults to `true` so validation never fails silently; set
+   * `false` only when the caller renders `onValidationError` output itself.
+   */
+  showValidationErrors?: boolean;
   /** Callback when a file is removed */
   onFileRemove?: (fileId: string) => void;
   /** Currently uploaded/uploading files */
