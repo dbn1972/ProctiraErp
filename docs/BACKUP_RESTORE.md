@@ -23,16 +23,16 @@ ProctiraERP stores data across multiple systems that must be backed up in coordi
 
 Distinguish **implemented by default executable manifests** from **aspirational / operator-owned** targets:
 
-| Capability | Default Helm chart / scripts on tip | Notes |
-| ---------- | ----------------------------------- | ----- |
-| Logical `pg_dump` CronJob | **Implemented** (`dr.backup.schedule`, default daily `0 2 * * *`) | See `infrastructure/helm/proctira-platform` |
-| On-volume retention pruning | **Implemented** (`dr.backup.retentionDays`, default **30**) | PVC copy is not offsite by itself |
-| Age/GPG encryption at rest | **Required in production** (`dr.backup.encrypt.enabled`; sandbox optional) | Fail-closed via Helm + `check-backup-prod-gate.sh` |
-| Second-copy / offsite push | **Required in production** (`dr.backup.offsite.*` + documented `s3://` URI) | PVC prune does **not** delete offsite objects |
-| Continuous WAL archiving | **Not in default chart** | Documented below as a target architecture |
-| PITR ≤ 5 minutes RPO | **Not in default chart** | Requires managed Postgres or operator WAL+basebackup stack |
-| Immutable/WORM object-lock | **Expressed in production values** (`offsite.objectLock.mode` + `retainDays`) | Bucket must be created with Object Lock; live vault **not** tip-proven |
-| Automated HA failover | **Not in default chart** | Platform/provider concern |
+| Capability                  | Default Helm chart / scripts on tip                                           | Notes                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Logical `pg_dump` CronJob   | **Implemented** (`dr.backup.schedule`, default daily `0 2 * * *`)             | See `infrastructure/helm/proctira-platform`                            |
+| On-volume retention pruning | **Implemented** (`dr.backup.retentionDays`, default **30**)                   | PVC copy is not offsite by itself                                      |
+| Age/GPG encryption at rest  | **Required in production** (`dr.backup.encrypt.enabled`; sandbox optional)    | Fail-closed via Helm + `check-backup-prod-gate.sh`                     |
+| Second-copy / offsite push  | **Required in production** (`dr.backup.offsite.*` + documented `s3://` URI)   | PVC prune does **not** delete offsite objects                          |
+| Continuous WAL archiving    | **Not in default chart**                                                      | Documented below as a target architecture                              |
+| PITR ≤ 5 minutes RPO        | **Not in default chart**                                                      | Requires managed Postgres or operator WAL+basebackup stack             |
+| Immutable/WORM object-lock  | **Expressed in production values** (`offsite.objectLock.mode` + `retainDays`) | Bucket must be created with Object Lock; live vault **not** tip-proven |
+| Automated HA failover       | **Not in default chart**                                                      | Platform/provider concern                                              |
 
 Treat §2.2–2.3 aspirational rows as planning targets unless the matching control plane is actually provisioned.
 
@@ -42,39 +42,39 @@ Treat §2.2–2.3 aspirational rows as planning targets unless the matching cont
 
 ### 2.1 Single-Node (Docker Compose) — default executable posture
 
-| Metric                             | Target             | Strategy                       |
-| ---------------------------------- | ------------------ | ------------------------------ |
-| **RPO** (Recovery Point Objective) | ≤ 24 hours         | Daily automated logical backups |
-| **RTO** (Recovery Time Objective)  | ≤ 4 hours          | Restore from backup + redeploy |
-| Backup Frequency                   | Daily at 02:00 UTC | Cron / compose job             |
+| Metric                             | Target             | Strategy                                       |
+| ---------------------------------- | ------------------ | ---------------------------------------------- |
+| **RPO** (Recovery Point Objective) | ≤ 24 hours         | Daily automated logical backups                |
+| **RTO** (Recovery Time Objective)  | ≤ 4 hours          | Restore from backup + redeploy                 |
+| Backup Frequency                   | Daily at 02:00 UTC | Cron / compose job                             |
 | Retention                          | 30 days            | Local volume; enable offsite for a second copy |
 
 ### 2.2 Kubernetes (Helm) — what the chart implements today
 
-| Metric           | Default chart reality | Strategy on tip |
-| ---------------- | --------------------- | --------------- |
-| **RPO**          | ≤ 24 hours (daily dump) | `dr.backup` CronJob logical dump |
-| **RTO**          | Operator-dependent (manual restore drill) | Restore runbook + PVC/object artifact |
-| Backup Frequency | Daily (`0 2 * * *` default) | Helm CronJob |
-| Retention        | 30 days default | `dr.backup.retentionDays`; optional offsite URI |
+| Metric           | Default chart reality                     | Strategy on tip                                 |
+| ---------------- | ----------------------------------------- | ----------------------------------------------- |
+| **RPO**          | ≤ 24 hours (daily dump)                   | `dr.backup` CronJob logical dump                |
+| **RTO**          | Operator-dependent (manual restore drill) | Restore runbook + PVC/object artifact           |
+| Backup Frequency | Daily (`0 2 * * *` default)               | Helm CronJob                                    |
+| Retention        | 30 days default                           | `dr.backup.retentionDays`; optional offsite URI |
 
 #### 2.2.1 Kubernetes target architecture (not default chart)
 
-| Metric           | Planning target                         | Requires outside default chart              |
-| ---------------- | --------------------------------------- | ------------------------------------------- |
-| **RPO**          | ≤ 1 hour                                | Continuous WAL archiving + base backups     |
-| **RTO**          | ≤ 30 minutes                            | Automated failover tooling (e.g. Velero + HA Postgres operator) |
-| Backup Frequency | Continuous WAL + hourly snapshots       | Operator-managed WAL archive + snapshot tool |
-| Retention        | 90 days                                 | Object-storage lifecycle policies            |
+| Metric           | Planning target                   | Requires outside default chart                                  |
+| ---------------- | --------------------------------- | --------------------------------------------------------------- |
+| **RPO**          | ≤ 1 hour                          | Continuous WAL archiving + base backups                         |
+| **RTO**          | ≤ 30 minutes                      | Automated failover tooling (e.g. Velero + HA Postgres operator) |
+| Backup Frequency | Continuous WAL + hourly snapshots | Operator-managed WAL archive + snapshot tool                    |
+| Retention        | 90 days                           | Object-storage lifecycle policies                               |
 
 ### 2.3 Managed Cloud (RDS/Aurora + S3) — provider-owned target
 
-| Metric           | Target (when using managed PITR)                        | Strategy                                    |
-| ---------------- | ------------------------------------------------------- | ------------------------------------------- |
-| **RPO**          | ≤ 5 minutes (provider PITR window)                      | Cloud continuous backup                     |
-| **RTO**          | ≤ 15 minutes (typical provider failover)                | Automated failover + replica promotion      |
-| Backup Frequency | Continuous                                              | AWS/GCP managed                             |
-| Retention        | Provider default (often ~35 days) + manual snapshots    | Cloud provider                              |
+| Metric           | Target (when using managed PITR)                     | Strategy                               |
+| ---------------- | ---------------------------------------------------- | -------------------------------------- |
+| **RPO**          | ≤ 5 minutes (provider PITR window)                   | Cloud continuous backup                |
+| **RTO**          | ≤ 15 minutes (typical provider failover)             | Automated failover + replica promotion |
+| Backup Frequency | Continuous                                           | AWS/GCP managed                        |
+| Retention        | Provider default (often ~35 days) + manual snapshots | Cloud provider                         |
 
 These managed-cloud numbers apply only when the deployment actually uses RDS/Aurora (or equivalent) PITR — they are **not** implied by the in-cluster Helm CronJob alone.
 
@@ -204,13 +204,13 @@ configured. **Production** (`values-production.yaml` +
 and offsite disabled. CI gate: `tools/scripts/check-backup-prod-gate.sh`
 (also invoked from `helm-template-check.sh`).
 
-| Control | Production | Sandbox |
-| ------- | ---------- | ------- |
-| `dr.backup.encrypt.enabled` | **true** (fail closed) | optional |
-| `dr.backup.offsite.enabled` + `uri` | **true** + `s3://proctira-prod-pg-backups/logical/` | optional |
-| `offsite.objectLock.mode` | **GOVERNANCE** or **COMPLIANCE** | optional / empty |
-| `objectLock.retainDays` | **≥ `retentionDays`** (independent of PVC prune) | optional |
-| Live vault upload / restore from offsite | **Operator evidence** — not claimed by tip alone | N/A |
+| Control                                  | Production                                          | Sandbox          |
+| ---------------------------------------- | --------------------------------------------------- | ---------------- |
+| `dr.backup.encrypt.enabled`              | **true** (fail closed)                              | optional         |
+| `dr.backup.offsite.enabled` + `uri`      | **true** + `s3://proctira-prod-pg-backups/logical/` | optional         |
+| `offsite.objectLock.mode`                | **GOVERNANCE** or **COMPLIANCE**                    | optional / empty |
+| `objectLock.retainDays`                  | **≥ `retentionDays`** (independent of PVC prune)    | optional         |
+| Live vault upload / restore from offsite | **Operator evidence** — not claimed by tip alone    | N/A              |
 
 **Encrypt with age (recommended):**
 
@@ -509,14 +509,14 @@ not durable in-repo proof. After a successful local or CI drill, commit a dated
 pack under `docs/audits/evidence/restore-drill-YYYYMMDD.json`. Required fields
 (fail closed):
 
-| Field | Requirement |
-| ----- | ----------- |
-| `timestamp` (or `localDrill.timestamp` / `recordedAt`) | Non-empty ISO-8601 or `YYYYMMDDTHHMMSSZ` |
-| `encryption.method` | Non-empty string (e.g. `age`, `none`) |
-| `encryption.ciRoundTripProven` | Boolean (CI age round-trip ≠ prod at-rest) |
-| `offsiteTarget.uri` | String or `null` |
-| `offsiteTarget.configured` / `exercised` | Booleans |
-| `claimsProductionRestore` | Must be explicitly `false` |
+| Field                                                  | Requirement                                |
+| ------------------------------------------------------ | ------------------------------------------ |
+| `timestamp` (or `localDrill.timestamp` / `recordedAt`) | Non-empty ISO-8601 or `YYYYMMDDTHHMMSSZ`   |
+| `encryption.method`                                    | Non-empty string (e.g. `age`, `none`)      |
+| `encryption.ciRoundTripProven`                         | Boolean (CI age round-trip ≠ prod at-rest) |
+| `offsiteTarget.uri`                                    | String or `null`                           |
+| `offsiteTarget.configured` / `exercised`               | Booleans                                   |
+| `claimsProductionRestore`                              | Must be explicitly `false`                 |
 
 Also required: mode / row counts / CI run URL / `scriptsExercised` (existing
 P0-13 checks). Current pack:
@@ -562,27 +562,27 @@ path unless marked aspirational. They are not automated SLOs.
 
 ### Scenario B: Database Corruption
 
-| Step | Action                                                        | Expected RTO         |
-| ---- | ------------------------------------------------------------- | -------------------- |
-| 1    | Detect via monitoring alert                                   | < 5 minutes          |
-| 2a   | **Implemented:** restore latest logical dump (`pg-restore.sh`)| 30–90 minutes        |
-| 2b   | *Aspirational:* failover to read replica / PITR (if operator-owned) | varies          |
-| 3    | Verify data integrity (counts / smoke)                        | 5–15 minutes         |
-| 4    | Resume normal operations                                      | Total often 1–2 hours|
+| Step | Action                                                              | Expected RTO          |
+| ---- | ------------------------------------------------------------------- | --------------------- |
+| 1    | Detect via monitoring alert                                         | < 5 minutes           |
+| 2a   | **Implemented:** restore latest logical dump (`pg-restore.sh`)      | 30–90 minutes         |
+| 2b   | _Aspirational:_ failover to read replica / PITR (if operator-owned) | varies                |
+| 3    | Verify data integrity (counts / smoke)                              | 5–15 minutes          |
+| 4    | Resume normal operations                                            | Total often 1–2 hours |
 
 Data lost on the implemented path is bounded by the last successful daily dump
 (plus any newer offsite copy), i.e. up to ~24 h RPO — not WAL PITR.
 
 ### Scenario C: Complete Infrastructure Loss
 
-| Step | Action                                   | Expected RTO             |
-| ---- | ---------------------------------------- | ------------------------ |
-| 1    | Provision new infrastructure (Terraform) | 10–20 minutes            |
-| 2    | Deploy platform (Helm/Docker Compose)    | 5–10 minutes             |
-| 3    | Restore database from logical backup     | 15–60 minutes            |
-| 4    | Restore object storage (operator-owned)  | 10–30 minutes            |
-| 5    | Verify and resume                        | 10 minutes               |
-|      | **Total**                                | **~1–2 hours typical**   |
+| Step | Action                                   | Expected RTO           |
+| ---- | ---------------------------------------- | ---------------------- |
+| 1    | Provision new infrastructure (Terraform) | 10–20 minutes          |
+| 2    | Deploy platform (Helm/Docker Compose)    | 5–10 minutes           |
+| 3    | Restore database from logical backup     | 15–60 minutes          |
+| 4    | Restore object storage (operator-owned)  | 10–30 minutes          |
+| 5    | Verify and resume                        | 10 minutes             |
+|      | **Total**                                | **~1–2 hours typical** |
 
 ### Scenario D: Ransomware/Security Breach
 
@@ -602,12 +602,12 @@ Data lost on the implemented path is bounded by the last successful daily dump
 
 ### 9.1 Implemented (shipped scripts / Helm defaults)
 
-| Backup Type                         | Retention                     | Where                                      |
-| ----------------------------------- | ----------------------------- | ------------------------------------------ |
-| Daily logical dumps (`pg-backup.sh`)| 30 days (`dr.backup.retentionDays` / `BACKUP_RETENTION_DAYS`) | Backups PVC |
-| Offsite encrypted copy (prod)       | ≥ PVC days via `objectLock.retainDays` (WORM) | Documented `s3://` URI; **independent** of PVC prune |
-| Pre-upgrade / ad-hoc dumps          | Operator-managed              | Same volume / offsite prefix               |
-| Restore-drill CI artifacts          | 90 days (GitHub Actions)      | Workflow artifact only — not production DR |
+| Backup Type                          | Retention                                                     | Where                                                |
+| ------------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------- |
+| Daily logical dumps (`pg-backup.sh`) | 30 days (`dr.backup.retentionDays` / `BACKUP_RETENTION_DAYS`) | Backups PVC                                          |
+| Offsite encrypted copy (prod)        | ≥ PVC days via `objectLock.retainDays` (WORM)                 | Documented `s3://` URI; **independent** of PVC prune |
+| Pre-upgrade / ad-hoc dumps           | Operator-managed                                              | Same volume / offsite prefix                         |
+| Restore-drill CI artifacts           | 90 days (GitHub Actions)                                      | Workflow artifact only — not production DR           |
 
 `pg-backup.sh` retention prune only deletes under `BACKUP_DIR` (PVC). Offsite
 objects are retained independently. Production Object Lock
@@ -617,11 +617,11 @@ creation and align lifecycle policies.
 
 ### 9.2 Aspirational (not shipped)
 
-| Backup Type           | Example retention             | Notes                                    |
-| --------------------- | ----------------------------- | ---------------------------------------- |
-| Hourly WAL archives   | 7 days                        | Needs §3.3 WAL pipeline                  |
-| Weekly / monthly tiers| 90 days / 1 year              | Needs separate schedules + lifecycle     |
-| Compliance archives   | multi-year / Glacier          | Legal hold — outside this chart          |
+| Backup Type            | Example retention    | Notes                                |
+| ---------------------- | -------------------- | ------------------------------------ |
+| Hourly WAL archives    | 7 days               | Needs §3.3 WAL pipeline              |
+| Weekly / monthly tiers | 90 days / 1 year     | Needs separate schedules + lifecycle |
+| Compliance archives    | multi-year / Glacier | Legal hold — outside this chart      |
 
 ---
 
@@ -629,23 +629,23 @@ creation and align lifecycle policies.
 
 Variables actually read by `pg-backup.sh` / Helm CronJob (not legacy aliases):
 
-| Variable                   | Description                                      | Default / Helm                          |
-| -------------------------- | ------------------------------------------------ | --------------------------------------- |
-| `DATABASE_URL`             | BYPASSRLS backup role URL                        | Secret `BACKUP_DATABASE_URL`            |
-| `BACKUP_DIR`               | Dump directory                                   | `/backups` (CronJob)                    |
-| `BACKUP_RETENTION_DAYS`    | Prune artifacts older than N days                | `30` (`dr.backup.retentionDays`)        |
-| `BACKUP_AGE_RECIPIENT`     | age public key — encrypt dumps at rest           | Secret when `dr.backup.encrypt.enabled` |
-| `BACKUP_AGE_IDENTITY_FILE` | age private key file for restore                 | —                                       |
-| `BACKUP_AGE_IDENTITY`      | age private key inline (optional)                | —                                       |
-| `BACKUP_GPG_RECIPIENT`     | GPG recipient — encrypt dumps at rest            | —                                       |
-| `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | set by CronJob when encrypt enabled     |
-| `BACKUP_ALLOW_PLAINTEXT`   | `1` keeps an unencrypted dump; otherwise refused (PRC-L383) | CronJob sets it only when encrypt is disabled (non-prod) |
-| `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | `dr.backup.offsite.uri`                 |
-| `BACKUP_REQUIRE_OFFSITE`   | Fail if offsite URI missing (`1` / `true`)       | set when `offsite.enabled`              |
-| `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)  | `dr.backup.offsite.sse`                 |
-| `BACKUP_S3_SSE_KMS_KEY_ID` | KMS key when `BACKUP_S3_SSE=aws:kms`             | `dr.backup.offsite.sseKmsKeyId`         |
-| `BACKUP_S3_OBJECT_LOCK_MODE` | `GOVERNANCE` / `COMPLIANCE`                    | `dr.backup.offsite.objectLock.mode`     |
-| `BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS` | Object Lock retain-until days             | `dr.backup.offsite.objectLock.retainDays` |
+| Variable                            | Description                                                 | Default / Helm                                           |
+| ----------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| `DATABASE_URL`                      | BYPASSRLS backup role URL                                   | Secret `BACKUP_DATABASE_URL`                             |
+| `BACKUP_DIR`                        | Dump directory                                              | `/backups` (CronJob)                                     |
+| `BACKUP_RETENTION_DAYS`             | Prune artifacts older than N days                           | `30` (`dr.backup.retentionDays`)                         |
+| `BACKUP_AGE_RECIPIENT`              | age public key — encrypt dumps at rest                      | Secret when `dr.backup.encrypt.enabled`                  |
+| `BACKUP_AGE_IDENTITY_FILE`          | age private key file for restore                            | —                                                        |
+| `BACKUP_AGE_IDENTITY`               | age private key inline (optional)                           | —                                                        |
+| `BACKUP_GPG_RECIPIENT`              | GPG recipient — encrypt dumps at rest                       | —                                                        |
+| `BACKUP_ENCRYPT`                    | Require encryption keys (`1` / `true`)                      | set by CronJob when encrypt enabled                      |
+| `BACKUP_ALLOW_PLAINTEXT`            | `1` keeps an unencrypted dump; otherwise refused (PRC-L383) | CronJob sets it only when encrypt is disabled (non-prod) |
+| `BACKUP_OFFSITE_URI`                | Offsite destination (`s3://bucket/prefix/`)                 | `dr.backup.offsite.uri`                                  |
+| `BACKUP_REQUIRE_OFFSITE`            | Fail if offsite URI missing (`1` / `true`)                  | set when `offsite.enabled`                               |
+| `BACKUP_S3_SSE`                     | S3 server-side encryption (`AES256`, `aws:kms`)             | `dr.backup.offsite.sse`                                  |
+| `BACKUP_S3_SSE_KMS_KEY_ID`          | KMS key when `BACKUP_S3_SSE=aws:kms`                        | `dr.backup.offsite.sseKmsKeyId`                          |
+| `BACKUP_S3_OBJECT_LOCK_MODE`        | `GOVERNANCE` / `COMPLIANCE`                                 | `dr.backup.offsite.objectLock.mode`                      |
+| `BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS` | Object Lock retain-until days                               | `dr.backup.offsite.objectLock.retainDays`                |
 
 Schedule is Helm `dr.backup.schedule` (default `0 2 * * *`), not an env var.
 Enable/disable is `dr.enabled` + `dr.backup.enabled` in values.
