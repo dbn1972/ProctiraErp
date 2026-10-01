@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { allowContactRequest } from '@/lib/contact-rate-limit';
+import { allowContactRequest, resolveClientKey } from '@/lib/contact-rate-limit';
 import { validateContactInput } from '@/lib/contact-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function clientKey(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0]?.trim() || 'unknown';
-  }
-  return request.headers.get('x-real-ip') ?? 'unknown';
-}
 
 async function forwardToWebhook(payload: {
   name: string;
@@ -66,7 +58,7 @@ async function forwardToWebhook(payload: {
  * emits a structured log entry without echoing the message body.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  if (!allowContactRequest(clientKey(request))) {
+  if (!allowContactRequest(resolveClientKey(request.headers))) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 },
