@@ -81,18 +81,23 @@ const tracingPluginImpl: FastifyPluginAsync<TracingPluginOptions> = async (
     fastify.decorateRequest('otelContext', undefined);
   }
 
-  fastify.addHook('onRequest', async (request: FastifyRequest) => {
+  // Spans ended via onRequestAbort must not be ended again in onResponse.
+  const ended = new WeakSet<Span>();
+
+  fastify.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done) => {
     const path = pathOnly(request.url || '/');
-    if (ignored.has(path) || ignored.has(request.url)) return;
+    if (ignored.has(path) || ignored.has(request.url)) return done();
 
     const parentCtx = propagation.extract(context.active(), headerCarrier(request), {
       get(carrier, key) {
+        // PRC-L354: inbound baggage is untrusted client input — strip it at the edge.
+        if (key.toLowerCase() === 'baggage') return undefined;
         const v = carrier[key] ?? carrier[key.toLowerCase()];
         if (Array.isArray(v)) return v.join(',');
         return typeof v === 'string' ? v : undefined;
       },
       keys(carrier) {
-        return Object.keys(carrier);
+        return Object.keys(carrier).filter((k) => k.toLowerCase() !== 'baggage');
       },
     });
 
@@ -112,11 +117,30 @@ const tracingPluginImpl: FastifyPluginAsync<TracingPluginOptions> = async (
     const spanCtx = trace.setSpan(parentCtx, span);
     request.otelSpan = span;
     request.otelContext = spanCtx;
+    // PRC-L354: continue the lifecycle with the SERVER span active.
+    context.with(spanCtx, done);
+  });
+
+  // Body parsing (stream events) can lose the async context; re-enter it right
+  // before the handler so spans created in route code parent to the SERVER span.
+  fastify.addHook('preHandler', (request: FastifyRequest, _reply: FastifyReply, done) => {
+    if (!request.otelContext) return done();
+    context.with(request.otelContext, done);
+  });
+
+  // PRC-L354: client aborted — onResponse never fires, so end the span here.
+  fastify.addHook('onRequestAbort', async (request: FastifyRequest) => {
+    const span = request.otelSpan;
+    if (!span || ended.has(span)) return;
+    span.setAttribute('http.route', getRouteTemplate(request));
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'request aborted' });
+    ended.add(span);
+    span.end();
   });
 
   fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
     const span = request.otelSpan;
-    if (!span) return;
+    if (!span || ended.has(span)) return;
 
     const route = getRouteTemplate(request);
     span.setAttribute('http.route', route);
@@ -141,6 +165,8 @@ const tracingPluginImpl: FastifyPluginAsync<TracingPluginOptions> = async (
     if (carrier['tracestate']) {
       void reply.header('tracestate', carrier['tracestate']);
     }
+
+    ended.add(span);
 
     span.end();
   });

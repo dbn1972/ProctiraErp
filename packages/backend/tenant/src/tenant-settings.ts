@@ -70,7 +70,10 @@ export class InMemoryTenantSettingsStore implements TenantSettingsStore {
 export class PgTenantSettingsStore implements TenantSettingsStore {
   private readonly docs: PgDocumentCollection<TenantSettingsRecord>;
   constructor(pool: PgPoolWithConnect | PgQueryable) {
-    this.docs = new PgDocumentCollection<TenantSettingsRecord>(pool, 'tenant.settings');
+    // PRC-L352: record is plain JSON (updatedAt is typed string) — never revive dates.
+    this.docs = new PgDocumentCollection<TenantSettingsRecord>(pool, 'tenant.settings', {
+      reviveDates: false,
+    });
   }
   async get(tenantId: string): Promise<TenantSettingsRecord | null> {
     const doc = await this.docs.get(tenantId);

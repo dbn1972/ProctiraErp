@@ -61,8 +61,7 @@ export interface TenantResolutionOptions {
   requireJwtTenantWhenAuthenticated?: boolean;
 }
 
-const DEFAULT_OPTIONS: Required<TenantResolutionOptions> = {
-  baseDomain: process.env['TENANT_BASE_DOMAIN'] || 'proctira.org',
+const DEFAULT_OPTIONS: Omit<Required<TenantResolutionOptions>, 'baseDomain'> = {
   headerName: 'x-tenant-id',
   jwtClaimField: 'tenantId',
   requireUuid: true,
@@ -112,17 +111,32 @@ function resolveFromHeader(request: FastifyRequest, headerName: string): string 
  * - Host is the base domain itself (no subdomain)
  * - Host is localhost or an IP address
  */
+function parseHostname(host: string): string | undefined {
+  try {
+    return new URL(`http://${host}`).hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Base domain is read at call time so env set after import is honoured (PRC-L150). */
+function defaultBaseDomain(): string {
+  return process.env['TENANT_BASE_DOMAIN'] || 'proctira.org';
+}
+
 function resolveFromSubdomain(request: FastifyRequest, baseDomain: string): string | undefined {
   const host = request.hostname || request.headers['host'];
   if (!host || typeof host !== 'string') return undefined;
 
-  // Strip port if present
-  const hostname = host.split(':')[0]!;
+  // Strip port via URL parsing so bracketed IPv6 hosts (`[::1]:3000`) work (PRC-L150)
+  const hostname = parseHostname(host);
+  if (!hostname) return undefined;
 
   // Skip localhost and IP addresses
   if (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
+    hostname.startsWith('[') ||
     /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
   ) {
     return undefined;
@@ -169,7 +183,11 @@ export function resolveTenantId(
   request: FastifyRequest,
   options?: TenantResolutionOptions,
 ): TenantResolutionResult {
-  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const opts = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    baseDomain: options?.baseDomain || defaultBaseDomain(),
+  };
   const authenticated = isAuthenticatedRequest(request);
 
   const jwtTenantId = resolveFromJwt(request, opts.jwtClaimField);

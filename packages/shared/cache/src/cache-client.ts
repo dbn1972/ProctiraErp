@@ -11,6 +11,7 @@ import Redis from 'ioredis';
 
 import {
   assertTenantScopedCacheKey,
+  assertTenantScopedCachePattern,
   shouldRequireTenantScopedCacheKeys,
 } from './tenant-scope.js';
 
@@ -153,6 +154,11 @@ export class CacheClient {
    * (e.g. `t:acme:student:*`).
    */
   async invalidatePattern(pattern: string): Promise<number> {
+    // PRC-L146: a tenant-prefixed pattern (or any pattern under enforcement) must carry a
+    // literal tenant segment — `t:*:student:*` would SCAN/DEL across every tenant.
+    if (this.requireTenantScope || /^(?:t|cfg|lst|tenant):/.test(pattern)) {
+      assertTenantScopedCachePattern(pattern, 'CacheClient.invalidatePattern');
+    }
     this.assertKey(pattern.replace(/\*/g, 'x'));
     if (!this.redis) return 0;
 

@@ -215,15 +215,8 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     requestsInFlight.dec({ service: serviceName });
   });
 
-  // If a request errors out before onResponse, ensure in-flight is decremented.
-  fastify.addHook('onError', async (request: FastifyRequest) => {
-    if (ignored.has(request.url)) return;
-    if (typeof request.metricsStart === 'number') {
-      // We will still decrement once in onResponse — guard so we don't double-dec.
-      // Mark already-handled by clearing the start timestamp.
-      // (onResponse fires after onError in Fastify v4.)
-    }
-  });
+  // onError needs no metrics hook: onResponse still fires after onError and does the
+  // in-flight decrement (the former empty onError hook was removed — PRC-L354).
 
   // Expose Prometheus metrics endpoint (W1-SEC-07 guarded).
   fastify.route({

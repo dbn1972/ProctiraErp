@@ -24,7 +24,37 @@ export interface CreateLoggerOptions {
   context?: LogContext;
   /** Enable pretty printing (defaults to true when NODE_ENV=development) */
   pretty?: boolean;
+  /** Extra pino redact paths, merged with {@link DEFAULT_REDACT_PATHS}. */
+  redactPaths?: string[];
+  /** Optional destination stream (tests / custom sinks). Ignored when pretty printing. */
+  destination?: pino.DestinationStream;
 }
+
+/**
+ * PRC-L353 — secrets/credentials that must never reach log sinks.
+ * Covers top-level and one-level-nested fields plus request header shapes.
+ */
+export const DEFAULT_REDACT_PATHS: readonly string[] = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'headers.authorization',
+  'headers.cookie',
+  'headers["set-cookie"]',
+  'password',
+  'token',
+  'otp',
+  'secret',
+  'accessToken',
+  'refreshToken',
+  '*.password',
+  '*.token',
+  '*.otp',
+  '*.secret',
+  '*.accessToken',
+  '*.refreshToken',
+  '*.authorization',
+  '*.cookie',
+];
 
 /**
  * Creates a configured Pino logger with structured JSON output,
@@ -40,7 +70,14 @@ export interface CreateLoggerOptions {
  * 2. NODE_ENV is 'development' (and pretty is not explicitly false)
  */
 export function createLogger(options: CreateLoggerOptions = {}): Logger {
-  const { name, level = process.env['LOG_LEVEL'] || 'info', context = {}, pretty } = options;
+  const {
+    name,
+    level = process.env['LOG_LEVEL'] || 'info',
+    context = {},
+    pretty,
+    redactPaths = [],
+    destination,
+  } = options;
 
   const isDevelopment = process.env['NODE_ENV'] === 'development';
   const usePretty = pretty ?? isDevelopment;
@@ -49,6 +86,7 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     level,
     ...(name && { name }),
     timestamp: pino.stdTimeFunctions.isoTime,
+    redact: { paths: [...DEFAULT_REDACT_PATHS, ...redactPaths], censor: '[Redacted]' },
     formatters: {
       level(label) {
         return { level: label };
@@ -85,7 +123,7 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     }
   }
 
-  const logger = pino(pinoOptions);
+  const logger = destination && !usePretty ? pino(pinoOptions, destination) : pino(pinoOptions);
 
   // Return a child logger with context bindings if any exist
   if (Object.keys(bindings).length > 0) {
