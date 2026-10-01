@@ -21,12 +21,11 @@
  * Async announcement (Design L): polite on loading→loaded.
  */
 
+import { Skeleton } from '@proctira/ui-components';
 import type { ReactNode } from 'react';
 
-import { Skeleton } from '@proctira/ui-components';
-
-import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
 
 export type TimelineItemStatus = 'completed' | 'active' | 'upcoming' | 'cancelled';
 
@@ -238,7 +237,14 @@ export function TimelineSchedule({
                               {item.description}
                             </p>
                           ) : null}
-                          <span className="sr-only">Status: {tone.label}</span>
+                          {/* Visible text so status is never conveyed by dot colour alone (WCAG 1.4.1). */}
+                          <p
+                            className="text-xs text-[hsl(var(--muted-foreground))]"
+                            data-testid="timeline-item-status"
+                          >
+                            <span className="sr-only">Status: </span>
+                            <span className="capitalize">{tone.label}</span>
+                          </p>
                         </div>
                       </div>
                     </li>
