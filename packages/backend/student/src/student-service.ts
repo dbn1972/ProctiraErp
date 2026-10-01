@@ -14,6 +14,7 @@ import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { admissionNoOf } from './admission-number.js';
 import { dateOfBirthError } from './date-of-birth.js';
 import type { CreateStudentInput, MergeStudentsInput, UpdateStudentInput } from './schemas.js';
 import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
@@ -166,7 +167,27 @@ export class StudentService {
     }
     if (input.identityDocuments !== undefined)
       updateData.identityDocuments = input.identityDocuments;
-    if (input.customData !== undefined) updateData.customData = input.customData;
+    if (input.customData !== undefined) {
+      // PRC-L365: PATCH semantics for custom fields; the issued admission number
+      // survives updates that omit it, and both aliases stay in sync.
+      const mergedCustom: Record<string, unknown> = {
+        ...(existing.customData ?? {}),
+        ...input.customData,
+      };
+      const explicitNo =
+        'admissionNo' in input.customData
+          ? input.customData['admissionNo']
+          : input.customData['admissionNumber'];
+      const admissionNo =
+        typeof explicitNo === 'string' && explicitNo.trim()
+          ? explicitNo.trim()
+          : admissionNoOf(existing.customData);
+      if (admissionNo) {
+        mergedCustom['admissionNo'] = admissionNo;
+        mergedCustom['admissionNumber'] = admissionNo;
+      }
+      updateData.customData = mergedCustom;
+    }
 
     const updated = await this.repository.update(id, tenantId, updateData);
     if (!updated) {
