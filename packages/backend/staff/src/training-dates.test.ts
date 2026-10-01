@@ -3,7 +3,9 @@
  * program range edits cannot orphan sessions; explicit one-active-cert re-issue rule.
  */
 import { BusinessRuleError, ConflictError } from '@proctira/common';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+
+import { describe, expect, it } from 'vitest';
 
 import {
   InMemoryCertificationRepository,
@@ -26,23 +28,29 @@ function newService() {
 }
 
 describe('PRC-L361 certificate expiry across DST', () => {
-  const originalTz = process.env.TZ;
-  beforeEach(() => {
-    process.env.TZ = 'America/New_York';
-  });
-  afterEach(() => {
-    process.env.TZ = originalTz;
+  // process.env.TZ cannot be switched inside a vitest worker thread, so evaluate the real
+  // helper in a child Node process started with TZ=America/New_York.
+  function inNewYork(expr: string): string {
+    const code = `const addUtcDays = ${addUtcDays.toString()}; process.stdout.write(String(${expr}));`;
+    return execFileSync(process.execPath, ['-e', code], {
+      env: { ...process.env, TZ: 'America/New_York' },
+      encoding: 'utf8',
+    });
+  }
+
+  it('child process really runs in a DST-observing zone (sanity)', () => {
+    expect(inNewYork("new Date('2026-03-01T12:00:00Z').getTimezoneOffset()")).toBe('300');
   });
 
-  it('addUtcDays is exact across the US spring-forward and fall-back boundaries', () => {
-    expect(addUtcDays('2026-03-07', 1)).toBe('2026-03-08');
-    expect(addUtcDays('2026-03-07', 2)).toBe('2026-03-09');
-    expect(addUtcDays('2026-10-31', 2)).toBe('2026-11-02');
-    expect(addUtcDays('2026-01-01', 365)).toBe('2027-01-01');
-    expect(addUtcDays('2028-02-28', 1)).toBe('2028-02-29');
+  it('addUtcDays is exact across US spring-forward and fall-back (TZ=America/New_York)', () => {
+    expect(inNewYork("addUtcDays('2026-03-01', 10)")).toBe('2026-03-11');
+    expect(inNewYork("addUtcDays('2026-03-07', 2)")).toBe('2026-03-09');
+    expect(inNewYork("addUtcDays('2026-10-31', 2)")).toBe('2026-11-02');
+    expect(inNewYork("addUtcDays('2026-01-01', 365)")).toBe('2027-01-01');
+    expect(inNewYork("addUtcDays('2028-02-28', 1)")).toBe('2028-02-29');
   });
 
-  it('issued cert expiry = issuedDate + N days exactly (TZ=America/New_York, across DST)', async () => {
+  it('service derives expiry as issuedDate + N calendar days', async () => {
     const service = newService();
     const program = await service.createProgram(TENANT, {
       name: 'First aid',
