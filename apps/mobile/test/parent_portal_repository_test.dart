@@ -48,28 +48,31 @@ DioParentPortalRepository _repo(_ScriptedAdapter adapter) {
 }
 
 void main() {
-  test('listChildren reads the session route and does not send a tenant id', () async {
-    final _ScriptedAdapter adapter = _ScriptedAdapter(<String, _Reply>{
-      '/api/v1/parent-portal/children': const _Reply(
-        '{"data":[{"id":"link-1","studentId":"stu-1","relationship":"mother","status":"active","studentName":"Amina Hassan","className":"Grade 4"}]}',
-      ),
-    });
+  test(
+    'listChildren reads the session route and does not send a tenant id',
+    () async {
+      final _ScriptedAdapter adapter = _ScriptedAdapter(<String, _Reply>{
+        '/api/v1/parent-portal/children': const _Reply(
+          '{"data":[{"id":"link-1","studentId":"stu-1","relationship":"mother","status":"active","studentName":"Amina Hassan","className":"Grade 4"}]}',
+        ),
+      });
 
-    final List<LinkedChild> children = await _repo(adapter).listChildren();
+      final List<LinkedChild> children = await _repo(adapter).listChildren();
 
-    expect(children, hasLength(1));
-    expect(children.single.nameLabel, 'Amina Hassan');
-    expect(children.single.classLabel, 'Grade 4');
-    expect(children.single.studentId, 'stu-1');
-    expect(adapter.calls, hasLength(1));
-    final RequestOptions request = adapter.calls.single;
-    expect(request.path, '/api/v1/parent-portal/children');
-    expect(request.method, 'GET');
-    expect(request.data, isNull);
-    expect(request.queryParameters.containsKey('tenantId'), isFalse);
-    expect(request.headers['X-Tenant-ID'], isNull);
-    expect(request.headers['Authorization'], isNull);
-  });
+      expect(children, hasLength(1));
+      expect(children.single.nameLabel, 'Amina Hassan');
+      expect(children.single.classLabel, 'Grade 4');
+      expect(children.single.studentId, 'stu-1');
+      expect(adapter.calls, hasLength(1));
+      final RequestOptions request = adapter.calls.single;
+      expect(request.path, '/api/v1/parent-portal/children');
+      expect(request.method, 'GET');
+      expect(request.data, isNull);
+      expect(request.queryParameters.containsKey('tenantId'), isFalse);
+      expect(request.headers['X-Tenant-ID'], isNull);
+      expect(request.headers['Authorization'], isNull);
+    },
+  );
 
   test('listChildren fills name and class from student and timetable', () async {
     final _ScriptedAdapter adapter = _ScriptedAdapter(<String, _Reply>{
@@ -153,16 +156,23 @@ void main() {
     });
     final DioParentPortalRepository repo = _repo(adapter);
 
-    final List<ParentMessageThread> threads =
-        await repo.listThreads(studentId: 'stu-1');
-    final List<ParentConsent> consents =
-        await repo.listConsents(studentId: 'stu-1');
-    final List<ParentInvoice> invoices =
-        await repo.listInvoices(studentId: 'stu-1');
+    final List<ParentMessageThread> threads = await repo.listThreads(
+      studentId: 'stu-1',
+    );
+    final List<ParentConsent> consents = await repo.listConsents(
+      studentId: 'stu-1',
+    );
+    final List<ParentInvoice> invoices = await repo.listInvoices(
+      studentId: 'stu-1',
+    );
 
-    expect(threads.map((ParentMessageThread row) => row.subject), <String>['Trip']);
-    expect(consents.map((ParentConsent row) => row.title), <String>['Photo day']);
-    expect(invoices.single.amountLabel, 'KES 1500.50');
+    expect(threads.map((ParentMessageThread row) => row.subject), <String>[
+      'Trip',
+    ]);
+    expect(consents.map((ParentConsent row) => row.title), <String>[
+      'Photo day',
+    ]);
+    expect(invoices.single.amountLabel, 'Ksh1,500.50');
     for (final RequestOptions call in adapter.calls) {
       expect(call.queryParameters.containsKey('tenantId'), isFalse);
       expect(call.queryParameters['scope'], isNot('staff'));
@@ -178,4 +188,25 @@ void main() {
     expect(await _repo(adapter).listChildren(), isEmpty);
     expect(adapter.calls, hasLength(1));
   });
+  test(
+    'invoice with missing or non-numeric amount is flagged, not zeroed (PRC-L012)',
+    () async {
+      final _ScriptedAdapter adapter = _ScriptedAdapter(<String, _Reply>{
+        '/api/v1/parent-portal/fees/invoices': const _Reply(
+          '{"data":['
+          '{"id":"i-1","studentId":"stu-1","title":"No amount","status":"issued","currency":"INR"},'
+          '{"id":"i-2","studentId":"stu-1","title":"Bad amount","status":"issued","amountCents":"abc","currency":"INR"}'
+          ']}',
+        ),
+      });
+      final List<ParentInvoice> invoices = await _repo(
+        adapter,
+      ).listInvoices(studentId: 'stu-1');
+      expect(invoices, hasLength(2));
+      for (final ParentInvoice invoice in invoices) {
+        expect(invoice.amountCents, isNull);
+        expect(invoice.amountLabel, 'Amount unavailable');
+      }
+    },
+  );
 }

@@ -37,7 +37,9 @@ class DioParentPortalRepository implements ParentPortalRepository {
   @override
   Future<List<LinkedChild>> listChildren() async {
     final List<Map<String, dynamic>> rows = await _getList('$_prefix/children');
-    final List<LinkedChild> links = rows.map(_parseLink).toList(growable: false);
+    final List<LinkedChild> links = rows
+        .map(_parseLink)
+        .toList(growable: false);
     final List<LinkedChild> enriched = await Future.wait(
       links.map(_enrichChild),
     );
@@ -49,8 +51,9 @@ class DioParentPortalRepository implements ParentPortalRepository {
     required String studentId,
   }) async {
     final String id = _requireStudentId(studentId);
-    final List<Map<String, dynamic>> rows =
-        await _getList('$_prefix/messages/threads');
+    final List<Map<String, dynamic>> rows = await _getList(
+      '$_prefix/messages/threads',
+    );
     return rows
         .map(_parseThread)
         .where((ParentMessageThread thread) => thread.studentId == id)
@@ -70,8 +73,9 @@ class DioParentPortalRepository implements ParentPortalRepository {
   @override
   Future<List<ParentInvoice>> listInvoices({required String studentId}) async {
     final String id = _requireStudentId(studentId);
-    final List<Map<String, dynamic>> rows =
-        await _getList('$_prefix/fees/invoices');
+    final List<Map<String, dynamic>> rows = await _getList(
+      '$_prefix/fees/invoices',
+    );
     return rows
         .map(_parseInvoice)
         .where((ParentInvoice invoice) => invoice.studentId == id)
@@ -122,13 +126,15 @@ class DioParentPortalRepository implements ParentPortalRepository {
 
   Future<String?> _lookupStudentName(String studentId) async {
     try {
-      final Response<dynamic> response =
-          await _dio.get<dynamic>('/api/v1/students/$studentId');
+      final Response<dynamic> response = await _dio.get<dynamic>(
+        '/api/v1/students/$studentId',
+      );
       final Map<String, dynamic>? student = _unwrapObject(response.data);
       if (student == null) {
         return null;
       }
-      final String? direct = _string(student['studentName']) ??
+      final String? direct =
+          _string(student['studentName']) ??
           _string(student['displayName']) ??
           _string(student['name']);
       if (direct != null) {
@@ -160,7 +166,8 @@ class DioParentPortalRepository implements ParentPortalRepository {
         if (slot is! Map) {
           continue;
         }
-        final String? section = _string(slot['sectionName']) ??
+        final String? section =
+            _string(slot['sectionName']) ??
             _string(slot['className']) ??
             _string(slot['class']);
         if (section != null) {
@@ -215,7 +222,7 @@ class DioParentPortalRepository implements ParentPortalRepository {
       studentId: _string(json['studentId']) ?? '',
       title: _string(json['title']) ?? 'Invoice',
       status: _string(json['status']) ?? '',
-      amountCents: cents is num ? cents.round() : 0,
+      amountCents: cents is num && cents.isFinite ? cents.round() : null,
       currency: _string(json['currency']) ?? '',
     );
   }
@@ -232,7 +239,8 @@ class DioParentPortalRepository implements ParentPortalRepository {
     final Object? student = json['student'];
     if (student is Map) {
       final Map<String, dynamic> row = Map<String, dynamic>.from(student);
-      final String? nested = _string(row['name']) ??
+      final String? nested =
+          _string(row['name']) ??
           _string(row['displayName']) ??
           _joinName(row['firstName'], row['lastName']);
       if (nested != null) {
@@ -253,7 +261,8 @@ class DioParentPortalRepository implements ParentPortalRepository {
   }
 
   String? _joinName(Object? first, Object? last) {
-    final String joined = '${_string(first) ?? ''} ${_string(last) ?? ''}'.trim();
+    final String joined = '${_string(first) ?? ''} ${_string(last) ?? ''}'
+        .trim();
     return joined.isEmpty ? null : joined;
   }
 

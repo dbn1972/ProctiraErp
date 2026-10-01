@@ -97,9 +97,7 @@ void main() {
     final Completer<List<LinkedChild>> gate = Completer<List<LinkedChild>>();
     await tester.pumpWidget(
       MaterialApp(
-        home: ParentHomeScreen(
-          repository: _FakeParentPortal(gate: gate),
-        ),
+        home: ParentHomeScreen(repository: _FakeParentPortal(gate: gate)),
       ),
     );
 
@@ -111,16 +109,15 @@ void main() {
   });
 
   testWidgets('parent home shows an empty state', (WidgetTester tester) async {
-    await _pump(
-      tester,
-      ParentHomeScreen(repository: _FakeParentPortal()),
-    );
+    await _pump(tester, ParentHomeScreen(repository: _FakeParentPortal()));
 
     expect(find.text('No children linked yet'), findsOneWidget);
     expect(find.text('Messages'), findsNothing);
   });
 
-  testWidgets('parent home lists children and selects one', (WidgetTester tester) async {
+  testWidgets('parent home lists children and selects one', (
+    WidgetTester tester,
+  ) async {
     await _pump(
       tester,
       ParentHomeScreen(
@@ -139,7 +136,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('Amina Hassan, class Grade 4'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Amina Hassan, class Grade 4'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Bilal Khan'));
     await tester.pump();
@@ -156,7 +156,9 @@ void main() {
     expect(find.text('Fees'), findsOneWidget);
   });
 
-  testWidgets('parent home shows an error and retries', (WidgetTester tester) async {
+  testWidgets('parent home shows an error and retries', (
+    WidgetTester tester,
+  ) async {
     final _FakeParentPortal repo = _FakeParentPortal(
       error: const ParentPortalException('Parent portal failed'),
     );
@@ -164,8 +166,10 @@ void main() {
 
     expect(find.text('Parent portal failed'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
-    expect(tester.getSize(find.widgetWithText(FilledButton, 'Retry')).height,
-        greaterThanOrEqualTo(44));
+    expect(
+      tester.getSize(find.widgetWithText(FilledButton, 'Retry')).height,
+      greaterThanOrEqualTo(44),
+    );
 
     repo.error = null;
     repo.children = const <LinkedChild>[_amina];
@@ -229,20 +233,15 @@ void main() {
     );
     expect(find.text('Photo day'), findsOneWidget);
 
-    await _pump(
-      tester,
-      ParentFeesScreen(studentId: 'stu-1', repository: repo),
-    );
+    await _pump(tester, ParentFeesScreen(studentId: 'stu-1', repository: repo));
     expect(find.text('Term fees'), findsOneWidget);
-    expect(find.textContaining('KES 2500.00'), findsOneWidget);
+    expect(find.textContaining('Ksh2,500.00'), findsOneWidget);
   });
 
   testWidgets('child screens stay empty without a selected child', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: ParentMessagesScreen()),
-    );
+    await tester.pumpWidget(const MaterialApp(home: ParentMessagesScreen()));
     await tester.pump();
 
     expect(
