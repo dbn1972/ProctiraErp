@@ -186,6 +186,7 @@ jobs:
             ["db/"]="api-gateway"
             ["tools/scripts/run-target-database-migrations.sh"]="api-gateway"
             ["tools/scripts/assert-runtime-schema-ready.sh"]="api-gateway"
+            ["tools/scripts/required-migrations-lib.sh"]="api-gateway"
             [".github/workflows/deploy.yml"]="api-gateway"
           )
 

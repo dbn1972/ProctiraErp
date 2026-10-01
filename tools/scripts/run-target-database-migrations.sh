@@ -30,6 +30,16 @@ IFS=$'\t' read -r CURRENT_ROLE IS_SUPERUSER BYPASSES_RLS <<<"$ROLE_ROW"
 [[ "$BYPASSES_RLS" != "true" && "$BYPASSES_RLS" != "t" ]] \
   || fail "migrator role must be NOBYPASSRLS"
 
+# PRC-L188: the required set is every non-seed db/sql file (the production apply
+# below runs with APPLY_SEEDS=0 APPLY_STRICT_FKS=1), derived at run time instead
+# of a hard-coded spot list that went stale at 096.
+# shellcheck source=required-migrations-lib.sh
+source "$ROOT/tools/scripts/required-migrations-lib.sh"
+REQUIRED_SQL_MIGRATIONS="$(required_sql_migrations "$ROOT/db/sql")" \
+  || fail "cannot derive required migrations from db/sql"
+REQUIRED_SQL_MIGRATIONS_CSV="$(paste -sd, - <<<"$REQUIRED_SQL_MIGRATIONS")"
+REQUIRED_SQL_MIGRATIONS_COUNT="$(wc -l <<<"$REQUIRED_SQL_MIGRATIONS" | tr -d ' ')"
+
 # Prisma wrapper and raw-SQL runner both prefer MIGRATOR_DATABASE_URL.
 export DATABASE_URL="$MIGRATOR_DATABASE_URL"
 pnpm --filter @proctira/database run prisma:migrate:deploy
@@ -37,23 +47,28 @@ APPLY_SEEDS=0 APPLY_STRICT_FKS=1 NODE_ENV=production bash tools/scripts/apply-sq
 
 # Verify the exact target before application rollout. This is intentionally
 # owner-side; the separate runtime gate validates proctira_app afterwards.
-psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+  -v required_migrations="$REQUIRED_SQL_MIGRATIONS_CSV" \
+  -v required_count="$REQUIRED_SQL_MIGRATIONS_COUNT" <<'SQL'
+-- psql does not interpolate variables inside dollar-quoted DO bodies; hand the
+-- derived list over through session settings.
+SELECT set_config('proctira.required_migrations', :'required_migrations', false),
+       set_config('proctira.required_migration_count', :'required_count', false)
+\g /dev/null
 DO $verify_target_schema$
 DECLARE
+  required_names TEXT[] := string_to_array(current_setting('proctira.required_migrations'), ',');
   missing_migrations TEXT;
   invalid_indexes TEXT;
 BEGIN
+  IF coalesce(cardinality(required_names), 0) = 0
+     OR cardinality(required_names) <> current_setting('proctira.required_migration_count')::int THEN
+    RAISE EXCEPTION 'target migration contract: derived required list is empty or truncated';
+  END IF;
+
   SELECT string_agg(required.filename, ', ' ORDER BY required.filename)
     INTO missing_migrations
-    FROM (VALUES
-      ('082_repair_strict_tenant_fk_validate.sql'),
-      ('091_runtime_schema_readiness_contract.sql'),
-      ('092_hostel_assignment_uniqueness.sql'),
-      ('093_developer_portal_tenant_fks.sql'),
-      ('094_developer_portal_api_key_lookup.sql'),
-      ('095_w1_data_02_rls_safe_deny.sql'),
-      ('096_w1_data_14_audit_fk_integrity.sql')
-    ) AS required(filename)
+    FROM unnest(required_names) AS required(filename)
    WHERE NOT EXISTS (
      SELECT 1
        FROM public.schema_migrations AS applied
@@ -91,4 +106,4 @@ END
 $verify_target_schema$;
 SQL
 
-echo "run-target-database-migrations: PASS — target schema is ready for rollout"
+echo "run-target-database-migrations: PASS — target schema is ready for rollout (${REQUIRED_SQL_MIGRATIONS_COUNT} db/sql migrations verified)"
