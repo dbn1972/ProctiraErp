@@ -2,9 +2,10 @@
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 
-import type { Language, LanguageSwitcherProps } from './types';
+import type { Language, LanguageSwitcherLabels, LanguageSwitcherProps } from './types';
 
-const t = {
+/** English fallbacks for built-in strings; override via the `labels` prop. */
+export const DEFAULT_LANGUAGE_SWITCHER_LABELS: Required<LanguageSwitcherLabels> = {
   group: 'Language selection',
   changeLanguage: 'Change language',
   availableLanguages: 'Available languages',
@@ -12,6 +13,20 @@ const t = {
   rtlToggleDescription: 'right-to-left layout',
   rtlBadge: 'RTL',
 };
+
+/**
+ * Apply a language to the document root (`<html lang dir>`).
+ * Call from the app's locale effect, or set `applyToDocument` on the switcher.
+ */
+export function applyDocumentLanguage(
+  code: string,
+  rtl: boolean,
+  doc: Document | undefined = typeof document === 'undefined' ? undefined : document,
+): void {
+  if (!doc) return;
+  doc.documentElement.lang = code;
+  doc.documentElement.dir = rtl ? 'rtl' : 'ltr';
+}
 
 /**
  * LanguageSwitcher component with RTL toggle support.
@@ -44,7 +59,11 @@ export function LanguageSwitcher({
   variant = 'dropdown',
   disabled = false,
   className = '',
+  labels,
+  rtlFollowsLanguage = true,
+  applyToDocument = false,
 }: LanguageSwitcherProps) {
+  const t = { ...DEFAULT_LANGUAGE_SWITCHER_LABELS, ...labels };
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -52,6 +71,10 @@ export function LanguageSwitcher({
   const listId = `${useId()}-languages`;
   const currentLang = languages.find((l) => l.code === currentLanguage);
   const effectiveRtl = isRtl ?? currentLang?.rtl ?? false;
+
+  useEffect(() => {
+    if (applyToDocument) applyDocumentLanguage(currentLanguage, effectiveRtl);
+  }, [applyToDocument, currentLanguage, effectiveRtl]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setIsOpen(false);
@@ -120,13 +143,13 @@ export function LanguageSwitcher({
   const handleLanguageSelect = useCallback(
     (lang: Language) => {
       onLanguageChange(lang.code);
-      // Auto-toggle RTL based on language if no manual override
-      if (onRtlToggle && isRtl === undefined) {
+      // A language change resets any manual RTL override unless the app opts out.
+      if (onRtlToggle && (rtlFollowsLanguage || isRtl === undefined)) {
         onRtlToggle(lang.rtl);
       }
       if (variant === 'dropdown') close(true);
     },
-    [onLanguageChange, onRtlToggle, isRtl, variant, close],
+    [onLanguageChange, onRtlToggle, rtlFollowsLanguage, isRtl, variant, close],
   );
 
   const handleRtlToggle = useCallback(() => {
