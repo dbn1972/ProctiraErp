@@ -50,21 +50,10 @@ StudentApi _buildExplodingStudentApi() {
   return StudentApi(dio);
 }
 
-Future<
-  ({
-    AppDatabase db,
-    TenantProvider tenant,
-    SyncEngine engine,
-    CacheCrypto crypto,
-  })
->
-_bootstrap() async {
-  final Directory tempDir = await Directory.systemTemp.createTemp(
-    'students_repo_',
-  );
-  final AppDatabase db = AppDatabase(
-    overridePath: '${tempDir.path}/openemis.db',
-  );
+Future<({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto})> _bootstrap() async {
+  final Directory tempDir =
+      await Directory.systemTemp.createTemp('students_repo_');
+  final AppDatabase db = AppDatabase(overridePath: '${tempDir.path}/openemis.db');
   final SecureStorage secure = SecureStorage(const FlutterSecureStorage());
   await secure.writeTenant(tenantId: 'tenant-a', displayName: 'Tenant A');
   final CacheCrypto crypto = await CacheCrypto.fromSecureStorage(secure);
@@ -95,67 +84,11 @@ void main() {
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
   });
 
-  test('searchStudents returns cached rows without invoking the api', () async {
-    final ({
-      AppDatabase db,
-      TenantProvider tenant,
-      SyncEngine engine,
-      CacheCrypto crypto,
-    })
-    ctx = await _bootstrap();
-    final Database raw = await ctx.db.database;
-    await raw.insert('students_cache', <String, Object?>{
-      'id': 'stu-1',
-      'tenant_id': 'tenant-a',
-      'institution_id': 'inst-1',
-      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
-      'national_id': await ctx.crypto.encrypt('A1'),
-      'grade': null,
-      'class_name': null,
-      'payload': await ctx.crypto.encrypt(
-        '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1815-12-10","gender":"F","nationalId":"A1","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
-      ),
-      'updated_at': 1,
-    });
-
-    final StudentRepository repo = StudentRepository(
-      database: ctx.db,
-      tenantProvider: ctx.tenant,
-      syncEngine: ctx.engine,
-      cacheCrypto: ctx.crypto,
-      studentApi: _buildExplodingStudentApi(),
-    );
-
-    final List<CachedStudent> rows = await repo.searchStudents();
-    expect(rows, hasLength(1));
-    expect(rows.first.id, 'stu-1');
-    expect(rows.first.fullName, 'Ada Lovelace');
-    expect(rows.first.dateOfBirth, '1815-12-10');
-
-    // Targeted search by name.
-    final List<CachedStudent> filtered = await repo.searchStudents(
-      query: 'lov',
-    );
-    expect(filtered, hasLength(1));
-
-    final List<CachedStudent> empty = await repo.searchStudents(
-      query: 'no-match',
-    );
-    expect(empty, isEmpty);
-
-    await ctx.db.close();
-  });
-
   test(
-    'attachDocument persists the path and queues a student.update op',
+    'searchStudents returns cached rows without invoking the api',
     () async {
-      final ({
-        AppDatabase db,
-        TenantProvider tenant,
-        SyncEngine engine,
-        CacheCrypto crypto,
-      })
-      ctx = await _bootstrap();
+      final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
+          await _bootstrap();
       final Database raw = await ctx.db.database;
       await raw.insert('students_cache', <String, Object?>{
         'id': 'stu-1',
@@ -166,10 +99,9 @@ void main() {
         'grade': null,
         'class_name': null,
         'payload': await ctx.crypto.encrypt(
-          '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
-        ),
+            '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1815-12-10","gender":"F","nationalId":"A1","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
+            ),
         'updated_at': 1,
-        'version': 'v-1',
       });
 
       final StudentRepository repo = StudentRepository(
@@ -180,33 +112,74 @@ void main() {
         studentApi: _buildExplodingStudentApi(),
       );
 
-      final CachedStudent? saved = await repo.attachDocument(
-        studentId: 'stu-1',
-        filePath: '/tmp/photo.jpg',
-      );
-      expect(saved, isNotNull);
-      expect(saved!.documents, contains('/tmp/photo.jpg'));
+      final List<CachedStudent> rows = await repo.searchStudents();
+      expect(rows, hasLength(1));
+      expect(rows.first.id, 'stu-1');
+      expect(rows.first.fullName, 'Ada Lovelace');
+      expect(rows.first.dateOfBirth, '1815-12-10');
 
-      final List<PendingSyncRow> queue = await ctx.engine.getPending();
-      expect(queue, hasLength(1));
-      expect(queue.first.entityType, SyncEntityType.student);
-      expect(queue.first.operation, SyncOperation.update);
-      expect(queue.first.entityId, 'stu-1');
-      expect(queue.first.baseVersion, 'v-1');
-      expect(queue.first.payload['documents'], contains('/tmp/photo.jpg'));
+      // Targeted search by name.
+      final List<CachedStudent> filtered =
+          await repo.searchStudents(query: 'lov');
+      expect(filtered, hasLength(1));
+
+      final List<CachedStudent> empty =
+          await repo.searchStudents(query: 'no-match');
+      expect(empty, isEmpty);
 
       await ctx.db.close();
     },
   );
 
+  test('attachDocument persists the path and queues a student.update op',
+      () async {
+    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
+        await _bootstrap();
+    final Database raw = await ctx.db.database;
+    await raw.insert('students_cache', <String, Object?>{
+      'id': 'stu-1',
+      'tenant_id': 'tenant-a',
+      'institution_id': 'inst-1',
+      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+      'national_id': await ctx.crypto.encrypt('A1'),
+      'grade': null,
+      'class_name': null,
+      'payload': await ctx.crypto.encrypt(
+          '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
+          ),
+      'updated_at': 1,
+      'version': 'v-1',
+    });
+
+    final StudentRepository repo = StudentRepository(
+      database: ctx.db,
+      tenantProvider: ctx.tenant,
+      syncEngine: ctx.engine,
+      cacheCrypto: ctx.crypto,
+      studentApi: _buildExplodingStudentApi(),
+    );
+
+    final CachedStudent? saved = await repo.attachDocument(
+      studentId: 'stu-1',
+      filePath: '/tmp/photo.jpg',
+    );
+    expect(saved, isNotNull);
+    expect(saved!.documents, contains('/tmp/photo.jpg'));
+
+    final List<PendingSyncRow> queue = await ctx.engine.getPending();
+    expect(queue, hasLength(1));
+    expect(queue.first.entityType, SyncEntityType.student);
+    expect(queue.first.operation, SyncOperation.update);
+    expect(queue.first.entityId, 'stu-1');
+    expect(queue.first.baseVersion, 'v-1');
+    expect(queue.first.payload['documents'], contains('/tmp/photo.jpg'));
+
+    await ctx.db.close();
+  });
+
   test('getStudent returns null when no cached row exists', () async {
-    final ({
-      AppDatabase db,
-      TenantProvider tenant,
-      SyncEngine engine,
-      CacheCrypto crypto,
-    })
-    ctx = await _bootstrap();
+    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
+        await _bootstrap();
     final StudentRepository repo = StudentRepository(
       database: ctx.db,
       tenantProvider: ctx.tenant,
