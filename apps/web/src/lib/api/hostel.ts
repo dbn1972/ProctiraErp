@@ -145,10 +145,13 @@ export async function decideHostelLeave(
   id: string,
   status: 'approved' | 'rejected',
 ): Promise<HostelLeave> {
-  const result = await gatewayFetch<HostelLeave>(`/hostel/leaves/${id}/decide`, {
-    method: 'POST',
-    json: { status },
-  });
+  const result = await gatewayFetch<HostelLeave>(
+    `/hostel/leaves/${encodeURIComponent(id)}/decide`,
+    {
+      method: 'POST',
+      json: { status },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -163,10 +166,13 @@ export async function updateHostelVisitorStatus(
   id: string,
   status: 'checked_in' | 'checked_out' | 'denied',
 ): Promise<HostelVisitor> {
-  const result = await gatewayFetch<HostelVisitor>(`/hostel/visitors/${id}/status`, {
-    method: 'POST',
-    json: { status },
-  });
+  const result = await gatewayFetch<HostelVisitor>(
+    `/hostel/visitors/${encodeURIComponent(id)}/status`,
+    {
+      method: 'POST',
+      json: { status },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -498,10 +504,13 @@ export async function transitionHostelGatePass(
   status: 'approved' | 'rejected' | 'out' | 'in',
 ): Promise<HostelGatePass> {
   const path = status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : status;
-  const result = await gatewayFetch<HostelGatePass>(`/hostel/gate-passes/${id}/${path}`, {
-    method: 'POST',
-    json: {},
-  });
+  const result = await gatewayFetch<HostelGatePass>(
+    `/hostel/gate-passes/${encodeURIComponent(id)}/${path}`,
+    {
+      method: 'POST',
+      json: {},
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
