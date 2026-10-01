@@ -3,9 +3,10 @@
 /**
  * Server Actions for student management pages.
  *
- * All writes go through the API gateway (X-Tenant-ID enforced).
- * Validation is performed both client-side (react-hook-form + zod) and here
- * via the same zod schema, so direct calls are safe.
+ * All writes go through the API gateway, which is the authoritative validator
+ * (schema, RBAC and tenant taken from the verified JWT). Every action also
+ * validates its input here with zod (form schemas, uuid ids, enums, size caps)
+ * as defence-in-depth, so malformed direct calls fail before any upstream call.
  */
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -26,7 +27,7 @@ import {
   createEnrollment,
   createStudent,
   deleteStudent,
-  getStudentEnrollments,
+  getStudentEnrollmentsResult,
   removeStudentDiscipline,
   setStudentConsent,
   submitBulkImport,
@@ -42,7 +43,10 @@ import {
   type StudentTransferInput,
   type UpdateStudentInput,
 } from '@/lib/api/students';
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
+import { bulkImportInputSchema } from '@/lib/validation/action-input-schema';
+import { getTenantSettings } from '@/lib/api/admin.server';
+import { isoDateInTimeZone } from '@/lib/tenant-date';
 import {
   enrollmentFormSchema,
   studentFormSchema,
@@ -59,7 +63,7 @@ import {
 } from '@/lib/validation/student-360-schema';
 
 export interface ActionState<T = unknown> {
-  status: 'idle' | 'success' | 'error';
+  status: 'idle' | 'success' | 'partial' | 'error';
   message?: string;
   fieldErrors?: Record<string, string>;
   data?: T;
@@ -124,6 +128,9 @@ export async function updateStudentAction(
 /* ------------------------------------------------------------------- Delete */
 
 export async function deleteStudentAction(studentId: string): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student.' };
+  }
   try {
     await deleteStudent(studentId);
     revalidatePath('/students');
@@ -185,16 +192,20 @@ export interface BulkImportActionInput {
 export async function submitBulkImportAction(
   input: BulkImportActionInput,
 ): Promise<ActionState<ImportResult | ImportProgress>> {
-  if (!input.fileBase64 || !input.fileName) {
-    return { status: 'error', message: 'A file is required to start the import.' };
+  const parsed = bulkImportInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'A file is required to start the import.',
+    };
   }
   try {
     const request: BulkImportRequest = {
-      fileBase64: input.fileBase64,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      duplicateResolution: input.duplicateResolution,
-      async: input.async ?? false,
+      fileBase64: parsed.data.fileBase64,
+      fileName: parsed.data.fileName,
+      mimeType: parsed.data.mimeType,
+      duplicateResolution: parsed.data.duplicateResolution,
+      async: parsed.data.async ?? false,
     };
     const result = await submitBulkImport(request);
     revalidatePath('/students');
@@ -265,16 +276,7 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return {
-      status: 'error',
-      message: error.message || fallback,
-    };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -514,8 +516,33 @@ export async function getInstitutionClassesAction(
 
 /* ----------------------------------------------------- Wave 11 graduate */
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Today's date in the tenant timezone (PRC-L248). Falls back to UTC when the
+ * tenant settings cannot be read by the current user.
+ */
+async function todayIsoDate(): Promise<string> {
+  let timeZone: string | undefined;
+  try {
+    const { settings } = await getTenantSettings();
+    timeZone = settings?.timezone || undefined;
+  } catch {
+    timeZone = undefined;
+  }
+  return isoDateInTimeZone(timeZone);
+}
+
+export interface BulkGraduateFailure {
+  enrollmentId?: string;
+  studentId?: string;
+  code: string;
+  message: string;
+}
+
+export interface BulkGraduateResult {
+  graduated: number;
+  failed: number;
+  lookupFailedStudentIds: string[];
+  failures: BulkGraduateFailure[];
 }
 
 export async function graduateEnrollmentAction(
@@ -529,7 +556,7 @@ export async function graduateEnrollmentAction(
     await updateEnrollmentStatus(enrollmentId, {
       status: 'GRADUATED',
       reason: 'Graduated from student profile',
-      effectiveDate: todayIsoDate(),
+      effectiveDate: await todayIsoDate(),
     });
     revalidatePath(`/students/${studentId}`);
     revalidatePath('/students');
@@ -539,27 +566,71 @@ export async function graduateEnrollmentAction(
   }
 }
 
+/** Bounded-concurrency map so a 100-student batch does not run serially. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      out[index] = await fn(items[index] as T);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+const ENROLLMENT_LOOKUP_CONCURRENCY = 8;
+
 /** Resolve current ENROLLED rows for the given students, then bulk-graduate. */
 export async function bulkGraduateStudentsAction(
   studentIds: string[],
-): Promise<ActionState<{ graduated: number; failed: number }>> {
+): Promise<ActionState<BulkGraduateResult>> {
   const ids = [...new Set(studentIds)].filter((id) => UUID_RE.test(id)).slice(0, 100);
   if (ids.length === 0) {
     return { status: 'error', message: 'Select at least one student.' };
   }
 
   try {
+    const lookups = await mapWithConcurrency(ids, ENROLLMENT_LOOKUP_CONCURRENCY, (studentId) =>
+      getStudentEnrollmentsResult(studentId),
+    );
     const enrollmentIds: string[] = [];
-    for (const studentId of ids) {
-      const enrollments = await getStudentEnrollments(studentId);
-      for (const row of enrollments) {
-        if (row.status === 'ENROLLED') enrollmentIds.push(row.id);
+    const studentByEnrollment = new Map<string, string>();
+    const lookupFailedStudentIds: string[] = [];
+    lookups.forEach((lookup, index) => {
+      if (!lookup.ok) {
+        lookupFailedStudentIds.push(ids[index] as string);
+        return;
       }
-    }
+      for (const row of lookup.enrollments) {
+        if (row.status === 'ENROLLED') {
+          enrollmentIds.push(row.id);
+          studentByEnrollment.set(row.id, ids[index] as string);
+        }
+      }
+    });
     if (enrollmentIds.length === 0) {
       return {
         status: 'error',
-        message: 'No active (ENROLLED) enrollments found for the selection.',
+        message:
+          lookupFailedStudentIds.length > 0
+            ? `Could not load enrollments for ${lookupFailedStudentIds.length} student(s); nothing was graduated.`
+            : 'No active (ENROLLED) enrollments found for the selection.',
+        data: {
+          graduated: 0,
+          failed: 0,
+          lookupFailedStudentIds,
+          failures: lookupFailedStudentIds.map((studentId) => ({
+            studentId,
+            code: 'LOOKUP_FAILED',
+            message: 'Enrollments could not be loaded',
+          })),
+        },
       };
     }
 
@@ -567,7 +638,7 @@ export async function bulkGraduateStudentsAction(
       enrollmentIds,
       status: 'GRADUATED',
       reason: 'Bulk graduate from student list',
-      effectiveDate: todayIsoDate(),
+      effectiveDate: await todayIsoDate(),
     });
 
     revalidatePath('/students');
@@ -575,13 +646,32 @@ export async function bulkGraduateStudentsAction(
 
     const graduated = result.updated.length;
     const failed = result.failed.length;
+    const lookupNote =
+      lookupFailedStudentIds.length > 0
+        ? ` Enrollments could not be loaded for ${lookupFailedStudentIds.length} student(s).`
+        : '';
+    // Per-student failures so the caller can show/retry them (PRC-L248).
+    const failures: BulkGraduateFailure[] = [
+      ...result.failed.map((f) => ({
+        enrollmentId: f.enrollmentId,
+        studentId: studentByEnrollment.get(f.enrollmentId),
+        code: f.code,
+        message: f.message,
+      })),
+      ...lookupFailedStudentIds.map((studentId) => ({
+        studentId,
+        code: 'LOOKUP_FAILED',
+        message: 'Enrollments could not be loaded',
+      })),
+    ];
+    const status = failures.length === 0 ? 'success' : graduated > 0 ? 'partial' : 'error';
     return {
-      status: failed === 0 ? 'success' : 'error',
+      status,
       message:
-        failed === 0
+        (failed === 0
           ? `Graduated ${graduated} enrollment${graduated === 1 ? '' : 's'}.`
-          : `Graduated ${graduated}; ${failed} failed.`,
-      data: { graduated, failed },
+          : `Graduated ${graduated}; ${failed} failed.`) + lookupNote,
+      data: { graduated, failed, lookupFailedStudentIds, failures },
     };
   } catch (error) {
     return toErrorState(error, 'Failed to bulk graduate');

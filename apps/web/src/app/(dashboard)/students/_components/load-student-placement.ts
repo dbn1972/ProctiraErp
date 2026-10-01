@@ -45,13 +45,18 @@ export function preferActiveEnrollment(rows: EnrollmentEntry[]): EnrollmentEntry
 export async function loadActiveEnrollments(
   studentIds: string[],
 ): Promise<Map<string, EnrollmentEntry | null>> {
-  const pairs = await Promise.all(
-    studentIds.map(async (studentId) => {
-      const rows = await getStudentEnrollments(studentId);
+  // allSettled: one failing lookup renders that row's placement as '—'
+  // instead of failing the whole list (PRC-L247).
+  const settled = await Promise.allSettled(
+    studentIds.map((studentId) => getStudentEnrollments(studentId)),
+  );
+  return new Map(
+    studentIds.map((studentId, index) => {
+      const outcome = settled[index];
+      const rows = outcome?.status === 'fulfilled' ? outcome.value : [];
       return [studentId, preferActiveEnrollment(rows)] as const;
     }),
   );
-  return new Map(pairs);
 }
 
 export async function loadPlacementDirectories(

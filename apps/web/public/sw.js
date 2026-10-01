@@ -81,6 +81,7 @@ const PRECACHE_URLS = ['/', '/manifest.json', '/favicon.ico', '/logo.svg'];
 //
 // Keep this verbatim with the TS module. The TS module has the unit
 // tests; this one has the runtime. Any rule change MUST update both.
+// src/lib/sw/sw-parity.test.ts loads this file and fails on drift.
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 

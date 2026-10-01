@@ -23,9 +23,10 @@ export interface ServerSession {
  * Reads authentication cookies on the server and returns the parsed session
  * if available. Returns `null` when there is no token or the token is malformed.
  *
- * The access token is decoded for routing/permissions decisions only. The
- * cryptographic signature is validated by the upstream auth-service whenever
- * the token is forwarded on an API call.
+ * The access token is decoded WITHOUT signature verification, so BFF role
+ * checks here are UX gating only (navigation, SSR shell). The API gateway is
+ * the enforcement point: it verifies the JWT on every forwarded call, ignores
+ * client X-Tenant-ID and requires a verified tenant claim (PRC-L254).
  */
 export async function getSession(): Promise<ServerSession | null> {
   const jar = await cookies();

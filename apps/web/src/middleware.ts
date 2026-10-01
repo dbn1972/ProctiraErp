@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
 import { isSecureCookieContext } from './lib/auth/cookies';
+import { decodeBase64Url } from './lib/auth/jwt-payload';
 import {
   CSRF_COOKIE,
   CSRF_HEADER,
@@ -249,7 +250,7 @@ function isAccessTokenFresh(token: string): boolean {
   if (parts.length !== 3) return false;
 
   try {
-    const payload = JSON.parse(atob(parts[1]!)) as { exp?: number };
+    const payload = JSON.parse(decodeBase64Url(parts[1]!)) as { exp?: number };
     if (!payload.exp) return true;
     const now = Math.floor(Date.now() / 1000);
     return payload.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
@@ -266,7 +267,7 @@ function isStructurallyValid(token: string): boolean {
   const parts = token.split('.');
   if (parts.length !== 3) return false;
   try {
-    JSON.parse(atob(parts[1]!));
+    JSON.parse(decodeBase64Url(parts[1]!));
     return true;
   } catch {
     return false;
@@ -450,7 +451,10 @@ export async function middleware(request: NextRequest) {
     // subdomain/header for authenticated requests — Design §M priority 3).
     try {
       const parts = accessToken.split('.');
-      const payload = JSON.parse(atob(parts[1]!)) as { tenantId?: string; roles?: unknown };
+      const payload = JSON.parse(decodeBase64Url(parts[1]!)) as {
+        tenantId?: string;
+        roles?: unknown;
+      };
       if (payload.tenantId) {
         response.headers.set('X-Tenant-ID', payload.tenantId);
       }

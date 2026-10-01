@@ -18,20 +18,48 @@ export function StaffImportForm() {
     'firstName,lastName,dateOfBirth,identityNumber,contactPhone,position,contactEmail,contractType,startDate,endDate,salaryBand\n',
   );
   const [report, setReport] = useState<StaffImportReport | null>(null);
+  // CSV text the last successful dry-run validated. Commit is only allowed for
+  // exactly that text, so editing after a dry-run re-disables Commit (PRC-L246).
+  const [dryRunCsv, setDryRunCsv] = useState<string | null>(null);
+  const [dryRunErrors, setDryRunErrors] = useState(0);
+  const [acceptValidOnly, setAcceptValidOnly] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'partial'; text: string } | null>(null);
+  const dryRunCurrent = dryRunCsv !== null && dryRunCsv === csv;
+  const canCommit = dryRunCurrent && (dryRunErrors === 0 || acceptValidOnly);
+
+  function resetDryRun() {
+    setDryRunCsv(null);
+    setDryRunErrors(0);
+    setAcceptValidOnly(false);
+  }
 
   function run(kind: 'dry' | 'commit') {
+    if (kind === 'commit' && !canCommit) return;
+    const submitted = csv;
     startTransition(async () => {
       setError(null);
+      setNotice(null);
       const result =
         kind === 'dry'
-          ? await dryRunImportAction(csv, 'staff.csv')
-          : await commitImportAction(csv, 'staff.csv');
+          ? await dryRunImportAction(submitted, 'staff.csv')
+          : await commitImportAction(submitted, 'staff.csv');
       if (result.status === 'error') {
         setError(result.message ?? 'Failed');
         return;
       }
       setReport(result.report ?? null);
-      if (kind === 'commit') router.refresh();
+      if (kind === 'dry') {
+        setDryRunCsv(submitted);
+        setDryRunErrors(result.report?.errors.length ?? 0);
+        setAcceptValidOnly(false);
+        return;
+      }
+      resetDryRun();
+      setNotice({
+        kind: result.status === 'partial' ? 'partial' : 'success',
+        text: result.message ?? '',
+      });
+      router.refresh();
     });
   }
 
@@ -42,6 +70,7 @@ export function StaffImportForm() {
     reader.onload = () => {
       setCsv(String(reader.result ?? ''));
       setReport(null);
+      resetDryRun();
     };
     reader.readAsText(file);
   }
@@ -69,7 +98,10 @@ export function StaffImportForm() {
         <Textarea
           id="staff-csv"
           value={csv}
-          onChange={(e) => setCsv(e.target.value)}
+          onChange={(e) => {
+            setCsv(e.target.value);
+            setAcceptValidOnly(false);
+          }}
           rows={10}
           disabled={!hydrated || pending}
         />
@@ -77,6 +109,21 @@ export function StaffImportForm() {
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p
+          role="status"
+          data-testid="staff-import-notice"
+          data-kind={notice.kind}
+          className={
+            notice.kind === 'partial'
+              ? 'rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800'
+              : 'rounded-md border border-border p-3 text-sm text-foreground'
+          }
+        >
+          {notice.kind === 'partial' ? 'Partially imported: ' : ''}
+          {notice.text}
         </p>
       ) : null}
       {report ? (
@@ -102,6 +149,27 @@ export function StaffImportForm() {
           )}
         </div>
       ) : null}
+      {dryRunCurrent && dryRunErrors > 0 ? (
+        <label
+          className="flex min-h-11 items-center gap-2 text-sm"
+          htmlFor="staff-import-valid-only"
+        >
+          <input
+            id="staff-import-valid-only"
+            type="checkbox"
+            className="h-5 w-5"
+            checked={acceptValidOnly}
+            onChange={(e) => setAcceptValidOnly(e.target.checked)}
+            disabled={!hydrated || pending}
+          />
+          Commit valid rows only and skip the {dryRunErrors} row error(s)
+        </label>
+      ) : null}
+      {!dryRunCurrent ? (
+        <p id="staff-import-commit-hint" className="text-sm text-muted-foreground">
+          Run a dry-run of the current CSV before committing.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -111,7 +179,12 @@ export function StaffImportForm() {
         >
           {pending ? 'Working…' : 'Dry-run'}
         </Button>
-        <Button type="button" onClick={() => run('commit')} disabled={!hydrated || pending}>
+        <Button
+          type="button"
+          onClick={() => run('commit')}
+          disabled={!hydrated || pending || !canCommit}
+          aria-describedby={!dryRunCurrent ? 'staff-import-commit-hint' : undefined}
+        >
           {pending ? 'Working…' : 'Commit import'}
         </Button>
       </div>

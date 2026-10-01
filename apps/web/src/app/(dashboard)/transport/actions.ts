@@ -6,7 +6,12 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
+import {
+  driverAssignmentInputSchema,
+  transportRouteInputSchema,
+  transportVehicleInputSchema,
+} from '@/lib/validation/action-input-schema';
 import {
   createDriverAssignment,
   createStudentAssignment,
@@ -41,20 +46,18 @@ const uuid = z.string().uuid();
 const hm = z.string().regex(/^\d{2}:\d{2}$/);
 
 function fail(error: unknown, fallback: string): TransportActionState {
-  const message =
-    error instanceof GatewayError
-      ? error.message
-      : error instanceof Error
-        ? error.message
-        : fallback;
-  return { status: 'error', message };
+  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
 }
 
 export async function createTransportRouteAction(
   input: CreateTransportRouteInput,
 ): Promise<TransportActionState> {
+  const parsed = transportRouteInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid route' };
+  }
   try {
-    const route = await createTransportRoute(input);
+    const route = await createTransportRoute(parsed.data);
     revalidatePath('/transport');
     revalidatePath('/transport/routes');
     revalidatePath(`/transport/routes/${route.id}`);
@@ -67,8 +70,12 @@ export async function createTransportRouteAction(
 export async function createTransportVehicleAction(
   input: CreateTransportVehicleInput,
 ): Promise<TransportActionState> {
+  const parsed = transportVehicleInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid vehicle' };
+  }
   try {
-    const vehicle = await createTransportVehicle(input);
+    const vehicle = await createTransportVehicle(parsed.data);
     revalidatePath('/transport');
     revalidatePath('/transport/vehicles');
     return { status: 'success', message: 'Vehicle created.', vehicleId: vehicle.id };
@@ -84,8 +91,15 @@ export async function createDriverAssignmentAction(input: {
   startDate: string;
   endDate?: string;
 }): Promise<TransportActionState> {
+  const parsed = driverAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'Invalid driver assignment',
+    };
+  }
   try {
-    const row = await createDriverAssignment(input);
+    const row = await createDriverAssignment(parsed.data);
     revalidatePath('/transport/assignments');
     return { status: 'success', message: 'Driver assignment created.', assignmentId: row.id };
   } catch (error) {

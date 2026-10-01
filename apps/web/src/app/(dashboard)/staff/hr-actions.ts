@@ -23,7 +23,7 @@ import {
 } from '@/lib/validation/staff-schema';
 
 export interface HrActionState {
-  status: 'idle' | 'success' | 'error';
+  status: 'idle' | 'success' | 'partial' | 'error';
   message?: string;
   id?: string;
   report?: StaffImportReport;
@@ -137,9 +137,13 @@ export async function commitImportAction(csv: string, filename?: string): Promis
     const report = await commitStaffImport(parsed.data.csv, parsed.data.filename);
     revalidatePath('/staff');
     revalidatePath('/staff/contracts');
+    // Row errors mean only part of the file was imported (PRC-L246).
+    const partial = report.errors.length > 0;
     return {
-      status: 'success',
-      message: `Created ${report.created ?? 0} staff record(s).`,
+      status: partial ? 'partial' : 'success',
+      message: partial
+        ? `Created ${report.created ?? 0} staff record(s); ${report.errors.length} row error(s) were not imported.`
+        : `Created ${report.created ?? 0} staff record(s).`,
       report,
     };
   } catch (error) {
