@@ -95,6 +95,7 @@ export function getLmsActor(request: FastifyRequest): LmsActor {
   if (!user) return { userId: null, roles: [], institutions: [] };
   const roles = (user.roles ?? [])
     .map((r) => (typeof r === 'string' ? r : r?.roleId))
+    .map((r) => (typeof r === 'string' ? r.toLowerCase() : r))
     .filter((r): r is string => typeof r === 'string' && r.length > 0);
   return {
     userId: user.sub ?? null,

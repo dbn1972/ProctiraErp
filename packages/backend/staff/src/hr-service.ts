@@ -24,6 +24,7 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
+import { readOffboardMeta } from './offboard-meta.js';
 import {
   assertPayrollRowBalanced,
   calendarDaysInMonth,
@@ -31,6 +32,7 @@ import {
   unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
 import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
+import type { StaffEntity } from './staff-repository.js';
 import type { StaffService } from './staff-service.js';
 
 export const CONTRACT_RENEWAL_WINDOW_DAYS = 60;
@@ -457,6 +459,45 @@ export class StaffHrService {
     return result;
   }
 
+  /**
+   * PRC-H089: iterate every staff page (repositories clamp pageSize) and fail the
+   * run if the fetched count disagrees with totalItems. Excludes INACTIVE staff
+   * and staff offboarded with an effective date before the month starts; staff
+   * offboarded on/after the month start remain in the run.
+   */
+  private async listPayrollEligibleStaff(
+    tenantId: string,
+    monthStart: string,
+  ): Promise<StaffEntity[]> {
+    const all: StaffEntity[] = [];
+    const pageSize = 100;
+    let page = 1;
+    let totalItems = 0;
+    let totalPages = 1;
+    do {
+      const result = await this.staffService.list(
+        tenantId,
+        {},
+        { page, pageSize, sortBy: 'id', sortOrder: 'asc' },
+      );
+      all.push(...result.data);
+      totalItems = result.meta.totalItems;
+      totalPages = result.meta.totalPages;
+      page += 1;
+    } while (page <= totalPages);
+    const unique = new Map(all.map((s) => [s.id, s]));
+    if (all.length !== totalItems || unique.size !== totalItems) {
+      throw new BusinessRuleError(
+        `Payroll staff fetch incomplete: fetched ${unique.size} of ${totalItems} staff; run aborted`,
+      );
+    }
+    return Array.from(unique.values()).filter((staff) => {
+      const offboard = readOffboardMeta(staff.customData);
+      if (offboard) return offboard.effectiveDate >= monthStart;
+      return staff.status !== 'INACTIVE';
+    });
+  }
+
   async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
     const cacheKey = `${tenantId}:${query.month}`;
     if (!query.replace) {
@@ -485,7 +526,7 @@ export class StaffHrService {
 
     const { from, to } = monthRange(query.month);
     const daysInMonth = calendarDaysInMonth(query.month);
-    const staffPage = await this.staffService.list(tenantId, {}, { page: 1, pageSize: 500 });
+    const payrollStaff = await this.listPayrollEligibleStaff(tenantId, from);
     const contracts = await this.store.listContracts(tenantId);
     const attendance = await this.store.listAttendance(tenantId, { from, to });
     const summaries = new Map<string, AttendanceSummaryRow>();
@@ -506,7 +547,7 @@ export class StaffHrService {
       summaries.set(row.staffId, current);
     }
 
-    const rows: PayrollRow[] = staffPage.data.map((staff) => {
+    const rows: PayrollRow[] = payrollStaff.map((staff) => {
       const summary = summaries.get(staff.id);
       const contract = pickContractForMonth(
         contracts.filter((c) => c.staffId === staff.id),
@@ -631,7 +672,6 @@ export class StaffHrService {
 
     return result;
   }
-
 }
 
 function pickContractForMonth(

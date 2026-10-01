@@ -103,11 +103,12 @@ export type CreateOfferFeeInvoice = (input: {
   guardianEmail: string | null;
 }) => Promise<{ invoiceId: string }>;
 
-export type AssertOfferFeePaid = (input: {
-  tenantId: string;
-  invoiceId: string;
-  paymentRef?: string | null;
-}) => Promise<void>;
+/**
+ * Verifies (read-only) that the offer-fee invoice is paid. Must never record a
+ * payment: payment state is set only by the verified PSP webhook / callback
+ * path. A client `paymentRef` is informational and is not passed (PRC-H079).
+ */
+export type AssertOfferFeePaid = (input: { tenantId: string; invoiceId: string }) => Promise<void>;
 
 export type ReconcileOfferResources = (input: {
   tenantId: string;
@@ -484,15 +485,23 @@ export class AdmissionsPipelineService {
     if (effective.status !== 'sent' && effective.status !== 'draft') {
       throw new BusinessRuleError(`Cannot accept an offer in '${effective.status}' status`);
     }
+    if (effective.feeAmount > 0) {
+      // PRC-H079: a fee-bearing offer is accepted only against a verified paid
+      // invoice raised at send time. No invoice / no verifier -> fail closed.
+      if (effective.status !== 'sent') {
+        throw new BusinessRuleError('An offer with a fee must be sent before it can be accepted');
+      }
+      if (!effective.offerFeeInvoiceId || !this.assertOfferFeePaid) {
+        throw new BusinessRuleError(
+          'Offer fee payment cannot be verified; acceptance is blocked until the fee is paid',
+        );
+      }
+    }
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
 
     if (effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
-      await this.assertOfferFeePaid({
-        tenantId,
-        invoiceId: effective.offerFeeInvoiceId,
-        paymentRef: input.paymentRef ?? null,
-      });
+      await this.assertOfferFeePaid({ tenantId, invoiceId: effective.offerFeeInvoiceId });
     }
 
     let enrolledStudentId = effective.enrolledStudentId;
@@ -524,8 +533,10 @@ export class AdmissionsPipelineService {
     const next: OfferRecord = {
       ...effective,
       status: 'accepted',
-      paymentRef: input.paymentRef,
-      offerFeeInvoiceId: input.offerFeeInvoiceId ?? effective.offerFeeInvoiceId,
+      // Informational client reference only; never payment proof (PRC-H079).
+      paymentRef: input.paymentRef ?? null,
+      // The fee invoice is server-owned (raised at send); a client id is ignored.
+      offerFeeInvoiceId: effective.offerFeeInvoiceId,
       enrolledStudentId,
       updatedAt: new Date(),
     };

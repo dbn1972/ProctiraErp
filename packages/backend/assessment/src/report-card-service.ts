@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
 import type { ReportCardArtifactStore } from './report-card-artifact-store.js';
+import type { ReportCardDirectory } from './report-card-directory.js';
 import type {
   ReportCardTemplateEntity,
   ReportCardTemplateRepository,
@@ -65,6 +66,8 @@ export interface ReportCardData {
     address: string | null;
   };
   academicPeriodId: string;
+  /** PRC-H036: resolved academic period display name. */
+  academicPeriodName: string;
   subjects: Array<{
     subjectId: string;
     subjectName: string;
@@ -109,6 +112,11 @@ export interface ReportCardServiceOptions {
    * immediately after being queued instead of waiting for a worker.
    */
   processInline?: boolean;
+  /**
+   * PRC-H036: resolves student / subject / period names. Without it, jobs fail
+   * explicitly rather than issuing report cards with blank names.
+   */
+  directory?: ReportCardDirectory | null;
 }
 
 /** A generated report card ready to be streamed to a client. */
@@ -486,6 +494,27 @@ export class ReportCardService {
         throw new NotFoundError(`Template '${job.templateId}' not found`);
       }
 
+      // PRC-H036: resolve names first — never issue a card for an unknown student.
+      const directory = this.options.directory;
+      if (!directory) {
+        throw new BusinessRuleError(
+          'Report card directory is not configured; cannot resolve student and subject names',
+        );
+      }
+      const studentName = await directory.findStudentName(tenantId, job.studentId);
+      if (!studentName) {
+        throw new NotFoundError(`Student '${job.studentId}' not found in this tenant`);
+      }
+      const academicPeriodName = await directory.findAcademicPeriodName(
+        tenantId,
+        job.academicPeriodId,
+      );
+      if (!academicPeriodName) {
+        throw new NotFoundError(
+          `Academic period '${job.academicPeriodId}' not found in this tenant`,
+        );
+      }
+
       // Get institution branding
       const branding = await this.brandingRepo.findByInstitutionId(job.institutionId, tenantId);
 
@@ -495,6 +524,17 @@ export class ReportCardService {
         job.studentId,
         job.academicPeriodId,
       );
+
+      const subjectNames = await directory.findSubjectNames(
+        tenantId,
+        subjectResults.map((r) => r.subjectId),
+      );
+      const unresolved = subjectResults
+        .map((r) => r.subjectId)
+        .filter((id) => !subjectNames.has(id));
+      if (unresolved.length > 0) {
+        throw new NotFoundError(`Subject name(s) not found for: ${unresolved.join(', ')}`);
+      }
 
       // Get teacher comments
       const comments = template.includeComments
@@ -529,7 +569,7 @@ export class ReportCardService {
       const reportCardData: ReportCardData = {
         student: {
           id: job.studentId,
-          name: '', // Student directory lookup is owned by the student service
+          name: studentName,
         },
         institution: {
           name: branding?.name ?? '',
@@ -537,9 +577,10 @@ export class ReportCardService {
           address: branding?.address ?? null,
         },
         academicPeriodId: job.academicPeriodId,
+        academicPeriodName,
         subjects: subjectResults.map((result) => ({
           subjectId: result.subjectId,
-          subjectName: '', // Subject catalogue lookup is owned by the institution service
+          subjectName: subjectNames.get(result.subjectId)!,
           items: result.itemScores.map((item) => {
             const entity = itemsById.get(item.assessmentItemId);
             return {

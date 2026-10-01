@@ -20,6 +20,7 @@ import {
   createReportCardArtifactStore,
   type ReportCardArtifactStore,
 } from './report-card-artifact-store.js';
+import { createReportCardDirectory, type ReportCardDirectory } from './report-card-directory.js';
 import { ReportCardPdfGenerator } from './report-card-pdf-generator.js';
 import type {
   ReportCardTemplateRepository,
@@ -69,6 +70,11 @@ export interface AssessmentPluginOptions {
   pdfGenerator?: PdfGenerator;
   /** Where generated PDFs are kept for download (defaults from env: filesystem) */
   reportCardArtifactStore?: ReportCardArtifactStore;
+  /**
+   * PRC-H036: student/subject/period name resolver for report cards. Defaults to
+   * the Postgres directory when a shared pool exists; `null` disables it (jobs fail).
+   */
+  reportCardDirectory?: ReportCardDirectory | null;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -109,6 +115,7 @@ export const assessmentPlugin = fp(
       reportCardWorkerQueue,
       pdfGenerator,
       reportCardArtifactStore,
+      reportCardDirectory,
       gradingSchemesPrefix = '/grading-schemes',
       assessmentItemsPrefix = '/assessment-items',
       outcomesPrefix = '/outcomes',
@@ -180,6 +187,8 @@ export const assessmentPlugin = fp(
         {
           artifactStore: reportCardArtifactStore ?? createReportCardArtifactStore(),
           resultRepository,
+          directory:
+            reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory,
           // Without a queue consumer there is no worker, so finish the job in-request.
           processInline: !effectivePublisher,
         },

@@ -351,6 +351,8 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
 }
 
 function assertOfferFeePaidHook() {
+  // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
+  // PSP webhook / callback path; a client paymentRef is never payment proof.
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());

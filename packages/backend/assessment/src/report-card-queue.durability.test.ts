@@ -33,6 +33,7 @@ import { QueueReportCardPublisher } from './queue-report-card-publisher.js';
 import { ReportCardService } from './report-card-service.js';
 import { createReportCardWorker } from './report-card-worker.js';
 import { ResultService } from './result-service.js';
+import { anyIdReportCardDirectory } from './report-card-test-directory.js';
 
 const TENANT_ID = 'tenant-rc-durable';
 
@@ -102,7 +103,7 @@ describe('W2-JOB-02 report-card queue durability', () => {
           return Buffer.from('%PDF-1.4 report-card');
         },
       },
-      { processInline, resultRepository: resultRepo },
+      { processInline, resultRepository: resultRepo, directory: anyIdReportCardDirectory },
     );
   }
 
@@ -169,7 +170,10 @@ describe('W2-JOB-02 report-card queue durability', () => {
   });
 
   it('worker redelivers and completes after crash before ack', async () => {
-    const publishAdapter = new InMemoryDurableQueueAdapter({ store: durableStore, pollIntervalMs: 5 });
+    const publishAdapter = new InMemoryDurableQueueAdapter({
+      store: durableStore,
+      pollIntervalMs: 5,
+    });
     await publishAdapter.connect();
     const publisher = new QueueReportCardPublisher(publishAdapter);
     const service = createService(publisher);
@@ -188,7 +192,10 @@ describe('W2-JOB-02 report-card queue durability', () => {
     });
     let firstAttempts = 0;
 
-    const crashAdapter = new InMemoryDurableQueueAdapter({ store: durableStore, pollIntervalMs: 5 });
+    const crashAdapter = new InMemoryDurableQueueAdapter({
+      store: durableStore,
+      pollIntervalMs: 5,
+    });
     const crashWorker = createReportCardWorker({
       queue: crashAdapter,
       topic: REPORT_CARD_CONSUME_TOPIC,
@@ -208,7 +215,10 @@ describe('W2-JOB-02 report-card queue durability', () => {
     expect(durableStore.pendingCount).toBeGreaterThanOrEqual(1);
     expect(durableStore.inFlightCount).toBe(0);
 
-    const resumeAdapter = new InMemoryDurableQueueAdapter({ store: durableStore, pollIntervalMs: 5 });
+    const resumeAdapter = new InMemoryDurableQueueAdapter({
+      store: durableStore,
+      pollIntervalMs: 5,
+    });
     const resumeWorker = createReportCardWorker({
       queue: resumeAdapter,
       processor: service,

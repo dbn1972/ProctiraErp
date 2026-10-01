@@ -121,9 +121,9 @@ describe('admissions pipeline service', () => {
     const convertedA = await service.convertEnquiry(TENANT, first.id);
     const convertedB = await service.convertEnquiry(TENANT, second.id);
 
+    // Zero fee: this test covers seat capacity, not fee proof (see offer-fee-payment.test.ts).
     const offerA = await service.createOffer(TENANT, {
       applicationId: convertedA.application.id,
-      feeAmount: 1000,
     });
     await service.sendOffer(TENANT, offerA.id);
     const accepted = await service.acceptOffer(TENANT, offerA.id, { paymentRef: 'SANDBOX-1' });
@@ -329,10 +329,14 @@ describe('admissions pipeline service', () => {
   it('lists and accepts offers only for matching guardian email', async () => {
     const store = new InMemoryAdmissionsPipelineStore();
     const apps = new InMemoryRegistrationRepository();
-    const service = new AdmissionsPipelineService(store, apps, async () => ({
-      studentId: randomUUID(),
-      enrollmentId: randomUUID(),
-    }));
+    // Fee offers need a server-owned invoice + verifier (PRC-H079); treat as paid here.
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      async () => ({ studentId: randomUUID(), enrollmentId: randomUUID() }),
+      async () => ({ invoiceId: randomUUID() }),
+      async () => undefined,
+    );
 
     await service.upsertSeat(TENANT, {
       institutionId: INSTITUTION,

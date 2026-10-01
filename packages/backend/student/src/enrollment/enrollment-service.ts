@@ -286,48 +286,29 @@ export class EnrollmentService {
       );
     }
 
-    // Step 1: Set source enrollment to TRANSFERRED
-    const transferOutHistory = {
-      reason: input.reason,
-      effectiveDate: new Date(input.transferDate),
-    };
-    const updatedSource = await this.repository.updateEnrollment(
-      input.sourceEnrollmentId,
+    // PRC-H094: pre-validate BEFORE any write. The source itself is the only
+    // active enrollment allowed in the destination period (it becomes TRANSFERRED).
+    const activeInDestinationPeriod = await this.repository.findActiveEnrollment(
       tenantId,
-      {
-        status: EnrollmentStatus.TRANSFERRED,
-        exitedAt: new Date(input.transferDate),
-      },
-      transferOutHistory,
+      input.studentId,
+      input.academicPeriodId,
     );
-    if (!updatedSource) {
-      throw new NotFoundError(`Source enrollment with id '${input.sourceEnrollmentId}' not found`);
+    if (activeInDestinationPeriod && activeInDestinationPeriod.id !== input.sourceEnrollmentId) {
+      throw new ConflictError(
+        `Student already has an active enrollment for academic period '${input.academicPeriodId}'`,
+      );
     }
-
-    if (!this.repository.writesHistoryViaDatabase) {
-      await this.repository.createHistoryEntry({
-        id: uuidv4(),
-        tenantId,
-        enrollmentId: input.sourceEnrollmentId,
-        previousStatus: EnrollmentStatus.ENROLLED,
-        newStatus: EnrollmentStatus.TRANSFERRED,
-        effectiveDate: transferOutHistory.effectiveDate,
-        institutionId: sourceEnrollment.institutionId,
-        academicPeriodId: sourceEnrollment.academicPeriodId,
-        reason: transferOutHistory.reason,
-      });
-    }
-
-    // Step 2: Create new enrollment at destination with status ENROLLED
-    await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
-
+    const transferDate = new Date(input.transferDate);
     const destinationEnrollmentId = uuidv4();
-    const transferInHistory = {
-      reason: `Transfer from institution ${sourceEnrollment.institutionId}: ${input.reason}`,
-      effectiveDate: new Date(input.transferDate),
-    };
-    const destinationEnrollment = await this.repository.createEnrollment(
-      {
+    // Source update, destination insert, transfer record (and history) commit
+    // together in one transaction — never a student with no active enrollment.
+    return this.repository.transferEnrollment({
+      tenantId,
+      sourceEnrollmentId: input.sourceEnrollmentId,
+      expectedSourceStatus: EnrollmentStatus.ENROLLED,
+      sourceUpdate: { status: EnrollmentStatus.TRANSFERRED, exitedAt: transferDate },
+      sourceHistory: { reason: input.reason, effectiveDate: transferDate },
+      destination: {
         id: destinationEnrollmentId,
         tenantId,
         studentId: input.studentId,
@@ -336,44 +317,25 @@ export class EnrollmentService {
         classId: input.destinationClassId,
         academicPeriodId: input.academicPeriodId,
         status: EnrollmentStatus.ENROLLED,
-        enrolledAt: new Date(input.transferDate),
+        enrolledAt: transferDate,
         exitedAt: null,
       },
-      transferInHistory,
-    );
-
-    if (!this.repository.writesHistoryViaDatabase) {
-      await this.repository.createHistoryEntry({
+      destinationHistory: {
+        reason: `Transfer from institution ${sourceEnrollment.institutionId}: ${input.reason}`,
+        effectiveDate: transferDate,
+      },
+      transfer: {
         id: uuidv4(),
         tenantId,
-        enrollmentId: destinationEnrollmentId,
-        previousStatus: null,
-        newStatus: EnrollmentStatus.ENROLLED,
-        effectiveDate: transferInHistory.effectiveDate,
-        institutionId: input.destinationInstitutionId,
-        academicPeriodId: input.academicPeriodId,
-        reason: transferInHistory.reason,
-      });
-    }
-
-    // Step 3: Create transfer record
-    const transferRecord = await this.repository.createTransferRecord({
-      id: uuidv4(),
-      tenantId,
-      studentId: input.studentId,
-      sourceInstitutionId: sourceEnrollment.institutionId,
-      sourceEnrollmentId: input.sourceEnrollmentId,
-      destinationInstitutionId: input.destinationInstitutionId,
-      destinationEnrollmentId: destinationEnrollmentId,
-      transferDate: new Date(input.transferDate),
-      reason: input.reason,
+        studentId: input.studentId,
+        sourceInstitutionId: sourceEnrollment.institutionId,
+        sourceEnrollmentId: input.sourceEnrollmentId,
+        destinationInstitutionId: input.destinationInstitutionId,
+        destinationEnrollmentId,
+        transferDate,
+        reason: input.reason,
+      },
     });
-
-    return {
-      sourceEnrollment: updatedSource,
-      destinationEnrollment,
-      transferRecord,
-    };
   }
 
   /**

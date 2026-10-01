@@ -150,6 +150,12 @@ export type { ResultRoutesOptions } from './result-routes.js';
 
 // Report Card Service
 export { ReportCardService } from './report-card-service.js';
+export {
+  createReportCardDirectory,
+  InMemoryReportCardDirectory,
+  PgReportCardDirectory,
+} from './report-card-directory.js';
+export type { ReportCardDirectory } from './report-card-directory.js';
 export type {
   TaskQueuePublisher,
   PdfGenerator,

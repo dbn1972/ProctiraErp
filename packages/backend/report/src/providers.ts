@@ -1,20 +1,41 @@
 /**
- * Catalogue data providers — query live domain tables when present (same
- * relations insights board-summary uses), else tenant-scoped demo rows so
- * generate still produces real bytes without claiming live aggregates.
+ * Catalogue data providers — query live domain tables (same relations insights
+ * board-summary uses).
+ *
+ * PRC-H080: providers never fabricate data. No rows -> header-only table; a
+ * missing relation, query error or absent pool throws
+ * {@link ReportDataUnavailableError} so the run is marked `failed` with no
+ * artifact. Demo rows are served ONLY in explicit non-production demo mode
+ * (`REPORT_DEMO_DATA=1` and `NODE_ENV !== 'production'`).
  */
+import { AppError, ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type { CatalogueReportKey } from './catalogue.js';
 import type { ReportTable } from './generators.js';
 
+/** Thrown when live report data cannot be read; the run must fail (no artifact). */
+export class ReportDataUnavailableError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'REPORT_DATA_UNAVAILABLE', 503);
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+}
+
+/** Demo rows are allowed only when explicitly opted in outside production. */
+export function isReportDemoDataEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV !== 'production' && env.REPORT_DEMO_DATA === '1';
+}
+
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {
-  try {
-    const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
-    const row = result.rows[0] as { reg?: string | null } | undefined;
-    return Boolean(row?.reg);
-  } catch {
-    return false;
+  const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
+  const row = result.rows[0] as { reg?: string | null } | undefined;
+  return Boolean(row?.reg);
+}
+
+async function requireRelation(client: PgQueryable, name: string): Promise<void> {
+  if (!(await relationExists(client, name))) {
+    throw new ReportDataUnavailableError(`Report source relation '${name}' is not available`);
   }
 }
 
@@ -118,217 +139,219 @@ function demoTable(key: CatalogueReportKey, tenantId: string): ReportTable {
   };
 }
 
-async function loadStudentsRoster(
-  client: PgQueryable,
-  tenantId: string,
-): Promise<ReportTable | null> {
-  if (!(await relationExists(client, 'students'))) return null;
-  try {
-    const { rows } = await client.query(
-      `SELECT id::text AS student_id, first_name, last_name, gender, date_of_birth::text AS date_of_birth
+async function loadStudentsRoster(client: PgQueryable, tenantId: string): Promise<ReportTable> {
+  await requireRelation(client, 'students');
+  const { rows } = await client.query(
+    `SELECT id::text AS student_id, first_name, last_name, gender, date_of_birth::text AS date_of_birth
          FROM students
         WHERE deleted_at IS NULL
         ORDER BY last_name, first_name
         LIMIT 500`,
-    );
-    if (rows.length === 0) return null;
-    return {
-      columns: [
-        { name: 'studentId', label: 'Student ID' },
-        { name: 'firstName', label: 'First name' },
-        { name: 'lastName', label: 'Last name' },
-        { name: 'gender', label: 'Gender' },
-        { name: 'dateOfBirth', label: 'Date of birth' },
-        { name: 'tenantId', label: 'Tenant' },
-      ],
-      rows: (
-        rows as Array<{
-          student_id: string;
-          first_name: string;
-          last_name: string;
-          gender: string;
-          date_of_birth: string;
-        }>
-      ).map((r) => ({
-        studentId: r.student_id,
-        firstName: r.first_name,
-        lastName: r.last_name,
-        gender: r.gender,
-        dateOfBirth: r.date_of_birth,
+  );
+  return {
+    columns: [
+      { name: 'studentId', label: 'Student ID' },
+      { name: 'firstName', label: 'First name' },
+      { name: 'lastName', label: 'Last name' },
+      { name: 'gender', label: 'Gender' },
+      { name: 'dateOfBirth', label: 'Date of birth' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (
+      rows as Array<{
+        student_id: string;
+        first_name: string;
+        last_name: string;
+        gender: string;
+        date_of_birth: string;
+      }>
+    ).map((r) => ({
+      studentId: r.student_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      gender: r.gender,
+      dateOfBirth: r.date_of_birth,
+      tenantId,
+    })),
+  };
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * PRC-H081: student_attendance has no grade_id — derive the grade via
+ * classes.grade_id -> grades, and honour the catalogue `date` filter.
+ */
+async function loadAttendance(
+  client: PgQueryable,
+  tenantId: string,
+  filters: Record<string, unknown>,
+): Promise<ReportTable> {
+  await requireRelation(client, 'student_attendance');
+  const date = filters.date;
+  if (date !== undefined && date !== null && date !== '') {
+    if (typeof date !== 'string' || !ISO_DATE.test(date)) {
+      throw new ValidationError('Invalid attendance report date filter', [
+        { field: 'filters.date', rule: 'format', message: 'Expected YYYY-MM-DD' },
+      ]);
+    }
+  }
+  const dateFilter = typeof date === 'string' && date !== '' ? date : null;
+  const { rows } = await client.query(
+    `SELECT COALESCE(g.name, 'unspecified') AS grade,
+            COUNT(*) FILTER (WHERE sa.status IN ('PRESENT', 'LATE'))::int AS present,
+            COUNT(*) FILTER (WHERE sa.status = 'ABSENT')::int AS absent,
+            COUNT(*) FILTER (WHERE sa.status = 'LATE')::int AS late
+       FROM student_attendance sa
+       LEFT JOIN classes c ON c.id = sa.class_id
+       LEFT JOIN grades g ON g.id = c.grade_id
+      WHERE ($1::date IS NULL OR sa.date = $1::date)
+      GROUP BY 1
+      ORDER BY 1`,
+    [dateFilter],
+  );
+  return {
+    columns: [
+      { name: 'grade', label: 'Grade' },
+      { name: 'present', label: 'Present' },
+      { name: 'absent', label: 'Absent' },
+      { name: 'late', label: 'Late' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (rows as Array<{ grade: string; present: number; absent: number; late: number }>).map(
+      (r) => ({
+        grade: r.grade,
+        present: r.present,
+        absent: r.absent,
+        late: r.late,
         tenantId,
-      })),
-    };
-  } catch {
-    return null;
-  }
+      }),
+    ),
+  };
 }
 
-async function loadAttendance(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
-  if (!(await relationExists(client, 'student_attendance'))) return null;
-  try {
-    const { rows } = await client.query(
-      `SELECT COALESCE(grade_id::text, 'unspecified') AS grade,
-              COUNT(*) FILTER (WHERE status IN ('PRESENT', 'LATE', 'present', 'late'))::int AS present,
-              COUNT(*) FILTER (WHERE status IN ('ABSENT', 'absent'))::int AS absent,
-              COUNT(*) FILTER (WHERE status IN ('LATE', 'late'))::int AS late
-         FROM student_attendance
-        GROUP BY 1
-        ORDER BY 1`,
-    );
-    if (rows.length === 0) return null;
-    return {
-      columns: [
-        { name: 'grade', label: 'Grade' },
-        { name: 'present', label: 'Present' },
-        { name: 'absent', label: 'Absent' },
-        { name: 'late', label: 'Late' },
-        { name: 'tenantId', label: 'Tenant' },
-      ],
-      rows: (rows as Array<{ grade: string; present: number; absent: number; late: number }>).map(
-        (r) => ({
-          grade: r.grade,
-          present: r.present,
-          absent: r.absent,
-          late: r.late,
-          tenantId,
-        }),
-      ),
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function loadFeeDues(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
-  if (!(await relationExists(client, 'parent_fee_invoices'))) return null;
-  try {
-    const { rows } = await client.query(
-      `SELECT student_id::text AS student_id, title, status, amount_cents
+async function loadFeeDues(client: PgQueryable, tenantId: string): Promise<ReportTable> {
+  await requireRelation(client, 'parent_fee_invoices');
+  const { rows } = await client.query(
+    `SELECT student_id::text AS student_id, title, status, amount_cents
          FROM parent_fee_invoices
         WHERE status IN ('open', 'overdue')
         ORDER BY due_at NULLS LAST, created_at DESC
         LIMIT 500`,
-    );
-    if (rows.length === 0) return null;
-    return {
-      columns: [
-        { name: 'studentId', label: 'Student' },
-        { name: 'title', label: 'Invoice' },
-        { name: 'status', label: 'Status' },
-        { name: 'amountCents', label: 'Amount (cents)' },
-        { name: 'tenantId', label: 'Tenant' },
-      ],
-      rows: (
-        rows as Array<{ student_id: string; title: string; status: string; amount_cents: number }>
-      ).map((r) => ({
-        studentId: r.student_id,
-        title: r.title,
-        status: r.status,
-        amountCents: r.amount_cents,
-        tenantId,
-      })),
-    };
-  } catch {
-    return null;
-  }
+  );
+  return {
+    columns: [
+      { name: 'studentId', label: 'Student' },
+      { name: 'title', label: 'Invoice' },
+      { name: 'status', label: 'Status' },
+      { name: 'amountCents', label: 'Amount (cents)' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (
+      rows as Array<{ student_id: string; title: string; status: string; amount_cents: number }>
+    ).map((r) => ({
+      studentId: r.student_id,
+      title: r.title,
+      status: r.status,
+      amountCents: r.amount_cents,
+      tenantId,
+    })),
+  };
 }
 
 async function loadEnrolment(
   client: PgQueryable,
   tenantId: string,
   filters: Record<string, unknown>,
-): Promise<ReportTable | null> {
-  if (!(await relationExists(client, 'enrollments'))) return null;
-  try {
-    const period = typeof filters.academicPeriodId === 'string' ? filters.academicPeriodId : null;
-    const { rows } = period
-      ? await client.query(
-          `SELECT COALESCE(g.name, e.grade_id::text) AS grade, e.status::text AS status, COUNT(*)::int AS headcount
+): Promise<ReportTable> {
+  await requireRelation(client, 'enrollments');
+  const period = typeof filters.academicPeriodId === 'string' ? filters.academicPeriodId : null;
+  const { rows } = period
+    ? await client.query(
+        `SELECT COALESCE(g.name, e.grade_id::text) AS grade, e.status::text AS status, COUNT(*)::int AS headcount
              FROM enrollments e
              LEFT JOIN grades g ON g.id = e.grade_id
             WHERE e.academic_period_id::text = $1
             GROUP BY 1, 2
             ORDER BY 1, 2`,
-          [period],
-        )
-      : await client.query(
-          `SELECT COALESCE(g.name, e.grade_id::text) AS grade, e.status::text AS status, COUNT(*)::int AS headcount
+        [period],
+      )
+    : await client.query(
+        `SELECT COALESCE(g.name, e.grade_id::text) AS grade, e.status::text AS status, COUNT(*)::int AS headcount
              FROM enrollments e
              LEFT JOIN grades g ON g.id = e.grade_id
             GROUP BY 1, 2
             ORDER BY 1, 2`,
-        );
-    if (rows.length === 0) return null;
+      );
+  return {
+    columns: [
+      { name: 'grade', label: 'Grade' },
+      { name: 'status', label: 'Status' },
+      { name: 'headcount', label: 'Headcount' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (rows as Array<{ grade: string; status: string; headcount: number }>).map((r) => ({
+      grade: r.grade,
+      status: r.status,
+      headcount: r.headcount,
+      tenantId,
+    })),
+  };
+}
+
+async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable> {
+  for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
+    if (!(await relationExists(client, table))) continue;
+    const result = await client.query(`SELECT * FROM ${table} LIMIT 200`);
+    const rows = result.rows as Record<string, unknown>[];
+    const fieldNames = Array.isArray(result.fields)
+      ? (result.fields as Array<{ name: string }>).map((f) => f.name)
+      : Object.keys(rows[0] ?? {});
+    const keys = fieldNames.filter((k) => k !== 'tenant_id').slice(0, 6);
     return {
-      columns: [
-        { name: 'grade', label: 'Grade' },
-        { name: 'status', label: 'Status' },
-        { name: 'headcount', label: 'Headcount' },
-        { name: 'tenantId', label: 'Tenant' },
-      ],
-      rows: (rows as Array<{ grade: string; status: string; headcount: number }>).map((r) => ({
-        grade: r.grade,
-        status: r.status,
-        headcount: r.headcount,
+      columns: [...keys.map((k) => ({ name: k, label: k })), { name: 'tenantId', label: 'Tenant' }],
+      rows: rows.map((r) => ({
+        ...Object.fromEntries(keys.map((k) => [k, r[k]])),
         tenantId,
       })),
     };
-  } catch {
-    return null;
   }
+  throw new ReportDataUnavailableError('No examination results relation is available');
 }
 
-async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
-  for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
-    if (!(await relationExists(client, table))) continue;
-    try {
-      const { rows } = await client.query(`SELECT * FROM ${table} LIMIT 200`);
-      if (rows.length === 0) continue;
-      const sample = rows[0] as Record<string, unknown>;
-      const keys = Object.keys(sample)
-        .filter((k) => k !== 'tenant_id')
-        .slice(0, 6);
-      return {
-        columns: [
-          ...keys.map((k) => ({ name: k, label: k })),
-          { name: 'tenantId', label: 'Tenant' },
-        ],
-        rows: (rows as Record<string, unknown>[]).map((r) => ({
-          ...Object.fromEntries(keys.map((k) => [k, r[k]])),
-          tenantId,
-        })),
-      };
-    } catch {
-      continue;
-    }
-  }
-  return null;
+async function loadLive(
+  client: PgQueryable,
+  tenantId: string,
+  key: CatalogueReportKey,
+  filters: Record<string, unknown>,
+): Promise<ReportTable> {
+  if (key === 'students_roster') return loadStudentsRoster(client, tenantId);
+  if (key === 'attendance_summary') return loadAttendance(client, tenantId, filters);
+  if (key === 'fee_dues') return loadFeeDues(client, tenantId);
+  if (key === 'enrolment_by_grade') return loadEnrolment(client, tenantId, filters);
+  return loadExamResults(client, tenantId);
 }
 
 export async function fetchCatalogueTable(
   tenantId: string,
   key: CatalogueReportKey,
   filters: Record<string, unknown> = {},
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<ReportTable> {
   const pool = getSharedPgPool();
-  if (!pool) return demoTable(key, tenantId);
+  if (!pool) {
+    // PRC-H080: synthetic rows only in explicit non-production demo mode.
+    if (isReportDemoDataEnabled(env)) return demoTable(key, tenantId);
+    throw new ReportDataUnavailableError(
+      'Report data source is not configured (no database pool); refusing to fabricate rows',
+    );
+  }
   try {
-    return await withPgTenant(pool, tenantId, async (client) => {
-      if (key === 'students_roster') {
-        return (await loadStudentsRoster(client, tenantId)) ?? demoTable(key, tenantId);
-      }
-      if (key === 'attendance_summary') {
-        return (await loadAttendance(client, tenantId)) ?? demoTable(key, tenantId);
-      }
-      if (key === 'fee_dues') {
-        return (await loadFeeDues(client, tenantId)) ?? demoTable(key, tenantId);
-      }
-      if (key === 'enrolment_by_grade') {
-        return (await loadEnrolment(client, tenantId, filters)) ?? demoTable(key, tenantId);
-      }
-      return (await loadExamResults(client, tenantId)) ?? demoTable(key, tenantId);
-    });
-  } catch {
-    return demoTable(key, tenantId);
+    return await withPgTenant(pool, tenantId, (client) => loadLive(client, tenantId, key, filters));
+  } catch (error: unknown) {
+    if (error instanceof ReportDataUnavailableError || error instanceof ValidationError)
+      throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ReportDataUnavailableError(`Report query failed for '${key}': ${message}`, error);
   }
 }

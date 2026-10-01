@@ -104,6 +104,28 @@ export type EnrollmentHistoryContext = {
 /**
  * Repository interface for enrollment data access.
  */
+/**
+ * PRC-H094: all writes of a transfer, applied atomically by
+ * {@link EnrollmentRepository.transferEnrollment}.
+ */
+export interface TransferEnrollmentWrite {
+  tenantId: string;
+  sourceEnrollmentId: string;
+  /** Status the source must still hold when the write runs (optimistic guard). */
+  expectedSourceStatus: EnrollmentEntity['status'];
+  sourceUpdate: Pick<EnrollmentEntity, 'status' | 'exitedAt'>;
+  sourceHistory: EnrollmentHistoryContext;
+  destination: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>;
+  destinationHistory: EnrollmentHistoryContext;
+  transfer: Omit<TransferRecordEntity, 'createdAt'>;
+}
+
+export interface TransferEnrollmentResult {
+  sourceEnrollment: EnrollmentEntity;
+  destinationEnrollment: EnrollmentEntity;
+  transferRecord: TransferRecordEntity;
+}
+
 export interface EnrollmentRepository {
   /**
    * When true, Postgres triggers (`trg_enrollments_write_history`) are the
@@ -170,6 +192,13 @@ export interface EnrollmentRepository {
   /** Load one transfer in the caller's tenant. Null when the id is absent or belongs to another tenant. */
   getTransferById(tenantId: string, transferId: string): Promise<TransferRecordDetail | null>;
 
+  /**
+   * PRC-H094: mark source TRANSFERRED, insert the destination enrollment and the
+   * transfer record (plus history) in ONE transaction — all-or-nothing. Rejects
+   * (without writing) when the destination class does not belong to the tenant,
+   * destination institution, grade and academic period.
+   */
+  transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult>;
   /** Look up an institution by ID (for transfer validation) */
   findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null>;
 }

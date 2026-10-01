@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'node',
     root: path.resolve(__dirname),
     include: ['src/**/*.{test,spec}.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.live.test.ts'],
     passWithNoTests: true,
   },
 });
