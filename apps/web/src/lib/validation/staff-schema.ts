@@ -67,14 +67,19 @@ export const appraisalFormSchema = z.object({
 
 export type AppraisalFormValues = z.infer<typeof appraisalFormSchema>;
 
-export const contractFormSchema = z.object({
-  staffId: uuid,
-  contractType: z.enum(['permanent', 'probation', 'fixed_term', 'visiting', 'intern']),
-  startDate: isoDate,
-  endDate: isoDateOptional,
-  salaryBand: z.string().max(64).optional().or(z.literal('')),
-  notes: z.string().max(2000).optional().or(z.literal('')),
-});
+export const contractFormSchema = z
+  .object({
+    staffId: uuid,
+    contractType: z.enum(['permanent', 'probation', 'fixed_term', 'visiting', 'intern']),
+    startDate: isoDate,
+    endDate: isoDateOptional,
+    salaryBand: z.string().max(64).optional().or(z.literal('')),
+    notes: z.string().max(2000).optional().or(z.literal('')),
+  })
+  .refine((data) => !data.endDate || data.endDate >= data.startDate, {
+    message: 'End date must be on or after start date',
+    path: ['endDate'],
+  });
 export type ContractFormValues = z.infer<typeof contractFormSchema>;
 
 export const qualificationFormSchema = z.object({
