@@ -13,6 +13,7 @@ import {
 } from '../institution-assignments.js';
 
 import {
+  KeycloakIdentityError,
   identityInputFromClaims,
   linkKeycloakIdentity,
   type KeycloakIdentityStore,
@@ -113,6 +114,13 @@ export const keycloakAuthPlugin = fp(
           }
           (request as FastifyRequest & { user: JwtPayload }).user = payload;
         } catch (error) {
+          if (error instanceof KeycloakIdentityUnavailableError) {
+            return reply.status(503).send({
+              code: 'IDENTITY_UNAVAILABLE',
+              message: error.message,
+              statusCode: 503,
+            });
+          }
           const message =
             error instanceof KeycloakTokenError ? error.message : 'Invalid Keycloak token';
           return reply.status(401).send({
@@ -176,6 +184,15 @@ export const keycloakAuthPlugin = fp(
   },
 );
 
+/** Identity store failure while projecting a verified token (HTTP 503). */
+export class KeycloakIdentityUnavailableError extends Error {
+  readonly statusCode = 503;
+  constructor() {
+    super('Identity service temporarily unavailable');
+    this.name = 'KeycloakIdentityUnavailableError';
+  }
+}
+
 async function hydrateKeycloakUser(
   token: string,
   options: KeycloakAuthPluginOptions,
@@ -195,10 +212,14 @@ async function hydrateKeycloakUser(
       payload.displayName = linked.displayName;
       payload.areas = linked.tenantId ? [{ areaId: 'ROOT', level: 0 }] : [];
     } catch (error) {
-      request.log.warn(
-        { err: error },
-        'Failed to project Keycloak user onto local tenant identity',
-      );
+      // PRC-L283: fail closed. A mapping rejection (unverified email, no tenant)
+      // is a 401; an unavailable identity store is a 503. Never continue with a
+      // degraded, claim-derived principal.
+      if (error instanceof KeycloakIdentityError) {
+        throw new KeycloakTokenError(error.message);
+      }
+      request.log.error({ err: error }, 'Keycloak identity store unavailable; refusing request');
+      throw new KeycloakIdentityUnavailableError();
     }
   }
   // G-805: resolve the institutions this principal may act for from staff

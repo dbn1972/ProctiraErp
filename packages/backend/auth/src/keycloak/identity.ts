@@ -14,6 +14,11 @@ export class KeycloakIdentityError extends Error {
 export type KeycloakIdentityInput = {
   externalId: string;
   email: string;
+  /**
+   * True only when the IdP asserted `email_verified === true` for the `email`
+   * claim. Email-based linking/provisioning is refused otherwise (PRC-H042).
+   */
+  emailVerified?: boolean;
   displayName: string;
   firstName?: string;
   lastName?: string;
@@ -49,7 +54,8 @@ type StoredUser = {
 export interface KeycloakIdentityStore {
   findIdentity(externalId: string): Promise<StoredIdentity | null>;
   touchIdentity(id: string): Promise<void>;
-  findUserByEmail(email: string, tenantId?: string): Promise<StoredUser | null>;
+  /** Tenant scope is mandatory: email lookup never crosses tenants (PRC-H042). */
+  findUserByEmail(email: string, tenantId: string): Promise<StoredUser | null>;
   findTenantById(id: string): Promise<{ id: string } | null>;
   findTenantBySlug(slug: string): Promise<{ id: string } | null>;
   createUser(input: {
@@ -90,7 +96,13 @@ export async function linkKeycloakIdentity(
 
   const existing = await store.findIdentity(input.externalId);
   if (existing) {
-    await store.touchIdentity(existing.id);
+    // PRC-L283: lastUsedAt is telemetry; write it at most once per interval per
+    // identity and never block (or fail) the request on it.
+    if (shouldTouchIdentity(existing.id)) {
+      void Promise.resolve()
+        .then(() => store.touchIdentity(existing.id))
+        .catch(() => undefined);
+    }
     const user = await store.findUserByEmail(existing.email, existing.tenantId);
     return {
       userId: existing.userId,
@@ -101,9 +113,23 @@ export async function linkKeycloakIdentity(
     };
   }
 
+  // PRC-H042: first-login linking is email based, so it must fail closed.
+  // An unverified email would let anyone who registers the victim's address in
+  // Keycloak take over the provisioned account, and a tenantless token must never
+  // search every tenant for a matching email.
+  if (input.emailVerified !== true) {
+    throw new KeycloakIdentityError(
+      'Keycloak email is not verified; refusing to link or provision an account',
+    );
+  }
   const tenantId = await resolveTenantId(input, store);
+  if (!tenantId) {
+    throw new KeycloakIdentityError(
+      'Keycloak user has no tenant mapping (set tenant_id or tenant_slug)',
+    );
+  }
   const provisioned = await store.findUserByEmail(email, tenantId);
-  if (provisioned) {
+  if (provisioned && provisioned.tenantId === tenantId) {
     await store.createIdentity({
       userId: provisioned.id,
       tenantId: provisioned.tenantId,
@@ -118,12 +144,6 @@ export async function linkKeycloakIdentity(
       displayName: provisioned.displayName,
       countryCode: provisioned.countryCode,
     };
-  }
-
-  if (!tenantId) {
-    throw new KeycloakIdentityError(
-      'Keycloak user has no tenant mapping (set tenant_id or tenant_slug)',
-    );
   }
 
   const names = splitDisplayName(input);
@@ -151,6 +171,28 @@ export async function linkKeycloakIdentity(
   };
 }
 
+const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_TOUCH_ENTRIES = 50_000;
+const lastTouchedAt = new Map<string, number>();
+
+function shouldTouchIdentity(id: string, now = Date.now()): boolean {
+  const last = lastTouchedAt.get(id);
+  if (last !== undefined && now - last < TOUCH_INTERVAL_MS) return false;
+  lastTouchedAt.delete(id);
+  lastTouchedAt.set(id, now);
+  while (lastTouchedAt.size > MAX_TOUCH_ENTRIES) {
+    const oldest = lastTouchedAt.keys().next().value;
+    if (oldest === undefined) break;
+    lastTouchedAt.delete(oldest);
+  }
+  return true;
+}
+
+/** Test hook: forget touch throttling state. */
+export function resetIdentityTouchThrottleForTests(): void {
+  lastTouchedAt.clear();
+}
+
 export function identityInputFromClaims(
   claims: KeycloakAccessClaims,
   realm: string,
@@ -165,6 +207,8 @@ export function identityInputFromClaims(
   return {
     externalId: claims.sub || claims.preferred_username || claims.email || '',
     email: claims.email ?? claims.preferred_username ?? '',
+    // Only an explicit IdP assertion on a real `email` claim counts as verified.
+    emailVerified: Boolean(claims.email) && claims.email_verified === true,
     displayName,
     firstName: claims.given_name,
     lastName: claims.family_name,
@@ -210,15 +254,11 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
     }
   }
 
-  async findUserByEmail(email: string, tenantId?: string): Promise<StoredUser | null> {
+  async findUserByEmail(email: string, tenantId: string): Promise<StoredUser | null> {
+    if (!tenantId) return null;
     const normalized = email.trim().toLowerCase();
-    if (tenantId) {
-      return this.usersByKey.get(`${tenantId}:${normalized}`) ?? null;
-    }
-    for (const user of this.usersByKey.values()) {
-      if (user.email === normalized) return { ...user };
-    }
-    return null;
+    const user = this.usersByKey.get(`${tenantId}:${normalized}`);
+    return user ? { ...user } : null;
   }
 
   async findTenantById(id: string): Promise<{ id: string } | null> {
@@ -253,7 +293,10 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
       displayName: input.displayName,
       countryCode: input.countryCode,
     };
-    this.usersByKey.set(`${user.tenantId}:${user.email}`, user);
+    const key = `${user.tenantId}:${user.email}`;
+    const existing = this.usersByKey.get(key);
+    if (existing) return { ...existing };
+    this.usersByKey.set(key, user);
     return { ...user };
   }
 
@@ -264,6 +307,7 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
     email: string;
     realm: string;
   }): Promise<void> {
+    if (this.identitiesByExternalId.has(input.externalId)) return;
     this.identitiesByExternalId.set(input.externalId, {
       id: randomUUID(),
       userId: input.userId,

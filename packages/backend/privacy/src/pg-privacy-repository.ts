@@ -18,6 +18,7 @@ import type {
   ErasureRequestEntity,
   LegalHoldEntity,
   OffboardChecklistItem,
+  ListPage,
   PrivacyRepository,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -267,14 +268,40 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
-  async listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]> {
+  async findActiveHold(
+    tenantId: string,
+    subject?: { subjectType?: string; subjectId?: string },
+  ): Promise<Pick<LegalHoldEntity, 'id' | 'scope'> | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // One query served by idx_privacy_legal_holds_tenant_active /
+      // idx_privacy_legal_holds_subject_active (db/sql/067).
+      const result = await client.query(
+        `SELECT id, scope FROM privacy_legal_holds
+         WHERE tenant_id = $1 AND active = true
+           AND (
+             scope = 'tenant'
+             OR (scope = 'subject' AND $3::text IS NOT NULL AND subject_id = $3::text
+                 AND ($2::text IS NULL OR subject_type = $2::text))
+           )
+         ORDER BY (scope = 'tenant') DESC
+         LIMIT 1`,
+        [tenantId, subject?.subjectType ?? null, subject?.subjectId ?? null],
+      );
+      const row = result.rows[0] as { id: unknown; scope: unknown } | undefined;
+      return row
+        ? { id: String(row.id), scope: String(row.scope) as LegalHoldEntity['scope'] }
+        : null;
+    });
+  }
+  async listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM privacy_legal_holds
          WHERE tenant_id = $1 AND active = true
-         ORDER BY placed_at DESC`,
-        [tenantId],
+         ORDER BY placed_at DESC${page ? ' LIMIT $2 OFFSET $3' : ''}`,
+        page ? [tenantId, page.limit, page.offset] : [tenantId],
       );
       return result.rows.map((row) => mapLegalHold(row as Record<string, unknown>));
     });
@@ -315,6 +342,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
+    options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -324,6 +352,8 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!existing.rows[0]) return null;
       const cur = mapErasure(existing.rows[0] as Record<string, unknown>);
+      // $7 is the optional compare-and-set status (PRC-H076): a concurrent writer
+      // that moved the row since we read it makes this UPDATE a no-op.
       const result = await client.query(
         `UPDATE privacy_erasure_requests SET
            status = $3,
@@ -332,6 +362,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
            completed_at = $6,
            updated_at = NOW()
          WHERE id = $1 AND tenant_id = $2
+           AND ($7::text IS NULL OR status = $7::text)
          RETURNING *`,
         [
           id,
@@ -340,8 +371,10 @@ export class PgPrivacyRepository implements PrivacyRepository {
           data.reviewedBy !== undefined ? data.reviewedBy : cur.reviewedBy,
           data.statusReason !== undefined ? data.statusReason : cur.statusReason,
           data.completedAt !== undefined ? data.completedAt : cur.completedAt,
+          options?.expectedStatus ?? null,
         ],
       );
+      if (!result.rows[0]) return null;
       return mapErasure(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -358,14 +391,14 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
-  async listErasureRequests(tenantId: string): Promise<ErasureRequestEntity[]> {
+  async listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM privacy_erasure_requests
          WHERE tenant_id = $1
-         ORDER BY created_at DESC`,
-        [tenantId],
+         ORDER BY created_at DESC${page ? ' LIMIT $2 OFFSET $3' : ''}`,
+        page ? [tenantId, page.limit, page.offset] : [tenantId],
       );
       return result.rows.map((row) => mapErasure(row as Record<string, unknown>));
     });
@@ -462,14 +495,17 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
-  async listCorrectionRequests(tenantId: string): Promise<CorrectionRequestEntity[]> {
+  async listCorrectionRequests(
+    tenantId: string,
+    page?: ListPage,
+  ): Promise<CorrectionRequestEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM privacy_correction_requests
          WHERE tenant_id = $1
-         ORDER BY created_at DESC`,
-        [tenantId],
+         ORDER BY created_at DESC${page ? ' LIMIT $2 OFFSET $3' : ''}`,
+        page ? [tenantId, page.limit, page.offset] : [tenantId],
       );
       return result.rows.map((row) => mapCorrection(row as Record<string, unknown>));
     });
@@ -668,14 +704,17 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
-  async listTenantOffboardJobs(tenantId: string): Promise<TenantOffboardJobEntity[]> {
+  async listTenantOffboardJobs(
+    tenantId: string,
+    page?: ListPage,
+  ): Promise<TenantOffboardJobEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM privacy_tenant_offboard_jobs
          WHERE tenant_id = $1
-         ORDER BY created_at DESC`,
-        [tenantId],
+         ORDER BY created_at DESC${page ? ' LIMIT $2 OFFSET $3' : ''}`,
+        page ? [tenantId, page.limit, page.offset] : [tenantId],
       );
       return result.rows.map((row) => mapOffboard(row as Record<string, unknown>));
     });

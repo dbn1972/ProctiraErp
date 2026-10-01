@@ -458,6 +458,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         process.env['KEYCLOAK_REDIRECT_URI'] ??
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
+      tenantDirectory: getTenantRepository(),
     });
   } else {
     await app.register(authPlugin, {
@@ -510,6 +511,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     store: createOtpChallengeStore(),
     sms: createSmsProviderFromEnv(),
     exposeCodeInResponse: exposeOtp,
+    // PRC-L281: shared HMAC pepper so any replica can verify a challenge.
+    pepper: process.env['MFA_OTP_PEPPER'] || config.jwt.secret,
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
@@ -519,7 +522,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const inviteService = new InviteService({
       repository: createUserInviteRepository(),
     });
-    await registerInviteAndTenantDirectoryRoutes(app, { inviteService });
+    await registerInviteAndTenantDirectoryRoutes(app, {
+      inviteService,
+      tenantDirectory: getTenantRepository(),
+    });
   }
 
   // G-504 — secrets accepted during rotation (current first, then previous).

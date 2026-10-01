@@ -17,7 +17,11 @@ function toBase64Url(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
 }
 
-function signRs256(payload: Record<string, unknown>, privateKeyPem: string, kid = 'test-kid'): string {
+function signRs256(
+  payload: Record<string, unknown>,
+  privateKeyPem: string,
+  kid = 'test-kid',
+): string {
   const header = toBase64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid }));
   const body = toBase64Url(JSON.stringify(payload));
   const signed = `${header}.${body}`;
@@ -43,21 +47,38 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     vi.restoreAllMocks();
   });
 
-  it('denylists access jti/sid before redirecting to IdP end-session', async () => {
-    const store = new MemoryAccessTokenRevocationStore();
-    const now = Math.floor(Date.now() / 1000);
-    const accessToken = [
+  function mockJwks() {
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const jwk = publicKey.export({ format: 'jwk' });
+    const privateKeyPem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/protocol/openid-connect/certs')) {
+        return new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    return privateKeyPem;
+  }
+
+  function unsigned(payload: Record<string, unknown>): string {
+    return [
       toBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' })),
-      toBase64Url(
-        JSON.stringify({
-          sub: 'kc-user',
-          jti: 'jti-kc-logout',
-          sid: 'sid-kc-logout',
-          exp: now + 600,
-        }),
-      ),
+      toBase64Url(JSON.stringify(payload)),
       'sig',
     ].join('.');
+  }
+
+  it('denylists verified access jti/sid before redirecting to IdP end-session', async () => {
+    const privateKeyPem = mockJwks();
+    const store = new MemoryAccessTokenRevocationStore();
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = signRs256(
+      { sub: 'kc-user', iss: issuer, jti: 'jti-kc-logout', sid: 'sid-kc-logout', exp: now + 600 },
+      privateKeyPem,
+    );
 
     const app = Fastify();
     apps.push(app);
@@ -76,34 +97,74 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     expect(await store.isRevoked('sid', 'sid-kc-logout')).toBe(true);
   });
 
-  it('denylists refresh JWT jti/sid when presented alongside access', async () => {
+  it('forged unsigned token does not create a denylist entry (PRC-L282)', async () => {
+    mockJwks();
+    const store = new MemoryAccessTokenRevocationStore();
+    const revoke = vi.spyOn(store, 'revoke');
+    const now = Math.floor(Date.now() / 1000);
+    const forged = unsigned({
+      sub: 'attacker',
+      iss: issuer,
+      jti: 'jti-forged',
+      sid: 'sid-victim',
+      exp: now + 10 * 365 * 24 * 3600,
+    });
+
+    const app = Fastify();
+    apps.push(app);
+    await registerKeycloakAuthRoutes(app, { ...routeConfigBase, revocationStore: store });
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/auth/logout?refresh_token=${encodeURIComponent(forged)}`,
+      headers: { authorization: `Bearer ${forged}` },
+    });
+
+    expect(response.statusCode).toBe(302);
+    expect(revoke).not.toHaveBeenCalled();
+    expect(await store.isRevoked('sid', 'sid-victim')).toBe(false);
+  });
+
+  it('caps denylist TTL to the configured maximum (PRC-L282)', async () => {
+    const privateKeyPem = mockJwks();
+    const store = new MemoryAccessTokenRevocationStore();
+    const revoke = vi.spyOn(store, 'revoke');
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = signRs256(
+      { sub: 'kc-user', iss: issuer, jti: 'jti-long', sid: 'sid-long', exp: now + 365 * 24 * 3600 },
+      privateKeyPem,
+    );
+    const app = Fastify();
+    apps.push(app);
+    await registerKeycloakAuthRoutes(app, {
+      ...routeConfigBase,
+      revocationStore: store,
+      maxRevocationTtlSeconds: 600,
+    });
+    await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/logout',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(revoke).toHaveBeenCalled();
+    for (const call of revoke.mock.calls) expect(call[2]).toBeLessThanOrEqual(600);
+  });
+
+  it('denylists refresh jti only when it belongs to the verified session', async () => {
+    const privateKeyPem = mockJwks();
     const store = new MemoryAccessTokenRevocationStore();
     const now = Math.floor(Date.now() / 1000);
-    const accessToken = [
-      toBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' })),
-      toBase64Url(
-        JSON.stringify({
-          sub: 'kc-user',
-          jti: 'jti-access',
-          sid: 'sid-shared',
-          exp: now + 300,
-        }),
-      ),
-      'sig',
-    ].join('.');
-    const refreshToken = [
-      toBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' })),
-      toBase64Url(
-        JSON.stringify({
-          sub: 'kc-user',
-          jti: 'jti-refresh',
-          sid: 'sid-shared',
-          exp: now + 3600,
-          typ: 'Refresh',
-        }),
-      ),
-      'sig',
-    ].join('.');
+    const accessToken = signRs256(
+      { sub: 'kc-user', iss: issuer, jti: 'jti-access', sid: 'sid-shared', exp: now + 300 },
+      privateKeyPem,
+    );
+    const refreshToken = unsigned({
+      sub: 'kc-user',
+      jti: 'jti-refresh',
+      sid: 'sid-shared',
+      exp: now + 3600,
+      typ: 'Refresh',
+    });
+    const otherSessionRefresh = unsigned({ jti: 'jti-other', sid: 'sid-other', exp: now + 3600 });
 
     const app = Fastify();
     apps.push(app);
@@ -114,11 +175,18 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
       url: `/api/v1/auth/logout?refresh_token=${encodeURIComponent(refreshToken)}`,
       headers: { authorization: `Bearer ${accessToken}` },
     });
-
     expect(response.statusCode).toBe(302);
     expect(await store.isRevoked('jti', 'jti-access')).toBe(true);
     expect(await store.isRevoked('jti', 'jti-refresh')).toBe(true);
     expect(await store.isRevoked('sid', 'sid-shared')).toBe(true);
+
+    await app.inject({
+      method: 'GET',
+      url: `/api/v1/auth/logout?refresh_token=${encodeURIComponent(otherSessionRefresh)}`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(await store.isRevoked('jti', 'jti-other')).toBe(false);
+    expect(await store.isRevoked('sid', 'sid-other')).toBe(false);
   });
 
   it('still redirects to IdP when no bearer is presented (revoke is a no-op)', async () => {
