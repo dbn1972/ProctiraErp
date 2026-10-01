@@ -1,4 +1,4 @@
-export { BulkImport, importErrorsToCsv } from './BulkImport';
+export { BulkImport, importErrorsToCsv, DEFAULT_BULK_IMPORT_LABELS } from './BulkImport';
 export type {
   BulkImportProps,
   ImportValidationResult,
@@ -7,4 +7,5 @@ export type {
   ImportColumnMapping,
   ImportStep,
   ImportResult,
+  BulkImportLabels,
 } from './types';

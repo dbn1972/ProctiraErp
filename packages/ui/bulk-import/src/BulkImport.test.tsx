@@ -317,4 +317,38 @@ describe('BulkImport', () => {
       expect(lines[1]).toBe('"1","email","\'=HYPERLINK(""x"")","Invalid email format","error"');
     });
   });
+
+  describe('labels (PRC-L195)', () => {
+    it('renders translated strings from the labels prop with English fallback', async () => {
+      const onFileValidate = vi.fn().mockResolvedValue(mockValidationResult);
+      render(
+        <BulkImport
+          title="Importer des élèves"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi.fn()}
+          onCancel={vi.fn()}
+          labels={{
+            stepUpload: 'Téléverser',
+            chooseFile: 'Choisir un fichier',
+            mappingTitle: 'Associer les colonnes',
+            continueToPreview: 'Continuer',
+            cancelImport: "Annuler l'import",
+            mapColumn: (c) => `Associer ${c}`,
+            importValidRows: (n) => `Importer ${n} lignes valides`,
+          }}
+        />,
+      );
+      expect(screen.getByText('Téléverser')).toBeInTheDocument();
+      expect(screen.getByText('Map Columns')).toBeInTheDocument(); // English fallback
+      expect(screen.getByRole('button', { name: "Annuler l'import" })).toBeInTheDocument();
+      const input = screen.getByLabelText(/Choisir un fichier/);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      expect(await screen.findByText('Associer les colonnes')).toBeInTheDocument();
+      expect(screen.getByLabelText('Associer First Name')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
+      expect(screen.getByRole('button', { name: 'Importer 8 lignes valides' })).toBeInTheDocument();
+    });
+  });
 });
