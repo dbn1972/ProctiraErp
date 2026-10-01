@@ -1455,6 +1455,7 @@ jobs:
           tools/scripts/backup-crypto.test.mjs
           tools/scripts/check-bundle-gate.test.mjs
           tools/scripts/setup-live-db-and-onboard.test.mjs
+          tools/scripts/run-e2e-backend-ready.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs

@@ -10,7 +10,7 @@
 # Usage:
 #   DATABASE_URL=postgresql://... bash tools/scripts/run-e2e-backend-ready.sh
 #   bash tools/scripts/run-e2e-backend-ready.sh --skip-stack   # docs/skip summary only
-#   E2E_REQUIRE_LIVE=1 bash tools/scripts/run-e2e-backend-ready.sh  # fail if gateway down
+#   E2E_ALLOW_SKIP=1 bash tools/scripts/run-e2e-backend-ready.sh    # local: skip summary if no DB
 #
 # Environment (required for a real live pass):
 #   DATABASE_URL     Postgres (after prisma migrate deploy + apply-sql.sh)
@@ -22,7 +22,12 @@
 # Optional:
 #   E2E_SPECS        Space-separated spec paths relative to apps/web
 #                    (default: health write smoke + health/scholarships a11y smoke)
-#   E2E_REQUIRE_LIVE If 1, exit non-zero when gateway health fails
+#   E2E_ALLOW_SKIP   PRC-L389: the harness is fail-closed by default — a missing
+#                    DATABASE_URL, missing psql or unhealthy gateway exits 1.
+#                    Set E2E_ALLOW_SKIP=1 (local scaffolding only) to print the
+#                    skip summary and exit 0 instead.
+#   E2E_REQUIRE_LIVE If 1, always fail closed (overrides E2E_ALLOW_SKIP)
+#   E2E_GATEWAY_HOST Bind address for the harness gateway (default 127.0.0.1)
 #   E2E_SKIP_STACK   If 1 (or --skip-stack), print skip summary and exit 0
 #   PLAYWRIGHT_SHARD Optional i/n (for example 2/4). Passed as --shard so CI
 #                    can split the same spec list. Every shard still receives
@@ -37,7 +42,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,29p' "$0"
+      sed -n '2,34p' "$0"
       exit 0
       ;;
     *)
@@ -49,6 +54,12 @@ done
 
 if [[ "${E2E_SKIP_STACK:-0}" == "1" ]]; then
   SKIP_STACK=1
+fi
+
+# PRC-L389: live is required unless the caller explicitly allows a skip.
+LIVE_REQUIRED=1
+if [[ "${E2E_ALLOW_SKIP:-0}" == "1" && "${E2E_REQUIRE_LIVE:-0}" != "1" ]]; then
+  LIVE_REQUIRED=0
 fi
 
 JWT_SECRET="${JWT_SECRET:-dev-secret-change-in-production}"
@@ -119,8 +130,8 @@ if [[ "$SKIP_STACK" -eq 1 ]]; then
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
-  if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
-    echo "error: DATABASE_URL is required when E2E_REQUIRE_LIVE=1" >&2
+  if [[ "$LIVE_REQUIRED" == "1" ]]; then
+    echo "error: DATABASE_URL is required (set E2E_ALLOW_SKIP=1 to skip locally)" >&2
     exit 1
   fi
   print_skip_summary "DATABASE_URL unset — cannot start Postgres-backed gateway write path"
@@ -135,8 +146,8 @@ if [[ "${E2E_SKIP_TENANT_SEED:-0}" != "1" ]]; then
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/tools/e2e/seed-e2e-tenants.sql"
   else
     echo "warn: psql not on PATH — skipping E2E tenant seed (set E2E_SKIP_TENANT_SEED=1 to silence)" >&2
-    if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
-      echo "error: E2E_REQUIRE_LIVE=1 needs psql to seed tenant fixtures" >&2
+    if [[ "$LIVE_REQUIRED" == "1" ]]; then
+      echo "error: live E2E needs psql to seed tenant fixtures" >&2
       exit 1
     fi
   fi
@@ -153,8 +164,8 @@ if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
     psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
   else
     echo "warn: psql not on PATH — skipping Sunrise demo seed (set E2E_SKIP_SUNRISE_SEED=1 to silence)" >&2
-    if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
-      echo "error: E2E_REQUIRE_LIVE=1 needs psql to seed Sunrise demo fixtures" >&2
+    if [[ "$LIVE_REQUIRED" == "1" ]]; then
+      echo "error: live E2E needs psql to seed Sunrise demo fixtures" >&2
       exit 1
     fi
   fi
@@ -196,7 +207,7 @@ pnpm --filter @proctira/api-gateway build
 # mid-run, so raise the anonymous-tier fallback for the harness only.
 echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, JWT_SECRET set)"
 PORT="$GATEWAY_PORT" \
-HOST=0.0.0.0 \
+HOST="${E2E_GATEWAY_HOST:-127.0.0.1}" \
 NODE_ENV=development \
 SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
 DATABASE_URL="$DATABASE_URL" \
@@ -224,8 +235,8 @@ done
 
 if [[ "$READY" -ne 1 ]]; then
   tail -n 80 "$ROOT/.e2e-gateway.log" >&2 || true
-  if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
-    echo "error: gateway health check failed and E2E_REQUIRE_LIVE=1" >&2
+  if [[ "$LIVE_REQUIRED" == "1" ]]; then
+    echo "error: gateway health check failed (set E2E_ALLOW_SKIP=1 to skip locally)" >&2
     exit 1
   fi
   print_skip_summary "api-gateway did not become healthy at ${GATEWAY_URL}/health (see .e2e-gateway.log)"
