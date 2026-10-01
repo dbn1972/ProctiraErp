@@ -12,18 +12,41 @@ const CENT_EPS = 1e-8;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE = BigInt(Number.MIN_SAFE_INTEGER);
 
+/** Options for {@link majorUnitsToCents}. */
+export interface MajorUnitsToCentsOptions {
+  /**
+   * Accept negative amounts (refunds, reversals, credit notes, adjustments).
+   * Defaults to `false` so input paths keep rejecting negatives (PRC-L490).
+   */
+  allowNegative?: boolean;
+}
+
 /**
  * Convert a major-unit money value to integer cents.
  * - Strings must be finite decimals with at most 2 fractional digits.
  * - Numbers must be within {@link CENT_EPS} of an exact cent (rejects 1/3-like values).
+ * - Negative values are rejected unless `options.allowNegative` is set.
  */
-export function majorUnitsToCents(major: number | string): number {
+export function majorUnitsToCents(
+  major: number | string,
+  options: MajorUnitsToCentsOptions = {},
+): number {
+  const allowNegative = options.allowNegative === true;
   if (typeof major === 'string') {
-    const raw = major.trim();
-    if (!raw || !/^\d+(\.\d+)?$/.test(raw)) {
-      throw new BusinessRuleError(`Money amount is not a non-negative decimal: ${major}`);
+    let raw = major.trim();
+    let sign = 1;
+    if (allowNegative && raw.startsWith('-')) {
+      sign = -1;
+      raw = raw.slice(1);
     }
-    const [wholePart, fracPart = ''] = raw.split('.');
+    if (!raw || !/^\d+(\.\d+)?$/.test(raw)) {
+      throw new BusinessRuleError(
+        allowNegative
+          ? `Money amount is not a decimal: ${major}`
+          : `Money amount is not a non-negative decimal: ${major}`,
+      );
+    }
+    const [wholePart = '0', fracPart = ''] = raw.split('.');
     if (fracPart.length > 2) {
       throw new BusinessRuleError(
         `Money amount has more than 2 decimal places (not representable in cents): ${raw}`,
@@ -34,13 +57,13 @@ export function majorUnitsToCents(major: number | string): number {
     if (!Number.isSafeInteger(cents)) {
       throw new BusinessRuleError(`Money amount overflows safe integer cents: ${raw}`);
     }
-    return cents;
+    return sign < 0 && cents !== 0 ? -cents : cents;
   }
 
   if (typeof major !== 'number' || !Number.isFinite(major)) {
     throw new BusinessRuleError(`Money amount is not a finite number: ${String(major)}`);
   }
-  if (major < 0) {
+  if (major < 0 && !allowNegative) {
     throw new BusinessRuleError(`Money amountCents must be non-negative: ${major}`);
   }
 
@@ -54,7 +77,7 @@ export function majorUnitsToCents(major: number | string): number {
       `Money amount is not representable in integer cents within epsilon: ${major}`,
     );
   }
-  return cents;
+  return cents === 0 ? 0 : cents;
 }
 
 /** Inverse of {@link majorUnitsToCents} for reconciliation displays. */
@@ -70,11 +93,15 @@ export function centsToMajorUnits(cents: number): string {
 }
 
 /** Assert major units and cents agree (reconciliation guard). */
-export function assertMajorMatchesCents(major: number | string, cents: number): void {
-  const expected = majorUnitsToCents(major);
+export function assertMajorMatchesCents(
+  major: number | string,
+  cents: number,
+  options: MajorUnitsToCentsOptions = {},
+): void {
+  const expected = majorUnitsToCents(major, options);
   if (expected !== cents) {
     throw new BusinessRuleError(
-      `Scholarship amount ${String(major)} does not reconcile to ${cents} cents (expected ${expected})`,
+      `Money amount ${String(major)} does not reconcile to ${cents} cents (expected ${expected})`,
     );
   }
 }
@@ -130,13 +157,14 @@ export function pgOptionalIntegerCents(value: unknown): number | null {
  * W1-DATA-09: coerce Postgres NUMERIC major-unit money to integer cents.
  * `node-pg` returns NUMERIC as string — prefer that path over `Number(numeric)`.
  */
-export function pgNumericMajorToCents(value: unknown): number {
+export function pgNumericMajorToCents(
+  value: unknown,
+  options: MajorUnitsToCentsOptions = {},
+): number {
   if (typeof value === 'string' || typeof value === 'number') {
-    return majorUnitsToCents(value);
+    return majorUnitsToCents(value, options);
   }
-  throw new BusinessRuleError(
-    `Money major units has unsupported type: ${typeof value}`,
-  );
+  throw new BusinessRuleError(`Money major units has unsupported type: ${typeof value}`);
 }
 
 /** Display major units derived from integer cents (string → number for API compat). */

@@ -21,6 +21,7 @@ import type {
   SecretManagerHealth,
   VaultConfig,
 } from '../types.js';
+
 import { SecretAccessError } from './aws-kms-adapter.js';
 
 /**
@@ -68,6 +69,23 @@ interface VaultKvWriteResponse {
   };
 }
 
+const SAFE_VAULT_KEY = /^[A-Za-z0-9_\-/.]+$/;
+
+/**
+ * PRC-L495: keys are interpolated into the Vault API path, so restrict them to a
+ * safe charset and reject traversal/empty segments.
+ */
+export function assertSafeVaultKey(key: string): void {
+  const segments = typeof key === 'string' ? key.split('/') : [];
+  if (
+    typeof key !== 'string' ||
+    !SAFE_VAULT_KEY.test(key) ||
+    segments.some((seg) => seg === '' || seg === '.' || seg === '..')
+  ) {
+    throw new SecretAccessError(`Invalid Vault secret key: ${JSON.stringify(key)}`);
+  }
+}
+
 export class VaultSecretAdapter implements SecretManager {
   private readonly config: VaultConfig;
   private readonly client: VaultHttpClient;
@@ -91,6 +109,7 @@ export class VaultSecretAdapter implements SecretManager {
   }
 
   private buildPath(operation: 'data' | 'metadata' | 'destroy', key: string): string {
+    assertSafeVaultKey(key);
     return `/v1/${this.mountPath}/${operation}/${key}`;
   }
 
@@ -195,25 +214,41 @@ export class VaultSecretAdapter implements SecretManager {
     // Write the new version
     const metadata = await this.setSecret(key, options.newValue);
 
-    // Optionally destroy the previous version
-    if (options?.invalidatePrevious && previousVersion) {
+    const result: RotateSecretResult = {
+      newVersion: metadata.version ?? 'unknown',
+      previousVersion,
+      rotatedAt: new Date(),
+    };
+
+    // Optionally destroy the previous version. PRC-L495: a requested invalidation
+    // that fails is surfaced (throws) instead of being swallowed.
+    if (options?.invalidatePrevious) {
+      if (!previousVersion) {
+        return { ...result, previousInvalidated: false };
+      }
+      let status: number | undefined;
+      let cause: unknown;
       try {
-        await this.client.request({
+        const response = await this.client.request({
           method: 'POST',
           path: this.buildPath('destroy', key),
           headers: this.buildHeaders(),
           body: { versions: [parseInt(previousVersion, 10)] },
         });
-      } catch {
-        // Non-fatal: rotation succeeded even if previous version destruction fails
+        status = response.status;
+      } catch (error: unknown) {
+        cause = error;
       }
+      if (status !== 200 && status !== 204) {
+        throw new SecretAccessError(
+          `Secret '${key}' rotated to version ${result.newVersion} but destroying previous version ${previousVersion} failed${status !== undefined ? ` (status ${status})` : ''}`,
+          cause !== undefined ? { cause } : undefined,
+        );
+      }
+      return { ...result, previousInvalidated: true };
     }
 
-    return {
-      newVersion: metadata.version ?? 'unknown',
-      previousVersion,
-      rotatedAt: new Date(),
-    };
+    return result;
   }
 
   async healthCheck(): Promise<SecretManagerHealth> {

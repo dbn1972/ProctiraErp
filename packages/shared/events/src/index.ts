@@ -21,7 +21,7 @@ export type {
 export { KafkaEventProducer } from './kafka/producer';
 export { KafkaEventConsumer } from './kafka/consumer';
 export type { ConsumerSubscription } from './kafka/consumer';
-export { buildTenantTopic, DEFAULT_KAFKA_CONFIG } from './kafka/config';
+export { buildTenantTopic, DEFAULT_KAFKA_CONFIG, assertKafkaConfigSecure } from './kafka/config';
 export type { KafkaConfig } from './kafka/config';
 
 // RabbitMQ
@@ -45,4 +45,3 @@ export {
   shouldRequireTenantScopedEventNames,
   buildTenantPrefixedName,
 } from './tenant-scope';
-

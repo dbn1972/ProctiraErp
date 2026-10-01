@@ -12,6 +12,11 @@
  */
 import type { FastifyInstance } from 'fastify';
 
+import {
+  authorizeMetricsAccess,
+  metricsAccessEnvFromProcess,
+  type MetricsAccessEnv,
+} from './metrics-access.js';
 import type { MetricsRegistry } from './metrics-registry.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -151,6 +156,12 @@ declare module 'fastify' {
   }
 }
 
+/** Options for {@link registerServiceSLO}. */
+export interface RegisterServiceSLOOptions {
+  /** Access-control env for `/slo`; defaults to {@link metricsAccessEnvFromProcess}. */
+  accessEnv?: MetricsAccessEnv;
+}
+
 /**
  * Register a service's SLO definition on a Fastify instance.
  *
@@ -163,10 +174,19 @@ declare module 'fastify' {
  * IMPORTANT: Call this BEFORE `app.ready()` / `app.listen()` — Fastify does not
  * allow decorating after the server has started.
  *
+ * The `/slo` endpoint is guarded exactly like `/metrics` (bearer token / IP
+ * allowlist / loopback-only in production) — PRC-L493.
+ *
  * @param fastify - The Fastify instance (must have the observability plugin registered).
  * @param slo - The service's SLO definition.
+ * @param options - Optional access env override (defaults to `process.env`).
  */
-export function registerServiceSLO(fastify: FastifyInstance, slo: ServiceSLO): void {
+export function registerServiceSLO(
+  fastify: FastifyInstance,
+  slo: ServiceSLO,
+  options: RegisterServiceSLOOptions = {},
+): void {
+  const accessEnv = options.accessEnv ?? metricsAccessEnvFromProcess();
   validateSLO(slo);
 
   // Decorate the instance so other plugins can inspect the SLO.
@@ -201,7 +221,22 @@ export function registerServiceSLO(fastify: FastifyInstance, slo: ServiceSLO): v
     schema: {
       hide: true,
     } as Record<string, unknown>,
-    handler: async (_request, reply) => {
+    handler: async (request, reply) => {
+      const decision = authorizeMetricsAccess({
+        env: accessEnv,
+        clientIp: request.ip,
+        authorizationHeader:
+          typeof request.headers.authorization === 'string'
+            ? request.headers.authorization
+            : undefined,
+      });
+      if (!decision.allow) {
+        reply.header('www-authenticate', 'Bearer realm="metrics"');
+        return reply.code(decision.statusCode).send({
+          error: decision.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
+          message: 'SLO endpoint requires authentication',
+        });
+      }
       return reply.send(slo);
     },
   });
