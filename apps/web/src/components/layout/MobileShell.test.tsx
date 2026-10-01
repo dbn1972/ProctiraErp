@@ -17,8 +17,9 @@
  *      the tenant logo URL plus the tenant name as accessible alt text
  *      (Requirement 43.4).
  *
- * The persistent `<ConnectivityIndicator>` placeholder slot from 53.2 is
- * also asserted so 54.3 can rely on its presence.
+ * The live `<ConnectivityIndicator>` (role="status"), the POST sign-out
+ * button and the role gate on `/admin/*` destinations are also asserted
+ * (PRC-L259).
  *
  * `next/link`, `next/navigation`, and `BrandConfigProvider` are wired via
  * lightweight stubs/mocks so the shell can render in isolation.
@@ -32,6 +33,25 @@ import React from 'react';
 
 vi.mock('@/components/CommandPalette', () => ({
   CommandPalette: () => <div data-stub="command-palette" />,
+}));
+
+let currentRoles: string[] = ['ADMIN'];
+const signOutMock = vi.fn(async () => {});
+
+vi.mock('@/providers/AuthProvider', () => ({
+  useAuth: () => ({ user: { roles: currentRoles } }),
+}));
+
+vi.mock('@/providers/ConnectivityProvider', () => ({
+  useConnectivity: () => ({ status: 'offline' }),
+}));
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => (key === 'offline' ? 'Offline' : key),
+}));
+
+vi.mock('@/lib/auth/session', () => ({
+  signOut: (...args: unknown[]) => signOutMock(...(args as [])),
 }));
 
 vi.mock('@/components/PageErrorBoundary', () => ({
@@ -238,9 +258,9 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
       '/reports',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe('/help');
-    expect(screen.getByTestId('mobile-shell-drawer-link-signout').getAttribute('href')).toBe(
-      '/api/auth/logout',
-    );
+    const signout = screen.getByTestId('mobile-shell-drawer-link-signout');
+    expect(signout.tagName.toLowerCase()).toBe('button');
+    expect(signout.getAttribute('href')).toBeNull();
 
     for (const [key, href] of [
       ['fees', '/fees'],
@@ -309,14 +329,49 @@ describe('<MobileShell> — brand logo from useBrand() (Task 53.2 / Req 43.4)', 
   });
 });
 
-describe('<MobileShell> — persistent connectivity-indicator slot (Task 53.2 → 54.3 hand-off)', () => {
-  it('mounts a placeholder for the future <ConnectivityIndicator>', () => {
+describe('<MobileShell> — live connectivity indicator (PRC-L259)', () => {
+  it('renders the real <ConnectivityIndicator> with role=status text in the header', () => {
     renderShell();
-    const placeholder = screen.getByTestId('connectivity-indicator-placeholder');
-    expect(placeholder).toBeTruthy();
-    // The slot is in the header so it stays visible while the page scrolls.
+    expect(screen.queryByTestId('connectivity-indicator-placeholder')).toBeNull();
+    const indicator = screen.getByTestId('connectivity-indicator');
+    expect(indicator.getAttribute('role')).toBe('status');
+    expect(indicator.getAttribute('aria-label')).toBe('Offline');
     const header = screen.getByLabelText('Mobile header');
-    expect(header.contains(placeholder)).toBe(true);
+    expect(header.contains(indicator)).toBe(true);
+  });
+});
+
+describe('<MobileShell> — sign out and role gating (PRC-L259)', () => {
+  afterEach(() => {
+    currentRoles = ['ADMIN'];
+    signOutMock.mockClear();
+  });
+
+  it('never renders a link to /api/auth/logout; Sign out POSTs via signOut()', () => {
+    renderShell();
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-shell-hamburger'));
+    });
+    expect(document.querySelector('a[href="/api/auth/logout"]')).toBeNull();
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-shell-drawer-link-signout'));
+    });
+    expect(signOutMock).toHaveBeenCalledWith('/login');
+  });
+
+  it('teacher role sees no /admin/* link in tabs or drawer', () => {
+    currentRoles = ['TEACHER'];
+    renderShell();
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-shell-hamburger'));
+    });
+    const adminLinks = Array.from(document.querySelectorAll('a[href]')).filter((a) => {
+      const href = a.getAttribute('href') ?? '';
+      return href === '/admin' || href.startsWith('/admin/');
+    });
+    expect(adminLinks).toHaveLength(0);
+    expect(screen.queryByTestId('mobile-shell-tab-profile')).toBeNull();
+    expect(screen.getByTestId('mobile-shell-tab-students')).toBeTruthy();
   });
 });
 

@@ -26,10 +26,9 @@
  *      that exposes less-frequent destinations (Settings, Reports, Help,
  *      Sign out). Each drawer link is also at least 48 px tall.
  *
- * The `<ConnectivityIndicator>` itself is delivered by Task 54.3; this
- * shell mounts a labelled placeholder (`data-testid="connectivity-
- * indicator-placeholder"`) so the slot stays visible from 53.2 onward
- * and 54.3 only has to swap the inner element.
+ * The header renders the live `<ConnectivityIndicator iconOnly>` (role
+ * "status"); Sign out is a POST button and `/admin/*` destinations are
+ * gated to admin/principal roles (PRC-L259).
  *
  * `data-shell="mobile"` is preserved so the Task 53.1 `<AppShell>`
  * layout-switch tests continue to pass.
@@ -65,6 +64,9 @@ import {
   SheetTrigger,
 } from '@proctira/ui/components';
 import { useBrand } from '@/providers/BrandConfigProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { ConnectivityIndicator } from '@/components/connectivity/ConnectivityIndicator';
+import { signOut } from '@/lib/auth/session';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
 import { cn } from '@/lib/utils';
@@ -73,6 +75,32 @@ import {
   MOBILE_DRAWER_DESTINATIONS,
   MOBILE_TAB_DESTINATIONS,
 } from './mobile-shell-routes';
+import { filterNavItemsByAccess } from './nav-permissions';
+
+/**
+ * `/admin/*` destinations follow the same role gate as the desktop sidebar's
+ * admin entry so teachers/parents are not sent to a forbidden page (PRC-L259).
+ */
+const ADMIN_ROLE_SUBSTRINGS = ['admin', 'principal', 'super-admin'] as const;
+const NON_STAFF_ROLE_SUBSTRINGS = ['parent', 'guardian'] as const;
+
+function gateByRole<T extends { key: string; href: string }>(
+  items: readonly T[],
+  roles: readonly string[] | undefined,
+): T[] {
+  const gated = items.map((item) => ({
+    ...item,
+    icon: '',
+    ...(item.href === '/admin' || item.href.startsWith('/admin/')
+      ? {
+          requiredRoleSubstrings: ADMIN_ROLE_SUBSTRINGS,
+          hideForRoleSubstrings: NON_STAFF_ROLE_SUBSTRINGS,
+        }
+      : {}),
+  }));
+  const allowed = new Set(filterNavItemsByAccess(gated, [], roles).map((item) => item.key));
+  return items.filter((item) => allowed.has(item.key));
+}
 
 // ─── Tab configuration ────────────────────────────────────────────────────────
 
@@ -188,6 +216,9 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
   const pathname = usePathname();
   const activeTab = getActiveMobileTab(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { user } = useAuth();
+  const tabs = gateByRole(MOBILE_TABS, user?.roles);
+  const drawerLinks = gateByRole(DRAWER_LINKS, user?.roles);
 
   // Resolve a sensible title even if the caller did not pass one.
   const resolvedTitle = pageTitle ?? activeTab?.label ?? name;
@@ -253,14 +284,8 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
           </div>
         ) : null}
 
-        {/* Persistent connectivity-indicator slot. Task 54.3 will swap this
-            placeholder for the live `<ConnectivityIndicator>` component;
-            keeping the slot from 53.2 onward avoids a layout shift. */}
-        <div
-          data-testid="connectivity-indicator-placeholder"
-          aria-hidden="true"
-          className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
-        />
+        {/* Live connectivity status (role="status", label exposed via aria-label). */}
+        <ConnectivityIndicator iconOnly className="shrink-0" />
 
         {/* Hamburger drawer trigger — opens the less-frequent destinations
             sheet (Settings / Reports / Help / Sign out). */}
@@ -285,8 +310,26 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
               </SheetDescription>
             </SheetHeader>
             <nav aria-label="Secondary navigation" className="flex flex-col py-2">
-              {DRAWER_LINKS.map((link) => {
+              {drawerLinks.map((link) => {
                 const Icon = link.Icon;
+                if (link.key === 'signout') {
+                  // Sign out is a CSRF-protected POST, never a navigable GET link.
+                  return (
+                    <button
+                      key={link.key}
+                      type="button"
+                      onClick={() => {
+                        setDrawerOpen(false);
+                        void signOut('/login');
+                      }}
+                      className="flex h-12 items-center gap-3 px-4 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:bg-muted"
+                      data-testid={`mobile-shell-drawer-link-${link.key}`}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                      <span>{link.label}</span>
+                    </button>
+                  );
+                }
                 return (
                   <Link
                     key={link.key}
@@ -323,7 +366,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
         aria-label="Mobile navigation"
       >
         <ul className="flex" role="list">
-          {MOBILE_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = activeTab?.key === tab.key;
             const Icon = tab.Icon;
             return (
