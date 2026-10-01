@@ -89,6 +89,9 @@ export type BillingPlanTier = string;
 /** Known values: active | deprecated | draft. */
 export type BillingPlanStatus = string;
 
+/** Currency platform plan prices are quoted in when a plan does not carry one. */
+export const PLATFORM_BILLING_CURRENCY = 'INR';
+
 export interface BillingPlan {
   id: string;
   name: string;
@@ -99,6 +102,8 @@ export interface BillingPlan {
   quotas: Record<string, number>;
   priceMonthly: number;
   priceYearly: number;
+  /** ISO 4217 code; gateway plans omit it today, so the platform default applies. */
+  currency: string;
   trialDays: number;
   sortOrder: number;
   updatedAt: string;
@@ -144,6 +149,7 @@ function mapPlan(raw: Record<string, unknown>): BillingPlan {
     quotas,
     priceMonthly: num(raw['priceMonthly']),
     priceYearly: num(raw['priceYearly']),
+    currency: str(raw['currency'], PLATFORM_BILLING_CURRENCY),
     trialDays: num(raw['trialDays']),
     sortOrder: num(raw['sortOrder']),
     updatedAt: str(raw['updatedAt']),

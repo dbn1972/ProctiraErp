@@ -25,6 +25,14 @@ import {
   listReportCardJobs,
 } from '@/lib/api/gradebook';
 import { canModerateGrades, canSubmitGrades } from '@/lib/gradebook-roles';
+import {
+  activeAcademicPeriods,
+  pickDefaultSection,
+  pickGradingBoardId,
+} from '@/lib/academic-defaults';
+import { listAcademicPeriods } from '@/lib/institutions/api';
+import type { AcademicPeriod } from '@/lib/institutions/types';
+import { getTenantToday } from '@/lib/tenant-today';
 import { humanGradebookError, reportCardStatusLabel } from '@/lib/gradebook/presentation';
 
 export const dynamic = 'force-dynamic';
@@ -43,13 +51,15 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const canSubmit = canSubmitGrades(roles);
   const canModerate = canModerateGrades(roles);
 
-  const [sectionsResult, scalesResult, jobsResult, studentsResult, commentsResult] =
+  const [sectionsResult, scalesResult, jobsResult, studentsResult, commentsResult, periods, today] =
     await Promise.all([
       listGradebookSections({ institutionId }),
       listGradingScales(),
       listReportCardJobs(),
       listStudents({ pageSize: 100 }),
       listCommentsBank({ institutionId }),
+      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+      getTenantToday(),
     ]);
 
   const apiError = !sectionsResult.ok
@@ -72,10 +82,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
     label: formatPersonLabel(student.firstName, student.lastName, studentCode(student)),
     searchText: `${student.firstName} ${student.lastName} ${studentCode(student) ?? ''}`,
   });
-  const preferred =
-    sections.find((section) => section.code === 'G9B-MATH') ??
-    sections.find((section) => section.name.toLowerCase().includes('mathematics')) ??
-    sections[0];
+  const activePeriodIds = new Set(activeAcademicPeriods(periods, today).map((period) => period.id));
+  const preferred = pickDefaultSection(sections, activePeriodIds);
   const sectionId =
     searchParams?.sectionId && sections.some((s) => s.id === searchParams.sectionId)
       ? searchParams.sectionId
@@ -98,7 +106,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const ranksResult = sectionId ? await listClassRanks(sectionId) : { ok: true as const, data: [] };
   const ranks = ranksResult.ok ? ranksResult.data : [];
 
-  const boardId = scales.find((s) => s.isDefault)?.boardId ?? scales[0]?.boardId ?? '';
+  const boardId = pickGradingBoardId(scales);
   const defaultStudentId = entries[0]?.studentId ?? studentOptions[0]?.id ?? '';
   const activeSection = sections.find((s) => s.id === sectionId);
 

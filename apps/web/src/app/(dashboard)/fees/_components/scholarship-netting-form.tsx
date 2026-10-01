@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -16,16 +17,12 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
+import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import { applyScholarshipNettingAction } from '@/lib/fees/actions';
 import type { ScholarshipNettingResult } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
-
-function formatMoney(cents: number, currency = 'INR'): string {
-  const amount = (cents / 100).toFixed(2);
-  return `${currency} ${amount}`;
-}
 
 export function ScholarshipNettingForm({
   studentOptions = [],
@@ -37,6 +34,7 @@ export function ScholarshipNettingForm({
   invoiceDirectoryFailed?: boolean;
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScholarshipNettingResult | null>(null);
@@ -47,7 +45,7 @@ export function ScholarshipNettingForm({
     disbursementId: string;
     amount: number;
     invoiceId: string;
-    currency: string;
+    currency?: string;
   } | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -58,7 +56,6 @@ export function ScholarshipNettingForm({
       disbursementId: String(fd.get('disbursementId') ?? '').trim(),
       amount: Number(fd.get('amount') ?? 0),
       invoiceId: String(fd.get('invoiceId') ?? '').trim(),
-      currency: String(fd.get('currency') ?? '').trim() || 'INR',
     });
     setConfirmOpen(true);
   }
@@ -140,7 +137,6 @@ export function ScholarshipNettingForm({
                   : 'No invoices are loaded. Leave this blank to use the first open invoice.'
               }
             />
-            <input type="hidden" name="currency" value="INR" />
             {error ? (
               <p className="text-sm text-destructive" role="alert" data-testid="netting-error">
                 {error}
@@ -182,7 +178,11 @@ export function ScholarshipNettingForm({
           <CardContent className="space-y-2 text-sm">
             <p>
               <span className="text-muted-foreground">Discount: </span>
-              {formatMoney(result.discountCents, result.invoice?.currency ?? 'INR')}
+              {formatAmount(
+                result.discountCents,
+                result.invoice?.currency ?? DEFAULT_FEE_CURRENCY,
+                locale,
+              )}
             </p>
             {result.concession ? (
               <p>
@@ -208,7 +208,8 @@ export function ScholarshipNettingForm({
                   'Invoice',
                 )}
                 <span className="ml-2">
-                  balance {formatMoney(result.invoice.amountCents, result.invoice.currency)} (
+                  balance{' '}
+                  {formatAmount(result.invoice.amountCents, result.invoice.currency, locale)} (
                   {humanizeStatus(result.invoice.status)})
                 </span>
               </p>

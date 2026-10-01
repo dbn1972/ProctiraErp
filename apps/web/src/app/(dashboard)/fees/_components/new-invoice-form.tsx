@@ -76,7 +76,6 @@ export function NewInvoiceForm({
         planId: planId || undefined,
         title: title || undefined,
         amountCents,
-        currency: 'INR',
       });
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create invoice');

@@ -7,7 +7,7 @@ import type { ServerSession } from '@/lib/auth/server';
 
 import { getWebRbacRegistry } from './web-rbac-registry';
 
-function sessionToAuthUser(session: ServerSession): AuthUser {
+export function sessionToAuthUser(session: ServerSession): AuthUser {
   const { user } = session;
   return {
     userId: user.sub,
@@ -27,12 +27,7 @@ function sessionToAuthUser(session: ServerSession): AuthUser {
 
 /** True when the session holds `examination.read` (or manage) via any role. */
 export function sessionHasExaminationRead(session: ServerSession): boolean {
-  return hasPermission(
-    sessionToAuthUser(session),
-    'examination',
-    'read',
-    getWebRbacRegistry(),
-  );
+  return hasPermission(sessionToAuthUser(session), 'examination', 'read', getWebRbacRegistry());
 }
 
 /** Route-level gate for all `/examinations/*` dashboard pages and proxies. */

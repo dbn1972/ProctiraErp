@@ -48,8 +48,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZod(error: {
   flatten: () => { fieldErrors: Record<string, string[] | undefined> };
@@ -96,7 +95,6 @@ export async function createFeeStructureAction(
       amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
-      currency: 'INR',
     });
     if (parsed.data.partCount && parsed.data.partCount > 1) {
       await generateInstalments(structure.id, parsed.data.partCount);
