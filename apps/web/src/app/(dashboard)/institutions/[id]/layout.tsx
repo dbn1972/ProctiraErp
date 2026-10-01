@@ -21,6 +21,10 @@ import {
 import { ApiClientError } from '@/lib/institutions/api';
 import { getCachedInstitution } from '@/lib/institutions/request-cache';
 import { classifyInstitutionLoadError } from '@/lib/institutions/load-state';
+import {
+  gatewaySimulationAllowed,
+  isGatewaySimulationRequested,
+} from '@/lib/institutions/gateway-simulation';
 import type { Institution } from '@/lib/institutions/types';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 
@@ -35,9 +39,10 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
 }
 
 async function gatewaySimulationRequested(): Promise<boolean> {
-  if (process.env.E2E_ALLOW_GATEWAY_SIMULATION !== '1') return false;
+  // Never honoured in production builds (PRC-L243).
+  if (!gatewaySimulationAllowed()) return false;
   const jar = await cookies();
-  return jar.get('e2e-gateway-down')?.value === '1';
+  return isGatewaySimulationRequested(jar.get('e2e-gateway-down')?.value);
 }
 
 export default async function InstitutionLayout({ params, children }: InstitutionLayoutProps) {
