@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { TenantAdminProvisioner } from '@proctira/backend-tenant';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -14,6 +15,11 @@ import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.j
 import { brandingPermissionGranted, tenantAdminPlugin } from './tenant-admin-plugin.js';
 
 delete process.env['DATABASE_URL'];
+
+const testAdminProvisioner: TenantAdminProvisioner = {
+  // PRC-H099: the lifecycle refuses to create a tenant without an admin provisioner.
+  provisionTenantAdmin: ({ tenantId }) => Promise.resolve({ adminUserId: `admin-of-${tenantId}` }),
+};
 
 const TENANT_A = '550e8400-e29b-41d4-a716-446655440000';
 const TENANT_C = '770e8400-e29b-41d4-a716-446655440002';
@@ -64,7 +70,7 @@ describe('gateway lows batch 1', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp({ config: config() });
+    app = await buildApp({ config: config(), tenantAdminProvisioner: testAdminProvisioner });
     await app.ready();
   });
 
