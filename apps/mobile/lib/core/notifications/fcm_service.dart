@@ -179,7 +179,7 @@ class FcmService {
     if (notification != null) {
       await _localNotifications.show(
         id: message.messageId.hashCode,
-        title: notification.title ?? 'OpenEMIS',
+        title: notification.title ?? 'ProctiraERP',
         body: notification.body ?? '',
         payload: message.data,
       );
