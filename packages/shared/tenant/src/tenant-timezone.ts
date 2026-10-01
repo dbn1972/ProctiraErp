@@ -7,7 +7,7 @@
  * migrates off scattered config keys.
  */
 
-export const DEFAULT_TENANT_TIMEZONE = 'UTC' as const;
+export const DEFAULT_TENANT_TIMEZONE = 'UTC';
 
 /** Config/settings shapes that may carry a tenant IANA timezone. */
 export interface TenantTimezoneSource {
@@ -41,8 +41,23 @@ function localeTimezoneFromConfig(config: Record<string, unknown>): unknown {
   return (locale as Record<string, unknown>)['timezone'];
 }
 
+/** Where the resolved timezone came from. */
+export type TenantTimezoneOrigin =
+  'timezone' | 'settings' | 'locale' | 'config' | 'config.locale' | 'default';
+
+/** Detailed resolution result so callers can warn/reject instead of silently using UTC. */
+export interface TenantTimezoneResolution {
+  timezone: string;
+  source: TenantTimezoneOrigin;
+  /** True when no valid candidate was found and {@link DEFAULT_TENANT_TIMEZONE} was used. */
+  fellBack: boolean;
+  /** Non-empty string candidates that were rejected as invalid IANA zones. */
+  rejected: string[];
+}
+
 /**
- * Resolves the tenant IANA timezone from known storage shapes.
+ * Resolves the tenant IANA timezone and reports the origin, whether it fell back
+ * to the default, and which configured values were rejected (PRC-L358).
  *
  * Priority (first valid IANA wins):
  * 1. `timezone` column / explicit field
@@ -50,26 +65,41 @@ function localeTimezoneFromConfig(config: Record<string, unknown>): unknown {
  * 3. Lifecycle config `locale.timezone`
  * 4. Flat `config.timezone`
  * 5. Nested `config.locale.timezone`
- *
- * Invalid or empty values are skipped; falls back to {@link DEFAULT_TENANT_TIMEZONE}.
  */
-export function resolveTenantTimezone(source: TenantTimezoneSource = {}): string {
-  const candidates: unknown[] = [
-    source.timezone,
-    source.settings?.timezone,
-    source.locale?.timezone,
-    source.config?.['timezone'],
+export function resolveTenantTimezoneDetailed(
+  source: TenantTimezoneSource = {},
+): TenantTimezoneResolution {
+  const candidates: Array<[TenantTimezoneOrigin, unknown]> = [
+    ['timezone', source.timezone],
+    ['settings', source.settings?.timezone],
+    ['locale', source.locale?.timezone],
+    ['config', source.config?.['timezone']],
   ];
 
   if (source.config) {
-    candidates.push(localeTimezoneFromConfig(source.config));
+    candidates.push(['config.locale', localeTimezoneFromConfig(source.config)]);
   }
 
-  for (const raw of candidates) {
+  const rejected: string[] = [];
+  for (const [origin, raw] of candidates) {
     if (typeof raw !== 'string') continue;
     const trimmed = raw.trim();
-    if (isValidIanaTimezone(trimmed)) return trimmed;
+    if (!trimmed) continue;
+    if (isValidIanaTimezone(trimmed)) {
+      return { timezone: trimmed, source: origin, fellBack: false, rejected };
+    }
+    rejected.push(trimmed);
   }
 
-  return DEFAULT_TENANT_TIMEZONE;
+  return { timezone: DEFAULT_TENANT_TIMEZONE, source: 'default', fellBack: true, rejected };
+}
+
+/**
+ * Resolves the tenant IANA timezone from known storage shapes.
+ *
+ * Invalid or empty values are skipped; falls back to {@link DEFAULT_TENANT_TIMEZONE}.
+ * Use {@link resolveTenantTimezoneDetailed} to detect the fallback.
+ */
+export function resolveTenantTimezone(source: TenantTimezoneSource = {}): string {
+  return resolveTenantTimezoneDetailed(source).timezone;
 }
