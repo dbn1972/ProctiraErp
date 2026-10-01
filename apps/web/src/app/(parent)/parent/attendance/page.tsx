@@ -31,7 +31,7 @@ export default async function ParentAttendancePage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -39,7 +39,7 @@ export default async function ParentAttendancePage({
         title="Attendance"
         description="See presence, absences, and recent days for your child."
         testId="parent-attendance"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No attendance to show."
         hasRows={false}
       >

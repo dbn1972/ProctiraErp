@@ -30,7 +30,7 @@ export default async function ParentNoticesPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -38,7 +38,7 @@ export default async function ParentNoticesPage({
         title="Notices"
         description="School announcements for your family."
         testId="parent-notices"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No notices to show."
         hasRows={false}
       >

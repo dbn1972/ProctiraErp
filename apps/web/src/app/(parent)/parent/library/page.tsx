@@ -54,7 +54,7 @@ export default async function ParentLibraryPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -62,7 +62,7 @@ export default async function ParentLibraryPage({
         title="Library"
         description="Search the catalogue and see your child's loans and holds."
         testId="parent-library"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No catalogue results."
         hasRows={false}
       >
