@@ -2,7 +2,7 @@
  * P0-09: Field ACL for counselling.case_notes + dual-control break-glass.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, ForbiddenError } from '@proctira/common';
 
 import { HealthService } from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
@@ -161,6 +161,90 @@ describe('Health PHI field ACL + break-glass (P0-09)', () => {
       requester,
     );
     expect(listed.data[0]!.caseNotes).toBe(PHI_FIELD_REDACTED);
+  });
+
+  // PRC-L113: terminal grants are a conflict, not a silent 200; revoke ends access now.
+  it('rejects approving a denied grant and re-approving an approved grant with 409', async () => {
+    const input = {
+      studentId,
+      fieldPath: PHI_FIELD_COUNSELLING_CASE_NOTES,
+      justification: 'Need plaintext case notes for safeguarding review board',
+    };
+    const denied = await service.requestBreakGlass(tenantId, input, requester);
+    await service.denyBreakGlass(tenantId, denied.id, approver);
+    await expect(service.approveBreakGlass(tenantId, denied.id, approver)).rejects.toThrow(
+      ConflictError,
+    );
+    await expect(service.denyBreakGlass(tenantId, denied.id, approver)).rejects.toThrow(
+      ConflictError,
+    );
+    const approved = await service.requestBreakGlass(tenantId, input, requester);
+    await service.approveBreakGlass(tenantId, approved.id, approver);
+    await expect(service.approveBreakGlass(tenantId, approved.id, approver)).rejects.toThrow(
+      ConflictError,
+    );
+  });
+
+  it('revoke immediately stops unredaction and is admin-only', async () => {
+    const grant = await service.requestBreakGlass(
+      tenantId,
+      {
+        studentId,
+        fieldPath: PHI_FIELD_COUNSELLING_CASE_NOTES,
+        justification: 'Need plaintext case notes for safeguarding review board',
+        durationMinutes: 60,
+      },
+      requester,
+    );
+    await service.approveBreakGlass(tenantId, grant.id, approver);
+    const before = await service.listCounsellingSessions(
+      tenantId,
+      studentId,
+      { page: 1, pageSize: 10 },
+      requester,
+    );
+    expect(before.data[0]!.caseNotes).toBe(sensitiveNotes);
+    await expect(service.revokeBreakGlass(tenantId, grant.id, requester)).rejects.toThrow(
+      ForbiddenError,
+    );
+    const revoked = await service.revokeBreakGlass(tenantId, grant.id, approver);
+    expect(revoked.status).toBe('revoked');
+    const after = await service.listCounsellingSessions(
+      tenantId,
+      studentId,
+      { page: 1, pageSize: 10 },
+      requester,
+    );
+    expect(after.data[0]!.caseNotes).toBe(PHI_FIELD_REDACTED);
+    await expect(service.revokeBreakGlass(tenantId, grant.id, approver)).rejects.toThrow(
+      ConflictError,
+    );
+  });
+
+  it('findActive does not rewrite expired grants on read', async () => {
+    const grant = await service.requestBreakGlass(
+      tenantId,
+      {
+        studentId,
+        fieldPath: PHI_FIELD_COUNSELLING_CASE_NOTES,
+        justification: 'Short TTL grant for incident triage review window',
+        durationMinutes: 1,
+      },
+      requester,
+    );
+    await service.approveBreakGlass(tenantId, grant.id, approver);
+    const later = new Date(Date.now() + 2 * 60_000);
+    await expect(
+      repository.findActiveBreakGlassGrant(
+        tenantId,
+        requester.userId,
+        studentId,
+        PHI_FIELD_COUNSELLING_CASE_NOTES,
+        later,
+      ),
+    ).resolves.toBeNull();
+    const stored = await repository.findBreakGlassGrantById(grant.id, tenantId);
+    expect(stored?.status).toBe('approved');
   });
 
   it('denies break-glass approve for non-admin health roles', async () => {

@@ -12,7 +12,7 @@
  * - 12.4: Restrict access to authorized health personnel and student's guardian
  * - 12.5: Support configurable health screening programs per grade level
  */
-import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError, ForbiddenError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
@@ -116,6 +116,13 @@ type PhiAccessCapableRepository = HealthRepository & {
     id: string,
     tenantId: string,
     approverUserId: string,
+  ) => Promise<HealthBreakGlassGrant | null>;
+  revokeBreakGlassGrant?: (
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ) => Promise<HealthBreakGlassGrant | null>;
   listBreakGlassGrants?: (
     tenantId: string,
@@ -1362,6 +1369,9 @@ export class HealthService {
           'Dual-control violation: requester cannot approve their own break-glass grant',
         );
       }
+      if (error instanceof Error && error.message === 'BREAK_GLASS_NOT_PENDING') {
+        throw new ConflictError('Break-glass grant is no longer pending');
+      }
       throw error;
     }
   }
@@ -1390,6 +1400,43 @@ export class HealthService {
         throw new BusinessRuleError(
           'Dual-control violation: requester cannot deny their own break-glass grant',
         );
+      }
+      if (error instanceof Error && error.message === 'BREAK_GLASS_NOT_PENDING') {
+        throw new ConflictError('Break-glass grant is no longer pending');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * PRC-L113: a health admin can end an approved grant before its TTL. Revocation
+   * takes effect on the next read (findActive only honours status 'approved').
+   */
+  async revokeBreakGlass(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant> {
+    if (!canApproveHealthBreakGlass(accessContext.roles)) {
+      throw new ForbiddenError('Access denied: break-glass revocation requires health_admin');
+    }
+    if (!accessContext.userId) {
+      throw new ForbiddenError('Access denied: authenticated user required for break-glass');
+    }
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.revokeBreakGlassGrant !== 'function') {
+      throw new BusinessRuleError('Break-glass grants are not available on this repository');
+    }
+    try {
+      const updated = await repo.revokeBreakGlassGrant(id, tenantId, options);
+      if (!updated) throw new NotFoundError(`Break-glass grant with id '${id}' not found`);
+      return updated;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'BREAK_GLASS_NOT_ACTIVE') {
+        throw new ConflictError('Break-glass grant is not active');
       }
       throw error;
     }

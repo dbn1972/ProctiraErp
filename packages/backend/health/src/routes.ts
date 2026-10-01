@@ -1765,6 +1765,46 @@ export async function registerHealthRoutes(
     },
   );
 
+  /** PRC-L113: early revocation of an approved PHI break-glass grant (audited in-txn). */
+  fastify.post(
+    `${prefix}/break-glass/:id/revoke`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const grant = await healthService.revokeBreakGlass(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildPhiWriteAuditBinder(request, tenantId, {
+            path: '/api/v1/health/break-glass',
+            regulated: 'health.break_glass',
+            idField: 'breakGlassId',
+            operation: 'UPDATE',
+          }),
+        );
+        return reply.status(200).send(grant);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
   // ─── Nurse incidents (Wave 10 Option B) ─────────────────────────────────
 
   fastify.post(`${prefix}/incidents`, async (request: FastifyRequest, reply: FastifyReply) => {

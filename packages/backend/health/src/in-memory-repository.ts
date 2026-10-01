@@ -893,19 +893,7 @@ export class InMemoryHealthRepository implements HealthRepository {
     fieldPath: HealthPhiFieldPath,
     now: Date = new Date(),
   ): Promise<HealthBreakGlassGrant | null> {
-    for (const grant of this.breakGlassGrants.values()) {
-      if (
-        grant.tenantId === tenantId &&
-        grant.requesterUserId === requesterUserId &&
-        grant.studentId === studentId &&
-        grant.fieldPath === fieldPath &&
-        grant.status === 'approved' &&
-        !isBreakGlassGrantActive(grant, now)
-      ) {
-        const expired = { ...grant, status: 'expired' as const, updatedAt: now.toISOString() };
-        this.breakGlassGrants.set(grant.id, expired);
-      }
-    }
+    // PRC-L113: read-only — inactive grants are filtered, never rewritten on read.
     const active = Array.from(this.breakGlassGrants.values())
       .filter(
         (g) =>
@@ -926,7 +914,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   ): Promise<HealthBreakGlassGrant | null> {
     const existing = await this.findBreakGlassGrantById(id, tenantId);
     if (!existing) return null;
-    if (existing.status !== 'pending') return { ...existing };
+    if (existing.status !== 'pending') throw new Error('BREAK_GLASS_NOT_PENDING');
     if (existing.requesterUserId === approverUserId) {
       throw new Error('DUAL_CONTROL_VIOLATION');
     }
@@ -950,7 +938,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   ): Promise<HealthBreakGlassGrant | null> {
     const existing = await this.findBreakGlassGrantById(id, tenantId);
     if (!existing) return null;
-    if (existing.status !== 'pending') return { ...existing };
+    if (existing.status !== 'pending') throw new Error('BREAK_GLASS_NOT_PENDING');
     if (existing.requesterUserId === approverUserId) {
       throw new Error('DUAL_CONTROL_VIOLATION');
     }
@@ -958,6 +946,25 @@ export class InMemoryHealthRepository implements HealthRepository {
       ...existing,
       status: 'denied',
       approverUserId,
+      updatedAt: new Date().toISOString(),
+    };
+    this.breakGlassGrants.set(id, updated);
+    return { ...updated };
+  }
+
+  async revokeBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant | null> {
+    const existing = await this.findBreakGlassGrantById(id, tenantId);
+    if (!existing) return null;
+    if (!isBreakGlassGrantActive(existing)) throw new Error('BREAK_GLASS_NOT_ACTIVE');
+    const updated: HealthBreakGlassGrant = {
+      ...existing,
+      status: 'revoked',
       updatedAt: new Date().toISOString(),
     };
     this.breakGlassGrants.set(id, updated);

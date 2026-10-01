@@ -38,7 +38,25 @@ export async function ensureBreakGlassSchema(
   await ensureBreakGlassSchemaReady(pool);
 }
 
+/**
+ * PRC-L113: expiry is derived at read time — an approved grant past `expires_at` is
+ * reported as `expired` without a write on the read path.
+ */
+function withDerivedExpiry(
+  grant: HealthBreakGlassGrant,
+  now: Date = new Date(),
+): HealthBreakGlassGrant {
+  if (grant.status === 'approved' && grant.expiresAt && new Date(grant.expiresAt) <= now) {
+    return { ...grant, status: 'expired' };
+  }
+  return grant;
+}
+
 function mapRow(row: Record<string, unknown>): HealthBreakGlassGrant {
+  return withDerivedExpiry(mapStoredRow(row));
+}
+
+function mapStoredRow(row: Record<string, unknown>): HealthBreakGlassGrant {
   const fieldPathRaw = String(row.field_path);
   if (!isHealthPhiFieldPath(fieldPathRaw)) {
     throw new Error(`Unknown health PHI field_path: ${fieldPathRaw}`);
@@ -140,12 +158,7 @@ export class PgBreakGlassStore {
   ): Promise<HealthBreakGlassGrant | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
-      await client.query(
-        `UPDATE health_phi_break_glass
-         SET status='expired', updated_at=NOW()
-         WHERE tenant_id=$1 AND status='approved' AND expires_at IS NOT NULL AND expires_at <= $2`,
-        [tenantId, now.toISOString()],
-      );
+      // PRC-L113: read-only — expired grants are excluded by `expires_at > $5`, not rewritten.
       const result = await client.query(
         `SELECT * FROM health_phi_break_glass
          WHERE tenant_id=$1
@@ -176,7 +189,7 @@ export class PgBreakGlassStore {
       );
       if (existing.rows.length === 0) return null;
       const row = mapRow(existing.rows[0] as Record<string, unknown>);
-      if (row.status !== 'pending') return row;
+      if (row.status !== 'pending') throw new Error('BREAK_GLASS_NOT_PENDING');
       if (row.requesterUserId === approverUserId) {
         throw new Error('DUAL_CONTROL_VIOLATION');
       }
@@ -193,7 +206,7 @@ export class PgBreakGlassStore {
          RETURNING *`,
         [id, tenantId, approverUserId, approvedAt.toISOString(), expiresAt.toISOString()],
       );
-      if (result.rows.length === 0) return null;
+      if (result.rows.length === 0) throw new Error('BREAK_GLASS_NOT_PENDING');
       return mapRow(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -211,7 +224,7 @@ export class PgBreakGlassStore {
       );
       if (existing.rows.length === 0) return null;
       const row = mapRow(existing.rows[0] as Record<string, unknown>);
-      if (row.status !== 'pending') return row;
+      if (row.status !== 'pending') throw new Error('BREAK_GLASS_NOT_PENDING');
       if (row.requesterUserId === approverUserId) {
         throw new Error('DUAL_CONTROL_VIOLATION');
       }
@@ -224,8 +237,39 @@ export class PgBreakGlassStore {
          RETURNING *`,
         [id, tenantId, approverUserId],
       );
-      if (result.rows.length === 0) return null;
+      if (result.rows.length === 0) throw new Error('BREAK_GLASS_NOT_PENDING');
       return mapRow(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  /** PRC-L113: end an approved grant early; the audit row commits with the status change. */
+  async revoke(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const existing = await client.query(
+        `SELECT * FROM health_phi_break_glass WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      );
+      if (existing.rows.length === 0) return null;
+      const row = mapRow(existing.rows[0] as Record<string, unknown>);
+      if (row.status !== 'approved') throw new Error('BREAK_GLASS_NOT_ACTIVE');
+      const result = await client.query(
+        `UPDATE health_phi_break_glass
+         SET status='revoked', updated_at=NOW()
+         WHERE id=$1 AND tenant_id=$2 AND status='approved' AND expires_at > NOW()
+         RETURNING *`,
+        [id, tenantId],
+      );
+      if (result.rows.length === 0) throw new Error('BREAK_GLASS_NOT_ACTIVE');
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      if (options?.appendAuditInTxn) await options.appendAuditInTxn(client, entity);
+      return entity;
     });
   }
 

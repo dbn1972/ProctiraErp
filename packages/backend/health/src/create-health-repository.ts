@@ -230,6 +230,17 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.denyBreakGlassGrant(id, tenantId, approverUserId);
   }
 
+  async revokeBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant | null> {
+    if (this.breakGlass) return this.breakGlass.revoke(id, tenantId, options);
+    return this.memory.revokeBreakGlassGrant(id, tenantId, options);
+  }
+
   async listBreakGlassGrants(
     tenantId: string,
     options: { studentId?: string; limit?: number } = {},
