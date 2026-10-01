@@ -15,7 +15,6 @@ import fp from 'fastify-plugin';
 
 import { createWorkflowUiStore, type WorkflowUiStore } from './workflow-ui-pg-store.js';
 import {
-  createWorkflowUiSeed,
   type UiWorkflowDefinition,
   type UiWorkflowStep,
   type WorkflowUiSeed,
@@ -141,7 +140,7 @@ export const workflowUiPlugin = fp(
     await Promise.resolve();
     const store =
       options.store ??
-      createWorkflowUiStore(options.seed ?? createWorkflowUiSeed(), {
+      createWorkflowUiStore(options.seed, {
         forceMemory: options.forceMemory,
       });
 

@@ -26,6 +26,8 @@ export const TenantSettingsSchema = Type.Object({
     primaryColor: Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }),
     accentColor: Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }),
     logoUrl: Type.Optional(Type.Union([Type.String({ maxLength: 2048 }), Type.Null()])),
+    // PRC-L208: favicon staged via POST /tenant/branding/assets.
+    faviconUrl: Type.Optional(Type.Union([Type.String({ maxLength: 2048 }), Type.Null()])),
   }),
   contact: Type.Object({
     email: Type.Optional(Type.Union([Type.String({ maxLength: 320 }), Type.Null()])),

@@ -91,7 +91,7 @@ import healthPlugin from './plugins/health.js';
 import { resolveIdempotencyStore } from './plugins/idempotency-store.js';
 import idempotencyPlugin from './plugins/idempotency.js';
 import paginationCapPlugin from './plugins/pagination-cap.js';
-import { providersPlugin } from './plugins/providers-plugin.js';
+import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
 import { createRateLimitRedisClient, decideRateLimitStore } from './rate-limit-store.js';
@@ -1076,7 +1076,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     ...new Set([...inProcessPrefixes, ...PARKED_GATEWAY_PREFIXES, ...(keycloak ? ['/auth'] : [])]),
   ];
 
-  await app.register(providersPlugin, { prefix: '/api/v1' });
+  await app.register(providersPlugin, {
+    prefix: '/api/v1',
+    // PRC-L206: no sandbox (alg:none) IdP mint route in production unless ALLOW_SANDBOX_IDP=1.
+    sandboxIdp: sandboxIdpEnabled(process.env, config.env),
+  });
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',
