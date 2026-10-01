@@ -67,4 +67,13 @@ export interface StaffRepository {
    * appraisals, training) keyed by kind. Staff with dependents must be offboarded, not deleted.
    */
   countDependents?(id: string, tenantId: string): Promise<Record<string, number>>;
+
+  /** PRC-L153: ids (of `ids`) that exist and are not deleted for the tenant — one query. */
+  findExistingIds?(ids: readonly string[], tenantId: string): Promise<string[]>;
+
+  /**
+   * PRC-L153: hard-remove a row this request just created (compensating rollback when a
+   * dependent write in another store fails). Never use for user-initiated deletes.
+   */
+  purgeCreated?(id: string, tenantId: string): Promise<void>;
 }

@@ -255,6 +255,23 @@ export class PrismaStaffRepository implements StaffRepository {
     });
   }
 
+  async findExistingIds(ids: readonly string[], tenantId: string): Promise<string[]> {
+    if (ids.length === 0) return [];
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.staff.findMany({
+        where: { id: { in: [...ids] }, tenantId, deletedAt: null },
+        select: { id: true },
+      })) as { id: string }[];
+      return rows.map((r) => r.id);
+    });
+  }
+
+  async purgeCreated(id: string, tenantId: string): Promise<void> {
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      await tx.staff.deleteMany({ where: { id, tenantId } });
+    });
+  }
+
   async delete(id: string, tenantId: string): Promise<boolean> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const result = await tx.staff.updateMany({
