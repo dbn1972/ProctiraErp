@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CookieSettingsButton } from '@/components/cookie-consent';
 
 interface FooterGroup {
   readonly title: string;
@@ -118,6 +119,7 @@ export function SiteFooter() {
             <Link href="/status" className="hover:text-foreground">
               Status
             </Link>
+            <CookieSettingsButton className="hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             <span>
               English (US) &middot;{' '}
               <Link

@@ -41,12 +41,13 @@ export async function probeUrl(
     const response = await fetchImpl(url, {
       method: 'GET',
       cache: 'no-store',
+      // A redirect (e.g. to a login page) is not a healthy probe response.
+      redirect: 'manual',
       signal: AbortSignal.timeout(3_000),
       headers: { Accept: 'application/json, text/plain, */*' },
     });
-    if (response.ok) return 'ok';
-    if (response.status >= 500) return 'degraded';
-    return 'degraded';
+    // Only a direct 2xx counts as healthy; 3xx/4xx/5xx are all degraded.
+    return response.ok ? 'ok' : 'degraded';
   } catch {
     return 'unreachable';
   }
@@ -79,5 +80,34 @@ export async function loadStatusSnapshot(
       api: apiState,
       auth: authState,
     },
+  };
+}
+
+/** Default TTL for the cached status snapshot (status page probes at most once per window). */
+export const STATUS_SNAPSHOT_TTL_MS = 30_000;
+
+/**
+ * Wrap a snapshot loader in a small in-process TTL cache so every status
+ * page view does not fan out a fresh probe set. Concurrent callers within
+ * the window share one in-flight probe.
+ */
+export function createCachedSnapshotLoader(
+  loader: () => Promise<StatusSnapshot>,
+  options?: { ttlMs?: number; nowMs?: () => number },
+): () => Promise<StatusSnapshot> {
+  const ttlMs = options?.ttlMs ?? STATUS_SNAPSHOT_TTL_MS;
+  const nowMs = options?.nowMs ?? (() => Date.now());
+  let cached: { at: number; value: Promise<StatusSnapshot> } | null = null;
+  return () => {
+    const t = nowMs();
+    if (cached && t - cached.at < ttlMs) return cached.value;
+    const value = loader();
+    const entry = { at: t, value };
+    cached = entry;
+    // Do not pin a failed load for the whole TTL.
+    value.catch(() => {
+      if (cached === entry) cached = null;
+    });
+    return value;
   };
 }
