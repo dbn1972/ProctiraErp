@@ -101,14 +101,14 @@ export type EnrollmentHistoryContext = {
   effectiveDate?: Date;
 };
 
-/**
- * Repository interface for enrollment data access.
- */
 /** Optional compare-and-set guard for `updateEnrollment` (PRC-L160). */
 export interface UpdateEnrollmentOptions {
   expectedStatus?: EnrollmentEntity['status'];
 }
 
+/**
+ * Repository interface for enrollment data access.
+ */
 export interface EnrollmentRepository {
   /**
    * When true, Postgres triggers (`trg_enrollments_write_history`) are the
