@@ -17,6 +17,7 @@ import {
   RolloverRequestSchema,
   type CreateCalendarEventDto,
   type RolloverRequestDto,
+  type RolloverSummary,
 } from './schemas.js';
 
 export interface AcademicCalendarRoutesOptions {
@@ -27,6 +28,79 @@ export interface AcademicCalendarRoutesOptions {
 
 function tenantOf(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+interface RequestUser {
+  sub: string;
+  displayName?: string;
+  email?: string;
+}
+
+/** Validated JWT subject of the caller, or null when unauthenticated. */
+function actorOf(request: FastifyRequest): RequestUser | null {
+  const user = (request as FastifyRequest & { user?: Partial<RequestUser> }).user;
+  const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+  if (!sub || sub.length > 128) return null;
+  return { sub, displayName: user?.displayName, email: user?.email };
+}
+
+interface RolloverAuditRecorder {
+  recordAudit: (input: {
+    tenantId: string;
+    entityType: string;
+    entityId: string;
+    operation: 'UPDATE';
+    userId: string;
+    userName: string;
+    ipAddress: string;
+    beforeValues: Record<string, unknown>;
+    afterValues: Record<string, unknown>;
+    metadata: Record<string, unknown>;
+  }) => Promise<unknown>;
+}
+
+/**
+ * PRC-L319: explicit audit event for an executed (non-dry-run) rollover with the
+ * summary counts. Skipped when no audit service is decorated (package tests);
+ * an audit failure is logged and does not hide the completed rollover.
+ */
+async function recordRolloverAudit(
+  fastify: FastifyInstance,
+  request: FastifyRequest,
+  tenantId: string,
+  user: RequestUser,
+  summary: RolloverSummary,
+): Promise<void> {
+  const audit = (fastify as FastifyInstance & { auditService?: RolloverAuditRecorder })
+    .auditService;
+  if (!audit?.recordAudit) return;
+  try {
+    await audit.recordAudit({
+      tenantId,
+      entityType: 'academic_period',
+      entityId: summary.targetPeriodId,
+      operation: 'UPDATE',
+      userId: user.sub,
+      userName: user.displayName ?? user.email ?? user.sub,
+      ipAddress: request.ip || '0.0.0.0',
+      beforeValues: { sourcePeriodId: summary.sourcePeriodId },
+      afterValues: {
+        classes: summary.classes,
+        enrollments: summary.enrollments,
+        feeStructures: summary.feeStructures,
+        timetable: summary.timetable,
+        lmsAssignments: summary.lmsAssignments,
+      },
+      metadata: {
+        action: 'academic_period.rollover',
+        actorId: user.sub,
+        sourcePeriodId: summary.sourcePeriodId,
+        targetPeriodId: summary.targetPeriodId,
+      },
+    });
+  } catch (error: unknown) {
+    request.log.error({ err: error }, 'academic period rollover audit failed');
+  }
 }
 
 function formatEvent(event: CalendarEventRecord) {
@@ -135,6 +209,15 @@ export async function registerAcademicCalendarRoutes(
           statusCode: 400,
         });
       }
+      // PRC-L319: the rollover is attributed to the authenticated caller.
+      const user = actorOf(request);
+      if (!user) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authenticated user is required',
+          statusCode: 401,
+        });
+      }
       const body = validate(RolloverRequestSchema, request.body ?? {});
       if (!body.success) {
         return reply.status(400).send({
@@ -145,7 +228,8 @@ export async function registerAcademicCalendarRoutes(
         });
       }
       try {
-        const summary = await service.rollover(tenantId, request.params.id, body.data);
+        const summary = await service.rollover(tenantId, request.params.id, body.data, user.sub);
+        if (!summary.dryRun) await recordRolloverAudit(fastify, request, tenantId, user, summary);
         return reply.status(200).send(summary);
       } catch (error) {
         return sendError(reply, error);

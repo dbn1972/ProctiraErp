@@ -9,6 +9,7 @@
 import { NotFoundError } from '@proctira/common';
 import type { PrismaClient, Class } from '@proctira/database';
 
+import { assertPeriodNotArchived, requireAssignableInstitution } from './assignable-guards.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
 
 const teacherInclude = {
@@ -46,14 +47,11 @@ export class ClassService {
     if (!period) {
       throw new NotFoundError(`Academic period '${dto.academicPeriodId}' not found`);
     }
+    // PRC-L123: archived periods are read-only.
+    assertPeriodNotArchived(period);
 
-    // Validate institution exists
-    const institution = await this.prisma.institution.findFirst({
-      where: { id: dto.institutionId, tenantId },
-    });
-    if (!institution) {
-      throw new NotFoundError(`Institution '${dto.institutionId}' not found`);
-    }
+    // Validate institution exists, is ACTIVE and not soft-deleted (PRC-L123)
+    await requireAssignableInstitution(this.prisma, tenantId, dto.institutionId);
 
     if (dto.classTeacherStaffId) {
       await this.requireStaff(tenantId, dto.classTeacherStaffId);

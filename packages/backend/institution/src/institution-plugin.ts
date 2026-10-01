@@ -124,6 +124,8 @@ export const institutionPlugin = fp(
 
     const deps: AcademicsDeps =
       academics === true ? createAcademicsDeps({ institutionRepository: repository }) : academics;
+    // PRC-L121: fail registration (startup) when required academics tables are missing.
+    if (deps.ready) await deps.ready();
 
     // Request-scoped tenant for stores whose contract has no tenant argument
     // (infrastructure). Callback-style hook so `run` wraps the rest of the

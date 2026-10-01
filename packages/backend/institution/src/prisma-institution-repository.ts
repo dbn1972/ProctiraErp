@@ -20,11 +20,11 @@
  * is the authoritative guard (a duplicate create surfaces as P2002 → 409).
  * `findByNameInArea` carries a tenantId and is implemented normally.
  */
+import { ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
-import { compareDirectoryInstitutions } from './directory-order.js';
 import type {
   InstitutionEntity,
   InstitutionFilter,
@@ -98,6 +98,13 @@ function buildCustomData(entity: Partial<InstitutionEntity>): Record<string, unk
   const extra = (entity as { customData?: Record<string, unknown> }).customData ?? {};
   return { ...extra, [PROFILE_KEY]: profile };
 }
+
+/** PRC-L125: API sortBy → Prisma column (directory handled separately). */
+const SORTABLE_FIELDS: Record<string, 'name' | 'code' | 'createdAt' | undefined> = {
+  name: 'name',
+  code: 'code',
+  createdAt: 'createdAt',
+};
 
 function toEntity(row: InstitutionRow): InstitutionEntity {
   const { profile } = extractProfile(row.customData);
@@ -238,23 +245,70 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       const pageSize = Math.max(1, Math.min(pagination.pageSize ?? 20, 100));
       const skip = (page - 1) * pageSize;
 
-      const directoryOrder = (pagination.sortBy ?? 'name') === 'directory';
-      const [totalItems, rows] = directoryOrder
-        ? await (async () => {
-            const all = (await tx.institution.findMany({ where })) as InstitutionRow[];
-            all.sort(compareDirectoryInstitutions);
-            return [all.length, all.slice(skip, skip + pageSize)] as const;
-          })()
-        : await Promise.all([
-            tx.institution.count({ where }),
-            tx.institution.findMany({
-              where,
-              orderBy: [{ name: 'asc' }],
-              skip,
-              take: pageSize,
-            }),
+      const sortBy = pagination.sortBy ?? 'name';
+      const sortOrder = pagination.sortOrder ?? 'asc';
+      if (sortOrder !== 'asc' && sortOrder !== 'desc') {
+        throw new ValidationError(`Unsupported sortOrder '${String(sortOrder)}'`, [
+          { field: 'sortOrder', rule: 'enum', message: 'sortOrder must be asc or desc' },
+        ]);
+      }
+      let totalItems: number;
+      let rows: InstitutionRow[];
+      if (sortBy === 'directory') {
+        // PRC-L125: active schools by code, then inactive by code — both pages
+        // are fetched with SQL ordering + skip/take instead of loading the tenant.
+        const inactive = { status: { equals: 'inactive', mode: 'insensitive' } };
+        const activeWhere = { AND: [where, { NOT: inactive }] };
+        const inactiveWhere = { AND: [where, inactive] };
+        const [activeCount, inactiveCount] = await Promise.all([
+          tx.institution.count({ where: activeWhere as Prisma.InstitutionWhereInput }),
+          tx.institution.count({ where: inactiveWhere as Prisma.InstitutionWhereInput }),
+        ]);
+        totalItems = activeCount + inactiveCount;
+        const orderBy = [{ code: 'asc' as const }, { id: 'asc' as const }];
+        const activeRows =
+          skip < activeCount
+            ? ((await tx.institution.findMany({
+                where: activeWhere as Prisma.InstitutionWhereInput,
+                orderBy,
+                skip,
+                take: pageSize,
+              })) as InstitutionRow[])
+            : [];
+        const remaining = pageSize - activeRows.length;
+        const inactiveRows =
+          remaining > 0 && inactiveCount > 0
+            ? ((await tx.institution.findMany({
+                where: inactiveWhere as Prisma.InstitutionWhereInput,
+                orderBy,
+                skip: Math.max(0, skip - activeCount),
+                take: remaining,
+              })) as InstitutionRow[])
+            : [];
+        rows = [...activeRows, ...inactiveRows];
+      } else {
+        const field = SORTABLE_FIELDS[sortBy];
+        if (!field) {
+          throw new ValidationError(`Unsupported sortBy '${sortBy}'`, [
+            {
+              field: 'sortBy',
+              rule: 'enum',
+              message: 'sortBy must be one of name, code, createdAt, directory',
+            },
           ]);
-
+        }
+        const [count, found] = await Promise.all([
+          tx.institution.count({ where }),
+          tx.institution.findMany({
+            where,
+            orderBy: [{ [field]: sortOrder }, { id: 'asc' }],
+            skip,
+            take: pageSize,
+          }),
+        ]);
+        totalItems = count;
+        rows = found as InstitutionRow[];
+      }
       return {
         data: rows.map(toEntity),
         meta: {

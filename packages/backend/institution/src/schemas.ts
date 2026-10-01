@@ -136,20 +136,35 @@ export const InstitutionListQuerySchema = Type.Object({
   pageSize: Type.Optional(
     Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
   ),
-  areaId: Type.Optional(Type.String({ description: 'Filter by area ID' })),
-  status: Type.Optional(
-    Type.String({ enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status' }),
-  ),
-  search: Type.Optional(Type.String({ description: 'Search by name or code' })),
-  sortBy: Type.Optional(
+  areaId: Type.Optional(
     Type.String({
-      enum: ['name', 'code', 'createdAt', 'directory'],
-      default: 'name',
-      description: 'Sort field',
+      // PRC-L126: geographic_areas.id is @db.Uuid; reject non-UUIDs with 400, not a Prisma 500.
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      description: 'Filter by area ID',
     }),
   ),
+  status: Type.Optional(
+    Type.Union([Type.Literal('ACTIVE'), Type.Literal('INACTIVE')], {
+      description: 'Filter by status',
+    }),
+  ),
+  search: Type.Optional(Type.String({ maxLength: 100, description: 'Search by name or code' })),
+  sortBy: Type.Optional(
+    Type.Union(
+      [
+        Type.Literal('name'),
+        Type.Literal('code'),
+        Type.Literal('createdAt'),
+        Type.Literal('directory'),
+      ],
+      { default: 'name', description: 'Sort field' },
+    ),
+  ),
   sortOrder: Type.Optional(
-    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+      default: 'asc',
+      description: 'Sort direction',
+    }),
   ),
 });
 

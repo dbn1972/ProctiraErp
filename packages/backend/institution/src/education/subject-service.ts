@@ -6,9 +6,10 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, ConflictError } from '@proctira/common';
 import type { PrismaClient, Subject, InstitutionSubject } from '@proctira/database';
 
+import { requireAssignableInstitution } from './assignable-guards.js';
 import type {
   CreateSubjectDto,
   UpdateSubjectDto,
@@ -147,13 +148,8 @@ export class SubjectService {
       throw new NotFoundError(`Grade '${dto.gradeId}' not found`);
     }
 
-    // Validate institution exists
-    const institution = await this.prisma.institution.findFirst({
-      where: { id: dto.institutionId, tenantId },
-    });
-    if (!institution) {
-      throw new NotFoundError(`Institution '${dto.institutionId}' not found`);
-    }
+    // Validate institution exists, is ACTIVE and not soft-deleted (PRC-L123)
+    await requireAssignableInstitution(this.prisma, tenantId, dto.institutionId);
 
     // Check if link already exists
     const existing = await this.prisma.institutionSubject.findUnique({
