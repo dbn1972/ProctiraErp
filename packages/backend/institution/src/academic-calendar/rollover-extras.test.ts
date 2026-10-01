@@ -47,25 +47,31 @@ describe('G-905 rollover extras', () => {
       rolloverExtras: { copyFeeStructures, copyTimetable, copyLmsAssignments, recordRolloverRun },
     });
 
-    const summary = await service.rollover('t1', 'src', {
-      targetPeriodId: 'tgt',
-      dryRun: true,
-      copyFeeStructures: true,
-      copyTimetable: true,
-      copyLmsAssignments: true,
-      idempotencyKey: 'dry-run-key-01',
-    });
+    const summary = await service.rollover(
+      't1',
+      'src',
+      {
+        targetPeriodId: 'tgt',
+        dryRun: true,
+        copyFeeStructures: true,
+        copyTimetable: true,
+        copyLmsAssignments: true,
+        idempotencyKey: 'dry-run-key-01',
+      },
+      'user-1',
+    );
 
-    expect(copyFeeStructures).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', {
+    expect(copyFeeStructures).toHaveBeenCalledWith('t1', 'user-1', 'src', 'tgt', {
       dryRun: true,
     });
-    expect(copyTimetable).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', { dryRun: true });
-    expect(copyLmsAssignments).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', {
+    expect(copyTimetable).toHaveBeenCalledWith('t1', 'user-1', 'src', 'tgt', { dryRun: true });
+    expect(copyLmsAssignments).toHaveBeenCalledWith('t1', 'user-1', 'src', 'tgt', {
       dryRun: true,
     });
     expect(summary.feeStructures).toEqual({ cloned: 2, source: 3 });
     expect(summary.timetable).toEqual({ sectionsCloned: 1, meetingsCloned: 4 });
     expect(summary.lmsAssignments).toEqual({ cloned: 5, source: 5 });
     expect(recordRolloverRun).toHaveBeenCalledOnce();
+    expect(recordRolloverRun).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'user-1' }));
   });
 });

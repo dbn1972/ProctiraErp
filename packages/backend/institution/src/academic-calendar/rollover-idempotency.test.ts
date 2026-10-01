@@ -97,11 +97,11 @@ describe('PRC-L318 rollover idempotency', () => {
     const { service, prisma } = build(extras);
     const dto = { targetPeriodId: 'tgt', dryRun: false, idempotencyKey: 'real-run-key-0001' };
 
-    const first = await service.rollover('t1', 'src', dto);
+    const first = await service.rollover('t1', 'src', dto, 'user-1');
     expect(first.classes.created).toBe(1);
     expect(prisma.class.create).toHaveBeenCalledTimes(1);
 
-    const second = await service.rollover('t1', 'src', dto);
+    const second = await service.rollover('t1', 'src', dto, 'user-1');
     expect(second).toEqual(first);
     expect(prisma.class.create).toHaveBeenCalledTimes(1);
     expect(rows).toHaveLength(1);
@@ -112,18 +112,28 @@ describe('PRC-L318 rollover idempotency', () => {
     const { service, prisma } = build(extras);
     const key = 'shared-key-00001';
 
-    const preview = await service.rollover('t1', 'src', {
-      targetPeriodId: 'tgt',
-      dryRun: true,
-      idempotencyKey: key,
-    });
+    const preview = await service.rollover(
+      't1',
+      'src',
+      {
+        targetPeriodId: 'tgt',
+        dryRun: true,
+        idempotencyKey: key,
+      },
+      'user-1',
+    );
     expect(preview.classes.created).toBe(0);
 
-    const real = await service.rollover('t1', 'src', {
-      targetPeriodId: 'tgt',
-      dryRun: false,
-      idempotencyKey: key,
-    });
+    const real = await service.rollover(
+      't1',
+      'src',
+      {
+        targetPeriodId: 'tgt',
+        dryRun: false,
+        idempotencyKey: key,
+      },
+      'user-1',
+    );
     expect(real.classes.created).toBe(1);
     expect(prisma.class.create).toHaveBeenCalledTimes(1);
     expect(rows.map((r) => [r.dryRun, r.status])).toEqual([
@@ -136,17 +146,27 @@ describe('PRC-L318 rollover idempotency', () => {
     const { extras } = ledger();
     const { service } = build(extras);
     const key = 'pair-bound-key-01';
-    await service.rollover('t1', 'src', {
-      targetPeriodId: 'tgt',
-      dryRun: false,
-      idempotencyKey: key,
-    });
-    await expect(
-      service.rollover('t1', 'src', {
-        targetPeriodId: 'other',
+    await service.rollover(
+      't1',
+      'src',
+      {
+        targetPeriodId: 'tgt',
         dryRun: false,
         idempotencyKey: key,
-      }),
+      },
+      'user-1',
+    );
+    await expect(
+      service.rollover(
+        't1',
+        'src',
+        {
+          targetPeriodId: 'other',
+          dryRun: false,
+          idempotencyKey: key,
+        },
+        'user-1',
+      ),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 });

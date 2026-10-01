@@ -195,11 +195,21 @@ export class AcademicCalendarService {
 
   // ─── Rollover ─────────────────────────────────────────────────────────────
 
+  /**
+   * @param actorId authenticated caller (JWT `sub`); recorded on the run ledger
+   *   and passed to every clone hook (PRC-L319).
+   */
   async rollover(
     tenantId: string,
     sourcePeriodId: string,
     dto: RolloverRequestDto,
+    actorId: string,
   ): Promise<RolloverSummary> {
+    if (!actorId?.trim()) {
+      throw new ValidationError('Rollover requires an authenticated actor', [
+        { field: 'actorId', rule: 'required', message: 'Authenticated actor is required' },
+      ]);
+    }
     const dryRun = dto.dryRun ?? true;
     // PRC-L318: replay of a completed real run returns its stored summary.
     if (!dryRun && dto.idempotencyKey && this.rolloverExtras?.findCompletedRolloverRun) {
@@ -407,7 +417,7 @@ export class AcademicCalendarService {
       if (this.rolloverExtras?.copyFeeStructures) {
         summary.feeStructures = await this.rolloverExtras.copyFeeStructures(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
@@ -420,7 +430,7 @@ export class AcademicCalendarService {
       if (this.rolloverExtras?.copyTimetable) {
         summary.timetable = await this.rolloverExtras.copyTimetable(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
@@ -433,7 +443,7 @@ export class AcademicCalendarService {
       if (this.rolloverExtras?.copyLmsAssignments) {
         summary.lmsAssignments = await this.rolloverExtras.copyLmsAssignments(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
@@ -446,7 +456,7 @@ export class AcademicCalendarService {
     if (this.rolloverExtras?.recordRolloverRun) {
       await this.rolloverExtras.recordRolloverRun({
         tenantId,
-        actorId: 'rollover',
+        actorId,
         sourcePeriodId,
         targetPeriodId: dto.targetPeriodId,
         dryRun,
