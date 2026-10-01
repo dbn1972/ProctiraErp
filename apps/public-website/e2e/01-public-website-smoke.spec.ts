@@ -118,3 +118,27 @@ test.describe('Public Website — security headers & contact origin guard', () =
     expect(response.status()).toBe(403);
   });
 });
+test.describe('Public Website — cookie consent', () => {
+  test('choose analytics, reopen from footer, and withdraw', async ({ page }) => {
+    await page.goto('/');
+    const bar = page.getByTestId('cookie-consent');
+    await expect(bar).toBeVisible();
+    await bar.getByRole('button', { name: 'Allow analytics' }).click();
+    await expect(bar).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('proctira-cookie-consent'))).toBe(
+      'analytics',
+    );
+    const settings = page.getByTestId('cookie-settings');
+    await expect(settings).toBeVisible();
+    await settings.click();
+    await expect(bar).toBeVisible();
+    await expect(bar).toBeFocused();
+    await expect(bar).toHaveAttribute('data-current-choice', 'analytics');
+    await bar.getByRole('button', { name: 'Essential only' }).click();
+    await expect(bar).toHaveCount(0);
+    await expect(settings).toBeFocused();
+    expect(await page.evaluate(() => localStorage.getItem('proctira-cookie-consent'))).toBe(
+      'essential',
+    );
+  });
+});
