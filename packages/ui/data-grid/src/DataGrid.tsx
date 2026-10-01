@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -13,7 +12,9 @@ import {
   type PaginationState as TanStackPaginationState,
   type ColumnDef,
 } from '@tanstack/react-table';
-import type { DataGridProps, DataGridExportOptions } from './types';
+import React, { useState, useMemo, useCallback } from 'react';
+
+import type { DataGridProps } from './types';
 
 /**
  * DataGrid component with sorting, filtering, pagination, and Excel export.
@@ -76,41 +77,37 @@ export function DataGrid<TData>({
     [columns, enableSorting, enableFiltering],
   );
 
+  // Callbacks fire from the event handler, never inside a setState updater:
+  // updaters must be pure (StrictMode double-invokes them), so calling the
+  // consumer there duplicated sort/filter/page callbacks and fetches.
   const handleSortingChange = useCallback(
     (updater: TanStackSortingState | ((prev: TanStackSortingState) => TanStackSortingState)) => {
-      setSorting((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        onSortingChange?.(next.map((s) => ({ id: s.id, desc: s.desc })));
-        return next;
-      });
+      const next = typeof updater === 'function' ? updater(sorting) : updater;
+      setSorting(next);
+      onSortingChange?.(next.map((s) => ({ id: s.id, desc: s.desc })));
     },
-    [onSortingChange],
+    [sorting, onSortingChange],
   );
 
   const handleFilterChange = useCallback(
     (updater: ColumnFiltersState | ((prev: ColumnFiltersState) => ColumnFiltersState)) => {
-      setColumnFilters((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        onFilterChange?.(next.map((f) => ({ id: f.id, value: String(f.value) })));
-        return next;
-      });
+      const next = typeof updater === 'function' ? updater(columnFilters) : updater;
+      setColumnFilters(next);
+      onFilterChange?.(next.map((f) => ({ id: f.id, value: String(f.value) })));
     },
-    [onFilterChange],
+    [columnFilters, onFilterChange],
   );
 
   const handlePaginationChange = useCallback(
     (
       updater:
-        | TanStackPaginationState
-        | ((prev: TanStackPaginationState) => TanStackPaginationState),
+        TanStackPaginationState | ((prev: TanStackPaginationState) => TanStackPaginationState),
     ) => {
-      setPagination((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        onPaginationChange?.({ pageIndex: next.pageIndex, pageSize: next.pageSize });
-        return next;
-      });
+      const next = typeof updater === 'function' ? updater(pagination) : updater;
+      setPagination(next);
+      onPaginationChange?.({ pageIndex: next.pageIndex, pageSize: next.pageSize });
     },
-    [onPaginationChange],
+    [pagination, onPaginationChange],
   );
 
   const table = useReactTable({
