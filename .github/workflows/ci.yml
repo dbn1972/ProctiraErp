@@ -1358,6 +1358,10 @@ jobs:
       - name: Fail when reusable CI assets lose callers
         run: node tools/scripts/assert-reusable-ci-assets.mjs
 
+      # PRC-L176+: dependency-free contracts for tools/ gates (always required).
+      - name: Unit-test tools fail-closed contracts
+        run: node --test tools/load-test/lib.test.mjs
+
   # ---------------------------------------------------------------------------
   # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)
   # ---------------------------------------------------------------------------
