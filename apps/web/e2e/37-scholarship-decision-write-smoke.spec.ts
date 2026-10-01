@@ -68,9 +68,12 @@ function isoDaysFromNow(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function randomUuid(): string {
-  return crypto.randomUUID();
-}
+/**
+ * PRC-H030: applicants must be real tenant-A students. Seeded by
+ * tools/e2e/seed-e2e-tenants.sql ("Library Hold"); each test opens its own
+ * program, so reusing one applicant does not collide.
+ */
+const APPLICANT_STUDENT_A = '00000000-0000-4000-8000-000000000094';
 
 /** Open program with a live application window, plus one submitted application. */
 async function seedProgramWithApplication(request: APIRequestContext, amount = 25_000) {
@@ -104,7 +107,7 @@ async function submitApplication(request: APIRequestContext, programId: string) 
     headers: headers(),
     data: {
       programId,
-      applicantId: randomUuid(),
+      applicantId: APPLICANT_STUDENT_A,
       institutionId: INSTITUTION_A,
       academicRecords: [
         {
