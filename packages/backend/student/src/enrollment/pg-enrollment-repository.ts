@@ -17,6 +17,7 @@ import type {
   InstitutionLookup,
   TransferRecordDetail,
   TransferRecordEntity,
+  UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export type EnrollmentPgPool = PgQueryable & { connect?: () => Promise<unknown> };
@@ -155,15 +156,22 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null> {
     return this.withTenant(tenantId, async (client) => {
+      // PRC-L160: lock the row so concurrent withdraw/graduate serialise.
       const existing = await client.query(
-        `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
         [id, tenantId],
       );
       const row = existing.rows[0] as Record<string, unknown> | undefined;
       if (!row) return null;
       const current = mapEnrollment(row);
+      if (options?.expectedStatus && current.status !== options.expectedStatus) {
+        throw new ConflictError(
+          `Enrollment status changed concurrently (now '${current.status}'); reload and retry`,
+        );
+      }
       const next = { ...current, ...data, id: current.id, tenantId: current.tenantId };
       await bindEnrollmentHistoryGucs(client, history);
       const result = await client.query(
@@ -172,6 +180,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
                academic_period_id = $7, status = $8::enrollment_status,
                enrolled_at = $9::date, exited_at = $10::date, updated_at = now()
          WHERE id = $1 AND tenant_id = $2
+           AND ($11::enrollment_status IS NULL OR status = $11::enrollment_status)
          RETURNING *`,
         [
           id,
@@ -184,9 +193,14 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
           next.status,
           next.enrolledAt,
           next.exitedAt,
+          options?.expectedStatus ?? null,
         ],
       );
-      return mapEnrollment(result.rows[0] as Record<string, unknown>);
+      const updated = result.rows[0] as Record<string, unknown> | undefined;
+      if (!updated) {
+        throw new ConflictError('Enrollment status changed concurrently; reload and retry');
+      }
+      return mapEnrollment(updated);
     });
   }
 

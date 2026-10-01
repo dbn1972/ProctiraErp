@@ -104,6 +104,11 @@ export type EnrollmentHistoryContext = {
 /**
  * Repository interface for enrollment data access.
  */
+/** Optional compare-and-set guard for `updateEnrollment` (PRC-L160). */
+export interface UpdateEnrollmentOptions {
+  expectedStatus?: EnrollmentEntity['status'];
+}
+
 export interface EnrollmentRepository {
   /**
    * When true, Postgres triggers (`trg_enrollments_write_history`) are the
@@ -120,12 +125,17 @@ export interface EnrollmentRepository {
     history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity>;
 
-  /** Update an existing enrollment */
+  /**
+   * Update an existing enrollment. When `options.expectedStatus` is set the
+   * write is conditional (row lock + status predicate): if the row's status
+   * changed concurrently a ConflictError is thrown (PRC-L160).
+   */
   updateEnrollment(
     id: string,
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null>;
 
   /** Find an enrollment by ID within a tenant */
