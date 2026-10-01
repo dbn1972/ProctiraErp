@@ -19,6 +19,13 @@
 #   BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1
 #                            ALTER proctira NOSUPERUSER NOBYPASSRLS (CI/prod; not local compose)
 #   BOOTSTRAP_SQL            Override path to 01_runtime_roles.sql
+#   NODE_ENV=production | BOOTSTRAP_REQUIRE_PINNED_MIGRATOR=1
+#                            Fail when the migrator role (proctira) is SUPERUSER or
+#                            BYPASSRLS after bootstrap (warn loudly otherwise).
+#
+# PRC-L382: secrets never reach the psql argv. The connection URL is split into
+# libpq PG* environment variables and role passwords are written to psql stdin
+# by the bash printf builtin (no child process), so `ps` shows neither.
 #
 # Idempotent: safe to re-run. Does not drop roles. Rotates passwords only when
 # the corresponding password env vars are set.
@@ -85,22 +92,66 @@ if ! command -v psql >/dev/null 2>&1; then
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "error: python3 required to rewrite BOOTSTRAP_DATABASE_URL database path" >&2
+  echo "error: python3 required to split BOOTSTRAP_DATABASE_URL into PG* env vars" >&2
   exit 1
 fi
 
-url_with_db() {
-  local url="$1"
-  local db="$2"
-  BOOTSTRAP_DATABASE_URL="$url" BOOTSTRAP_DB_NAME="$db" python3 - <<'PY'
-import os, urllib.parse
-u = urllib.parse.urlparse(os.environ["BOOTSTRAP_DATABASE_URL"])
-print(urllib.parse.urlunparse((u.scheme, u.netloc, "/" + os.environ["BOOTSTRAP_DB_NAME"], "", "", "")))
-PY
+# Translate a postgresql:// URL into shell-quoted `export PG...=...` lines so
+# credentials travel via the environment instead of the psql command line.
+# Unknown query parameters fail closed rather than being silently dropped.
+url_to_pg_env() {
+  CONN_URL="$1" python3 -c '
+import os, shlex, sys, urllib.parse
+u = urllib.parse.urlparse(os.environ["CONN_URL"])
+if u.scheme not in ("postgres", "postgresql"):
+    sys.exit("error: BOOTSTRAP_DATABASE_URL must be a postgresql:// URL")
+out = {}
+if u.hostname:
+    out["PGHOST"] = u.hostname
+if u.port:
+    out["PGPORT"] = str(u.port)
+if u.username:
+    out["PGUSER"] = urllib.parse.unquote(u.username)
+if u.password is not None:
+    out["PGPASSWORD"] = urllib.parse.unquote(u.password)
+db = urllib.parse.unquote(u.path.lstrip("/"))
+if db:
+    out["PGDATABASE"] = db
+known = {
+    "sslmode": "PGSSLMODE",
+    "sslrootcert": "PGSSLROOTCERT",
+    "sslcert": "PGSSLCERT",
+    "sslkey": "PGSSLKEY",
+    "connect_timeout": "PGCONNECT_TIMEOUT",
+    "application_name": "PGAPPNAME",
+    "options": "PGOPTIONS",
+    "target_session_attrs": "PGTARGETSESSIONATTRS",
+}
+for key, value in urllib.parse.parse_qsl(u.query, keep_blank_values=True):
+    if key not in known:
+        sys.exit("error: unsupported connection URL parameter: " + key)
+    out[known[key]] = value
+for key, value in out.items():
+    print("export " + key + "=" + shlex.quote(value))
+'
 }
 
+PG_ENV_EXPORTS="$(url_to_pg_env "$BOOTSTRAP_DATABASE_URL")"
+eval "$PG_ENV_EXPORTS"
+unset PG_ENV_EXPORTS
+
 psql_boot() {
-  psql "$BOOTSTRAP_DATABASE_URL" -v ON_ERROR_STOP=1 "$@"
+  psql -v ON_ERROR_STOP=1 "$@"
+}
+
+# Write `ALTER ROLE <role> PASSWORD '<pw>'` to psql stdin. printf is a bash
+# builtin, so the password never appears in any process argv.
+set_role_password() {
+  local role="$1"
+  local pw="$2"
+  local sq="'"
+  local quoted="${pw//$sq/$sq$sq}"
+  printf "ALTER ROLE %s PASSWORD '%s';\n" "$role" "$quoted" | psql_boot -q >/dev/null
 }
 
 echo "==> W1-DATA-10: applying ${BOOTSTRAP_SQL#"$ROOT"/} via BOOTSTRAP_DATABASE_URL"
@@ -108,18 +159,12 @@ psql_boot -f "$BOOTSTRAP_SQL"
 
 if [[ -n "${MIGRATOR_PASSWORD:-}" ]]; then
   echo "==> Setting password for role proctira"
-  psql_boot -q -t -A -v pw="$MIGRATOR_PASSWORD" <<'SQL' >/dev/null
-SELECT format('ALTER ROLE proctira PASSWORD %L', :'pw');
-\gexec
-SQL
+  set_role_password proctira "$MIGRATOR_PASSWORD"
 fi
 
 if [[ -n "${APP_ROLE_PASSWORD:-}" ]]; then
   echo "==> Setting password for role proctira_app"
-  psql_boot -q -t -A -v pw="$APP_ROLE_PASSWORD" <<'SQL' >/dev/null
-SELECT format('ALTER ROLE proctira_app PASSWORD %L', :'pw');
-\gexec
-SQL
+  set_role_password proctira_app "$APP_ROLE_PASSWORD"
 fi
 
 if [[ "${BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES:-0}" == "1" ]]; then
@@ -152,13 +197,12 @@ SQL
     echo "==> Database $TARGET_DB already exists (skip CREATE)"
   fi
 
-  TARGET_URL="$(url_with_db "$BOOTSTRAP_DATABASE_URL" "$TARGET_DB")"
   echo "==> Granting CONNECT/USAGE on $TARGET_DB"
-  psql "$TARGET_URL" -v ON_ERROR_STOP=1 -f "$BOOTSTRAP_SQL"
+  PGDATABASE="$TARGET_DB" psql -v ON_ERROR_STOP=1 -f "$BOOTSTRAP_SQL"
 
   if [[ "${BOOTSTRAP_EXTENSIONS:-0}" == "1" ]]; then
     echo "==> Creating extensions on $TARGET_DB"
-    psql "$TARGET_URL" -v ON_ERROR_STOP=1 <<'SQL'
+    PGDATABASE="$TARGET_DB" psql -v ON_ERROR_STOP=1 <<'SQL'
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 SQL
@@ -186,6 +230,23 @@ echo "    $verify"
 if [[ "$verify" != "proctira_app OK" ]]; then
   echo "error: W1-DATA-10 bootstrap verification failed" >&2
   exit 1
+fi
+
+echo "==> Verifying migrator posture"
+migrator="$(
+  psql_boot -At <<'SQL'
+SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ELEVATED' ELSE 'OK' END
+FROM pg_roles WHERE rolname = 'proctira';
+SQL
+)"
+if [[ "$migrator" != "OK" ]]; then
+  if [[ "${NODE_ENV:-}" == "production" || "${BOOTSTRAP_REQUIRE_PINNED_MIGRATOR:-0}" == "1" ]]; then
+    echo "error: migrator role proctira is SUPERUSER or BYPASSRLS; re-run with BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1 (PRC-L382)" >&2
+    exit 1
+  fi
+  echo "WARNING: migrator role proctira is SUPERUSER or BYPASSRLS; acceptable only for local compose. Production requires BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1." >&2
+else
+  echo "    proctira migrator OK (NOSUPERUSER NOBYPASSRLS)"
 fi
 
 echo "==> W1-DATA-10 bootstrap complete"

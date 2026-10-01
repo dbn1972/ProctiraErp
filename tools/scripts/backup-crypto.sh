@@ -41,6 +41,13 @@ backup_encrypt_if_configured() {
     exit 1
   fi
 
+  # PRC-L383: plaintext dumps are opt-in, never the silent default.
+  if [[ "${BACKUP_ALLOW_PLAINTEXT:-}" != "1" ]]; then
+    rm -f "$plain"
+    echo "ERROR: no BACKUP_AGE_RECIPIENT/BACKUP_GPG_RECIPIENT configured; refusing to keep an unencrypted dump (set BACKUP_ALLOW_PLAINTEXT=1 for local/drill use)" >&2
+    exit 1
+  fi
+  echo "WARNING: BACKUP_ALLOW_PLAINTEXT=1 — keeping an unencrypted dump: ${plain}" >&2
   echo "$plain"
 }
 
@@ -153,7 +160,8 @@ backup_offsite_sync() {
         )
         echo "==> object-lock ${lock_mode} until ${until}" >&2
       fi
-      aws s3 cp "$file" "$dest" "${sse_args[@]}" "${lock_args[@]}"
+      # ${arr[@]+...} keeps empty arrays safe under `set -u` on bash < 4.4.
+      aws s3 cp "$file" "$dest" ${sse_args[@]+"${sse_args[@]}"} ${lock_args[@]+"${lock_args[@]}"}
       ;;
     *)
       echo "ERROR: unsupported BACKUP_OFFSITE_URI scheme (use s3://bucket/prefix/): ${uri}" >&2

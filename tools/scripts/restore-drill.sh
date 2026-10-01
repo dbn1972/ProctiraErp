@@ -55,7 +55,9 @@ if create.returncode != 0:
 print(f"==> Recreated database {db}")
 PY
 
-DATABASE_URL="$SRC_URL" bash "$ROOT/tools/scripts/pg-backup.sh" "$DUMP_FILE" \
+# The drill restores DUMP_FILE directly, so it opts in to a plaintext artifact
+# (PRC-L383: pg-backup.sh refuses plaintext by default).
+DATABASE_URL="$SRC_URL" BACKUP_ALLOW_PLAINTEXT=1 bash "$ROOT/tools/scripts/pg-backup.sh" "$DUMP_FILE" \
   | tee "$ARTIFACT_DIR/backup.log"
 
 echo "==> Dump integrity (pg_restore --list)"
