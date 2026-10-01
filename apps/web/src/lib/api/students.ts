@@ -316,12 +316,32 @@ export async function createEnrollment(input: CreateEnrollmentInput): Promise<En
   return result.data;
 }
 
+export type EnrollmentLookupResult =
+  { ok: true; enrollments: EnrollmentEntry[] } | { ok: false; status: number };
+
+/**
+ * Enrollment lookup that distinguishes "no enrollments" from "lookup failed"
+ * so callers can report failures instead of silently dropping a student
+ * (PRC-L247).
+ */
+export async function getStudentEnrollmentsResult(
+  studentId: string,
+): Promise<EnrollmentLookupResult> {
+  try {
+    const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
+      `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
+      { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+    );
+    if (!result.ok || !result.data) return { ok: false, status: result.status };
+    return { ok: true, enrollments: result.data.data };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
 export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
-  const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
-    `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.ok && result.data ? result.data.data : [];
+  const result = await getStudentEnrollmentsResult(studentId);
+  return result.ok ? result.enrollments : [];
 }
 
 export async function getEnrollmentHistory(studentId: string): Promise<EnrollmentHistoryEntry[]> {

@@ -26,7 +26,7 @@ import {
   createEnrollment,
   createStudent,
   deleteStudent,
-  getStudentEnrollments,
+  getStudentEnrollmentsResult,
   removeStudentDiscipline,
   setStudentConsent,
   submitBulkImport,
@@ -539,27 +539,58 @@ export async function graduateEnrollmentAction(
   }
 }
 
+/** Bounded-concurrency map so a 100-student batch does not run serially. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      out[index] = await fn(items[index] as T);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+const ENROLLMENT_LOOKUP_CONCURRENCY = 8;
+
 /** Resolve current ENROLLED rows for the given students, then bulk-graduate. */
 export async function bulkGraduateStudentsAction(
   studentIds: string[],
-): Promise<ActionState<{ graduated: number; failed: number }>> {
+): Promise<ActionState<{ graduated: number; failed: number; lookupFailedStudentIds: string[] }>> {
   const ids = [...new Set(studentIds)].filter((id) => UUID_RE.test(id)).slice(0, 100);
   if (ids.length === 0) {
     return { status: 'error', message: 'Select at least one student.' };
   }
 
   try {
+    const lookups = await mapWithConcurrency(ids, ENROLLMENT_LOOKUP_CONCURRENCY, (studentId) =>
+      getStudentEnrollmentsResult(studentId),
+    );
     const enrollmentIds: string[] = [];
-    for (const studentId of ids) {
-      const enrollments = await getStudentEnrollments(studentId);
-      for (const row of enrollments) {
+    const lookupFailedStudentIds: string[] = [];
+    lookups.forEach((lookup, index) => {
+      if (!lookup.ok) {
+        lookupFailedStudentIds.push(ids[index] as string);
+        return;
+      }
+      for (const row of lookup.enrollments) {
         if (row.status === 'ENROLLED') enrollmentIds.push(row.id);
       }
-    }
+    });
     if (enrollmentIds.length === 0) {
       return {
         status: 'error',
-        message: 'No active (ENROLLED) enrollments found for the selection.',
+        message:
+          lookupFailedStudentIds.length > 0
+            ? `Could not load enrollments for ${lookupFailedStudentIds.length} student(s); nothing was graduated.`
+            : 'No active (ENROLLED) enrollments found for the selection.',
+        data: { graduated: 0, failed: 0, lookupFailedStudentIds },
       };
     }
 
@@ -575,13 +606,17 @@ export async function bulkGraduateStudentsAction(
 
     const graduated = result.updated.length;
     const failed = result.failed.length;
+    const lookupNote =
+      lookupFailedStudentIds.length > 0
+        ? ` Enrollments could not be loaded for ${lookupFailedStudentIds.length} student(s).`
+        : '';
     return {
-      status: failed === 0 ? 'success' : 'error',
+      status: failed === 0 && lookupFailedStudentIds.length === 0 ? 'success' : 'error',
       message:
-        failed === 0
+        (failed === 0
           ? `Graduated ${graduated} enrollment${graduated === 1 ? '' : 's'}.`
-          : `Graduated ${graduated}; ${failed} failed.`,
-      data: { graduated, failed },
+          : `Graduated ${graduated}; ${failed} failed.`) + lookupNote,
+      data: { graduated, failed, lookupFailedStudentIds },
     };
   } catch (error) {
     return toErrorState(error, 'Failed to bulk graduate');
