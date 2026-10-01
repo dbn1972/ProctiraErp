@@ -1,7 +1,7 @@
 /**
  * Theme review API client.
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export type ThemeStatus = 'submitted' | 'in_review' | 'approved' | 'rejected';
 
@@ -96,6 +96,7 @@ export async function themeAction(
     json: { reason },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Action failed.' };
 }

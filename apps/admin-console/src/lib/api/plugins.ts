@@ -1,7 +1,7 @@
 /**
  * Plugin marketplace management API client.
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export type PluginStatus = 'submitted' | 'in_review' | 'approved' | 'revoked' | 'disabled';
 
@@ -134,6 +134,7 @@ export async function pluginAction(
     json: { reason },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Action failed.' };
 }

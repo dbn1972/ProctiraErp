@@ -634,6 +634,47 @@ describe('HealthService', () => {
       );
       expect(result.data).toHaveLength(2);
     });
+
+    // PRC-H006: the counselling reason is counselling PHI — counsellors (and the student's
+    // guardian) read it; admins, nurses and health officers get schedule metadata only.
+    it('redacts the counselling reason for non-counsellors on the domain list route', async () => {
+      await service.createCounsellingSession(
+        tenantId,
+        {
+          studentId: 'student-001',
+          counsellorId: 'staff-001',
+          sessionDate: '2024-03-20',
+          sessionType: 'individual',
+          reason: 'Family bereavement',
+          caseNotes: 'Notes',
+          followUpRequired: false,
+          status: 'completed',
+        },
+        healthOfficerContext,
+      );
+      const asAdmin = await service.listCounsellingSessions(
+        tenantId,
+        'student-001',
+        { page: 1, pageSize: 10 },
+        healthOfficerContext,
+      );
+      expect(asAdmin.data[0]!.reason).toBe('');
+
+      const counsellor: HealthAccessContext = {
+        userId: 'user-counsellor',
+        roles: ['counsellor'],
+        guardianOfStudentIds: [],
+        authoritativeInstitutionIds: ['inst-a'],
+      };
+      repository.setStudentInstitution(tenantId, 'student-001', 'inst-a');
+      const asCounsellor = await service.listCounsellingSessions(
+        tenantId,
+        'student-001',
+        { page: 1, pageSize: 10 },
+        counsellor,
+      );
+      expect(asCounsellor.data[0]!.reason).toBe('Family bereavement');
+    });
   });
 
   describe('Screening Programs', () => {

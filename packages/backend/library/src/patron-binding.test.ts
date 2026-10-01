@@ -152,3 +152,110 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
     expect(res.statusCode).toBe(403);
   });
 });
+
+// ─── PRC-H067/H068: fines/overdues/clearance scoping + hybrid-role bypass ──────
+
+describe('PRC-H067/H068 library read scoping', () => {
+  const binding: PatronBinding = {
+    isLinked: async (_t: string, parentUserId: string, studentId: string) =>
+      parentUserId === PARENT_SUB && studentId === CHILD,
+  };
+
+  async function appAs(user: { sub: string; roles: Role[] }, withBinding = true) {
+    const repository = new InMemoryLibraryRepository();
+    await seedLoans(repository, binding);
+    const app = build(user);
+    await app.register(libraryPlugin, {
+      repository,
+      ...(withBinding ? { patronBinding: binding } : {}),
+    });
+    await app.ready();
+    return app;
+  }
+
+  it('H067: student cannot read tenant-wide overdues or fine policy (403)', async () => {
+    const app = await appAs({ sub: CHILD, roles: [{ roleId: 'student', roleName: 'Student' }] });
+    expect((await app.inject({ method: 'GET', url: '/library/overdues' })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/library/fines/policy' })).statusCode).toBe(403);
+    expect(
+      (await app.inject({ method: 'GET', url: '/library/copies/by-barcode?barcode=X' })).statusCode,
+    ).toBe(403);
+    await app.close();
+  });
+
+  it('H067: student /fines is scoped to self; cannot read another student', async () => {
+    const app = await appAs({ sub: CHILD, roles: [{ roleId: 'student', roleName: 'Student' }] });
+    // Own fines (studentId omitted → pinned to self) → 200.
+    const own = await app.inject({ method: 'GET', url: '/library/fines' });
+    expect(own.statusCode).toBe(200);
+    // Another student's fines → 403.
+    const other = await app.inject({
+      method: 'GET',
+      url: `/library/fines?studentId=${OTHER_CHILD}`,
+    });
+    expect(other.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('H067: parent /fines is linked-child 200, unlinked 404, no-studentId 400', async () => {
+    const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
+    const own = await app.inject({ method: 'GET', url: `/library/fines?studentId=${CHILD}` });
+    expect(own.statusCode).toBe(200);
+    const other = await app.inject({
+      method: 'GET',
+      url: `/library/fines?studentId=${OTHER_CHILD}`,
+    });
+    expect(other.statusCode).toBe(404);
+    const none = await app.inject({ method: 'GET', url: '/library/fines' });
+    expect(none.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('H067: parent clearance is bound — linked child 200, unlinked 404', async () => {
+    const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
+    const own = await app.inject({ method: 'GET', url: `/library/patrons/${CHILD}/clearance` });
+    expect(own.statusCode).toBe(200);
+    const other = await app.inject({
+      method: 'GET',
+      url: `/library/patrons/${OTHER_CHILD}/clearance`,
+    });
+    expect(other.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('H068: guardian+teacher (no library staff role) stays BOUND, not unbound staff', async () => {
+    // Pre-fix, any non-portal role made portalScope treat the caller as unbound staff.
+    const app = await appAs({
+      sub: PARENT_SUB,
+      roles: [
+        { roleId: 'guardian', roleName: 'Guardian' },
+        { roleId: 'teacher', roleName: 'Teacher' },
+      ],
+    });
+    // Unlinked child → 404 (bound as parent), not the whole tenant.
+    const unlinked = await app.inject({
+      method: 'GET',
+      url: `/library/loans?studentId=${OTHER_CHILD}`,
+    });
+    expect(unlinked.statusCode).toBe(404);
+    // Linked child → only that child's rows.
+    const linked = await app.inject({ method: 'GET', url: `/library/loans?studentId=${CHILD}` });
+    expect(linked.statusCode).toBe(200);
+    expect((linked.json().data as unknown[]).length).toBe(1);
+    await app.close();
+  });
+
+  it('H068: guardian+librarian (real library staff) remains unbound', async () => {
+    const app = await appAs({
+      sub: 'lib-guardian',
+      roles: [
+        { roleId: 'guardian', roleName: 'Guardian' },
+        { roleId: 'librarian', roleName: 'Librarian' },
+      ],
+    });
+    // Staff may read tenant-wide overdues.
+    const overdues = await app.inject({ method: 'GET', url: '/library/overdues' });
+    expect(overdues.statusCode).toBe(200);
+    await app.close();
+  });
+});

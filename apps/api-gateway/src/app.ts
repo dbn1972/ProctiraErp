@@ -63,7 +63,8 @@ import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
-  extractInstitutionId,
+  extractInstitutionIds,
+  institutionRecordIdFromParams,
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
@@ -101,7 +102,13 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
-import { isRequestTenantSuspended } from './tenant-entitlement.js';
+import {
+  configureTenantStatusSource,
+  currentTenantStatusSource,
+  isRequestTenantSuspended,
+  noteTenantStatusChange,
+  resolveTenantBlocked,
+} from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
@@ -670,20 +677,38 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     requireJwtTenantWhenAuthenticated: true,
   });
 
-  // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth).
+  // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth); reads stay allowed.
+  // PRC-H008 / PRC-H098: status is resolved from the tenant store (TTL cache, invalidated on
+  // lifecycle transitions — wired after tenantLifecyclePlugin below), not only an env list.
   const SUSPEND_MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  const SUSPENSION_REMEDIATION_PREFIXES = ['/api/v1/billing/', '/api/v1/privacy/'];
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
     if (!SUSPEND_MUTATING.has(method)) return;
-
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
     if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
-
+    // A suspended tenant must still be able to remediate (pay/reactivate its subscription) and
+    // exercise data-subject rights; everything else is read-only while suspended.
+    if (SUSPENSION_REMEDIATION_PREFIXES.some((prefix) => url.startsWith(prefix))) return;
     const tenantId = request.tenantId ?? request.user?.tenantId;
     const userClaim = request.user as { tenantStatus?: string } | undefined;
-    if (isRequestTenantSuspended(tenantId, userClaim)) {
+    let blocked = isRequestTenantSuspended(tenantId, userClaim);
+    if (!blocked && tenantId) {
+      try {
+        blocked = await resolveTenantBlocked(tenantId);
+      } catch (error) {
+        // Fail closed for writes when the tenant store cannot be read.
+        request.log.error({ err: error, tenantId }, 'tenant status lookup failed');
+        return reply.status(503).send({
+          code: 'TENANT_STATUS_UNAVAILABLE',
+          message: 'Tenant status could not be verified; try again shortly',
+          statusCode: 503,
+        });
+      }
+    }
+    if (blocked) {
       return reply.status(403).send({
         code: 'TENANT_SUSPENDED',
         message: 'Tenant is suspended; mutating requests are not allowed',
@@ -691,7 +716,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
   });
-
   // 8a-bis. G-810 — Feature entitlements (optional modules). Absent feature maps allow.
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
@@ -729,12 +753,15 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
     const user = request.user as InstitutionScopeUser | undefined;
     if (!user) return;
-    const institutionId = extractInstitutionId({
-      query: request.query,
-      params: request.params,
-      body: request.body,
-    });
-    const decision = decideInstitutionScope(user, url, institutionId, request.method);
+    // PRC-H004: check every id the request names (query/params, both key spellings, and an
+    // /institutions/:id record id). The body is not parsed yet; preValidation below covers it.
+    const named = extractInstitutionIds({ query: request.query, params: request.params });
+    const recordId = institutionRecordIdFromParams(url, request.params);
+    if (recordId && !named.includes(recordId)) named.push(recordId);
+    const denied = named
+      .map((id) => decideInstitutionScope(user, url, id, request.method))
+      .find((d) => d.action === 'deny');
+    const decision = denied ?? decideInstitutionScope(user, url, named[0], request.method);
     if (decision.action === 'deny') {
       return reply.status(403).send({
         code: 'INSTITUTION_OUT_OF_SCOPE',
@@ -753,6 +780,28 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         writable: true,
         enumerable: true,
         configurable: true,
+      });
+    }
+  });
+  // PRC-H004: the onRequest gate above runs before Fastify parses the body, so a body-carried
+  // institutionId (POST/PUT/PATCH writes) was never checked and a school-bound user could write
+  // to another school. Re-run the scope decision on the parsed body in preValidation.
+  app.addHook('preValidation', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const user = request.user as InstitutionScopeUser | undefined;
+    if (!user) return;
+    const decision = extractInstitutionIds({ body: request.body })
+      .map((id) => decideInstitutionScope(user, url, id, request.method))
+      .find((d) => d.action === 'deny');
+    if (decision?.action === 'deny') {
+      return reply.status(403).send({
+        code: 'INSTITUTION_OUT_OF_SCOPE',
+        message: 'Institution is outside the caller school scope',
+        institutionId: decision.institutionId,
+        statusCode: 403,
       });
     }
   });
@@ -816,11 +865,36 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(tenantLifecyclePlugin, {
     repository: getTenantRepository(),
     prefix: '/api/v1/tenant-lifecycle',
-    branding: { disabled: false },
+    // PRC-H097: do NOT register branding here. tenantLifecyclePlugin is fastify-plugin-wrapped,
+    // so the branding routes mounted at their default '/tenant/branding' land at the server root
+    // — outside the gateway's '/api/v1' RBAC hook — letting any authenticated user publish/roll
+    // back. Branding is already served (with a tenant resolver + branding:* permission check) by
+    // tenantAdminPlugin under '/api/v1/tenant/branding'.
+    branding: { disabled: true },
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
   });
+  // PRC-H008 / PRC-H098: the suspension gate reads tenant status from the same repository the
+  // lifecycle writes, and lifecycle transitions invalidate this process's cache immediately.
+  {
+    const tenantRepository = getTenantRepository();
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ownSource: Parameters<typeof configureTenantStatusSource>[0] = async (tenantId) => {
+      if (!UUID_RE.test(tenantId)) return null;
+      const tenant = await tenantRepository.findTenantById(tenantId);
+      return tenant?.status ?? null;
+    };
+    configureTenantStatusSource(ownSource);
+    app.tenantService.onStatusChange((tenantId, status) => {
+      noteTenantStatusChange(tenantId, status);
+    });
+    app.addHook('onClose', () => {
+      // Only disarm the gate if this app's source is still the one installed.
+      if (currentTenantStatusSource() === ownSource) configureTenantStatusSource(null);
+      return Promise.resolve();
+    });
+  }
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
   // Post-hoc onSend remains for unwired paths; production never degrades.

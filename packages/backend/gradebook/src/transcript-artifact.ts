@@ -7,12 +7,49 @@
  *  - `transcript.json`           machine-readable payload + checksum
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
+import { AppError } from '@proctira/common';
 import { PdfDocument, PdfFlow } from '@proctira/pdf-lite';
 
 export function transcriptArtifactRoot(): string {
   return process.env.SIS_TRANSCRIPT_DIR ?? '/opt/cursor/artifacts/sis-transcripts';
+}
+
+const UUID_SEGMENT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * PRC-H063: tenantId/studentId become filesystem path segments. studentId was client-supplied
+ * with only `minLength: 1`, so `../../..` could escape the artifact root and write files anywhere
+ * the process can. Only UUID segments are accepted, and the resolved directory must stay under
+ * the artifact root (defense in depth against a future relaxed validator).
+ */
+export function resolveTranscriptArtifactDir(
+  tenantId: string,
+  studentId: string,
+  version: number,
+): string {
+  if (!UUID_SEGMENT_RE.test(tenantId) || !UUID_SEGMENT_RE.test(studentId)) {
+    throw new AppError('Invalid transcript artifact scope', 'VALIDATION_ERROR', 400);
+  }
+  if (!Number.isInteger(version) || version < 1) {
+    throw new AppError('Invalid transcript version', 'VALIDATION_ERROR', 400);
+  }
+  const root = resolve(transcriptArtifactRoot());
+  const dir = resolve(root, tenantId, studentId, `v${version}`);
+  if (dir !== root && !dir.startsWith(root + sep)) {
+    throw new AppError('Transcript artifact path escapes storage root', 'VALIDATION_ERROR', 400);
+  }
+  return dir;
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function buildTranscriptPdfLiteHtml(input: {
@@ -32,13 +69,13 @@ export function buildTranscriptPdfLiteHtml(input: {
     '<h1>Official transcript (PDF-lite)</h1>',
     `<p class="meta">Not a cryptographically sealed PDF — printable HTML artifact.</p>`,
     '<table>',
-    `<tr><th>Student ID</th><td>${input.studentId}</td></tr>`,
-    `<tr><th>Version</th><td>${input.version}</td></tr>`,
-    `<tr><th>Issued at</th><td>${input.issuedAt}</td></tr>`,
-    `<tr><th>Weighted GPA</th><td>${input.weightedGpa ?? '—'}</td></tr>`,
-    `<tr><th>Unweighted GPA</th><td>${input.unweightedGpa ?? '—'}</td></tr>`,
-    `<tr><th>Credits earned</th><td>${input.creditsEarned ?? '—'}</td></tr>`,
-    `<tr><th>Checksum (SHA-256)</th><td><code>${input.checksumSha256}</code></td></tr>`,
+    `<tr><th>Student ID</th><td>${escapeHtml(input.studentId)}</td></tr>`,
+    `<tr><th>Version</th><td>${escapeHtml(input.version)}</td></tr>`,
+    `<tr><th>Issued at</th><td>${escapeHtml(input.issuedAt)}</td></tr>`,
+    `<tr><th>Weighted GPA</th><td>${escapeHtml(input.weightedGpa ?? '—')}</td></tr>`,
+    `<tr><th>Unweighted GPA</th><td>${escapeHtml(input.unweightedGpa ?? '—')}</td></tr>`,
+    `<tr><th>Credits earned</th><td>${escapeHtml(input.creditsEarned ?? '—')}</td></tr>`,
+    `<tr><th>Checksum (SHA-256)</th><td><code>${escapeHtml(input.checksumSha256)}</code></td></tr>`,
     '</table>',
     '</body></html>',
   ].join('');
@@ -112,12 +149,7 @@ export function writeTranscriptPdfLite(input: {
   studentName?: string | null;
   signature?: string | null;
 }): { artifactDir: string; pdfPath: string; pdfLitePath: string; jsonPath: string } {
-  const artifactDir = join(
-    transcriptArtifactRoot(),
-    input.tenantId,
-    input.studentId,
-    `v${input.version}`,
-  );
+  const artifactDir = resolveTranscriptArtifactDir(input.tenantId, input.studentId, input.version);
   mkdirSync(artifactDir, { recursive: true });
   const pdfPath = join(artifactDir, 'transcript.pdf');
   const pdfLitePath = join(artifactDir, 'transcript.pdf-lite.html');

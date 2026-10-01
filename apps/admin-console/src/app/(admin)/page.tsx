@@ -171,7 +171,7 @@ export default async function DashboardPage() {
                     <div className="truncate text-xs text-muted-foreground">{adapter.note}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono tabular-nums">{adapter.latencyMs}ms</span>
+                    <span className="font-mono tabular-nums">{adapter.latencyMs === null ? '—' : `${adapter.latencyMs}ms`}</span>
                     <StatusBadge status={adapter.status} />
                   </div>
                 </div>

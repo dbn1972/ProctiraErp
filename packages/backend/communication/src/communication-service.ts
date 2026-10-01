@@ -61,7 +61,7 @@ export class CommunicationService {
     return estimateAudience(audienceJson, live);
   }
 
-  async createCampaign(tenantId: string, input: CreateCampaignInput) {
+  async createCampaign(tenantId: string, input: CreateCampaignInput, actorId: string | null) {
     return this.repository.createCampaign({
       id: uuidv4(),
       tenantId,
@@ -72,7 +72,8 @@ export class CommunicationService {
       audienceJson: input.audienceJson ?? {},
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       sentAt: null,
-      createdBy: input.createdBy ?? null,
+      // PRC-H045: attribution comes from the verified session, not client input.
+      createdBy: actorId,
     });
   }
 
@@ -145,7 +146,11 @@ export class CommunicationService {
     };
   }
 
-  async createEmergencyBlast(tenantId: string, input: CreateEmergencyBlastInput) {
+  async createEmergencyBlast(
+    tenantId: string,
+    input: CreateEmergencyBlastInput,
+    actorId: string | null,
+  ) {
     return this.repository.createEmergencyBlast({
       id: uuidv4(),
       tenantId,
@@ -155,7 +160,8 @@ export class CommunicationService {
       confirmActor1: null,
       confirmActor2: null,
       confirmedAt: null,
-      createdBy: input.createdBy ?? null,
+      // PRC-H045: creator recorded from the verified session, not client input.
+      createdBy: actorId,
     });
   }
 
@@ -171,6 +177,12 @@ export class CommunicationService {
 
     if (blast.status !== 'pending_confirm' && blast.status !== 'confirmed') {
       throw new ConflictError('Emergency blast is no longer awaiting confirmation');
+    }
+
+    // PRC-H045: two-person control. The creator may not be one of the two confirmers, otherwise
+    // the person who raised the blast could self-approve one half of the dual confirmation.
+    if (blast.createdBy && blast.createdBy === actorId) {
+      throw new ConflictError('The creator of an emergency blast cannot confirm it');
     }
 
     if (!blast.confirmActor1) {

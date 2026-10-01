@@ -20,7 +20,9 @@ export async function updateEntitlementsAction(formData: FormData): Promise<void
     }
   });
 
-  await updatePlanEntitlements({ planId, entitlements });
+  const result = await updatePlanEntitlements({ planId, entitlements });
+  // PRC-H002: surface failed writes (incl. unreachable gateway) instead of silently revalidating.
+  if (!result.ok) throw new Error(result.error ?? 'Failed to update entitlements.');
   revalidatePath('/plans');
   revalidatePath(`/plans/${planId}`);
 }

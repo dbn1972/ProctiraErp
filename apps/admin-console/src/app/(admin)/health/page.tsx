@@ -85,7 +85,7 @@ export default async function HealthPage() {
                   <span>
                     latency{' '}
                     <span className="font-mono font-semibold tabular-nums text-foreground">
-                      {adapter.latencyMs}ms
+                      {adapter.latencyMs === null ? '—' : `${adapter.latencyMs}ms`}
                     </span>
                   </span>
                   <span>

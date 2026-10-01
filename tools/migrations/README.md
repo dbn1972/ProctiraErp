@@ -66,7 +66,7 @@ pnpm migrate:cdc-sync     # Run CDC incremental sync cycle
 ```
 tools/migrations/
 ├── pgloader/                    # pgloader configuration files
-│   └── proctira-migration.load  # Main pgloader config
+│   └── openemis-migration.load  # pgloader template (rendered to a private temp file at run time)
 ├── src/
 │   ├── config.ts               # Migration configuration
 │   ├── types.ts                # Shared type definitions
