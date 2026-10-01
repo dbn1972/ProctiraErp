@@ -11,7 +11,11 @@ import {
   type StaffLeaveStatus,
   type StaffLeaveType,
 } from './leave-repository.js';
-import type { CreateStaffLeaveInput, DecideStaffLeaveInput } from './leave-schemas.js';
+import {
+  BALANCE_LEAVE_TYPES,
+  type CreateStaffLeaveInput,
+  type DecideStaffLeaveInput,
+} from './leave-schemas.js';
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
 export function inclusiveLeaveDays(startDate: string, endDate: string): number {
@@ -34,6 +38,13 @@ export class StaffLeaveService {
     return this.repository.getBalance(tenantId, staffId, leaveType);
   }
 
+  /** PRC-H091: all tracked balances for one staff member (missing rows omitted). */
+  async listBalances(tenantId: string, staffId: string) {
+    const rows = await Promise.all(
+      BALANCE_LEAVE_TYPES.map((t) => this.repository.getBalance(tenantId, staffId, t)),
+    );
+    return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+  }
   async setBalance(
     tenantId: string,
     staffId: string,
@@ -99,6 +110,14 @@ export class StaffLeaveService {
       // G-718: the decrement itself is the authoritative check — the repository
       // locks the balance row (FOR UPDATE) and rejects a negative result, so two
       // concurrent approvals cannot both consume the same days.
+      // PRC-H091: a missing balance row is a configuration gap, not "0 days".
+      const balance = await this.repository.getBalance(tenantId, leave.staffId, leave.leaveType);
+      if (!balance) {
+        throw new BusinessRuleError(
+          `No ${leave.leaveType} leave balance is configured for staff '${leave.staffId}'; ` +
+            'set it via PUT /staff/:id/leave-balances before approving',
+        );
+      }
       try {
         await this.repository.adjustBalance(tenantId, leave.staffId, leave.leaveType, -days);
       } catch (error) {

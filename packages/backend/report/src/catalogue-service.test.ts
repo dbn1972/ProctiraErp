@@ -13,6 +13,8 @@ import { InMemoryReportStore } from './report-store.js';
 import { InMemoryScheduleDelivery } from './schedule-delivery.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
 
+// PRC-H080: these unit tests run without a DB pool and explicitly opt into demo rows.
+process.env.REPORT_DEMO_DATA = '1';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 

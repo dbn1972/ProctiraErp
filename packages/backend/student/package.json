@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/multipart": "10.1.2",
     "@prisma/client": "^5.22.0",
     "@proctira/cache": "workspace:*",
     "@proctira/common": "workspace:*",

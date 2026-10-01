@@ -34,3 +34,17 @@ export const DecideStaffLeaveSchema = Type.Object({
 });
 
 export type DecideStaffLeaveInput = Static<typeof DecideStaffLeaveSchema>;
+/** PRC-H091: leave types that consume a tracked balance (unpaid never does). */
+export const BALANCE_LEAVE_TYPES = ['annual', 'sick', 'casual', 'other'] as const;
+export const StaffLeaveBalanceParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+export type StaffLeaveBalanceParams = Static<typeof StaffLeaveBalanceParamsSchema>;
+export const SetStaffLeaveBalanceSchema = Type.Object(
+  {
+    leaveType: Type.Union(BALANCE_LEAVE_TYPES.map((t) => Type.Literal(t))),
+    balanceDays: Type.Number({ minimum: 0, maximum: 366, multipleOf: 0.5 }),
+  },
+  { additionalProperties: false },
+);
+export type SetStaffLeaveBalanceInput = Static<typeof SetStaffLeaveBalanceSchema>;
