@@ -147,7 +147,9 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   await page.goto(`/institutions/${MAYUR}/gradebook`, { waitUntil: 'domcontentloaded' });
   const root = page.getByTestId('institution-gradebook').filter({ visible: true });
   await expect(root).toBeVisible();
-  await expect(root).toContainText('Aarav Mehta');
+  // PRC-L041: the default section comes from the active academic period, not
+  // the G9B-MATH seed code; Aarav Mehta is asserted after selecting G9B-MATH.
+  await expect(page.getByTestId('gradebook-section-name').filter({ visible: true })).toBeVisible();
   await expect(root).not.toContainText('db/sql');
   await expect(root).not.toContainText('db/seeds');
   await expect(root.getByText(/^E2E/)).toHaveCount(0);
