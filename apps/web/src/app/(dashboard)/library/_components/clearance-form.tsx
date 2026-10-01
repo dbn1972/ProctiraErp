@@ -51,7 +51,8 @@ export function LibraryClearanceForm({
       <CardHeader>
         <CardTitle className="text-base">Transfer clearance</CardTitle>
         <CardDescription>
-          Student transfer checklist hook — clear when no open loans remain.
+          Advisory check before a transfer: a student is clear when no library loans remain open.
+          This does not update the transfer record.
         </CardDescription>
       </CardHeader>
       <CardContent>

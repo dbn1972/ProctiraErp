@@ -28,7 +28,7 @@ export default async function LibraryFinesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fines</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Assess overdue loans, then mark the fine paid. Fees can consume the summary route.
+            Assess overdue loans, then mark the fine paid.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
