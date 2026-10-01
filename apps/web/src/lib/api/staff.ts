@@ -11,6 +11,7 @@
  * All calls are tenant-scoped via `gatewayFetch`.
  */
 import { gatewayFetch } from './gateway';
+import { gatewayFetchAllPages } from './gateway-all-pages';
 import { clampPageSize } from './pagination';
 
 /* ------------------------------------------------------------------ Types */
@@ -225,11 +226,10 @@ export async function deleteStaff(id: string): Promise<void> {
 /* ------------------------------------------------------------- Assignments */
 
 export async function listStaffAssignments(staffId: string): Promise<Assignment[]> {
-  const result = await gatewayFetch<{ data: Assignment[]; meta?: PaginationMeta }>(
-    `/staff/assignments?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  return gatewayFetchAllPages<Assignment>(
+    `/staff/assignments?staffId=${encodeURIComponent(staffId)}`,
+    { next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
@@ -244,11 +244,9 @@ export async function createAssignment(input: CreateAssignmentInput): Promise<As
 /* ------------------------------------------------------------- Appraisals */
 
 export async function listAppraisalTemplates(): Promise<AppraisalTemplate[]> {
-  const result = await gatewayFetch<{ data: AppraisalTemplate[] }>(
-    '/staff/appraisals/templates?pageSize=100',
-    { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
-  );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+  return gatewayFetchAllPages<AppraisalTemplate>('/staff/appraisals/templates', {
+    next: { revalidate: 30 },
+  });
 }
 
 export async function getAppraisalTemplate(templateId: string): Promise<AppraisalTemplate | null> {
@@ -260,11 +258,10 @@ export async function getAppraisalTemplate(templateId: string): Promise<Appraisa
 }
 
 export async function listStaffAppraisals(staffId: string): Promise<Appraisal[]> {
-  const result = await gatewayFetch<{ data: Appraisal[] }>(
-    `/staff/appraisals?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  return gatewayFetchAllPages<Appraisal>(
+    `/staff/appraisals?staffId=${encodeURIComponent(staffId)}`,
+    { next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 export async function createAppraisal(input: CreateAppraisalInput): Promise<Appraisal> {
@@ -279,11 +276,10 @@ export async function createAppraisal(input: CreateAppraisalInput): Promise<Appr
 /* ------------------------------------------------------------- Training */
 
 export async function listStaffCertifications(staffId: string): Promise<TrainingCertification[]> {
-  const result = await gatewayFetch<{ data: TrainingCertification[] }>(
-    `/staff/training/certifications?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  return gatewayFetchAllPages<TrainingCertification>(
+    `/staff/training/certifications?staffId=${encodeURIComponent(staffId)}`,
+    { next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 /* ------------------------------------------------------------- HR Leave */
