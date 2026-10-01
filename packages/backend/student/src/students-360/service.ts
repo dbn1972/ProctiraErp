@@ -220,8 +220,10 @@ export class Students360Service {
     const signedUrl = this.deps.blobs.getSignedUrl
       ? await this.deps.blobs.getSignedUrl(photo.objectKey)
       : null;
+    // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
+    if (signedUrl) return { bytes: Buffer.alloc(0), mimeType: photo.mimeType, signedUrl };
     const bytes = await this.deps.blobs.get(photo.objectKey);
-    if (!bytes && !signedUrl) {
+    if (!bytes) {
       throw new NotFoundError(`Photo bytes for student '${studentId}' not found`);
     }
     return { bytes: bytes ?? Buffer.alloc(0), mimeType: photo.mimeType, signedUrl };
@@ -422,8 +424,12 @@ export class Students360Service {
     const signedUrl = this.deps.blobs.getSignedUrl
       ? await this.deps.blobs.getSignedUrl(doc.objectKey)
       : null;
+    // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
+    if (signedUrl) {
+      return { bytes: Buffer.alloc(0), mimeType: doc.mimeType, fileName: doc.fileName, signedUrl };
+    }
     const bytes = await this.deps.blobs.get(doc.objectKey);
-    if (!bytes && !signedUrl) {
+    if (!bytes) {
       throw new NotFoundError(`Document bytes for '${documentId}' not found`);
     }
     return {
