@@ -1,5 +1,3 @@
-import type { ColumnDef } from '@tanstack/react-table';
-
 export interface SortingState {
   id: string;
   desc: boolean;
@@ -62,6 +60,15 @@ export interface DataGridProps<TData> {
   totalRows?: number;
   /** Loading state */
   loading?: boolean;
+  /**
+   * Fetch/load error. When set (and not loading) the body renders a
+   * `role="alert"` row instead of the empty-state message.
+   */
+  error?: unknown;
+  /** Message shown for `error`. Defaults to `"Could not load data."` */
+  errorMessage?: string;
+  /** When provided with `error`, renders a Retry button in the alert row. */
+  onRetry?: () => void;
   /** Accessible label for the data grid */
   ariaLabel: string;
   /** Additional CSS class name */

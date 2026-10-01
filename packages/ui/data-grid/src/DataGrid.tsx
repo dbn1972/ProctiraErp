@@ -47,6 +47,9 @@ export function DataGrid<TData>({
   onExport,
   totalRows,
   loading = false,
+  error,
+  errorMessage = 'Could not load data.',
+  onRetry,
   ariaLabel,
   className = '',
 }: DataGridProps<TData>) {
@@ -250,6 +253,26 @@ export function DataGrid<TData>({
                   aria-live="polite"
                 >
                   Loading data...
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={columns.length} className="proctira-data-grid__error">
+                  <div role="alert" data-testid="data-grid-error">
+                    <span>{errorMessage}</span>
+                    {onRetry && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          onClick={onRetry}
+                          className="proctira-data-grid__retry-btn"
+                        >
+                          Retry
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ) : table.getRowModel().rows.length === 0 ? (

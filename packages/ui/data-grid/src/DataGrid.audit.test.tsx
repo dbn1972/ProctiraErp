@@ -55,3 +55,29 @@ describe('DataGrid callbacks under StrictMode (PRC-L511)', () => {
     expect(onFilterChange).toHaveBeenCalledWith([{ id: 'name', value: 'P1' }]);
   });
 });
+
+describe('DataGrid error state (PRC-L510)', () => {
+  it('renders an alert with retry instead of the empty message', () => {
+    const onRetry = vi.fn();
+    render(
+      <DataGrid
+        data={[]}
+        columns={columns}
+        error={new Error('network')}
+        onRetry={onRetry}
+        ariaLabel="G"
+      />,
+    );
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Could not load data.');
+    expect(screen.queryByText('No data available')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the empty message for genuinely empty results', () => {
+    render(<DataGrid data={[]} columns={columns} ariaLabel="G" />);
+    expect(screen.getByText('No data available')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
