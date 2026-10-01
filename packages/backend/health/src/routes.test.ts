@@ -194,6 +194,35 @@ describe('Health Routes', () => {
     });
   });
 
+  // PRC-L114: pagination / limit query params are integer-validated and bounded.
+  describe('list query validation', () => {
+    const studentUrl = '/health/measurements/student/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+    it.each([['pageSize=100000'], ['pageSize=-1'], ['pageSize=abc'], ['page=0'], ['pageSize=1.5']])(
+      'rejects %s with 400',
+      async (qs) => {
+        for (const url of [`${studentUrl}?${qs}`, `/health/screening-programs?${qs}`]) {
+          const res = await app.inject({ method: 'GET', url });
+          expect(res.statusCode, url).toBe(400);
+          expect(JSON.parse(res.body).code).toBe('VALIDATION_ERROR');
+        }
+      },
+    );
+    it('accepts defaults and pageSize=100', async () => {
+      expect((await app.inject({ method: 'GET', url: studentUrl })).statusCode).toBe(200);
+      const res = await app.inject({ method: 'GET', url: `${studentUrl}?page=2&pageSize=100` });
+      expect(res.statusCode).toBe(200);
+    });
+    it.each([['limit=100000'], ['limit=-1'], ['limit=x']])(
+      'rejects break-glass and phi-access %s with 400',
+      async (qs) => {
+        for (const url of [`/health/break-glass?${qs}`, `/health/phi-access?${qs}`]) {
+          const res = await app.inject({ method: 'GET', url });
+          expect(res.statusCode, url).toBe(400);
+        }
+      },
+    );
+  });
+
   // PRC-L315: domain-level screening role gate over HTTP.
   describe('screening programs role gate', () => {
     const payload = {

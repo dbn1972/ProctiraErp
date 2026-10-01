@@ -38,15 +38,18 @@ export const StudentParamsSchema = Type.Object({
 });
 export type StudentParams = Static<typeof StudentParamsSchema>;
 
+/** PRC-L114: integer-only, bounded pagination for every health list route. */
 export const PaginationQuerySchema = Type.Object({
-  page: Type.Optional(
-    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
-  ),
-  pageSize: Type.Optional(
-    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
-  ),
+  page: Type.Integer({ minimum: 1, maximum: 100_000, default: 1, description: 'Page (1-based)' }),
+  pageSize: Type.Integer({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
 });
 export type PaginationQuery = Static<typeof PaginationQuerySchema>;
+
+/** PRC-L114: bounded `limit` for PHI access-log and break-glass list routes. */
+export const LimitQuerySchema = Type.Object({
+  limit: Type.Integer({ minimum: 1, maximum: 500, default: 100, description: 'Max rows' }),
+});
+export type LimitQuery = Static<typeof LimitQuerySchema>;
 
 // ─── Health Measurement Schemas ───────────────────────────────────────────────
 

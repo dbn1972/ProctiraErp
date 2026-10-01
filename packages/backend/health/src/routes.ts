@@ -53,6 +53,8 @@ import {
   CreateScreeningProgramSchema,
   UpdateScreeningProgramSchema,
   UuidParamsSchema,
+  PaginationQuerySchema,
+  LimitQuerySchema,
   StudentParamsSchema,
 } from './schemas.js';
 
@@ -272,6 +274,42 @@ function buildBreakGlassAuditBinder(request: FastifyRequest, tenantId: string) {
   });
 }
 
+/**
+ * Strict integer coercion for query params: only `^-?\d+$` becomes a number, anything
+ * else ("1.5", "abc") stays a string so the Integer schema rejects it.
+ */
+function integerQueryParams(
+  query: Record<string, string | undefined>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const input: Record<string, unknown> = {};
+  for (const key of keys) {
+    const raw = query[key];
+    if (raw === undefined || raw === '') continue;
+    input[key] = /^-?\d+$/.test(raw) ? Number(raw) : raw;
+  }
+  return input;
+}
+
+/** PRC-L114: validate page/pageSize (integers, pageSize <= 100); 400 on bad input. */
+function parsePagination(query: { page?: string; pageSize?: string }) {
+  return validate(PaginationQuerySchema, integerQueryParams(query, ['page', 'pageSize']));
+}
+
+/** PRC-L114: validate `limit` (integer 1..500, default 100); 400 on bad input. */
+function parseLimit(query: { limit?: string }) {
+  return validate(LimitQuerySchema, integerQueryParams(query, ['limit']));
+}
+
+function sendQueryValidationError(reply: FastifyReply, errors: unknown) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: 'Invalid query parameters',
+    statusCode: 400,
+    errors,
+  });
+}
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
@@ -337,11 +375,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listMeasurements(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -472,11 +512,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listAllergies(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -602,11 +644,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listConditions(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -746,11 +790,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listVaccinations(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -881,11 +927,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listInsurance(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1016,11 +1064,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listAssessments(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1083,11 +1133,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listDiagnoses(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1150,11 +1202,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listReferrals(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1257,11 +1311,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listAccommodationPlans(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1364,11 +1420,13 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
       try {
         const result = await healthService.listCounsellingSessions(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          paged.data,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1463,7 +1521,9 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       const query = request.query as { page?: string; pageSize?: string; gradeLevel?: string };
-      const pagination = { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 };
+      const paged = parsePagination(query);
+      if (!paged.success) return sendQueryValidationError(reply, paged.errors);
+      const pagination = paged.data;
       try {
         const result = query.gradeLevel
           ? await healthService.listScreeningProgramsByGrade(
@@ -1634,10 +1694,12 @@ export async function registerHealthRoutes(
       });
     }
     const query = request.query as { studentId?: string; limit?: string };
+    const limited = parseLimit(query);
+    if (!limited.success) return sendQueryValidationError(reply, limited.errors);
     try {
       const data = await healthService.listPhiAccessLogs(tenantId, getAccessContext(request), {
         studentId: query.studentId,
-        limit: query.limit ? Number(query.limit) : 100,
+        limit: limited.data.limit,
       });
       return reply.status(200).send({ data });
     } catch (error) {
@@ -1688,10 +1750,12 @@ export async function registerHealthRoutes(
       });
     }
     const query = request.query as { studentId?: string; limit?: string };
+    const limited = parseLimit(query);
+    if (!limited.success) return sendQueryValidationError(reply, limited.errors);
     try {
       const data = await healthService.listBreakGlassGrants(tenantId, getAccessContext(request), {
         studentId: query.studentId,
-        limit: query.limit ? Number(query.limit) : 100,
+        limit: limited.data.limit,
       });
       return reply.status(200).send({ data });
     } catch (error) {
