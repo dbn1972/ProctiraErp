@@ -49,7 +49,25 @@ export type RolloverExtras = {
     summary: RolloverSummary;
     status: 'completed' | 'dry_run';
   }) => Promise<void>;
+  /**
+   * PRC-L318: look up a completed (non-dry-run) ledger row for an idempotency
+   * key so a replayed request returns the stored summary instead of re-executing.
+   */
+  findCompletedRolloverRun?: (input: {
+    tenantId: string;
+    idempotencyKey: string;
+  }) => Promise<RolloverSummary | null>;
 };
+
+/**
+ * PRC-L318: dry-run previews must not consume the real run's idempotency key
+ * (the ledger is unique on (tenant_id, idempotency_key)), so they are recorded
+ * under a namespaced key.
+ */
+export function ledgerIdempotencyKey(key: string | undefined, dryRun: boolean): string | null {
+  if (!key) return null;
+  return dryRun ? `dry_run:${key}` : key;
+}
 
 export interface AcademicCalendarServiceDeps {
   prisma: PrismaClient;
@@ -183,6 +201,22 @@ export class AcademicCalendarService {
     dto: RolloverRequestDto,
   ): Promise<RolloverSummary> {
     const dryRun = dto.dryRun ?? true;
+    // PRC-L318: replay of a completed real run returns its stored summary.
+    if (!dryRun && dto.idempotencyKey && this.rolloverExtras?.findCompletedRolloverRun) {
+      const previous = await this.rolloverExtras.findCompletedRolloverRun({
+        tenantId,
+        idempotencyKey: dto.idempotencyKey,
+      });
+      if (previous) {
+        if (
+          previous.sourcePeriodId !== sourcePeriodId ||
+          previous.targetPeriodId !== dto.targetPeriodId
+        ) {
+          throw new ConflictError('Idempotency key was already used for a different rollover');
+        }
+        return previous;
+      }
+    }
     if (dto.targetPeriodId === sourcePeriodId) {
       throw new ValidationError('Target period must differ from the source period', [
         { field: 'targetPeriodId', rule: 'distinct', message: 'Target must differ from source' },
@@ -416,7 +450,7 @@ export class AcademicCalendarService {
         sourcePeriodId,
         targetPeriodId: dto.targetPeriodId,
         dryRun,
-        idempotencyKey: dto.idempotencyKey ?? null,
+        idempotencyKey: ledgerIdempotencyKey(dto.idempotencyKey, dryRun),
         request: { ...dto } as unknown as Record<string, unknown>,
         summary,
         status: dryRun ? 'dry_run' : 'completed',
