@@ -50,6 +50,12 @@ export interface ImportValidationResult {
   columnMappings: ImportColumnMapping[];
 }
 
+export interface ImportResult {
+  success: number;
+  failed: number;
+  /** Optional per-row errors for the failed rows, offered as a download */
+  errors?: ImportRowError[];
+}
 export type ImportStep = 'upload' | 'mapping' | 'preview' | 'importing' | 'complete';
 
 export interface BulkImportProps {
@@ -66,10 +72,12 @@ export interface BulkImportProps {
   /** Callback when file is selected for validation */
   onFileValidate: (file: File) => Promise<ImportValidationResult>;
   /** Callback when import is confirmed */
-  onImportConfirm: (
-    file: File,
-    mappings: ImportColumnMapping[],
-  ) => Promise<{ success: number; failed: number }>;
+  onImportConfirm: (file: File, mappings: ImportColumnMapping[]) => Promise<ImportResult>;
+  /**
+   * Called with the complete error list when the user asks to download errors.
+   * When omitted, the component downloads a CSV of all errors itself.
+   */
+  onDownloadErrors?: (errors: ImportRowError[], source: 'validation' | 'import') => void;
   /** Callback to download a template file */
   onDownloadTemplate?: () => void;
   /** Callback when import is cancelled */

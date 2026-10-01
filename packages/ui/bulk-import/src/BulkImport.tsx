@@ -7,7 +7,40 @@ import type {
   ImportStep,
   ImportValidationResult,
   ImportColumnMapping,
+  ImportResult,
+  ImportRowError,
 } from './types';
+
+/** Visible error rows in the preview; the full list is always downloadable. */
+const ERROR_PREVIEW_LIMIT = 50;
+
+/** Neutralise spreadsheet formula injection and quote a CSV cell. */
+function csvCell(value: unknown): string {
+  let text = value === undefined || value === null ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+/** Serialise import row errors as CSV (header + one line per error). */
+export function importErrorsToCsv(errors: ImportRowError[]): string {
+  const header = ['Row', 'Field', 'Value', 'Error', 'Severity'];
+  const lines = errors.map((e) =>
+    [e.row, e.field, e.value ?? '', e.message, e.severity].map(csvCell).join(','),
+  );
+  return [header.map(csvCell).join(','), ...lines].join('\r\n');
+}
+
+function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * BulkImport component with validation preview and error display.
@@ -36,6 +69,7 @@ export function BulkImport({
   onFileValidate,
   onImportConfirm,
   onDownloadTemplate,
+  onDownloadErrors,
   onCancel,
   loading = false,
   className = '',
@@ -44,9 +78,7 @@ export function BulkImport({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null);
   const [columnMappings, setColumnMappings] = useState<ImportColumnMapping[]>([]);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(
-    null,
-  );
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -149,6 +181,20 @@ export function BulkImport({
       setIsProcessing(false);
     }
   }, [selectedFile, columnMappings, onImportConfirm]);
+
+  const handleDownloadErrors = useCallback(
+    (errors: ImportRowError[], source: 'validation' | 'import') => {
+      if (onDownloadErrors) {
+        onDownloadErrors(errors, source);
+        return;
+      }
+      downloadCsv(
+        source === 'import' ? 'import-failed-rows.csv' : 'import-validation-errors.csv',
+        importErrorsToCsv(errors),
+      );
+    },
+    [onDownloadErrors],
+  );
 
   const handleReset = useCallback(() => {
     setStep('upload');
@@ -376,7 +422,7 @@ export function BulkImport({
                 </tr>
               </thead>
               <tbody>
-                {validationResult.errors.slice(0, 50).map((err, index) => (
+                {validationResult.errors.slice(0, ERROR_PREVIEW_LIMIT).map((err, index) => (
                   <tr key={index} className={`proctira-bulk-import__error-row--${err.severity}`}>
                     <td>{err.row}</td>
                     <td>{err.field}</td>
@@ -391,12 +437,19 @@ export function BulkImport({
                 ))}
               </tbody>
             </table>
-            {validationResult.errors.length > 50 && (
+            {validationResult.errors.length > ERROR_PREVIEW_LIMIT && (
               <p className="proctira-bulk-import__errors-more">
-                Showing first 50 of {validationResult.errors.length} errors
+                Showing first {ERROR_PREVIEW_LIMIT} of {validationResult.errors.length} errors
               </p>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => handleDownloadErrors(validationResult.errors, 'validation')}
+            className="proctira-bulk-import__download-errors-btn"
+          >
+            Download all {validationResult.errors.length} errors (CSV)
+          </button>
         </div>
       )}
 
@@ -503,6 +556,15 @@ export function BulkImport({
             <dd>{importResult.failed}</dd>
           </div>
         </dl>
+      )}
+      {importResult?.errors && importResult.errors.length > 0 && (
+        <button
+          type="button"
+          onClick={() => handleDownloadErrors(importResult.errors ?? [], 'import')}
+          className="proctira-bulk-import__download-errors-btn"
+        >
+          Download {importResult.errors.length} failed row errors (CSV)
+        </button>
       )}
       <div className="proctira-bulk-import__actions">
         <button type="button" onClick={handleReset} className="proctira-bulk-import__reset-btn">

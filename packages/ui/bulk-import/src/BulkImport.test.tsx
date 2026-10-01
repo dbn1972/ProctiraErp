@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { BulkImport } from './BulkImport';
+import { BulkImport, importErrorsToCsv } from './BulkImport';
 import type { ImportValidationResult } from './types';
 
 const targetFields = [
@@ -249,6 +249,72 @@ describe('BulkImport', () => {
       expect(lastNameOption).toBeDisabled();
       fireEvent.click(screen.getByRole('button', { name: 'Continue to Preview' }));
       expect(await screen.findByText('Validation Preview')).toBeInTheDocument();
+    });
+  });
+
+  describe('error download (PRC-L194)', () => {
+    const manyErrors = Array.from({ length: 75 }, (_, i) => ({
+      row: i + 1,
+      field: 'email',
+      message: 'Invalid email format',
+      value: i === 0 ? '=HYPERLINK("x")' : `bad${i}`,
+      severity: 'error' as const,
+    }));
+
+    async function goToPreview(onDownloadErrors?: ReturnType<typeof vi.fn>) {
+      const onFileValidate = vi
+        .fn()
+        .mockResolvedValue({ ...mockValidationResult, errors: manyErrors });
+      render(
+        <BulkImport
+          title="Import Students"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi
+            .fn()
+            .mockResolvedValue({ success: 1, failed: 1, errors: [manyErrors[1]] })}
+          onDownloadErrors={onDownloadErrors}
+        />,
+      );
+      const input = screen.getByLabelText(/choose a file/i);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      fireEvent.click(await screen.findByRole('button', { name: 'Continue to Preview' }));
+    }
+
+    it('offers the full error list when more than 50 errors exist', async () => {
+      const onDownloadErrors = vi.fn();
+      await goToPreview(onDownloadErrors);
+      expect(screen.getByText('Showing first 50 of 75 errors')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Download all 75 errors (CSV)' }));
+      expect(onDownloadErrors).toHaveBeenCalledWith(manyErrors, 'validation');
+
+      fireEvent.click(screen.getByRole('button', { name: /import 8 valid rows/i }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Download 1 failed row errors (CSV)' }),
+      );
+      expect(onDownloadErrors).toHaveBeenLastCalledWith([manyErrors[1]], 'import');
+    });
+
+    it('falls back to a built-in CSV download', async () => {
+      const createObjectURL = vi.fn().mockReturnValue('blob:x');
+      const revokeObjectURL = vi.fn();
+      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      await goToPreview();
+      fireEvent.click(screen.getByRole('button', { name: 'Download all 75 errors (CSV)' }));
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalled();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:x');
+      click.mockRestore();
+    });
+
+    it('serialises every error as CSV and neutralises formulas', () => {
+      const csv = importErrorsToCsv(manyErrors);
+      const lines = csv.split('\r\n');
+      expect(lines).toHaveLength(76);
+      expect(lines[0]).toBe('"Row","Field","Value","Error","Severity"');
+      expect(lines[1]).toBe('"1","email","\'=HYPERLINK(""x"")","Invalid email format","error"');
     });
   });
 });
