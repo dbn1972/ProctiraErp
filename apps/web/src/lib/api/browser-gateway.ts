@@ -24,6 +24,7 @@
  */
 
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
+import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
 
 /** Base URL of the API gateway, configurable per environment. */
 export const BROWSER_GATEWAY_BASE_URL = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
@@ -118,6 +119,8 @@ export async function browserGatewayFetch<T>(
   }
 
   if (!response.ok) {
+    // PRC-H026 / PRC-H032: a 401 means the session is gone — drop cached data.
+    if (response.status === 401) void purgeServiceWorkerCaches();
     const error =
       isErrorPayload(payload) && payload
         ? payload

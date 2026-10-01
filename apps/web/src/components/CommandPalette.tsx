@@ -25,6 +25,7 @@ import {
 } from '@proctira/ui/components';
 import { featureRegistry, type FeatureModule } from '@/featureRegistry';
 import { useAuth } from '@/providers/AuthProvider';
+import { isHiddenForRole, roleHaystack } from '@/components/layout/nav-permissions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,12 +54,13 @@ export const APP_ROUTER_PATH_ALIASES: Readonly<Record<string, string>> = {
 
 export function getRoutePath(module: FeatureModule): string {
   switch (module.scope) {
-    case 'app':
+    case 'app': {
       if (module.routePrefix === 'dashboard' || module.routePrefix === '') {
         return '/';
       }
       const prefix = APP_ROUTER_PATH_ALIASES[module.routePrefix] ?? module.routePrefix;
       return `/${prefix}`;
+    }
     case 'mobile':
       return `/mobile/${module.routePrefix}`;
     case 'auth':
@@ -72,21 +74,33 @@ export function getRoutePath(module: FeatureModule): string {
 
 /** Campus modules mounted under Next.js `(dashboard)` (G-406). */
 export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
-  { id: 'fees', label: 'Fees', href: '/fees', requiredPermissions: [], group: 'Campus' },
-  { id: 'hostel', label: 'Hostel', href: '/hostel', requiredPermissions: [], group: 'Campus' },
+  { id: 'fees', label: 'Fees', href: '/fees', requiredPermissions: ['fees.read'], group: 'Campus' },
+  {
+    id: 'hostel',
+    label: 'Hostel',
+    href: '/hostel',
+    requiredPermissions: ['hostel.read'],
+    group: 'Campus',
+  },
   {
     id: 'transport',
     label: 'Transport',
     href: '/transport',
-    requiredPermissions: [],
+    requiredPermissions: ['transport.read'],
     group: 'Campus',
   },
-  { id: 'library', label: 'Library', href: '/library', requiredPermissions: [], group: 'Campus' },
+  {
+    id: 'library',
+    label: 'Library',
+    href: '/library',
+    requiredPermissions: ['library.read'],
+    group: 'Campus',
+  },
   {
     id: 'communication',
     label: 'Communication',
     href: '/communication',
-    requiredPermissions: [],
+    requiredPermissions: ['communication.read'],
     group: 'Campus',
   },
   {
@@ -106,12 +120,34 @@ function hasPermissions(userPermissions: string[], requiredPermissions: string[]
   return requiredPermissions.every((perm) => userPermissions.includes(perm));
 }
 
-export function buildPaletteItems(userPermissions: string[]): PaletteNavItem[] {
+/** Parent / guardian sessions only get the parent portal entry (PRC-H028). */
+const PARENT_ROLE_SUBSTRINGS = ['parent', 'guardian'] as const;
+
+export const PARENT_PORTAL_PALETTE_ITEM: PaletteNavItem = {
+  id: 'parentPortal',
+  label: 'Parent portal',
+  href: '/parent',
+  requiredPermissions: [],
+  group: 'Navigation',
+};
+
+/**
+ * Builds palette entries with the same access rules as the sidebar
+ * (PRC-H028): permission grants derived from roles (AuthUser.permissions)
+ * and parent/guardian users limited to the parent portal.
+ */
+export function buildPaletteItems(
+  userPermissions: readonly string[],
+  userRoles: readonly string[] = [],
+): PaletteNavItem[] {
+  const haystack = roleHaystack(userRoles);
+  if (isHiddenForRole(haystack, PARENT_ROLE_SUBSTRINGS)) {
+    return [PARENT_PORTAL_PALETTE_ITEM];
+  }
+  const allowed = (required: string[]) => hasPermissions([...userPermissions], required);
+
   const fromRegistry: PaletteNavItem[] = featureRegistry
-    .filter(
-      (module) =>
-        module.scope === 'app' && hasPermissions(userPermissions, module.requiredPermissions),
-    )
+    .filter((module) => module.scope === 'app' && allowed(module.requiredPermissions))
     .map((module) => ({
       id: module.id,
       label: module.label,
@@ -120,9 +156,7 @@ export function buildPaletteItems(userPermissions: string[]): PaletteNavItem[] {
       group: 'Navigation' as const,
     }));
 
-  const campus = CAMPUS_PALETTE_LINKS.filter((item) =>
-    hasPermissions(userPermissions, item.requiredPermissions),
-  );
+  const campus = CAMPUS_PALETTE_LINKS.filter((item) => allowed(item.requiredPermissions));
 
   // De-dupe by href (registry may already include overlapping labels).
   const seen = new Set(fromRegistry.map((i) => i.href));
@@ -144,8 +178,12 @@ export function CommandPalette() {
   const announce = useAnnounce();
   const { user } = useAuth();
 
-  const userPermissions = user?.permissions ?? [];
-  const navigableItems = React.useMemo(() => buildPaletteItems(userPermissions), [userPermissions]);
+  const userPermissions = user?.permissions;
+  const userRoles = user?.roles;
+  const navigableItems = React.useMemo(
+    () => buildPaletteItems(userPermissions ?? [], userRoles ?? []),
+    [userPermissions, userRoles],
+  );
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

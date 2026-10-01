@@ -1,6 +1,10 @@
 import { z } from 'zod';
+import { isHttpUrl } from '@/lib/safe-url';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HTTP_URL_MESSAGE = 'Enter a full http:// or https:// link';
+/** User-supplied link — http(s) only (PRC-H024 / PRC-H033). */
+const httpUrl = z.string().max(2048).refine(isHttpUrl, { message: HTTP_URL_MESSAGE });
 
 export const lmsBankItemSchema = z.object({
   scope: z.enum(['board', 'school']),
@@ -77,20 +81,27 @@ export const lmsLessonSchema = z.object({
   subject: z.string().max(120).optional().or(z.literal('')),
   description: z.string().max(10000).optional().or(z.literal('')),
   resourceTitle: z.string().max(255).optional().or(z.literal('')),
-  resourceUrl: z.string().max(2048).optional().or(z.literal('')),
+  resourceUrl: httpUrl.optional().or(z.literal('')),
   published: z.boolean().optional(),
 });
 export type LmsLessonValues = z.infer<typeof lmsLessonSchema>;
 
-export const lmsContentSchema = z.object({
-  scope: z.enum(['board', 'school']),
-  boardId: z.string().regex(UUID).optional().or(z.literal('')),
-  institutionId: z.string().regex(UUID).optional().or(z.literal('')),
-  title: z.string().min(1).max(255),
-  kind: z.enum(['link', 'file', 'text']),
-  body: z.string().max(20000).optional().or(z.literal('')),
-  classKey: z.string().max(120).optional().or(z.literal('')),
-  subject: z.string().max(120).optional().or(z.literal('')),
-  published: z.boolean().optional(),
-});
+export const lmsContentSchema = z
+  .object({
+    scope: z.enum(['board', 'school']),
+    boardId: z.string().regex(UUID).optional().or(z.literal('')),
+    institutionId: z.string().regex(UUID).optional().or(z.literal('')),
+    title: z.string().min(1).max(255),
+    kind: z.enum(['link', 'file', 'text']),
+    body: z.string().max(20000).optional().or(z.literal('')),
+    classKey: z.string().max(120).optional().or(z.literal('')),
+    subject: z.string().max(120).optional().or(z.literal('')),
+    published: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    // A 'link' body becomes an href — enforce the same scheme allow-list.
+    if (value.kind === 'link' && value.body && !isHttpUrl(value.body)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body'], message: HTTP_URL_MESSAGE });
+    }
+  });
 export type LmsContentValues = z.infer<typeof lmsContentSchema>;

@@ -124,3 +124,4 @@ export {
   type TransformationResult,
   type TransformError,
 } from './transformations/index.js';
+export { REDACTED_SECRET, redactConnectorSecrets } from './secret-redaction.js';

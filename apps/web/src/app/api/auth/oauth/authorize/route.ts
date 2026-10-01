@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
+import { resolveTenantForRequest } from '@/lib/api/request-tenant';
 
 /**
  * GET /api/auth/oauth/authorize?provider=google&returnTo=/dashboard
@@ -25,7 +26,8 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // Forward any tenant header through the redirect query param so the
   // auth-service can pick the correct tenant configuration.
-  const tenantId = request.headers.get('x-tenant-id');
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
   if (tenantId) {
     upstream.searchParams.set('tenantId', tenantId);
   }

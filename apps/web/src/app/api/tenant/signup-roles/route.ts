@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * GET /api/tenant/signup-roles
@@ -35,7 +36,11 @@ function getTenantServiceUrl(): string {
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
 
   try {
     const upstream = await fetch(`${getTenantServiceUrl()}/api/v1/tenant/signup-roles`, {

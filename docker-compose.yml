@@ -274,6 +274,10 @@ services:
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
       GATEWAY_URL: ${GATEWAY_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
+      # PRC-H027: the auth BFF derives the tenant from the Host; localhost has no
+      # tenant subdomain, so the seeded dev tenant slug is the local fallback.
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-proctira.localhost}
+      TENANT_FALLBACK_SLUG: ${TENANT_FALLBACK_SLUG:-india}
     ports:
       - '${WEB_PORT:-3001}:3001'
     # W1-OPS-18: app health so public-website waits on service_healthy

@@ -1,3 +1,4 @@
+import { permissionsForRoles } from './role-permissions';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -86,14 +87,14 @@ describe('scopeFromTokenPayload', () => {
 });
 
 describe('authUserFromTokenPayload', () => {
-  it('maps JWT claims into AuthUser without inventing permissions', () => {
+  it('maps JWT claims into AuthUser with role-derived nav permissions (PRC-H028)', () => {
     const user = authUserFromTokenPayload(payload());
     expect(user).toEqual({
       id: 'user-1',
       email: 'admin@school.test',
       name: 'Admin User',
       roles: ['principal'],
-      permissions: [],
+      permissions: permissionsForRoles(['principal']),
       scope: { level: 'school', area_id: 'area-1' },
       tenant_id: 'tenant-1',
     });

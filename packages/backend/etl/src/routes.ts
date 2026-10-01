@@ -19,7 +19,6 @@ import {
   CreatePipelineSchema,
   UpdatePipelineSchema,
   PipelineParamsSchema,
-  PipelineListQuerySchema,
   type CreatePipelineInput,
   type UpdatePipelineInput,
   type PipelineParams,
@@ -27,6 +26,7 @@ import {
   type Pipeline,
   type PipelineExecution,
 } from './schemas.js';
+import { redactConnectorSecrets } from './secret-redaction.js';
 
 /**
  * Options for registering ETL routes.
@@ -46,8 +46,9 @@ function formatPipelineResponse(entity: Pipeline) {
     tenantId: entity.tenantId,
     name: entity.name,
     description: entity.description,
-    source: entity.source,
-    destination: entity.destination,
+    // PRC-H115: never return stored credentials to the browser.
+    source: redactConnectorSecrets(entity.source),
+    destination: redactConnectorSecrets(entity.destination),
     fieldMappings: entity.fieldMappings,
     schedule: entity.schedule,
     retryPolicy: entity.retryPolicy,
@@ -153,7 +154,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -383,7 +384,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

@@ -350,10 +350,13 @@ export const LessonListQuerySchema = Type.Object({
   published: Type.Optional(Type.Boolean()),
 });
 
+/** Absolute http(s) URL — blocks javascript:/data:/vbscript: hrefs (PRC-H024 / PRC-H033). */
+export const HTTP_URL_PATTERN = '^[Hh][Tt][Tt][Pp][Ss]?://[^\\s\\u0000-\\u001f\\u007f]+$';
 export const CreateLessonResourceSchema = Type.Object({
   kind: Type.Union([Type.Literal('link'), Type.Literal('file'), Type.Literal('video')]),
   title: Type.String({ minLength: 1, maxLength: 255 }),
-  url: Type.Optional(Type.String({ maxLength: 2048 })),
+  // PRC-H024 / PRC-H033: rendered as an href — http(s) only, no whitespace/control chars.
+  url: Type.Optional(Type.String({ maxLength: 2048, pattern: HTTP_URL_PATTERN })),
   mimeType: Type.Optional(Type.String({ maxLength: 200 })),
   contentBase64: Type.Optional(Type.String({ minLength: 1 })),
 });
