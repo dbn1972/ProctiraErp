@@ -7,7 +7,7 @@
 import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { importDataRecords, parseCsvContent, parseExcelDesContent } from './import-service.js';
+import { importDataRecords, parseCsvImport, parseExcelDesImport } from './import-service.js';
 import type {
   Warehouse,
   Indicator,
@@ -30,6 +30,7 @@ import type {
   DataRecordInput,
   ImportResult,
   ImportFormat,
+  ImportRowError,
 } from './schemas.js';
 import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
 
@@ -598,12 +599,13 @@ export class DataWarehouseService {
     await this.getWarehouse(tenantId, warehouseId);
 
     let records: DataRecordInput[];
+    let rowErrors: Map<number, ImportRowError> | undefined;
 
     switch (format) {
       case 'csv': {
         if (options.fileContent) {
           const csvContent = Buffer.from(options.fileContent, 'base64').toString('utf-8');
-          records = parseCsvContent(csvContent);
+          ({ records, rowErrors } = parseCsvImport(csvContent));
         } else if (options.records) {
           records = options.records;
         } else {
@@ -619,7 +621,7 @@ export class DataWarehouseService {
       }
       case 'excel_des': {
         if (options.fileContent) {
-          records = parseExcelDesContent(options.fileContent);
+          ({ records, rowErrors } = parseExcelDesImport(options.fileContent));
         } else {
           return {
             totalRows: 0,
@@ -696,7 +698,10 @@ export class DataWarehouseService {
       };
     }
 
-    return importDataRecords({ warehouseId, tenantId, repository: this.repository }, records);
+    return importDataRecords(
+      { warehouseId, tenantId, repository: this.repository, rowErrors },
+      records,
+    );
   }
 
   // ─── Data Query ─────────────────────────────────────────────────────────────
