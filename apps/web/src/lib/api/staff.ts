@@ -12,6 +12,7 @@
  */
 import { gatewayFetch } from './gateway';
 import { clampPageSize } from './pagination';
+import { fetchList, type ListResult } from './list-result';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -290,12 +291,10 @@ export interface TrainingProgramSummary {
   id: string;
   name: string;
 }
-export async function listTrainingPrograms(): Promise<TrainingProgramSummary[]> {
-  const result = await gatewayFetch<{ data: TrainingProgramSummary[] }>(
-    '/staff/training/programs?pageSize=100',
-    { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
-  );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+export async function listTrainingPrograms(): Promise<ListResult<TrainingProgramSummary>> {
+  return fetchList<TrainingProgramSummary>('/staff/training/programs?pageSize=100', {
+    next: { revalidate: 30 },
+  });
 }
 /* ------------------------------------------------------------- HR Leave */
 
@@ -331,6 +330,10 @@ export async function listStaffLeaves(): Promise<StaffLeave[]> {
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
+/** Like {@link listStaffLeaves} but keeps 401/403/5xx distinct from "no leave". */
+export async function listStaffLeavesResult(): Promise<ListResult<StaffLeave>> {
+  return fetchList<StaffLeave>('/staff/leaves', { next: { revalidate: 0 } });
+}
 export async function createStaffLeave(input: CreateStaffLeaveInput): Promise<StaffLeave> {
   const result = await gatewayFetch<StaffLeave>('/staff/leaves', {
     method: 'POST',

@@ -109,8 +109,11 @@ vi.mock('@/lib/api/staff', () => ({
   listAppraisalTemplates: vi.fn(async () => [
     { id: TEMPLATE_ID, name: 'Annual review', scoreMin: 0, scoreMax: 10 },
   ]),
-  listTrainingPrograms: vi.fn(async () => [{ id: PROGRAM_ID, name: 'Safety basics' }]),
-  listStaffLeaves: vi.fn(async () => leaves),
+  listTrainingPrograms: vi.fn(async () => ({
+    ok: true,
+    items: [{ id: PROGRAM_ID, name: 'Safety basics' }],
+  })),
+  listStaffLeavesResult: vi.fn(async () => ({ ok: true, items: leaves })),
 }));
 
 import StaffProfilePage from './page';

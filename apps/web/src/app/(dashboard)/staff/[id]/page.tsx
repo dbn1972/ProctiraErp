@@ -45,7 +45,7 @@ import {
   listStaffAppraisals,
   listStaffAssignments,
   listStaffCertifications,
-  listStaffLeaves,
+  listStaffLeavesResult,
   listTrainingPrograms,
   type Appraisal,
   type Assignment,
@@ -313,7 +313,7 @@ function ServiceHistoryCard({ events }: { events: ServiceEvent[] }) {
 
 /* ──────────────────────────────────────────── Leave balance sidebar ── */
 
-function LeaveBalanceCard({ usage, staffId }: { usage: LeaveUsage[]; staffId: string }) {
+function LeaveBalanceCard({ usage, staffId }: { usage: LeaveUsage[] | null; staffId: string }) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -323,7 +323,11 @@ function LeaveBalanceCard({ usage, staffId }: { usage: LeaveUsage[]; staffId: st
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-4">
-        {usage.length === 0 ? (
+        {usage === null ? (
+          <p className="text-xs text-muted-foreground" role="status">
+            Leave records are unavailable for your role right now.
+          </p>
+        ) : usage.length === 0 ? (
           <p className="text-xs text-muted-foreground">No leave recorded this year.</p>
         ) : (
           <dl className="space-y-2" data-testid="staff-leave-usage">
@@ -405,7 +409,7 @@ function OverviewTab({
   assignments: Assignment[];
   /** Sorted newest first. */
   appraisals: Appraisal[];
-  leaveUsage: LeaveUsage[];
+  leaveUsage: LeaveUsage[] | null;
   templateScoreMax: Map<string, number>;
   labelMaps: LabelMaps;
 }) {
@@ -728,8 +732,8 @@ export default async function StaffProfilePage(props: PageProps) {
       listStaffAppraisals(staffId),
       listStaffCertifications(staffId),
       listAppraisalTemplates().catch(() => []),
-      listTrainingPrograms().catch(() => []),
-      listStaffLeaves().catch(() => []),
+      listTrainingPrograms(),
+      listStaffLeavesResult(),
     ]);
   if (!staff) {
     notFound();
@@ -739,8 +743,13 @@ export default async function StaffProfilePage(props: PageProps) {
     templates.map((t) => [t.id, { name: t.name, scoreMax: t.scoreMax }] as const),
   );
   const templateScoreMax = new Map(templates.map((t) => [t.id, t.scoreMax] as const));
-  const programNames = new Map(programs.map((p) => [p.id, p.name] as const));
-  const leaveUsage = summariseLeaveUsage(leaves, staff.id, new Date().getUTCFullYear());
+  const programNames = new Map(
+    (programs.ok ? programs.items : []).map((p) => [p.id, p.name] as const),
+  );
+  // null = leave records could not be read (denied/unavailable), not "no leave".
+  const leaveUsage = leaves.ok
+    ? summariseLeaveUsage(leaves.items, staff.id, new Date().getUTCFullYear())
+    : null;
 
   const labelMaps = await buildAssignmentLabelMaps(assignments);
 
