@@ -330,7 +330,7 @@ export class TrainingService {
       tenantId,
       sessionId: input.sessionId,
       staffId: input.staffId,
-      status: input.status as 'PRESENT' | 'ABSENT' | 'EXCUSED',
+      status: input.status,
       comment: input.comment ?? null,
     };
 
