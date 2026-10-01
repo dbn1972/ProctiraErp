@@ -39,7 +39,15 @@ const objectKeyArb = fc
     minLength: 1,
     maxLength: 100,
   })
-  .filter((s) => s.replace(/^\/+/, '').trim().length > 0);
+  .filter((s) => s.replace(/^\/+/, '').trim().length > 0)
+  // PRC-L149: valid keys have no empty interior / '.' / '..' segments.
+  .filter((s) =>
+    s
+      .replace(/^\/+/, '')
+      .replace(/\/$/, '')
+      .split('/')
+      .every((seg) => seg !== '' && seg !== '.' && seg !== '..'),
+  );
 
 describe('Tenant Namespace Properties', () => {
   it('Property: buildTenantKey always produces keys starting with tenants/ prefix', () => {
@@ -127,5 +135,44 @@ describe('Tenant Namespace Properties', () => {
       }),
       { numRuns: 200 },
     );
+  });
+
+  describe('PRC-L149 rejects unsafe tenant ids and keys', () => {
+    const badTenantArb = fc.oneof(
+      fc
+        .tuple(tenantIdArb, fc.constantFrom('/', '..', '\\', ' ', '\n', '.'), tenantIdArb)
+        .map(([a, b, c]) => `${a}${b}${c}`),
+      fc.constantFrom('..', '.', 'a/b', '../x'),
+    );
+    const badKeyArb = fc.oneof(
+      fc
+        .tuple(
+          objectKeyArb,
+          fc.constantFrom('/../', '/./', '//', '\\', '\u0000', '\r\n'),
+          objectKeyArb,
+        )
+        .map(([a, b, c]) => `${a.replace(/\/$/, '')}${b}${c}`),
+      fc.constantFrom('..', '../etc/passwd', 'a/../../b', './x'),
+    );
+
+    it('Property: buildTenantKey / buildTenantPrefix reject unsafe tenant ids', () => {
+      fc.assert(
+        fc.property(badTenantArb, objectKeyArb, (tenantId, key) => {
+          expect(() => buildTenantKey(tenantId, key)).toThrow();
+          expect(() => buildTenantPrefix(tenantId)).toThrow();
+        }),
+        { numRuns: 200 },
+      );
+    });
+
+    it("Property: buildTenantKey / buildTenantPrefix reject '..', backslash, control chars, empty segments", () => {
+      fc.assert(
+        fc.property(tenantIdArb, badKeyArb, (tenantId, key) => {
+          expect(() => buildTenantKey(tenantId, key)).toThrow(/PRC-L149/);
+          expect(() => buildTenantPrefix(tenantId, key)).toThrow(/PRC-L149/);
+        }),
+        { numRuns: 200 },
+      );
+    });
   });
 });
