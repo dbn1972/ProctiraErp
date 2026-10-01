@@ -86,4 +86,29 @@ describe('gateway lows batch 1', () => {
       expect(res.statusCode).toBe(401);
     });
   });
+  describe('PRC-L003 tenant admin branding shares the lifecycle tenant store', () => {
+    it('publish via /api/v1/tenant/branding is visible to the lifecycle TenantService', async () => {
+      const tenant = await app.tenantService.createTenant({
+        name: 'Shared Store School',
+        slug: `shared-store-${Date.now()}`,
+        admin: {
+          firstName: 'Ada',
+          lastName: 'Admin',
+          email: 'ada@example.com',
+          password: 'correct-horse-battery',
+        },
+      } as never);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/tenant/branding/publish',
+        headers: headersFor(app, 'admin', tenant.id),
+        payload: { tokens: {}, publishedBy: '11111111-1111-4111-8111-111111111111' },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const published = res.json<{ id?: string }>();
+      const versions = await app.tenantService.listBrandingVersions(tenant.id);
+      expect(versions.length).toBe(1);
+      expect(versions[0]!.id).toBe(published.id);
+    });
+  });
 });

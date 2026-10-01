@@ -57,6 +57,8 @@ export interface TenantAdminPluginOptions {
   onAudit?: (event: RolesAuditEvent & { actorId: string | null }) => Promise<void> | void;
   /** G-924: SCIM 2.0 base path; default `/scim/v2`. Set `false` to disable. */
   scimPrefix?: string | false;
+  /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
+  tenantService?: TenantService;
 }
 
 export const tenantAdminPlugin = fp(
@@ -115,8 +117,14 @@ export const tenantAdminPlugin = fp(
     });
 
     // World-class branding (draft/publish/versions/active/preview)
-    const { repository: tenantRepo } = createTenantRepository();
-    const tenantService = new TenantService(tenantRepo);
+    // PRC-L003: reuse the gateway's shared TenantService (tenantLifecyclePlugin decorator, backed
+    // by app.ts getTenantRepository()) so branding writes and lifecycle reads see one store. A
+    // private repository is only built when the plugin is mounted standalone.
+    const tenantService =
+      options.tenantService ??
+      (fastify.hasDecorator('tenantService')
+        ? fastify.tenantService
+        : new TenantService(createTenantRepository().repository));
     await registerBrandingRoutes(fastify, {
       tenantService,
       prefix: `${prefix}/branding`,
