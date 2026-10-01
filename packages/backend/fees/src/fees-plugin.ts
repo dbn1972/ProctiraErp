@@ -1,10 +1,7 @@
 /**
  * Fastify Fees Plugin — staff fees routes under `/fees`.
  */
-import {
-  appendAuditEntryOnClient,
-  toCreateAuditLogInput,
-} from '@proctira/backend-audit';
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { AppError } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
@@ -18,7 +15,7 @@ import {
   requireFeesStaffRead,
   resolveFeesReadScope,
 } from './fees-http-guard.js';
-import type { FeesRepository } from './fees-repository.js';
+import type { FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,
@@ -36,6 +33,66 @@ import { FEES_REMINDER_SANDBOX_HONESTY_NOTE } from './reminder-sandbox.js';
 const UUID_PATTERN =
   '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
 
+/** PRC-L105: ISO-8601 date or date-time; also rejected if Date.parse fails. */
+const ISO_DATE_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})?)?$';
+const IsoDateString = () => Type.String({ pattern: ISO_DATE_PATTERN, maxLength: 40 });
+function isValidIsoDate(value: string): boolean {
+  return new RegExp(ISO_DATE_PATTERN).test(value) && !Number.isNaN(Date.parse(value));
+}
+/** PRC-L105: bound on per-request reminder fan-out. */
+const MAX_REMINDER_INVOICES = 500;
+const SendRemindersSchema = Type.Object({
+  invoiceIds: Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+    minItems: 1,
+    maxItems: MAX_REMINDER_INVOICES,
+  }),
+  channels: Type.Array(Type.Union([Type.Literal('email'), Type.Literal('sms')]), {
+    minItems: 1,
+    maxItems: 2,
+  }),
+  minOverdueDays: Type.Optional(Type.Integer({ minimum: 0, maximum: 3650 })),
+  cadenceDays: Type.Optional(Type.Integer({ minimum: 1, maximum: 365 })),
+});
+const AddSuppressionSchema = Type.Object({
+  studentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  invoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+const ScholarshipNetSchema = Type.Object({
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  disbursementId: Type.String({ pattern: UUID_PATTERN }),
+  amountCents: Type.Integer({ minimum: 1 }),
+  invoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+});
+const ClonePeriodSchema = Type.Object({
+  sourcePeriodId: Type.String({ pattern: UUID_PATTERN }),
+  targetPeriodId: Type.String({ pattern: UUID_PATTERN }),
+});
+function validationFailed(reply: FastifyReply, errors?: unknown, message = 'Validation failed') {
+  return reply.status(400).send({ code: 'VALIDATION_ERROR', message, statusCode: 400, errors });
+}
+/**
+ * PRC-L105: map domain errors and malformed-input Postgres errors to 4xx
+ * (22P02 invalid text representation, 22007/22008 bad datetime -> 400;
+ * 23505 unique violation -> 409). Anything else is rethrown.
+ */
+function sendFeesError(reply: FastifyReply, error: unknown) {
+  if (error instanceof AppError) {
+    return reply.status(error.statusCode).send(error.toJSON());
+  }
+  const pgCode = (error as { code?: unknown } | null)?.code;
+  if (pgCode === '22P02' || pgCode === '22007' || pgCode === '22008') {
+    return validationFailed(reply, undefined, 'Invalid identifier or value');
+  }
+  if (pgCode === '23505') {
+    return reply
+      .status(409)
+      .send({ code: 'CONFLICT', message: 'Duplicate record', statusCode: 409 });
+  }
+  throw error;
+}
 const CreateFeePlanSchema = Type.Object({
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   name: Type.String({ minLength: 1, maxLength: 500 }),
@@ -59,7 +116,7 @@ const CreateInvoiceSchema = Type.Object({
   description: Type.Optional(Type.String({ maxLength: 5000 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
-  dueAt: Type.Optional(Type.String()),
+  dueAt: Type.Optional(IsoDateString()),
 });
 
 const IdParamsSchema = Type.Object({
@@ -107,7 +164,9 @@ const CreateFeeStructureSchema = Type.Object({
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   validFrom: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
-  validTo: Type.Optional(Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()])),
+  validTo: Type.Optional(
+    Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
+  ),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -122,7 +181,7 @@ const BulkInvoiceSchema = Type.Object({
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   studentIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { minItems: 1 })),
-  dueAt: Type.Optional(Type.String()),
+  dueAt: Type.Optional(IsoDateString()),
 });
 
 const ApplyConcessionSchema = Type.Object({
@@ -139,6 +198,11 @@ const ApplyConcessionSchema = Type.Object({
 const RecordRefundSchema = Type.Object({
   paymentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+/** PRC-H059: a void must state why (stored on the reversal journal memo). */
+const VoidInvoiceSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
 });
 
@@ -240,9 +304,8 @@ function getActorDisplayName(request: FastifyRequest): string {
 const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
 function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
-  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
-    MUTATION_AUDIT_COMMITTED
-  ] = true;
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[MUTATION_AUDIT_COMMITTED] =
+    true;
 }
 
 function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
@@ -251,7 +314,8 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
     appendAuditInTxn: async (
       client: PgQueryable,
       settled: {
-        payment: { id: string };
+        payment: { id: string; invoiceId: string; amountCents: number; method: string };
+        invoice: { status: string };
       },
     ) => {
       await appendAuditEntryOnClient(
@@ -268,10 +332,15 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
           afterValues: {
             path: '/api/v1/fees/payments',
             paymentId: settled.payment.id,
+            // PRC-L306: reviewable money detail, no PII.
+            invoiceId: settled.payment.invoiceId,
+            amountCents: settled.payment.amountCents,
+            method: settled.payment.method,
+            invoiceStatusAfter: settled.invoice.status,
           },
           metadata: {
             method: request.method,
-            path: (request.url.split('?')[0] ?? request.url),
+            path: request.url.split('?')[0] ?? request.url,
             regulated: 'fees.payment',
             atomic: true,
           },
@@ -282,6 +351,44 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
   };
 }
 
+/**
+ * PRC-L306: same-transaction audit for refund / credit note / write-off / void /
+ * concession approval. No-op when the repository is not transaction-bound
+ * (in-memory); the gateway onSend audit remains the safety net there.
+ */
+function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMoneyAuditSink {
+  return async (tx, event) => {
+    const client = tx.transactionClient?.() ?? null;
+    if (!client) return;
+    await appendAuditEntryOnClient(
+      client,
+      toCreateAuditLogInput({
+        tenantId,
+        entityType: 'fees',
+        entityId: event.entityId,
+        operation:
+          event.kind === 'void' || event.kind === 'concession_approve' ? 'UPDATE' : 'CREATE',
+        userId: getActorId(request),
+        userName: getActorDisplayName(request),
+        ipAddress: request.ip,
+        beforeValues: { invoiceId: event.invoiceId, status: event.beforeStatus },
+        afterValues: {
+          invoiceId: event.invoiceId,
+          amountCents: event.amountCents,
+          status: event.afterStatus,
+          kind: event.kind,
+        },
+        metadata: {
+          method: request.method,
+          path: request.url.split('?')[0] ?? request.url,
+          regulated: `fees.${event.kind}`,
+          atomic: true,
+        },
+      }),
+    );
+    markRegulatedMutationAuditCommitted(request);
+  };
+}
 function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -459,10 +566,7 @@ export const feesPlugin = fp(
           const plan = await feesService.createFeePlan(tenantId, getActorId(request), result.data);
           return reply.status(201).send(formatPlan(plan));
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -522,10 +626,7 @@ export const feesPlugin = fp(
           );
           return reply.status(201).send(formatInvoice(invoice));
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -533,7 +634,7 @@ export const feesPlugin = fp(
     fastify.post(
       `${prefix}/invoices/:id/void`,
       async function voidInvoice(
-        request: FastifyRequest<{ Params: IdParams }>,
+        request: FastifyRequest<{ Params: IdParams; Body: { reason: string } }>,
         reply: FastifyReply,
       ) {
         const paramsResult = validate(IdParamsSchema, request.params);
@@ -548,14 +649,24 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'invoice.void')) return;
+        const bodyResult = validate(VoidInvoiceSchema, request.body ?? {});
+        if (!bodyResult.success || bodyResult.data.reason.trim() === '') {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'A void reason is required',
+            statusCode: 400,
+            errors: bodyResult.success ? [] : bodyResult.errors,
+          });
+        }
         try {
-          const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id);
+          const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id, {
+            actorId: getActorId(request),
+            reason: bodyResult.data.reason,
+            audit: buildMoneyAuditSink(request, tenantId),
+          });
           return reply.status(200).send(formatInvoice(invoice));
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -604,10 +715,7 @@ export const feesPlugin = fp(
             idempotent: result.idempotent,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -655,10 +763,7 @@ export const feesPlugin = fp(
             idempotent: paid.idempotent,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -725,10 +830,7 @@ export const feesPlugin = fp(
           }
           return reply.status(200).send(formatReceipt(receipt));
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -763,10 +865,7 @@ export const feesPlugin = fp(
             })),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -832,10 +931,7 @@ export const feesPlugin = fp(
             updatedAt: structure.updatedAt.toISOString(),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -880,10 +976,7 @@ export const feesPlugin = fp(
             })),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -918,10 +1011,7 @@ export const feesPlugin = fp(
             })),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -964,10 +1054,7 @@ export const feesPlugin = fp(
             structureId: result.structureId,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1005,10 +1092,7 @@ export const feesPlugin = fp(
             discountCents: applied.discountCents,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1036,6 +1120,7 @@ export const feesPlugin = fp(
             tenantId,
             getActorId(request),
             paramsResult.data.id,
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send({
             concession: {
@@ -1046,10 +1131,7 @@ export const feesPlugin = fp(
             discountCents: applied.discountCents,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1087,10 +1169,7 @@ export const feesPlugin = fp(
             discountCents: 0,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1123,23 +1202,24 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'refund.record')) return;
         try {
-          const refund = await feesService.recordRefund(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            ...bodyResult.data,
-          });
+          const refund = await feesService.recordRefund(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              ...bodyResult.data,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             ...refund,
             createdAt: refund.createdAt.toISOString(),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
-
 
     fastify.post(
       `${prefix}/invoices/:id/credit-notes`,
@@ -1172,11 +1252,16 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'credit_note.issue')) return;
         try {
-          const result = await feesService.issueCreditNote(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            amountCents: bodyResult.data.amountCents,
-            reason: bodyResult.data.reason,
-          });
+          const result = await feesService.issueCreditNote(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              amountCents: bodyResult.data.amountCents,
+              reason: bodyResult.data.reason,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             creditNote: {
               ...result.creditNote,
@@ -1185,10 +1270,7 @@ export const feesPlugin = fp(
             invoice: formatInvoice(result.invoice),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1224,11 +1306,16 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'write_off.record')) return;
         try {
-          const result = await feesService.writeOffInvoice(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            amountCents: bodyResult.data.amountCents,
-            reason: bodyResult.data.reason,
-          });
+          const result = await feesService.writeOffInvoice(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              amountCents: bodyResult.data.amountCents,
+              reason: bodyResult.data.reason,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             writeOff: {
               ...result.writeOff,
@@ -1237,10 +1324,7 @@ export const feesPlugin = fp(
             invoice: formatInvoice(result.invoice),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1251,6 +1335,9 @@ export const feesPlugin = fp(
       // PRC-C005: tenant-wide dues report — staff only.
       if (!requireFeesStaffRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
+      if (asOfRaw !== undefined && !isValidIsoDate(asOfRaw)) {
+        return validationFailed(reply, undefined, 'asOf must be an ISO-8601 date');
+      }
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const report = await feesService.duesReport(tenantId, asOf);
       const format = String((request.query as { format?: string }).format ?? 'json').toLowerCase();
@@ -1303,10 +1390,7 @@ export const feesPlugin = fp(
             unmatched: imported.unmatched,
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1389,10 +1473,7 @@ export const feesPlugin = fp(
           );
           return reply.status(200).send(formatReconRow(updated));
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1408,6 +1489,9 @@ export const feesPlugin = fp(
       // PRC-C005: tenant-wide overdue list — staff only.
       if (!requireFeesStaffRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
+      if (asOfRaw !== undefined && !isValidIsoDate(asOfRaw)) {
+        return validationFailed(reply, undefined, 'asOf must be an ISO-8601 date');
+      }
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
       return reply.status(200).send({ data, asOf: asOf.toISOString() });
@@ -1441,14 +1525,9 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'reminder.manage')) return;
-        const body = request.body;
-        if (!body?.reason) {
-          return reply.status(400).send({
-            code: 'VALIDATION_ERROR',
-            message: 'reason is required',
-            statusCode: 400,
-          });
-        }
+        const parsed = validate(AddSuppressionSchema, request.body);
+        if (!parsed.success) return validationFailed(reply, parsed.errors);
+        const body = parsed.data;
         try {
           const row = await feesService.addReminderSuppression(tenantId, getActorId(request), {
             studentId: body.studentId,
@@ -1460,10 +1539,7 @@ export const feesPlugin = fp(
             createdAt: row.createdAt.toISOString(),
           });
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1477,14 +1553,13 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'reminder.manage')) return;
+        const params = validate(IdParamsSchema, request.params);
+        if (!params.success) return validationFailed(reply, params.errors);
         try {
           await feesService.removeReminderSuppression(tenantId, request.params.id);
           return reply.status(204).send();
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1520,14 +1595,9 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'reminder.manage')) return;
-        const body = request.body;
-        if (!body?.invoiceIds?.length || !body?.channels?.length) {
-          return reply.status(400).send({
-            code: 'VALIDATION_ERROR',
-            message: 'invoiceIds and channels are required',
-            statusCode: 400,
-          });
-        }
+        const parsed = validate(SendRemindersSchema, request.body);
+        if (!parsed.success) return validationFailed(reply, parsed.errors);
+        const body = parsed.data;
         try {
           const result = await feesService.sendReminders(tenantId, getActorId(request), {
             invoiceIds: body.invoiceIds,
@@ -1537,10 +1607,7 @@ export const feesPlugin = fp(
           });
           return reply.status(200).send(result);
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1562,14 +1629,9 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'fees.write')) return;
-        const body = request.body;
-        if (!body?.studentId || !body?.disbursementId || !body?.amountCents) {
-          return reply.status(400).send({
-            code: 'VALIDATION_ERROR',
-            message: 'studentId, disbursementId, amountCents are required',
-            statusCode: 400,
-          });
-        }
+        const parsed = validate(ScholarshipNetSchema, request.body);
+        if (!parsed.success) return validationFailed(reply, parsed.errors);
+        const body = parsed.data;
         try {
           const result = await feesService.applyScholarshipNetting(tenantId, getActorId(request), {
             studentId: body.studentId,
@@ -1580,10 +1642,7 @@ export const feesPlugin = fp(
           });
           return reply.status(200).send(result);
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );
@@ -1599,14 +1658,9 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'fees.write')) return;
-        const body = request.body;
-        if (!body?.sourcePeriodId || !body?.targetPeriodId) {
-          return reply.status(400).send({
-            code: 'VALIDATION_ERROR',
-            message: 'sourcePeriodId and targetPeriodId are required',
-            statusCode: 400,
-          });
-        }
+        const parsed = validate(ClonePeriodSchema, request.body);
+        if (!parsed.success) return validationFailed(reply, parsed.errors);
+        const body = parsed.data;
         try {
           const result = await feesService.cloneStructuresForPeriod(
             tenantId,
@@ -1616,10 +1670,7 @@ export const feesPlugin = fp(
           );
           return reply.status(201).send(result);
         } catch (error: unknown) {
-          if (error instanceof AppError) {
-            return reply.status(error.statusCode).send(error.toJSON());
-          }
-          throw error;
+          return sendFeesError(reply, error);
         }
       },
     );

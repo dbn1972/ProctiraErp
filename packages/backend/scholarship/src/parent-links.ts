@@ -2,6 +2,7 @@
  * Guardian authority for scholarship documents. Reads parent_child_links
  * inside the caller's tenant (RLS). Returns [] when the table is absent.
  */
+import { AppError } from '@proctira/common';
 import { withPgTenant } from '@proctira/database';
 
 import { getSharedScholarshipPool } from './pg-scholarship-repository.js';
@@ -45,7 +46,18 @@ export async function institutionIdForStudent(
       const id = row?.institution_id;
       return typeof id === 'string' ? id : null;
     });
-  } catch {
-    return null;
+  } catch (error) {
+    // PRC-L346: an outage is not "unknown institution"; surface it as 503.
+    throw linkLookupUnavailable('Student enrolment lookup is unavailable', error);
   }
+}
+
+/**
+ * PRC-L346: guardian-link / enrolment lookups that fail are an outage, not an
+ * empty result. Callers surface this as 503 so parents can tell the difference.
+ */
+export function linkLookupUnavailable(message: string, cause: unknown): AppError {
+  const error = new AppError(message, 'SERVICE_UNAVAILABLE', 503);
+  (error as AppError & { cause?: unknown }).cause = cause;
+  return error;
 }

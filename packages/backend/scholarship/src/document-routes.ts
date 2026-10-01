@@ -26,11 +26,17 @@ import {
   assertCanVerify,
   type ScholarshipActor,
 } from './document-access.js';
-import { parseMultipartForm, verifyDocumentDownloadToken } from './document-bytes.js';
+import {
+  DownloadTokenReplayGuard,
+  parseMultipartForm,
+  verifyDocumentDownloadToken,
+} from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
+import { linkLookupUnavailable } from './parent-links.js';
 import type { ScholarshipService } from './scholarship-service.js';
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+// PRC-L346: accept any RFC 9562 UUID version (v1-v8), not only v4.
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 const IdParams = Type.Object({
   id: Type.String({ pattern: UUID_PATTERN }),
@@ -53,6 +59,8 @@ export interface ScholarshipDocumentRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Single-use download token guard (PRC-L344). Defaults to a process-local guard. */
+  downloadReplayGuard?: DownloadTokenReplayGuard;
 }
 
 function tenantIdOf(request: FastifyRequest): string | null {
@@ -85,6 +93,7 @@ export async function registerScholarshipDocumentRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/scholarships';
   const { scholarshipService, documentService } = options;
+  const replayGuard = options.downloadReplayGuard ?? new DownloadTokenReplayGuard();
 
   if (!fastify.hasContentTypeParser('multipart/form-data')) {
     fastify.addContentTypeParser(
@@ -102,8 +111,13 @@ export async function registerScholarshipDocumentRoutes(
     try {
       const linked = await options.resolveLinkedStudentIds(tenantId, base.userId);
       return actorFromRequest(request, linked);
-    } catch {
-      return base;
+    } catch (error) {
+      // PRC-L346: an outage must not look like "not your child".
+      request.log.error(
+        { err: error, event: 'scholarship.parent_links.lookup_failed' },
+        'guardian link lookup failed',
+      );
+      throw linkLookupUnavailable('Guardian link lookup is unavailable', error);
     }
   }
 
@@ -201,7 +215,9 @@ export async function registerScholarshipDocumentRoutes(
         const application = await loadApplication(tenantId, params.data.id);
         const actor = await actorFor(request, tenantId);
         assertCanReadDocuments(actor, application);
-        const doc = await documentService.downloadDescriptor(tenantId, params.data.documentId);
+        const doc = await documentService.downloadDescriptor(tenantId, params.data.documentId, {
+          userId: actor.userId,
+        });
         if (!doc) return;
         const listed = await documentService.list(tenantId, application.id);
         if (!listed.some((row) => row.id === params.data.documentId)) {
@@ -393,31 +409,62 @@ export async function registerScholarshipDocumentRoutes(
     }
   });
 
-  fastify.get(`${prefix}/document-downloads`, async (request, reply) => {
-    const params = validate(TokenQuery, request.query);
-    if (!params.success) {
-      return reply.status(400).send({
-        code: 'VALIDATION_ERROR',
-        message: 'Download link is invalid',
-        statusCode: 400,
-        errors: params.errors,
-      });
-    }
-    try {
-      const claims = verifyDocumentDownloadToken(params.data.token);
-      const file = await documentService.readBytes(claims.tenantId, claims.documentId);
-      return reply
-        .header('content-type', file.mimeType)
-        .header('cache-control', 'private, max-age=0')
-        .header(
-          'content-disposition',
-          `attachment; filename="${file.originalFilename.replace(/"/g, '')}"`,
-        )
-        .send(file.bytes);
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
+  fastify.get(
+    `${prefix}/document-downloads`,
+    // Route-level limit on top of the global gateway limiter (PRC-L344).
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const params = validate(TokenQuery, request.query);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Download link is invalid',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      try {
+        const claims = verifyDocumentDownloadToken(params.data.token);
+        // A session presented with the link must be the user it was minted for.
+        const sessionUser = actorFromRequest(request).userId;
+        if (sessionUser && claims.sub && sessionUser !== claims.sub) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'This download link was issued to another user',
+            statusCode: 403,
+          });
+        }
+        if (!replayGuard.consume(claims.jti, claims.exp)) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'Download link has already been used',
+            statusCode: 401,
+          });
+        }
+        const file = await documentService.readBytes(claims.tenantId, claims.documentId);
+        request.log.info(
+          {
+            event: 'scholarship.document.downloaded',
+            tenantId: claims.tenantId,
+            documentId: claims.documentId,
+            userId: claims.sub || null,
+            jti: claims.jti,
+          },
+          'scholarship document downloaded',
+        );
+        return reply
+          .header('content-type', file.mimeType)
+          .header('cache-control', 'private, max-age=0')
+          .header(
+            'content-disposition',
+            `attachment; filename="${file.originalFilename.replace(/"/g, '')}"`,
+          )
+          .send(file.bytes);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 }
 
 /** Used by the application create route so parents can file only for linked students. */
@@ -440,8 +487,14 @@ export async function authorizeApplicationCreate(
   if (resolveLinkedStudentIds && actor.userId) {
     try {
       actor = actorFromRequest(request, await resolveLinkedStudentIds(tenantId, actor.userId));
-    } catch {
-      // JWT claims still apply when the link table is unavailable.
+    } catch (error) {
+      // PRC-L346: report the outage as 503 instead of an ambiguous 403.
+      request.log.error(
+        { err: error, event: 'scholarship.parent_links.lookup_failed' },
+        'guardian link lookup failed',
+      );
+      sendError(reply, linkLookupUnavailable('Guardian link lookup is unavailable', error));
+      return false;
     }
   }
   try {

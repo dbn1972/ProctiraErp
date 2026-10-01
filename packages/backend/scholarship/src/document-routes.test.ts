@@ -230,6 +230,24 @@ describe('scholarship document routes', () => {
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.body.startsWith('%PDF')).toBe(true);
+    // PRC-L344: links are single-use.
+    const replay = await app.inject({
+      method: 'GET',
+      url: `/scholarships/document-downloads?token=${encodeURIComponent(token)}`,
+    });
+    expect(replay.statusCode).toBe(401);
+    expect(replay.json().message).toMatch(/already been used/);
+    // PRC-L344: a link minted for user X is refused when presented by user Y.
+    const forOther = signDocumentDownloadToken({
+      tenantId: TENANT_A,
+      documentId: uploaded.json().id as string,
+      sub: 'someone-else',
+    });
+    const crossUser = await app.inject({
+      method: 'GET',
+      url: `/scholarships/document-downloads?token=${encodeURIComponent(forOther.token)}`,
+    });
+    expect(crossUser.statusCode).toBe(403);
 
     const expired = signDocumentDownloadToken({
       tenantId: TENANT_A,

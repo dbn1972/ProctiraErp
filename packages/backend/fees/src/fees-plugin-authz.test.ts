@@ -279,4 +279,40 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
       expect(response.statusCode).not.toBe(403);
     });
   });
+  // PRC-L560: adversarial deny proofs. These depend on the authz fixes tracked as
+  // PRC-C005 (scope=parent escalation) and PRC-M511 (parent pay-IDOR), which are
+  // outside this batch; convert each todo to a real assertion when those land.
+  describe('adversarial deny proofs (pending PRC-C005 / PRC-M511)', () => {
+    it.todo('PRC-C005: parent GET /fees/payments?scope=parent -> 403');
+    it.todo('PRC-C005: parent GET /fees/ledger/trial-balance?scope=parent -> 403');
+    it.todo('PRC-C005: parent GET /fees/reports/dues?scope=parent -> 403');
+    it.todo('PRC-C005: parent GET /fees/receipts/:otherChildReceipt?scope=parent -> 404');
+    it.todo('PRC-C005: parent GET /fees/reminders/overdue?scope=parent -> 403');
+    it.todo('PRC-M511: parent POST /fees/invoices/:unlinkedInvoice/pay -> 404, no rows');
+    it.todo('PRC-M511: parent payerUserId is overridden with JWT sub');
+    it.todo('PRC-M511: parent method=cash is rejected');
+  });
+  describe('deny proofs that hold today (PRC-L560)', () => {
+    beforeEach(async () => {
+      app = await buildFeesApp(['parent']);
+    });
+    it('denies parent tenant-wide reads without scope', async () => {
+      for (const url of ['/fees/payments', '/fees/ledger/trial-balance', '/fees/receipts']) {
+        const response = await app.inject({ method: 'GET', url });
+        expect(response.statusCode).toBe(403);
+      }
+    });
+    it('denies parent money-adjustment mutations', async () => {
+      const id = uuid();
+      for (const [url, payload] of [
+        [`/fees/invoices/${id}/refund`, { amountCents: 100, reason: 'r' }],
+        [`/fees/invoices/${id}/write-offs`, { amountCents: 100, reason: 'r' }],
+        [`/fees/invoices/${id}/credit-notes`, { amountCents: 100, reason: 'r' }],
+        [`/fees/invoices/${id}/void`, { reason: 'r' }],
+      ] as const) {
+        const response = await app.inject({ method: 'POST', url, payload });
+        expect(response.statusCode).toBe(403);
+      }
+    });
+  });
 });
