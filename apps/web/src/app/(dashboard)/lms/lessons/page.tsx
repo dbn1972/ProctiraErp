@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
 import { LessonForm } from '../_components/lesson-form';
+import { ResourceLink } from '../_components/resource-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,17 +57,7 @@ export default async function LmsLessonsPage() {
                   {item.resources.map((resource) => (
                     <li key={resource.id}>
                       {resource.kind}: {resource.title}
-                      {resource.url ? (
-                        <>
-                          {' '}
-                          <a
-                            href={resource.url}
-                            className="inline-flex min-h-11 items-center underline"
-                          >
-                            {resource.url}
-                          </a>
-                        </>
-                      ) : null}
+                      {resource.url ? <ResourceLink url={resource.url} /> : null}
                     </li>
                   ))}
                 </ul>

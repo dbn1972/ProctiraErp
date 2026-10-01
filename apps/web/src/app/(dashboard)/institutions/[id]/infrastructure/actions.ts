@@ -69,12 +69,17 @@ export async function updateFacilityAction(input: {
   condition: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const result = await gatewayFetch(`/infrastructure/${input.id}`, {
-      method: 'PUT',
-      json: { name: input.name, capacity: input.capacity, condition: input.condition },
-      throwOnError: false,
-      cache: 'no-store',
-    });
+    const result = await gatewayFetch(
+      // PRC-H022: scope the mutation to the route institution; the gateway
+      // authorizes institutionId and the handler rejects foreign facility ids.
+      `/infrastructure/${encodeURIComponent(input.id)}?institutionId=${encodeURIComponent(input.institutionId)}`,
+      {
+        method: 'PUT',
+        json: { name: input.name, capacity: input.capacity, condition: input.condition },
+        throwOnError: false,
+        cache: 'no-store',
+      },
+    );
     if (!result.ok) {
       return { ok: false, error: result.error?.message ?? 'Could not update the facility.' };
     }

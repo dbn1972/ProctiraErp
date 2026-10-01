@@ -447,7 +447,11 @@ export async function registerInfrastructureRoutes(
   fastify.put(
     `${prefix}/:id`,
     async function updateHandler(
-      request: FastifyRequest<{ Params: InfrastructureParams; Body: UpdateInfrastructureInput }>,
+      request: FastifyRequest<{
+        Params: InfrastructureParams;
+        Body: UpdateInfrastructureInput;
+        Querystring: { institutionId?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(InfrastructureParamsSchema, request.params);
@@ -471,6 +475,19 @@ export async function registerInfrastructureRoutes(
       }
 
       try {
+        // PRC-H022: when the caller names the owning institution (which the
+        // gateway institution-scope hook authorizes), the item must belong to it.
+        const scopedInstitutionId = request.query?.institutionId;
+        if (scopedInstitutionId) {
+          const existing = await infrastructureService.getById(paramsResult.data.id);
+          if (existing.institutionId !== scopedInstitutionId) {
+            return reply.status(404).send({
+              code: 'NOT_FOUND',
+              message: `Infrastructure item not found: ${paramsResult.data.id}`,
+              statusCode: 404,
+            });
+          }
+        }
         const updated = await infrastructureService.update(paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(updated);
       } catch (error: unknown) {

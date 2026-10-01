@@ -21,7 +21,6 @@ import {
   CreatePipelineSchema,
   UpdatePipelineSchema,
   PipelineParamsSchema,
-  PipelineListQuerySchema,
   type CreatePipelineInput,
   type UpdatePipelineInput,
   type PipelineParams,
@@ -30,6 +29,7 @@ import {
   type PipelineExecution,
   type ExecutionError,
 } from './schemas.js';
+import { redactConnectorSecrets } from './secret-redaction.js';
 
 /**
  * Options for registering ETL routes.
@@ -41,28 +41,6 @@ export interface ETLRoutesOptions {
 }
 
 /**
- * PRC-H050 (defense in depth): connector configs carry live credentials — postgres `password`,
- * REST `authConfig` and auth-bearing `headers`. Even ETL staff reading a pipeline definition
- * should not get plaintext secrets echoed back; they are write-only from the API's perspective.
- * Redact known secret-bearing fields, replacing present values with a stable sentinel so the UI
- * can show "configured" without disclosing the value.
- */
-const REDACTED = '__redacted__';
-const SECRET_CONNECTOR_FIELDS = ['password', 'authConfig', 'headers', 'body'] as const;
-
-function redactConnectorConfig(config: unknown): unknown {
-  if (!config || typeof config !== 'object') return config;
-  const source = config as Record<string, unknown>;
-  const out: Record<string, unknown> = { ...source };
-  for (const field of SECRET_CONNECTOR_FIELDS) {
-    if (out[field] !== undefined && out[field] !== null) {
-      out[field] = REDACTED;
-    }
-  }
-  return out;
-}
-
-/**
  * Format a pipeline entity for API response.
  */
 function formatPipelineResponse(entity: Pipeline) {
@@ -71,8 +49,9 @@ function formatPipelineResponse(entity: Pipeline) {
     tenantId: entity.tenantId,
     name: entity.name,
     description: entity.description,
-    source: redactConnectorConfig(entity.source),
-    destination: redactConnectorConfig(entity.destination),
+    // PRC-H050 + PRC-H115: never return stored credentials to the browser.
+    source: redactConnectorSecrets(entity.source),
+    destination: redactConnectorSecrets(entity.destination),
     fieldMappings: entity.fieldMappings,
     schedule: entity.schedule,
     retryPolicy: entity.retryPolicy,
@@ -212,7 +191,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -442,7 +421,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

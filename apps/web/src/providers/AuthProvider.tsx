@@ -24,6 +24,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -34,6 +35,7 @@ import {
   signIn as sessionSignIn,
   signOut as sessionSignOut,
 } from '@/lib/auth/session';
+import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -128,6 +130,22 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
     return 'idle';
   });
 
+  // PRC-H026 / PRC-H032: evict Cache Storage when the session ends or a
+  // different user/tenant signs in on this browser.
+  const lastIdentity = useRef<string | null>(null);
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      lastIdentity.current = null;
+      void purgeServiceWorkerCaches();
+      return;
+    }
+    if (status !== 'authenticated' || !user) return;
+    const identity = `${user.tenant_id}:${user.id}`;
+    if (lastIdentity.current !== null && lastIdentity.current !== identity) {
+      void purgeServiceWorkerCaches();
+    }
+    lastIdentity.current = identity;
+  }, [status, user]);
   const applySession = useCallback(async (signal?: AbortSignal) => {
     const snapshot = await fetchSession({ signal });
     if (signal?.aborted) return;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/reset-password
@@ -23,7 +24,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
 
   let upstream: Response;
   try {

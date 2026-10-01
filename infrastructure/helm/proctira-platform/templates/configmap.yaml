@@ -16,6 +16,10 @@ data:
   RATE_LIMIT_MAX_REQUESTS: {{ .Values.config.rateLimitMaxRequests | quote }}
   TENANT_BASE_DOMAIN: {{ .Values.config.tenantBaseDomain | quote }}
   TENANT_HEADER_NAME: {{ .Values.config.tenantHeaderName | quote }}
+  {{- with .Values.config.tenantFallbackSlug }}
+  # PRC-H027: web BFF tenant when the Host has no tenant subdomain (dev/single-tenant only).
+  TENANT_FALLBACK_SLUG: {{ . | quote }}
+  {{- end }}
   S3_REGION: {{ .Values.config.s3Region | quote }}
   S3_FORCE_PATH_STYLE: {{ .Values.config.s3ForcePathStyle | quote }}
   {{- if .Values.config.tracing }}

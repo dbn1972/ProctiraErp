@@ -8,6 +8,7 @@
  */
 
 import { withCsrfHeader } from '@/lib/auth/csrf';
+import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
 
 import type { AuthUserFromToken } from './auth-user';
 
@@ -270,6 +271,8 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
   } catch {
     // Even if the API call fails, we redirect to login.
   }
+  // PRC-H026 / PRC-H032: never leave this user's cached responses behind.
+  await purgeServiceWorkerCaches();
 
   if (typeof window !== 'undefined') {
     window.location.href = redirectTo;

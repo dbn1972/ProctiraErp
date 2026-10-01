@@ -6,7 +6,7 @@
  * Supports scheduled execution, retry with exponential backoff,
  * structured execution logging, and Kafka event publishing.
  */
-import { AppError, NotFoundError } from '@proctira/common';
+import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
@@ -32,6 +32,7 @@ import type {
   UpdatePipelineInput,
   RetryPolicy,
 } from './schemas.js';
+import { containsRedactedSecret, restoreRedactedSecrets } from './secret-redaction.js';
 import { transformRows } from './transformations/index.js';
 
 export interface ETLServiceConfig {
@@ -156,12 +157,7 @@ export class ETLService {
     let registered = 0;
     for (const pipeline of data) {
       if (pipeline.schedule && pipeline.enabled) {
-        this.scheduler.registerSchedule(
-          pipeline.id,
-          pipeline.tenantId,
-          pipeline.schedule,
-          true,
-        );
+        this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
         registered += 1;
       } else {
         this.scheduler.unregisterSchedule(pipeline.id);
@@ -209,6 +205,9 @@ export class ETLService {
   }
 
   async createPipeline(tenantId: string, input: CreatePipelineInput): Promise<Pipeline> {
+    // PRC-H115: the redaction placeholder is never a valid credential.
+    assertNoRedactedSecret(input.source, 'source');
+    assertNoRedactedSecret(input.destination, 'destination');
     await this.ensureSchedulesHydrated(tenantId);
     await this.assertConnectorConfigSafe(input);
     const now = new Date();
@@ -270,8 +269,16 @@ export class ETLService {
     const updates: Partial<Pipeline> = {};
     if (input.name !== undefined) updates.name = input.name;
     if (input.description !== undefined) updates.description = input.description ?? null;
-    if (input.source !== undefined) updates.source = input.source;
-    if (input.destination !== undefined) updates.destination = input.destination;
+    // PRC-H115: clients echo the redaction placeholder for unchanged secrets;
+    // keep the stored value, and reject placeholders with nothing to restore.
+    if (input.source !== undefined) {
+      updates.source = restoreRedactedSecrets(input.source, existing.source);
+      assertNoRedactedSecret(updates.source, 'source');
+    }
+    if (input.destination !== undefined) {
+      updates.destination = restoreRedactedSecrets(input.destination, existing.destination);
+      assertNoRedactedSecret(updates.destination, 'destination');
+    }
     if (input.fieldMappings !== undefined) updates.fieldMappings = input.fieldMappings;
     if (input.schedule !== undefined) updates.schedule = input.schedule ?? null;
     if (input.retryPolicy !== undefined) updates.retryPolicy = input.retryPolicy;
@@ -714,5 +721,13 @@ export class ETLService {
     // Verify pipeline exists and belongs to tenant
     await this.getPipeline(tenantId, pipelineId);
     return this.repository.listExecutions(pipelineId, tenantId, page, pageSize);
+  }
+}
+
+function assertNoRedactedSecret(config: unknown, field: 'source' | 'destination'): void {
+  if (containsRedactedSecret(config)) {
+    throw new ValidationError('Credential placeholder cannot be saved; enter the secret value.', [
+      { field, rule: 'redacted', message: 'Redacted credential placeholder is not a valid value' },
+    ]);
   }
 }

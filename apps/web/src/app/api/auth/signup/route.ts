@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { scorePassword } from '@proctira/auth';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/signup
@@ -87,7 +88,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'Terms acceptance is required.' }, { status: 400 });
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
   const forwardedFor =
     request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? '';
   const userAgent = request.headers.get('user-agent') ?? '';

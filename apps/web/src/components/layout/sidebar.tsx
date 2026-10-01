@@ -101,35 +101,35 @@ export const navItems = [
     key: 'fees',
     href: '/fees',
     icon: 'CurrencyIcon',
-    requiredPermissions: [],
+    requiredPermissions: ['fees.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'transport',
     href: '/transport',
     icon: 'BusIcon',
-    requiredPermissions: [],
+    requiredPermissions: ['transport.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'hostel',
     href: '/hostel',
     icon: 'BedIcon',
-    requiredPermissions: [],
+    requiredPermissions: ['hostel.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'library',
     href: '/library',
     icon: 'BookOpenIcon',
-    requiredPermissions: [],
+    requiredPermissions: ['library.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'communication',
     href: '/communication',
     icon: 'MegaphoneIcon',
-    requiredPermissions: [],
+    requiredPermissions: ['communication.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
@@ -179,8 +179,10 @@ export const navItems = [
 type IconName = (typeof navItems)[number]['icon'];
 
 /**
- * Session JWTs do not carry permission claims. Principals and admins still
- * need these modules in the sidebar; the API remains the authorization check.
+ * Session JWTs do not carry permission claims; `AuthUser.permissions` is
+ * derived from roles (lib/auth/role-permissions.ts, PRC-H028). Principals and
+ * admins additionally keep these modules; the API remains the authorization
+ * check.
  */
 const ROLE_VISIBLE_NAV = new Set([
   'institutions',
