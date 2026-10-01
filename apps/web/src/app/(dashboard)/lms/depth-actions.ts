@@ -20,6 +20,7 @@ import {
 import {
   lmsBankItemSchema,
   lmsContentSchema,
+  parseCorrectIndexes,
   lmsDiscussionSchema,
   lmsFileUploadSchema,
   lmsLessonSchema,
@@ -63,18 +64,15 @@ export async function createBankItemAction(input: LmsBankItemValues): Promise<Lm
   const payload: Record<string, unknown> = {};
   if (data.questionType === 'mcq' || data.questionType === 'msq') {
     payload.options = options;
-    if (data.questionType === 'mcq') payload.correctOptionIndex = data.correctOptionIndex ?? 0;
+    // The schema guarantees these answer keys are present and in range (PRC-L245).
+    if (data.questionType === 'mcq') payload.correctOptionIndex = data.correctOptionIndex;
     if (data.questionType === 'msq') {
-      const indexes = (data.correctIndexes ?? '')
-        .split(',')
-        .map((n) => Number(n.trim()))
-        .filter((n) => Number.isInteger(n) && n >= 0);
-      payload.correctOptionIndexes = indexes.length > 0 ? indexes : [data.correctOptionIndex ?? 0];
+      payload.correctOptionIndexes = parseCorrectIndexes(data.correctIndexes) ?? [];
       payload.partialCredit = true;
     }
   }
   if (data.questionType === 'numeric') {
-    payload.correctValue = data.correctValue ?? 0;
+    payload.correctValue = data.correctValue;
     payload.tolerance = data.tolerance ?? 0.01;
   }
   if (data.questionType === 'match') {

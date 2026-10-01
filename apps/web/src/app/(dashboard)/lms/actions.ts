@@ -20,6 +20,14 @@ import {
   type SpiralPlan,
   type StudentProgress,
 } from '@/lib/api/lms';
+import {
+  createAssignmentSchema,
+  createSkillSchema,
+  firstIssue,
+  gradeSubmissionSchema,
+  lmsIdSchema,
+  palLookupQuerySchema,
+} from '@/lib/validation/lms-schema';
 
 export interface LmsActionState {
   status: 'idle' | 'success' | 'error';
@@ -32,12 +40,24 @@ function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message;
   return fallback;
 }
+function emptyToUndefined(value?: string): string | undefined {
+  return value && value.length > 0 ? value : undefined;
+}
 
 export async function createAssignmentAction(
   input: CreateAssignmentInput,
 ): Promise<LmsActionState> {
+  const parsed = createAssignmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Invalid assignment') };
+  }
+  const data = parsed.data;
   try {
-    const created = await createAssignment(input);
+    const created = await createAssignment({
+      ...data,
+      boardId: emptyToUndefined(data.boardId),
+      institutionId: emptyToUndefined(data.institutionId),
+    });
     revalidatePath('/lms');
     return { status: 'success', id: created.id };
   } catch (error) {
@@ -46,6 +66,9 @@ export async function createAssignmentAction(
 }
 
 export async function publishAssignmentAction(id: string): Promise<LmsActionState> {
+  if (!lmsIdSchema.safeParse(id).success) {
+    return { status: 'error', message: 'Invalid assignment id' };
+  }
   try {
     await publishAssignment(id);
     revalidatePath('/lms');
@@ -57,6 +80,9 @@ export async function publishAssignmentAction(id: string): Promise<LmsActionStat
 }
 
 export async function closeAssignmentAction(id: string): Promise<LmsActionState> {
+  if (!lmsIdSchema.safeParse(id).success) {
+    return { status: 'error', message: 'Invalid assignment id' };
+  }
   try {
     await closeAssignment(id);
     revalidatePath('/lms');
@@ -72,8 +98,18 @@ export async function gradeSubmissionAction(
   submissionId: string,
   input: GradeSubmissionInput,
 ): Promise<LmsActionState> {
+  if (
+    !lmsIdSchema.safeParse(assignmentId).success ||
+    !lmsIdSchema.safeParse(submissionId).success
+  ) {
+    return { status: 'error', message: 'Invalid submission id' };
+  }
+  const parsed = gradeSubmissionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Invalid grade') };
+  }
   try {
-    await gradeSubmission(submissionId, input);
+    await gradeSubmission(submissionId, parsed.data);
     revalidatePath(`/lms/assignments/${assignmentId}`);
     return { status: 'success', id: submissionId };
   } catch (error) {
@@ -82,8 +118,17 @@ export async function gradeSubmissionAction(
 }
 
 export async function createSkillAction(input: CreateSkillInput): Promise<LmsActionState> {
+  const parsed = createSkillSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Invalid skill') };
+  }
+  const data = parsed.data;
   try {
-    const skill = await createSkill(input);
+    const skill = await createSkill({
+      ...data,
+      boardId: emptyToUndefined(data.boardId),
+      institutionId: emptyToUndefined(data.institutionId),
+    });
     revalidatePath('/lms/pal');
     return { status: 'success', id: skill.id };
   } catch (error) {
@@ -102,6 +147,11 @@ export async function lookupStudentPalAction(
   studentId: string,
   query: { boardId?: string; institutionId?: string } = {},
 ): Promise<PalLookupState> {
+  const parsedQuery = palLookupQuerySchema.safeParse(query);
+  if (!lmsIdSchema.safeParse(studentId).success || !parsedQuery.success) {
+    return { status: 'error', message: 'Invalid learner id' };
+  }
+  query = parsedQuery.data;
   try {
     const [plan, progress] = await Promise.all([
       getStudentPlan(studentId, { ...query, limit: 10 }),
