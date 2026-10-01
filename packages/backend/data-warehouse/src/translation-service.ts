@@ -5,9 +5,12 @@
  * Supports translation import/export in JSON and CSV formats.
  * Implements Requirement 15.5.
  */
+import { NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { NotFoundError } from '@proctira/common';
 
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
+import { collectAllPages } from './collect-all.js';
+import type { TranslationRepository } from './translation-repository.js';
 import type {
   Translation,
   TranslatableEntityType,
@@ -18,7 +21,6 @@ import type {
   TranslationImportResult,
   TranslationExportResult,
 } from './translation-schemas.js';
-import type { TranslationRepository } from './translation-repository.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface TranslationServiceConfig {
@@ -26,14 +28,21 @@ export interface TranslationServiceConfig {
   supportedLanguages: string[];
   /** Maximum translations per import batch */
   maxImportBatchSize: number;
+  /** Page size used when paging through all rows for export (default 1000). */
+  fetchPageSize?: number;
 }
 
 export class TranslationService {
+  private readonly audit: AuditEmitter;
+
   constructor(
     private readonly translationRepository: TranslationRepository,
     private readonly warehouseRepository: WarehouseRepository,
     private readonly config: TranslationServiceConfig,
-  ) {}
+    options: { auditSink?: DataWarehouseAuditSink | null } = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
 
   /**
    * Create or update a single translation.
@@ -42,6 +51,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: CreateTranslationInput,
+    ctx: AuditContext = {},
   ): Promise<Translation> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
@@ -66,7 +76,11 @@ export class TranslationService {
       updatedAt: now,
     };
 
-    return this.translationRepository.upsertTranslation(translation);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'translation.set', resourceType: 'translation' },
+      () => this.translationRepository.upsertTranslation(translation),
+    );
   }
 
   /**
@@ -76,6 +90,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: BatchTranslationInput,
+    ctx: AuditContext = {},
   ): Promise<{
     successCount: number;
     errorCount: number;
@@ -115,7 +130,14 @@ export class TranslationService {
     if (validTranslations.length > 0) {
       await this.translationRepository.upsertTranslationsBatch(validTranslations);
     }
-
+    await this.audit.emit(ctx, {
+      tenantId,
+      warehouseId,
+      action: 'translation.batch_set',
+      resourceType: 'warehouse',
+      resourceId: warehouseId,
+      counts: { successCount: validTranslations.length, errorCount: errors.length },
+    });
     return {
       successCount: validTranslations.length,
       errorCount: errors.length,
@@ -189,12 +211,19 @@ export class TranslationService {
     const format = query.format || 'json';
 
     // Get all translations matching the filter
-    const result = await this.translationRepository.listTranslations(warehouseId, tenantId, {
-      language: query.language,
-      entityType: query.entityType,
-      page: 1,
-      pageSize: 100000, // Get all for export
-    });
+    // Page through every matching translation (no silent truncation).
+    const result = {
+      data: await collectAllPages(
+        (page, pageSize) =>
+          this.translationRepository.listTranslations(warehouseId, tenantId, {
+            language: query.language,
+            entityType: query.entityType,
+            page,
+            pageSize,
+          }),
+        this.config.fetchPageSize,
+      ),
+    };
 
     let content: string;
     if (format === 'csv') {
@@ -219,6 +248,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: TranslationImportInput,
+    ctx: AuditContext = {},
   ): Promise<TranslationImportResult> {
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -320,7 +350,19 @@ export class TranslationService {
     if (validTranslations.length > 0) {
       await this.translationRepository.upsertTranslationsBatch(validTranslations);
     }
-
+    await this.audit.emit(ctx, {
+      tenantId,
+      warehouseId,
+      action: 'translation.import',
+      resourceType: 'warehouse',
+      resourceId: warehouseId,
+      counts: {
+        totalRows: rawTranslations.length,
+        successCount: validTranslations.length,
+        errorCount: errors.length,
+        updatedCount,
+      },
+    });
     return {
       totalRows: rawTranslations.length,
       successCount: validTranslations.length,
@@ -449,19 +491,18 @@ export class TranslationService {
     if (lines.length <= 1) return [];
 
     // Skip header
-    const dataLines = lines.slice(1);
-    return dataLines
-      .map((line) => {
-        const parts = this.parseCSVLine(line);
-        return {
-          entityType: parts[0] as TranslatableEntityType,
-          entityId: parts[1] || '',
-          language: parts[2] || '',
-          field: parts[3] || '',
-          value: parts[4] || '',
-        };
-      })
-      .filter((t) => t.entityId && t.language && t.field && t.value);
+    // Keep every non-blank row so incomplete rows surface as row errors on import.
+    const dataLines = lines.slice(1).filter((line) => line.trim() !== '');
+    return dataLines.map((line) => {
+      const parts = this.parseCSVLine(line.replace(/\r$/, ''));
+      return {
+        entityType: parts[0] as TranslatableEntityType,
+        entityId: parts[1] || '',
+        language: parts[2] || '',
+        field: parts[3] || '',
+        value: parts[4] || '',
+      };
+    });
   }
 
   private parseJSONTranslations(content: string): Array<{
@@ -473,9 +514,9 @@ export class TranslationService {
   }> {
     const decoded = this.decodeContent(content);
 
-    const parsed = JSON.parse(decoded);
+    const parsed: unknown = JSON.parse(decoded);
     if (!Array.isArray(parsed)) {
-      throw new Error('Expected JSON array of translation objects');
+      throw new ValidationError('Expected JSON array of translation objects');
     }
 
     return parsed.map((item: Record<string, unknown>) => ({

@@ -2,14 +2,16 @@
  * GIS Service
  *
  * Manages GIS layers (Shapefile and GeoJSON) linked to area hierarchies.
- * Supports PostGIS geometry storage and spatial queries.
+ * Geometry is stored as GeoJSON on the layer record (no PostGIS column yet; PRC-L457).
+ * Shapefile input is a base64 JSON FeatureCollection, not binary .shp/.dbf.
  * Implements Requirement 15.3: GIS visualization with Shapefile/GeoJSON map layers.
  */
+import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { NotFoundError, ConflictError } from '@proctira/common';
 
-import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import type { GISRepository } from './gis-repository.js';
+import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface GISServiceConfig {
@@ -19,12 +21,64 @@ export interface GISServiceConfig {
   supportedCRS: string[];
 }
 
+function invalidLayerData(message: string, field = 'data'): ValidationError {
+  return new ValidationError('Validation failed', [{ field, message, rule: 'format' }]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requireGeometry(feature: Record<string, unknown>, index: number): Record<string, unknown> {
+  const geometry = feature.geometry;
+  if (!isRecord(geometry) || typeof geometry.type !== 'string') {
+    throw invalidLayerData(`Feature ${index} has no valid geometry`, `data.features.${index}`);
+  }
+  return geometry;
+}
+
+function toFeature(feature: Record<string, unknown>, index: number): GISFeature {
+  const geometry = requireGeometry(feature, index);
+  return {
+    id: uuidv4(),
+    type: geometry.type as string,
+    geometry,
+    properties: isRecord(feature.properties) ? feature.properties : {},
+    index,
+  };
+}
+
+/** Convert parsed GeoJSON into features; rejects unsupported shapes. */
+function toFeatures(input: unknown, allowFeatureOrGeometry: boolean): GISFeature[] {
+  if (!isRecord(input)) throw invalidLayerData('Layer data must be a GeoJSON object');
+  if (input.type === 'FeatureCollection' && Array.isArray(input.features)) {
+    return input.features.map((feature: unknown, index) => {
+      if (!isRecord(feature)) {
+        throw invalidLayerData(`Feature ${index} is not an object`, `data.features.${index}`);
+      }
+      return toFeature(feature, index);
+    });
+  }
+  if (allowFeatureOrGeometry && input.type === 'Feature') {
+    return [toFeature(input, 0)];
+  }
+  if (allowFeatureOrGeometry && typeof input.type === 'string' && input.coordinates) {
+    return [toFeature({ geometry: input }, 0)];
+  }
+  throw invalidLayerData('Unsupported GeoJSON structure');
+}
+
 export class GISService {
+  private readonly audit: AuditEmitter;
+
   constructor(
     private readonly gisRepository: GISRepository,
     private readonly warehouseRepository: WarehouseRepository,
     private readonly config: GISServiceConfig,
-  ) {}
+    options: { auditSink?: DataWarehouseAuditSink | null } = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
 
   /**
    * Create a new GIS layer linked to an area in the warehouse.
@@ -33,6 +87,7 @@ export class GISService {
     tenantId: string,
     warehouseId: string,
     input: GISLayerInput,
+    ctx: AuditContext = {},
   ): Promise<GISLayer> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
@@ -48,12 +103,22 @@ export class GISService {
 
     // Validate layer type
     if (input.layerType !== 'shapefile' && input.layerType !== 'geojson') {
-      throw new Error(`Unsupported layer type: ${input.layerType}`);
+      throw new ValidationError('Validation failed', [
+        {
+          field: 'layerType',
+          message: `Unsupported layer type: ${String(input.layerType)}`,
+          rule: 'enum',
+        },
+      ]);
     }
 
     // Validate file size
     if (input.data && input.data.length > this.config.maxLayerFileSize) {
-      throw new Error(`Layer file size exceeds maximum of ${this.config.maxLayerFileSize} bytes`);
+      throw new AppError(
+        `Layer file size exceeds maximum of ${this.config.maxLayerFileSize} bytes`,
+        'PAYLOAD_TOO_LARGE',
+        413,
+      );
     }
 
     // Parse geometry data based on layer type
@@ -67,7 +132,7 @@ export class GISService {
       areaId: input.areaId,
       name: input.name,
       layerType: input.layerType,
-      crs: input.crs || 'EPSG:4326',
+      crs: this.assertSupportedCrs(input.crs || 'EPSG:4326'),
       featureCount: features.length,
       metadata: input.metadata || {},
       features,
@@ -76,7 +141,17 @@ export class GISService {
       updatedAt: now,
     };
 
-    return this.gisRepository.createLayer(layer);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.create',
+        resourceType: 'gis_layer',
+        counts: { featureCount: layer.featureCount },
+      },
+      () => this.gisRepository.createLayer(layer),
+    );
   }
 
   /**
@@ -87,6 +162,7 @@ export class GISService {
     warehouseId: string,
     layerId: string,
     input: UpdateGISLayerInput,
+    ctx: AuditContext = {},
   ): Promise<GISLayer> {
     const existing = await this.gisRepository.findLayerById(layerId, warehouseId, tenantId);
     if (!existing) {
@@ -107,20 +183,46 @@ export class GISService {
       if (input.layerType) updates.layerType = input.layerType;
     }
 
-    if (input.crs !== undefined) updates.crs = input.crs;
+    if (input.crs !== undefined) updates.crs = this.assertSupportedCrs(input.crs);
 
-    return this.gisRepository.updateLayer(layerId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.update',
+        resourceType: 'gis_layer',
+        resourceId: layerId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.gisRepository.updateLayer(layerId, warehouseId, tenantId, updates),
+    );
   }
 
   /**
    * Delete a GIS layer.
    */
-  async deleteLayer(tenantId: string, warehouseId: string, layerId: string): Promise<void> {
+  async deleteLayer(
+    tenantId: string,
+    warehouseId: string,
+    layerId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     const existing = await this.gisRepository.findLayerById(layerId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`GIS layer not found: ${layerId}`);
     }
-    await this.gisRepository.deleteLayer(layerId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.delete',
+        resourceType: 'gis_layer',
+        resourceId: layerId,
+      },
+      () => this.gisRepository.deleteLayer(layerId, warehouseId, tenantId),
+    );
   }
 
   /**
@@ -169,6 +271,21 @@ export class GISService {
     return this.gisRepository.findLayersByAreaHierarchy(warehouseId, tenantId, areaId);
   }
 
+  /** Reject coordinate reference systems not listed in config.supportedCRS. */
+  private assertSupportedCrs(crs: string): string {
+    const supported = this.config.supportedCRS;
+    if (supported.length > 0 && !supported.includes(crs)) {
+      throw new ValidationError('Validation failed', [
+        {
+          field: 'crs',
+          message: `Unsupported CRS '${crs}'. Supported: ${supported.join(', ')}`,
+          rule: 'enum',
+        },
+      ]);
+    }
+    return crs;
+  }
+
   /**
    * Parse layer data from raw input based on layer type.
    */
@@ -188,94 +305,34 @@ export class GISService {
   }
 
   /**
-   * Parse GeoJSON string into features.
+   * Parse GeoJSON (raw JSON or base64 JSON) into features.
+   * Throws ValidationError on unparseable input or features without geometry.
    */
   private parseGeoJSON(data: string): GISFeature[] {
+    let geojson: unknown;
     try {
-      let geojson: unknown;
-
-      // Try parsing as raw JSON first, then as base64
-      try {
-        geojson = JSON.parse(data);
-      } catch {
-        const decoded = Buffer.from(data, 'base64').toString('utf-8');
-        geojson = JSON.parse(decoded);
-      }
-
-      if (!geojson || typeof geojson !== 'object') {
-        return [];
-      }
-
-      const geoObj = geojson as Record<string, unknown>;
-
-      // Handle FeatureCollection
-      if (geoObj.type === 'FeatureCollection' && Array.isArray(geoObj.features)) {
-        return (geoObj.features as Record<string, unknown>[]).map((feature, index) => ({
-          id: uuidv4(),
-          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-          geometry: feature.geometry as Record<string, unknown>,
-          properties: (feature.properties as Record<string, unknown>) || {},
-          index,
-        }));
-      }
-
-      // Handle single Feature
-      if (geoObj.type === 'Feature') {
-        return [
-          {
-            id: uuidv4(),
-            type: ((geoObj.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-            geometry: geoObj.geometry as Record<string, unknown>,
-            properties: (geoObj.properties as Record<string, unknown>) || {},
-            index: 0,
-          },
-        ];
-      }
-
-      // Handle bare geometry
-      if (geoObj.type && geoObj.coordinates) {
-        return [
-          {
-            id: uuidv4(),
-            type: geoObj.type as string,
-            geometry: geoObj as Record<string, unknown>,
-            properties: {},
-            index: 0,
-          },
-        ];
-      }
-
-      return [];
+      geojson = JSON.parse(data);
     } catch {
-      return [];
+      try {
+        geojson = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
+      } catch {
+        throw invalidLayerData('Layer data is not valid GeoJSON');
+      }
     }
+    return toFeatures(geojson, true);
   }
 
   /**
-   * Parse Shapefile data (base64-encoded) into features.
-   * In a production environment, this would use a library like shpjs.
-   * For now, we parse a simplified representation.
+   * Parse Shapefile data (base64-encoded JSON FeatureCollection representation).
+   * Binary .shp/.dbf parsing is not implemented (see PRC-L457).
    */
   private parseShapefile(data: string): GISFeature[] {
+    let parsed: unknown;
     try {
-      // Shapefile data is expected as base64-encoded JSON representation
-      // In production, this would use shpjs or similar to parse .shp/.dbf/.shx
-      const decoded = Buffer.from(data, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded);
-
-      if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
-        return (parsed.features as Record<string, unknown>[]).map((feature, index) => ({
-          id: uuidv4(),
-          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-          geometry: feature.geometry as Record<string, unknown>,
-          properties: (feature.properties as Record<string, unknown>) || {},
-          index,
-        }));
-      }
-
-      return [];
+      parsed = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
     } catch {
-      return [];
+      throw invalidLayerData('Shapefile data could not be parsed');
     }
+    return toFeatures(parsed, false);
   }
 }

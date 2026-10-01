@@ -3,6 +3,8 @@
  *
  * In-memory implementation of WarehouseRepository for testing and development.
  */
+import { NotFoundError } from '@proctira/common';
+
 import type {
   Warehouse,
   Indicator,
@@ -37,7 +39,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<Warehouse> {
     const existing = this.warehouses.get(id);
     if (!existing || existing.tenantId !== tenantId) {
-      throw new Error(`Warehouse not found: ${id}`);
+      throw new NotFoundError(`Warehouse not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.warehouses.set(id, updated);
@@ -47,7 +49,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteWarehouse(id: string, tenantId: string): Promise<void> {
     const existing = this.warehouses.get(id);
     if (!existing || existing.tenantId !== tenantId) {
-      throw new Error(`Warehouse not found: ${id}`);
+      throw new NotFoundError(`Warehouse not found: ${id}`);
     }
     this.warehouses.delete(id);
   }
@@ -96,7 +98,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<Indicator> {
     const existing = this.indicators.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Indicator not found: ${id}`);
+      throw new NotFoundError(`Indicator not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.indicators.set(id, updated);
@@ -106,7 +108,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteIndicator(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.indicators.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Indicator not found: ${id}`);
+      throw new NotFoundError(`Indicator not found: ${id}`);
     }
     this.indicators.delete(id);
   }
@@ -169,7 +171,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<Unit> {
     const existing = this.units.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Unit not found: ${id}`);
+      throw new NotFoundError(`Unit not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.units.set(id, updated);
@@ -179,7 +181,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteUnit(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.units.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Unit not found: ${id}`);
+      throw new NotFoundError(`Unit not found: ${id}`);
     }
     this.units.delete(id);
   }
@@ -234,7 +236,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<Subgroup> {
     const existing = this.subgroups.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Subgroup not found: ${id}`);
+      throw new NotFoundError(`Subgroup not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.subgroups.set(id, updated);
@@ -244,7 +246,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteSubgroup(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.subgroups.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Subgroup not found: ${id}`);
+      throw new NotFoundError(`Subgroup not found: ${id}`);
     }
     this.subgroups.delete(id);
   }
@@ -307,7 +309,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<TimePeriod> {
     const existing = this.timePeriods.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`TimePeriod not found: ${id}`);
+      throw new NotFoundError(`TimePeriod not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.timePeriods.set(id, updated);
@@ -317,7 +319,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteTimePeriod(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.timePeriods.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`TimePeriod not found: ${id}`);
+      throw new NotFoundError(`TimePeriod not found: ${id}`);
     }
     this.timePeriods.delete(id);
   }
@@ -380,7 +382,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   ): Promise<Area> {
     const existing = this.areas.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Area not found: ${id}`);
+      throw new NotFoundError(`Area not found: ${id}`);
     }
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     this.areas.set(id, updated);
@@ -390,7 +392,7 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
   async deleteArea(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.areas.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Area not found: ${id}`);
+      throw new NotFoundError(`Area not found: ${id}`);
     }
     this.areas.delete(id);
   }

@@ -16,7 +16,18 @@
 export { dataWarehousePlugin, type DataWarehousePluginOptions } from './data-warehouse-plugin.js';
 
 // Service
-export { DataWarehouseService, type DataWarehouseServiceConfig } from './data-warehouse-service.js';
+export {
+  DataWarehouseService,
+  type DataWarehouseServiceConfig,
+  type DataWarehouseServiceOptions,
+} from './data-warehouse-service.js';
+export {
+  AuditEmitter,
+  type AuditContext,
+  type DataWarehouseAuditAction,
+  type DataWarehouseAuditEvent,
+  type DataWarehouseAuditSink,
+} from './audit.js';
 
 // Repository
 export type { WarehouseRepository, ListFilter, ListResult } from './warehouse-repository.js';
