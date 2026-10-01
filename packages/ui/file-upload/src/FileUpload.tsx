@@ -7,7 +7,10 @@ import type { FileUploadProps, FileValidationError } from './types';
 /**
  * FileUpload component with drag-and-drop, file type and size validation.
  * Meets WCAG 2.1 Level AA accessibility standards.
-
+ *
+ * Security: type/size checks here are advisory UX only (extension and
+ * client-reported MIME). Consumers' upload endpoints must enforce size,
+ * magic-byte content checks and malware scanning server-side.
  *
  * @example
  * ```tsx

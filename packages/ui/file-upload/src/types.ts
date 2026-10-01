@@ -20,7 +20,13 @@ export interface UploadedFile {
 }
 
 export interface FileUploadProps {
-  /** Accepted file types (MIME types or extensions) */
+  /**
+   * Accepted file types (MIME types or extensions).
+   *
+   * UX-only: matching uses the file-name extension and the browser-reported
+   * `File.type`, both of which the user controls. Every upload endpoint must
+   * re-validate size, content (magic bytes) and malware scan server-side.
+   */
   accept?: string[];
   /** Maximum file size in bytes */
   maxSize?: number;
