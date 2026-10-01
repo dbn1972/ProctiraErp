@@ -6,6 +6,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/sync/connectivity_monitor.dart';
 import 'reports_screen.dart';
+import '../../../core/errors/user_error_message.dart';
 
 // v2.0 status palette.
 const Color _green = Color(0xFF10B981);
@@ -56,9 +57,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   bool get _isPredefined =>
-      ReportsScreen.reports.any(
-        (ReportDefinition r) => r.id == widget.id,
-      );
+      ReportsScreen.reports.any((ReportDefinition r) => r.id == widget.id);
 
   Future<void> _downloadReport() async {
     if (_reportApi == null) return;
@@ -86,7 +85,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       if (!mounted) return;
       setState(() {
         _downloading = false;
-        _downloadError = error.toString();
+        _downloadError = userErrorMessage(error);
       });
     }
   }
@@ -153,44 +152,47 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ? _buildOfflineState(theme)
           : FutureBuilder<ReportSummary>(
               future: _statusFuture,
-              builder: (BuildContext context,
-                  AsyncSnapshot<ReportSummary> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const Icon(Icons.error_outline, size: 48),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Failed to load report status.',
-                            style: theme.textTheme.titleMedium,
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<ReportSummary> snapshot,
+                  ) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(Icons.error_outline, size: 48),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Failed to load report status.',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                userErrorMessage(snapshot.error!),
+                                style: theme.textTheme.bodySmall,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _loadStatus,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${snapshot.error}',
-                            style: theme.textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: _loadStatus,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                final ReportSummary report = snapshot.data!;
-                return _buildReportDetails(theme, report);
-              },
+                        ),
+                      );
+                    }
+                    final ReportSummary report = snapshot.data!;
+                    return _buildReportDetails(theme, report);
+                  },
             ),
     );
   }
@@ -409,10 +411,7 @@ class _HeaderCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  Text(title, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
@@ -468,17 +467,16 @@ class _KeyFigureRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           Text(
             value,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              fontFeatures: const <FontFeature>[
-                FontFeature.tabularFigures(),
-              ],
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -514,9 +512,7 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.isEmpty
-            ? status
-            : status[0].toUpperCase() + status.substring(1),
+        status.isEmpty ? status : status[0].toUpperCase() + status.substring(1),
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
@@ -548,10 +544,12 @@ class _AttendanceSummaryPlaceholder extends StatelessWidget {
             1: FlexColumnWidth(1),
           },
           children: const <TableRow>[
-            TableRow(children: <Widget>[
-              _Cell('Status', isHeader: true),
-              _Cell('Count', isHeader: true),
-            ]),
+            TableRow(
+              children: <Widget>[
+                _Cell('Status', isHeader: true),
+                _Cell('Count', isHeader: true),
+              ],
+            ),
             TableRow(children: <Widget>[_Cell('Present'), _Cell('—')]),
             TableRow(children: <Widget>[_Cell('Absent'), _Cell('—')]),
             TableRow(children: <Widget>[_Cell('Late'), _Cell('—')]),
@@ -591,10 +589,12 @@ class _EnrollmentSummaryPlaceholder extends StatelessWidget {
             1: FlexColumnWidth(1),
           },
           children: const <TableRow>[
-            TableRow(children: <Widget>[
-              _Cell('Grade', isHeader: true),
-              _Cell('Students', isHeader: true),
-            ]),
+            TableRow(
+              children: <Widget>[
+                _Cell('Grade', isHeader: true),
+                _Cell('Students', isHeader: true),
+              ],
+            ),
             TableRow(children: <Widget>[_Cell('Grade 1'), _Cell('—')]),
             TableRow(children: <Widget>[_Cell('Grade 2'), _Cell('—')]),
             TableRow(children: <Widget>[_Cell('Grade 3'), _Cell('—')]),
@@ -623,9 +623,7 @@ class _Cell extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Text(
         text,
-        style: isHeader
-            ? const TextStyle(fontWeight: FontWeight.w700)
-            : null,
+        style: isHeader ? const TextStyle(fontWeight: FontWeight.w700) : null,
       ),
     );
   }

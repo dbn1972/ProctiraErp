@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/sync/connectivity_monitor.dart';
 import '../data/institution_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 /// `/institutions/:id` route — shows detailed info for a single institution
 /// organised into tabs: Overview, Contact, Academic Periods, Infrastructure.
@@ -74,25 +75,25 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen>
       ),
       body: FutureBuilder<CachedInstitution?>(
         future: _institutionFuture,
-        builder: (BuildContext context,
-            AsyncSnapshot<CachedInstitution?> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final CachedInstitution? institution = snapshot.data;
-          if (institution == null) {
-            return _buildNotFound(context);
-          }
-          return TabBarView(
-            controller: _tabController,
-            children: <Widget>[
-              _OverviewTab(institution: institution),
-              _ContactTab(future: _contactFuture, institution: institution),
-              _AcademicPeriodsTab(future: _periodsFuture),
-              _InfrastructureTab(future: _infrastructureFuture),
-            ],
-          );
-        },
+        builder:
+            (BuildContext context, AsyncSnapshot<CachedInstitution?> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final CachedInstitution? institution = snapshot.data;
+              if (institution == null) {
+                return _buildNotFound(context);
+              }
+              return TabBarView(
+                controller: _tabController,
+                children: <Widget>[
+                  _OverviewTab(institution: institution),
+                  _ContactTab(future: _contactFuture, institution: institution),
+                  _AcademicPeriodsTab(future: _periodsFuture),
+                  _InfrastructureTab(future: _infrastructureFuture),
+                ],
+              );
+            },
       ),
     );
   }
@@ -183,10 +184,7 @@ class _OverviewTab extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        institution.name,
-                        style: theme.textTheme.titleLarge,
-                      ),
+                      Text(institution.name, style: theme.textTheme.titleLarge),
                       if (institution.code != null) ...<Widget>[
                         const SizedBox(height: 3),
                         Text(
@@ -287,75 +285,70 @@ class _ContactTab extends StatelessWidget {
       future: future,
       builder:
           (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return _OfflinePlaceholder(
-            message: 'Failed to load contact info: ${snapshot.error}',
-          );
-        }
-        final Map<String, dynamic> data =
-            snapshot.data ?? const <String, dynamic>{};
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            _InfoSection(
-              title: 'Contact Details',
-              rows: <_InfoRow>[
-                _InfoRow(
-                  label: 'Phone',
-                  value: data['contactPhone'] as String?,
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _OfflinePlaceholder(
+                message:
+                    "Couldn't load contact info. ${userErrorMessage(snapshot.error!)}",
+              );
+            }
+            final Map<String, dynamic> data =
+                snapshot.data ?? const <String, dynamic>{};
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                _InfoSection(
+                  title: 'Contact Details',
+                  rows: <_InfoRow>[
+                    _InfoRow(
+                      label: 'Phone',
+                      value: data['contactPhone'] as String?,
+                    ),
+                    _InfoRow(
+                      label: 'Email',
+                      value: data['contactEmail'] as String?,
+                    ),
+                    _InfoRow(
+                      label: 'Website',
+                      value: data['website'] as String?,
+                    ),
+                  ],
                 ),
-                _InfoRow(
-                  label: 'Email',
-                  value: data['contactEmail'] as String?,
+                const SizedBox(height: 12),
+                _InfoSection(
+                  title: 'Address',
+                  rows: <_InfoRow>[
+                    _InfoRow(
+                      label: 'Address',
+                      value: data['address'] as String?,
+                    ),
+                    _InfoRow(label: 'City', value: data['city'] as String?),
+                    _InfoRow(label: 'State', value: data['state'] as String?),
+                    _InfoRow(
+                      label: 'Postal Code',
+                      value: data['postalCode'] as String?,
+                    ),
+                  ],
                 ),
-                _InfoRow(
-                  label: 'Website',
-                  value: data['website'] as String?,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _InfoSection(
-              title: 'Address',
-              rows: <_InfoRow>[
-                _InfoRow(
-                  label: 'Address',
-                  value: data['address'] as String?,
-                ),
-                _InfoRow(
-                  label: 'City',
-                  value: data['city'] as String?,
-                ),
-                _InfoRow(
-                  label: 'State',
-                  value: data['state'] as String?,
-                ),
-                _InfoRow(
-                  label: 'Postal Code',
-                  value: data['postalCode'] as String?,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _InfoSection(
-              title: 'Coordinates',
-              rows: <_InfoRow>[
-                _InfoRow(
-                  label: 'Latitude',
-                  value: data['latitude']?.toString(),
-                ),
-                _InfoRow(
-                  label: 'Longitude',
-                  value: data['longitude']?.toString(),
+                const SizedBox(height: 12),
+                _InfoSection(
+                  title: 'Coordinates',
+                  rows: <_InfoRow>[
+                    _InfoRow(
+                      label: 'Latitude',
+                      value: data['latitude']?.toString(),
+                    ),
+                    _InfoRow(
+                      label: 'Longitude',
+                      value: data['longitude']?.toString(),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
-        );
-      },
+            );
+          },
     );
   }
 }
@@ -374,55 +367,59 @@ class _AcademicPeriodsTab extends StatelessWidget {
     }
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: future,
-      builder: (BuildContext context,
-          AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return _OfflinePlaceholder(
-            message: 'Failed to load periods: ${snapshot.error}',
-          );
-        }
-        final List<Map<String, dynamic>> periods =
-            snapshot.data ?? const <Map<String, dynamic>>[];
-        if (periods.isEmpty) {
-          return const _OfflinePlaceholder(
-            message: 'No academic periods configured.',
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: periods.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (BuildContext context, int index) {
-            final Map<String, dynamic> period = periods[index];
-            final String name =
-                (period['name'] as String?) ?? 'Period ${index + 1}';
-            final String? startDate = period['startDate'] as String?;
-            final String? endDate = period['endDate'] as String?;
-            final bool isActive = period['isActive'] == true;
-            return Card(
-              child: ListTile(
-                leading: Icon(
-                  isActive ? Icons.calendar_today : Icons.calendar_month,
-                  color: isActive ? Colors.green : null,
-                ),
-                title: Text(name),
-                subtitle: Text(
-                  <String>[
-                    if (startDate != null) 'Start: $startDate',
-                    if (endDate != null) 'End: $endDate',
-                  ].join(' · '),
-                ),
-                trailing: isActive
-                    ? const Chip(label: Text('Active'))
-                    : null,
-              ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _OfflinePlaceholder(
+                message:
+                    "Couldn't load periods. ${userErrorMessage(snapshot.error!)}",
+              );
+            }
+            final List<Map<String, dynamic>> periods =
+                snapshot.data ?? const <Map<String, dynamic>>[];
+            if (periods.isEmpty) {
+              return const _OfflinePlaceholder(
+                message: 'No academic periods configured.',
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: periods.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (BuildContext context, int index) {
+                final Map<String, dynamic> period = periods[index];
+                final String name =
+                    (period['name'] as String?) ?? 'Period ${index + 1}';
+                final String? startDate = period['startDate'] as String?;
+                final String? endDate = period['endDate'] as String?;
+                final bool isActive = period['isActive'] == true;
+                return Card(
+                  child: ListTile(
+                    leading: Icon(
+                      isActive ? Icons.calendar_today : Icons.calendar_month,
+                      color: isActive ? Colors.green : null,
+                    ),
+                    title: Text(name),
+                    subtitle: Text(
+                      <String>[
+                        if (startDate != null) 'Start: $startDate',
+                        if (endDate != null) 'End: $endDate',
+                      ].join(' · '),
+                    ),
+                    trailing: isActive
+                        ? const Chip(label: Text('Active'))
+                        : null,
+                  ),
+                );
+              },
             );
           },
-        );
-      },
     );
   }
 }
@@ -441,50 +438,54 @@ class _InfrastructureTab extends StatelessWidget {
     }
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: future,
-      builder: (BuildContext context,
-          AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return _OfflinePlaceholder(
-            message: 'Failed to load infrastructure: ${snapshot.error}',
-          );
-        }
-        final List<Map<String, dynamic>> items =
-            snapshot.data ?? const <Map<String, dynamic>>[];
-        if (items.isEmpty) {
-          return const _OfflinePlaceholder(
-            message: 'No infrastructure records found.',
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: items.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (BuildContext context, int index) {
-            final Map<String, dynamic> item = items[index];
-            final String name =
-                (item['name'] as String?) ?? 'Item ${index + 1}';
-            final String? type = item['type'] as String?;
-            final String? condition = item['condition'] as String?;
-            final num? capacity = item['capacity'] as num?;
-            return Card(
-              child: ListTile(
-                leading: Icon(_iconForInfraType(type)),
-                title: Text(name),
-                subtitle: Text(
-                  <String>[
-                    ?type,
-                    if (condition != null) 'Condition: $condition',
-                    if (capacity != null) 'Capacity: $capacity',
-                  ].join(' · '),
-                ),
-              ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _OfflinePlaceholder(
+                message:
+                    "Couldn't load infrastructure. ${userErrorMessage(snapshot.error!)}",
+              );
+            }
+            final List<Map<String, dynamic>> items =
+                snapshot.data ?? const <Map<String, dynamic>>[];
+            if (items.isEmpty) {
+              return const _OfflinePlaceholder(
+                message: 'No infrastructure records found.',
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (BuildContext context, int index) {
+                final Map<String, dynamic> item = items[index];
+                final String name =
+                    (item['name'] as String?) ?? 'Item ${index + 1}';
+                final String? type = item['type'] as String?;
+                final String? condition = item['condition'] as String?;
+                final num? capacity = item['capacity'] as num?;
+                return Card(
+                  child: ListTile(
+                    leading: Icon(_iconForInfraType(type)),
+                    title: Text(name),
+                    subtitle: Text(
+                      <String>[
+                        ?type,
+                        if (condition != null) 'Condition: $condition',
+                        if (capacity != null) 'Capacity: $capacity',
+                      ].join(' · '),
+                    ),
+                  ),
+                );
+              },
             );
           },
-        );
-      },
     );
   }
 
@@ -521,31 +522,33 @@ class _InfoSection extends StatelessWidget {
           children: <Widget>[
             Text(title, style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
-            ...rows.map((_InfoRow row) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      SizedBox(
-                        width: 110,
-                        child: Text(
-                          row.label,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+            ...rows.map(
+              (_InfoRow row) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 110,
+                      child: Text(
+                        row.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      Expanded(
-                        child: Text(
-                          row.value == null || row.value!.isEmpty
-                              ? '—'
-                              : row.value!,
-                          style: theme.textTheme.bodyMedium,
-                        ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        row.value == null || row.value!.isEmpty
+                            ? '—'
+                            : row.value!,
+                        style: theme.textTheme.bodyMedium,
                       ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
