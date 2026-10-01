@@ -71,6 +71,14 @@ export function CreateNotificationRuleDialog({ templates }: { templates: Notific
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '');
   const [channels, setChannels] = useState<NotificationChannel[]>(['in_app']);
 
+  const nameMissing = name.trim().length === 0;
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+  // Warn when the chosen template targets a channel the rule will not deliver on.
+  const channelMismatch =
+    selectedTemplate !== undefined &&
+    channels.length > 0 &&
+    !channels.includes(selectedTemplate.channel);
+
   const toggleChannel = (channel: NotificationChannel, checked: boolean) => {
     setChannels((prev) => (checked ? [...prev, channel] : prev.filter((c) => c !== channel)));
   };
@@ -136,7 +144,14 @@ export function CreateNotificationRuleDialog({ templates }: { templates: Notific
               onChange={(e) => setName(e.target.value)}
               placeholder="Student enrollment alert"
               data-testid="rule-name-input"
+              required
+              aria-required="true"
+              aria-invalid={nameMissing ? 'true' : undefined}
+              aria-describedby="rule-name-hint"
             />
+            <p id="rule-name-hint" className="text-xs text-muted-foreground">
+              Required.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="rule-entity">Entity type</Label>
@@ -197,13 +212,19 @@ export function CreateNotificationRuleDialog({ templates }: { templates: Notific
               </label>
             ))}
           </fieldset>
+          {channelMismatch ? (
+            <p role="status" className="text-sm text-amber-700" data-testid="rule-channel-mismatch">
+              The selected template is for the {selectedTemplate.channel.replace('_', ' ')} channel,
+              which is not selected for this rule.
+            </p>
+          ) : null}
           <Feedback state={feedback} />
         </div>
         <DialogFooter>
           <Button
             type="button"
             onClick={handleCreate}
-            disabled={pending || templates.length === 0 || channels.length === 0}
+            disabled={pending || nameMissing || templates.length === 0 || channels.length === 0}
             className="min-h-[44px]"
             data-testid="rule-create-submit"
           >
