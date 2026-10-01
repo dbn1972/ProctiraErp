@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -14,6 +15,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { formatAmount } from './format-amount';
 import {
   addReminderSuppressionAction,
   removeReminderSuppressionAction,
@@ -28,10 +30,6 @@ import type {
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
-
-function formatMoney(cents: number, currency = 'INR'): string {
-  return `${currency} ${(cents / 100).toFixed(2)}`;
-}
 
 export function DunningConsole({
   overdue,
@@ -51,6 +49,7 @@ export function DunningConsole({
   studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const hydrated = useHydrated();
   const [selected, setSelected] = useState<string[]>([]);
   const [channels, setChannels] = useState<{ email: boolean; sms: boolean }>({
@@ -284,7 +283,9 @@ export function DunningConsole({
                         <td className="py-2 pr-2">
                           {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                         </td>
-                        <td className="py-2 pr-2">{formatMoney(row.amountCents, row.currency)}</td>
+                        <td className="py-2 pr-2">
+                          {formatAmount(row.amountCents, row.currency, locale)}
+                        </td>
                         <td className="py-2 pr-2">{row.overdueDays}d</td>
                         <td className="py-2">
                           {row.suppressed ? (
