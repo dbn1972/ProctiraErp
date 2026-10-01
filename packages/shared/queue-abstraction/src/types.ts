@@ -4,7 +4,12 @@
  * Kafka, RabbitMQ, and AWS SQS backends.
  */
 
-import { assertTenantId, assertTenantScopedQueueName, TenantScopeError } from './tenant-scope';
+import {
+  assertSafeTenantSegment,
+  assertTenantId,
+  assertTenantScopedQueueName,
+  TenantScopeError,
+} from './tenant-scope';
 
 /**
  * Message envelope for all queue operations.
@@ -259,6 +264,7 @@ export function buildTenantName(tenantId: string, name: string): string {
   if (!name || name.trim().length === 0) {
     throw new TenantScopeError('queue.buildTenantName: name must not be empty');
   }
+  assertSafeTenantSegment(tenantId.trim(), 'queue.buildTenantName');
   const result = `tenant.${tenantId.trim()}.${name.trim()}`;
   assertTenantScopedQueueName(result, 'queue.buildTenantName');
   return result;

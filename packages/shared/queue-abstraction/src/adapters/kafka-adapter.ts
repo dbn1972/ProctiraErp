@@ -7,7 +7,7 @@
 import type { Producer, Consumer, EachMessagePayload, SASLOptions } from 'kafkajs';
 import { Kafka } from 'kafkajs';
 
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
+import { assertTenantScopedSubscribeTopic, messageTenantMatchesRoute } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -120,6 +120,9 @@ export class KafkaAdapter implements QueueAdapter {
         if (!payload.message.value) return;
 
         const message = JSON.parse(payload.message.value.toString()) as QueueMessage;
+
+        // PRC-L355: body tenant must match the concrete topic the broker routed on.
+        if (!messageTenantMatchesRoute(payload.topic, message)) return;
 
         await handler(message);
       },

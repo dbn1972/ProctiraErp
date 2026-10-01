@@ -105,7 +105,10 @@ export {
   assertTenantId,
   assertTenantScopedQueueName,
   assertTenantScopedSubscribeTopic,
+  assertSafeTenantSegment,
   isTenantScopedQueueName,
+  messageTenantMatchesRoute,
+  tenantFromScopedName,
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedQueueTopics,
 } from './tenant-scope';

@@ -14,7 +14,7 @@ import {
   GetQueueAttributesCommand,
 } from '@aws-sdk/client-sqs';
 
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
+import { assertTenantScopedSubscribeTopic, messageTenantMatchesRoute } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -142,7 +142,7 @@ export class SQSAdapter implements QueueAdapter {
     const queueUrl = await this.getOrCreateQueueUrl(queueName);
 
     this.pollingActive = true;
-    this.pollMessages(queueUrl, handler, options.concurrency ?? 10);
+    this.pollMessages(queueUrl, handler, options.concurrency ?? 10, queueName);
   }
 
   async dispatch(message: QueueMessage, options?: PublishOptions): Promise<void> {
@@ -249,7 +249,12 @@ export class SQSAdapter implements QueueAdapter {
   /**
    * Long-poll messages from an SQS queue and dispatch to handler.
    */
-  private pollMessages(queueUrl: string, handler: MessageHandler, maxConcurrent: number): void {
+  private pollMessages(
+    queueUrl: string,
+    handler: MessageHandler,
+    maxConcurrent: number,
+    queueName = '',
+  ): void {
     if (!this.pollingActive || !this.client) return;
 
     const poll = async (): Promise<void> => {
@@ -271,6 +276,9 @@ export class SQSAdapter implements QueueAdapter {
 
             try {
               const message = JSON.parse(sqsMessage.Body) as QueueMessage;
+              // PRC-L355: body tenant must match the queue's tenant segment. Leave the
+              // message undeleted so the redrive policy moves it to the DLQ.
+              if (!messageTenantMatchesRoute(queueName, message)) return;
               await handler(message);
 
               // Delete message on successful processing
