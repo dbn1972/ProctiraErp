@@ -355,19 +355,23 @@ describe('ResultPublicationService', () => {
       const examId = uuid();
       const exam = createTestExamination({ id: examId });
       await examRepository.create(exam);
-      resultRepository.seedCandidates(examId, [
-        {
-          id: 'cand-gap',
-          examinationId: examId,
-          studentId: 'student-gap',
-          centerId: 'center-1',
-          gender: 'female',
-          areaId: 'area-1',
-          subjectResults: [
-            { candidateId: 'cand-gap', subjectId: 'subj-math', score: 79.5, isComplete: true },
-          ],
-        },
-      ]);
+      resultRepository.seedCandidates(
+        examId,
+        [
+          {
+            id: 'cand-gap',
+            examinationId: examId,
+            studentId: 'student-gap',
+            centerId: 'center-1',
+            gender: 'female',
+            areaId: 'area-1',
+            subjectResults: [
+              { candidateId: 'cand-gap', subjectId: 'subj-math', score: 79.5, isComplete: true },
+            ],
+          },
+        ],
+        tenantId,
+      );
       const result = await service.publishResults(tenantId, examId);
       // 79.5 sits between B (60–79) and A (80–100): B, not the lowest grade F.
       expect(result.gradeResults.find((r) => r.subjectId === 'subj-math')?.grade).toBe('B');

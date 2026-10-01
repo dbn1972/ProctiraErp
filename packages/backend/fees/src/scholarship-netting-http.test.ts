@@ -16,24 +16,29 @@ const TENANT_A = '00000000-0000-4000-8000-00000000000a';
 const TENANT_B = '00000000-0000-4000-8000-00000000000b';
 const STUDENT = '00000000-0000-4000-8000-000000000099';
 const OTHER_STUDENT = '00000000-0000-4000-8000-000000000098';
+// PRC-L105: the netting route schema-validates disbursementId as a UUID.
+const DISB_PAID = '00000000-0000-4000-8000-0000000d0001';
+const DISB_SCHEDULED = '00000000-0000-4000-8000-0000000d0002';
+const DISB_OTHER_TENANT = '00000000-0000-4000-8000-0000000d0003';
+const DISB_UNKNOWN = '00000000-0000-4000-8000-0000000d00ff';
 
 const disbursements: NettableScholarshipDisbursement[] = [
   {
-    id: 'disb-paid',
+    id: DISB_PAID,
     tenantId: TENANT_A,
     studentId: STUDENT,
     amountCents: 2500,
     paymentStatus: 'paid',
   },
   {
-    id: 'disb-scheduled',
+    id: DISB_SCHEDULED,
     tenantId: TENANT_A,
     studentId: STUDENT,
     amountCents: 4000,
     paymentStatus: 'scheduled',
   },
   {
-    id: 'disb-other-tenant',
+    id: DISB_OTHER_TENANT,
     tenantId: TENANT_B,
     studentId: STUDENT,
     amountCents: 9000,
@@ -91,7 +96,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'typed-by-hand', amountCents: 2500 },
+      payload: { studentId: STUDENT, disbursementId: DISB_UNKNOWN, amountCents: 2500 },
     });
     expect(res.statusCode).toBe(404);
     expect(await concessionCount(built.repo)).toBe(0);
@@ -103,7 +108,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-scheduled', amountCents: 4000 },
+      payload: { studentId: STUDENT, disbursementId: DISB_SCHEDULED, amountCents: 4000 },
     });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.statusCode).toBeLessThan(500);
@@ -116,7 +121,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-paid', amountCents: 999_999 },
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID, amountCents: 999_999 },
     });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.statusCode).toBeLessThan(500);
@@ -129,7 +134,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: OTHER_STUDENT, disbursementId: 'disb-paid' },
+      payload: { studentId: OTHER_STUDENT, disbursementId: DISB_PAID },
     });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.statusCode).toBeLessThan(500);
@@ -142,7 +147,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-other-tenant', amountCents: 9000 },
+      payload: { studentId: STUDENT, disbursementId: DISB_OTHER_TENANT, amountCents: 9000 },
     });
     expect(res.statusCode).toBe(404);
     expect(await concessionCount(built.repo)).toBe(0);
@@ -154,7 +159,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-paid', amountCents: 2500 },
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID, amountCents: 2500 },
     });
     expect(res.statusCode).toBe(403);
     expect(await concessionCount(built.repo)).toBe(0);
@@ -166,7 +171,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-paid', amountCents: 2500 },
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID, amountCents: 2500 },
     });
     expect(res.statusCode).toBe(503);
     expect(await concessionCount(built.repo)).toBe(0);
@@ -178,7 +183,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const first = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-paid' },
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID },
     });
     expect(first.statusCode).toBe(200);
     expect(first.json().concession.amountCents).toBe(2500);
@@ -194,7 +199,7 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     const replay = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
-      payload: { studentId: STUDENT, disbursementId: 'disb-paid', amountCents: 2500 },
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID, amountCents: 2500 },
     });
     expect(replay.statusCode).toBe(200);
     expect(replay.json().idempotent).toBe(true);
@@ -209,6 +214,6 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
       url: '/fees/scholarships/nettable-disbursements',
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().data.map((d: { id: string }) => d.id)).toEqual(['disb-paid']);
+    expect(res.json().data.map((d: { id: string }) => d.id)).toEqual([DISB_PAID]);
   });
 });
