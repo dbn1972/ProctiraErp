@@ -4,9 +4,11 @@
  * Core service for managing DevInfo/DI7 data warehouses including
  * indicators, units, subgroups, time periods, areas, and data records.
  */
+import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ConflictError, NotFoundError } from '@proctira/common';
 
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
+import { importDataRecords, parseCsvImport, parseExcelDesImport } from './import-service.js';
 import type {
   Warehouse,
   Indicator,
@@ -14,7 +16,6 @@ import type {
   Subgroup,
   TimePeriod,
   Area,
-  DataRecord,
   CreateWarehouseInput,
   UpdateWarehouseInput,
   CreateIndicatorInput,
@@ -30,24 +31,70 @@ import type {
   DataRecordInput,
   ImportResult,
   ImportFormat,
+  ImportRowError,
 } from './schemas.js';
 import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
-import { importDataRecords, parseCsvContent, parseExcelDesContent } from './import-service.js';
 
 export interface DataWarehouseServiceConfig {
   /** Maximum records per import batch */
   maxImportBatchSize: number;
 }
 
+/** Parse an ISO date string; throws ValidationError when unparseable. */
+function parseIsoDate(value: string, field: string): Date {
+  const date = new Date(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (Number.isNaN(date.getTime()) || (dateOnly && date.toISOString().slice(0, 10) !== value)) {
+    throw new ValidationError('Validation failed', [
+      { field, message: `${field} must be a valid ISO date`, rule: 'format' },
+    ]);
+  }
+  return date;
+}
+
+function assertPeriodOrder(startDate: Date | null, endDate: Date | null): void {
+  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+    throw new ValidationError('Validation failed', [
+      { field: 'endDate', message: 'endDate must be on or after startDate', rule: 'range' },
+    ]);
+  }
+}
+
+function assertChildLevel(parent: Area, level: number): void {
+  if (level !== parent.level + 1) {
+    throw new ValidationError('Validation failed', [
+      {
+        field: 'level',
+        message: `level must be ${parent.level + 1} (parent level + 1)`,
+        rule: 'range',
+      },
+    ]);
+  }
+}
+
+export interface DataWarehouseServiceOptions {
+  /** Receives one event per successful mutation (PRC-L452). */
+  auditSink?: DataWarehouseAuditSink | null;
+}
+
 export class DataWarehouseService {
+  private readonly audit: AuditEmitter;
+
   constructor(
     private readonly repository: WarehouseRepository,
     private readonly config: DataWarehouseServiceConfig,
-  ) {}
+    options: DataWarehouseServiceOptions = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
 
   // ─── Warehouse Operations ───────────────────────────────────────────────────
 
-  async createWarehouse(tenantId: string, input: CreateWarehouseInput): Promise<Warehouse> {
+  async createWarehouse(
+    tenantId: string,
+    input: CreateWarehouseInput,
+    ctx: AuditContext = {},
+  ): Promise<Warehouse> {
     const now = new Date();
     const warehouse: Warehouse = {
       id: uuidv4(),
@@ -58,13 +105,18 @@ export class DataWarehouseService {
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createWarehouse(warehouse);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId: null, action: 'warehouse.create', resourceType: 'warehouse' },
+      () => this.repository.createWarehouse(warehouse),
+    );
   }
 
   async updateWarehouse(
     tenantId: string,
     warehouseId: string,
     input: UpdateWarehouseInput,
+    ctx: AuditContext = {},
   ): Promise<Warehouse> {
     const existing = await this.repository.findWarehouseById(warehouseId, tenantId);
     if (!existing) {
@@ -74,15 +126,40 @@ export class DataWarehouseService {
     if (input.name !== undefined) updates.name = input.name;
     if (input.description !== undefined) updates.description = input.description ?? null;
     if (input.defaultLanguage !== undefined) updates.defaultLanguage = input.defaultLanguage;
-    return this.repository.updateWarehouse(warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId: null,
+        action: 'warehouse.update',
+        resourceType: 'warehouse',
+        resourceId: warehouseId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateWarehouse(warehouseId, tenantId, updates),
+    );
   }
 
-  async deleteWarehouse(tenantId: string, warehouseId: string): Promise<void> {
+  async deleteWarehouse(
+    tenantId: string,
+    warehouseId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     const existing = await this.repository.findWarehouseById(warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Warehouse not found: ${warehouseId}`);
     }
-    await this.repository.deleteWarehouse(warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId: null,
+        action: 'warehouse.delete',
+        resourceType: 'warehouse',
+        resourceId: warehouseId,
+      },
+      () => this.repository.deleteWarehouse(warehouseId, tenantId),
+    );
   }
 
   async getWarehouse(tenantId: string, warehouseId: string): Promise<Warehouse> {
@@ -103,6 +180,7 @@ export class DataWarehouseService {
     tenantId: string,
     warehouseId: string,
     input: CreateIndicatorInput,
+    ctx: AuditContext = {},
   ): Promise<Indicator> {
     await this.getWarehouse(tenantId, warehouseId);
 
@@ -130,7 +208,11 @@ export class DataWarehouseService {
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createIndicator(indicator);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'indicator.create', resourceType: 'indicator' },
+      () => this.repository.createIndicator(indicator),
+    );
   }
 
   async updateIndicator(
@@ -138,6 +220,7 @@ export class DataWarehouseService {
     warehouseId: string,
     indicatorId: string,
     input: UpdateIndicatorInput,
+    ctx: AuditContext = {},
   ): Promise<Indicator> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findIndicatorById(indicatorId, warehouseId, tenantId);
@@ -150,16 +233,42 @@ export class DataWarehouseService {
     if (input.keywords !== undefined) updates.keywords = input.keywords ?? null;
     if (input.info !== undefined) updates.info = input.info ?? null;
     if (input.highIsGood !== undefined) updates.highIsGood = input.highIsGood;
-    return this.repository.updateIndicator(indicatorId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'indicator.update',
+        resourceType: 'indicator',
+        resourceId: indicatorId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateIndicator(indicatorId, warehouseId, tenantId, updates),
+    );
   }
 
-  async deleteIndicator(tenantId: string, warehouseId: string, indicatorId: string): Promise<void> {
+  async deleteIndicator(
+    tenantId: string,
+    warehouseId: string,
+    indicatorId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findIndicatorById(indicatorId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Indicator not found: ${indicatorId}`);
     }
-    await this.repository.deleteIndicator(indicatorId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'indicator.delete',
+        resourceType: 'indicator',
+        resourceId: indicatorId,
+      },
+      () => this.repository.deleteIndicator(indicatorId, warehouseId, tenantId),
+    );
   }
 
   async getIndicator(
@@ -188,7 +297,12 @@ export class DataWarehouseService {
 
   // ─── Unit Operations ────────────────────────────────────────────────────────
 
-  async createUnit(tenantId: string, warehouseId: string, input: CreateUnitInput): Promise<Unit> {
+  async createUnit(
+    tenantId: string,
+    warehouseId: string,
+    input: CreateUnitInput,
+    ctx: AuditContext = {},
+  ): Promise<Unit> {
     await this.getWarehouse(tenantId, warehouseId);
 
     const existingByGid = await this.repository.findUnitByGid(input.gid, warehouseId, tenantId);
@@ -206,7 +320,11 @@ export class DataWarehouseService {
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createUnit(unit);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'unit.create', resourceType: 'unit' },
+      () => this.repository.createUnit(unit),
+    );
   }
 
   async updateUnit(
@@ -214,6 +332,7 @@ export class DataWarehouseService {
     warehouseId: string,
     unitId: string,
     input: UpdateUnitInput,
+    ctx: AuditContext = {},
   ): Promise<Unit> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findUnitById(unitId, warehouseId, tenantId);
@@ -222,16 +341,36 @@ export class DataWarehouseService {
     }
     const updates: Partial<Unit> = {};
     if (input.name !== undefined) updates.name = input.name;
-    return this.repository.updateUnit(unitId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'unit.update',
+        resourceType: 'unit',
+        resourceId: unitId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateUnit(unitId, warehouseId, tenantId, updates),
+    );
   }
 
-  async deleteUnit(tenantId: string, warehouseId: string, unitId: string): Promise<void> {
+  async deleteUnit(
+    tenantId: string,
+    warehouseId: string,
+    unitId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findUnitById(unitId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Unit not found: ${unitId}`);
     }
-    await this.repository.deleteUnit(unitId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'unit.delete', resourceType: 'unit', resourceId: unitId },
+      () => this.repository.deleteUnit(unitId, warehouseId, tenantId),
+    );
   }
 
   async getUnit(tenantId: string, warehouseId: string, unitId: string): Promise<Unit> {
@@ -260,6 +399,7 @@ export class DataWarehouseService {
     tenantId: string,
     warehouseId: string,
     input: CreateSubgroupInput,
+    ctx: AuditContext = {},
   ): Promise<Subgroup> {
     await this.getWarehouse(tenantId, warehouseId);
 
@@ -279,7 +419,11 @@ export class DataWarehouseService {
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createSubgroup(subgroup);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'subgroup.create', resourceType: 'subgroup' },
+      () => this.repository.createSubgroup(subgroup),
+    );
   }
 
   async updateSubgroup(
@@ -287,6 +431,7 @@ export class DataWarehouseService {
     warehouseId: string,
     subgroupId: string,
     input: UpdateSubgroupInput,
+    ctx: AuditContext = {},
   ): Promise<Subgroup> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findSubgroupById(subgroupId, warehouseId, tenantId);
@@ -296,16 +441,42 @@ export class DataWarehouseService {
     const updates: Partial<Subgroup> = {};
     if (input.name !== undefined) updates.name = input.name;
     if (input.typeName !== undefined) updates.typeName = input.typeName ?? null;
-    return this.repository.updateSubgroup(subgroupId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'subgroup.update',
+        resourceType: 'subgroup',
+        resourceId: subgroupId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateSubgroup(subgroupId, warehouseId, tenantId, updates),
+    );
   }
 
-  async deleteSubgroup(tenantId: string, warehouseId: string, subgroupId: string): Promise<void> {
+  async deleteSubgroup(
+    tenantId: string,
+    warehouseId: string,
+    subgroupId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findSubgroupById(subgroupId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Subgroup not found: ${subgroupId}`);
     }
-    await this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'subgroup.delete',
+        resourceType: 'subgroup',
+        resourceId: subgroupId,
+      },
+      () => this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId),
+    );
   }
 
   async getSubgroup(tenantId: string, warehouseId: string, subgroupId: string): Promise<Subgroup> {
@@ -334,6 +505,7 @@ export class DataWarehouseService {
     tenantId: string,
     warehouseId: string,
     input: CreateTimePeriodInput,
+    ctx: AuditContext = {},
   ): Promise<TimePeriod> {
     await this.getWarehouse(tenantId, warehouseId);
 
@@ -346,19 +518,27 @@ export class DataWarehouseService {
       throw new ConflictError(`Time period '${input.timePeriod}' already exists in this warehouse`);
     }
 
+    const startDate = input.startDate ? parseIsoDate(input.startDate, 'startDate') : null;
+    const endDate = input.endDate ? parseIsoDate(input.endDate, 'endDate') : null;
+    assertPeriodOrder(startDate, endDate);
+
     const now = new Date();
     const timePeriod: TimePeriod = {
       id: uuidv4(),
       warehouseId,
       tenantId,
       timePeriod: input.timePeriod,
-      startDate: input.startDate ? new Date(input.startDate) : null,
-      endDate: input.endDate ? new Date(input.endDate) : null,
+      startDate,
+      endDate,
       periodicity: input.periodicity ?? null,
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createTimePeriod(timePeriod);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'time_period.create', resourceType: 'time_period' },
+      () => this.repository.createTimePeriod(timePeriod),
+    );
   }
 
   async updateTimePeriod(
@@ -366,6 +546,7 @@ export class DataWarehouseService {
     warehouseId: string,
     timePeriodId: string,
     input: UpdateTimePeriodInput,
+    ctx: AuditContext = {},
   ): Promise<TimePeriod> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findTimePeriodById(timePeriodId, warehouseId, tenantId);
@@ -374,24 +555,51 @@ export class DataWarehouseService {
     }
     const updates: Partial<TimePeriod> = {};
     if (input.startDate !== undefined)
-      updates.startDate = input.startDate ? new Date(input.startDate) : null;
+      updates.startDate = input.startDate ? parseIsoDate(input.startDate, 'startDate') : null;
     if (input.endDate !== undefined)
-      updates.endDate = input.endDate ? new Date(input.endDate) : null;
+      updates.endDate = input.endDate ? parseIsoDate(input.endDate, 'endDate') : null;
+    // Validate the resulting period against existing values.
+    assertPeriodOrder(
+      updates.startDate !== undefined ? updates.startDate : existing.startDate,
+      updates.endDate !== undefined ? updates.endDate : existing.endDate,
+    );
     if (input.periodicity !== undefined) updates.periodicity = input.periodicity ?? null;
-    return this.repository.updateTimePeriod(timePeriodId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'time_period.update',
+        resourceType: 'time_period',
+        resourceId: timePeriodId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateTimePeriod(timePeriodId, warehouseId, tenantId, updates),
+    );
   }
 
   async deleteTimePeriod(
     tenantId: string,
     warehouseId: string,
     timePeriodId: string,
+    ctx: AuditContext = {},
   ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findTimePeriodById(timePeriodId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Time period not found: ${timePeriodId}`);
     }
-    await this.repository.deleteTimePeriod(timePeriodId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'time_period.delete',
+        resourceType: 'time_period',
+        resourceId: timePeriodId,
+      },
+      () => this.repository.deleteTimePeriod(timePeriodId, warehouseId, tenantId),
+    );
   }
 
   async getTimePeriod(
@@ -420,7 +628,12 @@ export class DataWarehouseService {
 
   // ─── Area Operations ────────────────────────────────────────────────────────
 
-  async createArea(tenantId: string, warehouseId: string, input: CreateAreaInput): Promise<Area> {
+  async createArea(
+    tenantId: string,
+    warehouseId: string,
+    input: CreateAreaInput,
+    ctx: AuditContext = {},
+  ): Promise<Area> {
     await this.getWarehouse(tenantId, warehouseId);
 
     // Check external area ID uniqueness within warehouse
@@ -433,12 +646,13 @@ export class DataWarehouseService {
       throw new ConflictError(`Area with ID '${input.areaId}' already exists in this warehouse`);
     }
 
-    // Validate parent exists if specified
+    // Validate parent exists if specified, and that the level follows the parent
     if (input.parentId) {
       const parent = await this.repository.findAreaById(input.parentId, warehouseId, tenantId);
       if (!parent) {
         throw new NotFoundError(`Parent area not found: ${input.parentId}`);
       }
+      assertChildLevel(parent, input.level);
     }
 
     const now = new Date();
@@ -454,7 +668,11 @@ export class DataWarehouseService {
       createdAt: now,
       updatedAt: now,
     };
-    return this.repository.createArea(area);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'area.create', resourceType: 'area' },
+      () => this.repository.createArea(area),
+    );
   }
 
   async updateArea(
@@ -462,6 +680,7 @@ export class DataWarehouseService {
     warehouseId: string,
     areaId: string,
     input: UpdateAreaInput,
+    ctx: AuditContext = {},
   ): Promise<Area> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findAreaById(areaId, warehouseId, tenantId);
@@ -469,27 +688,66 @@ export class DataWarehouseService {
       throw new NotFoundError(`Area not found: ${areaId}`);
     }
 
+    const effectiveParentId = input.parentId !== undefined ? input.parentId : existing.parentId;
     if (input.parentId !== undefined && input.parentId !== null) {
+      if (input.parentId === areaId) {
+        throw new ConflictError('An area cannot be its own parent');
+      }
       const parent = await this.repository.findAreaById(input.parentId, warehouseId, tenantId);
       if (!parent) {
         throw new NotFoundError(`Parent area not found: ${input.parentId}`);
       }
+      // Walk the ancestor chain of the new parent; reaching areaId means a cycle.
+      const seen = new Set<string>([parent.id]);
+      let cursor: Area | null = parent;
+      while (cursor?.parentId) {
+        if (cursor.parentId === areaId) {
+          throw new ConflictError('Parent area cannot be a descendant of this area');
+        }
+        if (seen.has(cursor.parentId)) break; // defensive: pre-existing corrupt cycle
+        seen.add(cursor.parentId);
+        cursor = await this.repository.findAreaById(cursor.parentId, warehouseId, tenantId);
+      }
+    }
+    if (effectiveParentId && (input.parentId !== undefined || input.level !== undefined)) {
+      const parent = await this.repository.findAreaById(effectiveParentId, warehouseId, tenantId);
+      if (parent) assertChildLevel(parent, input.level ?? existing.level);
     }
 
     const updates: Partial<Area> = {};
     if (input.name !== undefined) updates.name = input.name;
     if (input.parentId !== undefined) updates.parentId = input.parentId ?? null;
     if (input.level !== undefined) updates.level = input.level;
-    return this.repository.updateArea(areaId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'area.update',
+        resourceType: 'area',
+        resourceId: areaId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.repository.updateArea(areaId, warehouseId, tenantId, updates),
+    );
   }
 
-  async deleteArea(tenantId: string, warehouseId: string, areaId: string): Promise<void> {
+  async deleteArea(
+    tenantId: string,
+    warehouseId: string,
+    areaId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findAreaById(areaId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Area not found: ${areaId}`);
     }
-    await this.repository.deleteArea(areaId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'area.delete', resourceType: 'area', resourceId: areaId },
+      () => this.repository.deleteArea(areaId, warehouseId, tenantId),
+    );
   }
 
   async getArea(tenantId: string, warehouseId: string, areaId: string): Promise<Area> {
@@ -534,16 +792,18 @@ export class DataWarehouseService {
         query: string;
       };
     },
+    ctx: AuditContext = {},
   ): Promise<ImportResult> {
     await this.getWarehouse(tenantId, warehouseId);
 
     let records: DataRecordInput[];
+    let rowErrors: Map<number, ImportRowError> | undefined;
 
     switch (format) {
       case 'csv': {
         if (options.fileContent) {
           const csvContent = Buffer.from(options.fileContent, 'base64').toString('utf-8');
-          records = parseCsvContent(csvContent);
+          ({ records, rowErrors } = parseCsvImport(csvContent));
         } else if (options.records) {
           records = options.records;
         } else {
@@ -559,7 +819,7 @@ export class DataWarehouseService {
       }
       case 'excel_des': {
         if (options.fileContent) {
-          records = parseExcelDesContent(options.fileContent);
+          ({ records, rowErrors } = parseExcelDesImport(options.fileContent));
         } else {
           return {
             totalRows: 0,
@@ -636,7 +896,27 @@ export class DataWarehouseService {
       };
     }
 
-    return importDataRecords({ warehouseId, tenantId, repository: this.repository }, records);
+    return this.audit.wrap(
+      ctx,
+      (result: ImportResult) => ({
+        tenantId,
+        warehouseId,
+        action: 'data.import',
+        resourceType: 'warehouse',
+        resourceId: warehouseId,
+        counts: {
+          totalRows: result.totalRows,
+          successCount: result.successCount,
+          errorCount: result.errorCount,
+          duplicateCount: result.duplicateCount,
+        },
+      }),
+      () =>
+        importDataRecords(
+          { warehouseId, tenantId, repository: this.repository, rowErrors },
+          records,
+        ),
+    );
   }
 
   // ─── Data Query ─────────────────────────────────────────────────────────────

@@ -11,125 +11,181 @@ import type { DataRecord, DataRecordInput, ImportResult, ImportRowError } from '
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 /**
- * Parses CSV content into data record inputs.
- * Expected columns: indicatorGid, unitGid, subgroupGid, areaId, timePeriod, dataValue, source, footnote
+ * Splits delimited text into rows of fields (RFC 4180 style): supports quoted
+ * fields containing delimiters/newlines, doubled-quote escapes, and CRLF/LF endings.
+ * Blank lines are skipped.
  */
-export function parseCsvContent(content: string): DataRecordInput[] {
-  const lines = content.trim().split('\n');
-  if (lines.length < 2) return [];
+export function parseDelimited(content: string, delimiter: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  const text = content.replace(/^\uFEFF/, '');
 
-  const headerLine = lines[0];
-  if (!headerLine) return [];
-  const headers = headerLine.split(',').map((h) => h.trim().toLowerCase());
+  const endRow = () => {
+    row.push(field);
+    field = '';
+    if (!(row.length === 1 && row[0]!.trim() === '')) rows.push(row);
+    row = [];
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === delimiter) {
+      row.push(field);
+      field = '';
+    } else if (ch === '\r' && text[i + 1] === '\n') {
+      endRow();
+      i++;
+    } else if (ch === '\n' || ch === '\r') {
+      endRow();
+    } else {
+      field += ch;
+    }
+  }
+  if (field !== '' || row.length > 0) endRow();
+  return rows;
+}
+
+/** Strict decimal / scientific number (rejects "12abc", "1,000", "0x10"). */
+const STRICT_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+/** Values that start like a number but are not one are treated as data errors. */
+const NUMERIC_LIKE = /^[+-]?\.?\d/;
+
+export interface ParsedImport {
+  records: DataRecordInput[];
+  /** Row-level parse errors keyed by 0-based record index. */
+  rowErrors: Map<number, ImportRowError>;
+}
+
+interface ColumnAliases {
+  indicatorGid: string[];
+  unitGid: string[];
+  subgroupGid: string[];
+  areaId: string[];
+  timePeriod: string[];
+  footnote?: string[];
+}
+
+function parseTabular(rows: string[][], aliases: ColumnAliases): ParsedImport {
   const records: DataRecordInput[] = [];
+  const rowErrors = new Map<number, ImportRowError>();
+  if (rows.length < 2) return { records, rowErrors };
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-    const values = line.split(',').map((v) => v.trim());
+  const headers = rows[0]!.map((h) => h.trim().toLowerCase());
+  const col = (names: string[]) => {
+    for (const n of names) {
+      const idx = headers.indexOf(n);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+  const idx = {
+    indicatorGid: col(aliases.indicatorGid),
+    unitGid: col(aliases.unitGid),
+    subgroupGid: col(aliases.subgroupGid),
+    areaId: col(aliases.areaId),
+    timePeriod: col(aliases.timePeriod),
+    dataValue: col(['datavalue', 'data_value']),
+    source: col(['source']),
+    footnote: aliases.footnote ? col(aliases.footnote) : -1,
+  };
+
+  for (let r = 1; r < rows.length; r++) {
+    const values = rows[r]!.map((v) => v.trim());
+    const get = (i: number) => (i === -1 ? '' : (values[i] ?? ''));
     const record: DataRecordInput = {
-      indicatorGid:
-        values[headers.indexOf('indicatorgid')] || values[headers.indexOf('indicator_gid')] || '',
-      unitGid: values[headers.indexOf('unitgid')] || values[headers.indexOf('unit_gid')] || '',
-      subgroupGid:
-        values[headers.indexOf('subgroupgid')] || values[headers.indexOf('subgroup_gid')] || '',
-      areaId: values[headers.indexOf('areaid')] || values[headers.indexOf('area_id')] || '',
-      timePeriod:
-        values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
+      indicatorGid: get(idx.indicatorGid),
+      unitGid: get(idx.unitGid),
+      subgroupGid: get(idx.subgroupGid),
+      areaId: get(idx.areaId),
+      timePeriod: get(idx.timePeriod),
     };
 
-    const dataValueIdx =
-      headers.indexOf('datavalue') !== -1
-        ? headers.indexOf('datavalue')
-        : headers.indexOf('data_value');
-    if (dataValueIdx !== -1 && values[dataValueIdx]) {
-      const parsed = parseFloat(values[dataValueIdx]);
-      if (!isNaN(parsed)) {
-        record.dataValue = parsed;
+    const rawValue = get(idx.dataValue);
+    if (rawValue) {
+      if (STRICT_NUMBER.test(rawValue)) {
+        record.dataValue = Number(rawValue);
+      } else if (NUMERIC_LIKE.test(rawValue)) {
+        rowErrors.set(records.length, {
+          row: records.length + 1,
+          field: 'dataValue',
+          message: `Invalid numeric data value: ${rawValue}`,
+        });
       } else {
-        record.textualDataValue = values[dataValueIdx];
+        record.textualDataValue = rawValue;
       }
     }
 
-    const sourceIdx = headers.indexOf('source');
-    if (sourceIdx !== -1 && values[sourceIdx]) {
-      record.source = values[sourceIdx];
-    }
-
-    const footnoteIdx = headers.indexOf('footnote');
-    if (footnoteIdx !== -1 && values[footnoteIdx]) {
-      record.footnote = values[footnoteIdx];
-    }
+    const source = get(idx.source);
+    if (source) record.source = source;
+    const footnote = get(idx.footnote);
+    if (footnote) record.footnote = footnote;
 
     records.push(record);
   }
-
-  return records;
+  return { records, rowErrors };
 }
 
 /**
- * Parses Excel DES format content (base64-encoded) into data record inputs.
- * DES format is a simplified representation where the first sheet contains
- * columns: Indicator, Unit, Subgroup, Area, TimePeriod, DataValue, Source.
- *
- * For this implementation, we parse the base64 content as CSV-like tab-separated data.
+ * Parses CSV content with row-level errors.
+ * Expected columns: indicatorGid, unitGid, subgroupGid, areaId, timePeriod, dataValue, source, footnote
+ */
+export function parseCsvImport(content: string): ParsedImport {
+  return parseTabular(parseDelimited(content, ','), {
+    indicatorGid: ['indicatorgid', 'indicator_gid'],
+    unitGid: ['unitgid', 'unit_gid'],
+    subgroupGid: ['subgroupgid', 'subgroup_gid'],
+    areaId: ['areaid', 'area_id'],
+    timePeriod: ['timeperiod', 'time_period'],
+    footnote: ['footnote'],
+  });
+}
+
+/** Parses CSV content into data record inputs (rows with invalid numbers are kept; see parseCsvImport). */
+export function parseCsvContent(content: string): DataRecordInput[] {
+  return parseCsvImport(content).records;
+}
+
+/**
+ * Parses Excel DES format content (base64-encoded, tab-separated text representation)
+ * with row-level errors. Columns: Indicator, Unit, Subgroup, Area, TimePeriod, DataValue, Source.
  * In production, this would use a proper Excel parsing library (e.g., xlsx/exceljs).
  */
-export function parseExcelDesContent(base64Content: string): DataRecordInput[] {
-  // Decode base64 to string (assumes UTF-8 text representation for testing)
+export function parseExcelDesImport(base64Content: string): ParsedImport {
   const content = Buffer.from(base64Content, 'base64').toString('utf-8');
-  // DES format uses tab-separated values
-  const lines = content.trim().split('\n');
-  if (lines.length < 2) return [];
+  return parseTabular(parseDelimited(content, '\t'), {
+    indicatorGid: ['indicator', 'indicatorgid'],
+    unitGid: ['unit', 'unitgid'],
+    subgroupGid: ['subgroup', 'subgroupgid'],
+    areaId: ['area', 'areaid'],
+    timePeriod: ['timeperiod', 'time_period'],
+  });
+}
 
-  const headerLine = lines[0];
-  if (!headerLine) return [];
-  const headers = headerLine.split('\t').map((h) => h.trim().toLowerCase());
-  const records: DataRecordInput[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-    const values = line.split('\t').map((v) => v.trim());
-    const record: DataRecordInput = {
-      indicatorGid:
-        values[headers.indexOf('indicator')] || values[headers.indexOf('indicatorgid')] || '',
-      unitGid: values[headers.indexOf('unit')] || values[headers.indexOf('unitgid')] || '',
-      subgroupGid:
-        values[headers.indexOf('subgroup')] || values[headers.indexOf('subgroupgid')] || '',
-      areaId: values[headers.indexOf('area')] || values[headers.indexOf('areaid')] || '',
-      timePeriod:
-        values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
-    };
-
-    const dataValueIdx =
-      headers.indexOf('datavalue') !== -1
-        ? headers.indexOf('datavalue')
-        : headers.indexOf('data_value');
-    if (dataValueIdx !== -1 && values[dataValueIdx]) {
-      const parsed = parseFloat(values[dataValueIdx]);
-      if (!isNaN(parsed)) {
-        record.dataValue = parsed;
-      } else {
-        record.textualDataValue = values[dataValueIdx];
-      }
-    }
-
-    const sourceIdx = headers.indexOf('source');
-    if (sourceIdx !== -1 && values[sourceIdx]) {
-      record.source = values[sourceIdx];
-    }
-
-    records.push(record);
-  }
-
-  return records;
+export function parseExcelDesContent(base64Content: string): DataRecordInput[] {
+  return parseExcelDesImport(base64Content).records;
 }
 
 export interface ImportContext {
   warehouseId: string;
   tenantId: string;
   repository: WarehouseRepository;
+  /** Parse-time row errors keyed by 0-based record index; those rows are not imported. */
+  rowErrors?: Map<number, ImportRowError>;
 }
 
 /**
@@ -141,7 +197,7 @@ export async function importDataRecords(
   context: ImportContext,
   records: DataRecordInput[],
 ): Promise<ImportResult> {
-  const { warehouseId, tenantId, repository } = context;
+  const { warehouseId, tenantId, repository, rowErrors: parseErrors } = context;
   const result: ImportResult = {
     totalRows: records.length,
     successCount: 0,
@@ -156,6 +212,13 @@ export async function importDataRecords(
     const record = records[i]!;
     const rowNum = i + 1;
     const rowErrors: ImportRowError[] = [];
+
+    const parseError = parseErrors?.get(i);
+    if (parseError) {
+      result.errors.push({ ...parseError, row: rowNum });
+      result.errorCount++;
+      continue;
+    }
 
     // Validate required fields
     if (!record.indicatorGid) {

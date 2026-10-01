@@ -3,8 +3,11 @@
  *
  * In-memory implementation of GISRepository for testing and development.
  */
-import type { GISLayer } from './gis-schemas.js';
+import { NotFoundError } from '@proctira/common';
+
+import { collectAllPages } from './collect-all.js';
 import type { GISRepository, GISLayerListOptions, GISListResult } from './gis-repository.js';
+import type { GISLayer } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export class InMemoryGISRepository implements GISRepository {
@@ -25,7 +28,7 @@ export class InMemoryGISRepository implements GISRepository {
   ): Promise<GISLayer> {
     const existing = this.layers.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`GIS layer not found: ${id}`);
+      throw new NotFoundError(`GIS layer not found: ${id}`);
     }
     const updated: GISLayer = { ...existing, ...updates, updatedAt: new Date() };
     this.layers.set(id, updated);
@@ -35,7 +38,7 @@ export class InMemoryGISRepository implements GISRepository {
   async deleteLayer(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.layers.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`GIS layer not found: ${id}`);
+      throw new NotFoundError(`GIS layer not found: ${id}`);
     }
     this.layers.delete(id);
   }
@@ -106,10 +109,12 @@ export class InMemoryGISRepository implements GISRepository {
     if (!this.warehouseRepository) return result;
 
     // Get all areas and build a tree
-    const allAreas = await this.warehouseRepository.listAreas(warehouseId, tenantId, {}, 1, 10000);
+    const warehouseRepository = this.warehouseRepository;
+    const allAreas = await collectAllPages((page, pageSize) =>
+      warehouseRepository.listAreas(warehouseId, tenantId, {}, page, pageSize),
+    );
     const childMap = new Map<string, string[]>();
-
-    for (const area of allAreas.data) {
+    for (const area of allAreas) {
       if (area.parentId) {
         const children = childMap.get(area.parentId) || [];
         children.push(area.id);
@@ -119,10 +124,14 @@ export class InMemoryGISRepository implements GISRepository {
 
     // BFS to find all descendants
     const queue = [parentAreaId];
+    const visited = new Set<string>([parentAreaId]);
     while (queue.length > 0) {
       const current = queue.shift()!;
       const children = childMap.get(current) || [];
       for (const child of children) {
+        // Visited guard: a corrupt cycle/self-parent must not loop forever.
+        if (visited.has(child)) continue;
+        visited.add(child);
         result.add(child);
         queue.push(child);
       }

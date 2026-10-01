@@ -1016,3 +1016,35 @@ unit,${unitId},es,name,Porcentaje`;
     });
   });
 });
+
+describe('GIS typed errors (PRC-L551)', () => {
+  it('oversized layer and unsupported type map to 4xx AppErrors', async () => {
+    const { DataWarehouseService } = await import('./data-warehouse-service.js');
+    const { InMemoryWarehouseRepository } = await import('./in-memory-repository.js');
+    const { InMemoryGISRepository } = await import('./in-memory-gis-repository.js');
+    const { GISService } = await import('./gis-service.js');
+    const repo = new InMemoryWarehouseRepository();
+    const dw = new DataWarehouseService(repo, { maxImportBatchSize: 10 });
+    const wh = await dw.createWarehouse('t', { name: 'DW' });
+    const area = await dw.createArea('t', wh.id, { name: 'A', areaId: 'A', gid: 'A', level: 0 });
+    const gis = new GISService(new InMemoryGISRepository(repo), repo, {
+      maxLayerFileSize: 10,
+      supportedCRS: ['EPSG:4326'],
+    });
+    await expect(
+      gis.createLayer('t', wh.id, {
+        areaId: area.id,
+        name: 'big',
+        layerType: 'geojson',
+        data: 'x'.repeat(11),
+      }),
+    ).rejects.toMatchObject({ statusCode: 413 });
+    await expect(
+      gis.createLayer('t', wh.id, {
+        areaId: area.id,
+        name: 'bad',
+        layerType: 'kml' as unknown as 'geojson',
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
