@@ -34,16 +34,16 @@ class AppLocalizations {
 
   static final Map<String, Map<String, String>> _localizedValues =
       <String, Map<String, String>>{
-    'en': _en,
-    'hi': _hi,
-    'ta': _ta,
-    'te': _te,
-    'mr': _mr,
-    'bn': _bn,
-    'gu': _gu,
-    'kn': _kn,
-    'ar': _ar,
-  };
+        'en': _en,
+        'hi': _hi,
+        'ta': _ta,
+        'te': _te,
+        'mr': _mr,
+        'bn': _bn,
+        'gu': _gu,
+        'kn': _kn,
+        'ar': _ar,
+      };
 
   String get appTitle => _t('appTitle');
   String get home => _t('home');
@@ -86,6 +86,33 @@ class AppLocalizations {
   String get pending => _t('pending');
   String get approved => _t('approved');
   String get rejected => _t('rejected');
+
+  // Offline sync status (PRC-H011 / PRC-H016). {count} is substituted.
+  String syncPendingCount(int count) =>
+      _t('syncPendingCount').replaceAll('{count}', '$count');
+  String syncFailedCount(int count) =>
+      _t('syncFailedCount').replaceAll('{count}', '$count');
+  String syncConflictCount(int count) =>
+      _t('syncConflictCount').replaceAll('{count}', '$count');
+  String get syncFailedHelp => _t('syncFailedHelp');
+  String get syncConflictHelp => _t('syncConflictHelp');
+  String get retrySync => _t('retrySync');
+  String get reviewConflicts => _t('reviewConflicts');
+  String get syncStatusSynced => _t('syncStatusSynced');
+  String get syncStatusSavedOnDevice => _t('syncStatusSavedOnDevice');
+  String get syncStatusFailed => _t('syncStatusFailed');
+  String get syncStatusConflict => _t('syncStatusConflict');
+  String get notMarked => _t('notMarked');
+
+  // Student document capture (PRC-H016).
+  String get documentType => _t('documentType');
+  String documentCategory(String category) => _t('documentCategory_$category');
+  String get documentSaveAndUpload => _t('documentSaveAndUpload');
+  String get documentSaving => _t('documentSaving');
+  String get documentUploadHelp => _t('documentUploadHelp');
+  String get documentSavedSnack => _t('documentSavedSnack');
+  String get documentStudentMissing => _t('documentStudentMissing');
+  String get documentSaveFailed => _t('documentSaveFailed');
 
   String _t(String key) {
     final Map<String, String>? values = _localizedValues[locale.languageCode];
@@ -135,6 +162,40 @@ class AppLocalizations {
     'pending': 'Pending',
     'approved': 'Approved',
     'rejected': 'Rejected',
+    'syncPendingCount': '{count} change(s) waiting to sync',
+    'syncFailedCount': '{count} change(s) not sent to the server',
+    'syncConflictCount': '{count} change(s) conflict with the server',
+    'syncFailedHelp':
+        'These changes are saved on this device only. Retry to send them.',
+    'syncConflictHelp':
+        'Someone else changed these records. Choose which version to keep.',
+    'retrySync': 'Retry sync',
+    'reviewConflicts': 'Review conflicts',
+    'syncStatusSynced': 'Synced',
+    'syncStatusSavedOnDevice': 'Saved on device, waiting to sync',
+    'syncStatusFailed': 'Not sent: sync failed',
+    'syncStatusConflict': 'Conflict with server',
+    'notMarked': 'Not marked',
+    'documentType': 'Document type',
+    'documentCategory_birth_certificate': 'Birth certificate',
+    'documentCategory_transfer_certificate': 'Transfer certificate',
+    'documentCategory_passport': 'Passport',
+    'documentCategory_national_id': 'National ID',
+    'documentCategory_medical': 'Medical record',
+    'documentCategory_address_proof': 'Address proof',
+    'documentCategory_previous_marksheet': 'Previous marksheet',
+    'documentCategory_other': 'Other',
+    'documentSaveAndUpload': 'Save and upload',
+    'documentSaving': 'Saving…',
+    'documentUploadHelp':
+        'The scan is saved on this device and uploads to the student record '
+        'when you are online. If an upload fails it is listed under sync '
+        'status with a Retry option.',
+    'documentSavedSnack':
+        'Document saved on this device. It will upload when you are online.',
+    'documentStudentMissing':
+        'This student is not available offline, so the document was not saved.',
+    'documentSaveFailed': 'Could not save the document',
   };
 
   // --- Hindi ---
@@ -504,8 +565,9 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) {
-    return AppLocalizations.supportedLocales
-        .any((Locale l) => l.languageCode == locale.languageCode);
+    return AppLocalizations.supportedLocales.any(
+      (Locale l) => l.languageCode == locale.languageCode,
+    );
   }
 
   @override

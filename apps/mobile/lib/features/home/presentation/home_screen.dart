@@ -6,6 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/sync/conflict_resolver.dart';
+import '../../../core/sync/sync_engine.dart';
+import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/student/selected_student_store.dart';
 import '../../../core/student/student_route.dart';
 import '../../../core/tenant/tenant_provider.dart';
@@ -33,148 +37,158 @@ class HomeScreen extends StatelessWidget {
             ? (selected.displayName ?? 'Selected student')
             : 'Choose a student';
         return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Text('Namaskar 👋'),
-            if (tenant.displayName != null)
-              Text(
-                tenant.displayName!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text('Namaskar 👋'),
+                if (tenant.displayName != null)
+                  Text(
+                    tenant.displayName!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+            actions: <Widget>[
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () => context.push('/notifications'),
+              ),
+              IconButton(
+                tooltip: 'Sign out',
+                icon: const Icon(Icons.logout),
+                onPressed: () =>
+                    context.read<AuthBloc>().add(const AuthLogoutRequested()),
+              ),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: <Widget>[
+              // Offline queue status: waiting / failed / conflicted (PRC-H011).
+              if (getIt.isRegistered<SyncEngine>())
+                SyncStatusBanner(
+                  controller: EngineSyncStatusController(
+                    engine: getIt<SyncEngine>(),
+                    resolver: ConflictResolver(database: getIt<AppDatabase>()),
+                  ),
+                ),
+              Text('Quick actions', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  _QuickAction(
+                    icon: Icons.fact_check_outlined,
+                    label: 'Attendance',
+                    onTap: () => context.push('/attendance'),
+                  ),
+                  const SizedBox(width: 12),
+                  _QuickAction(
+                    icon: Icons.assignment_outlined,
+                    label: 'Results',
+                    onTap: () => context.push(
+                      withStudentQuery('/assessments', studentId),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _QuickAction(
+                    icon: Icons.family_restroom,
+                    label: 'Parent',
+                    onTap: () => context.push('/parent'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              Text('Services', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  minVerticalPadding: 16,
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(studentLabel),
+                  subtitle: const Text(
+                    'Assessments, examinations, health, and scholarships use this student.',
+                  ),
+                  trailing: const Icon(Icons.unfold_more),
+                  onTap: () {
+                    unawaited(showStudentPicker(context));
+                  },
                 ),
               ),
-          ],
-        ),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Notifications',
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
-          ),
-          IconButton(
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout),
-            onPressed: () =>
-                context.read<AuthBloc>().add(const AuthLogoutRequested()),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: <Widget>[
-          Text('Quick actions', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              _QuickAction(
-                icon: Icons.fact_check_outlined,
-                label: 'Attendance',
-                onTap: () => context.push('/attendance'),
-              ),
-              const SizedBox(width: 12),
-              _QuickAction(
-                icon: Icons.assignment_outlined,
-                label: 'Results',
-                onTap: () => context.push(withStudentQuery('/assessments', studentId)),
-              ),
-              const SizedBox(width: 12),
-              _QuickAction(
-                icon: Icons.family_restroom,
-                label: 'Parent',
-                onTap: () => context.push('/parent'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          Text('Services', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              minVerticalPadding: 16,
-              leading: const Icon(Icons.person_outline),
-              title: Text(studentLabel),
-              subtitle: const Text(
-                'Assessments, examinations, health, and scholarships use this student.',
-              ),
-              trailing: const Icon(Icons.unfold_more),
-              onTap: () {
-                unawaited(showStudentPicker(context));
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.55,
-            children: <Widget>[
-              _ServiceTile(
-                icon: Icons.assignment_outlined,
-                color: const Color(0xFF4F46E5),
-                title: 'Assessments',
-                subtitle: 'Published assessment results',
-                route: withStudentQuery('/assessments', studentId),
-              ),
-              _ServiceTile(
-                icon: Icons.description_outlined,
-                color: const Color(0xFF8B5CF6),
-                title: 'Examinations',
-                subtitle: 'Schedules, halls & results',
-                route: withStudentQuery('/examinations', studentId),
-              ),
-              _ServiceTile(
-                icon: Icons.emoji_events_outlined,
-                color: const Color(0xFFF59E0B),
-                title: 'Scholarships',
-                subtitle: 'Apply & track for students',
-                route: withStudentQuery('/scholarships', studentId),
-              ),
-              _ServiceTile(
-                icon: Icons.favorite_outline,
-                color: const Color(0xFFEF4444),
-                title: 'Health records',
-                subtitle: 'Screenings & immunization',
-                route: withStudentQuery('/health', studentId),
-              ),
-              _ServiceTile(
-                icon: Icons.people_outline,
-                color: const Color(0xFF0EA5E9),
-                title: 'Students',
-                subtitle: 'Profiles & enrollment',
-                route: '/students',
-              ),
-              _ServiceTile(
-                icon: Icons.account_balance_outlined,
-                color: const Color(0xFF14B8A6),
-                title: 'Institutions',
-                subtitle: 'School profile & cluster info',
-                route: '/institutions',
-              ),
-              _ServiceTile(
-                icon: Icons.bar_chart_outlined,
-                color: const Color(0xFF10B981),
-                title: 'Reports',
-                subtitle: 'Attendance & exam PDFs',
-                route: '/reports',
-              ),
-              _ServiceTile(
-                icon: Icons.notifications_outlined,
-                color: const Color(0xFF64748B),
-                title: 'Notifications',
-                subtitle: 'Alerts & announcements',
-                route: '/notifications',
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.55,
+                children: <Widget>[
+                  _ServiceTile(
+                    icon: Icons.assignment_outlined,
+                    color: const Color(0xFF4F46E5),
+                    title: 'Assessments',
+                    subtitle: 'Published assessment results',
+                    route: withStudentQuery('/assessments', studentId),
+                  ),
+                  _ServiceTile(
+                    icon: Icons.description_outlined,
+                    color: const Color(0xFF8B5CF6),
+                    title: 'Examinations',
+                    subtitle: 'Schedules, halls & results',
+                    route: withStudentQuery('/examinations', studentId),
+                  ),
+                  _ServiceTile(
+                    icon: Icons.emoji_events_outlined,
+                    color: const Color(0xFFF59E0B),
+                    title: 'Scholarships',
+                    subtitle: 'Apply & track for students',
+                    route: withStudentQuery('/scholarships', studentId),
+                  ),
+                  _ServiceTile(
+                    icon: Icons.favorite_outline,
+                    color: const Color(0xFFEF4444),
+                    title: 'Health records',
+                    subtitle: 'Screenings & immunization',
+                    route: withStudentQuery('/health', studentId),
+                  ),
+                  _ServiceTile(
+                    icon: Icons.people_outline,
+                    color: const Color(0xFF0EA5E9),
+                    title: 'Students',
+                    subtitle: 'Profiles & enrollment',
+                    route: '/students',
+                  ),
+                  _ServiceTile(
+                    icon: Icons.account_balance_outlined,
+                    color: const Color(0xFF14B8A6),
+                    title: 'Institutions',
+                    subtitle: 'School profile & cluster info',
+                    route: '/institutions',
+                  ),
+                  _ServiceTile(
+                    icon: Icons.bar_chart_outlined,
+                    color: const Color(0xFF10B981),
+                    title: 'Reports',
+                    subtitle: 'Attendance & exam PDFs',
+                    route: '/reports',
+                  ),
+                  _ServiceTile(
+                    icon: Icons.notifications_outlined,
+                    color: const Color(0xFF64748B),
+                    title: 'Notifications',
+                    subtitle: 'Alerts & announcements',
+                    route: '/notifications',
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
         );
       },
     );
