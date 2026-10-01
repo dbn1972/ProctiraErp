@@ -175,6 +175,12 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
   const [state, setState] = useState<AdminActionState | null>(null);
   const [selected, setSelected] = useState<string[]>(user.roleIds);
   const [isPending, startTransition] = useTransition();
+  // Discard unsaved toggles whenever the dialog opens or closes (PRC-L257).
+  const changeOpen = (next: boolean) => {
+    setSelected(user.roleIds);
+    if (next) setState(null);
+    setOpen(next);
+  };
 
   const saveRoles = () => {
     startTransition(async () => {
@@ -207,7 +213,7 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={() => changeOpen(true)}
         aria-label={`Edit roles for ${user.email}`}
         data-testid={`edit-user-${user.email}`}
       >
@@ -240,7 +246,7 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
           {state.message}
         </span>
       ) : null}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent data-hydrated="true">
           <DialogHeader>
             <DialogTitle>Roles for {user.displayName}</DialogTitle>
@@ -249,7 +255,7 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
           <Feedback state={state} />
           <RoleChecklist roles={roles} selected={selected} onChange={setSelected} />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => changeOpen(false)}>
               Cancel
             </Button>
             <Button type="button" onClick={saveRoles} disabled={isPending}>
@@ -288,6 +294,12 @@ export function RoleEditorDialog({
     () => new Set((role?.permissions ?? []).map(permKey)),
   );
   const [isPending, startTransition] = useTransition();
+  // Discard unsaved permission toggles whenever the dialog opens or closes (PRC-L257).
+  const changeOpen = (next: boolean) => {
+    setGranted(new Set((role?.permissions ?? []).map(permKey)));
+    if (next) setState(null);
+    setOpen(next);
+  };
 
   const byResource = useMemo(() => {
     const map = new Map<string, PermissionRef[]>();
@@ -345,7 +357,7 @@ export function RoleEditorDialog({
       <Button
         size="sm"
         variant={triggerVariant}
-        onClick={() => setOpen(true)}
+        onClick={() => changeOpen(true)}
         disabled={role?.builtIn}
         title={role?.builtIn ? 'Built-in roles cannot be edited' : undefined}
         data-testid={
@@ -364,7 +376,7 @@ export function RoleEditorDialog({
         )}
         {label}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl" data-hydrated="true">
           <form action={onSubmit} className="space-y-4">
             <DialogHeader>
@@ -440,7 +452,7 @@ export function RoleEditorDialog({
               )}
             </fieldset>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => changeOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isPending || granted.size === 0}>
