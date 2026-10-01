@@ -19,6 +19,7 @@ import {
   markTeacherAbsent,
 } from '@/lib/api/timetable';
 import type { MeetingClash } from '@/lib/timetable/meeting-conflict-label';
+import { bellScheduleInputSchema } from '@/lib/validation/action-input-schema';
 
 export type TimetableActionResult =
   | { ok: true; id: string }
@@ -52,8 +53,12 @@ export async function createBellScheduleAction(input: {
   name: string;
   dayPattern?: string;
 }): Promise<TimetableActionResult> {
+  const parsed = bellScheduleInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid bell schedule' };
+  }
   try {
-    const row = await createBellSchedule(input);
+    const row = await createBellSchedule(parsed.data);
     revalidatePath(`/academic-periods/${input.academicPeriodId}/bell-schedules`);
     return { ok: true, id: row.id };
   } catch (error) {

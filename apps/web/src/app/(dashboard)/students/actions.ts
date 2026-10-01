@@ -3,9 +3,10 @@
 /**
  * Server Actions for student management pages.
  *
- * All writes go through the API gateway (X-Tenant-ID enforced).
- * Validation is performed both client-side (react-hook-form + zod) and here
- * via the same zod schema, so direct calls are safe.
+ * All writes go through the API gateway, which is the authoritative validator
+ * (schema, RBAC and tenant taken from the verified JWT). Every action also
+ * validates its input here with zod (form schemas, uuid ids, enums, size caps)
+ * as defence-in-depth, so malformed direct calls fail before any upstream call.
  */
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -43,6 +44,7 @@ import {
   type UpdateStudentInput,
 } from '@/lib/api/students';
 import { GatewayError } from '@/lib/api/gateway';
+import { bulkImportInputSchema } from '@/lib/validation/action-input-schema';
 import { getTenantSettings } from '@/lib/api/admin.server';
 import { isoDateInTimeZone } from '@/lib/tenant-date';
 import {
@@ -126,6 +128,9 @@ export async function updateStudentAction(
 /* ------------------------------------------------------------------- Delete */
 
 export async function deleteStudentAction(studentId: string): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student.' };
+  }
   try {
     await deleteStudent(studentId);
     revalidatePath('/students');
@@ -187,16 +192,20 @@ export interface BulkImportActionInput {
 export async function submitBulkImportAction(
   input: BulkImportActionInput,
 ): Promise<ActionState<ImportResult | ImportProgress>> {
-  if (!input.fileBase64 || !input.fileName) {
-    return { status: 'error', message: 'A file is required to start the import.' };
+  const parsed = bulkImportInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'A file is required to start the import.',
+    };
   }
   try {
     const request: BulkImportRequest = {
-      fileBase64: input.fileBase64,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      duplicateResolution: input.duplicateResolution,
-      async: input.async ?? false,
+      fileBase64: parsed.data.fileBase64,
+      fileName: parsed.data.fileName,
+      mimeType: parsed.data.mimeType,
+      duplicateResolution: parsed.data.duplicateResolution,
+      async: parsed.data.async ?? false,
     };
     const result = await submitBulkImport(request);
     revalidatePath('/students');
