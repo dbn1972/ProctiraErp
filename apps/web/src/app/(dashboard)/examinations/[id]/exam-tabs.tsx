@@ -30,7 +30,6 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
 
   return (
     <nav
-      role="tablist"
       aria-label="Examination sections"
       className="-mb-px flex flex-wrap gap-0 border-b border-border"
     >
@@ -41,8 +40,6 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
           <Link
             key={tab.key}
             href={tab.href}
-            role="tab"
-            aria-selected={isActive}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
