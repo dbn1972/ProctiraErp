@@ -22,7 +22,7 @@
  * - 12.5: Screening programs
  */
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
-import { AppError } from '@proctira/common';
+import { AppError, ForbiddenError } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -90,6 +90,43 @@ function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
     true;
 }
 
+/**
+ * PRC-L115: actor for PHI write audit rows. `||` (not `??`) so an empty-string
+ * `userId` from the default access context does not count as an identity.
+ */
+export function resolvePhiAuditActor(request: FastifyRequest): {
+  userId: string;
+  userName: string;
+} {
+  const access = getAccessContext(request);
+  const user = (
+    request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
+  ).user;
+  const userId = user?.sub?.trim() || access.userId?.trim() || '';
+  if (!userId) {
+    throw new ForbiddenError('Access denied: authenticated user required for health writes');
+  }
+  return { userId, userName: user?.displayName?.trim() || user?.email?.trim() || userId };
+}
+
+/**
+ * PRC-L115: audit payload. UPDATE rows list the changed field *names* (never values —
+ * they are child PHI) so reviewers can see what a write touched.
+ */
+export function phiAuditAfterValues(
+  request: FastifyRequest,
+  opts: { path: string; idField: string },
+  operation: 'CREATE' | 'UPDATE' | 'DELETE',
+  entityId: string,
+): Record<string, unknown> {
+  const afterValues: Record<string, unknown> = { path: opts.path, [opts.idField]: entityId };
+  const body = request.body;
+  if (operation === 'UPDATE' && body && typeof body === 'object' && !Array.isArray(body)) {
+    afterValues.changedFields = Object.keys(body).sort();
+  }
+  return afterValues;
+}
+
 function buildPhiWriteAuditBinder(
   request: FastifyRequest,
   tenantId: string,
@@ -105,11 +142,10 @@ function buildPhiWriteAuditBinder(
     operation?: 'CREATE' | 'UPDATE' | 'DELETE';
   },
 ) {
+  // PRC-L115: a regulated PHI write must have a real actor; never audit as 'anonymous'.
+  const actor = resolvePhiAuditActor(request);
   if (!isPgPhiEnabled()) return undefined;
-  const access = getAccessContext(request);
-  const user = (
-    request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
-  ).user;
+  const operation = opts.operation ?? 'CREATE';
   return {
     appendAuditInTxn: async (client: PgQueryable, entity: { id: string }) => {
       await appendAuditEntryOnClient(
@@ -118,15 +154,12 @@ function buildPhiWriteAuditBinder(
           tenantId,
           entityType: 'health_record',
           entityId: entity.id,
-          operation: opts.operation ?? 'CREATE',
-          userId: user?.sub ?? access.userId ?? 'anonymous',
-          userName: user?.displayName ?? user?.email ?? user?.sub ?? access.userId ?? 'anonymous',
+          operation,
+          userId: actor.userId,
+          userName: actor.userName,
           ipAddress: request.ip,
           beforeValues: null,
-          afterValues: {
-            path: opts.path,
-            [opts.idField]: entity.id,
-          },
+          afterValues: phiAuditAfterValues(request, opts, operation, entity.id),
           metadata: {
             method: request.method,
             path: request.url.split('?')[0] ?? request.url,
