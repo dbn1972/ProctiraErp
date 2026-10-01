@@ -68,6 +68,18 @@ export const HeatmapQuerySchema = Type.Object(
 );
 export type HeatmapQueryDto = Static<typeof HeatmapQuerySchema>;
 
+/** PRC-L368: bounded list paging for documents / discipline (max 100 per page). */
+export const LIST_PAGE_DEFAULT_LIMIT = 50;
+export const LIST_PAGE_MAX_LIMIT = 100;
+export const ListPageQuerySchema = Type.Object(
+  {
+    limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,3}$' })),
+    offset: Type.Optional(Type.String({ pattern: '^[0-9]{1,7}$' })),
+  },
+  { additionalProperties: true },
+);
+export type ListPageQueryDto = Static<typeof ListPageQuerySchema>;
+
 /** W2-SIS-03 — general student document / blob registry (not profile photos). */
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 export const DOCUMENT_CATEGORIES = [

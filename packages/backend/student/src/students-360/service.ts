@@ -30,6 +30,8 @@ import type {
   ConsentRecord,
   DisciplineRecord,
   DocumentRecord,
+  ListPage,
+  ListPageResult,
   PhotoRecord,
   SiblingRecord,
   Students360Store,
@@ -346,9 +348,13 @@ export class Students360Service {
     });
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DisciplineRecord>> {
     await this.requireStudent(tenantId, studentId);
-    return this.deps.store.listDiscipline(tenantId, studentId);
+    return this.deps.store.listDiscipline(tenantId, studentId, page);
   }
 
   async addDiscipline(
@@ -430,9 +436,13 @@ export class Students360Service {
     });
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DocumentRecord>> {
     await this.requireStudent(tenantId, studentId);
-    return this.deps.store.listDocuments(tenantId, studentId);
+    return this.deps.store.listDocuments(tenantId, studentId, page);
   }
 
   async getDocumentMeta(

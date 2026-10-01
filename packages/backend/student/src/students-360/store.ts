@@ -26,6 +26,21 @@ export interface SiblingRecord {
   createdAt: Date;
 }
 
+/** PRC-L368: bounded page request / result for per-student lists. */
+export interface ListPage {
+  limit: number;
+  offset: number;
+}
+export interface ListPageResult<T> {
+  data: T[];
+  total: number;
+}
+const DEFAULT_LIST_PAGE: ListPage = { limit: 50, offset: 0 };
+
+function pageOf<T>(rows: T[], page: ListPage): ListPageResult<T> {
+  return { data: rows.slice(page.offset, page.offset + page.limit), total: rows.length };
+}
+
 export interface ConsentRecord {
   id: string;
   tenantId: string;
@@ -93,7 +108,11 @@ export interface Students360Store {
   /** @deprecated Use appendConsent — kept name alias for call-site clarity. */
   upsertConsent(record: ConsentRecord): Promise<ConsentRecord>;
 
-  listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]>;
+  listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DisciplineRecord>>;
   createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord>;
   findDiscipline(
     tenantId: string,
@@ -103,7 +122,11 @@ export interface Students360Store {
   deleteDiscipline(tenantId: string, studentId: string, incidentId: string): Promise<boolean>;
 
   createDocument(record: DocumentRecord): Promise<DocumentRecord>;
-  listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]>;
+  listDocuments(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DocumentRecord>>;
   findDocument(
     tenantId: string,
     studentId: string,
@@ -231,14 +254,19 @@ export class InMemoryStudents360Store implements Students360Store {
     return this.appendConsent(record);
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
-    return Array.from(this.discipline.values())
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DisciplineRecord>> {
+    const rows = Array.from(this.discipline.values())
       .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
       .sort(
         (a, b) =>
           b.incidentDate.localeCompare(a.incidentDate) ||
           b.createdAt.getTime() - a.createdAt.getTime(),
       );
+    return pageOf(rows, page);
   }
 
   async createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord> {
@@ -272,11 +300,16 @@ export class InMemoryStudents360Store implements Students360Store {
     return { ...copy };
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
-    return Array.from(this.documents.values())
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DocumentRecord>> {
+    const rows = Array.from(this.documents.values())
       .filter((row) => row.tenantId === tenantId && row.studentId === studentId)
       .map((row) => ({ ...row }))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return pageOf(rows, page);
   }
 
   async findDocument(
@@ -443,6 +476,27 @@ export class PgStudents360Store implements Students360Store {
 
   private run<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool as never, tenantId, fn);
+  }
+
+  /**
+   * PRC-L368: total from the window count; when the page is past the end (no
+   * rows) fall back to an explicit COUNT so `total` stays accurate.
+   */
+  private async totalOf(
+    client: PgQueryable,
+    rows: unknown[],
+    page: ListPage,
+    table: 'student_documents' | 'student_discipline_incidents',
+    params: [string, string],
+  ): Promise<number> {
+    const first = rows[0] as { total_count?: unknown } | undefined;
+    if (first?.total_count != null) return Number(first.total_count);
+    if (page.offset === 0) return 0;
+    const { rows: c } = await client.query(
+      `SELECT COUNT(*)::int AS n FROM ${table} WHERE tenant_id = $1 AND student_id = $2`,
+      params,
+    );
+    return Number((c[0] as { n?: unknown } | undefined)?.n ?? 0);
   }
 
   /** PRC-L162: run, mapping a unique violation (lost race) to 409 instead of 500. */
@@ -650,15 +704,26 @@ export class PgStudents360Store implements Students360Store {
     return this.appendConsent(record);
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DisciplineRecord>> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM student_discipline_incidents
+        `SELECT *, COUNT(*) OVER() AS total_count FROM student_discipline_incidents
           WHERE tenant_id = $1 AND student_id = $2
-          ORDER BY incident_date DESC, created_at DESC`,
-        [tenantId, studentId],
+          ORDER BY incident_date DESC, created_at DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, studentId, page.limit, page.offset],
       );
-      return (rows as DisciplineRow[]).map(toDiscipline);
+      return {
+        data: (rows as DisciplineRow[]).map(toDiscipline),
+        total: await this.totalOf(client, rows, page, 'student_discipline_incidents', [
+          tenantId,
+          studentId,
+        ]),
+      };
     });
   }
 
@@ -743,15 +808,23 @@ export class PgStudents360Store implements Students360Store {
     });
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DocumentRecord>> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM student_documents
+        `SELECT *, COUNT(*) OVER() AS total_count FROM student_documents
           WHERE tenant_id = $1 AND student_id = $2
-          ORDER BY created_at DESC`,
-        [tenantId, studentId],
+          ORDER BY created_at DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, studentId, page.limit, page.offset],
       );
-      return (rows as DocumentRow[]).map(toDocument);
+      return {
+        data: (rows as DocumentRow[]).map(toDocument),
+        total: await this.totalOf(client, rows, page, 'student_documents', [tenantId, studentId]),
+      };
     });
   }
 

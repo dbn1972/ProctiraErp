@@ -29,6 +29,9 @@ import {
   CreateSiblingSchema,
   DocumentParamsSchema,
   HeatmapQuerySchema,
+  LIST_PAGE_DEFAULT_LIMIT,
+  LIST_PAGE_MAX_LIMIT,
+  ListPageQuerySchema,
   SetConsentSchema,
   UploadDocumentSchema,
   UploadPhotoSchema,
@@ -81,6 +84,24 @@ export function attachmentDisposition(fileName: string): string {
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
   );
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** PRC-L368: parse ?limit&offset (limit clamped to 1..100). Returns null when invalid. */
+function parseListPage(query: unknown): { limit: number; offset: number } | null {
+  const q = validate(ListPageQuerySchema, query ?? {});
+  if (!q.success) return null;
+  const limit = q.data.limit === undefined ? LIST_PAGE_DEFAULT_LIMIT : Number(q.data.limit);
+  const offset = q.data.offset === undefined ? 0 : Number(q.data.offset);
+  if (limit < 1 || limit > LIST_PAGE_MAX_LIMIT) return null;
+  return { limit, offset };
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${LIST_PAGE_MAX_LIMIT} and offset a non-negative integer`,
+    statusCode: 400,
+  });
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -415,9 +436,16 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const rows = await service.listDiscipline(tenantId, params.data.id);
-        return reply.status(200).send({ data: rows.map(formatDiscipline) });
+        const result = await service.listDiscipline(tenantId, params.data.id, page);
+        return reply.status(200).send({
+          data: result.data.map(formatDiscipline),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
@@ -586,9 +614,17 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const docs = await service.listDocuments(tenantId, params.data.id);
-        return reply.status(200).send(docs.map(formatDocument));
+        const result = await service.listDocuments(tenantId, params.data.id, page);
+        // PRC-L368: consistent { data, total, limit, offset } envelope (was a bare array).
+        return reply.status(200).send({
+          data: result.data.map(formatDocument),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
