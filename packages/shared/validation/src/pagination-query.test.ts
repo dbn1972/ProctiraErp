@@ -54,3 +54,29 @@ describe('resolvePaginationQuery', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('PaginationSchema integer bounds (PRC-L359)', () => {
+  it.each(['1.5', '0', '-1', 'abc', 'Infinity'])(
+    'rejects page=%s with a page field error',
+    (page) => {
+      const result = validatePaginationQuery({ page });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errors.some((e) => e.field === 'page')).toBe(true);
+      }
+    },
+  );
+
+  it('rejects fractional pageSize', () => {
+    const result = validatePaginationQuery({ pageSize: '10.5' });
+    expect(result.success).toBe(false);
+  });
+
+  it('still accepts integer strings', () => {
+    const result = validatePaginationQuery({ page: '2', pageSize: '25' });
+    expect(result.success).toBe(true);
+    if (result.success && !('skipped' in result)) {
+      expect(result.data).toEqual({ page: 2, pageSize: 25 });
+    }
+  });
+});
