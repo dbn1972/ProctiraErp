@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
+import { brandingPermissionGranted } from './tenant-admin-plugin.js';
 
 delete process.env['DATABASE_URL'];
 
@@ -109,6 +110,48 @@ describe('gateway lows batch 1', () => {
       const versions = await app.tenantService.listBrandingVersions(tenant.id);
       expect(versions.length).toBe(1);
       expect(versions[0]!.id).toBe(published.id);
+    });
+  });
+  describe('PRC-L004 branding permission resolver uses the gateway RBAC registry', () => {
+    const user = (...roles: unknown[]) => ({ roles });
+    const matrix: Array<[string, unknown, boolean, boolean]> = [
+      // [label, role, branding:preview, branding:edit]
+      ['admin', { roleId: 'admin' }, true, true],
+      ['super-admin (canonical id)', { roleId: 'super-admin' }, true, true],
+      ['platform_admin', { roleId: 'platform_admin' }, true, true],
+      ['super_admin (not an IdP role id)', { roleId: 'super_admin' }, false, false],
+      ['tenant_admin (not an IdP role id)', { roleId: 'tenant_admin' }, false, false],
+      ['principal', { roleId: 'principal' }, false, false],
+      ['teacher', { roleId: 'teacher' }, false, false],
+      ['guardian', { roleId: 'guardian' }, false, false],
+      [
+        'claimed user:manage permission on a non-admin role',
+        { roleId: 'teacher', permissions: [{ resource: 'user', action: 'manage' }] },
+        false,
+        false,
+      ],
+    ];
+    for (const [label, role, preview, edit] of matrix) {
+      it(`${label}: preview=${preview} edit=${edit}`, () => {
+        expect(brandingPermissionGranted(user(role), 'branding:preview')).toBe(preview);
+        expect(brandingPermissionGranted(user(role), 'branding:edit')).toBe(edit);
+      });
+    }
+
+    it('denies unknown permissions and missing users', () => {
+      expect(brandingPermissionGranted(user({ roleId: 'admin' }), 'branding:delete')).toBe(false);
+      expect(brandingPermissionGranted(undefined, 'branding:preview')).toBe(false);
+      expect(brandingPermissionGranted({ roles: 'admin' }, 'branding:preview')).toBe(false);
+    });
+
+    it('admin can save a branding draft through the gateway', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/tenant/branding/draft',
+        headers: headersFor(app, 'admin'),
+        payload: { tokens: {} },
+      });
+      expect(res.statusCode).not.toBe(403);
     });
   });
 });

@@ -23,7 +23,7 @@
  * `/scim/v2/{Users,Groups}` (see scim-plugin.ts) so IdP pushes are audited
  * exactly like console edits.
  */
-import { DEFAULT_ROLES } from '@proctira/backend-auth';
+import { DEFAULT_ROLES, type PermissionAction } from '@proctira/backend-auth';
 import {
   createRolesRepository,
   createTenantRepository,
@@ -48,7 +48,32 @@ import {
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { createGatewayRbacRegistry, PLATFORM_ADMIN_ROLE_IDS } from './rbac-registry.js';
 import { scimPlugin } from './scim-plugin.js';
+
+const brandingRbacRegistry = createGatewayRbacRegistry();
+const BRANDING_ACTIONS: Record<string, PermissionAction> = {
+  'branding:preview': 'preview',
+  'branding:edit': 'update',
+};
+
+/**
+ * PRC-L004: branding permission check backed by the shared gateway RBAC registry.
+ * Platform administrators (canonical {@link PLATFORM_ADMIN_ROLE_IDS}) are allowed, matching
+ * the gateway's platform bypass; unknown permissions are denied.
+ */
+export function brandingPermissionGranted(user: unknown, permission: string): boolean {
+  const action = BRANDING_ACTIONS[permission];
+  if (!action) return false;
+  const roles = (user as { roles?: unknown } | undefined)?.roles;
+  if (!Array.isArray(roles)) return false;
+  return roles.some((role: unknown) => {
+    const roleId = typeof role === 'string' ? role : (role as { roleId?: unknown } | null)?.roleId;
+    if (typeof roleId !== 'string') return false;
+    if (PLATFORM_ADMIN_ROLE_IDS.has(roleId)) return true;
+    return brandingRbacRegistry.roleHasPermission(roleId, 'branding', action);
+  });
+}
 
 export interface TenantAdminPluginOptions {
   /** Default `/tenant`; the gateway mounts `/api/v1` above. */
@@ -131,41 +156,11 @@ export const tenantAdminPlugin = fp(
       getTenantId: (request) =>
         (request as { tenantId?: string }).tenantId ??
         (request as { user?: { tenantId?: string } }).user?.tenantId,
-      hasPermission: async (request, permission) => {
-        const user = (
-          request as {
-            user?: {
-              roles?: Array<
-                | string
-                | { roleId?: string; permissions?: Array<{ resource: string; action: string }> }
-              >;
-            };
-          }
-        ).user;
-        if (!user) return false;
-        const roles = user.roles ?? [];
-        // Tenant admins with user:manage (or branding:* / tenant manage) may brand.
-        for (const role of roles) {
-          const id = typeof role === 'string' ? role : role.roleId;
-          if (id && ['tenant_admin', 'platform_admin', 'super_admin', 'admin'].includes(id)) {
-            return true;
-          }
-          if (typeof role !== 'string' && Array.isArray(role.permissions)) {
-            if (
-              role.permissions.some(
-                (p) =>
-                  (p.resource === 'branding' &&
-                    (p.action === permission.split(':')[1] || p.action === 'manage')) ||
-                  (p.resource === 'tenant' && (p.action === 'manage' || p.action === 'update')) ||
-                  (p.resource === 'user' && p.action === 'manage'),
-              )
-            ) {
-              return true;
-            }
-          }
-        }
-        return false; // published branding is public via GET; draft preview requires branding:preview
-      },
+      // PRC-L004: evaluate against the gateway RBAC registry with resource `branding` and the
+      // exact action (preview → preview, edit → update). No role-name lists or cross-resource
+      // fallbacks (user:manage / tenant:update no longer imply branding rights).
+      hasPermission: (request, permission) =>
+        Promise.resolve(brandingPermissionGranted(request.user, permission)),
     });
 
     // Logo asset staging (URL/data-URI already validated on publish; this stores a draft logo URL helper)

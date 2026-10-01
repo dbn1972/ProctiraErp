@@ -217,6 +217,8 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
 
   const admin = roles.find((r) => r.roleId === 'admin');
   if (admin) {
+    // PRC-L004: the tenant administrator owns its school/board branding (preview + edit).
+    admin.permissions.push({ resource: 'branding', action: 'manage' });
     for (const perm of CAMPUS_MANAGE) {
       if (
         !admin.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)
