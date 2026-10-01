@@ -16,7 +16,28 @@ export interface PrivacyQueueHandle {
   anonymizationPublisher: PrivacyAnonymizationPublisher;
   offboardPublisher: PrivacyOffboardPublisher;
   adapter: QueueAdapter;
+  /** PRC-H078: fresh (unconnected) adapter on the same backend for a worker. */
+  createConsumerAdapter(): QueueAdapter;
   disconnect(): Promise<void>;
+}
+
+function buildAdapterFromEnv(
+  backend: string | undefined,
+  rabbitUrl: string | undefined,
+): QueueAdapter {
+  if (backend) {
+    return createQueueAdapterFromEnv();
+  }
+  return createQueueAdapter({
+    backend: 'rabbitmq',
+    rabbitmq: {
+      url: rabbitUrl!,
+      exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
+      exchangeType: 'topic',
+      deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
+      durable: true,
+    },
+  });
 }
 
 export async function createPrivacyQueuePublishersFromEnv(): Promise<PrivacyQueueHandle | null> {
@@ -27,27 +48,13 @@ export async function createPrivacyQueuePublishersFromEnv(): Promise<PrivacyQueu
     return null;
   }
 
-  let adapter: QueueAdapter;
-  if (backend) {
-    adapter = createQueueAdapterFromEnv();
-  } else {
-    adapter = createQueueAdapter({
-      backend: 'rabbitmq',
-      rabbitmq: {
-        url: rabbitUrl!,
-        exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
-        exchangeType: 'topic',
-        deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
-        durable: true,
-      },
-    });
-  }
-
+  const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
   return {
     anonymizationPublisher: new QueuePrivacyAnonymizationPublisher(adapter),
     offboardPublisher: new QueuePrivacyOffboardPublisher(adapter),
     adapter,
+    createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: () => adapter.disconnect(),
   };
 }

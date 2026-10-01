@@ -63,6 +63,7 @@ import {
   createWebhookReplayStoreFromEnv,
   developerPortalPlugin,
   ensureDeveloperPortalPersistence,
+  parseWebhookFanOutEvents,
   type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
@@ -604,6 +605,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
+        // PRC-H092: in-process consumer (dedicated connection) for queued imports.
+        importWorkerQueue: importHandle?.createConsumerAdapter(),
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
@@ -842,6 +845,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         institutionBrandingRepository: createInstitutionBrandingRepository(),
         reportCardJobRepository: createReportCardJobRepository(),
         taskQueuePublisher: reportCardQueueHandle?.publisher,
+        // PRC-H039: in-process consumer so queued jobs reach 'completed'.
+        reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
       });
     },
   },
@@ -1074,6 +1079,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         caseRepository,
         escalationPublisher: escalationHandle?.publisher,
+        // PRC-H110: in-process escalation consumer (dedicated connection).
+        escalationWorkerQueue: escalationHandle?.createConsumerAdapter(),
         prefix: '/workflow-engine',
       });
     },
@@ -1363,6 +1370,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(developerPortalPlugin, {
         repository: createDeveloperPortalRepository(),
         deliveryPublisher: webhookDelivery?.publisher,
+        // PRC-H046: in-process delivery consumer + opt-in event fan-out
+        // (WEBHOOK_FANOUT_EVENTS=student.enrolled,... ; empty → no fan-out).
+        deliveryWorkerQueue: webhookDelivery?.createConsumerAdapter(),
+        fanOutEvents: webhookDelivery
+          ? parseWebhookFanOutEvents(process.env['WEBHOOK_FANOUT_EVENTS'])
+          : [],
+        createFanOutQueue: webhookDelivery
+          ? () => webhookDelivery.createConsumerAdapter()
+          : undefined,
         replayStore: webhookReplayStore,
         prefix: '/developer',
       });
@@ -1386,6 +1402,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/privacy',
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
+        // PRC-H078: in-process consumers (dedicated connections) for both job types.
+        anonymizationWorkerQueue: queueHandle?.createConsumerAdapter(),
+        offboardWorkerQueue: queueHandle?.createConsumerAdapter(),
       });
     },
   },

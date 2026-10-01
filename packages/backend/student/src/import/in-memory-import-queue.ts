@@ -7,7 +7,21 @@
 
 import type { ImportOptions, ImportProgress, ImportQueue } from './types.js';
 
+export type InMemoryImportEnqueueHook = (
+  tenantId: string,
+  jobId: string,
+  fileBuffer: Buffer,
+  options: ImportOptions,
+) => void;
+
 export class InMemoryImportQueue implements ImportQueue {
+  /**
+   * PRC-H092: optional in-process processor hook. When set (gateway fallback
+   * without a durable queue) each enqueued job is handed to it so async /
+   * >1000-row imports are processed instead of staying `queued` forever.
+   */
+  constructor(private readonly onEnqueue?: InMemoryImportEnqueueHook) {}
+
   private jobs: Map<string, { tenantId: string; fileBuffer: Buffer; options: ImportOptions }> =
     new Map();
   private progress: Map<string, ImportProgress> = new Map();
@@ -19,6 +33,7 @@ export class InMemoryImportQueue implements ImportQueue {
     options: ImportOptions,
   ): Promise<void> {
     this.jobs.set(jobId, { tenantId, fileBuffer, options });
+    this.onEnqueue?.(tenantId, jobId, fileBuffer, options);
   }
 
   async getProgress(jobId: string): Promise<ImportProgress | null> {

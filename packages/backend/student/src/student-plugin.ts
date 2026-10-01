@@ -5,6 +5,7 @@
  * (G-701: enrollment + import were previously exported but never mounted).
  * Provides the student service as a decorator for other plugins to use.
  */
+import type { QueueAdapter } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -22,14 +23,15 @@ import { CoreRepositoryImportAdapter } from './import/core-repository-import-ada
 import { registerImportRoutes } from './import/import-routes.js';
 import { ImportService } from './import/import-service.js';
 import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
+import {
+  createStudentImportWorker,
+  type StudentImportWorker,
+} from './import/student-import-worker.js';
 import type { ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentPortalBinding } from './student-portal-access.js';
 import type { StudentRepository } from './student-repository.js';
-import {
-  StudentService,
-  type AssertDestructiveDeleteAllowed,
-} from './student-service.js';
+import { StudentService, type AssertDestructiveDeleteAllowed } from './student-service.js';
 import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
 import { createStudentBlobStore, type StudentBlobStore } from './students-360/blob-store.js';
 import { createStudents360Store } from './students-360/create-store.js';
@@ -51,6 +53,12 @@ export interface StudentPluginOptions {
   enrollmentPrefix?: string;
   /** Import job queue (default: in-process queue) */
   importQueue?: ImportQueue;
+  /**
+   * PRC-H092: dedicated queue adapter the in-process student-import worker
+   * consumes from (started onReady, stopped onClose). A durable `importQueue`
+   * without a worker queue falls back to in-process processing.
+   */
+  importWorkerQueue?: QueueAdapter;
   /** Set false to skip enrollment + import routes (unit tests of student routes only) */
   registerEnrollmentAndImport?: boolean;
   /** G-914 persistence (default: Pg when DATABASE_URL, else in-memory) */
@@ -78,6 +86,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     studentService: StudentService;
     enrollmentService: EnrollmentService;
+    studentImportService?: ImportService;
+    studentImportWorker?: StudentImportWorker;
   }
 }
 
@@ -160,10 +170,45 @@ export const studentPlugin = fp(
       prefix: enrollmentPrefix,
     });
 
-    const importService = new ImportService({
+    const durable = Boolean(options.importQueue && options.importWorkerQueue);
+    if (options.importQueue && !options.importWorkerQueue) {
+      fastify.log.warn('student import queue configured without a consumer; processing in-process');
+    }
+    // PRC-H092: without a durable consumer, process queued imports in-process
+    // (setImmediate) so async / >1000-row imports reach a terminal status.
+    const importQueue: ImportQueue = durable
+      ? options.importQueue!
+      : new InMemoryImportQueue((tenantId, jobId, fileBuffer, importOptions) => {
+          setImmediate(() => {
+            importService
+              .processQueuedImport(tenantId, jobId, fileBuffer, importOptions)
+              .catch((err: unknown) => {
+                fastify.log.error({ err, tenantId, jobId }, 'in-process student import failed');
+              });
+          });
+        });
+    const importService: ImportService = new ImportService({
       studentRepository: new CoreRepositoryImportAdapter(repository),
-      importQueue: options.importQueue ?? new InMemoryImportQueue(),
+      importQueue,
     });
+    fastify.decorate('studentImportService', importService);
+    if (durable) {
+      const worker = createStudentImportWorker({
+        queue: options.importWorkerQueue!,
+        processor: importService,
+        logger: {
+          info: (obj, msg) => fastify.log.info(obj, msg),
+          error: (obj, msg) => fastify.log.error(obj, msg),
+        },
+      });
+      fastify.decorate('studentImportWorker', worker);
+      fastify.addHook('onReady', async () => {
+        await worker.start();
+      });
+      fastify.addHook('onClose', async () => {
+        await worker.stop();
+      });
+    }
     await registerImportRoutes(fastify, { importService, prefix });
   },
   {

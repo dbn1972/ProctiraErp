@@ -11,11 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 /** Repo root when tests run via pnpm --filter from monorepo root. */
 function repoRoot(): string {
-  const candidates = [
-    process.cwd(),
-    join(process.cwd(), '../..'),
-    join(process.cwd(), '../../..'),
-  ];
+  const candidates = [process.cwd(), join(process.cwd(), '../..'), join(process.cwd(), '../../..')];
   for (const root of candidates) {
     if (existsSync(join(root, 'pnpm-workspace.yaml'))) return root;
   }
@@ -79,6 +75,33 @@ const QUEUE_RESTART_PROOFS: WorkerProofEntry[] = [
   },
 ];
 
+/**
+ * Queue consumers wired into a running entrypoint (plugin onReady/onClose,
+ * composed by apps/api-gateway domain-plugins) — PRC-H039/H046/H078/H092/H110.
+ */
+const WIRED_ENTRYPOINT_PROOFS: Array<{ domain: string; evidencePath: string }> = [
+  {
+    domain: 'webhook-delivery',
+    evidencePath: 'packages/backend/developer-portal/src/webhook-fanout.wiring.test.ts',
+  },
+  {
+    domain: 'report-card',
+    evidencePath: 'packages/backend/assessment/src/report-card-worker.wiring.test.ts',
+  },
+  {
+    domain: 'privacy-anonymization',
+    evidencePath: 'packages/backend/privacy/src/privacy-worker.wiring.test.ts',
+  },
+  {
+    domain: 'student-import',
+    evidencePath: 'packages/backend/student/src/import/student-import-worker.wiring.test.ts',
+  },
+  {
+    domain: 'workflow-escalation',
+    evidencePath: 'packages/backend/workflow/src/escalation-worker.wiring.test.ts',
+  },
+];
+
 /** In-process schedulers / job runners with durable lease or hydrate proofs. */
 const LEASE_OR_HYDRATE_PROOFS: WorkerProofEntry[] = [
   {
@@ -111,6 +134,13 @@ describe('W3-C3 worker restart-safe evidence inventory', () => {
 
   it.each(LEASE_OR_HYDRATE_PROOFS)(
     '$domain has lease/hydrate restart proof at $evidencePath',
+    ({ evidencePath }) => {
+      expect(existsSync(join(ROOT, evidencePath))).toBe(true);
+    },
+  );
+
+  it.each(WIRED_ENTRYPOINT_PROOFS)(
+    '$domain has a wired-entrypoint consumer test at $evidencePath',
     ({ evidencePath }) => {
       expect(existsSync(join(ROOT, evidencePath))).toBe(true);
     },
