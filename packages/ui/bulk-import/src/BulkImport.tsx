@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+
 import type {
   BulkImportProps,
   ImportStep,
@@ -71,7 +72,7 @@ export function BulkImport({
       }
 
       // Validate file type
-      const ext = `.${file.name.split('.').pop()?.toLowerCase()}`;
+      const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`;
       if (!acceptedFileTypes.some((t) => t.toLowerCase() === ext)) {
         setError(`File type "${ext}" is not accepted. Allowed: ${acceptedFileTypes.join(', ')}`);
         return;
@@ -107,6 +108,19 @@ export function BulkImport({
     const requiredFields = targetFields.filter((f) => f.required);
     const mappedTargets = columnMappings.filter((m) => m.valid).map((m) => m.targetField);
     const missingRequired = requiredFields.filter((f) => !mappedTargets.includes(f.name));
+
+    // A target field may only receive one source column; duplicates would make
+    // the import ambiguous (last-write-wins on the server).
+    const duplicateTargets = [
+      ...new Set(mappedTargets.filter((t, i) => mappedTargets.indexOf(t) !== i)),
+    ];
+    if (duplicateTargets.length > 0) {
+      const labels = duplicateTargets.map(
+        (name) => targetFields.find((f) => f.name === name)?.label ?? name,
+      );
+      setError(`Each field can only be mapped once. Mapped more than once: ${labels.join(', ')}`);
+      return;
+    }
 
     if (missingRequired.length > 0) {
       setError(`Required fields not mapped: ${missingRequired.map((f) => f.label).join(', ')}`);
@@ -194,7 +208,7 @@ export function BulkImport({
           id="bulk-import-file"
           type="file"
           accept={acceptedFileTypes.join(',')}
-          onChange={handleFileSelect}
+          onChange={(e) => void handleFileSelect(e)}
           disabled={loading || isProcessing}
           className="proctira-bulk-import__file-input"
           aria-describedby="bulk-import-file-help"
@@ -217,79 +231,98 @@ export function BulkImport({
     </div>
   );
 
-  const renderMappingStep = () => (
-    <div className="proctira-bulk-import__mapping">
-      <h3 className="proctira-bulk-import__subtitle">Map Columns to Fields</h3>
-      <p className="proctira-bulk-import__mapping-info">
-        Match the columns from your file to the corresponding system fields.
-      </p>
+  const renderMappingStep = () => {
+    const targetUseCount = new Map<string, number>();
+    for (const m of columnMappings) {
+      if (m.valid && m.targetField) {
+        targetUseCount.set(m.targetField, (targetUseCount.get(m.targetField) ?? 0) + 1);
+      }
+    }
+    return (
+      <div className="proctira-bulk-import__mapping">
+        <h3 className="proctira-bulk-import__subtitle">Map Columns to Fields</h3>
+        <p className="proctira-bulk-import__mapping-info">
+          Match the columns from your file to the corresponding system fields.
+        </p>
 
-      <table className="proctira-bulk-import__mapping-table" aria-label="Column mapping">
-        <thead>
-          <tr>
-            <th scope="col">Source Column</th>
-            <th scope="col">Target Field</th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {columnMappings.map((mapping) => (
-            <tr key={mapping.sourceColumn}>
-              <td>{mapping.sourceColumn}</td>
-              <td>
-                <label htmlFor={`mapping-${mapping.sourceColumn}`} className="sr-only">
-                  Map {mapping.sourceColumn} to field
-                </label>
-                <select
-                  id={`mapping-${mapping.sourceColumn}`}
-                  value={mapping.targetField}
-                  onChange={(e) => handleMappingChange(mapping.sourceColumn, e.target.value)}
-                  className="proctira-bulk-import__mapping-select"
-                  aria-label={`Map ${mapping.sourceColumn} to target field`}
-                >
-                  <option value="">-- Skip --</option>
-                  {targetFields.map((field) => (
-                    <option key={field.name} value={field.name}>
-                      {field.label} {field.required ? '*' : ''}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {mapping.required && !mapping.valid && (
-                  <span className="proctira-bulk-import__status--error" role="alert">
-                    Required
-                  </span>
-                )}
-                {mapping.valid && (
-                  <span className="proctira-bulk-import__status--ok" aria-label="Mapped">
-                    ✓
-                  </span>
-                )}
-              </td>
+        <table className="proctira-bulk-import__mapping-table" aria-label="Column mapping">
+          <thead>
+            <tr>
+              <th scope="col">Source Column</th>
+              <th scope="col">Target Field</th>
+              <th scope="col">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {columnMappings.map((mapping) => (
+              <tr key={mapping.sourceColumn}>
+                <td>{mapping.sourceColumn}</td>
+                <td>
+                  <label htmlFor={`mapping-${mapping.sourceColumn}`} className="sr-only">
+                    Map {mapping.sourceColumn} to field
+                  </label>
+                  <select
+                    id={`mapping-${mapping.sourceColumn}`}
+                    value={mapping.targetField}
+                    onChange={(e) => handleMappingChange(mapping.sourceColumn, e.target.value)}
+                    className="proctira-bulk-import__mapping-select"
+                    aria-label={`Map ${mapping.sourceColumn} to target field`}
+                  >
+                    <option value="">-- Skip --</option>
+                    {targetFields.map((field) => {
+                      // Disable fields already used by another column (keep this row's own choice selectable)
+                      const usedElsewhere =
+                        field.name !== mapping.targetField &&
+                        (targetUseCount.get(field.name) ?? 0) > 0;
+                      return (
+                        <option key={field.name} value={field.name} disabled={usedElsewhere}>
+                          {field.label} {field.required ? '*' : ''}
+                          {usedElsewhere ? ' (already mapped)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </td>
+                <td>
+                  {mapping.required && !mapping.valid && (
+                    <span className="proctira-bulk-import__status--error" role="alert">
+                      Required
+                    </span>
+                  )}
+                  {mapping.valid && (targetUseCount.get(mapping.targetField) ?? 0) > 1 ? (
+                    <span className="proctira-bulk-import__status--error">Duplicate</span>
+                  ) : (
+                    mapping.valid && (
+                      <span className="proctira-bulk-import__status--ok" aria-label="Mapped">
+                        ✓
+                      </span>
+                    )
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-      <div className="proctira-bulk-import__actions">
-        <button
-          type="button"
-          onClick={() => setStep('upload')}
-          className="proctira-bulk-import__back-btn"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={handleConfirmMapping}
-          className="proctira-bulk-import__next-btn"
-        >
-          Continue to Preview
-        </button>
+        <div className="proctira-bulk-import__actions">
+          <button
+            type="button"
+            onClick={() => setStep('upload')}
+            className="proctira-bulk-import__back-btn"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmMapping}
+            className="proctira-bulk-import__next-btn"
+          >
+            Continue to Preview
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPreviewStep = () => (
     <div className="proctira-bulk-import__preview">
@@ -433,7 +466,7 @@ export function BulkImport({
         </button>
         <button
           type="button"
-          onClick={handleImport}
+          onClick={() => void handleImport()}
           disabled={validationResult?.validRows === 0}
           className="proctira-bulk-import__import-btn"
           aria-label={`Import ${validationResult?.validRows ?? 0} valid rows`}

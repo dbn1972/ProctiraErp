@@ -209,4 +209,46 @@ describe('BulkImport', () => {
 
     expect(screen.getByText(/\.xlsx, \.csv/)).toBeInTheDocument();
   });
+
+  describe('duplicate column mapping (PRC-L193)', () => {
+    it('shows an error and blocks Continue when a field is mapped twice', async () => {
+      const onFileValidate = vi.fn().mockResolvedValue({
+        ...mockValidationResult,
+        columnMappings: [
+          { sourceColumn: 'First Name', targetField: 'firstName', required: true, valid: true },
+          { sourceColumn: 'Given Name', targetField: 'firstName', required: false, valid: true },
+          { sourceColumn: 'Last Name', targetField: 'lastName', required: true, valid: true },
+        ],
+      });
+      render(
+        <BulkImport
+          title="Import Students"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi.fn()}
+        />,
+      );
+      const input = screen.getByLabelText(/choose a file/i);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      await screen.findByText('Map Columns to Fields');
+      expect(screen.getAllByText('Duplicate')).toHaveLength(2);
+      fireEvent.click(screen.getByRole('button', { name: 'Continue to Preview' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(/mapped more than once: First Name/i);
+      expect(screen.getByText('Map Columns to Fields')).toBeInTheDocument();
+      expect(screen.queryByText('Validation Preview')).not.toBeInTheDocument();
+
+      // Resolving the duplicate unblocks Continue; used options are disabled elsewhere
+      fireEvent.change(screen.getByLabelText('Map Given Name to target field'), {
+        target: { value: '' },
+      });
+      const givenNameSelect = screen.getByLabelText('Map Given Name to target field');
+      const lastNameOption = Array.from(givenNameSelect.querySelectorAll('option')).find(
+        (o) => o.value === 'lastName',
+      );
+      expect(lastNameOption).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: 'Continue to Preview' }));
+      expect(await screen.findByText('Validation Preview')).toBeInTheDocument();
+    });
+  });
 });
