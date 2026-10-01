@@ -41,6 +41,46 @@ test('parseFilterBody maps dorny buckets to path globs', () => {
   assert.deepEqual(buckets.infra, ['infrastructure/**']);
 });
 
+test('parseFilterBody tolerates re-indentation and quote style (PRC-L179)', () => {
+  const body = `
+backend:
+    - "db/**"
+    - tools/scripts/**
+shared: ['docs/**', "tools/**"]
+`;
+  const buckets = parseFilterBody(body);
+  assert.deepEqual(buckets.backend, ['db/**', 'tools/scripts/**']);
+  assert.deepEqual(buckets.shared, ['docs/**', 'tools/**']);
+});
+test('parseFilterBody fails closed on invalid YAML or non-string globs', () => {
+  assert.throws(() => parseFilterBody('backend:\n  - [unclosed\n'), /not valid YAML/);
+  assert.throws(() => parseFilterBody('backend:\n  - { a: 1 }\n'), /non-string glob/);
+  assert.throws(() => parseFilterBody('- just-a-list\n'), /must be a mapping/);
+});
+test('parseDetectChangeFilters parses a reformatted workflow', () => {
+  const yaml = `
+on: push
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: "filter"
+        with:
+          filters: |
+              backend:
+                  - "db/**"
+              infra:
+                  - infrastructure/**
+`;
+  const buckets = parseDetectChangeFilters(yaml);
+  assert.deepEqual(buckets.backend, ['db/**']);
+  assert.deepEqual(buckets.infra, ['infrastructure/**']);
+  assert.throws(
+    () => parseDetectChangeFilters('jobs:\n  detect-changes:\n    steps: []\n'),
+    /id: filter/,
+  );
+});
 test('evaluatePathFilterMatrix fails when db/** drops from backend', () => {
   const buckets = {
     backend: ['packages/backend/**'],
@@ -59,10 +99,7 @@ test('on-disk ci.yml satisfies the W1-OPS-05 path-filter matrix', () => {
   const buckets = parseDetectChangeFilters(CI_YAML);
   for (const row of PATH_FILTER_MATRIX) {
     for (const bucket of row.buckets) {
-      assert.ok(
-        (buckets[bucket] ?? []).includes(row.path),
-        `${row.path} missing from ${bucket}`,
-      );
+      assert.ok((buckets[bucket] ?? []).includes(row.path), `${row.path} missing from ${bucket}`);
     }
   }
 });

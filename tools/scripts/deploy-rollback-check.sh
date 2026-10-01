@@ -123,7 +123,9 @@ grep -q 'maxUnavailable: 0' "$out" || die "missing RollingUpdate maxUnavailable:
 rm -f "$out"
 echo "OK canary annotations + RollingUpdate baseline"
 
-echo "==> dry-run rollback command plan (no cluster)"
+# PRC-L182: this is a static command plan only — no cluster, helm rollback is
+# NOT executed here. Real rollback is exercised via rollback.yml.
+echo "==> rollback command plan (static; helm rollback NOT executed, no cluster)"
 ENVIRONMENT=staging
 SERVICES=api-gateway,web
 REVISION=0
@@ -131,7 +133,7 @@ NAMESPACE="proctira-${ENVIRONMENT}"
 IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
 for SERVICE in "${SERVICE_ARRAY[@]}"; do
   RELEASE="proctira-${SERVICE}"
-  echo "[dry-run] helm rollback ${RELEASE} ${REVISION} --namespace ${NAMESPACE} --wait --timeout 300s"
+  echo "[plan] helm rollback ${RELEASE} ${REVISION} --namespace ${NAMESPACE} --wait --timeout 300s"
 done
 
 echo "deploy-rollback-check: PASS"

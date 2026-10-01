@@ -131,7 +131,7 @@ describe('apply-sql.sh', () => {
     ]);
     const expectedApplied = expected.filter((n) => {
       if (/^[0-9]+b_.*_seed\.sql$/.test(n) && process.env.APPLY_SEEDS !== '1') return false;
-      // W1-DATA-06 COMPLETE: create + VALIDATE + repair + uuid completion are
+      // W1-DATA-06: create + VALIDATE + repair + uuid completion are
       // gated together.
       if (strictFkFiles.has(n)) return false;
       return true;
@@ -139,7 +139,7 @@ describe('apply-sql.sh', () => {
     expect(listed).toEqual(expectedApplied.map((n) => `db/sql/${n}`));
   });
 
-  it('W1-DATA-06 COMPLETE: CI/production default ON includes strict FK files', () => {
+  it('W1-DATA-06: CI/production default ON includes strict FK files', () => {
     const { status, stdout, stderr } = dryRun({
       CI: 'true',
       // Unset explicit flag so the script's CI default path is exercised.
@@ -185,8 +185,8 @@ describe('apply-sql.sh', () => {
     }
   });
 
-  it('W1-DATA-06 COMPLETE static contract: default ON + gated validate/repair', () => {
-    expect(scriptSource).toMatch(/W1-DATA-06 COMPLETE/);
+  it('W1-DATA-06 static contract: default ON + gated validate/repair', () => {
+    expect(scriptSource).toMatch(/W1-DATA-06/);
     expect(scriptSource).toMatch(/NODE_ENV/);
     expect(scriptSource).toMatch(/068_validate_tenant_fk_constraints\.sql/);
     expect(scriptSource).toMatch(/082_repair_strict_tenant_fk_validate\.sql/);

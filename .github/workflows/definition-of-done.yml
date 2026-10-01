@@ -14,7 +14,9 @@ on:
       - 'packages/eslint-plugin-proctira/**'
       - 'apps/**'
       - 'tools/dod-checks/**'
-      - 'tools/scripts/definition-of-done-checks*.mjs'
+      # PRC-L184: legacy tools/scripts/definition-of-done-checks.mjs removed;
+      # dod:check / dod:test alias the supported tools/dod-checks package.
+      - 'tools/scripts/dod-script-wiring.test.mjs'
   push:
     branches: [main]
     paths:
@@ -23,7 +25,9 @@ on:
       - 'packages/eslint-plugin-proctira/**'
       - 'apps/**'
       - 'tools/dod-checks/**'
-      - 'tools/scripts/definition-of-done-checks*.mjs'
+      # PRC-L184: legacy tools/scripts/definition-of-done-checks.mjs removed;
+      # dod:check / dod:test alias the supported tools/dod-checks package.
+      - 'tools/scripts/dod-script-wiring.test.mjs'
 
 permissions:
   contents: read
@@ -65,13 +69,6 @@ jobs:
       - name: Assert DoD evidence artifacts (W3-D6)
         if: always()
         run: pnpm run check:dod:evidence
-
-      # Legacy script (tools/scripts/definition-of-done-checks.mjs) is superseded
-      # by tools/dod-checks with baseline gating above. Keep the npm script for
-      # local/compat use, but do not fail the Charter gate on pre-existing debt.
-      - name: Run legacy DoD checks (compat, non-blocking)
-        continue-on-error: true
-        run: pnpm run dod:check
 
       - name: Upload DoD JSON report
         if: always()

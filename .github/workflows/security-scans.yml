@@ -49,6 +49,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # PRC-L181: the per-step scanner contract parses YAML via the `yaml` package.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '10.33.2'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test per-step workflow contracts
+        run: node --test tools/scripts/check-workflow-step-contracts.test.mjs
+
       - name: Verify W1-OPS-11 scanner contract
         # Missing / softened scanners must fail before soft-green.
         continue-on-error: false

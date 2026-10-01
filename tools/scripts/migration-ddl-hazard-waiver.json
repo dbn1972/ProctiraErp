@@ -3,7 +3,7 @@
   "baseline": {
     "dbSqlMaxFilename": "075_runtime_global_table_privileges.sql",
     "prismaMigrationMaxDir": "20260914_w1_data_12_tenant_guc_canonical",
-    "reason": "Cutover at W1-DATA-17 COMPLETE; historical corpus kept forward-policy only (see DATA_W1_DATA_17_TIMEOUTS.md)."
+    "reason": "Cutover at W1-DATA-17; historical corpus kept forward-policy only (see DATA_W1_DATA_17_TIMEOUTS.md)."
   },
   "waivers": [
     {
