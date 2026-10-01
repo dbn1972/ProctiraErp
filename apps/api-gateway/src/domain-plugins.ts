@@ -150,6 +150,11 @@ import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 
+import {
+  formatAdmissionNumber,
+  offerFeeAmountCents,
+  tenantLocalDate,
+} from './admissions-offer-policy.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
@@ -269,7 +274,8 @@ function createOfferFeeInvoiceHook() {
     const student = await ensureAdmissionsStudentProfile(input);
     const fees = new FeesService(createFeesRepository());
     const createOrFind = async () => {
-      const amountCents = Math.max(Math.round(Number(input.feeAmount) * 100), 0);
+      // PRC-L002: shared cents conversion rejects sub-cent / negative / non-finite amounts.
+      const amountCents = offerFeeAmountCents(input.feeAmount);
       const currency = input.feeCurrency || 'INR';
       const existing = (await fees.listInvoicesForStudentIds(input.tenantId, [student.id])).find(
         (invoice) =>
@@ -468,7 +474,14 @@ async function createAdmissionsEnrollment(
         [input.tenantId],
       );
       const seq = Number((counter.rows[0] as { last_value: number }).last_value);
-      const admissionNo = `ADM-${new Date().getUTCFullYear()}-${String(seq).padStart(4, '0')}`;
+      // PRC-L002: admission-number year and enrolment date follow the tenant's local calendar.
+      const tenantTz = await client.query(
+        `SELECT config->'locale'->>'timezone' AS tz FROM tenants WHERE id = $1::uuid`,
+        [input.tenantId],
+      );
+      const timeZone = (tenantTz.rows[0] as { tz?: string | null } | undefined)?.tz;
+      const acceptedAt = new Date();
+      const admissionNo = formatAdmissionNumber(acceptedAt, timeZone, seq);
       await client.query(
         `UPDATE students
             SET admission_number = $3::text,
@@ -484,7 +497,7 @@ async function createAdmissionsEnrollment(
         [input.tenantId, student.id, admissionNo],
       );
 
-      const enrolledAt = new Date().toISOString().slice(0, 10);
+      const enrolledAt = tenantLocalDate(acceptedAt, timeZone);
       await client.query(`SELECT set_config('app.enrollment_history_reason', $1, true)`, [
         'Admission offer accepted',
       ]);
