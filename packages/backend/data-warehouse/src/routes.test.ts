@@ -10,7 +10,9 @@ import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 const TENANT_A = 'tenant-a';
 const TENANT_B = 'tenant-b';
 
-async function buildApp(): Promise<FastifyInstance> {
+async function buildApp(
+  repository: InMemoryWarehouseRepository = new InMemoryWarehouseRepository(),
+): Promise<FastifyInstance> {
   const app = Fastify();
   app.addHook('onRequest', async (request) => {
     const tenant = request.headers['x-tenant-id'];
@@ -23,7 +25,7 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
   await app.register(dataWarehousePlugin, {
-    repository: new InMemoryWarehouseRepository(),
+    repository,
     config: { maxImportBatchSize: 1000 },
   });
   await app.ready();
@@ -151,5 +153,52 @@ describe('data-warehouse routes', () => {
       headers: { 'x-tenant-id': TENANT_B },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe('typed errors (PRC-L551)', () => {
+    it('returns 404 when a warehouse is deleted concurrently between check and delete', async () => {
+      const repo = new InMemoryWarehouseRepository();
+      const local = await buildApp(repo);
+      try {
+        const created = await local.inject({
+          method: 'POST',
+          url: '/warehouses',
+          headers: { 'x-tenant-id': TENANT_A },
+          payload: { name: 'DW' },
+        });
+        const id = (created.json() as { id: string }).id;
+        const stale = await repo.findWarehouseById(id, TENANT_A);
+        // Simulate a concurrent delete: the service's existence check sees a stale row.
+        await repo.deleteWarehouse(id, TENANT_A);
+        repo.findWarehouseById = async () => stale;
+        const res = await local.inject({
+          method: 'DELETE',
+          url: `/warehouses/${id}`,
+          headers: { 'x-tenant-id': TENANT_A },
+        });
+        expect(res.statusCode).toBe(404);
+      } finally {
+        await local.close();
+      }
+    });
+
+    it('does not leak internal error messages on unexpected failures', async () => {
+      const repo = new InMemoryWarehouseRepository();
+      repo.listWarehouses = async () => {
+        throw new Error('db password=secret');
+      };
+      const local = await buildApp(repo);
+      try {
+        const res = await local.inject({
+          method: 'GET',
+          url: '/warehouses',
+          headers: { 'x-tenant-id': TENANT_A },
+        });
+        expect(res.statusCode).toBe(500);
+        expect(res.body).not.toContain('secret');
+      } finally {
+        await local.close();
+      }
+    });
   });
 });

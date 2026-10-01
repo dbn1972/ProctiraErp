@@ -5,9 +5,10 @@
  * Supports translation import/export in JSON and CSV formats.
  * Implements Requirement 15.5.
  */
+import { NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { NotFoundError } from '@proctira/common';
 
+import type { TranslationRepository } from './translation-repository.js';
 import type {
   Translation,
   TranslatableEntityType,
@@ -18,7 +19,6 @@ import type {
   TranslationImportResult,
   TranslationExportResult,
 } from './translation-schemas.js';
-import type { TranslationRepository } from './translation-repository.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface TranslationServiceConfig {
@@ -473,9 +473,9 @@ export class TranslationService {
   }> {
     const decoded = this.decodeContent(content);
 
-    const parsed = JSON.parse(decoded);
+    const parsed: unknown = JSON.parse(decoded);
     if (!Array.isArray(parsed)) {
-      throw new Error('Expected JSON array of translation objects');
+      throw new ValidationError('Expected JSON array of translation objects');
     }
 
     return parsed.map((item: Record<string, unknown>) => ({

@@ -82,7 +82,13 @@ function handleError(error: unknown, reply: FastifyReply) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
-  throw error;
+  // Unknown failure: log server-side, never echo internal messages to the client.
+  reply.log.error({ err: error }, 'data-warehouse route failed');
+  return reply.status(500).send({
+    code: 'INTERNAL_ERROR',
+    message: 'Internal server error',
+    statusCode: 500,
+  });
 }
 
 export async function registerDataWarehouseRoutes(

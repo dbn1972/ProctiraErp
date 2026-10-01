@@ -3,6 +3,8 @@
  *
  * In-memory implementation of GISRepository for testing and development.
  */
+import { NotFoundError } from '@proctira/common';
+
 import type { GISRepository, GISLayerListOptions, GISListResult } from './gis-repository.js';
 import type { GISLayer } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
@@ -25,7 +27,7 @@ export class InMemoryGISRepository implements GISRepository {
   ): Promise<GISLayer> {
     const existing = this.layers.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`GIS layer not found: ${id}`);
+      throw new NotFoundError(`GIS layer not found: ${id}`);
     }
     const updated: GISLayer = { ...existing, ...updates, updatedAt: new Date() };
     this.layers.set(id, updated);
@@ -35,7 +37,7 @@ export class InMemoryGISRepository implements GISRepository {
   async deleteLayer(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.layers.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`GIS layer not found: ${id}`);
+      throw new NotFoundError(`GIS layer not found: ${id}`);
     }
     this.layers.delete(id);
   }

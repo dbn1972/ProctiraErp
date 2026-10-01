@@ -5,11 +5,11 @@
  * Supports PostGIS geometry storage and spatial queries.
  * Implements Requirement 15.3: GIS visualization with Shapefile/GeoJSON map layers.
  */
+import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { NotFoundError, ConflictError } from '@proctira/common';
 
-import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
 import type { GISRepository } from './gis-repository.js';
+import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface GISServiceConfig {
@@ -48,12 +48,22 @@ export class GISService {
 
     // Validate layer type
     if (input.layerType !== 'shapefile' && input.layerType !== 'geojson') {
-      throw new Error(`Unsupported layer type: ${input.layerType}`);
+      throw new ValidationError('Validation failed', [
+        {
+          field: 'layerType',
+          message: `Unsupported layer type: ${String(input.layerType)}`,
+          rule: 'enum',
+        },
+      ]);
     }
 
     // Validate file size
     if (input.data && input.data.length > this.config.maxLayerFileSize) {
-      throw new Error(`Layer file size exceeds maximum of ${this.config.maxLayerFileSize} bytes`);
+      throw new AppError(
+        `Layer file size exceeds maximum of ${this.config.maxLayerFileSize} bytes`,
+        'PAYLOAD_TOO_LARGE',
+        413,
+      );
     }
 
     // Parse geometry data based on layer type
@@ -238,7 +248,7 @@ export class GISService {
           {
             id: uuidv4(),
             type: geoObj.type as string,
-            geometry: geoObj as Record<string, unknown>,
+            geometry: geoObj,
             properties: {},
             index: 0,
           },
@@ -261,7 +271,7 @@ export class GISService {
       // Shapefile data is expected as base64-encoded JSON representation
       // In production, this would use shpjs or similar to parse .shp/.dbf/.shx
       const decoded = Buffer.from(data, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded);
+      const parsed = JSON.parse(decoded) as { type?: unknown; features?: unknown } | null;
 
       if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
         return (parsed.features as Record<string, unknown>[]).map((feature, index) => ({
