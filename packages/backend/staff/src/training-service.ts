@@ -67,6 +67,15 @@ function assertCalendarDates(fields: Record<string, string | null | undefined>):
 }
 
 /**
+ * PRC-L361: pure calendar-day arithmetic in UTC. `new Date('YYYY-MM-DD')` parses as UTC
+ * midnight, so mixing it with local `setDate` drifts by a day across DST in non-UTC hosts.
+ */
+export function addUtcDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
  * Service handling training program business logic.
  */
 export class TrainingService {
@@ -151,6 +160,11 @@ export class TrainingService {
       );
     }
 
+    // PRC-L361: a date-range edit must not orphan existing sessions outside the program.
+    if (newStartDate !== existing.startDate || newEndDate !== existing.endDate) {
+      await this.assertSessionsWithin(tenantId, programId, newStartDate, newEndDate);
+    }
+
     const updateData: Partial<TrainingProgramEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
@@ -168,6 +182,27 @@ export class TrainingService {
     }
 
     return updated;
+  }
+
+  private async assertSessionsWithin(
+    tenantId: string,
+    programId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    for (let page = 1; ; page++) {
+      const result = await this.sessionRepository.listByProgram(tenantId, programId, {
+        page,
+        pageSize: TRAINING_MAX_PAGE_SIZE,
+      });
+      const outside = result.data.filter((x) => x.date < startDate || x.date > endDate);
+      if (outside.length > 0) {
+        throw new BusinessRuleError(
+          `Program date range (${startDate} to ${endDate}) would exclude ${outside.length} existing session(s); reschedule them first`,
+        );
+      }
+      if (page >= result.meta.totalPages || result.data.length === 0) return;
+    }
   }
 
   /**
@@ -345,14 +380,26 @@ export class TrainingService {
     let expiryDate = input.expiryDate ?? null;
     if (!expiryDate && program.certificationValidityDays) {
       // Calculate expiry from issued date + validity days
-      const issued = new Date(input.issuedDate);
-      issued.setDate(issued.getDate() + program.certificationValidityDays);
-      expiryDate = issued.toISOString().split('T')[0]!;
+      expiryDate = addUtcDays(input.issuedDate, program.certificationValidityDays);
     }
 
     if (expiryDate && expiryDate <= input.issuedDate) {
       throw new BusinessRuleError(
         `Certification expiry date (${expiryDate}) must be after issued date (${input.issuedDate})`,
+      );
+    }
+
+    // PRC-L361 explicit re-issue rule: one ACTIVE certification per staff+program. Re-issue
+    // requires the previous one to be expired/revoked first. (A partial unique index in the DB
+    // is a tracked follow-up migration; this is the application-level guard.)
+    const active = await this.certificationRepository.list(
+      tenantId,
+      { staffId: input.staffId, programId: input.programId, status: CertificationStatus.ACTIVE },
+      { page: 1, pageSize: 1 },
+    );
+    if (active.meta.totalItems > 0) {
+      throw new ConflictError(
+        `Staff '${input.staffId}' already holds an active certification for program '${input.programId}'`,
       );
     }
 
