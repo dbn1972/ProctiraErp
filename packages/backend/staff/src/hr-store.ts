@@ -77,7 +77,13 @@ export interface StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
+        | 'contractType'
+        | 'startDate'
+        | 'endDate'
+        | 'salaryBand'
+        | 'monthlyGrossCents'
+        | 'status'
+        | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null>;
@@ -92,6 +98,8 @@ export interface StaffHrStore {
   ): Promise<StaffQualificationRecord | null>;
 
   upsertAttendance(record: StaffAttendanceRecord): Promise<StaffAttendanceRecord>;
+  /** PRC-L153: upsert many marks for one tenant atomically (single statement in PG). */
+  upsertAttendanceBulk(records: StaffAttendanceRecord[]): Promise<StaffAttendanceRecord[]>;
   listAttendance(
     tenantId: string,
     filter: { date?: string; staffId?: string; from?: string; to?: string },
@@ -163,7 +171,13 @@ export class InMemoryStaffHrStore implements StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
+        | 'contractType'
+        | 'startDate'
+        | 'endDate'
+        | 'salaryBand'
+        | 'monthlyGrossCents'
+        | 'status'
+        | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null> {
@@ -204,6 +218,12 @@ export class InMemoryStaffHrStore implements StaffHrStore {
     const updated: StaffQualificationRecord = { ...row, ...patch, updatedAt: new Date() };
     this.qualifications.set(id, updated);
     return clone(updated);
+  }
+
+  async upsertAttendanceBulk(records: StaffAttendanceRecord[]): Promise<StaffAttendanceRecord[]> {
+    const out: StaffAttendanceRecord[] = [];
+    for (const record of records) out.push(await this.upsertAttendance(record));
+    return out;
   }
 
   async upsertAttendance(record: StaffAttendanceRecord): Promise<StaffAttendanceRecord> {
@@ -258,7 +278,10 @@ export class InMemoryStaffHrStore implements StaffHrStore {
     return row ? clone(row) : null;
   }
 
-  async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
+  async findPayrollExport(
+    tenantId: string,
+    month: string,
+  ): Promise<StaffPayrollExportRecord | null> {
     const posted = [...this.payrollExports.values()]
       .filter(
         (row) =>

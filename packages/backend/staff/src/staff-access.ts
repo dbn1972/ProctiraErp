@@ -11,7 +11,9 @@ export type StaffAction =
   | 'staff.delete'
   | 'staff.hr.write'
   | 'staff.import'
-  | 'payroll.export';
+  | 'payroll.export'
+  // PRC-L362: staff directory reads (GET /staff, /staff/:id, offboard status).
+  | 'staff.read';
 
 const ADMIN_ROLES = [
   'admin',
@@ -40,7 +42,22 @@ const ACTION_ROLES: Record<StaffAction, readonly string[]> = {
   'staff.hr.write': HR_OFFICER_ROLES,
   'staff.import': ['hr_officer', 'staff_admin', 'registrar', ...ADMIN_ROLES],
   'payroll.export': ['hr_officer', 'staff_admin', 'bursar', 'finance_officer', ...ADMIN_ROLES],
+  // Finance roles reconcile payroll against the staff list, but see masked identity numbers.
+  'staff.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
 };
+
+/**
+ * PRC-L362 need-to-know: only HR writers see full government identity numbers on reads.
+ */
+export function canViewStaffIdentity(roles: unknown): boolean {
+  return hasStaffAccess(roles, 'staff.update');
+}
+
+/** Mask all but the last 4 characters of an identity number. */
+export function maskIdentityNumber(value: string): string {
+  if (value.length <= 4) return '*'.repeat(value.length);
+  return `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
+}
 
 export function normalizeStaffRoles(roles: unknown): string[] {
   if (!Array.isArray(roles)) return [];

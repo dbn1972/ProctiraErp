@@ -343,6 +343,47 @@ export class PgStaffHrStore implements StaffHrStore {
     });
   }
 
+  /**
+   * PRC-L153: one multi-row INSERT ... ON CONFLICT inside one tenant transaction, so a
+   * 500-mark register either fully applies or not at all. Callers must pass one tenant.
+   */
+  async upsertAttendanceBulk(records: StaffAttendanceRecord[]): Promise<StaffAttendanceRecord[]> {
+    if (records.length === 0) return [];
+    const tenantId = records[0]!.tenantId;
+    if (records.some((r) => r.tenantId !== tenantId)) {
+      throw new Error('upsertAttendanceBulk requires a single tenant');
+    }
+    await ensureStaffHrSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const values: unknown[] = [];
+      const tuples = records.map((r, idx) => {
+        const b = idx * 9;
+        values.push(
+          r.id,
+          r.tenantId,
+          r.staffId,
+          r.date,
+          r.status,
+          r.notes,
+          r.markedBy,
+          r.createdAt,
+          r.updatedAt,
+        );
+        return `($${b + 1},$${b + 2},$${b + 3},$${b + 4}::date,$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9})`;
+      });
+      const { rows } = await client.query(
+        `INSERT INTO staff_hr_attendance (
+           id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
+         ) VALUES ${tuples.join(',')}
+         ON CONFLICT (tenant_id, staff_id, attendance_date)
+         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_by = EXCLUDED.marked_by, updated_at = now()
+         RETURNING *`,
+        values,
+      );
+      return (rows as Record<string, unknown>[]).map(mapAttendance);
+    });
+  }
+
   async upsertAttendance(record: StaffAttendanceRecord): Promise<StaffAttendanceRecord> {
     await ensureStaffHrSchema(this.pool);
     return this.run(record.tenantId, async (client) => {
