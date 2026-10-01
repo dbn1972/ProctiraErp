@@ -23,7 +23,13 @@ import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
 import { listPendingApprovals, type WorkflowApproval } from '@/lib/api/workflows';
 import { getSession } from '@/lib/auth/server';
+import {
+  formatDashboardDate,
+  visibleQuickActions,
+  type DashboardQuickActionId,
+} from '@/lib/dashboard/home';
 import { dashboardRoleLabel, detectDashboardRole } from '@/lib/dashboard/role-detection';
+import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
@@ -41,7 +47,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   const role = detectDashboardRole(session?.user.roles);
 
-  const [institutions, students, staff, periods, approvals, roleDashboardResult] =
+  const [institutions, students, staff, periods, approvals, roleDashboardResult, timeZone] =
     await Promise.all([
       listInstitutionsPage({ pageSize: 1 }).catch(() => null),
       listStudents({ pageSize: 1 }).catch(() => null),
@@ -53,16 +59,13 @@ export default async function DashboardPage() {
         source: 'scaffold' as const,
         status: 503,
       })),
+      resolveTenantTimezone(),
     ]);
 
   const activePeriod = periods?.find((p) => p.status === 'active') ?? null;
   const { dashboard: roleDashboard, source: roleDashboardSource } = roleDashboardResult;
-  const today = new Date().toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  const today = formatDashboardDate(new Date(), timeZone);
+  const quickActions = visibleQuickActions(session?.user);
 
   return (
     <section aria-labelledby="dashboard-heading" className="space-y-6">
@@ -141,20 +144,19 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
           <h2 className="text-base font-semibold">Quick actions</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <QuickAction href="/students/new" label="Add student">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            </QuickAction>
-            <QuickAction href="/attendance" label="Mark attendance">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            </QuickAction>
-            <QuickAction href="/students/import" label="Bulk import students">
-              <Upload className="h-4 w-4" aria-hidden="true" />
-            </QuickAction>
-            <QuickAction href="/assessments/results" label="Enter results">
-              <GraduationCap className="h-4 w-4" aria-hidden="true" />
-            </QuickAction>
-          </div>
+          {quickActions.length === 0 ? (
+            <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">
+              No quick actions for your role.
+            </p>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2" data-testid="home-quick-actions">
+              {quickActions.map((action) => (
+                <QuickAction key={action.id} href={action.href} label={action.label}>
+                  {QUICK_ACTION_ICONS[action.id]}
+                </QuickAction>
+              ))}
+            </div>
+          )}
         </div>
 
         <ApprovalsPanel approvals={approvals} />
@@ -162,6 +164,13 @@ export default async function DashboardPage() {
     </section>
   );
 }
+
+const QUICK_ACTION_ICONS: Record<DashboardQuickActionId, React.ReactNode> = {
+  'add-student': <Plus className="h-4 w-4" aria-hidden="true" />,
+  'mark-attendance': <CheckCircle2 className="h-4 w-4" aria-hidden="true" />,
+  'import-students': <Upload className="h-4 w-4" aria-hidden="true" />,
+  'enter-results': <GraduationCap className="h-4 w-4" aria-hidden="true" />,
+};
 
 function ApprovalsPanel({ approvals }: { approvals: WorkflowApproval[] | null }) {
   const top = approvals?.slice(0, 5) ?? [];
