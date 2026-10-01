@@ -860,6 +860,16 @@ jobs:
       - name: Unit-test apply-sql.sh apply/skip ledger
         run: env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run tools/scripts/__tests__/apply-sql.test.ts
 
+      # PRC-L378/L379/L380: the same reachability gap applied to these gate
+      # suites; run them explicitly (psql is a PATH stub in apply-sql-guards).
+      - name: Unit-test tools/scripts fail-closed gates
+        run: >-
+          env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run
+          tools/scripts/__tests__/apply-sql-guards.test.ts
+          tools/scripts/assert-dod-evidence.test.ts
+          tools/scripts/assert-live-test-execution.test.ts
+          tools/scripts/assert-vitest-skips.test.ts
+
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
       # skipped in CI (they self-skip without DATABASE_URL). Run the backend
