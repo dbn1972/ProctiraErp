@@ -16,6 +16,8 @@
  * `ALLOW_IN_MEMORY_IN_PRODUCTION` is obsolete: if set in production it is
  * logged loudly and still refused (refuse boot / factory throw).
  */
+import { isProductionNodeEnv } from './node-env.js';
+
 export interface PersistencePolicyEnv {
   NODE_ENV?: string;
   DATABASE_URL?: string;
@@ -131,7 +133,7 @@ export function assertInMemoryFallbackAllowed(
       `[persistence] ${domain}: DATABASE_URL is required (REQUIRE_DATABASE=1) — refusing in-memory fallback`,
     );
   }
-  if (env.NODE_ENV === 'production') {
+  if (isProductionNodeEnv(env.NODE_ENV)) {
     logObsoleteProductionEscape(domain, env, log);
     throw new Error(
       `[persistence] ${domain}: in-memory store is not allowed when NODE_ENV=production ` +

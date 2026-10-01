@@ -32,6 +32,8 @@ export {
   MAX_SESSION_DURATION,
   DEFAULT_SESSION_DURATION,
   DEFAULT_SALT_ROUNDS,
+  MIN_JWT_SECRET_LENGTH,
+  isProductionLike,
 } from './config.js';
 export type { AuthConfig } from './config.js';
 
