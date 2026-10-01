@@ -1,6 +1,22 @@
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
+ * Production-tier builds (NEXT_PUBLIC_SITE_ENV=production) must not ship the
+ * "/contact" login placeholder: fail fast when NEXT_PUBLIC_WEB_APP_URL is unset.
+ * @param {Record<string, string | undefined>} [env]
+ */
+export function assertProductionEnv(env = process.env) {
+  if (env.NEXT_PUBLIC_SITE_ENV?.trim().toLowerCase() !== 'production') return;
+  const base = env.NEXT_PUBLIC_WEB_APP_URL?.trim();
+  if (!base || !/^https?:\/\//i.test(base)) {
+    throw new Error(
+      '[public-website] NEXT_PUBLIC_WEB_APP_URL must be an http(s) URL when NEXT_PUBLIC_SITE_ENV=production.',
+    );
+  }
+}
+assertProductionEnv();
+
+/**
  * Baseline security headers for every route.
  * Next.js injects inline bootstrap scripts without a nonce, so script-src keeps
  * 'unsafe-inline'; frame-ancestors/object-src/base-uri/form-action are locked.
