@@ -95,3 +95,26 @@ test.describe('Public Website — contact API (Next route, always-on)', () => {
     expect(typeof body.forwarded).toBe('boolean');
   });
 });
+test.describe('Public Website — security headers & contact origin guard', () => {
+  test('responses carry baseline security headers', async ({ request }) => {
+    const response = await request.get('/');
+    const headers = response.headers();
+    expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(headers['strict-transport-security']).toMatch(/max-age=\d+/);
+    expect(headers['x-frame-options']).toBe('DENY');
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(headers['permissions-policy']).toContain('camera=()');
+  });
+  test('cross-origin contact POST returns 403', async ({ request }) => {
+    const response = await request.post('/api/contact', {
+      headers: { Origin: 'https://evil.example' },
+      data: {
+        name: 'Cross Origin',
+        email: 'x@example.edu',
+        message: 'This should be rejected by the origin guard.',
+      },
+    });
+    expect(response.status()).toBe(403);
+  });
+});

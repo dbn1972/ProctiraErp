@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { allowContactRequest, resolveClientKey } from '@/lib/contact-rate-limit';
+import { checkJsonContentType, checkSameOrigin } from '@/lib/contact-request-guard';
 import { validateContactInput } from '@/lib/contact-validation';
 
 export const runtime = 'nodejs';
@@ -58,6 +59,11 @@ async function forwardToWebhook(payload: {
  * emits a structured log entry without echoing the message body.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  for (const verdict of [checkSameOrigin(request.headers), checkJsonContentType(request.headers)]) {
+    if (!verdict.ok) {
+      return NextResponse.json({ error: verdict.error }, { status: verdict.status });
+    }
+  }
   if (!allowContactRequest(resolveClientKey(request.headers))) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
