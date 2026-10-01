@@ -99,7 +99,10 @@ describe('Assessment Routes', () => {
         type: 'numeric',
         minValue: 0,
         maxValue: 100,
-        thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+        thresholds: [
+          { grade: 'A', minScore: 90, maxScore: 100 },
+          { grade: 'F', minScore: 0, maxScore: 89 },
+        ],
       };
 
       await app.inject({ method: 'POST', url: '/grading-schemes', payload });
@@ -120,7 +123,10 @@ describe('Assessment Routes', () => {
           type: 'numeric',
           minValue: 0,
           maxValue: 100,
-          thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+          thresholds: [
+            { grade: 'A', minScore: 90, maxScore: 100 },
+            { grade: 'F', minScore: 0, maxScore: 89 },
+          ],
         },
       });
       await app.inject({
@@ -131,7 +137,10 @@ describe('Assessment Routes', () => {
           type: 'letter',
           minValue: 0,
           maxValue: 4,
-          thresholds: [{ grade: 'A', minScore: 3.7, maxScore: 4 }],
+          thresholds: [
+            { grade: 'A', minScore: 3.7, maxScore: 4 },
+            { grade: 'F', minScore: 0, maxScore: 3.69 },
+          ],
         },
       });
 
@@ -157,7 +166,10 @@ describe('Assessment Routes', () => {
           type: 'numeric',
           minValue: 0,
           maxValue: 100,
-          thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+          thresholds: [
+            { grade: 'A', minScore: 90, maxScore: 100 },
+            { grade: 'F', minScore: 0, maxScore: 89 },
+          ],
         },
       });
       const created = JSON.parse(createResponse.body);
@@ -193,7 +205,10 @@ describe('Assessment Routes', () => {
           type: 'numeric',
           minValue: 0,
           maxValue: 100,
-          thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+          thresholds: [
+            { grade: 'A', minScore: 90, maxScore: 100 },
+            { grade: 'F', minScore: 0, maxScore: 89 },
+          ],
         },
       });
       const created = JSON.parse(createResponse.body);
@@ -220,7 +235,10 @@ describe('Assessment Routes', () => {
           type: 'numeric',
           minValue: 0,
           maxValue: 100,
-          thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+          thresholds: [
+            { grade: 'A', minScore: 90, maxScore: 100 },
+            { grade: 'F', minScore: 0, maxScore: 89 },
+          ],
         },
       });
       const created = JSON.parse(createResponse.body);
@@ -310,7 +328,10 @@ describe('Assessment Routes', () => {
           type: 'numeric',
           minValue: 0,
           maxValue: 100,
-          thresholds: [{ grade: 'A', minScore: 90, maxScore: 100 }],
+          thresholds: [
+            { grade: 'A', minScore: 90, maxScore: 100 },
+            { grade: 'F', minScore: 0, maxScore: 89 },
+          ],
         },
       });
       const gradingSchemeId = JSON.parse(createSchemeResponse.body).id;
@@ -441,10 +462,9 @@ describe('Assessment Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/grading-schemes',
-        payload: {"name": "X", "type": "numeric", "minValue": 0, "maxValue": 100, "thresholds": []},
+        payload: { name: 'X', type: 'numeric', minValue: 0, maxValue: 100, thresholds: [] },
       });
       expect(response.statusCode).toBe(403);
     });
   });
-
 });

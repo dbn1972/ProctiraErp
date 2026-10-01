@@ -196,6 +196,27 @@ function normaliseQuestions(
   });
 }
 
+/**
+ * PRC-H023: an MCQ bank item's answer key must reference one of its options; an
+ * out-of-range index would silently mis-grade every attempt.
+ */
+function assertBankAnswerKeyInRange(questionType: string, payload: unknown): void {
+  if (questionType !== 'mcq' || !payload || typeof payload !== 'object') return;
+  const record = payload as Record<string, unknown>;
+  const options = Array.isArray(record.options) ? record.options : null;
+  const idx = record.correctOptionIndex;
+  if (options === null || idx === undefined) return;
+  if (typeof idx !== 'number' || !Number.isInteger(idx) || idx < 0 || idx >= options.length) {
+    throw new ValidationError('correctOptionIndex is out of range', [
+      {
+        field: 'payload.correctOptionIndex',
+        rule: 'range',
+        message: 'correctOptionIndex must reference one of the options',
+      },
+    ]);
+  }
+}
+
 function bankToQuizQuestion(
   tenantId: string,
   assignmentId: string,
@@ -920,6 +941,7 @@ export class LmsService {
     if (!canAuthor(actor)) throw new ForbiddenError('Only staff can author the question bank');
     assertScopeTarget(input.scope, input.boardId, input.institutionId);
     assertInstitutionAllowed(actor, input.institutionId);
+    assertBankAnswerKeyInRange(input.questionType, input.payload);
     return this.repository.createBankQuestion({
       id: randomUUID(),
       tenantId,

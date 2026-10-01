@@ -29,6 +29,8 @@ export type {
   ReminderSuppressionEntity,
   AddReminderSuppressionInput,
   SendRemindersInput,
+  NettableScholarshipDisbursement,
+  ScholarshipDisbursementLookup,
 } from './fees-service.js';
 export type {
   FeePlanEntity,
@@ -83,11 +85,7 @@ export {
 } from './payment-adapter.js';
 export type { PaymentAdapter, ChargeInput, ChargeResult } from './payment-adapter.js';
 
-export {
-  assertFeesAccess,
-  hasFeesAccess,
-  normalizeFeesRoles,
-} from './fees-access.js';
+export { assertFeesAccess, hasFeesAccess, normalizeFeesRoles } from './fees-access.js';
 export type { FeesAction } from './fees-access.js';
 
 export {

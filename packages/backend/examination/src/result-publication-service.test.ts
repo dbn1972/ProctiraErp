@@ -351,6 +351,27 @@ describe('ResultPublicationService', () => {
       expect(typeof result.durationMs).toBe('number');
     });
 
+    it('grades a score between whole-mark bands with the band it reached (PRC-H114)', async () => {
+      const examId = uuid();
+      const exam = createTestExamination({ id: examId });
+      await examRepository.create(exam);
+      resultRepository.seedCandidates(examId, [
+        {
+          id: 'cand-gap',
+          examinationId: examId,
+          studentId: 'student-gap',
+          centerId: 'center-1',
+          gender: 'female',
+          areaId: 'area-1',
+          subjectResults: [
+            { candidateId: 'cand-gap', subjectId: 'subj-math', score: 79.5, isComplete: true },
+          ],
+        },
+      ]);
+      const result = await service.publishResults(tenantId, examId);
+      // 79.5 sits between B (60–79) and A (80–100): B, not the lowest grade F.
+      expect(result.gradeResults.find((r) => r.subjectId === 'subj-math')?.grade).toBe('B');
+    });
     it('should use the first grading scheme when subject has no specific scheme assigned', async () => {
       const examId = uuid();
       const schemeId = uuid();

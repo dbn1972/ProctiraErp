@@ -26,6 +26,7 @@ import {
   type GenerateInstalmentScheduleInput,
   type RecordPaymentInput,
   type RecordRefundInput,
+  type ScholarshipDisbursementLookup,
 } from './fees-service.js';
 import type { PaymentAdapter } from './payment-adapter.js';
 import { FEES_REMINDER_SANDBOX_HONESTY_NOTE } from './reminder-sandbox.js';
@@ -62,7 +63,7 @@ const AddSuppressionSchema = Type.Object({
 const ScholarshipNetSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN }),
   disbursementId: Type.String({ pattern: UUID_PATTERN }),
-  amountCents: Type.Integer({ minimum: 1 }),
+  amountCents: Type.Optional(Type.Integer({ minimum: 1 })),
   invoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
 });
@@ -275,12 +276,25 @@ export interface FeesPluginOptions {
   paymentAdapter?: PaymentAdapter;
   prefix?: string;
   parentBinding?: ParentFeeBinding;
+  /**
+   * PRC-H020: verifies scholarship disbursements for HTTP netting. When absent the
+   * netting routes fail closed (503) instead of trusting operator-typed ids/amounts.
+   */
+  scholarshipDisbursements?: ScholarshipDisbursementLookup;
 }
 
 declare module 'fastify' {
   interface FastifyInstance {
     feesService: FeesService;
   }
+}
+
+function scholarshipLookupUnavailable(reply: FastifyReply) {
+  return reply.status(503).send({
+    code: 'SCHOLARSHIP_LOOKUP_UNAVAILABLE',
+    message: 'Scholarship disbursement verification is not configured',
+    statusCode: 503,
+  });
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -531,7 +545,13 @@ function formatReceipt(entity: {
 
 export const feesPlugin = fp(
   async function feesPluginImpl(fastify: FastifyInstance, options: FeesPluginOptions) {
-    const { repository, paymentAdapter, prefix = '/fees', parentBinding } = options;
+    const {
+      repository,
+      paymentAdapter,
+      prefix = '/fees',
+      parentBinding,
+      scholarshipDisbursements,
+    } = options;
     const feesService = new FeesService(repository, paymentAdapter);
     fastify.decorate('feesService', feesService);
 
@@ -1612,6 +1632,24 @@ export const feesPlugin = fp(
       },
     );
 
+    fastify.get(
+      `${prefix}/scholarships/nettable-disbursements`,
+      async function listNettableDisbursements(
+        request: FastifyRequest<{ Querystring: { studentId?: string } }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        if (!scholarshipDisbursements) return scholarshipLookupUnavailable(reply);
+        const data = await feesService.listNettableScholarshipDisbursements(
+          tenantId,
+          scholarshipDisbursements,
+          { studentId: request.query?.studentId || undefined },
+        );
+        return reply.status(200).send({ data });
+      },
+    );
     fastify.post(
       `${prefix}/scholarships/net`,
       async function netScholarship(
@@ -1619,7 +1657,7 @@ export const feesPlugin = fp(
           Body: {
             studentId: string;
             disbursementId: string;
-            amountCents: number;
+            amountCents?: number;
             invoiceId?: string;
             currency?: string;
           };
@@ -1628,25 +1666,35 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        // Netting writes the fee ledger (fees.write, #503) and auto-approves a concession, so it
+        // also needs concession.approve (PRC-H020). Both checks are required.
         if (!requireFeesAction(request, reply, 'fees.write')) return;
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        // PRC-L105: schema-validate ids/amount; amountCents is optional because PRC-H020 derives
+        // it from the verified disbursement (a mismatching amount is rejected).
         const parsed = validate(ScholarshipNetSchema, request.body);
         if (!parsed.success) return validationFailed(reply, parsed.errors);
         const body = parsed.data;
+        if (!scholarshipDisbursements) return scholarshipLookupUnavailable(reply);
         try {
-          const result = await feesService.applyScholarshipNetting(tenantId, getActorId(request), {
-            studentId: body.studentId,
-            disbursementId: body.disbursementId,
-            amountCents: body.amountCents,
-            invoiceId: body.invoiceId,
-            currency: body.currency,
-          });
+          const result = await feesService.applyVerifiedScholarshipNetting(
+            tenantId,
+            getActorId(request),
+            scholarshipDisbursements,
+            {
+              studentId: body.studentId,
+              disbursementId: body.disbursementId,
+              amountCents: body.amountCents,
+              invoiceId: body.invoiceId,
+              currency: body.currency,
+            },
+          );
           return reply.status(200).send(result);
         } catch (error: unknown) {
           return sendFeesError(reply, error);
         }
       },
     );
-
     fastify.post(
       `${prefix}/structures/clone-period`,
       async function cloneStructures(

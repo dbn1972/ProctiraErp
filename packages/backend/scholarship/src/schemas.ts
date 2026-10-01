@@ -250,6 +250,40 @@ export const CreateApplicationSchema = Type.Object({
 export type CreateApplicationInput = Static<typeof CreateApplicationSchema>;
 
 /**
+ * PRC-H030: HTTP body for POST /scholarships/applications. The subject ids are optional —
+ * when omitted the server resolves them from the authenticated principal — and the
+ * placeholder nil UUID is rejected by the route.
+ */
+export const CreateApplicationRequestSchema = Type.Composite([
+  Type.Omit(CreateApplicationSchema, ['applicantId', 'institutionId']),
+  Type.Object({
+    applicantId: Type.Optional(
+      Type.String({ pattern: UUID_PATTERN, description: 'Applicant (student) UUID' }),
+    ),
+    institutionId: Type.Optional(
+      Type.String({ pattern: UUID_PATTERN, description: 'Current institution UUID' }),
+    ),
+  }),
+]);
+
+export type CreateApplicationRequest = Static<typeof CreateApplicationRequestSchema>;
+
+/** PRC-H031: PUT /scholarships/applications/:id — sync a draft before submit. */
+export const UpdateDraftApplicationSchema = Type.Object(
+  {
+    programId: Type.Optional(
+      Type.String({ pattern: UUID_PATTERN, description: 'Scholarship program UUID' }),
+    ),
+    academicRecords: Type.Optional(Type.Array(AcademicRecordSchema, { minItems: 1 })),
+    financialInfo: Type.Optional(FinancialInfoSchema),
+    personalStatement: Type.Optional(Type.String({ maxLength: 5000 })),
+  },
+  { additionalProperties: false },
+);
+
+export type UpdateDraftApplicationInput = Static<typeof UpdateDraftApplicationSchema>;
+
+/**
  * Optional body for POST …/applications/:id/approve | reject (G-911).
  * The reviewer is taken from the JWT, never from the body.
  */

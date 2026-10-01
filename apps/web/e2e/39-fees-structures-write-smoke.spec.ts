@@ -356,7 +356,9 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     expect([400, 404]).toContain(foreignBulk.status());
   });
 
-  test('scholarship netting credits invoice and denies cross-tenant', async ({ request }) => {
+  test('scholarship netting rejects unverified disbursements and cross-tenant', async ({
+    request,
+  }) => {
     const structure = await createStructure(request, {
       name: `E2E Net ${stamp()}`,
       category: 'tuition',
@@ -370,33 +372,26 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     const invoiceId = ((await bulk.json()).created as Array<{ id: string }>)[0]?.id;
     expect(invoiceId).toBeTruthy();
 
-    // PRC-L105: netting validates disbursementId as a UUID.
-    const disbursementId = crypto.randomUUID();
+    // PRC-H020: an operator-typed disbursement id that does not resolve to a paid
+    // scholarship disbursement must not mint credit. PRC-L105: ids must be UUIDs, so use a
+    // well-formed id that does not exist rather than one rejected by schema validation.
     const net = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
       headers: headers(),
       data: {
         studentId: STUDENT_A,
-        disbursementId,
+        disbursementId: crypto.randomUUID(),
         amountCents: 2500,
         invoiceId,
       },
     });
-    expect(net.status(), await net.text()).toBe(200);
-    const body = await net.json();
-    expect(body.idempotent).toBe(false);
-    expect(body.discountCents).toBe(2500);
-    expect(body.invoice?.amountCents).toBe(7500);
-
-    const replay = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
+    expect([403, 404, 422], await net.text()).toContain(net.status());
+    const invoice = await request.get(`${GATEWAY_URL}/api/v1/fees/invoices/${invoiceId}`, {
       headers: headers(),
-      data: {
-        studentId: STUDENT_A,
-        disbursementId,
-        amountCents: 2500,
-      },
     });
-    expect(replay.status()).toBe(200);
-    expect((await replay.json()).idempotent).toBe(true);
+    if (invoice.ok()) {
+      const invoiceBody = await invoice.json();
+      expect((invoiceBody.data ?? invoiceBody).amountCents).toBe(10_000);
+    }
 
     const foreignNet = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
       headers: headers(TENANT_B),
@@ -407,12 +402,6 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
         invoiceId,
       },
     });
-    // Tenant B must not credit tenant A invoice; either no matching invoice (reserved) or deny.
-    if (foreignNet.status() === 200) {
-      const foreignBody = await foreignNet.json();
-      expect(foreignBody.invoice?.id ?? null).not.toBe(invoiceId);
-    } else {
-      expect([400, 403, 404]).toContain(foreignNet.status());
-    }
+    expect([400, 403, 404, 422]).toContain(foreignNet.status());
   });
 });

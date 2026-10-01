@@ -47,11 +47,13 @@ export const resolveReconExceptionFormSchema = z.object({
   resolutionNote: z.string().min(1, 'Resolution note is required').max(2000),
 });
 
-/** Staff F1 — POST /fees/scholarships/net body (amount in major units → cents in action). */
+/**
+ * Staff F1 — POST /fees/scholarships/net body. PRC-H020: no operator-typed amount; the
+ * gateway credits the verified paid disbursement amount.
+ */
 export const scholarshipNettingFormSchema = z.object({
   studentId: z.string().regex(UUID, 'Student must be a UUID'),
-  disbursementId: z.string().min(1, 'Disbursement ID is required').max(200),
-  amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
+  disbursementId: z.string().min(1, 'Select a paid disbursement').max(200),
   invoiceId: z.string().regex(UUID, 'Invoice must be a UUID').optional().or(z.literal('')),
   currency: z.string().max(8).optional().or(z.literal('')),
 });

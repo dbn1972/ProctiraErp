@@ -48,8 +48,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZod(error: {
   flatten: () => { fieldErrors: Record<string, string[] | undefined> };
@@ -246,7 +245,6 @@ export async function applyScholarshipNettingAction(
     const result = await applyScholarshipNetting({
       studentId: parsed.data.studentId,
       disbursementId: parsed.data.disbursementId.trim(),
-      amountCents: majorUnitsToCents(parsed.data.amount),
       invoiceId: parsed.data.invoiceId || undefined,
       currency: parsed.data.currency || undefined,
     });

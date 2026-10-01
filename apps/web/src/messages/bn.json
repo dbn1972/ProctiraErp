@@ -711,7 +711,16 @@
     "statusApproved": "অনুমোদিত",
     "statusRejected": "প্রত্যাখ্যাত",
     "statusWaitlisted": "অপেক্ষমান তালিকায়",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "Applicant date of birth",
+    "dateOfBirthHint": "Enter the date of birth given on the application. It is required to protect the applicant's details.",
+    "dateOfBirthRequired": "Date of birth is required.",
+    "institution": "School",
+    "waitlistPosition": "Waitlist position",
+    "remarks": "Remarks from the admissions office",
+    "interviews": "Interviews",
+    "interviewsEmpty": "No interview has been booked yet.",
+    "interviewsBooked": "Interviews booked: {count}"
   },
   "settings": {
     "branding": {

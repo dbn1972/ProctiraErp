@@ -53,7 +53,7 @@ test.describe('a11y — public surfaces (no backend required)', () => {
 
   test('public application-tracking page is WCAG 2.1 AA clean', async ({ page }) => {
     // Stub the backend so the empty form state is what axe scans.
-    await page.route('**/api/v1/registration/applications/**', async (route) => {
+    await page.route('**/api/v1/registrations/*/status**', async (route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
