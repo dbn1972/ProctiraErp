@@ -3,7 +3,7 @@
  * /mfa URL. /api/auth/login stores it in an httpOnly cookie scoped to
  * /api/auth/mfa, and /api/auth/mfa/verify reads it from that cookie.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST as login } from '../login/route';
 import { POST as verify } from './verify/route';
 
@@ -14,8 +14,17 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// PRC-H027: the auth BFF derives the tenant from the Host and fails closed without one.
+const HOST = 'acme.proctira.io';
+
+beforeEach(() => {
+  vi.stubEnv('TENANT_BASE_DOMAIN', 'proctira.io');
+  vi.stubEnv('TENANT_FALLBACK_SLUG', '');
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe('MFA challenge cookie (PRC-L024)', () => {
@@ -25,8 +34,9 @@ describe('MFA challenge cookie (PRC-L024)', () => {
       vi.fn().mockResolvedValue(jsonResponse({ requiresMfa: true, mfaToken: 'challenge-abc' })),
     );
     const res = await login(
-      new Request('http://localhost/api/auth/login', {
+      new Request(`http://${HOST}/api/auth/login`, {
         method: 'POST',
+        headers: { host: HOST },
         body: JSON.stringify({ email: 'user@example.test', password: 'pw' }),
       }),
     );
@@ -50,9 +60,9 @@ describe('MFA challenge cookie (PRC-L024)', () => {
       );
     vi.stubGlobal('fetch', upstream);
     const res = await verify(
-      new Request('http://localhost/api/auth/mfa/verify', {
+      new Request(`http://${HOST}/api/auth/mfa/verify`, {
         method: 'POST',
-        headers: { cookie: 'mfa_challenge=challenge-abc' },
+        headers: { host: HOST, cookie: 'mfa_challenge=challenge-abc' },
         body: JSON.stringify({ code: '123456' }),
       }),
     );
@@ -66,8 +76,9 @@ describe('MFA challenge cookie (PRC-L024)', () => {
     const upstream = vi.fn();
     vi.stubGlobal('fetch', upstream);
     const res = await verify(
-      new Request('http://localhost/api/auth/mfa/verify', {
+      new Request(`http://${HOST}/api/auth/mfa/verify`, {
         method: 'POST',
+        headers: { host: HOST },
         body: JSON.stringify({ code: '123456' }),
       }),
     );
