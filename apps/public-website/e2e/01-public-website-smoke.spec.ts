@@ -142,3 +142,12 @@ test.describe('Public Website — cookie consent', () => {
     );
   });
 });
+test.describe('Public Website — contact form errors', () => {
+  test('empty submit announces errors and focuses the first field', async ({ page }) => {
+    await page.goto('/contact');
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect(page.getByRole('alert')).toContainText(/Please fix \d+ fields/);
+    await expect(page.locator('#name')).toBeFocused();
+    await expect(page.locator('#name')).toHaveAttribute('aria-describedby', 'name-error');
+  });
+});
