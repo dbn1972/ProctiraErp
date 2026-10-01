@@ -290,7 +290,14 @@ export default async function SectionRosterPage(props: PageProps) {
                         </div>
                       </td>
                       <td className="py-2 text-xs">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${
+                            e.status === 'ENROLLED'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                          data-status={e.status}
+                        >
                           {e.status === 'ENROLLED'
                             ? 'Enrolled'
                             : e.status === 'WITHDRAWN'

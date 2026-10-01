@@ -85,7 +85,6 @@ const SHORTCUTS: ReadonlyArray<{ keys: string; action: string }> = [
     action: 'Move through controls — every action is reachable without a mouse',
   },
   { keys: 'Enter', action: 'Activate the focused button or link' },
-  { keys: '/', action: 'Focus the search field on list pages that expose one' },
 ];
 
 const RUNBOOKS: ReadonlyArray<{ file: string; title: string }> = [
