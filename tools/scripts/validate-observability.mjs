@@ -14,6 +14,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { checkAlertRules } from './observability-alert-rules.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 
@@ -122,20 +124,20 @@ for (const f of jsonFiles) {
   }
 }
 
+// PRC-L187: parse rule names structurally (a substring match let a commented-out
+// rule pass) and require expr + for on every expected alert.
 for (const [f, expected] of Object.entries(expectedAlertGroups)) {
-  let text;
+  let doc;
   try {
-    text = readFileSync(resolve(root, f), 'utf8');
+    doc = yaml.load(readFileSync(resolve(root, f), 'utf8'));
   } catch (err) {
     console.error(`alert FAIL: ${f}: ${err.message}`);
     failed = true;
     continue;
   }
-  for (const name of expected) {
-    if (!text.includes(name)) {
-      console.error(`alert FAIL: ${f} missing rule ${name}`);
-      failed = true;
-    }
+  for (const failure of checkAlertRules(doc, expected)) {
+    console.error(`alert FAIL: ${f} ${failure}`);
+    failed = true;
   }
 }
 

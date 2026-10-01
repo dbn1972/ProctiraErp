@@ -23,6 +23,7 @@ on:
       - 'apps/api-gateway/src/app.ts'
       - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
+      - 'tools/scripts/observability-alert-rules*.mjs'
       - 'tools/scripts/assert-reusable-ci-assets.mjs'
       - '.github/actions/setup-node-pnpm/**'
       - '.github/workflows/observability-config.yml'
@@ -37,6 +38,7 @@ on:
       - 'apps/api-gateway/src/app.ts'
       - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
+      - 'tools/scripts/observability-alert-rules*.mjs'
       - '.github/workflows/observability-config.yml'
 
 concurrency:
@@ -152,5 +154,7 @@ jobs:
           pnpm-version: ${{ env.PNPM_VERSION }}
           install-dependencies: 'true'
 
+      - name: Unit-test structural alert-rule check (PRC-L187)
+        run: node --test tools/scripts/observability-alert-rules.test.mjs
       - name: Syntactic observability validation
         run: node tools/scripts/validate-observability.mjs
