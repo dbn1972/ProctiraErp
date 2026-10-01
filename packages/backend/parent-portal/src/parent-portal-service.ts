@@ -1,7 +1,12 @@
 /**
  * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
+import {
+  BusinessRuleError,
+  ForbiddenError,
+  NotFoundError,
+  resolveProviderDeliveryMode,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -51,7 +56,13 @@ export interface FeesLedgerPort {
   recordPayment(
     tenantId: string,
     actorId: string,
-    input: { invoiceId: string; payerUserId?: string; method?: PayInvoiceInput['method'] },
+    input: {
+      invoiceId: string;
+      payerUserId?: string;
+      method?: PayInvoiceInput['method'];
+      // PRC-C001: replay-safe key so a re-submitted pay request settles at most once.
+      idempotencyKey?: string;
+    },
   ): Promise<{ invoice: unknown; payment: unknown; receipt: unknown }>;
   listPayments(tenantId: string): Promise<unknown[]>;
   listReceipts(tenantId: string): Promise<unknown[]>;
@@ -284,6 +295,26 @@ export class ParentPortalService {
   }
 
   /**
+   * PRC-H073: staff-facing link assertion for consent create/supersede. Unlike the
+   * guardian-facing {@link assertParentLinkedToStudent} (which returns 404 to avoid leaking
+   * whether a student exists to an untrusted caller), the caller here is already trusted staff
+   * naming a (parent, student) pair, so a missing/withdrawn link is a 422 business-rule error.
+   */
+  private async assertConsentTargetLinked(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+  ): Promise<ParentChildLinkEntity> {
+    const link = await this.repository.findActiveLink(tenantId, parentUserId, studentId);
+    if (!link) {
+      throw new BusinessRuleError(
+        'Consent target guardian is not an active linked guardian for this student',
+      );
+    }
+    return link;
+  }
+
+  /**
    * Relationship-scoped gate: linked parent must hold the named authority flag
    * and must not be under an active restriction that suspends that authority.
    * Unlinked / no custody → 404 (no existence leak). Linked without flag or
@@ -392,6 +423,10 @@ export class ParentPortalService {
   }
 
   async createConsentRequest(tenantId: string, actorId: string, input: CreateConsentInput) {
+    // PRC-H073: the route restricts this to staff. Staff must still name a real (parent,student)
+    // relationship — a consent addressed to a guardian who is not linked to the student is a
+    // business-rule violation (422), not a valid record to create.
+    await this.assertConsentTargetLinked(tenantId, input.parentUserId, input.studentId);
     const id = uuidv4();
     const validFrom = new Date();
     return this.repository.createConsent({
@@ -555,6 +590,9 @@ export class ParentPortalService {
     if (!consent) {
       throw new NotFoundError(`Consent with id '${consentId}' not found`);
     }
+    // PRC-H073: the route restricts this to staff. Do not re-open a consent chain for a guardian
+    // who is no longer an active linked guardian of the student.
+    await this.assertConsentTargetLinked(tenantId, consent.parentUserId, consent.studentId);
     if (consent.validTo != null) {
       throw new BusinessRuleError('Consent version is closed; operate on the current open version');
     }
@@ -755,6 +793,31 @@ export class ParentPortalService {
     return receipt;
   }
 
+  /**
+   * PRC-C008: fetch a receipt for a guardian/student, enforcing ownership. The receipt's
+   * invoice must belong to a fee-visible linked student. Returns NotFound (404) — not a 403 —
+   * for a foreign or missing receipt so a guardian cannot probe which receipt ids exist.
+   */
+  async getReceiptForParent(tenantId: string, parentUserId: string, receiptId: string) {
+    const receipt = await this.getReceipt(tenantId, receiptId);
+    const invoiceId = (receipt as { invoiceId?: string }).invoiceId;
+    const visibleStudentIds = new Set(await this.getFeeVisibleStudentIds(tenantId, parentUserId));
+    let ownerStudentId: string | undefined;
+    if (invoiceId) {
+      if (this.fees) {
+        const invoice = await this.fees.getInvoice(tenantId, invoiceId);
+        ownerStudentId = invoice.studentId;
+      } else {
+        const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
+        ownerStudentId = invoice?.studentId;
+      }
+    }
+    if (!ownerStudentId || !visibleStudentIds.has(ownerStudentId)) {
+      throw new NotFoundError(`Receipt with id '${receiptId}' not found`);
+    }
+    return receipt;
+  }
+
   async payInvoice(
     tenantId: string,
     parentUserId: string,
@@ -768,6 +831,9 @@ export class ParentPortalService {
         invoiceId,
         payerUserId: parentUserId,
         method: input.method,
+        // PRC-C001: settle at most once per (tenant, invoice, payer) even if the parent
+        // double-submits; FeesService verifies the charge via the payment adapter.
+        idempotencyKey: `pp-pay:${invoiceId}:${parentUserId}`,
       }) as unknown as Promise<{
         invoice: NonNullable<Awaited<ReturnType<ParentPortalRepository['findInvoiceById']>>>;
         payment: Awaited<ReturnType<ParentPortalRepository['createPayment']>>;
@@ -785,7 +851,28 @@ export class ParentPortalService {
       throw new BusinessRuleError('Invoice is not open for payment');
     }
 
-    const method = input.method ?? 'sandbox';
+    // PRC-C001: this standalone (in-memory) path performs NO PSP verification — it can only
+    // ever represent an honest sandbox settlement. Fail closed when a real settlement is
+    // implied so a guardian can never self-declare a payment as truly paid:
+    //   * refuse any non-sandbox method (upi/card/cash falsely imply real money moved), and
+    //   * refuse entirely when provider mode resolves to 'live' (or would be a silent
+    //     production default). Live payments MUST flow through FeesService.recordPayment,
+    //     which routes through the payment adapter and settles only on a verified charge.
+    // Cast to string for the runtime check: the schema narrows `method` to 'sandbox', but this
+    // service can be called directly, so we still defend against any other value at runtime.
+    const method = (input.method ?? 'sandbox') as string;
+    if (method !== 'sandbox') {
+      throw new BusinessRuleError(
+        `Self-declared payment method '${method}' is not accepted: only verified ` +
+          `payment-service settlements may mark an invoice paid`,
+      );
+    }
+    if (resolveProviderDeliveryMode('fees') !== 'sandbox') {
+      throw new BusinessRuleError(
+        'Sandbox self-service payment is disabled: configure a verified payment provider ' +
+          '(PROVIDER_MODE=live) so payments settle through the fee ledger',
+      );
+    }
     const paidAt = new Date();
 
     const payment = await this.repository.createPayment({

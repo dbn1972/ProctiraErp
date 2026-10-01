@@ -19,11 +19,15 @@ describe('CommunicationService audit + adapter (G-604)', () => {
       },
     });
 
-    const campaign = await service.createCampaign(TENANT, {
-      name: 'Audit me',
-      channels: ['email'],
-      body: 'Hi',
-    });
+    const campaign = await service.createCampaign(
+      TENANT,
+      {
+        name: 'Audit me',
+        channels: ['email'],
+        body: 'Hi',
+      },
+      'comms-staff',
+    );
     const result = await service.sendCampaign(TENANT, campaign.id);
 
     expect(result.delivery.mode).toBe('sandbox');
@@ -34,10 +38,14 @@ describe('CommunicationService audit + adapter (G-604)', () => {
 
   it('records audit on emergency dispatch after dual confirm', async () => {
     const service = new CommunicationService(new InMemoryCommunicationRepository());
-    const blast = await service.createEmergencyBlast(TENANT, {
-      reason: 'Fire drill',
-      channels: ['sms'],
-    });
+    const blast = await service.createEmergencyBlast(
+      TENANT,
+      {
+        reason: 'Fire drill',
+        channels: ['sms'],
+      },
+      'raiser',
+    );
     await service.confirmEmergencyBlast(TENANT, blast.id, 'actor-1');
     await service.confirmEmergencyBlast(TENANT, blast.id, 'actor-2');
     const result = await service.dispatchEmergencyBlast(TENANT, blast.id);

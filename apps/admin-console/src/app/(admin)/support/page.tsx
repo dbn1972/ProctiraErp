@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { listTenants } from '@/lib/api/tenants';
-import { listBreakGlassRequests } from '@/lib/api/break-glass';
+import { hasActiveBreakGlassGrant, listBreakGlassRequests } from '@/lib/api/break-glass';
 import { requireRole } from '@/lib/auth/server';
 
 import { TenantPicker } from './tenant-picker';
@@ -30,15 +30,10 @@ export default async function SupportPage({
   const selectedTenantId = resolvedSearchParams.tenantId;
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId) ?? null;
 
-  // An active break-glass grant for this tenant + the current operator is
-  // required to enable masquerade. Stub: look up by requester email.
+  // An active, unexpired break-glass grant for this tenant + the current operator (matched on the
+  // verified subject) is required to enable masquerade (PRC-H003).
   const { requests, source: bgSource } = await listBreakGlassRequests();
-  const hasActiveGrant = requests.some(
-    (request) =>
-      request.status === 'active' &&
-      request.targetTenantId === selectedTenantId &&
-      request.requester === session.user.email,
-  );
+  const hasActiveGrant = hasActiveBreakGlassGrant(requests, selectedTenantId, session.user);
 
   return (
     <>
@@ -88,7 +83,7 @@ export default async function SupportPage({
                 <CardContent className="space-y-3">
                   <ImpactRow
                     label="Active users"
-                    value={selectedTenant.activeUsers.toLocaleString()}
+                    value={selectedTenant.activeUsers?.toLocaleString() ?? 'Unavailable'}
                   />
                   <ImpactRow label="Plan" value={selectedTenant.plan} />
                   <ImpactRow label="Region" value={selectedTenant.region} />

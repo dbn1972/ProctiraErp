@@ -11,7 +11,10 @@ export type StaffAction =
   | 'staff.delete'
   | 'staff.hr.write'
   | 'staff.import'
-  | 'payroll.export';
+  | 'payroll.export'
+  // PRC-H088: HR record reads (contracts incl. monthlyGrossCents, qualifications, staff
+  // attendance). These GETs previously skipped the domain guard entirely.
+  | 'staff.hr.read';
 
 const ADMIN_ROLES = [
   'admin',
@@ -40,7 +43,25 @@ const ACTION_ROLES: Record<StaffAction, readonly string[]> = {
   'staff.hr.write': HR_OFFICER_ROLES,
   'staff.import': ['hr_officer', 'staff_admin', 'registrar', ...ADMIN_ROLES],
   'payroll.export': ['hr_officer', 'staff_admin', 'bursar', 'finance_officer', ...ADMIN_ROLES],
+  'staff.hr.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
 };
+
+/**
+ * PRC-H088: pick the HR-route action from the request path + method. Payroll is gated on every
+ * method — GET /payroll/export persists (and with ?replace=true reverses) payroll runs, so it is
+ * not a safe read. Other HR GETs require staff.hr.read.
+ */
+export function staffHrActionFor(method: string, path: string, prefix = '/staff'): StaffAction {
+  const upper = method.toUpperCase();
+  const isRead = upper === 'GET' || upper === 'HEAD' || upper === 'OPTIONS';
+  const pathOnly = (path.split('?')[0] ?? path).toLowerCase();
+  // Routes may be mounted under a version prefix (e.g. /api/v1), so match on path segments.
+  const base = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').toLowerCase();
+  if (new RegExp(`${base}/payroll(?:/|$)`).test(pathOnly)) return 'payroll.export';
+  if (isRead) return 'staff.hr.read';
+  if (new RegExp(`${base}/import(?:/|$)`).test(pathOnly)) return 'staff.import';
+  return 'staff.hr.write';
+}
 
 export function normalizeStaffRoles(roles: unknown): string[] {
   if (!Array.isArray(roles)) return [];

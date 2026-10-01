@@ -12,7 +12,11 @@ export type ExaminationAction =
   | 'exam.publish'
   | 'candidate.register'
   | 'document.generate'
-  | 'ops.moderate';
+  | 'ops.moderate'
+  // PRC-C004: staff-only read of officer surfaces (results, raw marks, seating, invigilators,
+  // re-evaluations, document jobs/PDFs). Gateway examination:read is held by student/teacher/
+  // staff, so these GET routes previously had no domain check.
+  | 'exam.read.staff';
 
 const ADMIN_ROLES = [
   'admin',
@@ -31,6 +35,17 @@ const EXAM_OFFICER_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
+// Staff who may read examination officer surfaces. Teachers are included (they mark and review
+// their candidates) alongside exam officers/registrars/admins. Students/guardians are excluded —
+// learner result access must go through a self-scoped endpoint, not these staff routes.
+const EXAM_READ_STAFF_ROLES = [
+  'teacher',
+  'class_teacher',
+  'subject_teacher',
+  'invigilator',
+  ...EXAM_OFFICER_ROLES,
+] as const;
+
 const ACTION_ROLES: Record<ExaminationAction, readonly string[]> = {
   'exam.create': EXAM_OFFICER_ROLES,
   'exam.update': EXAM_OFFICER_ROLES,
@@ -39,6 +54,7 @@ const ACTION_ROLES: Record<ExaminationAction, readonly string[]> = {
   'candidate.register': EXAM_OFFICER_ROLES,
   'document.generate': EXAM_OFFICER_ROLES,
   'ops.moderate': EXAM_OFFICER_ROLES,
+  'exam.read.staff': EXAM_READ_STAFF_ROLES,
 };
 
 export function normalizeExaminationRoles(roles: unknown): string[] {

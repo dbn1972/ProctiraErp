@@ -1471,6 +1471,9 @@ importers:
 
   packages/backend/etl:
     dependencies:
+      '@proctira/backend-auth':
+        specifier: workspace:*
+        version: link:../auth
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common

@@ -180,6 +180,17 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
       return reply.status(401).send(response);
     }
 
+    // PRC-H096: body larger than the route/server bodyLimit (FST_ERR_CTP_BODY_TOO_LARGE) was
+    // reported as a 500; it is a client error with an actionable message.
+    if (error.statusCode === 413) {
+      const response: ApiErrorResponse = {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request body is larger than this endpoint accepts. Upload a smaller file.',
+        statusCode: 413,
+      };
+      return reply.status(413).send(response);
+    }
+
     // Handle forbidden errors
     if (error.statusCode === 403) {
       const response: ApiErrorResponse = {

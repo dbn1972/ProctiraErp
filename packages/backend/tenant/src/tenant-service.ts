@@ -63,6 +63,20 @@ export class TenantService {
     private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
   ) {}
 
+  /**
+   * PRC-H098: lifecycle status changes must reach enforcement (the gateway suspension gate).
+   * Listeners run after the status is persisted; a failing listener is logged, not rethrown.
+   */
+  private readonly statusListeners: Array<
+    (tenantId: string, status: TenantEntity['status']) => void | Promise<void>
+  > = [];
+
+  onStatusChange(
+    listener: (tenantId: string, status: TenantEntity['status']) => void | Promise<void>,
+  ): void {
+    this.statusListeners.push(listener);
+  }
+
   // ─── Tenant CRUD ─────────────────────────────────────────────────────────
 
   /**
@@ -204,10 +218,11 @@ export class TenantService {
   /**
    * Suspend a tenant.
    *
-   * Suspended tenants:
-   * - Cannot authenticate new sessions
-   * - Existing sessions are invalidated
-   * - Data is preserved and accessible to platform admins
+   * Suspended tenants (enforced by the gateway suspension gate, PRC-H008/H098):
+   * - Cannot make mutating API requests (403 TENANT_SUSPENDED), except billing remediation and
+   *   privacy/data-subject requests
+   * - Can still read their data (read-only mode) and sign in
+   * - Existing sessions are NOT revoked (tracked follow-up)
    * - Can be reactivated
    *
    * @throws NotFoundError if tenant not found
@@ -372,6 +387,15 @@ export class TenantService {
     const updated = await this.repository.updateTenant(id, patch);
     if (!updated) {
       throw new NotFoundError(`Tenant with id '${id}' not found`);
+    }
+    if (patch.status) {
+      for (const listener of this.statusListeners) {
+        try {
+          await listener(id, updated.status);
+        } catch (error) {
+          logger.error({ tenantId: id, err: error }, 'Tenant status listener failed');
+        }
+      }
     }
     return updated;
   }

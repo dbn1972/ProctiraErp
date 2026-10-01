@@ -71,7 +71,7 @@ export default async function TenantDetailPage({
           {tenant.plan}
         </Badge>
         <span className="text-sm text-muted-foreground">
-          Created {formatDate(tenant.createdAt)} · {tenant.activeUsers.toLocaleString()} active
+          Created {formatDate(tenant.createdAt)} · {tenant.activeUsers?.toLocaleString() ?? 'unknown'} active
           users
         </span>
       </div>
@@ -100,8 +100,8 @@ export default async function TenantDetailPage({
                   ['Plan', tenant.plan],
                   ['Region', tenant.region],
                   ['Status', tenant.status],
-                  ['Primary contact', tenant.contactEmail],
-                  ['Active users', tenant.activeUsers.toLocaleString()],
+                  ['Primary contact', tenant.contactEmail ?? 'Unavailable'],
+                  ['Active users', tenant.activeUsers?.toLocaleString() ?? 'Unavailable'],
                   ['Created', formatDateTime(tenant.createdAt)],
                 ]}
               />

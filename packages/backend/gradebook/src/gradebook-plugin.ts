@@ -8,10 +8,21 @@ import { GradebookService } from './gradebook-service.js';
 import { registerGradebookRoutes } from './routes.js';
 import { prepareTranscriptSigningAtStartup } from './signed-download.js';
 
+/**
+ * PRC-C006: resolves the student ids a portal caller (parent/guardian/student) may read.
+ * Returns the caller's own student id (student) or linked wards (guardian/parent). When absent,
+ * portal callers are denied on self-scopable read routes (fail closed).
+ */
+export interface GradebookStudentBinding {
+  listReadableStudentIds(tenantId: string, actorUserId: string): Promise<string[]>;
+}
+
 export interface GradebookPluginOptions {
   repository: GradebookRepository;
   extras?: GradebookExtrasStore;
   prefix?: string;
+  /** PRC-C006: portal self-scope binding. */
+  studentBinding?: GradebookStudentBinding;
 }
 
 declare module 'fastify' {
@@ -36,6 +47,7 @@ export const gradebookPlugin = fp(
     await registerGradebookRoutes(fastify, {
       service,
       prefix: options.prefix ?? '/gradebook',
+      studentBinding: options.studentBinding,
     });
   },
   {

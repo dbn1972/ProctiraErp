@@ -4,7 +4,11 @@
  * Loads data into a REST API endpoint with support for
  * batching and authentication.
  */
+import { lookup } from 'node:dns/promises';
+
 import type { RestApiDestinationConfig } from '../schemas.js';
+
+import { assertPublicHttpsUrl, safeFetch } from './safe-fetch.js';
 import type { DestinationConnector, DataRow, LoadResult, LoadError } from './types.js';
 
 export class RestApiDestinationConnector implements DestinationConnector {
@@ -58,10 +62,11 @@ export class RestApiDestinationConnector implements DestinationConnector {
     if (!this.config.url) {
       return { valid: false, error: 'URL is required' };
     }
+    // PRC-C003: reject non-public / non-https targets at validate time too.
     try {
-      new URL(this.config.url);
-    } catch {
-      return { valid: false, error: 'Invalid URL format' };
+      await assertPublicHttpsUrl(this.config.url, (host) => lookup(host, { all: true }));
+    } catch (error) {
+      return { valid: false, error: error instanceof Error ? error.message : 'Invalid URL' };
     }
     return { valid: true };
   }
@@ -70,7 +75,9 @@ export class RestApiDestinationConnector implements DestinationConnector {
     const headers = this.buildHeaders();
     const method = this.config.method ?? 'POST';
 
-    return fetch(this.config.url, {
+    // PRC-C003: SSRF-guarded — a tenant-authored destination URL can no longer exfiltrate to
+    // loopback/metadata/internal targets from the shared process.
+    return safeFetch(this.config.url, {
       method,
       headers,
       body: JSON.stringify(batch),
@@ -86,7 +93,8 @@ export class RestApiDestinationConnector implements DestinationConnector {
     if (this.config.authType === 'bearer' && this.config.authConfig?.token) {
       headers['Authorization'] = `Bearer ${this.config.authConfig.token}`;
     } else if (this.config.authType === 'basic' && this.config.authConfig) {
-      const { username, password } = this.config.authConfig;
+      const username = this.config.authConfig['username'] ?? '';
+      const password = this.config.authConfig['password'] ?? '';
       const encoded = Buffer.from(`${username}:${password}`).toString('base64');
       headers['Authorization'] = `Basic ${encoded}`;
     } else if (this.config.authType === 'api_key' && this.config.authConfig) {

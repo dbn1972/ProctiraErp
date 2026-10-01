@@ -12,6 +12,7 @@ type TestUser = {
   sub: string;
   tenantId?: string;
   roles: Array<{ roleId: string; roleName: string; areaId: string }>;
+  institutions?: string[];
 };
 
 function setUser(request: FastifyRequest, user: TestUser, tenantId?: string) {
@@ -144,6 +145,8 @@ describe('healthUiPlugin', () => {
     const TENANT = '00000000-0000-4000-8000-0000000000e1';
     const OTHER = '00000000-0000-4000-8000-0000000000e2';
     const STUDENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa91';
+    const SCHOOL_A = '5c000000-0000-4000-8000-00000000000a';
+    const SCHOOL_B = '5c000000-0000-4000-8000-00000000000b';
 
     async function buildLiveApp(repository: InMemoryHealthRepository, tenantId = TENANT) {
       const app = Fastify();
@@ -155,6 +158,8 @@ describe('healthUiPlugin', () => {
             sub: 'nurse-1',
             tenantId,
             roles: [{ roleId: 'nurse', roleName: 'NURSE', areaId: 'area-1' }],
+            // PRC-H006: a school nurse is scoped to their school.
+            institutions: [SCHOOL_A],
           },
           tenantId,
         );
@@ -169,6 +174,8 @@ describe('healthUiPlugin', () => {
     }
 
     async function seedDomain(repository: InMemoryHealthRepository) {
+      repository.setStudentInstitution(TENANT, STUDENT, SCHOOL_A);
+      repository.setStudentInstitution(OTHER, 'other-student', SCHOOL_A);
       await repository.createAllergy({
         id: 'a1a1a1a1-0000-4000-8000-000000000001',
         tenantId: TENANT,
@@ -311,6 +318,202 @@ describe('healthUiPlugin', () => {
           name: 'Grade 6 dental',
         }),
       ]);
+    });
+
+    // ── PRC-H006: need-to-know scope, PHI read audit and counselling ACL ─────────────
+    const STUDENT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb92';
+
+    async function appAs(repository: InMemoryHealthRepository, user: Partial<TestUser>) {
+      const app = Fastify();
+      apps.push(app);
+      app.addHook('onRequest', async (request) => {
+        setUser(
+          request,
+          {
+            sub: 'actor-1',
+            tenantId: TENANT,
+            roles: [{ roleId: 'nurse', roleName: 'NURSE', areaId: 'area-1' }],
+            institutions: [SCHOOL_A],
+            ...user,
+          },
+          TENANT,
+        );
+      });
+      await app.register(healthUiPlugin, {
+        seed: { records: [], specialNeeds: [], counselling: [], screenings: [] },
+        repository,
+      });
+      await app.ready();
+      return app;
+    }
+
+    async function seedSchoolB(repository: InMemoryHealthRepository) {
+      repository.setStudentInstitution(TENANT, STUDENT_B, SCHOOL_B);
+      await repository.createAllergy({
+        id: 'a1a1a1a1-0000-4000-8000-0000000000b1',
+        tenantId: TENANT,
+        studentId: STUDENT_B,
+        allergyType: 'food',
+        description: 'Shellfish',
+        severity: 'severe',
+        reaction: null,
+        treatment: null,
+        diagnosedDate: null,
+      });
+      await repository.createDiagnosis({
+        id: 'd1d1d1d1-0000-4000-8000-0000000000b1',
+        tenantId: TENANT,
+        studentId: STUDENT_B,
+        assessmentId: null,
+        diagnosisDate: '2025-06-01',
+        diagnosedBy: 'Dr B',
+        condition: 'ADHD',
+        category: 'Attention',
+        severity: 'mild',
+        notes: null,
+      });
+      for (const [id, studentId] of [
+        ['9c000000-0000-4000-8000-0000000000a1', STUDENT],
+        ['9c000000-0000-4000-8000-0000000000b1', STUDENT_B],
+      ] as const) {
+        await repository.createCounsellingSession({
+          id,
+          tenantId: TENANT,
+          studentId,
+          counsellorId: 'counsellor-1',
+          sessionDate: '2026-02-01',
+          sessionType: 'individual',
+          reason: 'Family bereavement',
+          caseNotes: 'confidential',
+          outcome: null,
+          followUpRequired: false,
+          followUpDate: null,
+          status: 'scheduled',
+        });
+      }
+    }
+
+    it('nurse bound to school A gets no rows for a school-B student', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      const app = await appAs(repository, {});
+      for (const url of ['/health/records', '/health/special-needs', '/health/counselling']) {
+        const res = await app.inject({ method: 'GET', url });
+        expect(res.statusCode, url).toBe(200);
+        const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+          (r) => r.studentId,
+        );
+        expect(ids, url).not.toContain(STUDENT_B);
+        expect(ids, url).toContain(STUDENT);
+      }
+      const detail = await app.inject({ method: 'GET', url: `/health/records/${STUDENT_B}` });
+      expect(detail.statusCode).toBe(404);
+    });
+
+    it('a school-bound role with no institution scope sees no live PHI', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      const app = await appAs(repository, { institutions: [] });
+      const res = await app.inject({ method: 'GET', url: '/health/records' });
+      expect((res.json() as { data: unknown[] }).data).toEqual([]);
+    });
+
+    it('authoritative staff assignments override broader JWT institution claims', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      // JWT claims both schools, but the nurse is only assigned to school A.
+      repository.setActorInstitutions(TENANT, 'actor-1', [SCHOOL_A]);
+      const app = await appAs(repository, { institutions: [SCHOOL_A, SCHOOL_B] });
+      const res = await app.inject({ method: 'GET', url: '/health/records' });
+      const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+        (r) => r.studentId,
+      );
+      expect(ids).toEqual([STUDENT]);
+    });
+
+    it('a tenant-wide health admin sees every school', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      const app = await appAs(repository, {
+        roles: [{ roleId: 'health_admin', roleName: 'HEALTH_ADMIN', areaId: 'area-1' }],
+        institutions: [],
+      });
+      const res = await app.inject({ method: 'GET', url: '/health/records' });
+      const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+        (r) => r.studentId,
+      );
+      expect(ids.sort()).toEqual([STUDENT, STUDENT_B].sort());
+    });
+
+    it('each read writes a PHI access log row per returned student', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      const app = await appAs(repository, {});
+      await app.inject({ method: 'GET', url: '/health/records' });
+      await app.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      const logs = await repository.listPhiAccessLogs(TENANT);
+      const types = logs.filter((l) => l.actorUserId === 'actor-1').map((l) => l.resourceType);
+      expect(types).toEqual(expect.arrayContaining(['health_record.list', 'health_record.detail']));
+      expect(logs.some((l) => l.studentId === STUDENT_B)).toBe(false);
+    });
+
+    it('fails closed with 503 when the PHI auditor fails in production', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      repository.logPhiAccess = async () => {
+        throw new Error('audit store down');
+      };
+      const savedEnv = process.env.NODE_ENV;
+      const savedDegrade = process.env.ALLOW_PHI_AUDIT_DEGRADE;
+      process.env.NODE_ENV = 'production';
+      delete process.env.ALLOW_PHI_AUDIT_DEGRADE;
+      try {
+        await seedSchoolB(repository);
+        const app = await appAs(repository, {});
+        for (const url of [
+          '/health/records',
+          `/health/records/${STUDENT}`,
+          '/health/special-needs',
+          '/health/counselling',
+        ]) {
+          const res = await app.inject({ method: 'GET', url });
+          expect(res.statusCode, url).toBe(503);
+          const body = JSON.stringify(res.json());
+          expect(body, url).not.toContain('Peanuts');
+          // Driver/auditor detail stays in server logs.
+          expect(body, url).not.toContain('audit store down');
+        }
+      } finally {
+        process.env.NODE_ENV = savedEnv;
+        if (savedDegrade === undefined) delete process.env.ALLOW_PHI_AUDIT_DEGRADE;
+        else process.env.ALLOW_PHI_AUDIT_DEGRADE = savedDegrade;
+      }
+    });
+
+    it('nurse cannot read counselling topic; counsellor can', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      const nurse = await appAs(repository, {});
+      const nurseRows = (
+        await nurse.inject({ method: 'GET', url: '/health/counselling' })
+      ).json() as {
+        data: Array<{ studentId: string; topic: string }>;
+      };
+      expect(nurseRows.data).toHaveLength(1);
+      expect(nurseRows.data[0]!.topic).toBe('');
+
+      const counsellor = await appAs(repository, {
+        roles: [{ roleId: 'counsellor', roleName: 'COUNSELLOR', areaId: 'area-1' }],
+      });
+      const counsellorRows = (
+        await counsellor.inject({ method: 'GET', url: '/health/counselling' })
+      ).json() as { data: Array<{ topic: string }> };
+      expect(counsellorRows.data[0]!.topic).toBe('Family bereavement');
     });
 
     it('cross-tenant: the other tenant sees none of these rows', async () => {

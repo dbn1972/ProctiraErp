@@ -4,16 +4,40 @@
  * Serves `/api/v1` shapes expected by apps/admin-console API clients:
  *   GET/POST /tenants, GET /tenants/:id, POST lifecycle
  *   GET /plugins, GET /plugins/:id, POST decision
- *   GET/POST /break-glass, POST approve/deny
+ *   GET/POST /break-glass, GET /break-glass/:id, POST approve/deny/revoke (PRC-H003)
  *   GET /plans, GET /themes
  *   GET /platform/health, GET /platform/audit
  */
 import { randomUUID } from 'node:crypto';
 
-import type { FastifyInstance } from 'fastify';
+import type { TenantService } from '@proctira/backend-tenant';
+import { AppError } from '@proctira/common';
+import { getSharedPgPool } from '@proctira/database';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  applyExpiry,
+  approveRequest,
+  createKeyedLock,
+  createRequest,
+  denyRequest,
+  revokeRequest,
+  type BreakGlassActor,
+  type BreakGlassRow,
+  type PolicyResult,
+} from './break-glass-policy.js';
+import {
+  probePostgres,
+  queryPlatformAudit,
+  toConsoleTenant,
+  type ConsoleAuditEntry,
+  type SqlPool,
+} from './platform-admin-live.js';
 import { createPlatformAdminStores } from './platform-admin-store.js';
+
+/** Tenant status as understood by the tenant service (differs from the console labels). */
+type ServiceTenantStatus = NonNullable<Parameters<TenantService['listTenants']>[0]['status']>;
 
 type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
@@ -43,20 +67,7 @@ interface PluginSubmission {
   manifestHash: string;
 }
 
-interface BreakGlassRequest {
-  id: string;
-  requester: string;
-  targetTenantId: string;
-  scope: 'read' | 'support' | 'admin';
-  justification: string;
-  useCase: string;
-  durationMinutes: number;
-  status: 'pending_approval' | 'approved' | 'active' | 'expired' | 'revoked' | 'denied';
-  createdAt: string;
-  approver?: string;
-  approvedAt?: string;
-  expiresAt?: string;
-}
+type BreakGlassRequest = BreakGlassRow;
 
 function seedTenants(): Tenant[] {
   return [
@@ -183,8 +194,51 @@ export const platformAdminUiPlugin = fp(
       }
     });
 
+    // PRC-H005: console tenant routes read and change the real tenant lifecycle (TenantService,
+    // registered at /api/v1/tenant-lifecycle) instead of a console-only document store. The
+    // document store remains only when no tenant service is registered (isolated plugin tests).
+    const tenantService: TenantService | null = fastify.hasDecorator('tenantService')
+      ? (fastify as FastifyInstance & { tenantService: TenantService }).tenantService
+      : null;
+    const sendDomainError = (reply: FastifyReply, error: unknown) => {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    };
+    /** Same rule as the /tenant-lifecycle schemas: a 1–500 char reason is mandatory. */
+    const reasonOf = (request: FastifyRequest): string | null => {
+      const reason = (request.body as { reason?: unknown } | undefined)?.reason;
+      if (typeof reason !== 'string') return null;
+      const trimmed = reason.trim();
+      return trimmed.length >= 1 && trimmed.length <= 500 ? trimmed : null;
+    };
+    const retainDaysOf = (request: FastifyRequest): number | undefined => {
+      const value = (request.body as { retainDataDays?: unknown } | undefined)?.retainDataDays;
+      return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 365
+        ? value
+        : undefined;
+    };
+
     fastify.get('/tenants', async (request, reply) => {
       const query = request.query as { status?: string; q?: string };
+      if (tenantService) {
+        const status =
+          query.status && query.status !== 'all'
+            ? query.status === 'decommissioning' || query.status === 'archived'
+              ? 'decommissioned'
+              : query.status
+            : undefined;
+        const result = await tenantService.listTenants(
+          {
+            ...(status ? { status: status as ServiceTenantStatus } : {}),
+            ...(query.q ? { search: query.q } : {}),
+          },
+          { page: 1, pageSize: 200 },
+        );
+        const items = result.data.map(toConsoleTenant);
+        return reply.send({ items, data: items, meta: { source: 'tenant-service' } });
+      }
       let items = await tenants.list();
       if (query.status && query.status !== 'all') {
         items = items.filter((t) => t.status === query.status);
@@ -195,10 +249,17 @@ export const platformAdminUiPlugin = fp(
           (t) => t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q),
         );
       }
-      return reply.send({ items, data: items });
+      return reply.send({ items, data: items, meta: { source: 'console-document' } });
     });
 
     fastify.get<{ Params: { id: string } }>('/tenants/:id', async (request, reply) => {
+      if (tenantService) {
+        try {
+          return reply.send(toConsoleTenant(await tenantService.getTenantById(request.params.id)));
+        } catch (error) {
+          return sendDomainError(reply, error);
+        }
+      }
       const tenant = await tenants.get(request.params.id);
       if (!tenant) {
         return reply.status(404).send({
@@ -211,6 +272,16 @@ export const platformAdminUiPlugin = fp(
     });
 
     fastify.post('/tenants', async (request, reply) => {
+      if (tenantService) {
+        // Real provisioning needs an initial admin user (CreateTenantSchema.admin), which the
+        // console form does not collect; see PRC-H099. Refuse rather than create a partial tenant.
+        return reply.status(501).send({
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Tenant provisioning from the console is not wired to the tenant service yet. Use POST /api/v1/tenant-lifecycle with an initial admin user.',
+          statusCode: 501,
+        });
+      }
       const body = (request.body ?? {}) as Partial<Tenant>;
       if (!body.name || !body.slug || !body.contactEmail || !body.plan || !body.region) {
         return reply.status(400).send({
@@ -237,6 +308,31 @@ export const platformAdminUiPlugin = fp(
 
     for (const action of ['suspend', 'reactivate', 'decommission'] as const) {
       fastify.post<{ Params: { id: string } }>(`/tenants/:id/${action}`, async (request, reply) => {
+        if (tenantService) {
+          const reason = reasonOf(request);
+          if (action !== 'reactivate' && !reason) {
+            return reply.status(400).send({
+              code: 'VALIDATION_ERROR',
+              message: 'reason (1–500 characters) is required',
+              statusCode: 400,
+            });
+          }
+          try {
+            const id = request.params.id;
+            const updated =
+              action === 'suspend'
+                ? await tenantService.suspendTenant(id, { reason: reason! })
+                : action === 'reactivate'
+                  ? await tenantService.reactivateTenant(id)
+                  : await tenantService.decommissionTenant(id, {
+                      reason: reason!,
+                      retainDataDays: retainDaysOf(request),
+                    });
+            return reply.send(toConsoleTenant(updated));
+          } catch (error) {
+            return sendDomainError(reply, error);
+          }
+        }
         const tenant = await tenants.get(request.params.id);
         if (!tenant) {
           return reply.status(404).send({
@@ -258,6 +354,16 @@ export const platformAdminUiPlugin = fp(
     }
 
     fastify.delete<{ Params: { id: string } }>('/tenants/:id', async (request, reply) => {
+      if (tenantService) {
+        // Irreversible permanent delete is not exposed from the console until it collects an
+        // explicit confirmation and writes an audit trail; decommission is the console action.
+        return reply.status(501).send({
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Permanent tenant deletion is not available from the console. Decommission the tenant; deletion after retention is an operator runbook step.',
+          statusCode: 501,
+        });
+      }
       const tenant = await tenants.get(request.params.id);
       if (!tenant) {
         return reply.status(404).send({
@@ -314,169 +420,216 @@ export const platformAdminUiPlugin = fp(
       });
     }
 
+    // PRC-H003: break-glass dual control is enforced here (not only in the console). Identity
+    // comes from the verified JWT; see break-glass-policy.ts for the rules.
+    const now = () => new Date();
+    const actorOf = (request: FastifyRequest): BreakGlassActor | null => {
+      const user = request.user as { sub?: unknown; email?: unknown } | undefined;
+      const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+      if (!sub) return null;
+      return { sub, email: typeof user?.email === 'string' ? user.email : undefined };
+    };
+    const sendPolicyError = (
+      reply: FastifyReply,
+      result: Extract<PolicyResult, { ok: false }>,
+    ) =>
+      reply
+        .status(result.statusCode)
+        .send({ code: result.code, message: result.message, statusCode: result.statusCode });
+    const noActor = (reply: FastifyReply) =>
+      reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'A verified operator identity is required',
+        statusCode: 401,
+      });
+    const notFound = (reply: FastifyReply) =>
+      reply.status(404).send({
+        code: 'NOT_FOUND',
+        message: 'Break-glass request not found',
+        statusCode: 404,
+      });
+
+    /**
+     * Serialize every break-glass write per request id so read-check-write decisions cannot
+     * interleave (e.g. an approve racing a deny, or a read-triggered expiry clobbering a revoke).
+     * The keyed store has no compare-and-set; this closes the race within one gateway process.
+     * Multi-replica deployments still need a conditional update in the document store
+     * (tracked with PRC-H116, PgDocumentCollection).
+     */
+    const withLock = createKeyedLock();
+
+    /** Persist lazy expiry, re-reading under the lock so a concurrent decision is never overwritten. */
+    const persistExpiry = (id: string) =>
+      withLock(id, async () => {
+        const fresh = await breakGlass.get(id);
+        if (!fresh) return null;
+        const current = applyExpiry(fresh, now());
+        if (current.status !== fresh.status) await breakGlass.set(current);
+        return current;
+      });
+
+    const loadRow = async (id: string): Promise<BreakGlassRow | null> => {
+      const row = await breakGlass.get(id);
+      if (!row) return null;
+      const current = applyExpiry(row, now());
+      return current.status === row.status ? row : persistExpiry(id);
+    };
+    const listRows = async (): Promise<BreakGlassRow[]> => {
+      const rows = await breakGlass.list();
+      const out: BreakGlassRow[] = [];
+      for (const row of rows) {
+        const current = applyExpiry(row, now());
+        out.push(current.status === row.status ? row : ((await persistExpiry(row.id)) ?? current));
+      }
+      return out;
+    };
+
+    /** Read → decide → write for one request, serialized per id. */
+    const decide = (
+      reply: FastifyReply,
+      id: string,
+      policy: (row: BreakGlassRow) => PolicyResult,
+    ) =>
+      withLock(id, async () => {
+        const stored = await breakGlass.get(id);
+        if (!stored) return notFound(reply);
+        const current = applyExpiry(stored, now());
+        if (current.status !== stored.status) await breakGlass.set(current);
+        const result = policy(current);
+        if (!result.ok) return sendPolicyError(reply, result);
+        await breakGlass.set(result.row);
+        return reply.send(result.row);
+      });
+
     fastify.get('/break-glass', async (_request, reply) => {
-      const items = await breakGlass.list();
+      const items = await listRows();
       return reply.send({ items, data: items });
     });
 
     fastify.get('/break-glass/requests', async (_request, reply) => {
-      const items = await breakGlass.list();
+      const items = await listRows();
       return reply.send({ items, data: items });
     });
 
-    fastify.post('/break-glass', async (request, reply) => {
-      const body = (request.body ?? {}) as Partial<BreakGlassRequest>;
-      if (!body.targetTenantId || !body.justification || body.justification.trim().length < 20) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'targetTenantId and justification (≥20 chars) are required',
-          statusCode: 400,
-        });
-      }
-      const row: BreakGlassRequest = {
-        id: `bg_${randomUUID().slice(0, 8)}`,
-        requester: body.requester ?? 'ops@proctira.org',
-        targetTenantId: body.targetTenantId,
-        scope: body.scope ?? 'read',
-        justification: body.justification,
-        useCase: body.useCase ?? 'Production incident triage',
-        durationMinutes: body.durationMinutes ?? 60,
-        status: 'pending_approval',
-        createdAt: new Date().toISOString(),
-      };
-      await breakGlass.set(row);
-      return reply.status(201).send(row);
+    fastify.get<{ Params: { id: string } }>('/break-glass/:id', async (request, reply) => {
+      const row = await loadRow(request.params.id);
+      if (!row) return notFound(reply);
+      return reply.send(row);
     });
 
+    fastify.post('/break-glass', async (request, reply) => {
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      const result = createRequest(
+        (request.body ?? {}) as Record<string, unknown>,
+        actor,
+        now(),
+        `bg_${randomUUID().slice(0, 8)}`,
+      );
+      if (!result.ok) return sendPolicyError(reply, result);
+      await breakGlass.set(result.row);
+      return reply.status(201).send(result.row);
+    });
+
+    const decisionReason = (request: FastifyRequest): string | undefined => {
+      const reason = (request.body as { reason?: unknown } | undefined)?.reason;
+      return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
+    };
+
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/approve', async (request, reply) => {
-      const row = await breakGlass.get(request.params.id);
-      if (!row) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Break-glass request not found',
-          statusCode: 404,
-        });
-      }
-      const updated: BreakGlassRequest = {
-        ...row,
-        status: 'active',
-        approver: 'security@proctira.org',
-        approvedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + row.durationMinutes * 60_000).toISOString(),
-      };
-      await breakGlass.set(updated);
-      return reply.send(updated);
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => approveRequest(row, actor, now()));
     });
 
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/deny', async (request, reply) => {
-      const row = await breakGlass.get(request.params.id);
-      if (!row) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Break-glass request not found',
-          statusCode: 404,
-        });
-      }
-      const updated = { ...row, status: 'denied' as const };
-      await breakGlass.set(updated);
-      return reply.send(updated);
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => denyRequest(row, actor, now(), decisionReason(request)));
+    });
+
+    fastify.post<{ Params: { id: string } }>('/break-glass/:id/revoke', async (request, reply) => {
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => revokeRequest(row, actor, now(), decisionReason(request)));
     });
 
     fastify.get('/plans', async (_request, reply) => {
+      // PRC-H005: not backed by billing yet — labelled as scaffold data, not live plans.
       return reply.send({
         items: [
-          { id: 'plan_enterprise', name: 'Enterprise', priceMonthly: 0 },
-          { id: 'plan_standard', name: 'Standard', priceMonthly: 0 },
+          { id: 'plan_enterprise', name: 'Enterprise', priceMonthly: null },
+          { id: 'plan_standard', name: 'Standard', priceMonthly: null },
         ],
+        meta: { source: 'scaffold' },
       });
     });
 
     fastify.get('/themes', async (_request, reply) => {
       return reply.send({
         items: [{ id: 'theme_default', name: 'Default', status: 'published' }],
+        meta: { source: 'scaffold' },
       });
     });
 
+    // PRC-H005: health comes from real probes; nothing is reported healthy without a check.
     fastify.get('/health/system', async (_request, reply) => {
+      const postgres = await probePostgres(getSharedPgPool() as SqlPool | null);
       return reply.send({
         generatedAt: new Date().toISOString(),
         adapters: [
-          {
-            name: 'PostgreSQL',
-            category: 'database',
-            status: 'healthy',
-            latencyMs: 8,
-            note: 'Live gateway probe',
-            lastChecked: new Date().toISOString(),
-          },
+          postgres,
           {
             name: 'API Gateway',
             category: 'external',
             status: 'healthy',
-            latencyMs: 2,
-            note: 'In-process platform-admin aggregates',
+            latencyMs: 0,
+            note: 'Serving this request',
             lastChecked: new Date().toISOString(),
           },
         ],
         queues: [],
-        errors: [],
-      });
-    });
-
-    fastify.get('/audit', async (_request, reply) => {
-      return reply.send({
-        items: [
-          {
-            id: 'aud_live_001',
-            timestamp: new Date().toISOString(),
-            actor: 'ops@proctira.org',
-            actorRole: 'platform_admin',
-            action: 'tenant.list',
-            resource: 'tenants',
-            resourceType: 'tenant',
-            tenantId: 'platform',
-            outcome: 'success',
-            reason: 'Live gateway audit feed',
-          },
-        ],
-        data: [
-          {
-            id: 'aud_live_001',
-            timestamp: new Date().toISOString(),
-            actor: 'ops@proctira.org',
-            actorRole: 'platform_admin',
-            action: 'tenant.list',
-            resource: 'tenants',
-            resourceType: 'tenant',
-            tenantId: 'platform',
-            outcome: 'success',
-            reason: 'Live gateway audit feed',
-          },
-        ],
+        errors: postgres.status === 'down' ? [postgres.note] : [],
+        meta: { source: 'probe' },
       });
     });
 
     fastify.get('/platform/health', async (_request, reply) => {
+      const postgres = await probePostgres(getSharedPgPool() as SqlPool | null);
+      const up = (status: string) => (status === 'healthy' ? 'up' : status);
       return reply.send({
-        status: 'ok',
+        // Only 'ok' when every dependency was actually verified.
+        status: postgres.status === 'healthy' ? 'ok' : postgres.status === 'down' ? 'degraded' : 'unknown',
         services: [
           { name: 'gateway', status: 'up' },
-          { name: 'postgres', status: 'up' },
+          { name: 'postgres', status: up(postgres.status), note: postgres.note },
         ],
-        source: 'gateway',
+        source: 'probe',
       });
     });
 
+    // PRC-H005: the audit feed shows only rows present in audit_log_entries.
+    const readAudit = async () => {
+      const pool = getSharedPgPool() as SqlPool | null;
+      if (!pool) return { items: [] as ConsoleAuditEntry[], source: 'unavailable' as const };
+      return { items: await queryPlatformAudit(pool), source: 'audit_log_entries' as const };
+    };
+
+    fastify.get('/audit', async (_request, reply) => {
+      const { items, source } = await readAudit();
+      return reply.send({ items, data: items, meta: { source } });
+    });
+
     fastify.get('/platform/audit', async (_request, reply) => {
+      const { items, source } = await readAudit();
       return reply.send({
-        items: [
-          {
-            id: 'aud_001',
-            action: 'tenant.list',
-            actor: 'ops@proctira.org',
-            at: new Date().toISOString(),
-          },
-        ],
+        items: items.map((entry) => ({
+          id: entry.id,
+          action: entry.action,
+          actor: entry.actor,
+          at: entry.timestamp,
+        })),
+        meta: { source },
       });
     });
   },
