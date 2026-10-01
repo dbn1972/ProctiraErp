@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 
 import { allowContactRequest, resolveClientKey } from '@/lib/contact-rate-limit';
-import { checkJsonContentType, checkSameOrigin } from '@/lib/contact-request-guard';
+import {
+  BodyTooLargeError,
+  checkJsonContentType,
+  checkSameOrigin,
+  readBodyWithLimit,
+  resolveWebhookUrl,
+} from '@/lib/contact-request-guard';
 import { validateContactInput } from '@/lib/contact-validation';
 
 export const runtime = 'nodejs';
@@ -13,8 +19,13 @@ async function forwardToWebhook(payload: {
   organization: string;
   message: string;
 }): Promise<'forwarded' | 'skipped' | 'failed'> {
-  const webhookUrl = process.env.CONTACT_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return 'skipped';
+  if (!process.env.CONTACT_WEBHOOK_URL?.trim()) return 'skipped';
+  const webhookUrl = resolveWebhookUrl();
+  if (!webhookUrl) {
+    // eslint-disable-next-line no-console
+    console.warn('[contact] CONTACT_WEBHOOK_URL ignored: must be a valid https URL');
+    return 'failed';
+  }
 
   try {
     const response = await fetch(webhookUrl, {
@@ -31,6 +42,8 @@ async function forwardToWebhook(payload: {
       }),
       // Avoid hanging the contact UX on a slow CRM.
       signal: AbortSignal.timeout(5_000),
+      // Never follow a redirect off the configured CRM endpoint.
+      redirect: 'error',
     });
     if (!response.ok) {
       // eslint-disable-next-line no-console
@@ -73,8 +86,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = JSON.parse(await readBodyWithLimit(request));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 

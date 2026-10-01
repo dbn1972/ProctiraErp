@@ -42,3 +42,62 @@ export function checkJsonContentType(headers: Headers): GuardVerdict {
   }
   return { ok: true };
 }
+
+/** Max accepted contact body (fields total ~4.6KB max; leave headroom for JSON). */
+export const CONTACT_MAX_BODY_BYTES = 16 * 1024;
+
+export class BodyTooLargeError extends Error {
+  constructor() {
+    super('Request body too large.');
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+/**
+ * Read the request body as text, rejecting early via Content-Length and
+ * enforcing the cap while streaming (chunked bodies have no Content-Length).
+ */
+export async function readBodyWithLimit(
+  request: Request,
+  maxBytes: number = CONTACT_MAX_BODY_BYTES,
+): Promise<string> {
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError();
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new BodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
+/** Only https webhook targets are used (http allowed outside production for local CRMs). */
+export function resolveWebhookUrl(
+  env: Record<string, string | undefined> = process.env,
+): URL | null {
+  const raw = env.CONTACT_WEBHOOK_URL?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol === 'https:') return url;
+    if (url.protocol === 'http:' && env.NODE_ENV !== 'production') return url;
+  } catch {
+    // invalid URL
+  }
+  return null;
+}
