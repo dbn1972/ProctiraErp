@@ -80,3 +80,33 @@ describe('PaginationSchema integer bounds (PRC-L359)', () => {
     }
   });
 });
+
+describe('blank pagination values (PRC-L360)', () => {
+  it("validatePaginationQuery: pageSize='' yields the default", () => {
+    const result = validatePaginationQuery({ pageSize: '' });
+    expect(result.success).toBe(true);
+    expect('skipped' in result).toBe(false);
+    if (result.success && !('skipped' in result)) {
+      expect(result.data).toEqual({
+        page: PAGINATION_DEFAULTS.PAGE,
+        pageSize: PAGINATION_DEFAULTS.PAGE_SIZE,
+      });
+    }
+  });
+
+  it("resolvePaginationQuery: pageSize='' yields the default", () => {
+    const result = resolvePaginationQuery({ pageSize: '', page: '' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        page: PAGINATION_DEFAULTS.PAGE,
+        pageSize: PAGINATION_DEFAULTS.PAGE_SIZE,
+      });
+    }
+  });
+
+  it('blank page with explicit pageSize still validates pageSize', () => {
+    const result = validatePaginationQuery({ page: '', pageSize: '500' });
+    expect(result.success).toBe(false);
+  });
+});

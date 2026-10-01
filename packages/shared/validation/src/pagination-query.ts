@@ -35,21 +35,31 @@ function validateIntegers(
   return validateQuery(PaginationSchema, input);
 }
 
+/** Picks `page` / `pageSize`, dropping undefined and blank ('' / whitespace) values. */
+function stripBlankPagination(query: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['page', 'pageSize'] as const) {
+    const value = query[key];
+    if (value === undefined) continue;
+    if (typeof value === 'string' && value.trim() === '') continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 /**
  * Validates `page` / `pageSize` when either query param is present.
- * Skips validation when neither is supplied so handlers can apply their own defaults.
+ * Skips validation when neither is supplied so handlers can apply their own defaults;
+ * blank values are treated as absent and receive the schema defaults.
  */
 export function validatePaginationQuery(query: Record<string, unknown>): PaginationQueryValidation {
-  const hasPage = query['page'] !== undefined && query['page'] !== '';
-  const hasPageSize = query['pageSize'] !== undefined && query['pageSize'] !== '';
-  if (!hasPage && !hasPageSize) {
+  // PRC-L360: an empty string counts as "sent but blank" -> stripped, then defaulted,
+  // so `?pageSize=` resolves to the platform default instead of skipping validation.
+  const sent = query['page'] !== undefined || query['pageSize'] !== undefined;
+  if (!sent) {
     return { success: true, skipped: true };
   }
-
-  const input: Record<string, unknown> = {};
-  if (hasPage) input['page'] = query['page'];
-  if (hasPageSize) input['pageSize'] = query['pageSize'];
-  return validateIntegers(input);
+  return validateIntegers(stripBlankPagination(query));
 }
 
 /**
@@ -58,8 +68,9 @@ export function validatePaginationQuery(query: Record<string, unknown>): Paginat
 export function resolvePaginationQuery(
   query: Record<string, unknown>,
 ): ValidationResult<typeof PaginationSchema> {
+  const input = stripBlankPagination(query);
   return validateIntegers({
-    page: query['page'] ?? PAGINATION_DEFAULTS.PAGE,
-    pageSize: query['pageSize'] ?? PAGINATION_DEFAULTS.PAGE_SIZE,
+    page: input['page'] ?? PAGINATION_DEFAULTS.PAGE,
+    pageSize: input['pageSize'] ?? PAGINATION_DEFAULTS.PAGE_SIZE,
   });
 }
