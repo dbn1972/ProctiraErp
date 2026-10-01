@@ -2,6 +2,7 @@
  * G-914 — photo / sibling / consent / discipline persistence.
  * Raw pg (db/sql/035, RLS via withPgTenant) or an in-memory map for tests.
  */
+import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type { ConsentKind, DisciplineSeverity, DocumentCategory } from './schemas.js';
@@ -151,6 +152,13 @@ export class InMemoryStudents360Store implements Students360Store {
   }
 
   async createSiblingPair(forward: SiblingRecord, reverse: SiblingRecord): Promise<SiblingRecord> {
+    const duplicate = Array.from(this.siblings.values()).some(
+      (r) =>
+        r.tenantId === forward.tenantId &&
+        r.studentId === forward.studentId &&
+        r.siblingId === forward.siblingId,
+    );
+    if (duplicate) throw new ConflictError('Sibling link already exists');
     this.siblings.set(forward.id, { ...forward });
     this.siblings.set(reverse.id, { ...reverse });
     return { ...forward };
@@ -189,9 +197,7 @@ export class InMemoryStudents360Store implements Students360Store {
     return Array.from(this.consents.values())
       .filter(
         (r) =>
-          r.tenantId === tenantId &&
-          r.studentId === studentId &&
-          (kind == null || r.kind === kind),
+          r.tenantId === tenantId && r.studentId === studentId && (kind == null || r.kind === kind),
       )
       .sort((a, b) => a.kind.localeCompare(b.kind) || a.version - b.version)
       .map((r) => ({ ...r }));
@@ -282,11 +288,7 @@ export class InMemoryStudents360Store implements Students360Store {
     return row && row.tenantId === tenantId && row.studentId === studentId ? { ...row } : null;
   }
 
-  async deleteDocument(
-    tenantId: string,
-    studentId: string,
-    documentId: string,
-  ): Promise<boolean> {
+  async deleteDocument(tenantId: string, studentId: string, documentId: string): Promise<boolean> {
     const row = this.documents.get(documentId);
     if (!row || row.tenantId !== tenantId || row.studentId !== studentId) return false;
     this.documents.delete(documentId);
@@ -366,9 +368,7 @@ function toConsent(row: ConsentRow): ConsentRecord {
     version: Number(row.version ?? 1),
     supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
     validFrom:
-      row.valid_from instanceof Date
-        ? row.valid_from
-        : new Date(row.valid_from ?? row.recorded_at),
+      row.valid_from instanceof Date ? row.valid_from : new Date(row.valid_from ?? row.recorded_at),
     validTo:
       row.valid_to == null
         ? null
@@ -445,6 +445,22 @@ export class PgStudents360Store implements Students360Store {
     return withPgTenant(this.pool as never, tenantId, fn);
   }
 
+  /** PRC-L162: run, mapping a unique violation (lost race) to 409 instead of 500. */
+  private async runUnique<T>(
+    tenantId: string,
+    conflictMessage: string,
+    fn: (client: PgQueryable) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.run(tenantId, fn);
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictError(conflictMessage);
+      }
+      throw err;
+    }
+  }
+
   async upsertPhoto(record: PhotoRecord): Promise<PhotoRecord> {
     return this.run(record.tenantId, async (client) => {
       const { rows } = await client.query(
@@ -510,7 +526,7 @@ export class PgStudents360Store implements Students360Store {
   }
 
   async createSiblingPair(forward: SiblingRecord, reverse: SiblingRecord): Promise<SiblingRecord> {
-    return this.run(forward.tenantId, async (client) => {
+    return this.runUnique(forward.tenantId, 'Sibling link already exists', async (client) => {
       await client.query(
         `INSERT INTO student_siblings (id, tenant_id, student_id, sibling_id, created_at)
          VALUES ($1,$2,$3,$4,$5), ($6,$7,$8,$9,$10)`,
@@ -584,11 +600,18 @@ export class PgStudents360Store implements Students360Store {
   }
 
   async appendConsent(record: ConsentRecord): Promise<ConsentRecord> {
-    return this.run(record.tenantId, async (client) => {
+    const conflict = 'Consent was updated concurrently; reload and retry';
+    return this.runUnique(record.tenantId, conflict, async (client) => {
+      // PRC-L162: serialise appends per (tenant, student, kind) — FOR UPDATE alone
+      // cannot lock a row that does not exist yet (first version race).
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+        `student_consent:${record.tenantId}:${record.studentId}:${record.kind}`,
+      ]);
       const prior = await client.query(
         `SELECT * FROM student_consents
           WHERE tenant_id = $1 AND student_id = $2 AND kind = $3 AND valid_to IS NULL
-          LIMIT 1`,
+          LIMIT 1
+          FOR UPDATE`,
         [record.tenantId, record.studentId, record.kind],
       );
       const open = prior.rows[0] as ConsentRow | undefined;
@@ -747,11 +770,7 @@ export class PgStudents360Store implements Students360Store {
     });
   }
 
-  async deleteDocument(
-    tenantId: string,
-    studentId: string,
-    documentId: string,
-  ): Promise<boolean> {
+  async deleteDocument(tenantId: string, studentId: string, documentId: string): Promise<boolean> {
     return this.run(tenantId, async (client) => {
       const result = await client.query(
         `DELETE FROM student_documents
