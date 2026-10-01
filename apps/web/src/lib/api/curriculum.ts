@@ -63,6 +63,11 @@ export interface CoverageSummary {
   taught: number;
   percent: number;
   taughtUnitIds: string[];
+  /**
+   * Per-unit taught timestamps. Optional: the current coverage endpoint only
+   * returns `taughtUnitIds` (PRC-L242 backend follow-up).
+   */
+  taughtUnits?: Array<{ unitId: string; taughtAt: string }>;
 }
 
 export type CurriculumLoadResult<T> =
