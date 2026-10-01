@@ -22,6 +22,7 @@ import {
 import {
   acceptOfferFormSchema,
   createEnquiryFormSchema,
+  createInterviewSlotFormSchema,
   createOfferFormSchema,
   followupFormSchema,
   generateMeritFormSchema,
@@ -69,8 +70,12 @@ export async function createInterviewSlotAction(input: {
   capacity?: number;
   location?: string;
 }): Promise<AdmissionsActionState> {
+  const parsed = createInterviewSlotFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid slot' };
+  }
   try {
-    const slot = await createInterviewSlot(input);
+    const slot = await createInterviewSlot(parsed.data);
     revalidatePath('/admissions');
     return { status: 'success', message: 'Interview slot created.', id: slot.id };
   } catch (error) {

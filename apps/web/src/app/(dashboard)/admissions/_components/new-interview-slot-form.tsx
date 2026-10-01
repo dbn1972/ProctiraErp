@@ -16,12 +16,16 @@ import {
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
+import { zonedLocalToUtcIso } from '@/lib/datetime/zoned';
 import { createInterviewSlotAction } from '../../admissions-actions';
 
 export function NewInterviewSlotForm({
   institutions = [],
+  timeZone,
 }: {
   institutions?: EntityLabelOption[];
+  /** Tenant IANA timezone; datetime-local values are interpreted in it (PRC-L233). */
+  timeZone?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -44,13 +48,27 @@ export function NewInterviewSlotForm({
       setError('Choose a school and enter the start and end times.');
       return;
     }
+    const startsIso = zonedLocalToUtcIso(startsAt, timeZone);
+    const endsIso = zonedLocalToUtcIso(endsAt, timeZone);
+    if (!startsIso || !endsIso) {
+      setError('Enter valid start and end times.');
+      return;
+    }
+    if (Date.parse(endsIso) <= Date.parse(startsIso)) {
+      setError('End time must be after the start time.');
+      return;
+    }
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      setError('Capacity must be a whole number of at least 1.');
+      return;
+    }
     startTransition(async () => {
       setError(null);
       const result = await createInterviewSlotAction({
         institutionId,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: new Date(endsAt).toISOString(),
-        capacity: Number.isFinite(capacity) ? capacity : 1,
+        startsAt: startsIso,
+        endsAt: endsIso,
+        capacity,
         location: location || undefined,
       });
       if (result.status === 'error') {
@@ -66,7 +84,10 @@ export function NewInterviewSlotForm({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Create interview slot</CardTitle>
-        <CardDescription>Open a capacity-limited slot for applicant bookings.</CardDescription>
+        <CardDescription>
+          Open a capacity-limited slot for applicant bookings.
+          {timeZone ? ` Times are in ${timeZone}.` : ''}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-3" aria-busy={pending}>
