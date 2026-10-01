@@ -1412,6 +1412,11 @@ jobs:
 
       - name: Unit-test runtime database role evaluator
         run: node --test tools/scripts/assert-runtime-database-role.test.mjs
+      # PRC-L382+: stub-backed tools/scripts gate contracts (no database).
+      - name: Unit-test tools/scripts low-gap gate contracts
+        run: >-
+          node --test
+          tools/scripts/bootstrap-db-roles-secrets.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs
