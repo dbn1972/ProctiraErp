@@ -3,10 +3,10 @@
  *
  * v2.0 changes:
  * - text-3xl font-extrabold heading "New teaching assignment"
- * - Subtitle: timetable clash check + 24-period cap note
+ * - Subtitle: overlap + 100% allocation cap enforced by assignment-service on save
  * - "Back to profile" in page-head actions
- * - 2-col layout: main (AssignmentForm) + sidebar (Current workload + Section coverage)
- * - AssignmentForm kept 100% intact
+ * - 2-col layout: main (AssignmentForm) + sidebar (Current workload + live Section coverage)
+ * - AssignmentForm reports class+subject selection to the coverage card
  */
 import Link from 'next/link';
 
@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { workloadBand } from '@/lib/status-label';
 import { listInstitutions } from '@/lib/api/institutions';
-import { getStaff, listStaffAssignments } from '@/lib/api/staff';
+import { getStaff, listStaffAssignmentsResult } from '@/lib/api/staff';
 import {
   listClassesByInstitution,
   listSubjects,
@@ -31,7 +31,7 @@ import {
 } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
 
-import { AssignmentForm } from '../../../_components/assignment-form';
+import { AssignmentWorkspace } from './assignment-workspace';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
 
@@ -143,19 +143,16 @@ function WorkloadCard({
 
 /* ──────────────────────────────────────── Section coverage sidebar card ── */
 
-function SectionCoverageCard() {
+function WorkloadUnavailableCard() {
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">Section coverage</CardTitle>
-        <CardDescription className="text-xs">
-          Coverage gap for the selected class and subject
-        </CardDescription>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold">Current workload</CardTitle>
       </CardHeader>
       <CardContent className="pb-4">
-        <p className="text-xs text-muted-foreground">
-          Select a class and subject to see the current coverage status and whether a gap exists for
-          this section.
+        <p className="text-xs text-destructive" role="alert">
+          Current assignments could not be loaded, so the allocation total is unknown. The 100% cap
+          is still enforced when you save.
         </p>
       </CardContent>
     </Card>
@@ -170,9 +167,9 @@ export default async function NewAssignmentPage(props: PageProps) {
   const rawInstitutionId = searchParams?.institutionId;
   const institutionId = typeof rawInstitutionId === 'string' ? rawInstitutionId : '';
 
-  const [staff, assignments, institutions, subjects, classes] = await Promise.all([
+  const [staff, assignmentsResult, institutions, subjects, classes] = await Promise.all([
     getStaff(params.id),
-    listStaffAssignments(params.id),
+    listStaffAssignmentsResult(params.id),
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listSubjects().catch(() => [] as SubjectSummary[]),
     institutionId
@@ -180,6 +177,7 @@ export default async function NewAssignmentPage(props: PageProps) {
       : Promise.resolve<ClassSection[]>([]),
   ]);
 
+  const assignments = assignmentsResult.ok ? assignmentsResult.items : [];
   const assignmentInstitutionIds = [
     ...new Set(
       assignments
@@ -237,8 +235,9 @@ export default async function NewAssignmentPage(props: PageProps) {
             New teaching assignment
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Allocate a class, section, and subject to {fullName}. The timetable is checked for
-            clashes and the allocation cap is enforced on save.
+            Allocate a class, section, and subject to {fullName}. On save, overlapping assignments
+            to the same class and subject are rejected and total active allocation may not exceed
+            100%.
           </p>
         </div>
         <div className="shrink-0">
@@ -262,37 +261,27 @@ export default async function NewAssignmentPage(props: PageProps) {
       )}
 
       {/* ── 2-column layout ── */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-        {/* ── Main: form ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Assignment details</CardTitle>
-            <CardDescription>
-              Staff member, school, class, subject, schedule, and effective dates.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AssignmentForm
-              staffId={staffId}
-              institutions={institutionRows.map((i) => ({ id: i.id, name: i.name }))}
-              subjects={subjectRows.map((s) => ({ id: s.id, name: s.name, code: s.code }))}
-              classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
-              defaultInstitutionId={institutionId}
+      <AssignmentWorkspace
+        formProps={{
+          staffId,
+          institutions: institutionRows.map((i) => ({ id: i.id, name: i.name })),
+          subjects: subjectRows.map((s) => ({ id: s.id, name: s.name, code: s.code })),
+          classes: classRows.map((c) => ({ id: c.id, name: c.name })),
+          defaultInstitutionId: institutionId,
+        }}
+        workloadCard={
+          assignmentsResult.ok ? (
+            <WorkloadCard
+              assignments={assignments}
+              staffName={fullName}
+              classLabels={classLabels}
+              subjectLabels={subjectLabels}
             />
-          </CardContent>
-        </Card>
-
-        {/* ── Sidebar ── */}
-        <aside className="flex flex-col gap-5" aria-label="Assignment context sidebar">
-          <WorkloadCard
-            assignments={assignments}
-            staffName={fullName}
-            classLabels={classLabels}
-            subjectLabels={subjectLabels}
-          />
-          <SectionCoverageCard />
-        </aside>
-      </div>
+          ) : (
+            <WorkloadUnavailableCard />
+          )
+        }
+      />
     </section>
   );
 }
