@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   createHostel,
   createHostelAssignment,
@@ -106,7 +107,9 @@ export async function checkoutLibraryItemAction(input: {
   dueAt?: string;
 }): Promise<CampusActionState> {
   try {
-    const loan = await checkoutLibraryItem(input);
+    // PRC-L047: the form sends a wall-clock date; resolve in tenant TZ.
+    const dueAt = await toTenantUtcIso(input.dueAt);
+    const loan = await checkoutLibraryItem({ ...input, dueAt });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');

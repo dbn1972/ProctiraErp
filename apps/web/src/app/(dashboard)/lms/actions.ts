@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   closeAssignment,
   createAssignment,
@@ -37,7 +38,9 @@ export async function createAssignmentAction(
   input: CreateAssignmentInput,
 ): Promise<LmsActionState> {
   try {
-    const created = await createAssignment(input);
+    // PRC-L047: the form sends wall-clock datetime-local; resolve in tenant TZ.
+    const dueAt = await toTenantUtcIso(input.dueAt);
+    const created = await createAssignment({ ...input, dueAt });
     revalidatePath('/lms');
     return { status: 'success', id: created.id };
   } catch (error) {

@@ -70,7 +70,8 @@ export function CirculationDesk({
             itemId,
             patronUserId,
             studentId: studentId || undefined,
-            dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+            // Wall-clock date; the server action converts it in the tenant timezone.
+            dueAt: dueAt || undefined,
           });
       if (result.status === 'error') {
         setError(result.message ?? 'Checkout failed');
