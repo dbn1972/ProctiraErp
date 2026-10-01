@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -28,12 +28,17 @@ describe('W3-D6 assert-dod-evidence', () => {
     expect(result.errors).toEqual([]);
   });
 
-  it('accepts a real dod-report.json when present on disk', () => {
-    const report = loadJson(DEFAULT_REPORT_PATH);
-    const result = evaluateDodReport(report);
-    expect(result.ok).toBe(true);
-    expect(result.checkIds).toEqual(REQUIRED_CHECK_IDS);
-  });
+  // dod-report.json is a gitignored artifact of the DoD job; the CI unit step
+  // (PRC-L378) runs without it, so only validate it when it was generated.
+  it.skipIf(!existsSync(DEFAULT_REPORT_PATH))(
+    'accepts a real dod-report.json when present on disk',
+    () => {
+      const report = loadJson(DEFAULT_REPORT_PATH);
+      const result = evaluateDodReport(report);
+      expect(result.ok).toBe(true);
+      expect(result.checkIds).toEqual(REQUIRED_CHECK_IDS);
+    },
+  );
 
   it('FAILS when a partial --only report omits required checks', () => {
     const partial = {
