@@ -153,4 +153,48 @@ describe('AreaPicker', () => {
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
+
+  describe('lazy loading (PRC-L190)', () => {
+    const deepFreeze = <T,>(o: T): T => {
+      Object.freeze(o);
+      for (const v of Object.values(o as object)) {
+        if (v && typeof v === 'object' && !Object.isFrozen(v)) deepFreeze(v);
+      }
+      return o;
+    };
+
+    it('lets a lazily loaded child be selected without mutating props', async () => {
+      const lazyAreas = deepFreeze<AreaNode[]>([
+        { id: 'root', name: 'Root', parentId: null, level: 0 },
+      ]);
+      const child: AreaNode = { id: 'kid', name: 'Lazy Child', parentId: 'root', level: 1 };
+      const onLoadChildren = vi.fn().mockResolvedValue([child]);
+      const onSelect = vi.fn();
+      const { rerender } = render(
+        <AreaPicker
+          areas={lazyAreas}
+          onSelect={onSelect}
+          onLoadChildren={onLoadChildren}
+          ariaLabel="Select area"
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /select area/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Expand Root' }));
+      const selectChild = await screen.findByRole('button', { name: 'Select Lazy Child' });
+      expect(onLoadChildren).toHaveBeenCalledWith('root');
+      expect(lazyAreas[0]?.children).toBeUndefined();
+      fireEvent.click(selectChild);
+      expect(onSelect).toHaveBeenCalledWith(['kid'], [child]);
+      rerender(
+        <AreaPicker
+          areas={lazyAreas}
+          selectedIds={['kid']}
+          onSelect={onSelect}
+          onLoadChildren={onLoadChildren}
+          ariaLabel="Select area"
+        />,
+      );
+      expect(screen.getByText('Lazy Child')).toBeInTheDocument();
+    });
+  });
 });

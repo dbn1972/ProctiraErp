@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+
 import type { AreaPickerProps, AreaNode } from './types';
 
 /**
@@ -35,21 +36,38 @@ export function AreaPicker({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  // Lazily loaded children are kept in state (keyed by parent id) instead of
+  // mutating the caller's `areas` prop, so they are reflected in nodeMap and render.
+  const [loadedChildren, setLoadedChildren] = useState<Map<string, AreaNode[]>>(new Map());
+  // Cache of every node ever seen, so selected labels survive collapse/refetch.
+  const selectedCacheRef = useRef<Map<string, AreaNode>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Build a flat map for quick lookups
+  const getChildren = useCallback(
+    (node: AreaNode): AreaNode[] | undefined => loadedChildren.get(node.id) ?? node.children,
+    [loadedChildren],
+  );
+
+  // Build a flat map for quick lookups (static tree + lazily loaded children)
   const nodeMap = useMemo(() => {
     const map = new Map<string, AreaNode>();
     const traverse = (nodes: AreaNode[]) => {
       for (const node of nodes) {
         map.set(node.id, node);
-        if (node.children) traverse(node.children);
+        selectedCacheRef.current.set(node.id, node);
+        const children = getChildren(node);
+        if (children) traverse(children);
       }
     };
     traverse(areas);
     return map;
-  }, [areas]);
+  }, [areas, getChildren]);
+
+  const lookupNode = useCallback(
+    (id: string): AreaNode | undefined => nodeMap.get(id) ?? selectedCacheRef.current.get(id),
+    [nodeMap],
+  );
 
   // Filter nodes by search query
   const matchesSearch = useCallback(
@@ -57,10 +75,11 @@ export function AreaPicker({
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
       if (node.name.toLowerCase().includes(query)) return true;
-      if (node.children) return node.children.some(matchesSearch);
+      const children = getChildren(node);
+      if (children) return children.some(matchesSearch);
       return false;
     },
-    [searchQuery],
+    [searchQuery, getChildren],
   );
 
   // Close on outside click
@@ -94,11 +113,12 @@ export function AreaPicker({
         newExpanded.add(nodeId);
         // Lazy load children if handler provided
         const node = nodeMap.get(nodeId);
-        if (onLoadChildren && node && (!node.children || node.children.length === 0)) {
+        const existing = node ? getChildren(node) : undefined;
+        if (onLoadChildren && node && (!existing || existing.length === 0)) {
           setLoadingNodes((prev) => new Set(prev).add(nodeId));
           try {
             const children = await onLoadChildren(nodeId);
-            node.children = children;
+            setLoadedChildren((prev) => new Map(prev).set(nodeId, children));
           } finally {
             setLoadingNodes((prev) => {
               const next = new Set(prev);
@@ -110,7 +130,7 @@ export function AreaPicker({
       }
       setExpandedIds(newExpanded);
     },
-    [expandedIds, nodeMap, onLoadChildren],
+    [expandedIds, nodeMap, onLoadChildren, getChildren],
   );
 
   const handleSelect = useCallback(
@@ -128,12 +148,12 @@ export function AreaPicker({
       }
 
       const selectedNodes = newSelectedIds
-        .map((id) => nodeMap.get(id))
+        .map((id) => lookupNode(id))
         .filter((n): n is AreaNode => n !== undefined);
 
       onSelect(newSelectedIds, selectedNodes);
     },
-    [multiple, selectedIds, nodeMap, onSelect],
+    [multiple, selectedIds, lookupNode, onSelect],
   );
 
   const getSelectedLabel = (): string => {
@@ -141,7 +161,7 @@ export function AreaPicker({
     if (selectedIds.length === 1) {
       const firstId = selectedIds[0];
       if (firstId) {
-        const node = nodeMap.get(firstId);
+        const node = lookupNode(firstId);
         return node?.name ?? placeholder;
       }
       return placeholder;
@@ -155,7 +175,8 @@ export function AreaPicker({
 
     const isExpanded = expandedIds.has(node.id);
     const isSelected = selectedIds.includes(node.id);
-    const hasChildren = (node.children && node.children.length > 0) || !!onLoadChildren;
+    const children = getChildren(node);
+    const hasChildren = (children && children.length > 0) || !!onLoadChildren;
     const isLoading = loadingNodes.has(node.id);
     const isSelectable = node.selectable !== false;
 
@@ -175,7 +196,7 @@ export function AreaPicker({
           {hasChildren && (
             <button
               type="button"
-              onClick={() => toggleExpand(node.id)}
+              onClick={() => void toggleExpand(node.id)}
               className="proctira-area-picker__expand-btn"
               aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
               disabled={disabled}
@@ -208,9 +229,9 @@ export function AreaPicker({
             <span className="proctira-area-picker__node-name">{node.name}</span>
           </button>
         </div>
-        {hasChildren && isExpanded && node.children && (
+        {hasChildren && isExpanded && children && (
           <ul role="group" className="proctira-area-picker__children">
-            {node.children.map((child) => renderNode(child, depth + 1))}
+            {children.map((child) => renderNode(child, depth + 1))}
           </ul>
         )}
       </li>
