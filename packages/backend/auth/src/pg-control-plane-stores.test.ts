@@ -88,6 +88,8 @@ describe('auth control-plane Postgres stores (live)', () => {
       {
         externalId,
         email: 'Teacher@Example.edu',
+        // PRC-H042: first-login linking requires a Keycloak-verified email.
+        emailVerified: true,
         displayName: 'Kc Teacher',
         tenantSlug: `kc-${tenantId.slice(0, 8)}`,
         realm: 'proctira',
