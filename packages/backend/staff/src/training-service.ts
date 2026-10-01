@@ -8,7 +8,7 @@
  *         including certification expiry dates
  * - 7.8: Update certification status to expired and trigger notification on expiry
  */
-import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -23,7 +23,7 @@ import type {
   TrainingAttendanceRepository,
   CertificationRepository,
 } from './training-repository.js';
-import { CertificationStatus } from './training-schemas.js';
+import { CertificationStatus, isCalendarDate } from './training-schemas.js';
 import type {
   CreateTrainingProgramInput,
   UpdateTrainingProgramInput,
@@ -54,6 +54,18 @@ export function clampTrainingPagination(p: PaginationOptions): PaginationOptions
   return { ...p, page, pageSize: Math.min(TRAINING_MAX_PAGE_SIZE, Math.max(1, size)) };
 }
 
+/** PRC-L155: reject impossible calendar dates with a 400 instead of a PG cast 500. */
+function assertCalendarDates(fields: Record<string, string | null | undefined>): void {
+  const errors = Object.entries(fields)
+    .filter(([, v]) => v != null && !isCalendarDate(v))
+    .map(([field]) => ({
+      field,
+      message: `${field} must be a valid calendar date (YYYY-MM-DD)`,
+      rule: 'format',
+    }));
+  if (errors.length > 0) throw new ValidationError('Validation failed', errors);
+}
+
 /**
  * Service handling training program business logic.
  */
@@ -78,6 +90,7 @@ export class TrainingService {
     tenantId: string,
     input: CreateTrainingProgramInput,
   ): Promise<TrainingProgramEntity> {
+    assertCalendarDates({ startDate: input.startDate, endDate: input.endDate });
     if (input.endDate <= input.startDate) {
       throw new BusinessRuleError(
         `Program end date (${input.endDate}) must be after start date (${input.startDate})`,
@@ -123,6 +136,7 @@ export class TrainingService {
     programId: string,
     input: UpdateTrainingProgramInput,
   ): Promise<TrainingProgramEntity> {
+    assertCalendarDates({ startDate: input.startDate, endDate: input.endDate });
     const existing = await this.programRepository.findById(programId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Training program with id '${programId}' not found`);
@@ -183,6 +197,12 @@ export class TrainingService {
     tenantId: string,
     input: CreateTrainingSessionInput,
   ): Promise<TrainingSessionEntity> {
+    assertCalendarDates({ date: input.date });
+    if (input.startTime && input.endTime && input.endTime <= input.startTime) {
+      throw new ValidationError('Validation failed', [
+        { field: 'endTime', message: 'endTime must be after startTime', rule: 'invalid' },
+      ]);
+    }
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {
       throw new NotFoundError(`Training program with id '${input.programId}' not found`);
@@ -315,6 +335,7 @@ export class TrainingService {
     tenantId: string,
     input: IssueCertificationInput,
   ): Promise<CertificationEntity> {
+    assertCalendarDates({ issuedDate: input.issuedDate, expiryDate: input.expiryDate });
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {
       throw new NotFoundError(`Training program with id '${input.programId}' not found`);
@@ -388,6 +409,7 @@ export class TrainingService {
     tenantId: string,
     asOfDate?: string,
   ): Promise<CertificationEntity[]> {
+    assertCalendarDates({ asOfDate });
     const checkDate = asOfDate ?? new Date().toISOString().split('T')[0]!;
 
     const expiredCerts = await this.certificationRepository.findExpiredCertifications(

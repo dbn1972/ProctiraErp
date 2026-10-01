@@ -19,6 +19,23 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
 
 /**
+ * 24h clock time (HH:MM) — PRC-L155. start/end_time are TEXT columns, so junk would persist.
+ */
+const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
+
+/**
+ * PRC-L155: DATE_PATTERN only checks shape; reject impossible calendar dates (2026-02-31)
+ * before they reach a PG DATE column (which would otherwise surface as a 500).
+ */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  if (y < 1 || m < 1 || m > 12 || d < 1) return false;
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return d <= daysInMonth;
+}
+
+/**
  * Certification status values.
  */
 export enum CertificationStatus {
@@ -81,8 +98,12 @@ export const CreateTrainingSessionSchema = Type.Object({
   programId: Type.String({ pattern: UUID_PATTERN, description: 'Training program UUID' }),
   title: Type.String({ minLength: 1, maxLength: 200, description: 'Session title' }),
   date: Type.String({ pattern: DATE_PATTERN, description: 'Session date' }),
-  startTime: Type.Optional(Type.String({ description: 'Session start time (HH:MM)' })),
-  endTime: Type.Optional(Type.String({ description: 'Session end time (HH:MM)' })),
+  startTime: Type.Optional(
+    Type.String({ pattern: TIME_PATTERN, description: 'Session start time (HH:MM)' }),
+  ),
+  endTime: Type.Optional(
+    Type.String({ pattern: TIME_PATTERN, description: 'Session end time (HH:MM)' }),
+  ),
   location: Type.Optional(Type.String({ maxLength: 200, description: 'Session location' })),
   instructorName: Type.Optional(Type.String({ maxLength: 200, description: 'Instructor name' })),
 });
