@@ -4,9 +4,10 @@
  * Core service for managing DevInfo/DI7 data warehouses including
  * indicators, units, subgroups, time periods, areas, and data records.
  */
+import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ConflictError, NotFoundError } from '@proctira/common';
 
+import { importDataRecords, parseCsvContent, parseExcelDesContent } from './import-service.js';
 import type {
   Warehouse,
   Indicator,
@@ -14,7 +15,6 @@ import type {
   Subgroup,
   TimePeriod,
   Area,
-  DataRecord,
   CreateWarehouseInput,
   UpdateWarehouseInput,
   CreateIndicatorInput,
@@ -32,11 +32,30 @@ import type {
   ImportFormat,
 } from './schemas.js';
 import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
-import { importDataRecords, parseCsvContent, parseExcelDesContent } from './import-service.js';
 
 export interface DataWarehouseServiceConfig {
   /** Maximum records per import batch */
   maxImportBatchSize: number;
+}
+
+/** Parse an ISO date string; throws ValidationError when unparseable. */
+function parseIsoDate(value: string, field: string): Date {
+  const date = new Date(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (Number.isNaN(date.getTime()) || (dateOnly && date.toISOString().slice(0, 10) !== value)) {
+    throw new ValidationError('Validation failed', [
+      { field, message: `${field} must be a valid ISO date`, rule: 'format' },
+    ]);
+  }
+  return date;
+}
+
+function assertPeriodOrder(startDate: Date | null, endDate: Date | null): void {
+  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+    throw new ValidationError('Validation failed', [
+      { field: 'endDate', message: 'endDate must be on or after startDate', rule: 'range' },
+    ]);
+  }
 }
 
 export class DataWarehouseService {
@@ -346,14 +365,18 @@ export class DataWarehouseService {
       throw new ConflictError(`Time period '${input.timePeriod}' already exists in this warehouse`);
     }
 
+    const startDate = input.startDate ? parseIsoDate(input.startDate, 'startDate') : null;
+    const endDate = input.endDate ? parseIsoDate(input.endDate, 'endDate') : null;
+    assertPeriodOrder(startDate, endDate);
+
     const now = new Date();
     const timePeriod: TimePeriod = {
       id: uuidv4(),
       warehouseId,
       tenantId,
       timePeriod: input.timePeriod,
-      startDate: input.startDate ? new Date(input.startDate) : null,
-      endDate: input.endDate ? new Date(input.endDate) : null,
+      startDate,
+      endDate,
       periodicity: input.periodicity ?? null,
       createdAt: now,
       updatedAt: now,
@@ -374,9 +397,14 @@ export class DataWarehouseService {
     }
     const updates: Partial<TimePeriod> = {};
     if (input.startDate !== undefined)
-      updates.startDate = input.startDate ? new Date(input.startDate) : null;
+      updates.startDate = input.startDate ? parseIsoDate(input.startDate, 'startDate') : null;
     if (input.endDate !== undefined)
-      updates.endDate = input.endDate ? new Date(input.endDate) : null;
+      updates.endDate = input.endDate ? parseIsoDate(input.endDate, 'endDate') : null;
+    // Validate the resulting period against existing values.
+    assertPeriodOrder(
+      updates.startDate !== undefined ? updates.startDate : existing.startDate,
+      updates.endDate !== undefined ? updates.endDate : existing.endDate,
+    );
     if (input.periodicity !== undefined) updates.periodicity = input.periodicity ?? null;
     return this.repository.updateTimePeriod(timePeriodId, warehouseId, tenantId, updates);
   }

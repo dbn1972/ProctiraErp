@@ -10,6 +10,11 @@ import { Type, type Static } from '@sinclair/typebox';
 /** UUID v4 pattern for validation */
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID v4 identifier' });
+/** ISO-8601 calendar date (YYYY-MM-DD) with optional time component. */
+const ISO_DATE_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,3})?)?(Z|[+-]\\d{2}:\\d{2})?)?$';
+const IsoDateString = (description = 'ISO date (YYYY-MM-DD)') =>
+  Type.String({ pattern: ISO_DATE_PATTERN, description });
 
 // ─── Warehouse Schema ─────────────────────────────────────────────────────────
 
@@ -131,8 +136,8 @@ export const CreateTimePeriodSchema = Type.Object({
     maxLength: 30,
     description: 'Time period label (e.g., "2023", "2023.Q1")',
   }),
-  startDate: Type.Optional(Type.String({ description: 'ISO date string for period start' })),
-  endDate: Type.Optional(Type.String({ description: 'ISO date string for period end' })),
+  startDate: Type.Optional(IsoDateString('ISO date string for period start')),
+  endDate: Type.Optional(IsoDateString('ISO date string for period end')),
   periodicity: Type.Optional(
     Type.String({ maxLength: 50, description: 'Periodicity (e.g., "Annual", "Quarterly")' }),
   ),
@@ -144,8 +149,8 @@ export type CreateTimePeriodInput = Static<typeof CreateTimePeriodSchema>;
  * Update time period request body.
  */
 export const UpdateTimePeriodSchema = Type.Object({
-  startDate: Type.Optional(Type.String()),
-  endDate: Type.Optional(Type.String()),
+  startDate: Type.Optional(IsoDateString()),
+  endDate: Type.Optional(IsoDateString()),
   periodicity: Type.Optional(Type.String({ maxLength: 50 })),
 });
 
