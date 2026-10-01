@@ -303,12 +303,27 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
             ),
           )}
           nodes={result.hierarchy.lands.flatMap((land) => [
-            { id: land.id, name: land.name },
+            { id: land.id, name: land.name, capacity: land.capacity, condition: land.condition },
             ...land.buildings.flatMap((building) => [
-              { id: building.id, name: building.name },
+              {
+                id: building.id,
+                name: building.name,
+                capacity: building.capacity,
+                condition: building.condition,
+              },
               ...building.floors.flatMap((floor) => [
-                { id: floor.id, name: floor.name },
-                ...floor.rooms.map((room) => ({ id: room.id, name: room.name })),
+                {
+                  id: floor.id,
+                  name: floor.name,
+                  capacity: floor.capacity,
+                  condition: floor.condition,
+                },
+                ...floor.rooms.map((room) => ({
+                  id: room.id,
+                  name: room.name,
+                  capacity: room.capacity,
+                  condition: room.condition,
+                })),
               ]),
             ]),
           ])}

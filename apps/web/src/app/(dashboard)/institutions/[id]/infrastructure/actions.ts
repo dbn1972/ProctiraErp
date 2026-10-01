@@ -64,14 +64,20 @@ export async function createRoomAction(input: {
 export async function updateFacilityAction(input: {
   institutionId: string;
   id: string;
-  name: string;
-  capacity: number;
-  condition: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
+  name?: string;
+  capacity?: number;
+  condition?: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Partial update: only forward fields the caller changed so untouched values are preserved.
+  const json: Record<string, unknown> = {};
+  if (input.name !== undefined) json.name = input.name;
+  if (input.capacity !== undefined) json.capacity = input.capacity;
+  if (input.condition !== undefined) json.condition = input.condition;
+  if (Object.keys(json).length === 0) return { ok: true };
   try {
     const result = await gatewayFetch(`/infrastructure/${input.id}`, {
       method: 'PUT',
-      json: { name: input.name, capacity: input.capacity, condition: input.condition },
+      json,
       throwOnError: false,
       cache: 'no-store',
     });

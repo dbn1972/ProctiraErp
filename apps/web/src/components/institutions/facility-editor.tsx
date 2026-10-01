@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { useHydrated } from '@/hooks/useHydrated';
@@ -11,6 +12,20 @@ import {
 import { Button, Input, Label } from '@proctira/ui/components';
 
 const CONDITIONS = ['Good', 'Fair', 'Needs repair', 'Unknown'] as const;
+type Condition = (typeof CONDITIONS)[number];
+
+export interface FacilityNode {
+  id: string;
+  name: string;
+  capacity?: number;
+  condition?: string;
+}
+
+/** Map a gateway condition string (any case) onto the editable condition set. */
+function toCondition(value: string | undefined): Condition {
+  const match = CONDITIONS.find((c) => c.toLowerCase() === (value ?? '').toLowerCase());
+  return match ?? 'Unknown';
+}
 
 export function FacilityEditor({
   institutionId,
@@ -19,13 +34,15 @@ export function FacilityEditor({
 }: {
   institutionId: string;
   floors: Array<{ id: string; name: string }>;
-  nodes: Array<{ id: string; name: string }>;
+  nodes: FacilityNode[];
 }) {
+  const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editId, setEditId] = useState(nodes[0]?.id ?? '');
+  const selected = nodes.find((node) => node.id === editId);
 
   return (
     <div
@@ -55,6 +72,7 @@ export function FacilityEditor({
             }
             setMessage('Room added.');
             form.reset();
+            router.refresh();
           });
         }}
       >
@@ -110,19 +128,28 @@ export function FacilityEditor({
           event.preventDefault();
           const fd = new FormData(event.currentTarget);
           setError(null);
+          // Send only the fields the user actually changed (PUT accepts partial bodies).
+          const name = String(fd.get('name') ?? '').trim();
+          const capacity = Number(fd.get('capacity') ?? 0);
+          const condition = toCondition(String(fd.get('condition') ?? ''));
+          const changes: { name?: string; capacity?: number; condition?: Condition } = {};
+          if (name && name !== selected?.name) changes.name = name;
+          if (Number.isFinite(capacity) && capacity >= 1 && capacity !== selected?.capacity) {
+            changes.capacity = capacity;
+          }
+          if (condition !== toCondition(selected?.condition)) changes.condition = condition;
+          if (Object.keys(changes).length === 0) {
+            setMessage('No changes to save.');
+            return;
+          }
           startTransition(async () => {
-            const result = await updateFacilityAction({
-              institutionId,
-              id: editId,
-              name: String(fd.get('name') ?? ''),
-              capacity: Number(fd.get('capacity') ?? 1),
-              condition: String(fd.get('condition') ?? 'Good') as (typeof CONDITIONS)[number],
-            });
+            const result = await updateFacilityAction({ institutionId, id: editId, ...changes });
             if (!result.ok) {
               setError(result.error);
               return;
             }
             setMessage('Facility updated.');
+            router.refresh();
           });
         }}
       >
@@ -144,18 +171,36 @@ export function FacilityEditor({
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-name">Name</Label>
-          <Input id="edit-name" name="name" required maxLength={255} />
+          <Input
+            key={`name-${editId}`}
+            id="edit-name"
+            name="name"
+            required
+            maxLength={255}
+            defaultValue={selected?.name ?? ''}
+          />
         </div>
         <div className="flex gap-2">
           <div className="space-y-1">
             <Label htmlFor="edit-capacity">Capacity</Label>
-            <Input id="edit-capacity" name="capacity" type="number" min={1} max={99999} required />
+            <Input
+              key={`capacity-${editId}`}
+              id="edit-capacity"
+              name="capacity"
+              type="number"
+              min={1}
+              max={99999}
+              required
+              defaultValue={selected?.capacity ?? ''}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="edit-condition">Condition</Label>
             <select
+              key={`condition-${editId}`}
               id="edit-condition"
               name="condition"
+              defaultValue={toCondition(selected?.condition)}
               className="h-10 rounded-md border bg-background px-3 text-sm"
             >
               {CONDITIONS.map((condition) => (
