@@ -53,6 +53,7 @@ import {
   createPublicTenantResolver,
   createTenantRepository,
   tenantLifecyclePlugin,
+  type TenantAdminProvisioner,
 } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
@@ -121,6 +122,11 @@ export interface BuildAppOptions {
   publicTenantResolver?: PublicTenantResolver;
   /** Optional access-token revocation store override (tests / DI). */
   accessTokenRevocationStore?: AccessTokenRevocationStore;
+  /**
+   * PRC-H099: initial tenant-admin provisioner for the tenant lifecycle (tests / DI). When
+   * omitted, tenant creation fails closed instead of creating a tenant without its admin.
+   */
+  tenantAdminProvisioner?: TenantAdminProvisioner;
 }
 
 /**
@@ -880,6 +886,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
+    // PRC-H099: no default provisioner — POST /tenant-lifecycle fails closed without one.
+    adminProvisioner: options.tenantAdminProvisioner,
   });
   // PRC-H008 / PRC-H098: the suspension gate reads tenant status from the same repository the
   // lifecycle writes, and lifecycle transitions invalidate this process's cache immediately.

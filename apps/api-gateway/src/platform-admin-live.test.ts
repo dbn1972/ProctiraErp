@@ -2,7 +2,7 @@
  * PRC-H005: the platform-admin console must show real health, real audit rows and act on the
  * real tenant lifecycle — not hard-coded payloads and a console-only tenant store.
  */
-import type { TenantService } from '@proctira/backend-tenant';
+import type { TenantAdminProvisioner, TenantService } from '@proctira/backend-tenant';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -11,6 +11,11 @@ import type { GatewayConfig } from './config.js';
 import { probePostgres, queryPlatformAudit, type SqlPool } from './platform-admin-live.js';
 
 delete process.env['DATABASE_URL'];
+
+const testAdminProvisioner: TenantAdminProvisioner = {
+  // PRC-H099: the lifecycle refuses to create a tenant without an admin provisioner.
+  provisionTenantAdmin: ({ tenantId }) => Promise.resolve({ adminUserId: `admin-of-${tenantId}` }),
+};
 
 describe('probePostgres', () => {
   it('reports down (not up) when the database probe fails', async () => {
@@ -58,12 +63,19 @@ describe('queryPlatformAudit', () => {
     };
     const rows = await queryPlatformAudit(pool);
     // FORCE RLS: the read must run with the platform-admin GUC bound first.
-    const scopeIdx = statements.findIndex((q) => q.includes("set_config('app.platform_admin', '1'"));
+    const scopeIdx = statements.findIndex((q) =>
+      q.includes("set_config('app.platform_admin', '1'"),
+    );
     const readIdx = statements.findIndex((q) => q.includes('FROM audit_log_entries'));
     expect(scopeIdx).toBeGreaterThanOrEqual(0);
     expect(readIdx).toBeGreaterThan(scopeIdx);
     expect(rows).toEqual([
-      expect.objectContaining({ id: 'a1', action: 'student.update', actor: 'Registrar', tenantId: 't1' }),
+      expect.objectContaining({
+        id: 'a1',
+        action: 'student.update',
+        actor: 'Registrar',
+        tenantId: 't1',
+      }),
     ]);
     expect(JSON.stringify(rows)).not.toContain('Live gateway');
   });
@@ -114,7 +126,7 @@ describe('platform-admin console routes (gateway)', () => {
   });
 
   beforeAll(async () => {
-    app = await buildApp({ config: config() });
+    app = await buildApp({ config: config(), tenantAdminProvisioner: testAdminProvisioner });
     await app.ready();
   });
 
@@ -123,13 +135,21 @@ describe('platform-admin console routes (gateway)', () => {
   });
 
   it('health does not claim postgres is up when no database was probed', async () => {
-    const health = await app.inject({ method: 'GET', url: '/api/v1/platform/health', headers: platformAdmin() });
+    const health = await app.inject({
+      method: 'GET',
+      url: '/api/v1/platform/health',
+      headers: platformAdmin(),
+    });
     expect(health.statusCode).toBe(200);
     const pg = health.json().services.find((s: { name: string }) => s.name === 'postgres');
     expect(pg.status).not.toBe('up');
     expect(health.json().status).toBe('unknown');
 
-    const system = await app.inject({ method: 'GET', url: '/api/v1/health/system', headers: platformAdmin() });
+    const system = await app.inject({
+      method: 'GET',
+      url: '/api/v1/health/system',
+      headers: platformAdmin(),
+    });
     const adapter = system.json().adapters.find((a: { name: string }) => a.name === 'PostgreSQL');
     expect(adapter.status).not.toBe('healthy');
     expect(adapter.note).not.toContain('Live gateway probe');
@@ -156,7 +176,11 @@ describe('platform-admin console routes (gateway)', () => {
     });
     expect(tenant.status).toBe('active');
 
-    const listed = await app.inject({ method: 'GET', url: '/api/v1/tenants', headers: platformAdmin() });
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/api/v1/tenants',
+      headers: platformAdmin(),
+    });
     expect(listed.json().items.map((t: { id: string }) => t.id)).toContain(tenant.id);
 
     const res = await app.inject({
@@ -184,7 +208,12 @@ describe('platform-admin console routes (gateway)', () => {
     const tenant = await tenantService.createTenant({
       name: `${slugPrefix} School`,
       slug: `${slugPrefix}-${Date.now().toString(36)}`,
-      admin: { firstName: 'A', lastName: 'B', email: 'a@b.example', password: 'correct-horse-battery' },
+      admin: {
+        firstName: 'A',
+        lastName: 'B',
+        email: 'a@b.example',
+        password: 'correct-horse-battery',
+      },
     });
     return { tenantService, tenant };
   }

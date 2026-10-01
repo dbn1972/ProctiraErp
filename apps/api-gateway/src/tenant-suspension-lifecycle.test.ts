@@ -2,7 +2,7 @@
  * PRC-H008 / PRC-H098: suspending a tenant through the tenant lifecycle must reach the gateway
  * suspension gate (it used to be fed only from TENANT_SUSPENDED_IDS).
  */
-import type { TenantService } from '@proctira/backend-tenant';
+import type { TenantAdminProvisioner, TenantService } from '@proctira/backend-tenant';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -17,6 +17,11 @@ import {
 } from './tenant-entitlement.js';
 
 delete process.env['DATABASE_URL'];
+
+const testAdminProvisioner: TenantAdminProvisioner = {
+  // PRC-H099: the lifecycle refuses to create a tenant without an admin provisioner.
+  provisionTenantAdmin: ({ tenantId }) => Promise.resolve({ adminUserId: `admin-of-${tenantId}` }),
+};
 
 function config(): GatewayConfig {
   return {
@@ -47,7 +52,7 @@ describe('tenant suspension reaches the gateway gate', () => {
   let tenantService: TenantService;
 
   beforeAll(async () => {
-    app = await buildApp({ config: config() });
+    app = await buildApp({ config: config(), tenantAdminProvisioner: testAdminProvisioner });
     await app.ready();
     tenantService = (app as FastifyInstance & { tenantService: TenantService }).tenantService;
   });
