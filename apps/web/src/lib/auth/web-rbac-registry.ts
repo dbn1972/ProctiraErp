@@ -17,6 +17,23 @@ const EXAMINATION_READ: Permission = { resource: 'examination', action: 'read' }
 /** Gateway STAFF_READS + student examination.read (rbac-registry.ts). */
 const EXAMINATION_READ_ROLE_IDS = ['teacher', 'staff', 'student'] as const;
 
+/** Gateway CAMPUS_MANAGE / STAFF_READS subset used by dashboard domain guards. */
+const DOMAIN_GRANTS: Record<string, Permission[]> = {
+  admin: [{ resource: 'communication', action: 'manage' }],
+  principal: [
+    { resource: 'communication', action: 'manage' },
+    { resource: 'report', action: 'manage' },
+  ],
+  teacher: [
+    { resource: 'communication', action: 'read' },
+    { resource: 'report', action: 'read' },
+  ],
+  staff: [
+    { resource: 'communication', action: 'read' },
+    { resource: 'report', action: 'read' },
+  ],
+};
+
 function cloneRoles(roles: RoleDefinition[]): RoleDefinition[] {
   return roles.map((role) => ({
     ...role,
@@ -41,6 +58,18 @@ export function createWebRbacRegistry(): RbacPermissionRegistry {
       role.permissions.push(EXAMINATION_READ);
     }
   }
+
+  // PRC-L034: dashboard domain guards (communication / data-warehouse→report /
+  // platform) mirror the gateway grants in apps/api-gateway/src/rbac-registry.ts.
+  for (const [roleId, extras] of Object.entries(DOMAIN_GRANTS)) {
+    const role = roles.find((entry) => entry.roleId === roleId);
+    if (role) role.permissions.push(...extras);
+  }
+  roles.push({
+    roleId: 'platform_admin',
+    roleName: 'Platform Administrator',
+    permissions: [{ resource: 'platform', action: 'manage' }],
+  });
 
   return new RbacPermissionRegistry(roles);
 }
