@@ -26,6 +26,7 @@ import {
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 import { QueueReportCardPublisher } from './queue-report-card-publisher.js';
 import { InMemoryReportCardArtifactStore } from './report-card-artifact-store.js';
+import { anyIdReportCardDirectory } from './report-card-test-directory.js';
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const INSTITUTION_ID = '22222222-2222-4222-8222-222222222222';
@@ -69,6 +70,8 @@ async function buildApp(withWorker: boolean) {
       },
     },
     reportCardArtifactStore: new InMemoryReportCardArtifactStore(),
+    // PRC-H036: jobs fail closed without a name directory; this suite exercises queue wiring.
+    reportCardDirectory: anyIdReportCardDirectory,
   });
   app.addHook('onClose', async () => {
     await publisherQueue.disconnect();
