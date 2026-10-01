@@ -1,10 +1,13 @@
 /**
  * MFA OTP challenge service.
  *
- * Challenges are persisted as SHA-256 hashes with an expiry. The opaque
- * `mfaToken` returned to the client is a random UUID used as the lookup key.
+ * Challenges are persisted as HMAC-SHA256(pepper, mfaToken:code) with an
+ * expiry (PRC-L281). A plain hash of a 6-digit code is reversible by brute
+ * force from a DB read; the server-side pepper is not stored with the row and
+ * binding to the mfaToken makes identical codes hash differently per challenge.
+ * The opaque `mfaToken` returned to the client is a random UUID lookup key.
  */
-import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import type { SmsProvider } from './sms-provider.js';
 
@@ -60,8 +63,15 @@ export class InMemoryOtpChallengeStore implements OtpChallengeStore {
   }
 }
 
-export function hashOtpCode(code: string): string {
-  return createHash('sha256').update(code).digest('hex');
+export function hashOtpCode(code: string, pepper: string, mfaToken: string): string {
+  if (!pepper) throw new Error('OTP pepper is required');
+  return createHmac('sha256', pepper).update(`${mfaToken}:${code}`).digest('hex');
+}
+
+function hashesEqual(expectedHex: string, actualHex: string): boolean {
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = Buffer.from(actualHex, 'hex');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export function generateOtpCode(digits = 6): string {
@@ -95,6 +105,12 @@ export interface OtpServiceOptions {
   exposeCodeInResponse?: boolean;
   /** Message template; `{code}` is replaced. */
   messageTemplate?: string;
+  /**
+   * Server-side HMAC key for OTP hashes (PRC-L281). Must be identical across
+   * replicas. When omitted a random per-process pepper is used, which is only
+   * safe for single-instance/dev deployments.
+   */
+  pepper?: string;
 }
 
 export class OtpService {
@@ -104,8 +120,10 @@ export class OtpService {
   private readonly maxAttempts: number;
   private readonly exposeCodeInResponse: boolean;
   private readonly messageTemplate: string;
+  private readonly pepper: string;
 
   constructor(options: OtpServiceOptions) {
+    this.pepper = options.pepper || randomBytes(32).toString('hex');
     this.store = options.store;
     this.sms = options.sms;
     this.ttlSeconds = options.ttlSeconds ?? 300;
@@ -135,7 +153,7 @@ export class OtpService {
       userId: input.userId,
       tenantId: input.tenantId,
       phone,
-      codeHash: hashOtpCode(code),
+      codeHash: hashOtpCode(code, this.pepper, mfaToken),
       expiresAt,
       consumedAt: null,
       attemptCount: 0,
@@ -176,8 +194,8 @@ export class OtpService {
     }
 
     const expected = record.codeHash;
-    const actual = hashOtpCode(String(input.code ?? '').trim());
-    if (expected !== actual) {
+    const actual = hashOtpCode(String(input.code ?? '').trim(), this.pepper, record.mfaToken);
+    if (!hashesEqual(expected, actual)) {
       await this.store.incrementAttempts(record.id);
       throw new OtpAuthError('Invalid verification code');
     }

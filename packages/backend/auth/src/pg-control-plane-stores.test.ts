@@ -62,7 +62,7 @@ describe('auth control-plane Postgres stores (live)', () => {
       userId: randomUUID(),
       tenantId,
       phone: '+911234567890',
-      codeHash: hashOtpCode('123456'),
+      codeHash: hashOtpCode('123456', 'test-pepper', 'mfa-token'),
       expiresAt: new Date(Date.now() + 300_000),
       consumedAt: null,
       attemptCount: 0,
@@ -88,6 +88,8 @@ describe('auth control-plane Postgres stores (live)', () => {
       {
         externalId,
         email: 'Teacher@Example.edu',
+        // PRC-H042: first-login linking requires a Keycloak-verified email.
+        emailVerified: true,
         displayName: 'Kc Teacher',
         tenantSlug: `kc-${tenantId.slice(0, 8)}`,
         realm: 'proctira',

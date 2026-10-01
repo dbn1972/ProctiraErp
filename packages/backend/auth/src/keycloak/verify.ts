@@ -31,6 +31,7 @@ export type KeycloakAccessClaims = {
   aud?: string | string[];
   azp?: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   preferred_username?: string;
   given_name?: string;

@@ -91,18 +91,16 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
     await this.identities.put(row.externalId, { ...row, lastUsedAt: new Date() }, row.tenantId);
   }
 
-  async findUserByEmail(email: string, tenantId?: string) {
+  async findUserByEmail(email: string, tenantId: string) {
+    // PRC-H042: never search across tenants by email.
+    if (!tenantId) return null;
     const normalized = email.trim().toLowerCase();
-    if (tenantId) {
-      // The key is already tenant-prefixed, so this was scoped in practice --
-      // but only by string convention, enforced nowhere. Passing the scope makes
-      // it a real SQL predicate, so a malformed or spoofed key cannot reach
-      // another tenant's row. Verified the invariant holds in existing data: every
-      // auth.keycloak_users id begins with its own tenant_id.
-      const user = await this.users.get(`${tenantId}:${normalized}`, { tenantId });
-      return user ? this.publicUser(user) : null;
-    }
-    const user = await this.users.first({ email: normalized } as Partial<UserDoc>);
+    // The key is already tenant-prefixed, so this was scoped in practice --
+    // but only by string convention, enforced nowhere. Passing the scope makes
+    // it a real SQL predicate, so a malformed or spoofed key cannot reach
+    // another tenant's row. Verified the invariant holds in existing data: every
+    // auth.keycloak_users id begins with its own tenant_id.
+    const user = await this.users.get(`${tenantId}:${normalized}`, { tenantId });
     return user ? this.publicUser(user) : null;
   }
 
@@ -140,8 +138,13 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
       lastName: input.lastName,
       countryCode: input.countryCode,
     };
-    await this.users.put(`${user.tenantId}:${user.email}`, user, user.tenantId);
-    return this.publicUser(user);
+    // PRC-L283: concurrent first logins converge on one user row.
+    const winner = await this.users.insertIfAbsent(
+      `${user.tenantId}:${user.email}`,
+      user,
+      user.tenantId,
+    );
+    return this.publicUser(winner);
   }
 
   async createIdentity(input: {
@@ -160,7 +163,8 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
       realm: input.realm,
       lastUsedAt: new Date(),
     };
-    await this.identities.put(input.externalId, doc, input.tenantId);
+    // PRC-L283: first writer wins; a racing login cannot repoint the subject.
+    await this.identities.insertIfAbsent(input.externalId, doc, input.tenantId);
   }
 
   private publicUser(user: UserDoc) {

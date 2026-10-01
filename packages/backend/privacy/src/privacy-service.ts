@@ -7,7 +7,13 @@
  * - Residuals → job status `failed` (never claim `completed` wipe)
  * - Every id op is tenant-bound (IDOR fail-closed)
  */
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '@proctira/common';
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,6 +25,7 @@ import type {
   ErasureRequestEntity,
   LegalHoldEntity,
   OffboardChecklistItem,
+  ListPage,
   PrivacyRepository,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -54,6 +61,19 @@ const ERASURE_TRANSITIONS: Record<ErasureStatus, readonly ErasureStatus[]> = {
   cancelled: [],
 };
 
+/**
+ * Statuses a caller may request via the manual /transition endpoint (PRC-H076).
+ * `in_progress`, `completed` and `blocked_legal_hold` are written only by
+ * executeErasure / processAnonymizationJob, so an erasure can never be marked
+ * completed without an anonymization job that finished with zero residual.
+ */
+const MANUAL_ERASURE_TARGETS: readonly ErasureStatus[] = [
+  'under_review',
+  'approved',
+  'rejected',
+  'cancelled',
+];
+
 const CORRECTION_TRANSITIONS: Record<CorrectionStatus, readonly CorrectionStatus[]> = {
   requested: ['under_review', 'rejected', 'cancelled'],
   under_review: ['approved', 'rejected', 'cancelled'],
@@ -62,6 +82,17 @@ const CORRECTION_TRANSITIONS: Record<CorrectionStatus, readonly CorrectionStatus
   rejected: [],
   cancelled: [],
 };
+
+/**
+ * Raised when a destructive privacy operation is requested but no real domain
+ * executor is configured (PRC-H077). Surfaced as HTTP 501 so callers see
+ * "not implemented" instead of a 201 job that can only end failed/stuck.
+ */
+export class PrivacyExecutorNotConfiguredError extends AppError {
+  constructor(message: string) {
+    super(message, 'NOT_IMPLEMENTED', 501);
+  }
+}
 
 export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
@@ -81,6 +112,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
   private readonly tenantWipeExecutor: TenantWipeExecutor;
   private readonly anonymizationPublisher?: PrivacyAnonymizationPublisher;
   private readonly offboardPublisher?: PrivacyOffboardPublisher;
+  /** False when only the residual-recording default anonymizer is present. */
+  readonly erasureExecutionAvailable: boolean;
+  /** False when only the residual checklist wipe executor is present. */
+  readonly tenantWipeAvailable: boolean;
 
   constructor(
     private readonly repository: PrivacyRepository,
@@ -89,6 +124,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.audit = options.audit ?? new NoopPrivacyAuditPort();
     this.anonymizer = options.anonymizer ?? new RecordingSubjectAnonymizer();
     this.tenantWipeExecutor = options.tenantWipeExecutor ?? new ResidualTenantWipeExecutor();
+    this.erasureExecutionAvailable = options.anonymizer !== undefined;
+    this.tenantWipeAvailable = options.tenantWipeExecutor !== undefined;
     this.anonymizationPublisher = options.anonymizationPublisher;
     this.offboardPublisher = options.offboardPublisher;
   }
@@ -131,7 +168,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
         active: true,
       },
     });
-    logger.info({ holdId: hold.id, tenantId: hold.tenantId, scope: hold.scope }, 'Legal hold placed');
+    logger.info(
+      { holdId: hold.id, tenantId: hold.tenantId, scope: hold.scope },
+      'Legal hold placed',
+    );
     return hold;
   }
 
@@ -163,8 +203,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return updated!;
   }
 
-  async listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]> {
-    return this.repository.listActiveLegalHolds(tenantId);
+  async listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]> {
+    return this.repository.listActiveLegalHolds(tenantId, page);
   }
 
   async isOnLegalHold(
@@ -172,33 +212,29 @@ export class PrivacyService implements DestructiveDeleteGuard {
     subjectType?: string,
     subjectId?: string,
   ): Promise<boolean> {
-    const active = await this.listActiveLegalHolds(tenantId);
-    if (active.some((h) => h.scope === 'tenant')) return true;
-    if (subjectType && subjectId) {
-      return active.some(
-        (h) =>
-          h.scope === 'subject' && h.subjectType === subjectType && h.subjectId === subjectId,
-      );
-    }
-    return false;
+    // PRC-L138: single indexed query instead of listing every active hold.
+    const hold = await this.repository.findActiveHold(
+      tenantId,
+      subjectType && subjectId ? { subjectType, subjectId } : undefined,
+    );
+    return hold !== null;
   }
 
   async assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void> {
-    const active = await this.repository.listActiveLegalHolds(tenantId);
-    const tenantHold = active.find((h) => h.scope === 'tenant');
-    if (tenantHold) {
+    // PRC-L138: one indexed query per gate call.
+    const hold = await this.repository.findActiveHold(
+      tenantId,
+      subjectId ? { subjectId } : undefined,
+    );
+    if (!hold) return;
+    if (hold.scope === 'tenant') {
       throw new BusinessRuleError(
-        `Destructive delete blocked: tenant '${tenantId}' is under legal hold (${tenantHold.id})`,
+        `Destructive delete blocked: tenant '${tenantId}' is under legal hold (${hold.id})`,
       );
     }
-    if (subjectId) {
-      const subjectHold = active.find((h) => h.scope === 'subject' && h.subjectId === subjectId);
-      if (subjectHold) {
-        throw new BusinessRuleError(
-          `Destructive delete blocked: subject '${subjectId}' is under legal hold (${subjectHold.id})`,
-        );
-      }
-    }
+    throw new BusinessRuleError(
+      `Destructive delete blocked: subject '${subjectId ?? 'unknown'}' is under legal hold (${hold.id})`,
+    );
   }
 
   async createErasureRequest(input: CreateErasureRequestInput): Promise<ErasureRequestEntity> {
@@ -226,29 +262,30 @@ export class PrivacyService implements DestructiveDeleteGuard {
   ): Promise<ErasureRequestEntity> {
     const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
+    if (!MANUAL_ERASURE_TARGETS.includes(toStatus)) {
+      throw new BusinessRuleError(
+        `Erasure status '${toStatus}' is set only by erasure execution, not by manual transition`,
+      );
+    }
     if (!ERASURE_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(`Invalid erasure transition: ${existing.status} → ${toStatus}`);
     }
-    if (toStatus === 'in_progress') {
-      if (
-        await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)
-      ) {
-        await this.repository.updateErasureRequest(requestId, tenantId, {
-          status: 'blocked_legal_hold',
-          reviewedBy: actorId,
-          statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
-        });
-        throw new BusinessRuleError(
-          `Erasure blocked: subject under legal hold (request ${requestId})`,
-        );
-      }
+    const updated = await this.repository.updateErasureRequest(
+      requestId,
+      tenantId,
+      {
+        status: toStatus,
+        reviewedBy: actorId,
+        statusReason: statusReason ?? null,
+      },
+      { expectedStatus: existing.status },
+    );
+    if (!updated) {
+      throw new ConflictError(
+        `Erasure request '${requestId}' changed concurrently; reload and retry`,
+      );
     }
-    return (await this.repository.updateErasureRequest(requestId, tenantId, {
-      status: toStatus,
-      reviewedBy: actorId,
-      statusReason: statusReason ?? null,
-      completedAt: toStatus === 'completed' ? new Date() : existing.completedAt,
-    }))!;
+    return updated;
   }
 
   /**
@@ -268,20 +305,38 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Erasure execute requires approved status; current=${existing.status}`,
       );
     }
+    if (!this.erasureExecutionAvailable) {
+      // PRC-H077: without injected domain anonymizers the default records a
+      // residual and the job can only fail. Refuse up front and leave the
+      // request `approved` rather than creating a job that can never complete.
+      throw new PrivacyExecutorNotConfiguredError(
+        'Erasure execution is not available: no domain anonymizer is configured',
+      );
+    }
     if (await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)) {
       await this.repository.updateErasureRequest(requestId, tenantId, {
         status: 'blocked_legal_hold',
         reviewedBy: actorId,
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
       });
-      throw new BusinessRuleError(`Erasure blocked: subject under legal hold (request ${requestId})`);
+      throw new BusinessRuleError(
+        `Erasure blocked: subject under legal hold (request ${requestId})`,
+      );
     }
 
-    await this.repository.updateErasureRequest(requestId, tenantId, {
-      status: 'in_progress',
-      reviewedBy: actorId,
-      statusReason: 'Erasure execution started',
-    });
+    const started = await this.repository.updateErasureRequest(
+      requestId,
+      tenantId,
+      {
+        status: 'in_progress',
+        reviewedBy: actorId,
+        statusReason: 'Erasure execution started',
+      },
+      { expectedStatus: 'approved' },
+    );
+    if (!started) {
+      throw new ConflictError(`Erasure request '${requestId}' is already being executed`);
+    }
 
     const job = await this.repository.createAnonymizationJob({
       id: uuidv4(),
@@ -317,10 +372,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return (await this.repository.findErasureRequestById(requestId, tenantId))!;
   }
 
-  async processAnonymizationJob(
-    jobId: string,
-    tenantId: string,
-  ): Promise<AnonymizationJobEntity> {
+  async processAnonymizationJob(jobId: string, tenantId: string): Promise<AnonymizationJobEntity> {
     const job = await this.repository.findAnonymizationJobById(jobId, tenantId);
     if (!job) throw new NotFoundError(`Anonymization job '${jobId}' not found`);
     if (job.status === 'completed' || job.status === 'failed') return job;
@@ -335,9 +387,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
         status: 'blocked_legal_hold',
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
       });
-      throw new BusinessRuleError(
-        `Anonymization blocked: subject under legal hold (job ${jobId})`,
-      );
+      throw new BusinessRuleError(`Anonymization blocked: subject under legal hold (job ${jobId})`);
     }
 
     await this.repository.updateAnonymizationJob(jobId, tenantId, {
@@ -542,8 +592,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return this.repository.findCorrectionRequestById(requestId, tenantId);
   }
 
-  listCorrectionRequests(tenantId: string) {
-    return this.repository.listCorrectionRequests(tenantId);
+  listCorrectionRequests(tenantId: string, page?: ListPage) {
+    return this.repository.listCorrectionRequests(tenantId, page);
   }
 
   // ─── Tenant offboard wipe ────────────────────────────────────────────────
@@ -551,6 +601,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
   async requestTenantOffboardWipe(
     input: RequestTenantOffboardInput,
   ): Promise<TenantOffboardJobEntity> {
+    if (!this.tenantWipeAvailable) {
+      // PRC-H077: no real TenantWipeExecutor -> tenant offboard is disabled.
+      throw new PrivacyExecutorNotConfiguredError(
+        'Tenant offboard wipe is not available: no tenant wipe executor is configured',
+      );
+    }
     if (await this.isOnLegalHold(input.tenantId)) {
       throw new BusinessRuleError(
         `Tenant offboard wipe blocked: tenant '${input.tenantId}' is under legal hold (fail-closed)`,
@@ -626,7 +682,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
     const checklist: OffboardChecklistItem[] = domainResults.map((d) => ({
       domain: d.domain,
-      status: d.status === 'completed' ? 'completed' : d.status === 'skipped' ? 'skipped' : 'residual',
+      status:
+        d.status === 'completed' ? 'completed' : d.status === 'skipped' ? 'skipped' : 'residual',
       note: d.note,
     }));
 
@@ -665,7 +722,9 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
     logger.info(
       { jobId, tenantId: job.tenantId, jobStatus },
-      hasResidual ? 'Tenant offboard job failed closed on residual' : 'Tenant offboard job completed',
+      hasResidual
+        ? 'Tenant offboard job failed closed on residual'
+        : 'Tenant offboard job completed',
     );
     return updated!;
   }
@@ -674,16 +733,16 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return this.repository.findTenantOffboardJobById(jobId, tenantId);
   }
 
-  listTenantOffboardJobs(tenantId: string) {
-    return this.repository.listTenantOffboardJobs(tenantId);
+  listTenantOffboardJobs(tenantId: string, page?: ListPage) {
+    return this.repository.listTenantOffboardJobs(tenantId, page);
   }
 
   getErasureRequest(requestId: string, tenantId: string) {
     return this.repository.findErasureRequestById(requestId, tenantId);
   }
 
-  listErasureRequests(tenantId: string) {
-    return this.repository.listErasureRequests(tenantId);
+  listErasureRequests(tenantId: string, page?: ListPage) {
+    return this.repository.listErasureRequests(tenantId, page);
   }
 
   getAnonymizationJob(jobId: string, tenantId: string) {
