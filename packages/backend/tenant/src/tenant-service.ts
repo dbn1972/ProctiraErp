@@ -54,6 +54,23 @@ export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
 
+/** Input handed to the admin provisioner for a tenant in 'provisioning' status. */
+export interface TenantAdminProvisioningRequest {
+  tenantId: string;
+  slug: string;
+  name: string;
+  admin: CreateTenantInput['admin'];
+}
+
+/**
+ * Creates the tenant's initial admin (IdP user or invite) and seeds tenant
+ * defaults (roles/settings/tenants row). Implementations must be idempotent per
+ * tenantId and must not persist `admin.password` outside the IdP (PRC-H099).
+ */
+export interface TenantAdminProvisioner {
+  provisionTenantAdmin(request: TenantAdminProvisioningRequest): Promise<{ adminUserId: string }>;
+}
+
 /**
  * Service handling tenant lifecycle business logic.
  */
@@ -61,6 +78,7 @@ export class TenantService {
   constructor(
     private readonly repository: TenantRepository,
     private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
+    private readonly adminProvisioner?: TenantAdminProvisioner,
   ) {}
 
   /**
@@ -86,14 +104,26 @@ export class TenantService {
    * 1. Validate slug uniqueness
    * 2. Create tenant record in 'provisioning' status
    * 3. Apply default configuration
-   * 4. Transition to 'active' status
+   * 4. Provision the initial admin via the injected TenantAdminProvisioner
+   * 5. Transition to 'active' status only after step 4 succeeded
+   *
+   * Fails closed (PRC-H099): without a provisioner no record is written, and a
+   * provisioning failure removes the never-active record so no half tenant
+   * remains and the slug is released for a retry.
    *
    * @throws ConflictError if slug already exists
+   * @throws BusinessRuleError if admin provisioning is not configured or fails
    */
   async createTenant(input: CreateTenantInput): Promise<TenantEntity> {
     const existingBySlug = await this.repository.findTenantBySlug(input.slug);
     if (existingBySlug) {
       throw new ConflictError(`Tenant with slug '${input.slug}' already exists`);
+    }
+    const adminProvisioner = this.adminProvisioner;
+    if (!adminProvisioner) {
+      throw new BusinessRuleError(
+        'Tenant admin provisioning is not configured; refusing to create a tenant without its admin user',
+      );
     }
 
     const defaultConfig: TenantConfig = {
@@ -144,13 +174,35 @@ export class TenantService {
       'Tenant record created in provisioning status',
     );
 
-    // Transition to active after provisioning steps complete
-    // In a real system, this would involve seeding defaults, creating admin user, etc.
-    // For now, we transition immediately.
+    let adminUserId: string;
+    try {
+      ({ adminUserId } = await adminProvisioner.provisionTenantAdmin({
+        tenantId: tenant.id,
+        slug: tenant.slug,
+        name: tenant.name,
+        admin: input.admin,
+      }));
+      if (!adminUserId) throw new Error('provisioner returned no admin user id');
+    } catch (error) {
+      logger.error(
+        { tenantId: tenant.id, slug: tenant.slug, err: error },
+        'Tenant admin provisioning failed; removing never-active tenant record',
+      );
+      try {
+        await this.repository.deleteTenant(tenant.id);
+      } catch (cleanupError) {
+        logger.error(
+          { tenantId: tenant.id, err: cleanupError },
+          'Failed to remove tenant record after provisioning failure; it remains in provisioning status',
+        );
+      }
+      throw new BusinessRuleError('Tenant admin provisioning failed; tenant was not activated');
+    }
+
     const activeTenant = await this.applyUpdate(tenant.id, { status: 'active' });
 
     logger.info(
-      { tenantId: tenant.id, slug: tenant.slug },
+      { tenantId: tenant.id, slug: tenant.slug, adminUserId },
       'Tenant provisioning completed, status set to active',
     );
 

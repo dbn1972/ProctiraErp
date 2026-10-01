@@ -23,6 +23,7 @@ import { InMemoryTenantRepository } from './in-memory-repository.js';
 import { registerTenantRoutes } from './routes.js';
 import { registerBrandingRoutes } from './branding-routes.js';
 import type { CreateTenantInput, ThemeTokens } from './schemas.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
   let app: FastifyInstance;
@@ -67,7 +68,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
 
   beforeEach(async () => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
 
     // Build a fresh tenant once per test and let the branding handler
     // resolve the active tenant id from a custom resolver that reads the

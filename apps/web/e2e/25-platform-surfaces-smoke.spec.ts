@@ -147,7 +147,10 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
         },
       },
     });
-    expect(created.status(), await created.text()).toBe(201);
+    // PRC-H099: without a configured tenant-admin provisioner the gateway fails
+    // closed (422) and writes no tenant record, so the slug stays unused.
+    expect(created.status(), await created.text()).toBe(422);
+    expect(await created.text()).toContain('Tenant admin provisioning is not configured');
 
     const entityId = `g727-${stamp}`;
     const recorded = await request.post(`${GATEWAY_URL}/api/v1/audit-logs`, {
@@ -184,9 +187,9 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
     await expect(rows.first().getByText('status', { exact: true })).toBeVisible();
 
     await page.goto(`/tenant-lifecycle?search=g727-${stamp}`, { waitUntil: 'domcontentloaded' });
-    const tenantRows = page.getByTestId('tenant-row');
-    await expect(tenantRows).toHaveCount(1);
-    await expect(tenantRows.first()).toContainText(`g727-${stamp}`);
+    await expect(page.getByTestId('tenant-lifecycle-page')).toBeVisible();
+    // The refused create left no half-provisioned tenant behind.
+    await expect(page.getByTestId('tenant-row')).toHaveCount(0);
   });
 
   test('tenant admin is told platform access is required instead of an empty table', async ({

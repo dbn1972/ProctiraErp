@@ -12,8 +12,8 @@ import {
   InstallServiceImpl,
   InMemoryBootstrapStore,
   type ValidationResult,
-  type AggregatedHealth,
 } from '@proctira/backend-install';
+
 import type { InstallConfig, InstallResult, AdminAccountConfig } from './types';
 
 /**
@@ -59,38 +59,44 @@ export interface InstallerDependencies {
   adminCreator?: AdminAccountCreator;
 }
 
+/** Error returned by the built-in placeholders; never reported as success. */
+export const NOT_IMPLEMENTED_MIGRATIONS =
+  'not implemented: no MigrationRunner configured. Apply migrations with ' +
+  'tools/scripts/run-target-database-migrations.sh and re-run with --skip-migrations, ' +
+  'or inject a real MigrationRunner.';
+export const NOT_IMPLEMENTED_ADMIN =
+  'not implemented: no AdminAccountCreator configured. Create the platform admin through ' +
+  'the identity provider and re-run with --skip-admin, or inject a real AdminAccountCreator.';
+
 /**
- * Default no-op migration runner (logs that migrations would be run).
+ * Placeholder used when no real migration runner is injected. It fails the
+ * install instead of pretending that migrations were applied.
  */
-export class DefaultMigrationRunner implements MigrationRunner {
+export class NotImplementedMigrationRunner implements MigrationRunner {
   constructor(private readonly logger: InstallerLogger) {}
 
-  async runMigrations(): Promise<{ success: boolean; migrationsApplied: number; error?: string }> {
-    this.logger.info('Database migrations: using Prisma migrate deploy');
-    // In production, this would execute: npx prisma migrate deploy
-    // For now, we simulate success since the actual Prisma client
-    // requires a real database connection.
-    return { success: true, migrationsApplied: 0 };
+  runMigrations(): Promise<{ success: boolean; migrationsApplied: number; error?: string }> {
+    this.logger.error(NOT_IMPLEMENTED_MIGRATIONS);
+    return Promise.resolve({
+      success: false,
+      migrationsApplied: 0,
+      error: NOT_IMPLEMENTED_MIGRATIONS,
+    });
   }
 }
 
 /**
- * Default admin account creator (logs that account would be created).
+ * Placeholder used when no real admin creator is injected. It fails the install
+ * instead of returning a fabricated user id.
  */
-export class DefaultAdminCreator implements AdminAccountCreator {
+export class NotImplementedAdminCreator implements AdminAccountCreator {
   constructor(private readonly logger: InstallerLogger) {}
 
-  async createAdmin(
-    admin: AdminAccountConfig,
+  createAdmin(
+    _admin: AdminAccountConfig,
   ): Promise<{ success: boolean; userId?: string; error?: string }> {
-    this.logger.info(
-      { username: admin.username, name: `${admin.firstName} ${admin.lastName}` },
-      'Creating platform admin account',
-    );
-    // In production, this would insert into the users table.
-    // Returns a placeholder ID for the summary.
-    const userId = `admin-${Date.now()}`;
-    return { success: true, userId };
+    this.logger.error(NOT_IMPLEMENTED_ADMIN);
+    return Promise.resolve({ success: false, error: NOT_IMPLEMENTED_ADMIN });
   }
 }
 
@@ -104,8 +110,8 @@ export class Installer {
 
   constructor(deps: InstallerDependencies) {
     this.logger = deps.logger;
-    this.migrationRunner = deps.migrationRunner ?? new DefaultMigrationRunner(deps.logger);
-    this.adminCreator = deps.adminCreator ?? new DefaultAdminCreator(deps.logger);
+    this.migrationRunner = deps.migrationRunner ?? new NotImplementedMigrationRunner(deps.logger);
+    this.adminCreator = deps.adminCreator ?? new NotImplementedAdminCreator(deps.logger);
   }
 
   /**
@@ -217,7 +223,7 @@ export class Installer {
           migrationsRun: false,
           adminCreated: false,
           health: { status: 'unhealthy', adapters: {} },
-          error: `Migration failed: ${migrationResult.error}`,
+          error: `Migration failed: ${migrationResult.error ?? 'unknown error'}`,
         };
       }
       migrationsRun = true;
@@ -239,7 +245,7 @@ export class Installer {
           migrationsRun,
           adminCreated: false,
           health: { status: 'unhealthy', adapters: {} },
-          error: `Admin account creation failed: ${adminResult.error}`,
+          error: `Admin account creation failed: ${adminResult.error ?? 'unknown error'}`,
         };
       }
       adminCreated = true;

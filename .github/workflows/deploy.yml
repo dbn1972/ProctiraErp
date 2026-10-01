@@ -68,7 +68,15 @@ jobs:
   ci-gate:
     name: Verify CI Passed
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # PRC-H061: a workflow_run must come from a successful CI *push* run whose
+    # head repository is this repository. A fork PR from a branch named `main`
+    # also triggers workflow_run with head_branch == 'main'; without these
+    # checks it could build/migrate/deploy fork code.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     outputs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
@@ -86,6 +94,35 @@ jobs:
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "Deploying commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+      # Defense in depth for PRC-H061: fail (not skip) if the job-level guard
+      # is ever weakened, and prove the SHA is on the protected branch.
+      - name: Assert trusted push-triggered CI run
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head-sha }}
+          HEAD_BRANCH: ${{ steps.resolve.outputs.head-branch }}
+        run: |
+          if [ "${RUN_EVENT}" != "push" ]; then
+            echo "::error::Refusing workflow_run from event '${RUN_EVENT}' (only 'push' may deploy/release)"
+            exit 1
+          fi
+          if [ "${HEAD_REPO}" != "${THIS_REPO}" ]; then
+            echo "::error::Refusing workflow_run from head repository '${HEAD_REPO}' (expected '${THIS_REPO}')"
+            exit 1
+          fi
+          # Ancestor check: HEAD_SHA must be reachable from the protected branch.
+          STATUS="$(gh api "repos/${THIS_REPO}/compare/${HEAD_BRANCH}...${HEAD_SHA}" --jq .status)"
+          case "${STATUS}" in
+            identical | behind) echo "${HEAD_SHA} is on ${HEAD_BRANCH}" ;;
+            *)
+              echo "::error::${HEAD_SHA} is not an ancestor of ${HEAD_BRANCH} (compare status: ${STATUS})"
+              exit 1
+              ;;
+          esac
 
       # W1-OPS-23: manual deploys must prove the selected SHA passed CI before
       # any migration or rollout job can run.
@@ -129,7 +166,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ needs.ci-gate.outputs.head-branch }}" = "main" ]; then
+          elif [ "${{ github.event.workflow_run.event }}" = "push" ] && [ "${{ needs.ci-gate.outputs.head-branch }}" = "main" ]; then
             echo "environment=production" >> "$GITHUB_OUTPUT"
           else
             echo "environment=staging" >> "$GITHUB_OUTPUT"

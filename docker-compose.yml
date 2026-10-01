@@ -299,7 +299,8 @@ services:
       PORT: 3002
       HOSTNAME: 0.0.0.0
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-      GATEWAY_URL: ${GATEWAY_URL}
+      # Server-only; required in production (portal fails fast when unset).
+      GATEWAY_URL: ${GATEWAY_URL:-http://api-gateway:3000}
     ports:
       - '${REGISTRATION_PORTAL_PORT:-3002}:3002'
     networks:
