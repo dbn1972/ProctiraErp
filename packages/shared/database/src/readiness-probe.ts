@@ -7,10 +7,8 @@
  */
 import pg from 'pg';
 
-import {
-  readPersistencePolicyEnv,
-  type PersistencePolicyEnv,
-} from './persistence-policy.js';
+import { isProductionNodeEnv } from './node-env.js';
+import { readPersistencePolicyEnv, type PersistencePolicyEnv } from './persistence-policy.js';
 
 export type DatabaseDependencyStatus = 'up' | 'down' | 'in-memory' | 'required-missing';
 
@@ -39,7 +37,7 @@ function databaseRequired(env: PersistencePolicyEnv): boolean {
   if (truthy(env.REQUIRE_DATABASE)) return true;
   // W1-SEC-12: production always requires Postgres — ALLOW_IN_MEMORY_IN_PRODUCTION
   // is obsolete and must not keep readiness green on in-memory stores.
-  if (env.NODE_ENV === 'production') {
+  if (isProductionNodeEnv(env.NODE_ENV)) {
     return true;
   }
   return Boolean(env.DATABASE_URL?.trim());
@@ -55,7 +53,10 @@ async function defaultProbeDatabase(
     await Promise.race([
       pool.query('SELECT 1 AS ok'),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)), timeoutMs);
+        setTimeout(
+          () => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
       }),
     ]);
     return { ok: true, latencyMs: Date.now() - start };
@@ -81,7 +82,7 @@ export async function runReadinessProbe(
   if (!databaseUrl) {
     if (databaseRequired(env)) {
       const obsoleteEscape =
-        env.NODE_ENV === 'production' && truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)
+        isProductionNodeEnv(env.NODE_ENV) && truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)
           ? ' (ALLOW_IN_MEMORY_IN_PRODUCTION is disabled — W1-SEC-12)'
           : '';
       return {
