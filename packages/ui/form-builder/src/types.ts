@@ -87,6 +87,17 @@ export interface FormSchema {
   cancelLabel?: string;
 }
 
+/** Built-in UI strings. Schema `submitLabel`/`cancelLabel` still take precedence. */
+export interface FormBuilderLabels {
+  selectPlaceholder?: string;
+  submit?: string;
+  submitting?: string;
+  cancel?: string;
+  errorSummaryTitle?: string;
+  /** Shown when onSubmit rejects without an Error message. */
+  submitError?: string;
+}
+
 export interface FormBuilderProps {
   /** JSON schema defining the form structure */
   schema: FormSchema;
@@ -107,4 +118,6 @@ export interface FormBuilderProps {
    * role="alert" region and re-enables submit.
    */
   onSubmitError?: (error: unknown) => void;
+  /** Localised overrides for built-in strings. */
+  labels?: FormBuilderLabels;
 }

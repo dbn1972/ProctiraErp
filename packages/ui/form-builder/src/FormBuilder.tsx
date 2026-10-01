@@ -4,7 +4,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { get, useForm, type RegisterOptions } from 'react-hook-form';
 
 import { compileSchemaPattern } from './pattern-safety';
-import type { FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
+import type { FormBuilderLabels, FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
 
 const looselyEqual = (a: unknown, b: unknown): boolean =>
   a === b ||
@@ -37,6 +37,16 @@ function unsetPath(target: Record<string, unknown>, path: string): void {
     delete (node as Record<string, unknown>)[parts[parts.length - 1] as string];
   }
 }
+
+/** English fallbacks for built-in strings; override via the `labels` prop. */
+export const DEFAULT_FORM_BUILDER_LABELS: Required<FormBuilderLabels> = {
+  selectPlaceholder: 'Select...',
+  submit: 'Submit',
+  submitting: 'Submitting...',
+  cancel: 'Cancel',
+  errorSummaryTitle: 'There is a problem',
+  submitError: 'Something went wrong. Please try again.',
+};
 
 /** Module constant so the default prop keeps a stable identity across renders. */
 const EMPTY_DEFAULTS: Record<string, unknown> = Object.freeze({}) as Record<string, unknown>;
@@ -85,7 +95,9 @@ export function FormBuilder({
   className = '',
   ariaLabel,
   onSubmitError,
+  labels,
 }: FormBuilderProps) {
+  const t = { ...DEFAULT_FORM_BUILDER_LABELS, ...labels };
   const allFields = useMemo(
     () => schema.sections.flatMap((section) => section.fields),
     [schema.sections],
@@ -193,11 +205,7 @@ export function FormBuilder({
       )(withoutHiddenFields(data), event);
     } catch (err) {
       onSubmitError?.(err);
-      setSubmitError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'Something went wrong. Please try again.',
-      );
+      setSubmitError(err instanceof Error && err.message ? err.message : t.submitError);
     }
   };
 
@@ -212,7 +220,7 @@ export function FormBuilder({
 
   const errorSummaryHeadingId = `${useId()}-error-summary`;
   const errorSummaryItems = allFields.flatMap((field) => {
-    const fieldError = errors[field.name];
+    const fieldError = get(errors, field.name) as { message?: unknown } | undefined;
     if (!fieldError || !isFieldVisible(field)) return [];
     return [{ field, message: String(fieldError.message ?? '') }];
   });
@@ -223,7 +231,7 @@ export function FormBuilder({
     const fieldId = `field-${field.name}`;
     const errorId = `${fieldId}-error`;
     const helpId = `${fieldId}-help`;
-    const error = errors[field.name];
+    const error = get(errors, field.name) as { message?: unknown } | undefined;
     const validation = validationByField.get(field.name) ?? {};
 
     const ariaDescribedBy =
@@ -264,7 +272,7 @@ export function FormBuilder({
       case 'select':
         input = (
           <select {...commonProps} {...register(field.name, validation)}>
-            <option value="">{field.placeholder ?? 'Select...'}</option>
+            <option value="">{field.placeholder ?? t.selectPlaceholder}</option>
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                 {opt.label}
@@ -352,7 +360,7 @@ export function FormBuilder({
         )}
         {error && (
           <p id={errorId} className="proctira-form__error" role="alert">
-            {error.message as string}
+            {String(error.message ?? '')}
           </p>
         )}
       </div>
@@ -377,7 +385,7 @@ export function FormBuilder({
           tabIndex={-1}
         >
           <h3 id={errorSummaryHeadingId} className="proctira-form__error-summary-title">
-            There is a problem
+            {t.errorSummaryTitle}
           </h3>
           <ul>
             {errorSummaryItems.map(({ field, message }) => (
@@ -421,7 +429,7 @@ export function FormBuilder({
             disabled={loading || isSubmitting}
             className="proctira-form__cancel-btn"
           >
-            {schema.cancelLabel ?? 'Cancel'}
+            {schema.cancelLabel ?? t.cancel}
           </button>
         )}
         <button
@@ -430,7 +438,7 @@ export function FormBuilder({
           className="proctira-form__submit-btn"
           aria-busy={isSubmitting}
         >
-          {isSubmitting ? 'Submitting...' : (schema.submitLabel ?? 'Submit')}
+          {isSubmitting ? t.submitting : (schema.submitLabel ?? t.submit)}
         </button>
       </div>
     </form>

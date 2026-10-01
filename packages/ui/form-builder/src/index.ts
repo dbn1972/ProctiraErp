@@ -1,6 +1,7 @@
-export { FormBuilder } from './FormBuilder';
+export { FormBuilder, DEFAULT_FORM_BUILDER_LABELS } from './FormBuilder';
 export type {
   FormBuilderProps,
+  FormBuilderLabels,
   FormSchema,
   FormSection,
   FormFieldSchema,
