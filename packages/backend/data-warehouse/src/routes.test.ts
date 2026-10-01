@@ -145,6 +145,69 @@ describe('data-warehouse routes', () => {
     });
   });
 
+  describe('tenancy and validation (PRC-L459)', () => {
+    it('requires tenant context (400)', async () => {
+      const res = await app.inject({ method: 'GET', url: '/warehouses' });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { code: string }).code).toBe('TENANT_REQUIRED');
+    });
+
+    it('rejects malformed warehouse ids (400)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/warehouses/not-a-uuid',
+        headers: { 'x-tenant-id': TENANT_A },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('blocks cross-tenant writes, deletes and lists (404) and leaves data intact', async () => {
+      const wh = await createWarehouse(TENANT_A);
+      const b = { 'x-tenant-id': TENANT_B };
+      const put = await app.inject({
+        method: 'PUT',
+        url: `/warehouses/${wh}`,
+        headers: b,
+        payload: { name: 'x' },
+      });
+      expect(put.statusCode).toBe(404);
+      const del = await app.inject({ method: 'DELETE', url: `/warehouses/${wh}`, headers: b });
+      expect(del.statusCode).toBe(404);
+      const sub = await app.inject({
+        method: 'POST',
+        url: `/warehouses/${wh}/indicators`,
+        headers: b,
+        payload: { name: 'I', gid: 'I1' },
+      });
+      expect(sub.statusCode).toBe(404);
+      const list = await app.inject({ method: 'GET', url: '/warehouses', headers: b });
+      expect((list.json() as { data: unknown[] }).data).toHaveLength(0);
+      const q = await app.inject({
+        method: 'POST',
+        url: `/warehouses/${wh}/query`,
+        headers: b,
+        payload: {},
+      });
+      expect(q.statusCode).toBe(404);
+      const own = await app.inject({
+        method: 'GET',
+        url: `/warehouses/${wh}`,
+        headers: { 'x-tenant-id': TENANT_A },
+      });
+      expect((own.json() as { name: string }).name).toBe('DW');
+    });
+
+    it('rejects invalid create bodies (400)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/warehouses',
+        headers: { 'x-tenant-id': TENANT_A },
+        payload: { name: '' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
   it('isolates warehouses across tenants (404 cross-tenant)', async () => {
     const wh = await createWarehouse(TENANT_A);
     const res = await app.inject({
