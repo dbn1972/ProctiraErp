@@ -58,6 +58,18 @@ function assertPeriodOrder(startDate: Date | null, endDate: Date | null): void {
   }
 }
 
+function assertChildLevel(parent: Area, level: number): void {
+  if (level !== parent.level + 1) {
+    throw new ValidationError('Validation failed', [
+      {
+        field: 'level',
+        message: `level must be ${parent.level + 1} (parent level + 1)`,
+        rule: 'range',
+      },
+    ]);
+  }
+}
+
 export class DataWarehouseService {
   constructor(
     private readonly repository: WarehouseRepository,
@@ -461,12 +473,13 @@ export class DataWarehouseService {
       throw new ConflictError(`Area with ID '${input.areaId}' already exists in this warehouse`);
     }
 
-    // Validate parent exists if specified
+    // Validate parent exists if specified, and that the level follows the parent
     if (input.parentId) {
       const parent = await this.repository.findAreaById(input.parentId, warehouseId, tenantId);
       if (!parent) {
         throw new NotFoundError(`Parent area not found: ${input.parentId}`);
       }
+      assertChildLevel(parent, input.level);
     }
 
     const now = new Date();
@@ -497,11 +510,30 @@ export class DataWarehouseService {
       throw new NotFoundError(`Area not found: ${areaId}`);
     }
 
+    const effectiveParentId = input.parentId !== undefined ? input.parentId : existing.parentId;
     if (input.parentId !== undefined && input.parentId !== null) {
+      if (input.parentId === areaId) {
+        throw new ConflictError('An area cannot be its own parent');
+      }
       const parent = await this.repository.findAreaById(input.parentId, warehouseId, tenantId);
       if (!parent) {
         throw new NotFoundError(`Parent area not found: ${input.parentId}`);
       }
+      // Walk the ancestor chain of the new parent; reaching areaId means a cycle.
+      const seen = new Set<string>([parent.id]);
+      let cursor: Area | null = parent;
+      while (cursor?.parentId) {
+        if (cursor.parentId === areaId) {
+          throw new ConflictError('Parent area cannot be a descendant of this area');
+        }
+        if (seen.has(cursor.parentId)) break; // defensive: pre-existing corrupt cycle
+        seen.add(cursor.parentId);
+        cursor = await this.repository.findAreaById(cursor.parentId, warehouseId, tenantId);
+      }
+    }
+    if (effectiveParentId && (input.parentId !== undefined || input.level !== undefined)) {
+      const parent = await this.repository.findAreaById(effectiveParentId, warehouseId, tenantId);
+      if (parent) assertChildLevel(parent, input.level ?? existing.level);
     }
 
     const updates: Partial<Area> = {};
