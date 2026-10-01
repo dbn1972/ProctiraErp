@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { get, useForm, type RegisterOptions } from 'react-hook-form';
 
 import { compileSchemaPattern } from './pattern-safety';
@@ -108,7 +108,7 @@ export function FormBuilder({
     handleSubmit,
     watch,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, submitCount },
   } = useForm({
     defaultValues: computedDefaults,
   });
@@ -201,6 +201,22 @@ export function FormBuilder({
     }
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+  /** Focus the first enabled control registered under `name` (works for groups too). */
+  const focusField = (name: string) => {
+    const controls = Array.from(formRef.current?.elements ?? []) as HTMLElement[];
+    controls
+      .find((el) => el.getAttribute('name') === name && !(el as HTMLInputElement).disabled)
+      ?.focus();
+  };
+
+  const errorSummaryHeadingId = `${useId()}-error-summary`;
+  const errorSummaryItems = allFields.flatMap((field) => {
+    const fieldError = errors[field.name];
+    if (!fieldError || !isFieldVisible(field)) return [];
+    return [{ field, message: String(fieldError.message ?? '') }];
+  });
+
   const renderField = (field: FormFieldSchema) => {
     if (!isFieldVisible(field)) return null;
 
@@ -223,6 +239,13 @@ export function FormBuilder({
       'aria-required': validation.required ? true : undefined,
       className: `proctira-form__input ${error ? 'proctira-form__input--error' : ''}`,
     };
+
+    const requiredMarker = validation.required ? (
+      <span className="proctira-form__required" aria-hidden="true">
+        {' '}
+        *
+      </span>
+    ) : null;
 
     let input: React.ReactNode;
 
@@ -254,12 +277,17 @@ export function FormBuilder({
       case 'radio':
         input = (
           <fieldset
+            id={fieldId}
             className="proctira-form__radio-group"
             role="radiogroup"
             aria-labelledby={`${fieldId}-legend`}
+            aria-describedby={ariaDescribedBy}
+            aria-invalid={!!error}
+            aria-required={validation.required ? true : undefined}
           >
             <legend id={`${fieldId}-legend`} className="proctira-form__legend">
               {field.label}
+              {requiredMarker}
             </legend>
             {field.options?.map((opt) => (
               <label key={opt.value} className="proctira-form__radio-label">
@@ -287,6 +315,7 @@ export function FormBuilder({
               className="proctira-form__checkbox-input"
             />
             {field.label}
+            {requiredMarker}
           </label>
         );
         break;
@@ -312,12 +341,7 @@ export function FormBuilder({
         {field.type !== 'checkbox' && field.type !== 'radio' && (
           <label htmlFor={fieldId} className="proctira-form__label">
             {field.label}
-            {validation.required && (
-              <span className="proctira-form__required" aria-hidden="true">
-                {' '}
-                *
-              </span>
-            )}
+            {requiredMarker}
           </label>
         )}
         {input}
@@ -327,7 +351,7 @@ export function FormBuilder({
           </p>
         )}
         {error && (
-          <p id={errorId} className="proctira-form__error" role="alert" aria-live="polite">
+          <p id={errorId} className="proctira-form__error" role="alert">
             {error.message as string}
           </p>
         )}
@@ -337,6 +361,7 @@ export function FormBuilder({
 
   return (
     <form
+      ref={formRef}
       onSubmit={(e) => void handleSubmit(submitVisible)(e)}
       className={`proctira-form ${className}`}
       aria-label={ariaLabel ?? schema.title ?? 'Form'}
@@ -344,6 +369,33 @@ export function FormBuilder({
     >
       {schema.title && <h2 className="proctira-form__title">{schema.title}</h2>}
       {schema.description && <p className="proctira-form__description">{schema.description}</p>}
+
+      {submitCount > 0 && errorSummaryItems.length > 0 && (
+        <div
+          className="proctira-form__error-summary"
+          aria-labelledby={errorSummaryHeadingId}
+          tabIndex={-1}
+        >
+          <h3 id={errorSummaryHeadingId} className="proctira-form__error-summary-title">
+            There is a problem
+          </h3>
+          <ul>
+            {errorSummaryItems.map(({ field, message }) => (
+              <li key={field.name}>
+                <a
+                  href={`#field-${field.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    focusField(field.name);
+                  }}
+                >
+                  {field.label}: {message}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {schema.sections.map((section, sectionIndex) => (
         <fieldset key={sectionIndex} className="proctira-form__section">
