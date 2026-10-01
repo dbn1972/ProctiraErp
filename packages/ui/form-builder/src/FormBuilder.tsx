@@ -1,10 +1,51 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useForm, type RegisterOptions } from 'react-hook-form';
+import { get, useForm, type RegisterOptions } from 'react-hook-form';
 
 import { compileSchemaPattern } from './pattern-safety';
 import type { FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
+
+const looselyEqual = (a: unknown, b: unknown): boolean =>
+  a === b ||
+  (a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b));
+
+/** Evaluate a field's `visibleWhen` against current form values. */
+function isVisibleIn(field: FormFieldSchema, values: Record<string, unknown>): boolean {
+  if (!field.visibleWhen) return true;
+  const { field: depField, value, operator = 'eq' } = field.visibleWhen;
+  const actual: unknown = get(values, depField);
+  switch (operator) {
+    case 'neq':
+      return !looselyEqual(actual, value);
+    case 'in':
+      return Array.isArray(value) && value.some((v) => looselyEqual(actual, v));
+    default:
+      return looselyEqual(actual, value);
+  }
+}
+
+/** Remove a (possibly dotted) key from a nested object in place. */
+function unsetPath(target: Record<string, unknown>, path: string): void {
+  const parts = path.split('.');
+  let node: unknown = target;
+  for (const part of parts.slice(0, -1)) {
+    if (node === null || typeof node !== 'object') return;
+    node = (node as Record<string, unknown>)[part];
+  }
+  if (node !== null && typeof node === 'object') {
+    delete (node as Record<string, unknown>)[parts[parts.length - 1] as string];
+  }
+}
+
+/** Deep-copy plain form data (falls back to a shallow copy for non-cloneable values). */
+function structuredCloneSafe(data: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return structuredClone(data);
+  } catch {
+    return { ...data };
+  }
+}
 
 /**
  * FormBuilder component for dynamic form rendering from JSON schema.
@@ -101,11 +142,22 @@ export function FormBuilder({
     [allFields],
   );
 
-  const isFieldVisible = (field: FormFieldSchema): boolean => {
-    if (!field.visibleWhen) return true;
-    const { field: depField, value } = field.visibleWhen;
-    return watchedValues[depField] === value;
+  const isFieldVisible = (field: FormFieldSchema): boolean => isVisibleIn(field, watchedValues);
+
+  /** Hidden (visibleWhen=false) fields must not leak stale values into the payload. */
+  const withoutHiddenFields = (data: Record<string, unknown>): Record<string, unknown> => {
+    const result = structuredCloneSafe(data);
+    for (const field of allFields) {
+      if (!isVisibleIn(field, data)) unsetPath(result, field.name);
+    }
+    return result;
   };
+
+  // RHF also passes the submit event; forward it to keep the existing call shape.
+  const submitVisible = (data: Record<string, unknown>, event?: React.BaseSyntheticEvent) =>
+    (
+      onSubmit as (d: Record<string, unknown>, e?: React.BaseSyntheticEvent) => void | Promise<void>
+    )(withoutHiddenFields(data), event);
 
   const renderField = (field: FormFieldSchema) => {
     if (!isFieldVisible(field)) return null;
@@ -243,7 +295,7 @@ export function FormBuilder({
 
   return (
     <form
-      onSubmit={(e) => void handleSubmit(onSubmit)(e)}
+      onSubmit={(e) => void handleSubmit(submitVisible)(e)}
       className={`proctira-form ${className}`}
       aria-label={ariaLabel ?? schema.title ?? 'Form'}
       noValidate
