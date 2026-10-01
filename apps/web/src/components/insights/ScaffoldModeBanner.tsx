@@ -6,19 +6,12 @@ import type { ScaffoldDataSource } from '@/lib/api/insights-source';
 
 export type { ScaffoldDataSource };
 
-interface ScaffoldModeBannerProps {
+interface ScaffoldModeBannerBaseProps {
   /** Short label for the surface (e.g. "Reports catalog"). */
   surface: string;
   /** Optional extra honesty copy. */
   detail?: string;
   className?: string;
-  /**
-   * When `'gateway'`, the banner is hidden (live Insights APIs responded).
-   * When `'scaffold'`, the honesty banner shows.
-   */
-  source?: ScaffoldDataSource;
-  /** Force-show for write scaffolds that never hit a live API yet. */
-  force?: boolean;
   /**
    * Override the default "Scaffold / demo mode" title. Use this for callers where the
    * underlying data is real (not a demo/scaffold feature) and the banner instead reflects a
@@ -28,10 +21,29 @@ interface ScaffoldModeBannerProps {
 }
 
 /**
+ * Callers must state provenance explicitly. The banner is hidden only when
+ * `source === 'gateway'`; any other value (including `undefined`) fails closed
+ * and shows the warning (PRC-L258).
+ */
+type ScaffoldModeBannerProps = ScaffoldModeBannerBaseProps &
+  (
+    | {
+        /** Provenance of the data on this surface; only `'gateway'` hides the banner. */
+        source: ScaffoldDataSource | undefined;
+        force?: false;
+      }
+    | {
+        /** Force-show for write scaffolds that never hit a live API yet. */
+        force: true;
+        source?: ScaffoldDataSource;
+      }
+  );
+
+/**
  * Honesty banner for Insights & System scaffolds.
  *
- * Mirrors Platform Admin `StubDataBanner`: hide when the gateway responded,
- * show when data is scaffold/offline, or when `force` marks a write scaffold.
+ * Mirrors Platform Admin `StubDataBanner`: hide only when the gateway responded;
+ * show when data is scaffold/offline/unknown, or when `force` marks a write scaffold.
  */
 export function ScaffoldModeBanner({
   surface,
@@ -41,7 +53,7 @@ export function ScaffoldModeBanner({
   force = false,
   title,
 }: ScaffoldModeBannerProps) {
-  if (!force && source !== 'scaffold') return null;
+  if (!force && source === 'gateway') return null;
 
   return (
     <Alert
@@ -55,7 +67,7 @@ export function ScaffoldModeBanner({
       <AlertTitle>{title ?? `Scaffold / demo mode — ${surface}`}</AlertTitle>
       <AlertDescription>
         {detail ??
-          'Live Insights APIs are not connected in this environment. Forms validate client-side; submits stay demo-only until the gateway is wired.'}
+          'Live data for this surface could not be confirmed. Figures may be incomplete and changes may not be saved.'}
       </AlertDescription>
     </Alert>
   );
