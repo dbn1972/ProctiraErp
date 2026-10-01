@@ -14,7 +14,7 @@
  * pods.
  */
 
-import { MigrationConfig } from './types.js';
+import type { MigrationConfig } from './types.js';
 
 /** TARGET_PG_SSL values mapped onto node-pg's PGSSLMODE handling. */
 const PG_SSL_MODES = new Set(['disable', 'require', 'verify-full']);

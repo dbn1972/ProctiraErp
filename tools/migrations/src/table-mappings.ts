@@ -17,7 +17,7 @@
  */
 
 import { assertSafeTableMapping } from './sql-safety.js';
-import { TableMapping } from './types.js';
+import type { TableMapping } from './types.js';
 
 export const TABLE_MAPPINGS: TableMapping[] = [
   // =========================================================================
