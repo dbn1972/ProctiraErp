@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getAuthServiceUrl } from '@/lib/auth/cookies';
+import { getAuthServiceUrl, readRequestCookie } from '@/lib/auth/cookies';
 import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
+import { AUTH_COOKIES } from '@/lib/auth/session';
 
 /**
  * POST /api/auth/mfa/resend
@@ -16,7 +17,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const mfaToken = body.mfaToken?.trim() ?? '';
+  const mfaToken =
+    body.mfaToken?.trim() || readRequestCookie(request, AUTH_COOKIES.MFA_CHALLENGE) || '';
   if (!mfaToken) {
     return NextResponse.json({ message: 'MFA session is missing.' }, { status: 400 });
   }

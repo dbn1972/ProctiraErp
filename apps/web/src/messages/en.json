@@ -79,6 +79,7 @@
     "resendEmail": "Resend email",
     "backToSignIn": "Back to sign in",
     "passwordResetFailed": "We couldn't send the reset email. Please try again.",
+    "passwordResetSuccess": "Your password has been updated. Sign in with your new password.",
     "createNewPassword": "Create a new password",
     "createNewPasswordSubtitle": "Pick something strong you'll remember.",
     "updatePassword": "Update password",

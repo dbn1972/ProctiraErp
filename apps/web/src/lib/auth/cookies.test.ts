@@ -3,6 +3,8 @@ import {
   accessTokenCookieOptions,
   clearCookieOptions,
   clearRefreshTokenCookieOptions,
+  getAuthServiceUrl,
+  getGatewayUrl,
   isSecureCookieContext,
   refreshTokenCookieOptions,
 } from './cookies';
@@ -86,5 +88,46 @@ describe('cookies — Secure flag resolution (G-719)', () => {
     expect(clearRefresh.httpOnly).toBe(true);
     expect(clearRefresh.sameSite).toBe('strict');
     expect(clearRefresh.maxAge).toBe(0);
+  });
+});
+
+describe('cookies — upstream URL resolution (PRC-L027)', () => {
+  const URL_ENVS = [
+    'AUTH_SERVICE_URL',
+    'NEXT_PUBLIC_AUTH_SERVICE_URL',
+    'GATEWAY_URL',
+    'NEXT_PUBLIC_API_URL',
+    'API_GATEWAY_URL',
+  ];
+
+  function clearUrlEnvs(): void {
+    for (const name of URL_ENVS) vi.stubEnv(name, '');
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('throws in production when AUTH_SERVICE_URL / GATEWAY_URL are unset', () => {
+    clearUrlEnvs();
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(() => getAuthServiceUrl()).toThrow(/AUTH_SERVICE_URL/);
+    expect(() => getGatewayUrl()).toThrow(/GATEWAY_URL/);
+  });
+
+  it('uses configured URLs in production', () => {
+    clearUrlEnvs();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AUTH_SERVICE_URL', 'http://api-gateway:3000');
+    vi.stubEnv('GATEWAY_URL', 'http://api-gateway:3000');
+    expect(getAuthServiceUrl()).toBe('http://api-gateway:3000');
+    expect(getGatewayUrl()).toBe('http://api-gateway:3000');
+  });
+
+  it('falls back to the local gateway (not the etl-worker :3010 port) in development', () => {
+    clearUrlEnvs();
+    vi.stubEnv('NODE_ENV', 'development');
+    expect(getAuthServiceUrl()).toBe('http://localhost:3000');
+    expect(getGatewayUrl()).toBe('http://localhost:3000');
   });
 });

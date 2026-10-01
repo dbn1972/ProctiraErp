@@ -31,6 +31,19 @@ const nextConfig = {
     '@proctira/ui-dashboards',
     '@proctira/auth',
   ],
+  // PRC-L024: auth screens and auth route handlers never leak their URL
+  // (reset tokens, returnTo) to third parties via the Referer header.
+  async headers() {
+    const noReferrer = [{ key: 'Referrer-Policy', value: 'no-referrer' }];
+    return [
+      '/login',
+      '/mfa',
+      '/mfa-setup',
+      '/forgot-password',
+      '/reset-password',
+      '/api/auth/:path*',
+    ].map((source) => ({ source, headers: noReferrer }));
+  },
   webpack: (config) => {
     // The shared `@proctira/auth` package keeps explicit `.js`
     // extensions in its source imports (e.g. `import {…} from
