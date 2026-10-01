@@ -2,6 +2,10 @@
  * Gateway low-severity audit gaps, batch 1 (PRC-L001 … PRC-L528).
  * Each describe block maps to one audit row.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -337,6 +341,24 @@ describe('gateway lows batch 1', () => {
         headers: { authorization: `Bearer ${accessToken}`, 'x-tenant-id': TENANT_A },
       });
       expect(res.statusCode).toBe(401);
+    });
+  });
+  describe('PRC-L398 plugin index exports only mounted plugins', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const appSource = readFileSync(join(here, 'app.ts'), 'utf8');
+    const indexSource = readFileSync(join(here, 'plugins/index.ts'), 'utf8');
+
+    it('rate limiting is registered exactly once', () => {
+      expect(appSource.match(/register\(rateLimit\b/g) ?? []).toHaveLength(1);
+      expect(indexSource).not.toMatch(/rate-limit\.js|request-context\.js|static-assets\.js/);
+    });
+
+    it('every module re-exported by plugins/index.ts is imported by app.ts', () => {
+      const modules = [...indexSource.matchAll(/from '\.\/([\w-]+)\.js'/g)].map((m) => m[1]!);
+      expect(modules.length).toBeGreaterThan(0);
+      for (const mod of new Set(modules)) {
+        expect(appSource, mod).toContain(`./plugins/${mod}.js`);
+      }
     });
   });
 });
