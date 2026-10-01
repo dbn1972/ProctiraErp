@@ -4,6 +4,12 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 vi.mock('@/lib/api/institutions', () => ({}));
 vi.mock('@/lib/institutions/api', () => ({}));
+vi.mock('@/lib/api/admin.server', () => ({
+  getTenantSettings: vi.fn(async () => ({
+    settings: { timezone: 'Asia/Kolkata' },
+    source: 'gateway',
+  })),
+}));
 vi.mock('@/lib/api/students', () => ({
   getStudentEnrollmentsResult: vi.fn(),
   getStudentEnrollments: vi.fn(),
@@ -38,9 +44,48 @@ describe('bulk graduate enrollment lookups (PRC-L247)', () => {
       failed: [],
     });
     const result = await bulkGraduateStudentsAction([sid(1), sid(2)]);
-    expect(result.status).toBe('error');
+    expect(result.status).toBe('partial');
     expect(result.data?.lookupFailedStudentIds).toEqual([sid(2)]);
     expect(result.message).toMatch(/could not be loaded for 1 student/);
+  });
+
+  it('returns partial with per-student failures for a mixed batch (PRC-L248)', async () => {
+    vi.mocked(getStudentEnrollmentsResult).mockImplementation(async (id) => ({
+      ok: true,
+      enrollments: [{ id: id === sid(1) ? eid(1) : eid(2), status: 'ENROLLED' }] as never,
+    }));
+    vi.mocked(bulkUpdateEnrollmentStatus).mockResolvedValue({
+      updated: [{ id: eid(1) }] as never,
+      failed: [{ enrollmentId: eid(2), code: 'INVALID_TRANSITION', message: 'Not allowed' }],
+    });
+    const result = await bulkGraduateStudentsAction([sid(1), sid(2)]);
+    expect(result.status).toBe('partial');
+    expect(result.data?.failures).toEqual([
+      {
+        enrollmentId: eid(2),
+        studentId: sid(2),
+        code: 'INVALID_TRANSITION',
+        message: 'Not allowed',
+      },
+    ]);
+  });
+
+  it('uses the tenant-local date for effectiveDate at 23:30 UTC (PRC-L248)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-10T23:30:00Z'));
+    try {
+      vi.mocked(getStudentEnrollmentsResult).mockResolvedValue({
+        ok: true,
+        enrollments: [{ id: eid(1), status: 'ENROLLED' }] as never,
+      });
+      vi.mocked(bulkUpdateEnrollmentStatus).mockResolvedValue({ updated: [], failed: [] });
+      await bulkGraduateStudentsAction([sid(1)]);
+      expect(vi.mocked(bulkUpdateEnrollmentStatus).mock.calls[0]?.[0].effectiveDate).toBe(
+        '2026-03-11',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('runs lookups concurrently (bounded) and issues a single bulk call', async () => {

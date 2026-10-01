@@ -61,6 +61,13 @@ export function StudentsBulkGraduateBar({ rows }: { rows: Row[] }) {
             const result = await bulkGraduateStudentsAction(ids);
             setMessage(result.message ?? result.status);
             if (result.status === 'success') setSelected(new Set());
+            // Keep only the students that failed selected so they can be retried.
+            if (result.status === 'partial') {
+              const retry = (result.data?.failures ?? [])
+                .map((f) => f.studentId)
+                .filter((id): id is string => Boolean(id));
+              setSelected(new Set(retry));
+            }
           });
         }}
       >
