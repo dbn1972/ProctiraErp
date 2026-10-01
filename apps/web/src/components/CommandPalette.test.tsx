@@ -38,15 +38,15 @@ vi.mock('@/providers/AuthProvider', () => ({
       name: 'Admin',
       roles: ['admin'],
       permissions: [
-      'institution.read',
-      'student.read',
-      'staff.read',
-      'assessment.read',
-      'analytics.read',
-      'etl.read',
-      'settings.read',
-      'report.read',
-    ],
+        'institution.read',
+        'student.read',
+        'staff.read',
+        'assessment.read',
+        'analytics.read',
+        'etl.read',
+        'settings.read',
+        'report.read',
+      ],
       scope: { level: 'country' as const },
       tenant_id: 'tenant-1',
     },
@@ -251,9 +251,15 @@ describe('CommandPalette', () => {
     expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
   });
 
-
-
-
+  it('PRC-L065: parent role lists no staff campus entries (Fees, Hostel, …)', () => {
+    const ids = buildPaletteItems(['student.read'], ['parent']).map((i) => i.id);
+    for (const id of ['fees', 'hostel', 'transport', 'library', 'communication', 'admissions']) {
+      expect(ids).not.toContain(id);
+    }
+    const staff = buildPaletteItems(['student.read'], ['teacher']).map((i) => i.id);
+    expect(staff).toEqual(expect.arrayContaining(['fees', 'hostel', 'admissions']));
+    expect(buildPaletteItems([], ['teacher']).map((i) => i.id)).not.toContain('admissions');
+  });
   it('W2-UX-02: app-scope palette hrefs resolve to live App Router aliases', () => {
     const items = buildPaletteItems([
       'institution.read',

@@ -15,7 +15,9 @@
     "import": "આયાત",
     "back": "પાછળ",
     "next": "આગળ",
-    "previous": "પાછલું"
+    "previous": "પાછલું",
+    "language": "ભાષા",
+    "selectLanguage": "ભાષા પસંદ કરો"
   },
   "nav": {
     "dashboard": "ડેશબોર્ડ",

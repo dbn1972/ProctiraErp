@@ -86,14 +86,13 @@ export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErr
             An unexpected error occurred while rendering this page. The rest of the application is
             still functional.
           </p>
-          {this.state.error && (
-            <details className="max-w-md text-left text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Error details</summary>
-              <pre className="mt-2 overflow-auto rounded bg-muted p-2">
-                {this.state.error.message}
-              </pre>
-            </details>
-          )}
+          {/* Never render error.message: it can carry internal detail (PRC-L065). The
+              message is logged in componentDidCatch; users get the digest as a reference. */}
+          {(this.state.error as (Error & { digest?: string }) | null)?.digest ? (
+            <p className="text-xs text-muted-foreground" data-testid="page-error-digest">
+              Reference: {(this.state.error as Error & { digest?: string }).digest}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={this.handleRetry}

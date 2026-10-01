@@ -15,7 +15,9 @@
     "import": "దిగుమతి",
     "back": "వెనుకకు",
     "next": "తదుపరి",
-    "previous": "మునుపటి"
+    "previous": "మునుపటి",
+    "language": "భాష",
+    "selectLanguage": "భాషను ఎంచుకోండి"
   },
   "nav": {
     "dashboard": "డాష్‌బోర్డ్",

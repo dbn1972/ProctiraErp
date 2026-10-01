@@ -15,7 +15,9 @@
     "import": "আমদানি",
     "back": "পেছনে",
     "next": "পরবর্তী",
-    "previous": "পূর্ববর্তী"
+    "previous": "পূর্ববর্তী",
+    "language": "ভাষা",
+    "selectLanguage": "ভাষা নির্বাচন করুন"
   },
   "nav": {
     "dashboard": "ড্যাশবোর্ড",

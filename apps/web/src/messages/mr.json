@@ -15,7 +15,9 @@
     "import": "आयात",
     "back": "मागे",
     "next": "पुढील",
-    "previous": "मागील"
+    "previous": "मागील",
+    "language": "भाषा",
+    "selectLanguage": "भाषा निवडा"
   },
   "nav": {
     "dashboard": "डॅशबोर्ड",
