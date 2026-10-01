@@ -6,7 +6,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
 import {
   driverAssignmentInputSchema,
   transportRouteInputSchema,
@@ -46,13 +46,7 @@ const uuid = z.string().uuid();
 const hm = z.string().regex(/^\d{2}:\d{2}$/);
 
 function fail(error: unknown, fallback: string): TransportActionState {
-  const message =
-    error instanceof GatewayError
-      ? error.message
-      : error instanceof Error
-        ? error.message
-        : fallback;
-  return { status: 'error', message };
+  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
 }
 
 export async function createTransportRouteAction(

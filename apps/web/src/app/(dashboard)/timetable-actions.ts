@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
 import {
   createBellSchedule,
   createMeeting,
@@ -41,10 +42,7 @@ function fail(error: unknown): TimetableActionResult {
       conflicts: clashList(error.details),
     };
   }
-  return {
-    ok: false,
-    error: error instanceof Error ? error.message : 'Unexpected error',
-  };
+  return { ok: false, error: safeActionErrorMessage(error, 'Unexpected error') };
 }
 
 export async function createBellScheduleAction(input: {

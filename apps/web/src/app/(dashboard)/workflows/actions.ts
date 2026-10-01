@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
 import {
   workflowDecisionSchema,
   workflowDefinitionInputSchema,
@@ -39,13 +39,10 @@ export async function createWorkflowDefinitionAction(
       definitionId: definition.id,
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create definition';
-    return { status: 'error', message };
+    return {
+      status: 'error',
+      message: safeActionErrorMessage(error, 'Failed to create definition'),
+    };
   }
 }
 
@@ -65,12 +62,9 @@ export async function decideWorkflowApprovalAction(
       message: decision === 'approve' ? 'Approved.' : 'Rejected.',
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : `Failed to ${decision} approval`;
-    return { status: 'error', message };
+    return {
+      status: 'error',
+      message: safeActionErrorMessage(error, `Failed to ${decision} approval`),
+    };
   }
 }

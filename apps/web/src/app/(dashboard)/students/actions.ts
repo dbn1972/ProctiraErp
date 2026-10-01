@@ -43,7 +43,7 @@ import {
   type StudentTransferInput,
   type UpdateStudentInput,
 } from '@/lib/api/students';
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
 import { bulkImportInputSchema } from '@/lib/validation/action-input-schema';
 import { getTenantSettings } from '@/lib/api/admin.server';
 import { isoDateInTimeZone } from '@/lib/tenant-date';
@@ -276,16 +276,7 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return {
-      status: 'error',
-      message: error.message || fallback,
-    };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
