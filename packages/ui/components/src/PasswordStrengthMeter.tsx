@@ -1,7 +1,7 @@
 'use client';
 
+import { CheckCircle2, Circle } from 'lucide-react';
 import * as React from 'react';
-import { CheckCircle2 } from 'lucide-react';
 
 import { cn } from './lib/utils';
 
@@ -70,6 +70,13 @@ export interface PasswordStrengthMeterProps {
    * the rules with the password field.
    */
   id?: string;
+  /**
+   * Already-translated screen-reader suffix for a satisfied rule. Defaults to
+   * `met`; pass a translation alongside `ratingLabel`.
+   */
+  metLabel?: string;
+  /** Already-translated screen-reader suffix for an unsatisfied rule. Defaults to `not met`. */
+  notMetLabel?: string;
   /** Extra class names applied to the outer wrapper. */
   className?: string;
   /** `data-testid` for the outer wrapper. Defaults to `password-meter`. */
@@ -96,7 +103,17 @@ function ratingTone(rating: PasswordRating): { bar: string; label: string } {
 
 export const PasswordStrengthMeter = React.forwardRef<HTMLDivElement, PasswordStrengthMeterProps>(
   function PasswordStrengthMeter(
-    { grade, rules, ratingLabel, id, className, 'data-testid': testId = 'password-meter', ...rest },
+    {
+      grade,
+      rules,
+      ratingLabel,
+      metLabel = 'met',
+      notMetLabel = 'not met',
+      id,
+      className,
+      'data-testid': testId = 'password-meter',
+      ...rest
+    },
     ref,
   ) {
     if (!grade) return null;
@@ -104,15 +121,7 @@ export const PasswordStrengthMeter = React.forwardRef<HTMLDivElement, PasswordSt
     const tone = ratingTone(grade.rating);
 
     return (
-      <div
-        ref={ref}
-        id={id}
-        role="status"
-        aria-live="polite"
-        className={cn('space-y-2', className)}
-        data-testid={testId}
-        {...rest}
-      >
+      <div ref={ref} id={id} className={cn('space-y-2', className)} data-testid={testId} {...rest}>
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
             <div
@@ -122,7 +131,13 @@ export const PasswordStrengthMeter = React.forwardRef<HTMLDivElement, PasswordSt
               data-rating={grade.rating}
             />
           </div>
-          <span className={cn('text-xs font-medium', tone.label)} data-testid={`${testId}-label`}>
+          {/* Only the rating is live: re-announcing the whole checklist on every keystroke is noisy. */}
+          <span
+            role="status"
+            aria-live="polite"
+            className={cn('text-xs font-medium', tone.label)}
+            data-testid={`${testId}-label`}
+          >
             {ratingLabel}
           </span>
         </div>
@@ -135,15 +150,23 @@ export const PasswordStrengthMeter = React.forwardRef<HTMLDivElement, PasswordSt
                 data-testid={`${testId}-rule-${rule.key}`}
                 data-satisfied={rule.satisfied ? 'true' : 'false'}
               >
-                <CheckCircle2
-                  aria-hidden="true"
-                  className={cn(
-                    'h-4 w-4',
-                    rule.satisfied ? 'text-emerald-600' : 'text-muted-foreground/50',
-                  )}
-                />
+                {/* Distinct shapes (check vs empty circle) so state is not conveyed by colour alone. */}
+                {rule.satisfied ? (
+                  <CheckCircle2
+                    aria-hidden="true"
+                    data-icon="met"
+                    className="h-4 w-4 text-emerald-600"
+                  />
+                ) : (
+                  <Circle
+                    aria-hidden="true"
+                    data-icon="not-met"
+                    className="h-4 w-4 text-muted-foreground"
+                  />
+                )}
                 <span className={rule.satisfied ? 'text-foreground' : 'text-muted-foreground'}>
                   {rule.label}
+                  <span className="sr-only">: {rule.satisfied ? metLabel : notMetLabel}</span>
                 </span>
               </li>
             ))}

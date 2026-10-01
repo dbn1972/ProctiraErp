@@ -15,13 +15,11 @@
  *
  * Empty state: renders an empty message inside the card body.
  *
- * Async announcement (Design L): polite on loading→loaded; tasks
- * toggled by the user fire their own `${title}: completed` /
- * `${title}: reopened` announcement so SR users hear immediate feedback.
+ * Async announcement (Design L): polite on loading→loaded. A user toggle
+ * is announced ("Task completed/reopened") only after `onToggle` resolves;
+ * a rejected promise is announced assertively and shown inline, and the
+ * checkbox is disabled + aria-busy while the toggle is pending (PRC-L199).
  */
-
-import { CheckCircle2, ListChecks } from 'lucide-react';
-import type { ReactNode } from 'react';
 
 import {
   Card,
@@ -33,9 +31,11 @@ import {
   Skeleton,
   useAnnounce,
 } from '@proctira/ui-components';
+import { CheckCircle2, ListChecks } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
-import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
 
 export interface ChecklistTask {
   /** Stable task id. */
@@ -57,8 +57,12 @@ export interface TaskChecklistProps {
   description?: ReactNode;
   /** Tasks in display order. */
   tasks: ReadonlyArray<ChecklistTask>;
-  /** Optional toggle handler. When omitted, the checkboxes are read-only. */
-  onToggle?: (task: ChecklistTask) => void;
+  /**
+   * Optional toggle handler. When omitted, the checkboxes are read-only.
+   * Return a promise to have success announced only after persistence and
+   * failures announced assertively; a sync `void` return is treated as success.
+   */
+  onToggle?: (task: ChecklistTask) => void | Promise<unknown>;
   /** Whether the list is loading. */
   loading?: boolean;
   /** Number of skeleton rows to render. Defaults to `4`. */
@@ -89,6 +93,8 @@ export function TaskChecklist({
   'data-testid': dataTestId,
 }: TaskChecklistProps) {
   const announce = useAnnounce();
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set());
   const pendingCount = tasks.filter((t) => !t.completed).length;
 
   useAsyncAnnounce({
@@ -144,14 +150,24 @@ export function TaskChecklist({
         ) : (
           <ul className="space-y-3" aria-label={title}>
             {tasks.map((task) => {
-              const handleToggle = () => {
-                if (!onToggle) return;
-                onToggle(task);
-                announce(
-                  task.completed
-                    ? `Task reopened: ${typeof task.title === 'string' ? task.title : ''}`
-                    : `Task completed: ${typeof task.title === 'string' ? task.title : ''}`,
-                );
+              const titleText = typeof task.title === 'string' ? task.title : '';
+              const isPending = pendingIds.has(task.id);
+              const hasFailed = failedIds.has(task.id);
+              const handleToggle = async () => {
+                if (!onToggle || isPending) return;
+                setPendingIds((prev) => new Set(prev).add(task.id));
+                setFailedIds((prev) => without(prev, task.id));
+                try {
+                  await onToggle(task);
+                  announce(
+                    task.completed ? `Task reopened: ${titleText}` : `Task completed: ${titleText}`,
+                  );
+                } catch {
+                  setFailedIds((prev) => new Set(prev).add(task.id));
+                  announce(`Could not update task: ${titleText}`, 'assertive');
+                } finally {
+                  setPendingIds((prev) => without(prev, task.id));
+                }
               };
               return (
                 <li
@@ -159,11 +175,13 @@ export function TaskChecklist({
                   className="flex items-start gap-3"
                   data-testid="task-checklist-item"
                   data-completed={task.completed ? 'true' : 'false'}
+                  data-pending={isPending ? 'true' : undefined}
+                  aria-busy={isPending ? 'true' : undefined}
                 >
                   <Checkbox
                     checked={task.completed}
-                    disabled={!onToggle}
-                    onCheckedChange={handleToggle}
+                    disabled={!onToggle || isPending}
+                    onCheckedChange={() => void handleToggle()}
                     aria-label={typeof task.title === 'string' ? task.title : 'Toggle task'}
                     className="mt-0.5"
                   />
@@ -184,6 +202,17 @@ export function TaskChecklist({
                     {task.meta ? (
                       <p className="text-xs text-[hsl(var(--muted-foreground))]">{task.meta}</p>
                     ) : null}
+                    {isPending ? (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Saving…</p>
+                    ) : null}
+                    {hasFailed ? (
+                      <p
+                        className="text-xs text-[hsl(var(--destructive))]"
+                        data-testid="task-checklist-toggle-error"
+                      >
+                        Could not update task. Try again.
+                      </p>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -196,3 +225,10 @@ export function TaskChecklist({
 }
 
 TaskChecklist.displayName = 'TaskChecklist';
+
+function without(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (!set.has(id)) return set;
+  const next = new Set(set);
+  next.delete(id);
+  return next;
+}

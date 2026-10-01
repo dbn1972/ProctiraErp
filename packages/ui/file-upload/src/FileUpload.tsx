@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
+
 import type { FileUploadProps, FileValidationError } from './types';
 
 /**
@@ -53,11 +54,13 @@ export function FileUpload({
 
       for (const file of fileList) {
         // Check max files
-        if (currentCount + addedCount >= maxFiles) {
+        // Single-file mode also applies to drag-and-drop, which ignores `multiple`
+        const limit = multiple ? maxFiles : 1;
+        if (currentCount + addedCount >= limit) {
           errors.push({
             file,
             error: 'count',
-            message: `Maximum ${maxFiles} files allowed`,
+            message: `Maximum ${limit} ${limit === 1 ? 'file' : 'files'} allowed`,
           });
           continue;
         }
@@ -69,7 +72,7 @@ export function FileUpload({
               return file.name.toLowerCase().endsWith(type.toLowerCase());
             }
             if (type.endsWith('/*')) {
-              const category = type.split('/')[0];
+              const category = type.split('/')[0] ?? '';
               return file.type.startsWith(`${category}/`);
             }
             return file.type === type;
@@ -101,7 +104,7 @@ export function FileUpload({
 
       return { valid, errors };
     },
-    [accept, maxSize, maxFiles, files.length],
+    [accept, maxSize, maxFiles, multiple, files.length],
   );
 
   const handleFiles = useCallback(

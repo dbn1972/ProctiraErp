@@ -1,8 +1,8 @@
 'use client';
 
-import * as React from 'react';
-import * as LabelPrimitive from '@radix-ui/react-label';
+import type * as LabelPrimitive from '@radix-ui/react-label';
 import { Slot } from '@radix-ui/react-slot';
+import * as React from 'react';
 import {
   Controller,
   FormProvider,
@@ -13,8 +13,8 @@ import {
   type FieldValues,
 } from 'react-hook-form';
 
-import { cn } from './lib/utils';
 import { Label } from './Label';
+import { cn } from './lib/utils';
 
 /**
  * shadcn/ui Form helpers integrating `react-hook-form`. Ported during
@@ -34,7 +34,8 @@ type FormFieldContextValue<
   name: TName;
 };
 
-const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
+// `null` default so misuse outside <FormField> is detectable (an `{}` default is always truthy).
+const FormFieldContext = React.createContext<FormFieldContextValue | null>(null);
 
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
@@ -53,18 +54,22 @@ type FormItemContextValue = {
   id: string;
 };
 
-const FormItemContext = React.createContext<FormItemContextValue>({} as FormItemContextValue);
+const FormItemContext = React.createContext<FormItemContextValue | null>(null);
 
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
+
+  if (!fieldContext?.name) {
+    throw new Error('useFormField should be used within <FormField>');
+  }
+  if (!itemContext) {
+    throw new Error('useFormField should be used within <FormItem>');
+  }
+
   const { getFieldState } = useFormContext();
   const formState = useFormState({ name: fieldContext.name });
   const fieldState = getFieldState(fieldContext.name, formState);
-
-  if (!fieldContext) {
-    throw new Error('useFormField should be used within <FormField>');
-  }
 
   const { id } = itemContext;
 

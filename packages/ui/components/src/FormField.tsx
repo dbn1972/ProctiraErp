@@ -1,7 +1,13 @@
 import * as React from 'react';
 
-import { cn } from './lib/utils';
 import { Label } from './Label';
+import { cn } from './lib/utils';
+
+type ControlAriaProps = {
+  id?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean | 'true' | 'false';
+};
 
 export interface FormFieldProps {
   /**
@@ -38,10 +44,20 @@ export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(functi
   { id, htmlFor, label, description, hint, error, required, children, className },
   ref,
 ) {
-  const controlId = id ?? htmlFor;
+  const generatedId = React.useId();
+  const child = React.isValidElement(children)
+    ? (children as React.ReactElement<ControlAriaProps>)
+    : null;
+  // Prefer an explicit id, then the child's own id, then a generated one so the
+  // label and ARIA wiring always work.
+  const controlId = id ?? htmlFor ?? child?.props.id ?? generatedId;
   const helpText = description ?? hint;
-  const errorId = error && controlId ? `${controlId}-error` : undefined;
-  const descriptionId = helpText && controlId ? `${controlId}-description` : undefined;
+  const errorId = error ? `${controlId}-error` : undefined;
+  // The description is hidden while an error is shown, so only reference it when rendered.
+  const descriptionId = helpText && !error ? `${controlId}-description` : undefined;
+  const describedBy =
+    [child?.props['aria-describedby'], descriptionId, errorId].filter(Boolean).join(' ') ||
+    undefined;
 
   return (
     <div ref={ref} className={cn('space-y-1.5', className)}>
@@ -55,11 +71,12 @@ export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(functi
           )}
         </Label>
       )}
-      {React.isValidElement(children)
-        ? React.cloneElement(children as React.ReactElement, {
+      {child
+        ? React.cloneElement(child, {
             id: controlId,
-            'aria-invalid': error ? true : undefined,
-            'aria-describedby': [descriptionId, errorId].filter(Boolean).join(' ') || undefined,
+            'aria-invalid': error ? true : child.props['aria-invalid'],
+            // Merge rather than overwrite any aria-describedby the caller already set.
+            'aria-describedby': describedBy,
           })
         : children}
       {helpText && !error && (

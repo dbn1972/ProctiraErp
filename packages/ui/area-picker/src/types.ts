@@ -34,6 +34,8 @@ export interface AreaPickerProps {
   loading?: boolean;
   /** Callback to load children lazily */
   onLoadChildren?: (parentId: string) => Promise<AreaNode[]>;
+  /** Called when onLoadChildren rejects; the picker also shows an inline alert with retry */
+  onLoadError?: (parentId: string, error: unknown) => void;
   /** Accessible label */
   ariaLabel: string;
   /** Additional CSS class name */
