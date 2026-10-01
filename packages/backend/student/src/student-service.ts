@@ -52,7 +52,15 @@ export class StudentService {
     private readonly repository: StudentRepository,
     private readonly reassignEnrollments?: ReassignEnrollments,
     private readonly assertDestructiveDeleteAllowed?: AssertDestructiveDeleteAllowed,
-  ) {}
+  ) {
+    // PRC-L502: never fail open on legal hold in production — soft-delete and
+    // merge would otherwise skip the privacy gate silently.
+    if (process.env['NODE_ENV'] === 'production' && !assertDestructiveDeleteAllowed) {
+      throw new Error(
+        'StudentService requires assertDestructiveDeleteAllowed (legal-hold gate) in production',
+      );
+    }
+  }
 
   /**
    * Create a new student.
