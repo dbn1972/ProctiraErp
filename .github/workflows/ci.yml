@@ -1360,7 +1360,7 @@ jobs:
 
       # PRC-L176+: dependency-free contracts for tools/ gates (always required).
       - name: Unit-test tools fail-closed contracts
-        run: node --test tools/load-test/lib.test.mjs
+        run: node --test tools/load-test/lib.test.mjs tools/scripts/required-migrations-lib.test.mjs
 
   # ---------------------------------------------------------------------------
   # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)
