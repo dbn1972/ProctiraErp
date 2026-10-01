@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 
 const fetchMock = vi.fn();
 vi.mock('@/lib/api/browser-gateway', () => ({
-  browserGatewayFetch: (path: string) => fetchMock(path),
+  browserGatewayFetch: (path: string, init?: { signal?: AbortSignal }) => fetchMock(path, init),
 }));
 
 import InstitutionsList, { SEARCH_DEBOUNCE_MS } from './InstitutionsList';
@@ -77,6 +77,8 @@ describe('InstitutionsList search (PRC-L072)', () => {
 
     expect(screen.getByRole('link', { name: 'abc' })).toBeInTheDocument();
     expect(screen.queryByText('stale')).not.toBeInTheDocument();
+    // The superseded request was aborted, not just ignored.
+    expect((fetchMock.mock.calls[0]?.[1] as { signal: AbortSignal }).signal.aborted).toBe(true);
     expect(screen.getByRole('navigation', { name: 'Institutions pagination' })).toBeInTheDocument();
   });
 });

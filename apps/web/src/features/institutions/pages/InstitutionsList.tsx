@@ -51,11 +51,15 @@ export default function InstitutionsList() {
   // Monotonic request id: only the latest request may write state, so a slow
   // response for "ab" cannot overwrite the results for "abc" (PRC-L072).
   const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchInstitutions = useCallback(async (page: number, query: string) => {
     const requestId = ++requestIdRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
     setError(null);
     try {
@@ -63,6 +67,7 @@ export default function InstitutionsList() {
       if (query) params.set('search', query);
       const result = await browserGatewayFetch<InstitutionListResponse>(
         `/institutions?${params.toString()}`,
+        { signal: controller.signal },
       );
       if (requestId !== requestIdRef.current) return;
       setInstitutions(result.data);
@@ -84,6 +89,8 @@ export default function InstitutionsList() {
   useEffect(() => {
     void fetchInstitutions(1, debouncedSearch);
   }, [fetchInstitutions, debouncedSearch]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const handlePageChange = (newPage: number) => {
     void fetchInstitutions(newPage, debouncedSearch);
