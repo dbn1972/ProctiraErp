@@ -16,6 +16,7 @@
  * - tenant_id on every row for RLS
  */
 
+import { assertSafeTableMapping } from './sql-safety.js';
 import { TableMapping } from './types.js';
 
 export const TABLE_MAPPINGS: TableMapping[] = [
@@ -361,6 +362,10 @@ export const TABLE_MAPPINGS: TableMapping[] = [
     ],
   },
 ];
+
+// PRC-L376: these fragments are interpolated into SQL across the pipeline; refuse
+// to load a mapping set containing an unreviewed filter or unsafe identifier.
+for (const mapping of TABLE_MAPPINGS) assertSafeTableMapping(mapping);
 
 /**
  * Returns the table mapping for a given legacy source table.
