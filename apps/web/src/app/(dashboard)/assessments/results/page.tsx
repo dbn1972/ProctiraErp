@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { getAssessmentItems, getStudentResults, listGradingSchemes } from '@/lib/api/assessments';
+import { getAssessmentItems, getGradingScheme, getStudentResults } from '@/lib/api/assessments';
 import { listAcademicPeriods, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -42,23 +42,24 @@ export default async function AssessmentResultsPage(props: PageProps) {
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
 
-  const [schemesResponse, subjects, academicPeriods, studentOptions, items, results] =
-    await Promise.all([
-      listGradingSchemes({ pageSize: 100 }),
-      listSubjects().catch(() => [] as SubjectSummary[]),
-      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-      loadStudentOptions(),
-      subjectId && academicPeriodId
-        ? getAssessmentItems(subjectId, academicPeriodId)
-        : Promise.resolve(null),
-      subjectId && academicPeriodId
-        ? getStudentResults(subjectId, academicPeriodId)
-        : Promise.resolve([]),
-    ]);
+  const [subjects, academicPeriods, studentOptions, items, results] = await Promise.all([
+    listSubjects().catch(() => [] as SubjectSummary[]),
+    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    loadStudentOptions(),
+    subjectId && academicPeriodId
+      ? getAssessmentItems(subjectId, academicPeriodId)
+      : Promise.resolve(null),
+    subjectId && academicPeriodId
+      ? getStudentResults(subjectId, academicPeriodId)
+      : Promise.resolve([]),
+  ]);
 
+  // Resolve the scheme by id (not by scanning a capped list page) and surface
+  // a failure explicitly instead of silently assuming a 0–100 range.
   const schemeForSubject = items?.gradingSchemeId
-    ? (schemesResponse.data.find((s) => s.id === items.gradingSchemeId) ?? null)
+    ? await getGradingScheme(items.gradingSchemeId).catch(() => null)
     : null;
+  const schemeUnavailable = Boolean(items?.gradingSchemeId) && !schemeForSubject;
 
   return (
     <section aria-labelledby="results-heading" className="space-y-6">
@@ -75,7 +76,7 @@ export default async function AssessmentResultsPage(props: PageProps) {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Bulk entry via data grid; supports Excel import (up to 5,000 rows). Scores are validated
-          against the grading scheme range.
+          against each assessment item&apos;s range.
         </p>
       </div>
 
@@ -129,6 +130,7 @@ export default async function AssessmentResultsPage(props: PageProps) {
                   }
                 : null
             }
+            schemeUnavailable={schemeUnavailable}
           />
         </CardContent>
       </Card>
