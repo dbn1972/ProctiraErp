@@ -161,4 +161,52 @@ describe('FileUpload', () => {
     const dropZone = screen.getByRole('button');
     expect(dropZone).toHaveAttribute('tabIndex', '0');
   });
+
+  describe('multi-file drop (PRC-L192)', () => {
+    const drop = (files: File[]) => {
+      fireEvent.drop(screen.getByRole('button'), { dataTransfer: { files } });
+    };
+
+    it('accepts several dropped files up to maxFiles when multiple', () => {
+      const onFilesSelected = vi.fn();
+      const onValidationError = vi.fn();
+      render(
+        <FileUpload
+          multiple
+          maxFiles={2}
+          onFilesSelected={onFilesSelected}
+          onValidationError={onValidationError}
+          ariaLabel="Upload documents"
+        />,
+      );
+      const files = ['a', 'b', 'c'].map((n) => createFile(`${n}.pdf`, 10, 'application/pdf'));
+      drop(files);
+      expect(onFilesSelected).toHaveBeenCalledWith([files[0], files[1]]);
+      expect(onValidationError).toHaveBeenCalledWith([
+        expect.objectContaining({ file: files[2], error: 'count' }),
+      ]);
+    });
+
+    it('keeps only one dropped file in single-file mode', () => {
+      const onFilesSelected = vi.fn();
+      const onValidationError = vi.fn();
+      render(
+        <FileUpload
+          onFilesSelected={onFilesSelected}
+          onValidationError={onValidationError}
+          ariaLabel="Upload documents"
+        />,
+      );
+      const files = ['a', 'b'].map((n) => createFile(`${n}.pdf`, 10, 'application/pdf'));
+      drop(files);
+      expect(onFilesSelected).toHaveBeenCalledWith([files[0]]);
+      expect(onValidationError).toHaveBeenCalledWith([
+        expect.objectContaining({
+          file: files[1],
+          error: 'count',
+          message: 'Maximum 1 file allowed',
+        }),
+      ]);
+    });
+  });
 });
