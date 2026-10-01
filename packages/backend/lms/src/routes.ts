@@ -32,8 +32,8 @@ import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { getLmsFile } from './lms-file-store.js';
-import type { LmsActor, LmsService } from './lms-service.js';
 import { enforceLmsRouteAccess } from './lms-http-guard.js';
+import type { LmsActor, LmsService } from './lms-service.js';
 import {
   AssembleFromBankSchema,
   AssignmentListQuerySchema,
