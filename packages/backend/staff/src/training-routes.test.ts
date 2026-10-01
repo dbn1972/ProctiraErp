@@ -210,3 +210,24 @@ describe('PRC-L155 training date/time validation', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('PRC-L156 training attendance is insert-once', () => {
+  it('concurrent duplicate POSTs: exactly one 201 and one 409', async () => {
+    const { app: a } = await mount();
+    const programId = await createProgram(a);
+    const sessionId = await createSession(a, programId);
+    const post = () =>
+      a.inject({
+        method: 'POST',
+        url: '/staff/training/attendance',
+        payload: { sessionId, staffId: STAFF_ID, status: 'PRESENT' },
+      });
+    const codes = (await Promise.all([post(), post()])).map((r) => r.statusCode).sort();
+    expect(codes).toEqual([201, 409]);
+    const list = await a.inject({
+      method: 'GET',
+      url: `/staff/training/sessions/${sessionId}/attendance`,
+    });
+    expect(list.json().data).toHaveLength(1);
+  });
+});
