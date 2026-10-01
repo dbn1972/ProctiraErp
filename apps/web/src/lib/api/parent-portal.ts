@@ -600,9 +600,12 @@ export async function listReceipts(scope: 'parent' | 'staff' = 'parent'): Promis
   return result.data?.data ?? [];
 }
 
+// PRC-C001: the parent pay endpoint performs no PSP verification, so the client may only
+// request the honest 'sandbox' method. Real settlement (upi/card/cash) must go through a
+// verified payment provider on the fee ledger, never a caller-declared method here.
 export async function payInvoice(
   id: string,
-  method: 'sandbox' | 'upi' | 'card' | 'cash' = 'sandbox',
+  method: 'sandbox' = 'sandbox',
 ): Promise<{ invoice: FeeInvoice; payment: FeePayment; receipt: FeeReceipt }> {
   const result = await gatewayFetch<{
     invoice: FeeInvoice;

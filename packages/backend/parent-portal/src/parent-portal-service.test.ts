@@ -409,6 +409,42 @@ describe('ParentPortalService', () => {
         BusinessRuleError,
       );
     });
+
+    // PRC-C001: a self-declared payment must not fabricate a successful settlement.
+    it('refuses to settle via the sandbox in-memory path when provider mode is live', async () => {
+      const prev = process.env['PROVIDER_MODE'];
+      process.env['PROVIDER_MODE'] = 'live';
+      try {
+        const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+          studentId: STUDENT_ID,
+          title: 'Live gate',
+          amountCents: 5000,
+        });
+        await expect(
+          service.payInvoice(TENANT_A, PARENT_USER, invoice.id, { method: 'sandbox' }),
+        ).rejects.toThrow(BusinessRuleError);
+        // Invoice must remain open — no forged 'paid' state.
+        const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
+        expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
+      } finally {
+        if (prev === undefined) delete process.env['PROVIDER_MODE'];
+        else process.env['PROVIDER_MODE'] = prev;
+      }
+    });
+
+    // PRC-C001: non-sandbox methods falsely imply a real PSP settlement — reject them.
+    it('rejects non-sandbox payment methods on the self-declared pay path', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        title: 'Fake card',
+        amountCents: 2000,
+      });
+      await expect(
+        service.payInvoice(TENANT_A, PARENT_USER, invoice.id, {
+          method: 'card' as never,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
   });
 
   describe('household custody authZ (W1-SEC-03)', () => {

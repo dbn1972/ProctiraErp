@@ -235,4 +235,40 @@ describe('G-908 examination ops routes', () => {
     expect(completed.json().status).toBe('completed');
     expect(completed.json().revisedMarks).toBe(78);
   });
+
+  // PRC-C004: examination read routes must reject a student (who holds gateway examination:read)
+  // and still allow staff. Previously GET routes had no domain role check.
+  it('denies student reads of ops/seating/marks/re-eval, allows staff', async () => {
+    const fx = await seedExam();
+
+    // Switch the acting principal to a student for subsequent requests.
+    actorRoles = [{ roleId: 'student', roleName: 'STUDENT', areaId: null }];
+
+    const studentReads = [
+      `/examinations/${fx.examId}/sessions`,
+      `/examinations/${fx.examId}/seating`,
+      `/examinations/${fx.examId}/marks/entries`,
+      `/examinations/${fx.examId}/reevaluations`,
+    ];
+    for (const url of studentReads) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode, `student GET ${url}`).toBe(403);
+    }
+
+    // Restore staff role — reads succeed.
+    actorRoles = [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }];
+    const staffRes = await app.inject({
+      method: 'GET',
+      url: `/examinations/${fx.examId}/sessions`,
+    });
+    expect(staffRes.statusCode).toBe(200);
+
+    // A teacher may also read (marks/results review).
+    actorRoles = [{ roleId: 'teacher', roleName: 'TEACHER', areaId: null }];
+    const teacherRes = await app.inject({
+      method: 'GET',
+      url: `/examinations/${fx.examId}/seating`,
+    });
+    expect(teacherRes.statusCode).toBe(200);
+  });
 });

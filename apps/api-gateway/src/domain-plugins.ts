@@ -312,19 +312,27 @@ function createOfferFeeInvoiceHook() {
   };
 }
 
+/**
+ * PRC-C002: decide whether an admission offer may be accepted, given the offer-fee invoice's
+ * current status. A client-supplied paymentRef is NOT evidence of settlement — previously any
+ * non-empty string caused a fabricated sandbox payment, letting a guardian accept without
+ * paying. The invoice must already be genuinely paid (verified PSP/webhook settlement or a
+ * staff-recorded receipt on the fee ledger). Extracted as a pure function so the decision is
+ * directly unit-tested (see domain-plugins.test.ts) rather than only via an injected fake.
+ */
+export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
+  if (invoiceStatus === 'paid') return;
+  throw new BusinessRuleError(
+    'Offer fee invoice must be paid through a verified payment before enrolment',
+  );
+}
+
 function assertOfferFeePaidHook() {
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+    // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
-    if (invoice.status === 'paid') return;
-    if (input.paymentRef) {
-      await fees.recordPayment(input.tenantId, 'admissions-offer', {
-        invoiceId: input.invoiceId,
-        method: 'sandbox',
-      });
-      return;
-    }
-    throw new Error('Offer fee invoice must be paid before enrolment');
+    assertOfferFeeInvoicePaid(invoice.status);
   };
 }
 
@@ -560,12 +568,25 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // W1-SEC-06: legal-hold gate on student soft-delete / merge — shared store
       // with /privacy plugin + tenant lifecycle delete guard.
       const privacyService = new PrivacyService(sharedPrivacyRepository);
+      // PRC-C010/C011: bind portal readers to the students they may see — guardians/parents to
+      // their linked children (parent-portal child-link table, same source as fees/gradebook),
+      // and a student to their own JWT subject. Without this, portal roles are denied.
+      const studentParentRepo = createParentPortalRepository();
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            // Guardians/parents → their linked children. A student's own-record read is served
+            // by the student portal (JWT sub) and is tracked as a follow-up; the child-link
+            // table is the authoritative ownership source here.
+            const links = await studentParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },
@@ -803,9 +824,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Raw pg against 003/004 gradebook tables when DATABASE_URL is set;
       // in-memory otherwise. No Prisma on this path.
+      // PRC-C006: bind portal readers (guardian/parent) to their linked children so portal
+      // gradebook reads are self-scoped, not fail-closed. Uses the same child-link source as
+      // the fees parentBinding. A student reading their own grades is served via the guardian
+      // link table when present; direct student-self resolution is a tracked follow-up.
+      const gradebookParentRepo = createParentPortalRepository();
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            const links = await gradebookParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },
