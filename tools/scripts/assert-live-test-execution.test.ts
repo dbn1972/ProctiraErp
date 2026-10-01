@@ -83,3 +83,43 @@ describe('W3-TEST-03 assert-live-test-execution', () => {
     expect(result.summary.skipped).toBe(0);
   });
 });
+
+describe('PRC-L378 ALLOW_LIVE_TEST_SKIP cannot silence the integration gate', () => {
+  it('CI=true + ALLOW_LIVE_TEST_SKIP=1 in integration (REQUIRE_LIVE_TESTS, DATABASE_URL) -> exit 1', async () => {
+    const { main } = await import('./assert-live-test-execution.mjs');
+    const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'live-assert-'));
+    try {
+      const path = join(dir, 'report.json');
+      writeFileSync(path, JSON.stringify(skippedReport));
+      const env = {
+        CI: 'true',
+        ALLOW_LIVE_TEST_SKIP: '1',
+        REQUIRE_LIVE_TESTS: '1',
+        DATABASE_URL: 'postgres://x',
+      };
+      expect(main([path], env)).toBe(1);
+      // The DATABASE_URL alone marks the integration context under CI.
+      expect(
+        main([path], { CI: 'true', ALLOW_LIVE_TEST_SKIP: '1', DATABASE_URL: 'postgres://x' }),
+      ).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('still honours the override for unit-only CI jobs without a database', () => {
+    const result = evaluateLiveReport(
+      { testResults: [] },
+      { CI: 'true', ALLOW_LIVE_TEST_SKIP: '1' },
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('enforces the executed minimum when required even without DATABASE_URL', () => {
+    const result = evaluateLiveReport({ testResults: [] }, { REQUIRE_LIVE_TESTS: '1' }, 10);
+    expect(result.errors.join(' ')).toMatch(/executed 0 case\(s\); minimum is 10/);
+  });
+});

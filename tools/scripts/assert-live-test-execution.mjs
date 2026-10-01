@@ -16,15 +16,24 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULT_MIN_EXECUTED = 10;
 
+/**
+ * PRC-L378: ALLOW_LIVE_TEST_SKIP is only honoured for unit-only jobs. An
+ * explicit REQUIRE_LIVE_TESTS=1, or a CI run that has a DATABASE_URL (the
+ * integration job), ignores the override so it cannot silence live suites.
+ */
 export function liveTestsRequired(env = process.env) {
-  if (env.ALLOW_LIVE_TEST_SKIP === '1') return false;
+  const ci = env.CI === 'true' || env.CI === '1';
   if (env.REQUIRE_LIVE_TESTS === '1') return true;
-  return env.CI === 'true' || env.CI === '1';
+  if (ci && env.DATABASE_URL?.trim()) return true;
+  if (env.ALLOW_LIVE_TEST_SKIP === '1') return false;
+  return ci;
 }
 
 export function isLiveTestFile(file = '') {
   const n = String(file).replace(/\\/g, '/');
-  return n.includes('.live.test.') || n.endsWith('/rls-live.test.ts') || n.endsWith('rls-live.test.ts');
+  return (
+    n.includes('.live.test.') || n.endsWith('/rls-live.test.ts') || n.endsWith('rls-live.test.ts')
+  );
 }
 
 /**
@@ -72,9 +81,7 @@ export function evaluateLiveReport(
   const url = env.DATABASE_URL?.trim();
 
   if (liveTestsRequired(env) && !url) {
-    errors.push(
-      'DATABASE_URL is required when CI=true or REQUIRE_LIVE_TESTS=1 (W3-TEST-03)',
-    );
+    errors.push('DATABASE_URL is required when CI=true or REQUIRE_LIVE_TESTS=1 (W3-TEST-03)');
   }
 
   const summary = summarizeLiveTests(report);
@@ -85,7 +92,9 @@ export function evaluateLiveReport(
     );
   }
 
-  if (url && summary.executed < minExecuted) {
+  // PRC-L378: the minimum applies whenever live suites are required, not only
+  // when a URL happens to be present.
+  if ((url || liveTestsRequired(env)) && summary.executed < minExecuted) {
     errors.push(
       `Live suites executed ${summary.executed} case(s); minimum is ${minExecuted} (W3-TEST-03)`,
     );

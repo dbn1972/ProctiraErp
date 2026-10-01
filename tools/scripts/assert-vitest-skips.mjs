@@ -16,16 +16,24 @@ const DEFAULT_MIN_EXECUTED = 25;
 /** Inverse skip: `it.skipIf(!!DATABASE_URL)` when DB is present (pg-store.test.ts). */
 const DEFAULT_MAX_ALLOWED_SKIPS = 1;
 
+/**
+ * PRC-L378: ALLOW_TEST_SKIP cannot override an explicit FORBID_TEST_SKIPS /
+ * REQUIRE_LIVE_TESTS, nor a CI run that has a DATABASE_URL (integration job).
+ */
 export function skipsForbidden(env = process.env) {
-  if (env.ALLOW_TEST_SKIP === '1') return false;
+  const ci = env.CI === 'true' || env.CI === '1';
   if (env.FORBID_TEST_SKIPS === '1') return true;
   if (env.REQUIRE_LIVE_TESTS === '1') return true;
-  return env.CI === 'true' || env.CI === '1';
+  if (ci && env.DATABASE_URL?.trim()) return true;
+  if (env.ALLOW_TEST_SKIP === '1') return false;
+  return ci;
 }
 
 export function isLiveTestFile(file = '') {
   const n = String(file).replace(/\\/g, '/');
-  return n.includes('.live.test.') || n.endsWith('/rls-live.test.ts') || n.endsWith('rls-live.test.ts');
+  return (
+    n.includes('.live.test.') || n.endsWith('/rls-live.test.ts') || n.endsWith('rls-live.test.ts')
+  );
 }
 
 export function isPgGateFile(file = '') {
@@ -80,11 +88,7 @@ export function summarizeReport(report, options = {}) {
   return { executed, skipped, files: [...new Set(files)] };
 }
 
-export function evaluateVitestReport(
-  report,
-  env = process.env,
-  options = {},
-) {
+export function evaluateVitestReport(report, env = process.env, options = {}) {
   const profile = options.profile ?? 'pg';
   const minExecuted = Number(
     options.minExecuted ?? env.PG_TEST_MIN_EXECUTED ?? DEFAULT_MIN_EXECUTED,
@@ -97,9 +101,7 @@ export function evaluateVitestReport(
   const url = env.DATABASE_URL?.trim();
 
   if (skipsForbidden(env) && !url) {
-    errors.push(
-      'DATABASE_URL is required when CI=true or FORBID_TEST_SKIPS=1 (W3-TEST-04)',
-    );
+    errors.push('DATABASE_URL is required when CI=true or FORBID_TEST_SKIPS=1 (W3-TEST-04)');
   }
 
   const summary = summarizeReport(report, { profile });
@@ -110,7 +112,8 @@ export function evaluateVitestReport(
     );
   }
 
-  if (url && summary.executed < minExecuted) {
+  // PRC-L378: enforce the minimum whenever skips are forbidden.
+  if ((url || skipsForbidden(env)) && summary.executed < minExecuted) {
     errors.push(
       `Profile "${profile}" executed ${summary.executed} case(s); minimum is ${minExecuted} (W3-TEST-04)`,
     );
