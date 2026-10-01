@@ -14,6 +14,12 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
+  OffboardStaffParamsSchema,
+  OffboardStaffSchema,
+  type OffboardStaffInput,
+  type OffboardStaffParams,
+} from './offboard-schemas.js';
+import {
   CreateStaffSchema,
   UpdateStaffSchema,
   StaffParamsSchema,
@@ -22,13 +28,8 @@ import {
   type StaffListQuery,
   type StaffParams,
 } from './schemas.js';
-import {
-  OffboardStaffParamsSchema,
-  OffboardStaffSchema,
-  type OffboardStaffInput,
-  type OffboardStaffParams,
-} from './offboard-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
+import { canViewStaffIdentity, maskIdentityNumber } from './staff-access.js';
+import { requireStaffAction, staffRequestRoles, staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
 /**
@@ -43,26 +44,31 @@ export interface StaffRoutesOptions {
 /**
  * Formats a staff entity to the API response shape.
  */
-function formatStaffResponse(entity: {
-  id: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  identityNumber: string;
-  contactPhone: string;
-  contactEmail: string | null;
-  position: string;
-  status: string;
-  customData: Record<string, unknown> | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function formatStaffResponse(
+  entity: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    identityNumber: string;
+    contactPhone: string;
+    contactEmail: string | null;
+    position: string;
+    status: string;
+    customData: Record<string, unknown> | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  opts: { maskIdentity?: boolean } = {},
+) {
   return {
     id: entity.id,
     firstName: entity.firstName,
     lastName: entity.lastName,
     dateOfBirth: entity.dateOfBirth,
-    identityNumber: entity.identityNumber,
+    identityNumber: opts.maskIdentity
+      ? maskIdentityNumber(entity.identityNumber)
+      : entity.identityNumber,
     contactPhone: entity.contactPhone,
     contactEmail: entity.contactEmail,
     position: entity.position,
@@ -90,7 +96,12 @@ export async function registerStaffRoutes(
 
   fastify.addHook('preHandler', async (request, reply) => {
     const method = request.method.toUpperCase();
-    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+    if (method === 'OPTIONS') return;
+    // PRC-L362: staff PII reads are domain-gated too (not only by the gateway).
+    if (method === 'GET' || method === 'HEAD') {
+      if (!requireStaffAction(request, reply, 'staff.read')) return reply;
+      return;
+    }
     const action =
       method === 'POST' ? 'staff.create' : method === 'DELETE' ? 'staff.delete' : 'staff.update';
     if (!staffWritePreHandler(request, reply, action)) return reply;
@@ -228,8 +239,9 @@ export async function registerStaffRoutes(
         { page, pageSize, sortBy, sortOrder },
       );
 
+      const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
       return reply.status(200).send({
-        data: result.data.map(formatStaffResponse),
+        data: result.data.map((entity) => formatStaffResponse(entity, { maskIdentity })),
         meta: result.meta,
       });
     },
@@ -363,7 +375,8 @@ export async function registerStaffRoutes(
 
       try {
         const staff = await staffService.getById(tenantId, paramsResult.data.id);
-        return reply.status(200).send(formatStaffResponse(staff));
+        const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
+        return reply.status(200).send(formatStaffResponse(staff, { maskIdentity }));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
