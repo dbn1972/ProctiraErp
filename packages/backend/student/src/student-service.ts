@@ -10,12 +10,22 @@
  *         contacts, guardians, and nationality. Name and date of birth are mandatory.
  * - 6.5: Support Custom_Fields to extend student profiles via JSONB custom_data column
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import { dateOfBirthError } from './date-of-birth.js';
 import type { CreateStudentInput, MergeStudentsInput, UpdateStudentInput } from './schemas.js';
+import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+
+function assertValidDateOfBirth(value: string): void {
+  const message = dateOfBirthError(value);
+  if (message) {
+    throw new ValidationError('Validation failed', [
+      { field: 'body.dateOfBirth', rule: 'format', message },
+    ]);
+  }
+}
 
 export type ReassignEnrollments = (input: {
   tenantId: string;
@@ -52,6 +62,7 @@ export class StudentService {
    * @throws ConflictError if national ID already exists for this tenant
    */
   async create(tenantId: string, input: CreateStudentInput): Promise<StudentEntity> {
+    assertValidDateOfBirth(input.dateOfBirth);
     // Check national ID uniqueness within tenant if provided
     if (input.nationalId) {
       const existingByNationalId = await this.repository.findByNationalId(
@@ -114,6 +125,7 @@ export class StudentService {
    * @throws ConflictError if national ID uniqueness violated
    */
   async update(tenantId: string, id: string, input: UpdateStudentInput): Promise<StudentEntity> {
+    if (input.dateOfBirth !== undefined) assertValidDateOfBirth(input.dateOfBirth);
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Student with id '${id}' not found`);
