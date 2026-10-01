@@ -40,6 +40,16 @@ export const ATOMIC_MUTATION_AUDIT_PATH_PREFIXES = [
   '/api/v1/health/measurements',
   '/api/v1/fees/payments',
 ] as const;
+/**
+ * PRC-L306: fees money movements whose audit row is written in the same
+ * transaction as the refund / credit note / write-off / void / concession
+ * approval (see fees-plugin buildMoneyAuditSink). Pg only; in-memory falls
+ * back to the post-hoc onSend audit.
+ */
+export const ATOMIC_MUTATION_AUDIT_PATH_PATTERNS: readonly RegExp[] = [
+  /^\/api\/v1\/fees\/invoices\/[^/]+\/(refund|credit-notes|write-offs|void|pay)$/,
+  /^\/api\/v1\/fees\/concessions\/[^/]+\/approve$/,
+];
 
 const REQUEST_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
@@ -138,8 +148,10 @@ export function isSecuritySensitiveMutationPath(pathname: string): boolean {
 
 export function isAtomicMutationAuditPath(pathname: string): boolean {
   const path = pathname.split('?')[0] ?? pathname;
-  return ATOMIC_MUTATION_AUDIT_PATH_PREFIXES.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  return (
+    ATOMIC_MUTATION_AUDIT_PATH_PREFIXES.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+    ) || ATOMIC_MUTATION_AUDIT_PATH_PATTERNS.some((pattern) => pattern.test(path))
   );
 }
 
@@ -168,8 +180,7 @@ export function shouldFailClosedOnMutationAuditFailure(options: {
 
 export const MUTATION_AUDIT_UNAVAILABLE_BODY = {
   code: 'AUDIT_UNAVAILABLE',
-  message:
-    'Mutation audit trail unavailable; refusing to acknowledge security-sensitive mutation',
+  message: 'Mutation audit trail unavailable; refusing to acknowledge security-sensitive mutation',
   statusCode: 503,
 } as const;
 
@@ -191,8 +202,7 @@ export type MutationAuditRecorder = {
 };
 
 export type MutationAuditOutcome =
-  | { ok: true }
-  | { ok: false; failClosed: boolean; error: unknown };
+  { ok: true } | { ok: false; failClosed: boolean; error: unknown };
 
 /**
  * Attempt to persist a mutation audit record. Never swallows: callers must

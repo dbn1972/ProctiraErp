@@ -86,6 +86,13 @@ describe('W1-SEC-10 mutation audit policy', () => {
     expect(isAtomicMutationAuditPath('/api/v1/health/measurements')).toBe(true);
     expect(isAtomicMutationAuditPath('/api/v1/fees/payments')).toBe(true);
     expect(isAtomicMutationAuditPath('/api/v1/privacy/holds')).toBe(false);
+    // PRC-L306
+    const inv = '00000000-0000-4000-8000-000000000001';
+    for (const action of ['refund', 'credit-notes', 'write-offs', 'void']) {
+      expect(isAtomicMutationAuditPath(`/api/v1/fees/invoices/${inv}/${action}`)).toBe(true);
+    }
+    expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/approve`)).toBe(true);
+    expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/reject`)).toBe(false);
   });
 
   it('tracks request-level atomic audit commit marker', () => {

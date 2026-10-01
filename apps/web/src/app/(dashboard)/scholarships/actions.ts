@@ -15,6 +15,7 @@ import {
   type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
 } from '@/lib/api/scholarships';
+import { buildPaidUpdateBody } from '@/features/scholarships/disbursement-paid';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_COMMENT = 2000;
@@ -151,4 +152,34 @@ export async function retryFailedDisbursementsAction(
     status: 'success',
     message: `Queued ${ids.length} transfer${ids.length === 1 ? '' : 's'} for retry.`,
   };
+}
+
+/**
+ * Mark a disbursement paid. The backend requires a transaction reference and
+ * paid date for the `paid` transition (PRC-H085), so both are validated here.
+ */
+export async function markDisbursementPaidAction(
+  id: string,
+  input: { transactionReference: string; paidDate: string },
+): Promise<ScholarshipActionState> {
+  if (!UUID_RE.test(id)) {
+    return { status: 'error', message: 'Invalid disbursement id.' };
+  }
+  const built = buildPaidUpdateBody(input);
+  if (!built.ok) {
+    return { status: 'error', message: built.error };
+  }
+  try {
+    await updateDisbursement(id, built.body);
+    revalidatePath('/scholarships/disbursements');
+    return { status: 'success', message: 'Disbursement marked paid.' };
+  } catch (error) {
+    const message =
+      error instanceof GatewayError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Failed to mark disbursement paid';
+    return { status: 'error', message };
+  }
 }

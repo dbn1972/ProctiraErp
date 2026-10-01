@@ -893,7 +893,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const record = await scholarshipService.recordCompliance(tenantId, result.data);
+        const record = await scholarshipService.recordCompliance(
+          tenantId,
+          result.data,
+          getActorId(request),
+        );
         return reply.status(201).send({
           ...record,
           createdAt: record.createdAt.toISOString(),

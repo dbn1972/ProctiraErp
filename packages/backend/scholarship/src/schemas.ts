@@ -13,7 +13,8 @@ import { Type, type Static } from '@sinclair/typebox';
 
 // ─── UUID Pattern ────────────────────────────────────────────────────────────
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+// PRC-L346: accept any RFC 9562 UUID version (v1-v8), not only v4.
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 // ─── Scholarship Program Schemas ─────────────────────────────────────────────
 
@@ -339,7 +340,10 @@ export const RecipientComplianceSchema = Type.Object({
   }),
   details: Type.Optional(Type.String({ maxLength: 2000, description: 'Compliance details' })),
   evaluatorId: Type.Optional(
-    Type.String({ pattern: UUID_PATTERN, description: 'Evaluator user UUID' }),
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Deprecated and ignored; the evaluator is the authenticated user (PRC-L345)',
+    }),
   ),
 });
 

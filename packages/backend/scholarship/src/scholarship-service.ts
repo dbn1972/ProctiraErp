@@ -12,6 +12,8 @@
  * - 11.5: Generate reports on scholarship utilization by program, area, gender, and institution
  */
 import {
+  AppError,
+  ErrorCode,
   ConflictError,
   NotFoundError,
   BusinessRuleError,
@@ -47,7 +49,37 @@ import type {
   ScholarshipRepository,
   ApplicationStatus,
   DisbursementFrequency,
+  PaymentStatus,
 } from './scholarship-repository.js';
+
+/** Evaluator ids are stored in a uuid column; non-UUID subjects are recorded as null. */
+const EVALUATOR_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * PRC-H085: allowed disbursement payment-status transitions.
+ * `cancelled` is terminal. `paid` may only move to `cancelled` (the explicit
+ * reversal that un-nets the fee invoice); it can never go back to
+ * scheduled/processing/failed.
+ */
+export const DISBURSEMENT_TRANSITIONS: Readonly<Record<PaymentStatus, readonly PaymentStatus[]>> = {
+  scheduled: ['processing', 'paid', 'cancelled'],
+  processing: ['paid', 'failed', 'cancelled'],
+  failed: ['scheduled', 'cancelled'],
+  paid: ['cancelled'],
+  cancelled: [],
+};
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** PRC-H085: max instalments of `amountPerRecipient` per award, by frequency. */
+export const INSTALMENTS_PER_FREQUENCY: Readonly<Record<DisbursementFrequency, number>> = {
+  one_time: 1,
+  annual: 1,
+  semester: 2,
+  quarterly: 4,
+  monthly: 12,
+};
 
 /**
  * Interface for Workflow Engine integration.
@@ -585,47 +617,39 @@ export class ScholarshipService {
       );
     }
 
-    // Check slots
-    const program = await this.repository.findProgramById(application.programId, tenantId);
-    if (!program) {
-      throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
-    }
-
-    if (program.usedSlots >= program.totalSlots) {
-      throw new BusinessRuleError('No available slots remaining for this scholarship program');
-    }
-
-    // Update application status
-    const updated = await this.repository.updateApplication(id, tenantId, {
-      status: 'approved' as ApplicationStatus,
+    // PRC-H083: status guard, slot claim, status flip and first instalment are
+    // one atomic repository unit — the reads above are only for friendly errors.
+    const outcome = await this.repository.approveApplicationAtomic(id, tenantId, {
       reviewedAt: new Date(),
       reviewerId: decision.reviewerId ?? null,
       reviewNotes: normaliseNotes(decision.notes),
+      firstDisbursement: decision.scheduleFirstDisbursement
+        ? {
+            id: uuidv4(),
+            scheduledDate: new Date().toISOString().slice(0, 10),
+            notes: 'Scheduled on approval',
+          }
+        : null,
     });
 
-    // Increment used slots
-    await this.repository.updateProgram(application.programId, tenantId, {
-      usedSlots: program.usedSlots + 1,
-    });
-
-    if (decision.scheduleFirstDisbursement) {
-      assertMajorMatchesCents(program.amountPerRecipient, program.amountPerRecipientCents);
-      await this.repository.createDisbursement({
-        id: uuidv4(),
-        tenantId,
-        applicationId: id,
-        amount: program.amountPerRecipient,
-        amountCents: program.amountPerRecipientCents,
-        scheduledDate: new Date().toISOString().slice(0, 10),
-        paidDate: null,
-        paymentStatus: 'scheduled',
-        paymentMethod: null,
-        transactionReference: null,
-        notes: 'Scheduled on approval',
-      });
+    switch (outcome.kind) {
+      case 'approved':
+        if (outcome.disbursement) {
+          assertMajorMatchesCents(outcome.disbursement.amount, outcome.disbursement.amountCents);
+        }
+        return outcome.application;
+      case 'application_not_found':
+        throw new NotFoundError(`Scholarship application with id '${id}' not found`);
+      case 'program_not_found':
+        throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
+      case 'invalid_status':
+        // Status was reviewable when read, so another decision won the race.
+        throw new ConflictError(
+          `Application was already decided (now '${outcome.status}'); refresh and retry.`,
+        );
+      case 'no_slots':
+        throw new BusinessRuleError('No available slots remaining for this scholarship program');
     }
-
-    return updated!;
   }
 
   /**
@@ -683,6 +707,28 @@ export class ScholarshipService {
     }
 
     const money = resolveMoneyPair(input.amount, input.amountCents, 'amount');
+
+    // PRC-H085: total non-cancelled disbursements may not exceed the award
+    // (amount per recipient × instalments allowed by the programme frequency).
+    const program = await this.repository.findProgramById(application.programId, tenantId);
+    if (!program) {
+      throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
+    }
+    const instalments = INSTALMENTS_PER_FREQUENCY[program.disbursementFrequency] ?? 1;
+    const awardCapCents = program.amountPerRecipientCents * instalments;
+    const existing = await this.repository.listDisbursementsByApplication(
+      input.applicationId,
+      tenantId,
+    );
+    const committedCents = existing
+      .filter((d) => d.paymentStatus !== 'cancelled')
+      .reduce((sum, d) => sum + d.amountCents, 0);
+    if (committedCents + money.amountCents > awardCapCents) {
+      throw new BusinessRuleError(
+        `Disbursement would exceed the scholarship award: ${committedCents + money.amountCents} cents > cap ${awardCapCents} cents`,
+      );
+    }
+
     const disbursement: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -715,8 +761,36 @@ export class ScholarshipService {
       throw new NotFoundError(`Disbursement with id '${id}' not found`);
     }
 
+    // PRC-H085: enforce the payment-status state machine.
+    const nextStatus = input.paymentStatus as PaymentStatus;
+    const allowed = DISBURSEMENT_TRANSITIONS[existing.paymentStatus] ?? [];
+    if (!allowed.includes(nextStatus)) {
+      throw new ConflictError(
+        `Cannot change disbursement status from '${existing.paymentStatus}' to '${nextStatus}'`,
+      );
+    }
+    if (nextStatus === 'paid') {
+      const missing: FieldError[] = [];
+      if (!input.paidDate) {
+        missing.push({ field: 'paidDate', rule: 'required', message: 'Required when paid' });
+      }
+      if (!input.transactionReference?.trim()) {
+        missing.push({
+          field: 'transactionReference',
+          rule: 'required',
+          message: 'Required when paid',
+        });
+      }
+      if (missing.length > 0) {
+        throw new ValidationError(
+          'paidDate and transactionReference are required to mark a disbursement paid',
+          missing,
+        );
+      }
+    }
+
     const updateData: Partial<DisbursementEntity> = {
-      paymentStatus: input.paymentStatus as DisbursementEntity['paymentStatus'],
+      paymentStatus: nextStatus,
     };
     if (input.paidDate !== undefined) updateData.paidDate = input.paidDate;
     if (input.transactionReference !== undefined)
@@ -730,53 +804,78 @@ export class ScholarshipService {
 
     assertMajorMatchesCents(updated.amount, updated.amountCents);
 
-    if (
-      this.onDisbursementPaid &&
-      updated.paymentStatus === 'paid' &&
-      existing.paymentStatus !== 'paid'
-    ) {
-      const application = await this.repository.findApplicationById(
-        updated.applicationId,
-        tenantId,
-      );
-      const program = application
-        ? await this.repository.findProgramById(application.programId, tenantId)
-        : null;
-      if (application) {
-        await this.onDisbursementPaid({
+    // PRC-H084: fee netting / un-netting hooks run after the status write. If a
+    // hook fails, restore the previous status so the caller sees an error and a
+    // retry re-fires the (disbursementId-idempotent) hook instead of skipping it.
+    try {
+      if (
+        this.onDisbursementPaid &&
+        updated.paymentStatus === 'paid' &&
+        existing.paymentStatus !== 'paid'
+      ) {
+        const application = await this.repository.findApplicationById(
+          updated.applicationId,
           tenantId,
-          disbursementId: updated.id,
-          applicationId: application.id,
-          applicantId: application.applicantId,
-          amount: updated.amount,
-          amountCents: updated.amountCents,
-          currency: program?.currency ?? 'INR',
-        });
+        );
+        const program = application
+          ? await this.repository.findProgramById(application.programId, tenantId)
+          : null;
+        if (application) {
+          await this.onDisbursementPaid({
+            tenantId,
+            disbursementId: updated.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amount: updated.amount,
+            amountCents: updated.amountCents,
+            currency: program?.currency ?? 'INR',
+          });
+        }
       }
-    }
 
-    if (
-      this.onDisbursementReversed &&
-      existing.paymentStatus === 'paid' &&
-      updated.paymentStatus !== 'paid'
-    ) {
-      const application = await this.repository.findApplicationById(
-        updated.applicationId,
-        tenantId,
-      );
-      const program = application
-        ? await this.repository.findProgramById(application.programId, tenantId)
-        : null;
-      if (application) {
-        await this.onDisbursementReversed({
+      if (
+        this.onDisbursementReversed &&
+        existing.paymentStatus === 'paid' &&
+        updated.paymentStatus !== 'paid'
+      ) {
+        const application = await this.repository.findApplicationById(
+          updated.applicationId,
           tenantId,
-          disbursementId: updated.id,
-          applicationId: application.id,
-          applicantId: application.applicantId,
-          amountCents: updated.amountCents,
-          currency: program?.currency ?? 'INR',
-        });
+        );
+        const program = application
+          ? await this.repository.findProgramById(application.programId, tenantId)
+          : null;
+        if (application) {
+          await this.onDisbursementReversed({
+            tenantId,
+            disbursementId: updated.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amountCents: updated.amountCents,
+            currency: program?.currency ?? 'INR',
+          });
+        }
       }
+    } catch (hookError: unknown) {
+      try {
+        await this.repository.updateDisbursement(id, tenantId, {
+          paymentStatus: existing.paymentStatus,
+          paidDate: existing.paidDate,
+          transactionReference: existing.transactionReference,
+          notes: existing.notes,
+        });
+      } catch (compensationError: unknown) {
+        throw new AppError(
+          `Fee ledger sync failed and disbursement '${id}' could not be restored to '${existing.paymentStatus}': ${errorMessage(compensationError)} (hook: ${errorMessage(hookError)})`,
+          ErrorCode.INTERNAL_ERROR,
+          500,
+        );
+      }
+      throw new AppError(
+        `Fee ledger sync failed; disbursement status left at '${existing.paymentStatus}'. Retry the update. (${errorMessage(hookError)})`,
+        ErrorCode.SERVICE_UNAVAILABLE,
+        503,
+      );
     }
 
     return updated;
@@ -815,6 +914,8 @@ export class ScholarshipService {
   async recordCompliance(
     tenantId: string,
     input: RecipientComplianceInput,
+    /** Authenticated evaluator (JWT sub). Body evaluatorId is ignored (PRC-L345). */
+    evaluatorId: string | null = null,
   ): Promise<ComplianceRecordEntity> {
     const application = await this.repository.findApplicationById(input.applicationId, tenantId);
     if (!application) {
@@ -833,7 +934,7 @@ export class ScholarshipService {
       status: input.status as ComplianceRecordEntity['status'],
       evaluationDate: input.evaluationDate,
       details: input.details ?? null,
-      evaluatorId: input.evaluatorId ?? null,
+      evaluatorId: evaluatorId && EVALUATOR_UUID.test(evaluatorId) ? evaluatorId : null,
     };
 
     return this.repository.createComplianceRecord(record);
