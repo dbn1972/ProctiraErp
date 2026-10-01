@@ -25,7 +25,7 @@ export function requireStaffAction(
     return true;
   } catch (error) {
     if (error instanceof AppError) {
-      void reply.status(error.statusCode).send(error.toJSON());
+      reply.status(error.statusCode).send(error.toJSON());
       return false;
     }
     throw error;
@@ -34,16 +34,16 @@ export function requireStaffAction(
 
 /**
  * Skip GET/HEAD/OPTIONS; assert `action` on mutating methods.
- * When denied, reply is sent and Fastify skips the route because `reply.sent`.
+ * @returns true when the request may proceed; false when a 403 was sent. Async hooks must then
+ * `return reply` (PRC-L363) so Fastify treats the hook as having responded rather than relying
+ * on `reply.sent` side effects.
  */
 export function staffWritePreHandler(
   request: FastifyRequest,
   reply: FastifyReply,
   action: StaffAction,
-): void {
+): boolean {
   const method = request.method.toUpperCase();
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
-  if (!requireStaffAction(request, reply, action)) {
-    return;
-  }
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
+  return requireStaffAction(request, reply, action);
 }

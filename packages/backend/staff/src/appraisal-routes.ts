@@ -106,7 +106,7 @@ export async function registerAppraisalRoutes(
   const { appraisalService, prefix = '/staff/appraisals' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    staffWritePreHandler(request, reply, 'staff.hr.write');
+    if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
   });
 
   /**

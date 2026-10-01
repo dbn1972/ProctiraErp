@@ -176,7 +176,7 @@ export async function registerTrainingRoutes(
   const { trainingService, prefix = '/staff/training' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    staffWritePreHandler(request, reply, 'staff.hr.write');
+    if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
   });
 
   // ─── Training Programs ───────────────────────────────────────────────

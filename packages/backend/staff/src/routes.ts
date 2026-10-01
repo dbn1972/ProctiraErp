@@ -93,7 +93,7 @@ export async function registerStaffRoutes(
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
     const action =
       method === 'POST' ? 'staff.create' : method === 'DELETE' ? 'staff.delete' : 'staff.update';
-    staffWritePreHandler(request, reply, action);
+    if (!staffWritePreHandler(request, reply, action)) return reply;
   });
 
   /**
