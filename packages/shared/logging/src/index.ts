@@ -6,8 +6,8 @@
  * - loggingPlugin: Fastify plugin for automatic request/response logging
  */
 
-export { createLogger } from './logger.js';
+export { createLogger, DEFAULT_REDACT_PATHS } from './logger.js';
 export type { CreateLoggerOptions, LogContext } from './logger.js';
 
-export { loggingPlugin } from './fastify-plugin.js';
+export { loggingPlugin, sanitizeUrlForLog } from './fastify-plugin.js';
 export type { LoggingPluginOptions } from './fastify-plugin.js';
