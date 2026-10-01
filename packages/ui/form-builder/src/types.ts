@@ -23,9 +23,22 @@ export interface FieldOption {
 
 export interface ValidationRule {
   type: 'required' | 'minLength' | 'maxLength' | 'min' | 'max' | 'pattern' | 'custom';
+  /**
+   * Rule argument. For `required`, `false` disables the rule. For `custom`,
+   * the name of a validator in `FormBuilderProps.validators`.
+   */
   value?: string | number | boolean;
   message: string;
 }
+
+/**
+ * Custom validator referenced by a `custom` rule. Return `true` when valid,
+ * `false` to show the rule's message, or a string to show that message.
+ */
+export type CustomValidator = (
+  value: unknown,
+  values: Record<string, unknown>,
+) => boolean | string | Promise<boolean | string>;
 
 export interface FormFieldSchema {
   /** Unique field identifier */
@@ -96,4 +109,6 @@ export interface FormBuilderProps {
   className?: string;
   /** Accessible label for the form */
   ariaLabel?: string;
+  /** Named validators used by `custom` validation rules (`rule.value` = name). */
+  validators?: Record<string, CustomValidator>;
 }

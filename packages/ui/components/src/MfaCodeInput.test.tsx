@@ -221,6 +221,33 @@ describe('<MfaCodeInput />', () => {
     expect(onComplete).toHaveBeenCalledWith('123456');
   });
 
+  it('fires onComplete once per distinct completed code (PRC-L394)', () => {
+    const onComplete = vi.fn();
+    render(<Controlled autoFocus onComplete={onComplete} />);
+    const cells = getCells();
+    fireEvent.paste(cells[0]!, { clipboardData: { getData: () => '123456' } });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    // Re-entering the same last digit leaves the code unchanged: no resubmit.
+    fireEvent.keyDown(cells[5]!, { key: '6' });
+    fireEvent.paste(cells[0]!, { clipboardData: { getData: () => '123456' } });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    // Replacing the 6th digit yields a new code: fires exactly once more.
+    fireEvent.keyDown(cells[5]!, { key: '7' });
+    expect(onComplete).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenLastCalledWith('123457');
+    // Clearing then re-typing the same code fires again.
+    fireEvent.keyDown(cells[5]!, { key: 'Backspace' });
+    fireEvent.keyDown(cells[5]!, { key: '7' });
+    expect(onComplete).toHaveBeenCalledTimes(3);
+  });
+  it('does not emit while disabled (PRC-L394)', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    render(<MfaCodeInput value="" onChange={onChange} onComplete={onComplete} disabled />);
+    fireEvent.paste(getCells()[0]!, { clipboardData: { getData: () => '123456' } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
   it('does not fire onComplete when pasting fewer than length digits', () => {
     const onComplete = vi.fn();
     render(<Controlled autoFocus onComplete={onComplete} />);
