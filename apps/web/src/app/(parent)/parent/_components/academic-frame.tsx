@@ -4,15 +4,24 @@ import { ChildSwitcher } from './child-switcher';
 import type { ParentChildLink } from '@/lib/api/parent-portal';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
+export type PickChildResult =
+  { child: ParentChildLink; reason: 'ok' } | { child: null; reason: 'no-children' | 'not-linked' };
+
+/**
+ * Resolve the child to show. An explicit `?studentId` that is not one of the
+ * parent's links yields `not-linked` (render `forbidden`) instead of silently
+ * showing the first child (PRC-L063).
+ */
 export function pickChild(
   links: ParentChildLink[],
   requestedId: string | undefined,
-): ParentChildLink | null {
-  if (links.length === 0) return null;
+): PickChildResult {
   if (requestedId) {
-    return links.find((link) => link.studentId === requestedId) ?? links[0] ?? null;
+    const match = links.find((link) => link.studentId === requestedId);
+    return match ? { child: match, reason: 'ok' } : { child: null, reason: 'not-linked' };
   }
-  return links[0] ?? null;
+  const first = links[0];
+  return first ? { child: first, reason: 'ok' } : { child: null, reason: 'no-children' };
 }
 
 export function firstSearchParam(value: string | string[] | undefined): string | undefined {

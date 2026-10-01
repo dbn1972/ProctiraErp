@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 import { BulkImportPanel } from './_components/bulk-import-panel';
 import { DownloadTemplateButton } from './_components/download-template-button';
+import { IMPORT_TEMPLATE_COLUMNS } from './template/columns';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,11 +148,24 @@ export default function StudentBulkImportPage() {
         <CardHeader>
           <CardTitle className="text-base">Step 1 — Prepare your file</CardTitle>
           <CardDescription>
-            Use the template above to fill in student details with the required columns and formats.
-            Required: First Name, Last Name, Date of Birth (YYYY-MM-DD). Optional: Gender, National
-            ID, Nationality, Guardian Name, Guardian Phone, Contact Email.
+            Use the template above. Keep the header row exactly as shown; the first sheet is
+            imported and the Example sheet is reference only.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <ul className="grid gap-1 text-sm sm:grid-cols-2" data-testid="import-template-columns">
+            {IMPORT_TEMPLATE_COLUMNS.map((column) => (
+              <li key={column.key} data-column={column.key}>
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{column.key}</code>{' '}
+                <span className="text-muted-foreground">
+                  {column.label}
+                  {column.hint ? ` (${column.hint})` : ''}
+                  {column.required ? ' — required' : ' — optional'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
       </Card>
 
       {/* ── Upload + validate + import (client-side multi-step) ── */}
