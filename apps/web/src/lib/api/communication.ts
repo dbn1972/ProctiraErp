@@ -104,9 +104,12 @@ export interface SendCampaignResult extends CommunicationCampaign {
 }
 
 export async function sendCampaign(id: string): Promise<SendCampaignResult> {
-  const result = await gatewayFetch<SendCampaignResult>(`/communication/campaigns/${id}/send`, {
-    method: 'POST',
-  });
+  const result = await gatewayFetch<SendCampaignResult>(
+    `/communication/campaigns/${encodeURIComponent(id)}/send`,
+    {
+      method: 'POST',
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -143,10 +146,13 @@ export async function createEmergencyBlast(
 }
 
 export async function confirmEmergencyBlast(id: string, actorId: string): Promise<EmergencyBlast> {
-  const result = await gatewayFetch<EmergencyBlast>(`/communication/emergency/${id}/confirm`, {
-    method: 'POST',
-    json: { actorId },
-  });
+  const result = await gatewayFetch<EmergencyBlast>(
+    `/communication/emergency/${encodeURIComponent(id)}/confirm`,
+    {
+      method: 'POST',
+      json: { actorId },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -166,7 +172,7 @@ export interface DispatchEmergencyResult extends EmergencyBlast {
 
 export async function dispatchEmergencyBlast(id: string): Promise<DispatchEmergencyResult> {
   const result = await gatewayFetch<DispatchEmergencyResult>(
-    `/communication/emergency/${id}/dispatch`,
+    `/communication/emergency/${encodeURIComponent(id)}/dispatch`,
     { method: 'POST' },
   );
   if (!result.data) {
@@ -249,10 +255,13 @@ export async function listCirculars(): Promise<CommunicationCircular[]> {
 }
 
 export async function getCircular(id: string): Promise<CommunicationCircular | null> {
-  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<CommunicationCircular>(
+    `/communication/circulars/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.ok ? result.data : null;
 }
 
@@ -272,9 +281,12 @@ export async function createCircular(input: CreateCircularInput): Promise<Commun
 }
 
 export async function sendCircular(id: string): Promise<CommunicationCircular> {
-  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}/send`, {
-    method: 'POST',
-  });
+  const result = await gatewayFetch<CommunicationCircular>(
+    `/communication/circulars/${encodeURIComponent(id)}/send`,
+    {
+      method: 'POST',
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -286,10 +298,13 @@ export async function sendCircular(id: string): Promise<CommunicationCircular> {
 }
 
 export async function ackCircular(id: string, recipientId: string): Promise<CommunicationCircular> {
-  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}/ack`, {
-    method: 'POST',
-    json: { recipientId },
-  });
+  const result = await gatewayFetch<CommunicationCircular>(
+    `/communication/circulars/${encodeURIComponent(id)}/ack`,
+    {
+      method: 'POST',
+      json: { recipientId },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -320,9 +335,12 @@ export async function listDeliveryLogs(
 }
 
 export async function retryDeliveryLog(id: string): Promise<DeliveryLogEntry> {
-  const result = await gatewayFetch<DeliveryLogEntry>(`/communication/delivery-log/${id}/retry`, {
-    method: 'POST',
-  });
+  const result = await gatewayFetch<DeliveryLogEntry>(
+    `/communication/delivery-log/${encodeURIComponent(id)}/retry`,
+    {
+      method: 'POST',
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,

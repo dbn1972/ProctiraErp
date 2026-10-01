@@ -23,6 +23,15 @@ import {
   returnLibraryLoan,
   type CreateLibraryItemInput,
 } from '@/lib/api/library';
+import {
+  INVALID_ID_MESSAGE,
+  areValidActionIds,
+  firstIssue,
+  hostelAssignmentInputSchema,
+  hostelLeaveInputSchema,
+  hostelVisitorInputSchema,
+  libraryCheckoutInputSchema,
+} from '@/lib/validation/campus-action-schema';
 
 export interface CampusActionState {
   status: 'idle' | 'success' | 'error';
@@ -73,6 +82,7 @@ export async function createLibraryItemAction(
 }
 
 export async function checkLibraryClearanceAction(studentId: string): Promise<CampusActionState> {
+  if (!areValidActionIds(studentId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const clearance = await getLibraryClearance(studentId);
     return {
@@ -105,8 +115,12 @@ export async function checkoutLibraryItemAction(input: {
   studentId?: string;
   dueAt?: string;
 }): Promise<CampusActionState> {
+  const parsed = libraryCheckoutInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Checkout fields are invalid.') };
+  }
   try {
-    const loan = await checkoutLibraryItem(input);
+    const loan = await checkoutLibraryItem(parsed.data);
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');
@@ -125,6 +139,7 @@ export async function checkoutLibraryItemAction(input: {
 }
 
 export async function returnLibraryLoanAction(loanId: string): Promise<CampusActionState> {
+  if (!areValidActionIds(loanId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const loan = await returnLibraryLoan(loanId);
     revalidatePath('/library');
@@ -148,6 +163,13 @@ export async function renewLibraryLoanAction(
   loanId: string,
   extendDays?: number,
 ): Promise<CampusActionState> {
+  if (!areValidActionIds(loanId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  if (
+    extendDays !== undefined &&
+    (!Number.isInteger(extendDays) || extendDays < 1 || extendDays > 365)
+  ) {
+    return { status: 'error', message: 'Extend days must be a whole number between 1 and 365.' };
+  }
   try {
     const loan = await renewLibraryLoan(loanId, extendDays);
     revalidatePath('/library');
@@ -174,8 +196,12 @@ export async function createHostelAssignmentAction(input: {
   endDate?: string;
   feeStructureId?: string;
 }): Promise<CampusActionState> {
+  const parsed = hostelAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Assignment fields are invalid.') };
+  }
   try {
-    const row = await createHostelAssignment(input);
+    const row = await createHostelAssignment(parsed.data);
     revalidatePath('/hostel');
     revalidatePath('/hostel/assignments');
     return { status: 'success', message: 'Assignment created.', id: row.id };
@@ -199,8 +225,12 @@ export async function createHostelLeaveAction(input: {
   endDate: string;
   reason?: string;
 }): Promise<CampusActionState> {
+  const parsed = hostelLeaveInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Leave fields are invalid.') };
+  }
   try {
-    const row = await createHostelLeave(input);
+    const row = await createHostelLeave(parsed.data);
     revalidatePath('/hostel/leaves');
     return { status: 'success', message: 'Leave recorded.', id: row.id };
   } catch (error) {
@@ -220,6 +250,8 @@ export async function decideHostelLeaveAction(
   id: string,
   status: 'approved' | 'rejected',
 ): Promise<CampusActionState> {
+  if (!areValidActionIds(id) || (status !== 'approved' && status !== 'rejected'))
+    return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const row = await decideHostelLeave(id, status);
     revalidatePath('/hostel/leaves');
@@ -245,6 +277,9 @@ export async function updateHostelVisitorStatusAction(
   id: string,
   status: 'checked_in' | 'checked_out' | 'denied',
 ): Promise<CampusActionState> {
+  if (!areValidActionIds(id) || !['checked_in', 'checked_out', 'denied'].includes(status)) {
+    return { status: 'error', message: INVALID_ID_MESSAGE };
+  }
   try {
     const row = await updateHostelVisitorStatus(id, status);
     revalidatePath('/hostel/visitors');
@@ -272,8 +307,12 @@ export async function createHostelVisitorAction(input: {
   studentId: string;
   visitDate: string;
 }): Promise<CampusActionState> {
+  const parsed = hostelVisitorInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Visitor fields are invalid.') };
+  }
   try {
-    const row = await createHostelVisitor(input);
+    const row = await createHostelVisitor(parsed.data);
     revalidatePath('/hostel/visitors');
     return { status: 'success', message: 'Visitor recorded.', id: row.id };
   } catch (error) {
@@ -294,6 +333,7 @@ export async function createHostelBlockAction(input: {
   name: string;
   floor?: number;
 }): Promise<CampusActionState> {
+  if (!areValidActionIds(input.hostelId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const row = await createHostelBlock(input);
     revalidatePath('/hostel');
@@ -317,6 +357,7 @@ export async function createHostelRoomAction(input: {
   roomNumber: string;
   capacity?: number;
 }): Promise<CampusActionState> {
+  if (!areValidActionIds(input.blockId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const row = await createHostelRoom(input);
     revalidatePath('/hostel');
@@ -340,6 +381,7 @@ export async function createHostelBedAction(input: {
   bedLabel: string;
   isAvailable?: boolean;
 }): Promise<CampusActionState> {
+  if (!areValidActionIds(input.roomId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const row = await createHostelBed(input);
     revalidatePath('/hostel');

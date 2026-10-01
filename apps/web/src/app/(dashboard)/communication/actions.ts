@@ -18,6 +18,7 @@ import {
   type CreateCircularInput,
   type CreateEmergencyBlastInput,
 } from '@/lib/api/communication';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { circularFormSchema } from '@/lib/validation/communication-schema';
 
 export interface CommunicationActionState {
@@ -50,6 +51,7 @@ export async function createCampaignAction(
 }
 
 export async function sendCampaignAction(id: string): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const result = await sendCampaign(id);
     revalidatePath('/communication');
@@ -122,6 +124,7 @@ export async function confirmEmergencyBlastAction(
   id: string,
   actorId: string,
 ): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const blast = await confirmEmergencyBlast(id, actorId);
     revalidatePath('/communication/emergency');
@@ -147,6 +150,7 @@ export async function confirmEmergencyBlastAction(
 }
 
 export async function dispatchEmergencyBlastAction(id: string): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const result = await dispatchEmergencyBlast(id);
     revalidatePath('/communication/emergency');
@@ -207,6 +211,7 @@ export async function createCircularAction(
 }
 
 export async function sendCircularAction(id: string): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const circular = await sendCircular(id);
     revalidatePath('/communication/circulars');
@@ -234,6 +239,7 @@ export async function ackCircularAction(
   id: string,
   recipientId: string,
 ): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   if (!recipientId.trim()) {
     return { status: 'error', message: 'Recipient id is required.' };
   }
@@ -259,6 +265,7 @@ export async function ackCircularAction(
 }
 
 export async function retryDeliveryAction(id: string): Promise<CommunicationActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const row = await retryDeliveryLog(id);
     revalidatePath('/communication/delivery');
