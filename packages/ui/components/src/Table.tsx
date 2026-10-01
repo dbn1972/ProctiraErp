@@ -6,12 +6,30 @@ import { cn } from './lib/utils';
  * shadcn/ui Table primitives. Migrated from
  * `apps/web/src/components/ui/table.tsx` during task 60.1.
  */
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
-    </div>
-  ),
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /**
+   * Accessible name for the horizontally scrollable wrapper. Defaults to the
+   * table's own `aria-label`. When a name is available the wrapper is exposed
+   * as a named `region`.
+   */
+  scrollRegionLabel?: string;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, scrollRegionLabel, ...props }, ref) => {
+    const regionLabel = scrollRegionLabel ?? props['aria-label'];
+    return (
+      // tabIndex=0 lets keyboard users scroll overflowing tables (axe scrollable-region-focusable).
+      <div
+        className="relative w-full overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        tabIndex={0}
+        role={regionLabel ? 'region' : undefined}
+        aria-label={regionLabel}
+      >
+        <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+      </div>
+    );
+  },
 );
 Table.displayName = 'Table';
 
