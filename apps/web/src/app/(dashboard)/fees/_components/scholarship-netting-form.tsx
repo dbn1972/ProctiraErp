@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -14,24 +15,25 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
+import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import { applyScholarshipNettingAction } from '@/lib/fees/actions';
 import type { NettableScholarshipDisbursement, ScholarshipNettingResult } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
 
-function formatMoney(cents: number, currency = 'INR'): string {
-  const amount = (cents / 100).toFixed(2);
-  return `${currency} ${amount}`;
-}
-
-/** PRC-H020: picker label for a verified, paid, un-netted disbursement. */
+/** PRC-H020: picker label for a verified, paid, un-netted disbursement (PRC-L040 formatting). */
 export function disbursementOptionLabel(
   disbursement: NettableScholarshipDisbursement,
   studentLabels: Record<string, string>,
+  locale: string,
 ): string {
   const student = resolveEntityLabel(disbursement.studentId, studentLabels, 'Student');
-  const money = formatMoney(disbursement.amountCents, disbursement.currency ?? 'INR');
+  const money = formatAmount(
+    disbursement.amountCents,
+    disbursement.currency ?? DEFAULT_FEE_CURRENCY,
+    locale,
+  );
   const paid = disbursement.paidDate ? ` · paid ${disbursement.paidDate.slice(0, 10)}` : '';
   return `${student} · ${money}${paid}`;
 }
@@ -50,9 +52,10 @@ export function ScholarshipNettingForm({
   invoiceOptions?: EntityLabelOption[];
   invoiceDirectoryFailed?: boolean;
 }) {
+  const locale = useLocale();
   const studentLabels = Object.fromEntries(studentOptions.map((o) => [o.id, o.label]));
   const disbursementOptions: EntityLabelOption[] = disbursements.map((d) => {
-    const label = disbursementOptionLabel(d, studentLabels);
+    const label = disbursementOptionLabel(d, studentLabels, locale);
     return { id: d.id, label, searchText: label };
   });
   const router = useRouter();
@@ -65,7 +68,7 @@ export function ScholarshipNettingForm({
     studentId: string;
     disbursementId: string;
     invoiceId: string;
-    currency: string;
+    currency?: string;
   } | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -83,7 +86,8 @@ export function ScholarshipNettingForm({
       studentId: disbursement.studentId,
       disbursementId: disbursement.id,
       invoiceId: String(fd.get('invoiceId') ?? '').trim(),
-      currency: disbursement.currency ?? 'INR',
+      // PRC-L040: send the disbursement's currency when known, otherwise let the server choose.
+      ...(disbursement.currency ? { currency: disbursement.currency } : {}),
     });
     setConfirmOpen(true);
   }
@@ -198,7 +202,11 @@ export function ScholarshipNettingForm({
           <CardContent className="space-y-2 text-sm">
             <p>
               <span className="text-muted-foreground">Discount: </span>
-              {formatMoney(result.discountCents, result.invoice?.currency ?? 'INR')}
+              {formatAmount(
+                result.discountCents,
+                result.invoice?.currency ?? DEFAULT_FEE_CURRENCY,
+                locale,
+              )}
             </p>
             {result.concession ? (
               <p>
@@ -224,7 +232,8 @@ export function ScholarshipNettingForm({
                   'Invoice',
                 )}
                 <span className="ml-2">
-                  balance {formatMoney(result.invoice.amountCents, result.invoice.currency)} (
+                  balance{' '}
+                  {formatAmount(result.invoice.amountCents, result.invoice.currency, locale)} (
                   {humanizeStatus(result.invoice.status)})
                 </span>
               </p>

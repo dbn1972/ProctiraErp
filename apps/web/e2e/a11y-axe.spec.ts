@@ -33,6 +33,8 @@ import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** PRC-L034: layouts that require `platform:read` (platform administrator persona). */
+const PLATFORM_GATED_PATHS: ReadonlySet<string> = new Set(['/billing', '/audit-logs']);
 /** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
 const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
@@ -271,7 +273,13 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/transport/fees',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
-      await setupGatewayTenantSession(page);
+      // PRC-L034: platform surfaces are gated on platform read at the layout.
+      await setupGatewayTenantSession(
+        page,
+        PLATFORM_GATED_PATHS.has(path)
+          ? { roles: [{ roleId: 'platform_admin', roleName: 'Platform Admin', areaId: null }] }
+          : {},
+      );
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
       await runAxe(page, { checkpointLabel: path });

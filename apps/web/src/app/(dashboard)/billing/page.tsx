@@ -5,6 +5,7 @@
  * usage are keyed by subscription id on the gateway, so the tenant-facing
  * surface is the catalogue plus quota/feature matrix.
  */
+import { getLocale } from 'next-intl/server';
 import {
   Badge,
   Card,
@@ -27,6 +28,7 @@ import {
 } from '@/components/platform/PlatformSurfaceState';
 import { listBillingPlans, type BillingPlan } from '@/lib/api/platform.server';
 import { EmptyState } from '@/components/page';
+import { formatAmount } from '../fees/_components/format-amount';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,16 +48,9 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'destructive' | 'se
   deprecated: 'destructive',
 };
 
-function formatPrice(minor: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(minor / 100);
-}
-
 export default async function BillingPage(props: { searchParams?: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
+  const locale = await getLocale();
   const tier = readParam(searchParams, 'tier');
   const status = readParam(searchParams, 'status');
   const search = readParam(searchParams, 'search');
@@ -168,7 +163,7 @@ export default async function BillingPage(props: { searchParams?: Promise<Search
               </TableHeader>
               <TableBody>
                 {plans.map((plan) => (
-                  <PlanRow key={plan.id} plan={plan} quotaKeys={quotaKeys} />
+                  <PlanRow key={plan.id} plan={plan} quotaKeys={quotaKeys} locale={locale} />
                 ))}
               </TableBody>
             </Table>
@@ -185,7 +180,15 @@ export default async function BillingPage(props: { searchParams?: Promise<Search
   );
 }
 
-function PlanRow({ plan, quotaKeys }: { plan: BillingPlan; quotaKeys: string[] }) {
+function PlanRow({
+  plan,
+  quotaKeys,
+  locale,
+}: {
+  plan: BillingPlan;
+  quotaKeys: string[];
+  locale: string;
+}) {
   return (
     <TableRow data-testid="billing-plan-row">
       <TableCell className="ps-4">
@@ -200,8 +203,12 @@ function PlanRow({ plan, quotaKeys }: { plan: BillingPlan; quotaKeys: string[] }
       <TableCell>
         <Badge variant={STATUS_VARIANT[plan.status] ?? 'secondary'}>{plan.status}</Badge>
       </TableCell>
-      <TableCell className="text-end tabular-nums">{formatPrice(plan.priceMonthly)}</TableCell>
-      <TableCell className="text-end tabular-nums">{formatPrice(plan.priceYearly)}</TableCell>
+      <TableCell className="text-end tabular-nums">
+        {formatAmount(plan.priceMonthly, plan.currency, locale)}
+      </TableCell>
+      <TableCell className="text-end tabular-nums">
+        {formatAmount(plan.priceYearly, plan.currency, locale)}
+      </TableCell>
       <TableCell className="text-end tabular-nums">
         {plan.trialDays > 0 ? `${plan.trialDays} d` : '—'}
       </TableCell>

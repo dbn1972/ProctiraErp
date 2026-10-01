@@ -52,6 +52,28 @@ import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, TRACKING_NUMBER_PREFIX } from 
  * where X is an uppercase alphanumeric character.
  * Uses CSPRNG (node:crypto randomInt) for public identifier entropy.
  */
+/**
+ * Allowed staff-driven application status transitions. `approved` and
+ * `rejected` are terminal decisions; same-status writes are refused so a
+ * decision cannot be silently re-applied.
+ */
+export const APPLICATION_STATUS_TRANSITIONS: Readonly<
+  Record<RegistrationStatus, readonly RegistrationStatus[]>
+> = {
+  pending: ['under_review', 'waitlisted', 'rejected'],
+  under_review: ['waitlisted', 'approved', 'rejected'],
+  waitlisted: ['under_review', 'approved', 'rejected'],
+  approved: [],
+  rejected: [],
+};
+
+export function isAllowedApplicationTransition(
+  from: RegistrationStatus,
+  to: RegistrationStatus,
+): boolean {
+  return APPLICATION_STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 export function generateTrackingNumber(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -590,6 +612,12 @@ export class RegistrationService {
     const application = await this.repository.findById(applicationId, tenantId);
     if (!application || application.tenantId !== tenantId) {
       throw new NotFoundError(`Application with id '${applicationId}' not found`);
+    }
+
+    if (!isAllowedApplicationTransition(application.status, status)) {
+      throw new BusinessRuleError(
+        `Application status cannot change from '${application.status}' to '${status}'`,
+      );
     }
 
     const updated = await this.repository.updateStatus(applicationId, status, remarks, tenantId);

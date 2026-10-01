@@ -27,14 +27,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { bulkInvoiceAction, createFeeStructureAction } from '@/lib/fees/actions';
 import type { FeeStructure } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
-
-function formatAmount(cents: number, currency: string, locale: string): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatAmount } from './format-amount';
 
 export function StructuresWorkspace({
   structures,

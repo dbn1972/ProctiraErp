@@ -13,6 +13,7 @@ import { requireSession } from '@/lib/auth/server';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { getTenantToday } from '@/lib/tenant-today';
 import { HostelAttendanceForm } from '../_components/attendance-form';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function HostelAttendancePage({
 }) {
   await requireSession();
   const { blockId, onDate } = await searchParams;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = await getTenantToday();
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
   const [blocks, studentOptions] = await Promise.all([listHostelBlocks(), loadStudentOptions()]);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));

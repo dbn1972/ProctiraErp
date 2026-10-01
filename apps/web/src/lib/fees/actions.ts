@@ -96,7 +96,6 @@ export async function createFeeStructureAction(
       amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
-      currency: 'INR',
     });
     if (parsed.data.partCount && parsed.data.partCount > 1) {
       await generateInstalments(structure.id, parsed.data.partCount);

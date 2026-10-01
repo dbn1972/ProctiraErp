@@ -56,7 +56,6 @@ export function NewFeePlanForm() {
         code: code || undefined,
         description: description || undefined,
         amountCents,
-        currency: 'INR',
         frequency,
       });
       if (result.status === 'error') {

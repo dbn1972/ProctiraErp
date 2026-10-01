@@ -24,6 +24,7 @@ import {
   placeLibraryHold,
   returnLibraryByBarcode,
 } from '@/lib/api/library';
+import { firstIssue, gatePassWindowSchema } from '@/lib/validation/campus-action-schema';
 
 export interface OpsActionState {
   status: 'idle' | 'success' | 'error';
@@ -263,6 +264,10 @@ export async function requestGatePassAction(input: {
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Gate pass fields are invalid.' };
+  const timing = gatePassWindowSchema.safeParse(parsed.data);
+  if (!timing.success) {
+    return { status: 'error', message: firstIssue(timing.error, 'Gate pass times are invalid.') };
+  }
   try {
     const pass = await createHostelGatePass(parsed.data);
     revalidatePath('/hostel/gate-passes');
