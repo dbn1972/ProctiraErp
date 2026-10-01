@@ -105,7 +105,7 @@ export function ContactForm() {
     <form
       ref={formRef}
       noValidate
-      aria-label="Contact ProctiraERP"
+      aria-label="Contact form"
       className="space-y-5"
       onSubmit={(event) => void handleSubmit(event)}
     >
