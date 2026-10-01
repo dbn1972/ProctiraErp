@@ -94,6 +94,9 @@ export default async function BoardExportsPage() {
         <BoardExportTriggerForm
           institutionOptions={institutionOptions}
           studentOptions={studentOptions}
+          boardOptions={
+            packs.ok ? packs.data.map((pack) => ({ code: pack.code, label: pack.code })) : undefined
+          }
         />
       </div>
 
