@@ -231,11 +231,6 @@ export async function ingestGpsPingAction(
   }
 }
 
-export async function refreshLiveMapAction(): Promise<TransportActionState> {
-  revalidatePath('/transport/live');
-  return { status: 'success', message: 'Live map refreshed.' };
-}
-
 const attendanceSchema = z.object({
   routeId: uuid,
   tripDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
