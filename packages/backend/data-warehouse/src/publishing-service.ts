@@ -8,6 +8,7 @@
 import { NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import { collectAllPages } from './collect-all.js';
 import type { GISRepository } from './gis-repository.js';
 import type {
@@ -43,7 +44,12 @@ export class PublishingService {
     private readonly gisRepository: GISRepository | null,
     private readonly translationRepository: TranslationRepository | null,
     private readonly config: PublishingServiceConfig,
-  ) {}
+    options: { auditSink?: DataWarehouseAuditSink | null } = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
+
+  private readonly audit: AuditEmitter;
 
   /**
    * Publish warehouse data to the specified target format.
@@ -52,6 +58,7 @@ export class PublishingService {
     tenantId: string,
     warehouseId: string,
     input: PublishRequestInput,
+    ctx: AuditContext = {},
   ): Promise<PublishResult> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
@@ -166,7 +173,18 @@ export class PublishingService {
       errors,
     };
     this.publishHistory.set(historyRecord.id, historyRecord);
-
+    await this.audit.emit(ctx, {
+      tenantId,
+      warehouseId,
+      action: 'data.publish',
+      resourceType: 'publish',
+      resourceId: publishResult.id,
+      counts: {
+        recordCount: publishResult.recordCount,
+        layerCount: publishResult.layerCount,
+        errorCount: errors.length,
+      },
+    });
     return publishResult;
   }
 

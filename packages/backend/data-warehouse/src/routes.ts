@@ -23,6 +23,7 @@ import { AppError } from '@proctira/common';
 import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { AuditContext } from './audit.js';
 import type { DataWarehouseService } from './data-warehouse-service.js';
 import {
   CreateWarehouseSchema,
@@ -46,6 +47,12 @@ export interface DataWarehouseRoutesOptions {
 
 function getTenantId(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
+}
+
+/** Actor identity for audit events (JWT `sub`, or `userId` fallback). */
+function auditContext(request: FastifyRequest): AuditContext {
+  const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+  return { actorId: user?.sub ?? user?.userId ?? null };
 }
 
 function sendTenantRequired(reply: FastifyReply) {
@@ -114,7 +121,11 @@ export async function registerDataWarehouseRoutes(
     }
 
     try {
-      const warehouse = await dataWarehouseService.createWarehouse(tenantId, result.data);
+      const warehouse = await dataWarehouseService.createWarehouse(
+        tenantId,
+        result.data,
+        auditContext(request),
+      );
       return reply.status(201).send(warehouse);
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -204,6 +215,7 @@ export async function registerDataWarehouseRoutes(
         tenantId,
         paramsResult.data.warehouseId,
         bodyResult.data,
+        auditContext(request),
       );
       return reply.status(200).send(warehouse);
     } catch (error: unknown) {
@@ -226,7 +238,11 @@ export async function registerDataWarehouseRoutes(
     }
 
     try {
-      await dataWarehouseService.deleteWarehouse(tenantId, paramsResult.data.warehouseId);
+      await dataWarehouseService.deleteWarehouse(
+        tenantId,
+        paramsResult.data.warehouseId,
+        auditContext(request),
+      );
       return reply.status(204).send();
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -266,6 +282,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(indicator);
       } catch (error: unknown) {
@@ -350,6 +367,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(unit);
       } catch (error: unknown) {
@@ -434,6 +452,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(subgroup);
       } catch (error: unknown) {
@@ -518,6 +537,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(tp);
       } catch (error: unknown) {
@@ -602,6 +622,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(area);
       } catch (error: unknown) {
@@ -691,6 +712,7 @@ export async function registerDataWarehouseRoutes(
             fileContent: bodyResult.data.fileContent,
             dbConnectionConfig: bodyResult.data.dbConnectionConfig,
           },
+          auditContext(request),
         );
         return reply.status(200).send(importResult);
       } catch (error: unknown) {

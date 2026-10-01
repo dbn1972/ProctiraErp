@@ -8,6 +8,7 @@
 import { NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import { collectAllPages } from './collect-all.js';
 import type { TranslationRepository } from './translation-repository.js';
 import type {
@@ -32,11 +33,16 @@ export interface TranslationServiceConfig {
 }
 
 export class TranslationService {
+  private readonly audit: AuditEmitter;
+
   constructor(
     private readonly translationRepository: TranslationRepository,
     private readonly warehouseRepository: WarehouseRepository,
     private readonly config: TranslationServiceConfig,
-  ) {}
+    options: { auditSink?: DataWarehouseAuditSink | null } = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
 
   /**
    * Create or update a single translation.
@@ -45,6 +51,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: CreateTranslationInput,
+    ctx: AuditContext = {},
   ): Promise<Translation> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
@@ -69,7 +76,11 @@ export class TranslationService {
       updatedAt: now,
     };
 
-    return this.translationRepository.upsertTranslation(translation);
+    return this.audit.wrap(
+      ctx,
+      { tenantId, warehouseId, action: 'translation.set', resourceType: 'translation' },
+      () => this.translationRepository.upsertTranslation(translation),
+    );
   }
 
   /**
@@ -79,6 +90,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: BatchTranslationInput,
+    ctx: AuditContext = {},
   ): Promise<{
     successCount: number;
     errorCount: number;
@@ -118,7 +130,14 @@ export class TranslationService {
     if (validTranslations.length > 0) {
       await this.translationRepository.upsertTranslationsBatch(validTranslations);
     }
-
+    await this.audit.emit(ctx, {
+      tenantId,
+      warehouseId,
+      action: 'translation.batch_set',
+      resourceType: 'warehouse',
+      resourceId: warehouseId,
+      counts: { successCount: validTranslations.length, errorCount: errors.length },
+    });
     return {
       successCount: validTranslations.length,
       errorCount: errors.length,
@@ -229,6 +248,7 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: TranslationImportInput,
+    ctx: AuditContext = {},
   ): Promise<TranslationImportResult> {
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -330,7 +350,19 @@ export class TranslationService {
     if (validTranslations.length > 0) {
       await this.translationRepository.upsertTranslationsBatch(validTranslations);
     }
-
+    await this.audit.emit(ctx, {
+      tenantId,
+      warehouseId,
+      action: 'translation.import',
+      resourceType: 'warehouse',
+      resourceId: warehouseId,
+      counts: {
+        totalRows: rawTranslations.length,
+        successCount: validTranslations.length,
+        errorCount: errors.length,
+        updatedCount,
+      },
+    });
     return {
       totalRows: rawTranslations.length,
       successCount: validTranslations.length,

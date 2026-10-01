@@ -8,6 +8,7 @@
 import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import type { GISRepository } from './gis-repository.js';
 import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
@@ -67,11 +68,16 @@ function toFeatures(input: unknown, allowFeatureOrGeometry: boolean): GISFeature
 }
 
 export class GISService {
+  private readonly audit: AuditEmitter;
+
   constructor(
     private readonly gisRepository: GISRepository,
     private readonly warehouseRepository: WarehouseRepository,
     private readonly config: GISServiceConfig,
-  ) {}
+    options: { auditSink?: DataWarehouseAuditSink | null } = {},
+  ) {
+    this.audit = new AuditEmitter(options.auditSink ?? null);
+  }
 
   /**
    * Create a new GIS layer linked to an area in the warehouse.
@@ -80,6 +86,7 @@ export class GISService {
     tenantId: string,
     warehouseId: string,
     input: GISLayerInput,
+    ctx: AuditContext = {},
   ): Promise<GISLayer> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
@@ -133,7 +140,17 @@ export class GISService {
       updatedAt: now,
     };
 
-    return this.gisRepository.createLayer(layer);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.create',
+        resourceType: 'gis_layer',
+        counts: { featureCount: layer.featureCount },
+      },
+      () => this.gisRepository.createLayer(layer),
+    );
   }
 
   /**
@@ -144,6 +161,7 @@ export class GISService {
     warehouseId: string,
     layerId: string,
     input: UpdateGISLayerInput,
+    ctx: AuditContext = {},
   ): Promise<GISLayer> {
     const existing = await this.gisRepository.findLayerById(layerId, warehouseId, tenantId);
     if (!existing) {
@@ -166,18 +184,44 @@ export class GISService {
 
     if (input.crs !== undefined) updates.crs = input.crs;
 
-    return this.gisRepository.updateLayer(layerId, warehouseId, tenantId, updates);
+    return this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.update',
+        resourceType: 'gis_layer',
+        resourceId: layerId,
+        counts: { fieldsChanged: Object.keys(updates).length },
+      },
+      () => this.gisRepository.updateLayer(layerId, warehouseId, tenantId, updates),
+    );
   }
 
   /**
    * Delete a GIS layer.
    */
-  async deleteLayer(tenantId: string, warehouseId: string, layerId: string): Promise<void> {
+  async deleteLayer(
+    tenantId: string,
+    warehouseId: string,
+    layerId: string,
+    ctx: AuditContext = {},
+  ): Promise<void> {
     const existing = await this.gisRepository.findLayerById(layerId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`GIS layer not found: ${layerId}`);
     }
-    await this.gisRepository.deleteLayer(layerId, warehouseId, tenantId);
+    await this.audit.wrap(
+      ctx,
+      {
+        tenantId,
+        warehouseId,
+        action: 'gis_layer.delete',
+        resourceType: 'gis_layer',
+        resourceId: layerId,
+      },
+      () => this.gisRepository.deleteLayer(layerId, warehouseId, tenantId),
+    );
   }
 
   /**
