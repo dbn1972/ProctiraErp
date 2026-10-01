@@ -121,24 +121,24 @@ class AppRouter {
               name: 'student-profile',
               builder: (BuildContext context, GoRouterState state) =>
                   StudentProfileScreen(
-                studentId: state.pathParameters['id'] ?? '',
-              ),
+                    studentId: state.pathParameters['id'] ?? '',
+                  ),
               routes: <RouteBase>[
                 GoRoute(
                   path: 'enrollments',
                   name: 'student-enrollments',
                   builder: (BuildContext context, GoRouterState state) =>
                       EnrollmentHistoryScreen(
-                    studentId: state.pathParameters['id'] ?? '',
-                  ),
+                        studentId: state.pathParameters['id'] ?? '',
+                      ),
                 ),
                 GoRoute(
                   path: 'documents/capture',
                   name: 'student-document-capture',
                   builder: (BuildContext context, GoRouterState state) =>
                       DocumentCaptureScreen(
-                    studentId: state.pathParameters['id'] ?? '',
-                  ),
+                        studentId: state.pathParameters['id'] ?? '',
+                      ),
                 ),
               ],
             ),
@@ -154,9 +154,7 @@ class AppRouter {
               path: ':id',
               name: 'institution-detail',
               builder: (BuildContext context, GoRouterState state) =>
-                  InstitutionDetailScreen(
-                id: state.pathParameters['id'] ?? '',
-              ),
+                  InstitutionDetailScreen(id: state.pathParameters['id'] ?? ''),
             ),
           ],
         ),
@@ -192,25 +190,19 @@ class AppRouter {
           path: '/assessments',
           name: 'assessments',
           builder: (BuildContext context, GoRouterState state) =>
-              AssessmentResultsScreen(
-            studentId: _studentIdOf(state),
-          ),
+              AssessmentResultsScreen(studentId: _studentIdOf(state)),
         ),
         GoRoute(
           path: '/examinations',
           name: 'examinations',
           builder: (BuildContext context, GoRouterState state) =>
-              ExaminationListScreen(
-            studentId: _studentIdOf(state),
-          ),
+              ExaminationListScreen(studentId: _studentIdOf(state)),
           routes: <RouteBase>[
             GoRoute(
               path: 'results',
               name: 'examination-results',
               builder: (BuildContext context, GoRouterState state) =>
-                  ExaminationResultsScreen(
-                studentId: _studentIdOf(state),
-              ),
+                  ExaminationResultsScreen(studentId: _studentIdOf(state)),
             ),
           ],
         ),
@@ -218,26 +210,22 @@ class AppRouter {
           path: '/scholarships',
           name: 'scholarships',
           builder: (BuildContext context, GoRouterState state) =>
-              ScholarshipProgramsScreen(
-            studentId: _studentIdOf(state),
-          ),
+              ScholarshipProgramsScreen(studentId: _studentIdOf(state)),
           routes: <RouteBase>[
             GoRoute(
               path: 'status',
               name: 'scholarship-status',
               builder: (BuildContext context, GoRouterState state) =>
-                  ScholarshipStatusScreen(
-                studentId: _studentIdOf(state),
-              ),
+                  ScholarshipStatusScreen(studentId: _studentIdOf(state)),
             ),
             GoRoute(
               path: 'apply/:programId',
               name: 'scholarship-apply',
               builder: (BuildContext context, GoRouterState state) =>
                   ScholarshipApplicationScreen(
-                programId: state.pathParameters['programId'] ?? '',
-                studentId: _studentIdOf(state),
-              ),
+                    programId: state.pathParameters['programId'] ?? '',
+                    studentId: _studentIdOf(state),
+                  ),
             ),
           ],
         ),
@@ -245,9 +233,7 @@ class AppRouter {
           path: '/health',
           name: 'health',
           builder: (BuildContext context, GoRouterState state) =>
-              HealthRecordsScreen(
-            studentId: _studentIdOf(state),
-          ),
+              HealthRecordsScreen(studentId: _studentIdOf(state)),
         ),
         GoRoute(
           path: '/profile',
@@ -302,11 +288,11 @@ class AppRouter {
     }
 
     if (!auth.isAuthenticated) {
-      return atLogin ? null : '/login';
+      return atLogin ? null : loginLocationFor(state.uri);
     }
 
     if (atLogin) {
-      return '/';
+      return safeReturnPath(state.uri.queryParameters['from']) ?? '/';
     }
 
     // Profile → workspace switch lands on `/tenant?switch=1`. Without the
@@ -315,6 +301,41 @@ class AppRouter {
       return '/';
     }
     return null;
+  }
+
+  /// `/login` location that remembers [target] so a logged-out cold-start
+  /// deep link resumes after sign-in (PRC-L006).
+  static String loginLocationFor(Uri target) {
+    final String from = target.toString();
+    if (from == '/' || safeReturnPath(from) == null) {
+      return '/login';
+    }
+    return Uri(
+      path: '/login',
+      queryParameters: <String, String>{'from': from},
+    ).toString();
+  }
+
+  /// Accepts only in-app absolute paths (no scheme/host, no `//` or `\`),
+  /// and never the auth screens themselves, to avoid open redirects/loops.
+  static String? safeReturnPath(String? raw) {
+    if (raw == null) {
+      return null;
+    }
+    final String value = raw.trim();
+    if (!value.startsWith('/') ||
+        value.startsWith('//') ||
+        value.contains(r'\')) {
+      return null;
+    }
+    final Uri? uri = Uri.tryParse(value);
+    if (uri == null || uri.hasScheme || uri.hasAuthority) {
+      return null;
+    }
+    if (uri.path == '/login' || uri.path == '/tenant') {
+      return null;
+    }
+    return value;
   }
 
   /// Child chosen on the parent home. Query only — no client tenant id.
@@ -326,7 +347,8 @@ class AppRouter {
   /// Query `studentId` wins. Otherwise the device-local selection is used so
   /// home tiles and deep links share one student.
   String _studentIdOf(GoRouterState state) {
-    final String fromQuery = state.uri.queryParameters['studentId']?.trim() ?? '';
+    final String fromQuery =
+        state.uri.queryParameters['studentId']?.trim() ?? '';
     if (fromQuery.isNotEmpty) {
       return fromQuery;
     }
