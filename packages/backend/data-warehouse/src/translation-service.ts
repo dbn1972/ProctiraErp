@@ -449,19 +449,18 @@ export class TranslationService {
     if (lines.length <= 1) return [];
 
     // Skip header
-    const dataLines = lines.slice(1);
-    return dataLines
-      .map((line) => {
-        const parts = this.parseCSVLine(line);
-        return {
-          entityType: parts[0] as TranslatableEntityType,
-          entityId: parts[1] || '',
-          language: parts[2] || '',
-          field: parts[3] || '',
-          value: parts[4] || '',
-        };
-      })
-      .filter((t) => t.entityId && t.language && t.field && t.value);
+    // Keep every non-blank row so incomplete rows surface as row errors on import.
+    const dataLines = lines.slice(1).filter((line) => line.trim() !== '');
+    return dataLines.map((line) => {
+      const parts = this.parseCSVLine(line.replace(/\r$/, ''));
+      return {
+        entityType: parts[0] as TranslatableEntityType,
+        entityId: parts[1] || '',
+        language: parts[2] || '',
+        field: parts[3] || '',
+        value: parts[4] || '',
+      };
+    });
   }
 
   private parseJSONTranslations(content: string): Array<{

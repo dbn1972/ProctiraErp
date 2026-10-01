@@ -19,6 +19,53 @@ export interface GISServiceConfig {
   supportedCRS: string[];
 }
 
+function invalidLayerData(message: string, field = 'data'): ValidationError {
+  return new ValidationError('Validation failed', [{ field, message, rule: 'format' }]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requireGeometry(feature: Record<string, unknown>, index: number): Record<string, unknown> {
+  const geometry = feature.geometry;
+  if (!isRecord(geometry) || typeof geometry.type !== 'string') {
+    throw invalidLayerData(`Feature ${index} has no valid geometry`, `data.features.${index}`);
+  }
+  return geometry;
+}
+
+function toFeature(feature: Record<string, unknown>, index: number): GISFeature {
+  const geometry = requireGeometry(feature, index);
+  return {
+    id: uuidv4(),
+    type: geometry.type as string,
+    geometry,
+    properties: isRecord(feature.properties) ? feature.properties : {},
+    index,
+  };
+}
+
+/** Convert parsed GeoJSON into features; rejects unsupported shapes. */
+function toFeatures(input: unknown, allowFeatureOrGeometry: boolean): GISFeature[] {
+  if (!isRecord(input)) throw invalidLayerData('Layer data must be a GeoJSON object');
+  if (input.type === 'FeatureCollection' && Array.isArray(input.features)) {
+    return input.features.map((feature: unknown, index) => {
+      if (!isRecord(feature)) {
+        throw invalidLayerData(`Feature ${index} is not an object`, `data.features.${index}`);
+      }
+      return toFeature(feature, index);
+    });
+  }
+  if (allowFeatureOrGeometry && input.type === 'Feature') {
+    return [toFeature(input, 0)];
+  }
+  if (allowFeatureOrGeometry && typeof input.type === 'string' && input.coordinates) {
+    return [toFeature({ geometry: input }, 0)];
+  }
+  throw invalidLayerData('Unsupported GeoJSON structure');
+}
+
 export class GISService {
   constructor(
     private readonly gisRepository: GISRepository,
@@ -198,94 +245,34 @@ export class GISService {
   }
 
   /**
-   * Parse GeoJSON string into features.
+   * Parse GeoJSON (raw JSON or base64 JSON) into features.
+   * Throws ValidationError on unparseable input or features without geometry.
    */
   private parseGeoJSON(data: string): GISFeature[] {
+    let geojson: unknown;
     try {
-      let geojson: unknown;
-
-      // Try parsing as raw JSON first, then as base64
-      try {
-        geojson = JSON.parse(data);
-      } catch {
-        const decoded = Buffer.from(data, 'base64').toString('utf-8');
-        geojson = JSON.parse(decoded);
-      }
-
-      if (!geojson || typeof geojson !== 'object') {
-        return [];
-      }
-
-      const geoObj = geojson as Record<string, unknown>;
-
-      // Handle FeatureCollection
-      if (geoObj.type === 'FeatureCollection' && Array.isArray(geoObj.features)) {
-        return (geoObj.features as Record<string, unknown>[]).map((feature, index) => ({
-          id: uuidv4(),
-          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-          geometry: feature.geometry as Record<string, unknown>,
-          properties: (feature.properties as Record<string, unknown>) || {},
-          index,
-        }));
-      }
-
-      // Handle single Feature
-      if (geoObj.type === 'Feature') {
-        return [
-          {
-            id: uuidv4(),
-            type: ((geoObj.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-            geometry: geoObj.geometry as Record<string, unknown>,
-            properties: (geoObj.properties as Record<string, unknown>) || {},
-            index: 0,
-          },
-        ];
-      }
-
-      // Handle bare geometry
-      if (geoObj.type && geoObj.coordinates) {
-        return [
-          {
-            id: uuidv4(),
-            type: geoObj.type as string,
-            geometry: geoObj,
-            properties: {},
-            index: 0,
-          },
-        ];
-      }
-
-      return [];
+      geojson = JSON.parse(data);
     } catch {
-      return [];
+      try {
+        geojson = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
+      } catch {
+        throw invalidLayerData('Layer data is not valid GeoJSON');
+      }
     }
+    return toFeatures(geojson, true);
   }
 
   /**
-   * Parse Shapefile data (base64-encoded) into features.
-   * In a production environment, this would use a library like shpjs.
-   * For now, we parse a simplified representation.
+   * Parse Shapefile data (base64-encoded JSON FeatureCollection representation).
+   * Binary .shp/.dbf parsing is not implemented (see PRC-L457).
    */
   private parseShapefile(data: string): GISFeature[] {
+    let parsed: unknown;
     try {
-      // Shapefile data is expected as base64-encoded JSON representation
-      // In production, this would use shpjs or similar to parse .shp/.dbf/.shx
-      const decoded = Buffer.from(data, 'base64').toString('utf-8');
-      const parsed = JSON.parse(decoded) as { type?: unknown; features?: unknown } | null;
-
-      if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
-        return (parsed.features as Record<string, unknown>[]).map((feature, index) => ({
-          id: uuidv4(),
-          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
-          geometry: feature.geometry as Record<string, unknown>,
-          properties: (feature.properties as Record<string, unknown>) || {},
-          index,
-        }));
-      }
-
-      return [];
+      parsed = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
     } catch {
-      return [];
+      throw invalidLayerData('Shapefile data could not be parsed');
     }
+    return toFeatures(parsed, false);
   }
 }
