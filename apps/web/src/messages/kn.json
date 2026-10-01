@@ -465,7 +465,13 @@
     "statusDraft": "ಕರಡು",
     "statusOpen": "ಅರ್ಜಿ ಅವಧಿ ತೆರೆದಿದೆ",
     "statusClosed": "ಮುಚ್ಚಲಾಗಿದೆ",
-    "statusArchived": "ಆರ್ಕೈವ್ ಮಾಡಲಾಗಿದೆ"
+    "statusArchived": "ಆರ್ಕೈವ್ ಮಾಡಲಾಗಿದೆ",
+    "statusFilterLabel": "ಅರ್ಜಿ ಸ್ಥಿತಿ",
+    "statusFilterAll": "ಎಲ್ಲಾ",
+    "statusFilterPending": "ಬಾಕಿ",
+    "statusFilterUnderReview": "ಪರಿಶೀಲನೆಯಲ್ಲಿ",
+    "statusFilterApproved": "ಅನುಮೋದಿಸಲಾಗಿದೆ",
+    "statusFilterRejected": "ತಿರಸ್ಕರಿಸಲಾಗಿದೆ"
   },
   "lms": {
     "title": "ಕಲಿಕೆ · ಅಸೈನ್‌ಮೆಂಟ್, ಮನೆಕೆಲಸ ಮತ್ತು ಕ್ವಿಜ್",
@@ -620,7 +626,13 @@
     "fieldSkillName": "ಹೆಸರು",
     "fieldPrerequisite": "ಪೂರ್ವಾಪೇಕ್ಷೆ",
     "fieldPrerequisiteHint": "ವಿದ್ಯಾರ್ಥಿಗಳು ಮೊದಲು ಇದರಲ್ಲಿ ಪ್ರಾವೀಣ್ಯ ಪಡೆಯಬೇಕು",
-    "createSkill": "ಕೌಶಲ್ಯ ರಚಿಸಿ"
+    "createSkill": "ಕೌಶಲ್ಯ ರಚಿಸಿ",
+    "rubricsTitle": "ರೂಬ್ರಿಕ್‌ಗಳು",
+    "rubricsSubtitle": "ಮಾನದಂಡಗಳು × ಹಂತಗಳು. ಅಸೈನ್‌ಮೆಂಟ್‌ಗಳು ಮತ್ತು ಪ್ರಬಂಧ ಬ್ಯಾಂಕ್ ಐಟಂಗಳಿಗೆ ಲಗತ್ತಿಸಿ, ನಂತರ ಸಲ್ಲಿಕೆಗಳನ್ನು ಮೌಲ್ಯಮಾಪನ ಮಾಡಿ.",
+    "rubricsNew": "ಹೊಸ ರೂಬ್ರಿಕ್",
+    "rubricsEmptyTitle": "ಇನ್ನೂ ರೂಬ್ರಿಕ್‌ಗಳಿಲ್ಲ",
+    "rubricsEmptyBody": "ಪ್ರಬಂಧಗಳನ್ನು ಮೌಲ್ಯಮಾಪನ ಮಾಡಲು ರೂಬ್ರಿಕ್ ರಚಿಸಿ.",
+    "rubricsAnySubject": "ಯಾವುದೇ ವಿಷಯ"
   },
   "health": {
     "title": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು",
@@ -865,5 +877,16 @@
     "managePlans": "ಯೋಜನೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     "manageInvoices": "ಇನ್‌ವಾಯ್ಸ್‌ಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     "viewReceipts": "ರಸೀದಿಗಳನ್ನು ವೀಕ್ಷಿಸಿ"
+  },
+  "notifications": {
+    "title": "ಅಧಿಸೂಚನೆಗಳು",
+    "subtitle": "ನಿಮ್ಮ ಶಾಲಾ ಎಚ್ಚರಿಕೆಗಳಿಗಾಗಿ ಆ್ಯಪ್ ಇನ್‌ಬಾಕ್ಸ್. ಇಮೇಲ್, ಪುಶ್ ಮತ್ತು SMS ಆದ್ಯತೆಗಳನ್ನು ಯಾವಾಗ ಬೇಕಾದರೂ ನಿರ್ವಹಿಸಿ.",
+    "preferences": "ಆದ್ಯತೆಗಳು",
+    "rules": "ಅಧಿಸೂಚನೆ ನಿಯಮಗಳು",
+    "inbox": "ಇನ್‌ಬಾಕ್ಸ್",
+    "inboxDescription": "ನಿಮ್ಮ ಸೈನ್-ಇನ್ ಖಾತೆಗಾಗಿ ಎಚ್ಚರಿಕೆಗಳು.",
+    "empty": "ಇನ್ನೂ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ. ಇಮೇಲ್, ಪುಶ್ ಅಥವಾ SMS ಆಯ್ಕೆ ಮಾಡಲು ಆದ್ಯತೆಗಳನ್ನು ಬಳಸಿ — ಮೊಬೈಲ್ ಎಚ್ಚರಿಕೆಗಳಿಗಾಗಿ ಸಾಧನವನ್ನು ನೋಂದಾಯಿಸಿ.",
+    "read": "ಓದಿದ",
+    "unread": "ಓದದ"
   }
 }

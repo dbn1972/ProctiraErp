@@ -1,6 +1,7 @@
 /**
  * Rubrics (G-915).
  */
+import { getTranslations } from 'next-intl/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { listRubrics } from '@/lib/api/lms';
@@ -13,21 +14,23 @@ import { RubricForm } from '../_components/rubric-form';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsRubricsPage() {
-  const [items, schools] = await Promise.all([listRubrics(), loadInstitutionOptions()]);
+  const [items, schools, t] = await Promise.all([
+    listRubrics(),
+    loadInstitutionOptions(),
+    getTranslations('lms'),
+  ]);
   return (
     <section className="space-y-6" aria-labelledby="lms-rubrics-heading">
       <div>
         <h1 id="lms-rubrics-heading" className="text-3xl font-extrabold tracking-tight">
-          Rubrics
+          {t('rubricsTitle')}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Criteria × levels. Attach to assignments and essay bank items, then grade submissions.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('rubricsSubtitle')}</p>
       </div>
       <LmsSubnav current="/lms/rubrics" />
       <Card>
         <CardHeader>
-          <CardTitle>New rubric</CardTitle>
+          <CardTitle>{t('rubricsNew')}</CardTitle>
         </CardHeader>
         <CardContent>
           <RubricForm schools={schools} />
@@ -36,7 +39,7 @@ export default async function LmsRubricsPage() {
       {items.length === 0 ? (
         <Card>
           <CardContent>
-            <EmptyState title="No rubrics yet" description="Create a rubric to grade essays." />
+            <EmptyState title={t('rubricsEmptyTitle')} description={t('rubricsEmptyBody')} />
           </CardContent>
         </Card>
       ) : (
@@ -44,7 +47,9 @@ export default async function LmsRubricsPage() {
           {items.map((item) => (
             <li key={item.id} className="rounded-md border p-4" data-testid="lms-rubric-row">
               <p className="font-semibold">{item.name}</p>
-              <p className="text-xs text-muted-foreground">{item.subject ?? 'Any subject'}</p>
+              <p className="text-xs text-muted-foreground">
+                {item.subject ?? t('rubricsAnySubject')}
+              </p>
             </li>
           ))}
         </ul>
