@@ -1,8 +1,73 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { useForm, type RegisterOptions } from 'react-hook-form';
-import type { FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { get, useForm, type RegisterOptions } from 'react-hook-form';
+
+import { compileSchemaPattern } from './pattern-safety';
+import type { FormBuilderLabels, FormBuilderProps, FormFieldSchema, ValidationRule } from './types';
+
+const looselyEqual = (a: unknown, b: unknown): boolean =>
+  a === b ||
+  (a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b));
+
+/** Evaluate a field's `visibleWhen` against current form values. */
+function isVisibleIn(field: FormFieldSchema, values: Record<string, unknown>): boolean {
+  if (!field.visibleWhen) return true;
+  const { field: depField, value, operator = 'eq' } = field.visibleWhen;
+  const actual: unknown = get(values, depField);
+  switch (operator) {
+    case 'neq':
+      return !looselyEqual(actual, value);
+    case 'in':
+      return Array.isArray(value) && value.some((v) => looselyEqual(actual, v));
+    default:
+      return looselyEqual(actual, value);
+  }
+}
+
+/** Remove a (possibly dotted) key from a nested object in place. */
+function unsetPath(target: Record<string, unknown>, path: string): void {
+  const parts = path.split('.');
+  let node: unknown = target;
+  for (const part of parts.slice(0, -1)) {
+    if (node === null || typeof node !== 'object') return;
+    node = (node as Record<string, unknown>)[part];
+  }
+  if (node !== null && typeof node === 'object') {
+    delete (node as Record<string, unknown>)[parts[parts.length - 1] as string];
+  }
+}
+
+/** English fallbacks for built-in strings; override via the `labels` prop. */
+export const DEFAULT_FORM_BUILDER_LABELS: Required<FormBuilderLabels> = {
+  selectPlaceholder: 'Select...',
+  submit: 'Submit',
+  submitting: 'Submitting...',
+  cancel: 'Cancel',
+  errorSummaryTitle: 'There is a problem',
+  submitError: 'Something went wrong. Please try again.',
+};
+
+/** Module constant so the default prop keeps a stable identity across renders. */
+const EMPTY_DEFAULTS: Record<string, unknown> = Object.freeze({}) as Record<string, unknown>;
+
+/** Content key for defaultValues so inline object literals do not trigger resets. */
+function defaultsKeyOf(values: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(values);
+  } catch {
+    return String(Math.random());
+  }
+}
+
+/** Deep-copy plain form data (falls back to a shallow copy for non-cloneable values). */
+function structuredCloneSafe(data: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return structuredClone(data);
+  } catch {
+    return { ...data };
+  }
+}
 
 /**
  * FormBuilder component for dynamic form rendering from JSON schema.
@@ -25,16 +90,20 @@ export function FormBuilder({
   schema,
   onSubmit,
   onCancel,
-  defaultValues = {},
+  defaultValues = EMPTY_DEFAULTS,
   loading = false,
   className = '',
   ariaLabel,
+  onSubmitError,
+  labels,
 }: FormBuilderProps) {
+  const t = { ...DEFAULT_FORM_BUILDER_LABELS, ...labels };
   const allFields = useMemo(
     () => schema.sections.flatMap((section) => section.fields),
     [schema.sections],
   );
 
+  const defaultsKey = defaultsKeyOf(defaultValues);
   const computedDefaults = useMemo(() => {
     const defaults: Record<string, unknown> = { ...defaultValues };
     for (const field of allFields) {
@@ -43,16 +112,28 @@ export function FormBuilder({
       }
     }
     return defaults;
-  }, [allFields, defaultValues]);
+    // defaultsKey tracks defaultValues by content, not identity.
+  }, [allFields, defaultsKey]);
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
+    reset,
+    formState: { errors, isSubmitting, submitCount },
   } = useForm({
     defaultValues: computedDefaults,
   });
+
+  // Re-populate the form when defaults change after mount (e.g. async-loaded record).
+  const mountedDefaults = useRef(computedDefaults);
+  useEffect(() => {
+    if (mountedDefaults.current === computedDefaults) return;
+    mountedDefaults.current = computedDefaults;
+    reset(computedDefaults);
+  }, [computedDefaults, reset]);
+
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const watchedValues = watch();
 
@@ -77,19 +158,72 @@ export function FormBuilder({
         case 'max':
           options.max = { value: Number(rule.value), message: rule.message };
           break;
-        case 'pattern':
-          options.pattern = { value: new RegExp(String(rule.value)), message: rule.message };
+        case 'pattern': {
+          // Never compile untrusted patterns unguarded: invalid or catastrophic
+          // patterns are skipped (and logged) instead of crashing/hanging render.
+          const compiled = compileSchemaPattern(rule.value);
+          if (compiled.ok) {
+            options.pattern = { value: compiled.regex, message: rule.message };
+          } else {
+            console.error(`[FormBuilder] Ignoring pattern rule: ${compiled.reason}`);
+          }
           break;
+        }
       }
     }
     return options;
   };
 
-  const isFieldVisible = (field: FormFieldSchema): boolean => {
-    if (!field.visibleWhen) return true;
-    const { field: depField, value } = field.visibleWhen;
-    return watchedValues[depField] === value;
+  // Compile validation once per schema change, not on every render.
+  const validationByField = useMemo(
+    () => new Map(allFields.map((f) => [f.name, buildValidation(f.validation)])),
+    [allFields],
+  );
+
+  const isFieldVisible = (field: FormFieldSchema): boolean => isVisibleIn(field, watchedValues);
+
+  /** Hidden (visibleWhen=false) fields must not leak stale values into the payload. */
+  const withoutHiddenFields = (data: Record<string, unknown>): Record<string, unknown> => {
+    const result = structuredCloneSafe(data);
+    for (const field of allFields) {
+      if (!isVisibleIn(field, data)) unsetPath(result, field.name);
+    }
+    return result;
   };
+
+  // RHF also passes the submit event; forward it to keep the existing call shape.
+  // A rejected onSubmit is caught and surfaced (role=alert) instead of becoming an
+  // unhandled rejection; isSubmitting then clears so the submit button re-enables.
+  const submitVisible = async (data: Record<string, unknown>, event?: React.BaseSyntheticEvent) => {
+    setSubmitError(null);
+    try {
+      await (
+        onSubmit as (
+          d: Record<string, unknown>,
+          e?: React.BaseSyntheticEvent,
+        ) => void | Promise<void>
+      )(withoutHiddenFields(data), event);
+    } catch (err) {
+      onSubmitError?.(err);
+      setSubmitError(err instanceof Error && err.message ? err.message : t.submitError);
+    }
+  };
+
+  const formRef = useRef<HTMLFormElement>(null);
+  /** Focus the first enabled control registered under `name` (works for groups too). */
+  const focusField = (name: string) => {
+    const controls = Array.from(formRef.current?.elements ?? []) as HTMLElement[];
+    controls
+      .find((el) => el.getAttribute('name') === name && !(el as HTMLInputElement).disabled)
+      ?.focus();
+  };
+
+  const errorSummaryHeadingId = `${useId()}-error-summary`;
+  const errorSummaryItems = allFields.flatMap((field) => {
+    const fieldError = get(errors, field.name) as { message?: unknown } | undefined;
+    if (!fieldError || !isFieldVisible(field)) return [];
+    return [{ field, message: String(fieldError.message ?? '') }];
+  });
 
   const renderField = (field: FormFieldSchema) => {
     if (!isFieldVisible(field)) return null;
@@ -97,8 +231,8 @@ export function FormBuilder({
     const fieldId = `field-${field.name}`;
     const errorId = `${fieldId}-error`;
     const helpId = `${fieldId}-help`;
-    const error = errors[field.name];
-    const validation = buildValidation(field.validation);
+    const error = get(errors, field.name) as { message?: unknown } | undefined;
+    const validation = validationByField.get(field.name) ?? {};
 
     const ariaDescribedBy =
       [field.helpText ? helpId : null, error ? errorId : null].filter(Boolean).join(' ') ||
@@ -108,11 +242,18 @@ export function FormBuilder({
       id: fieldId,
       disabled: field.disabled || loading,
       readOnly: field.readOnly,
-      'aria-invalid': !!error as boolean,
+      'aria-invalid': !!error,
       'aria-describedby': ariaDescribedBy,
       'aria-required': validation.required ? true : undefined,
       className: `proctira-form__input ${error ? 'proctira-form__input--error' : ''}`,
     };
+
+    const requiredMarker = validation.required ? (
+      <span className="proctira-form__required" aria-hidden="true">
+        {' '}
+        *
+      </span>
+    ) : null;
 
     let input: React.ReactNode;
 
@@ -131,7 +272,7 @@ export function FormBuilder({
       case 'select':
         input = (
           <select {...commonProps} {...register(field.name, validation)}>
-            <option value="">{field.placeholder ?? 'Select...'}</option>
+            <option value="">{field.placeholder ?? t.selectPlaceholder}</option>
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                 {opt.label}
@@ -144,12 +285,17 @@ export function FormBuilder({
       case 'radio':
         input = (
           <fieldset
+            id={fieldId}
             className="proctira-form__radio-group"
             role="radiogroup"
             aria-labelledby={`${fieldId}-legend`}
+            aria-describedby={ariaDescribedBy}
+            aria-invalid={!!error}
+            aria-required={validation.required ? true : undefined}
           >
             <legend id={`${fieldId}-legend`} className="proctira-form__legend">
               {field.label}
+              {requiredMarker}
             </legend>
             {field.options?.map((opt) => (
               <label key={opt.value} className="proctira-form__radio-label">
@@ -177,6 +323,7 @@ export function FormBuilder({
               className="proctira-form__checkbox-input"
             />
             {field.label}
+            {requiredMarker}
           </label>
         );
         break;
@@ -202,12 +349,7 @@ export function FormBuilder({
         {field.type !== 'checkbox' && field.type !== 'radio' && (
           <label htmlFor={fieldId} className="proctira-form__label">
             {field.label}
-            {validation.required && (
-              <span className="proctira-form__required" aria-hidden="true">
-                {' '}
-                *
-              </span>
-            )}
+            {requiredMarker}
           </label>
         )}
         {input}
@@ -217,8 +359,8 @@ export function FormBuilder({
           </p>
         )}
         {error && (
-          <p id={errorId} className="proctira-form__error" role="alert" aria-live="polite">
-            {error.message as string}
+          <p id={errorId} className="proctira-form__error" role="alert">
+            {String(error.message ?? '')}
           </p>
         )}
       </div>
@@ -227,13 +369,41 @@ export function FormBuilder({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      ref={formRef}
+      onSubmit={(e) => void handleSubmit(submitVisible)(e)}
       className={`proctira-form ${className}`}
       aria-label={ariaLabel ?? schema.title ?? 'Form'}
       noValidate
     >
       {schema.title && <h2 className="proctira-form__title">{schema.title}</h2>}
       {schema.description && <p className="proctira-form__description">{schema.description}</p>}
+
+      {submitCount > 0 && errorSummaryItems.length > 0 && (
+        <div
+          className="proctira-form__error-summary"
+          aria-labelledby={errorSummaryHeadingId}
+          tabIndex={-1}
+        >
+          <h3 id={errorSummaryHeadingId} className="proctira-form__error-summary-title">
+            {t.errorSummaryTitle}
+          </h3>
+          <ul>
+            {errorSummaryItems.map(({ field, message }) => (
+              <li key={field.name}>
+                <a
+                  href={`#field-${field.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    focusField(field.name);
+                  }}
+                >
+                  {field.label}: {message}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {schema.sections.map((section, sectionIndex) => (
         <fieldset key={sectionIndex} className="proctira-form__section">
@@ -245,6 +415,12 @@ export function FormBuilder({
         </fieldset>
       ))}
 
+      {submitError && (
+        <div className="proctira-form__submit-error" role="alert">
+          {submitError}
+        </div>
+      )}
+
       <div className="proctira-form__actions">
         {onCancel && (
           <button
@@ -253,7 +429,7 @@ export function FormBuilder({
             disabled={loading || isSubmitting}
             className="proctira-form__cancel-btn"
           >
-            {schema.cancelLabel ?? 'Cancel'}
+            {schema.cancelLabel ?? t.cancel}
           </button>
         )}
         <button
@@ -262,7 +438,7 @@ export function FormBuilder({
           className="proctira-form__submit-btn"
           aria-busy={isSubmitting}
         >
-          {isSubmitting ? 'Submitting...' : (schema.submitLabel ?? 'Submit')}
+          {isSubmitting ? t.submitting : (schema.submitLabel ?? t.submit)}
         </button>
       </div>
     </form>

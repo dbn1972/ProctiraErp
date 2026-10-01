@@ -1,6 +1,7 @@
-export { FormBuilder } from './FormBuilder';
+export { FormBuilder, DEFAULT_FORM_BUILDER_LABELS } from './FormBuilder';
 export type {
   FormBuilderProps,
+  FormBuilderLabels,
   FormSchema,
   FormSection,
   FormFieldSchema,
@@ -8,3 +9,10 @@ export type {
   FieldOption,
   ValidationRule,
 } from './types';
+export {
+  compileSchemaPattern,
+  validateSchemaPatterns,
+  MAX_PATTERN_LENGTH,
+  type PatternCheck,
+  type SchemaPatternIssue,
+} from './pattern-safety';

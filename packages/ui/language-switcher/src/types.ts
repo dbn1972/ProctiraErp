@@ -11,6 +11,22 @@ export interface Language {
   flag?: string;
 }
 
+/** Built-in (screen-reader and visible) strings; supply translations via `labels`. */
+export interface LanguageSwitcherLabels {
+  /** Group name, e.g. "Language selection" */
+  group?: string;
+  /** Appended to the trigger name: "<native name> – Change language" */
+  changeLanguage?: string;
+  /** Name of the language list */
+  availableLanguages?: string;
+  /** Visible text of the RTL toggle */
+  rtlToggle?: string;
+  /** Appended to the RTL toggle name: "RTL (right-to-left layout)" */
+  rtlToggleDescription?: string;
+  /** Visible badge on RTL languages */
+  rtlBadge?: string;
+}
+
 export interface LanguageSwitcherProps {
   /** Available languages */
   languages: Language[];
@@ -30,4 +46,13 @@ export interface LanguageSwitcherProps {
   disabled?: boolean;
   /** Additional CSS class name */
   className?: string;
+  /** Localised overrides for built-in strings */
+  labels?: LanguageSwitcherLabels;
+  /**
+   * When true (default), selecting a language calls `onRtlToggle(lang.rtl)`,
+   * clearing any manual RTL override. Set false to keep a manual override.
+   */
+  rtlFollowsLanguage?: boolean;
+  /** When true, sets `<html lang dir>` from the current language/RTL state. */
+  applyToDocument?: boolean;
 }
