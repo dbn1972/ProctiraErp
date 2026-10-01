@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
+import '../../features/notifications/data/local_notification_preferences.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import 'local_notifications.dart';
 import 'notification_router.dart';
@@ -52,16 +53,17 @@ class FcmService {
     required NotificationRouter router,
     required LocalNotifications localNotifications,
     FirebaseMessaging? messaging,
-    Future<void> Function(FirebaseOptions? options)?
-        firebaseInitialiser,
+    Future<void> Function(FirebaseOptions? options)? firebaseInitialiser,
     FirebaseOptions? firebaseOptions,
-  })  : _deviceApi = deviceApi,
-        _repository = repository,
-        _router = router,
-        _localNotifications = localNotifications,
-        _messagingOverride = messaging,
-        _firebaseInitialiser = firebaseInitialiser,
-        _firebaseOptions = firebaseOptions;
+    Future<LocalNotificationPreferences> Function()? preferencesLoader,
+  }) : _deviceApi = deviceApi,
+       _preferencesLoader = preferencesLoader,
+       _repository = repository,
+       _router = router,
+       _localNotifications = localNotifications,
+       _messagingOverride = messaging,
+       _firebaseInitialiser = firebaseInitialiser,
+       _firebaseOptions = firebaseOptions;
 
   final NotificationDeviceApi _deviceApi;
   final NotificationRepository _repository;
@@ -70,6 +72,7 @@ class FcmService {
   final FirebaseMessaging? _messagingOverride;
   final Future<void> Function(FirebaseOptions? options)? _firebaseInitialiser;
   final FirebaseOptions? _firebaseOptions;
+  final Future<LocalNotificationPreferences> Function()? _preferencesLoader;
 
   bool _started = false;
   String? _token;
@@ -105,11 +108,7 @@ class FcmService {
 
     try {
       // iOS / web request a permission prompt; Android <13 no-ops.
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
 
       // Foreground display style on iOS so banners / sounds appear.
       await messaging.setForegroundNotificationPresentationOptions(
@@ -161,8 +160,8 @@ class FcmService {
       final String platform = Platform.isIOS
           ? 'ios'
           : Platform.isAndroid
-              ? 'android'
-              : 'other';
+          ? 'android'
+          : 'other';
       await _deviceApi.registerDevice(
         deviceToken: token,
         platform: platform,
@@ -173,10 +172,36 @@ class FcmService {
     }
   }
 
+  Future<LocalNotificationPreferences> _loadPreferences() async {
+    final Future<LocalNotificationPreferences> Function()? loader =
+        _preferencesLoader;
+    if (loader == null) {
+      return const LocalNotificationPreferences();
+    }
+    try {
+      return await loader();
+    } catch (error) {
+      debugPrint('Notification preferences unreadable: $error');
+      return const LocalNotificationPreferences();
+    }
+  }
+
+  /// Foreground push handler. Honours the device-local preferences: a
+  /// disabled category (or channel) is neither shown nor inserted into the
+  /// inbox (PRC-L013).
+  @visibleForTesting
+  Future<void> handleForegroundMessage(RemoteMessage message) =>
+      _onForegroundMessage(message);
+
   Future<void> _onForegroundMessage(RemoteMessage message) async {
-    await _persist(message);
+    final LocalNotificationPreferences prefs = await _loadPreferences();
+    final Object? rawType = message.data['type'];
+    final String? type = rawType is String ? rawType : null;
+    if (prefs.allowsInbox(type)) {
+      await _persist(message);
+    }
     final RemoteNotification? notification = message.notification;
-    if (notification != null) {
+    if (notification != null && prefs.allowsDeviceAlert(type)) {
       await _localNotifications.show(
         id: message.messageId.hashCode,
         title: notification.title ?? 'ProctiraERP',
@@ -231,7 +256,9 @@ class FcmService {
     try {
       final dynamic decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) return decoded;
-    } catch (_) {/* ignore */}
+    } catch (_) {
+      /* ignore */
+    }
     return null;
   }
 }

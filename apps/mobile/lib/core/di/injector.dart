@@ -9,6 +9,7 @@ import '../../features/attendance/data/attendance_repository.dart';
 import '../../features/examination/data/examination_repository.dart';
 import '../../features/health/data/health_repository.dart';
 import '../../features/institutions/data/institution_repository.dart';
+import '../../features/notifications/data/local_notification_preferences.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../../features/parent_portal/data/parent_portal_repository.dart';
 import '../../features/scholarship/data/scholarship_repository.dart';
@@ -57,8 +58,9 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   final SecureStorage secureStorage = SecureStorage(rawStorage);
   getIt.registerSingleton<SecureStorage>(secureStorage);
 
-  final CacheCrypto cacheCrypto =
-      await CacheCrypto.fromSecureStorage(secureStorage);
+  final CacheCrypto cacheCrypto = await CacheCrypto.fromSecureStorage(
+    secureStorage,
+  );
   getIt.registerSingleton<CacheCrypto>(cacheCrypto);
 
   final AppDatabase database = AppDatabase();
@@ -69,8 +71,9 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   await tenantProvider.bootstrap();
   getIt.registerSingleton<TenantProvider>(tenantProvider);
 
-  final SelectedStudentStore selectedStudent =
-      SelectedStudentStore(secureStorage);
+  final SelectedStudentStore selectedStudent = SelectedStudentStore(
+    secureStorage,
+  );
   await selectedStudent.bootstrap();
   getIt.registerSingleton<SelectedStudentStore>(selectedStudent);
 
@@ -96,18 +99,18 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     InterceptorsWrapper(
       onRequest:
           (RequestOptions options, RequestInterceptorHandler handler) async {
-        final String? tenantId = tenantProvider.tenantId;
-        if (tenantId != null && tenantId.isNotEmpty) {
-          options.headers['X-Tenant-ID'] = tenantId;
-        }
-        if (!_isAuthPublicPath(options.path)) {
-          final String? access = await secureStorage.readAccessToken();
-          if (access != null && access.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $access';
-          }
-        }
-        handler.next(options);
-      },
+            final String? tenantId = tenantProvider.tenantId;
+            if (tenantId != null && tenantId.isNotEmpty) {
+              options.headers['X-Tenant-ID'] = tenantId;
+            }
+            if (!_isAuthPublicPath(options.path)) {
+              final String? access = await secureStorage.readAccessToken();
+              if (access != null && access.isNotEmpty) {
+                options.headers['Authorization'] = 'Bearer $access';
+              }
+            }
+            handler.next(options);
+          },
       onError: (DioException error, ErrorInterceptorHandler handler) async {
         final Response<dynamic>? response = error.response;
         final RequestOptions request = error.requestOptions;
@@ -130,9 +133,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
           final Response<dynamic> refreshResponse = await dio.post<dynamic>(
             '/api/v1/auth/refresh',
             data: <String, dynamic>{'refreshToken': refreshToken},
-            options: Options(
-              extra: <String, dynamic>{'authRetried': true},
-            ),
+            options: Options(extra: <String, dynamic>{'authRetried': true}),
           );
           final Object? body = refreshResponse.data;
           if (body is! Map<String, dynamic>) {
@@ -149,10 +150,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
               ...request.headers,
               'Authorization': 'Bearer ${tokens.accessToken}',
             },
-            extra: <String, dynamic>{
-              ...request.extra,
-              'authRetried': true,
-            },
+            extra: <String, dynamic>{...request.extra, 'authRetried': true},
           );
           final Response<dynamic> replay = await dio.fetch<dynamic>(retry);
           handler.resolve(replay);
@@ -180,9 +178,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   getIt.registerLazySingleton<NotificationDeviceApi>(
     () => NotificationDeviceApi(getIt<Dio>()),
   );
-  getIt.registerLazySingleton<ReportApi>(
-    () => ReportApi(getIt<Dio>()),
-  );
+  getIt.registerLazySingleton<ReportApi>(() => ReportApi(getIt<Dio>()));
 
   // Offline-first sync engine.
   getIt.registerLazySingleton<ConnectivityMonitor>(
@@ -194,8 +190,9 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       tenantProvider: getIt<TenantProvider>(),
       connectivity: getIt<ConnectivityMonitor>(),
       dispatchers: <SyncEntityType, SyncDispatcher>{
-        SyncEntityType.attendance:
-            AttendanceSyncDispatcher(getIt<AttendanceApi>()),
+        SyncEntityType.attendance: AttendanceSyncDispatcher(
+          getIt<AttendanceApi>(),
+        ),
       },
     );
     engine.start();
@@ -280,6 +277,9 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       repository: getIt<NotificationRepository>(),
       router: getIt<NotificationRouter>(),
       localNotifications: getIt<LocalNotifications>(),
+      preferencesLoader: () async => LocalNotificationPreferences.decode(
+        await getIt<SecureStorage>().readNotificationPreferences(),
+      ),
     ),
   );
 
