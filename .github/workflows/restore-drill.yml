@@ -166,8 +166,11 @@ jobs:
         run: |
           set -euo pipefail
           d=/tmp/restore-drill/dumps
-          key="$(mktemp)"
-          trap 'rm -f "$key"' EXIT
+          # age-keygen -o refuses to overwrite an existing file, so a plain
+          # `mktemp` file makes it fail; generate into a fresh private dir.
+          keydir="$(mktemp -d)"
+          key="$keydir/drill-identity.txt"
+          trap 'rm -rf "$keydir"' EXIT
           age-keygen -o "$key" >/dev/null
           pub="$(age-keygen -y "$key")"
           enc_out="$(BACKUP_DIR="$d" BACKUP_ENCRYPT=1 BACKUP_AGE_RECIPIENT="$pub" \
