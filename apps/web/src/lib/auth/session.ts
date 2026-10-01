@@ -10,6 +10,7 @@
 import { withCsrfHeader } from '@/lib/auth/csrf';
 
 import type { AuthUserFromToken } from './auth-user';
+import { decodeJwtPayload } from './jwt-payload';
 
 /** Cookie names used for authentication. */
 export const AUTH_COOKIES = {
@@ -80,19 +81,12 @@ export interface SignInResult {
 }
 
 /**
- * Decodes a JWT token payload without verifying the signature.
- * Used client-side for reading user info from the token; signature
- * verification happens server-side.
+ * Decodes a JWT token payload (base64url + UTF-8) WITHOUT verifying the
+ * signature. Claims are for UX gating only; the API gateway verifies the
+ * token on every forwarded call and is the authorization enforcement point.
  */
 export function decodeTokenPayload(token: string): TokenPayload | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]!));
-    return payload as TokenPayload;
-  } catch {
-    return null;
-  }
+  return decodeJwtPayload<TokenPayload>(token);
 }
 
 /**
