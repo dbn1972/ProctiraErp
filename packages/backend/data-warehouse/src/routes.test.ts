@@ -98,6 +98,51 @@ describe('data-warehouse routes', () => {
     });
   });
 
+  describe('list query validation (PRC-L455)', () => {
+    it('rejects pageSize above 100 with 400', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/warehouses?pageSize=101',
+        headers: { 'x-tenant-id': TENANT_A },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects page=0 and negative page with 400', async () => {
+      for (const page of ['0', '-1', 'abc']) {
+        const res = await app.inject({
+          method: 'GET',
+          url: `/warehouses?page=${page}`,
+          headers: { 'x-tenant-id': TENANT_A },
+        });
+        expect(res.statusCode).toBe(400);
+      }
+    });
+
+    it('validates sub-resource list queries too', async () => {
+      const wh = await createWarehouse();
+      for (const sub of ['indicators', 'units', 'subgroups', 'time-periods', 'areas']) {
+        const res = await app.inject({
+          method: 'GET',
+          url: `/warehouses/${wh}/${sub}?pageSize=500`,
+          headers: { 'x-tenant-id': TENANT_A },
+        });
+        expect(res.statusCode).toBe(400);
+      }
+    });
+
+    it('coerces valid numeric strings', async () => {
+      await createWarehouse();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/warehouses?page=1&pageSize=100',
+        headers: { 'x-tenant-id': TENANT_A },
+      });
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { meta: { pageSize: number } }).meta.pageSize).toBe(100);
+    });
+  });
+
   it('isolates warehouses across tenants (404 cross-tenant)', async () => {
     const wh = await createWarehouse(TENANT_A);
     const res = await app.inject({

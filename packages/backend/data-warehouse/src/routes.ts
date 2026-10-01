@@ -20,7 +20,7 @@
  * POST   /warehouses/:warehouseId/query                 - Query data
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DataWarehouseService } from './data-warehouse-service.js';
@@ -36,8 +36,6 @@ import {
   CreateAreaSchema,
   BulkImportSchema,
   DataQuerySchema,
-  type CreateWarehouseInput,
-  type WarehouseParams,
   type WarehouseListQuery,
 } from './schemas.js';
 
@@ -56,6 +54,28 @@ function sendTenantRequired(reply: FastifyReply) {
     message: 'Tenant context is required',
     statusCode: 400,
   });
+}
+
+/**
+ * Validate list query params (page >= 1, 1 <= pageSize <= 100) with string coercion.
+ * Sends a 400 and returns null when invalid.
+ */
+function parseListQuery(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): { page: number; pageSize: number; search?: string } | null {
+  const result = validateQuery(WarehouseListQuerySchema, request.query ?? {});
+  if (!result.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid list query',
+      statusCode: 400,
+      errors: result.errors,
+    });
+    return null;
+  }
+  const query: WarehouseListQuery = result.data;
+  return { page: query.page ?? 1, pageSize: query.pageSize ?? 20, search: query.search };
 }
 
 function handleError(error: unknown, reply: FastifyReply) {
@@ -99,21 +119,29 @@ export async function registerDataWarehouseRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return sendTenantRequired(reply);
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+    const query = parseListQuery(request, reply);
+    if (!query) return reply;
+    const { page, pageSize } = query;
 
-    const result = await dataWarehouseService.listWarehouses(
-      tenantId,
-      { search: query.search },
-      page,
-      pageSize,
-    );
-
-    return reply.status(200).send({
-      data: result.data,
-      meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
-    });
+    try {
+      const result = await dataWarehouseService.listWarehouses(
+        tenantId,
+        { search: query.search },
+        page,
+        pageSize,
+      );
+      return reply.status(200).send({
+        data: result.data,
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
+      });
+    } catch (error: unknown) {
+      return handleError(error, reply);
+    }
   });
 
   fastify.get(`${prefix}/:warehouseId`, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -256,9 +284,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listIndicators(
@@ -340,9 +368,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listUnits(
@@ -424,9 +452,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listSubgroups(
@@ -508,9 +536,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listTimePeriods(
@@ -592,9 +620,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listAreas(
