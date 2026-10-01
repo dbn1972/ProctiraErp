@@ -12,7 +12,7 @@ import {
   type PaginationState as TanStackPaginationState,
   type ColumnDef,
 } from '@tanstack/react-table';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useId } from 'react';
 
 import type { DataGridProps } from './types';
 
@@ -53,6 +53,10 @@ export function DataGrid<TData>({
   ariaLabel,
   className = '',
 }: DataGridProps<TData>) {
+  // Unique per instance so two grids on a page never share ids (label/for).
+  const idPrefix = useId();
+  const pageSizeSelectId = `${idPrefix}-page-size`;
+  const filterInputId = (columnId: string) => `${idPrefix}-filter-${columnId}`;
   const [sorting, setSorting] = useState<TanStackSortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<TanStackPaginationState>({
@@ -156,9 +160,10 @@ export function DataGrid<TData>({
 
   const getSortAriaLabel = (columnId: string, isSorted: false | 'asc' | 'desc') => {
     if (!isSorted) return `Sort by ${columnId}`;
+    // Keep the column name so the control is identifiable once sorted.
     return isSorted === 'asc'
-      ? `Sorted ascending. Click to sort descending.`
-      : `Sorted descending. Click to clear sort.`;
+      ? `${columnId}, sorted ascending. Click to sort descending.`
+      : `${columnId}, sorted descending. Click to clear sort.`;
   };
 
   return (
@@ -174,13 +179,13 @@ export function DataGrid<TData>({
                 .map((column) => (
                   <div key={column.id} className="proctira-data-grid__filter-field">
                     <label
-                      htmlFor={`filter-${column.id}`}
+                      htmlFor={filterInputId(column.id)}
                       className="proctira-data-grid__filter-label"
                     >
                       {String(column.columnDef.header)}
                     </label>
                     <input
-                      id={`filter-${column.id}`}
+                      id={filterInputId(column.id)}
                       type="text"
                       value={(column.getFilterValue() as string) ?? ''}
                       onChange={(e) => column.setFilterValue(e.target.value || undefined)}
@@ -206,7 +211,13 @@ export function DataGrid<TData>({
       )}
 
       {/* Table */}
-      <div className="proctira-data-grid__table-container" role="presentation">
+      {/* Focusable so keyboard users can scroll a horizontally overflowing table. */}
+      <div
+        className="proctira-data-grid__table-container"
+        role="group"
+        aria-label={`${ariaLabel} (scrollable)`}
+        tabIndex={0}
+      >
         <table
           className="proctira-data-grid__table"
           aria-label={ariaLabel}
@@ -362,9 +373,9 @@ export function DataGrid<TData>({
             </button>
           </div>
           <div className="proctira-data-grid__page-size">
-            <label htmlFor="page-size-select">Rows per page:</label>
+            <label htmlFor={pageSizeSelectId}>Rows per page:</label>
             <select
-              id="page-size-select"
+              id={pageSizeSelectId}
               value={pagination.pageSize}
               onChange={(e) => table.setPageSize(Number(e.target.value))}
               aria-label="Select number of rows per page"

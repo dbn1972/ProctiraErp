@@ -133,3 +133,39 @@ describe('DataGrid server mode and export scope (PRC-L512)', () => {
     expect((onExport.mock.calls[0]![0] as Row[]).length).toBe(25);
   });
 });
+
+describe('DataGrid ids and sort labels (PRC-L513)', () => {
+  it('two grids on one page have unique ids and labels resolve within each grid', () => {
+    const { container } = render(
+      <>
+        <DataGrid data={data} columns={columns} enableFiltering ariaLabel="First" />
+        <DataGrid data={data} columns={columns} enableFiltering ariaLabel="Second" />
+      </>,
+    );
+    const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const grid of screen.getAllByRole('region')) {
+      grid.querySelectorAll('label[for]').forEach((label) => {
+        const target = document.getElementById(label.getAttribute('for')!);
+        expect(target).not.toBeNull();
+        expect(grid.contains(target)).toBe(true);
+      });
+    }
+    expect(screen.getAllByLabelText('Rows per page:')).toHaveLength(2);
+  });
+
+  it('keeps the column name in the sort label once sorted', () => {
+    render(<DataGrid data={data} columns={columns} ariaLabel="G" />);
+    const btn = screen.getByRole('button', { name: /Sort by Name/ });
+    fireEvent.click(btn);
+    expect(btn).toHaveAccessibleName('Name, sorted ascending. Click to sort descending.');
+    fireEvent.click(btn);
+    expect(btn).toHaveAccessibleName('Name, sorted descending. Click to clear sort.');
+  });
+
+  it('makes the overflow container keyboard-focusable with a name', () => {
+    render(<DataGrid data={data} columns={columns} ariaLabel="Students" />);
+    const scroller = screen.getByRole('group', { name: 'Students (scrollable)' });
+    expect(scroller).toHaveAttribute('tabindex', '0');
+  });
+});
