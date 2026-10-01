@@ -2,6 +2,7 @@
  * G-914 — photo / sibling / consent / discipline persistence.
  * Raw pg (db/sql/035, RLS via withPgTenant) or an in-memory map for tests.
  */
+import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type { ConsentKind, DisciplineSeverity, DocumentCategory } from './schemas.js';
@@ -23,6 +24,21 @@ export interface SiblingRecord {
   studentId: string;
   siblingId: string;
   createdAt: Date;
+}
+
+/** PRC-L368: bounded page request / result for per-student lists. */
+export interface ListPage {
+  limit: number;
+  offset: number;
+}
+export interface ListPageResult<T> {
+  data: T[];
+  total: number;
+}
+const DEFAULT_LIST_PAGE: ListPage = { limit: 50, offset: 0 };
+
+function pageOf<T>(rows: T[], page: ListPage): ListPageResult<T> {
+  return { data: rows.slice(page.offset, page.offset + page.limit), total: rows.length };
 }
 
 export interface ConsentRecord {
@@ -92,7 +108,11 @@ export interface Students360Store {
   /** @deprecated Use appendConsent — kept name alias for call-site clarity. */
   upsertConsent(record: ConsentRecord): Promise<ConsentRecord>;
 
-  listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]>;
+  listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DisciplineRecord>>;
   createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord>;
   findDiscipline(
     tenantId: string,
@@ -102,7 +122,11 @@ export interface Students360Store {
   deleteDiscipline(tenantId: string, studentId: string, incidentId: string): Promise<boolean>;
 
   createDocument(record: DocumentRecord): Promise<DocumentRecord>;
-  listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]>;
+  listDocuments(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DocumentRecord>>;
   findDocument(
     tenantId: string,
     studentId: string,
@@ -151,6 +175,13 @@ export class InMemoryStudents360Store implements Students360Store {
   }
 
   async createSiblingPair(forward: SiblingRecord, reverse: SiblingRecord): Promise<SiblingRecord> {
+    const duplicate = Array.from(this.siblings.values()).some(
+      (r) =>
+        r.tenantId === forward.tenantId &&
+        r.studentId === forward.studentId &&
+        r.siblingId === forward.siblingId,
+    );
+    if (duplicate) throw new ConflictError('Sibling link already exists');
     this.siblings.set(forward.id, { ...forward });
     this.siblings.set(reverse.id, { ...reverse });
     return { ...forward };
@@ -189,9 +220,7 @@ export class InMemoryStudents360Store implements Students360Store {
     return Array.from(this.consents.values())
       .filter(
         (r) =>
-          r.tenantId === tenantId &&
-          r.studentId === studentId &&
-          (kind == null || r.kind === kind),
+          r.tenantId === tenantId && r.studentId === studentId && (kind == null || r.kind === kind),
       )
       .sort((a, b) => a.kind.localeCompare(b.kind) || a.version - b.version)
       .map((r) => ({ ...r }));
@@ -225,14 +254,19 @@ export class InMemoryStudents360Store implements Students360Store {
     return this.appendConsent(record);
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
-    return Array.from(this.discipline.values())
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DisciplineRecord>> {
+    const rows = Array.from(this.discipline.values())
       .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
       .sort(
         (a, b) =>
           b.incidentDate.localeCompare(a.incidentDate) ||
           b.createdAt.getTime() - a.createdAt.getTime(),
       );
+    return pageOf(rows, page);
   }
 
   async createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord> {
@@ -266,11 +300,16 @@ export class InMemoryStudents360Store implements Students360Store {
     return { ...copy };
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
-    return Array.from(this.documents.values())
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DocumentRecord>> {
+    const rows = Array.from(this.documents.values())
       .filter((row) => row.tenantId === tenantId && row.studentId === studentId)
       .map((row) => ({ ...row }))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return pageOf(rows, page);
   }
 
   async findDocument(
@@ -282,11 +321,7 @@ export class InMemoryStudents360Store implements Students360Store {
     return row && row.tenantId === tenantId && row.studentId === studentId ? { ...row } : null;
   }
 
-  async deleteDocument(
-    tenantId: string,
-    studentId: string,
-    documentId: string,
-  ): Promise<boolean> {
+  async deleteDocument(tenantId: string, studentId: string, documentId: string): Promise<boolean> {
     const row = this.documents.get(documentId);
     if (!row || row.tenantId !== tenantId || row.studentId !== studentId) return false;
     this.documents.delete(documentId);
@@ -366,9 +401,7 @@ function toConsent(row: ConsentRow): ConsentRecord {
     version: Number(row.version ?? 1),
     supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
     validFrom:
-      row.valid_from instanceof Date
-        ? row.valid_from
-        : new Date(row.valid_from ?? row.recorded_at),
+      row.valid_from instanceof Date ? row.valid_from : new Date(row.valid_from ?? row.recorded_at),
     validTo:
       row.valid_to == null
         ? null
@@ -445,6 +478,43 @@ export class PgStudents360Store implements Students360Store {
     return withPgTenant(this.pool as never, tenantId, fn);
   }
 
+  /**
+   * PRC-L368: total from the window count; when the page is past the end (no
+   * rows) fall back to an explicit COUNT so `total` stays accurate.
+   */
+  private async totalOf(
+    client: PgQueryable,
+    rows: unknown[],
+    page: ListPage,
+    table: 'student_documents' | 'student_discipline_incidents',
+    params: [string, string],
+  ): Promise<number> {
+    const first = rows[0] as { total_count?: unknown } | undefined;
+    if (first?.total_count != null) return Number(first.total_count);
+    if (page.offset === 0) return 0;
+    const { rows: c } = await client.query(
+      `SELECT COUNT(*)::int AS n FROM ${table} WHERE tenant_id = $1 AND student_id = $2`,
+      params,
+    );
+    return Number((c[0] as { n?: unknown } | undefined)?.n ?? 0);
+  }
+
+  /** PRC-L162: run, mapping a unique violation (lost race) to 409 instead of 500. */
+  private async runUnique<T>(
+    tenantId: string,
+    conflictMessage: string,
+    fn: (client: PgQueryable) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.run(tenantId, fn);
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictError(conflictMessage);
+      }
+      throw err;
+    }
+  }
+
   async upsertPhoto(record: PhotoRecord): Promise<PhotoRecord> {
     return this.run(record.tenantId, async (client) => {
       const { rows } = await client.query(
@@ -510,7 +580,7 @@ export class PgStudents360Store implements Students360Store {
   }
 
   async createSiblingPair(forward: SiblingRecord, reverse: SiblingRecord): Promise<SiblingRecord> {
-    return this.run(forward.tenantId, async (client) => {
+    return this.runUnique(forward.tenantId, 'Sibling link already exists', async (client) => {
       await client.query(
         `INSERT INTO student_siblings (id, tenant_id, student_id, sibling_id, created_at)
          VALUES ($1,$2,$3,$4,$5), ($6,$7,$8,$9,$10)`,
@@ -584,11 +654,18 @@ export class PgStudents360Store implements Students360Store {
   }
 
   async appendConsent(record: ConsentRecord): Promise<ConsentRecord> {
-    return this.run(record.tenantId, async (client) => {
+    const conflict = 'Consent was updated concurrently; reload and retry';
+    return this.runUnique(record.tenantId, conflict, async (client) => {
+      // PRC-L162: serialise appends per (tenant, student, kind) — FOR UPDATE alone
+      // cannot lock a row that does not exist yet (first version race).
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+        `student_consent:${record.tenantId}:${record.studentId}:${record.kind}`,
+      ]);
       const prior = await client.query(
         `SELECT * FROM student_consents
           WHERE tenant_id = $1 AND student_id = $2 AND kind = $3 AND valid_to IS NULL
-          LIMIT 1`,
+          LIMIT 1
+          FOR UPDATE`,
         [record.tenantId, record.studentId, record.kind],
       );
       const open = prior.rows[0] as ConsentRow | undefined;
@@ -627,15 +704,26 @@ export class PgStudents360Store implements Students360Store {
     return this.appendConsent(record);
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DisciplineRecord>> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM student_discipline_incidents
+        `SELECT *, COUNT(*) OVER() AS total_count FROM student_discipline_incidents
           WHERE tenant_id = $1 AND student_id = $2
-          ORDER BY incident_date DESC, created_at DESC`,
-        [tenantId, studentId],
+          ORDER BY incident_date DESC, created_at DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, studentId, page.limit, page.offset],
       );
-      return (rows as DisciplineRow[]).map(toDiscipline);
+      return {
+        data: (rows as DisciplineRow[]).map(toDiscipline),
+        total: await this.totalOf(client, rows, page, 'student_discipline_incidents', [
+          tenantId,
+          studentId,
+        ]),
+      };
     });
   }
 
@@ -720,15 +808,23 @@ export class PgStudents360Store implements Students360Store {
     });
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page: ListPage = DEFAULT_LIST_PAGE,
+  ): Promise<ListPageResult<DocumentRecord>> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM student_documents
+        `SELECT *, COUNT(*) OVER() AS total_count FROM student_documents
           WHERE tenant_id = $1 AND student_id = $2
-          ORDER BY created_at DESC`,
-        [tenantId, studentId],
+          ORDER BY created_at DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, studentId, page.limit, page.offset],
       );
-      return (rows as DocumentRow[]).map(toDocument);
+      return {
+        data: (rows as DocumentRow[]).map(toDocument),
+        total: await this.totalOf(client, rows, page, 'student_documents', [tenantId, studentId]),
+      };
     });
   }
 
@@ -747,11 +843,7 @@ export class PgStudents360Store implements Students360Store {
     });
   }
 
-  async deleteDocument(
-    tenantId: string,
-    studentId: string,
-    documentId: string,
-  ): Promise<boolean> {
+  async deleteDocument(tenantId: string, studentId: string, documentId: string): Promise<boolean> {
     return this.run(tenantId, async (client) => {
       const result = await client.query(
         `DELETE FROM student_documents

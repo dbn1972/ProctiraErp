@@ -557,6 +557,9 @@ function formatTransferDetail(record: TransferRecordDetail) {
     ],
     currentStateId: 'completed',
     completedStateIds: ['initiated', 'completed'],
+    // PRC-L161: no approval/equivalency workflow is persisted yet; flag it so
+    // clients render "not available" instead of an empty, apparently-complete list.
+    workflowAvailable: false,
     approvals: [],
     equivalency: [],
     documents: [],

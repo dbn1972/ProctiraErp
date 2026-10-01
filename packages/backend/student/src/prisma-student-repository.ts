@@ -21,6 +21,7 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
+import { admissionNoOf, rethrowUniqueViolation } from './admission-number.js';
 import type {
   StudentContact,
   StudentEntity,
@@ -132,6 +133,18 @@ export class PrismaStudentRepository implements StudentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
+    try {
+      return await this.createInTx(data);
+    } catch (err) {
+      // PRC-L365: duplicate admission number / national ID -> 409; tx rolled back.
+      rethrowUniqueViolation(
+        err,
+        'Student with this admission number or national ID already exists',
+      );
+    }
+  }
+
+  private createInTx(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
       const customData = buildCustomData(data) as Prisma.InputJsonValue;
       const row = (await tx.student.create({
@@ -147,23 +160,14 @@ export class PrismaStudentRepository implements StudentRepository {
         },
       })) as StudentRow;
 
-      const admissionNo =
-        typeof data.customData?.['admissionNo'] === 'string'
-          ? data.customData['admissionNo']
-          : typeof data.customData?.['admissionNumber'] === 'string'
-            ? data.customData['admissionNumber']
-            : null;
+      const admissionNo = admissionNoOf(data.customData);
       if (admissionNo) {
-        // Persist first-class column when 063 migration is applied.
-        try {
-          await tx.$executeRaw`
-            UPDATE students
-               SET admission_number = ${admissionNo}
-             WHERE id = ${data.id}::uuid AND tenant_id = ${data.tenantId}::uuid
-          `;
-        } catch {
-          // Column may be absent until 063 is applied; customData still holds the number.
-        }
+        // Migration 063 is applied: never swallow (a failed statement aborts the tx).
+        await tx.$executeRaw`
+          UPDATE students
+             SET admission_number = ${admissionNo}
+           WHERE id = ${data.id}::uuid AND tenant_id = ${data.tenantId}::uuid
+        `;
       }
 
       return toEntity(row);
@@ -171,6 +175,21 @@ export class PrismaStudentRepository implements StudentRepository {
   }
 
   async update(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentEntity>,
+  ): Promise<StudentEntity | null> {
+    try {
+      return await this.updateInTx(id, tenantId, data);
+    } catch (err) {
+      rethrowUniqueViolation(
+        err,
+        'Student with this admission number or national ID already exists',
+      );
+    }
+  }
+
+  private updateInTx(
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
@@ -207,6 +226,15 @@ export class PrismaStudentRepository implements StudentRepository {
           customData: buildCustomData(merged) as Prisma.InputJsonValue,
         },
       })) as StudentRow;
+      // PRC-L365: keep the first-class admission_number column in sync.
+      const nextAdmissionNo = admissionNoOf(merged.customData);
+      if (nextAdmissionNo !== admissionNoOf(current.customData)) {
+        await tx.$executeRaw`
+          UPDATE students
+             SET admission_number = ${nextAdmissionNo}
+           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+        `;
+      }
       return toEntity(row);
     });
   }

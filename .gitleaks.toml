@@ -44,6 +44,11 @@ regexes = [
   # the gateway boots under test. Already absent from current source; retained
   # here only because history is scanned.
   '''test-jwt-secret-at-least-32-characters-long''',
+  # packages/backend/student/src/standalone-app.test.ts (PRC-L502, commit 16df8166)
+  # HS256 signing key the test uses to mint and verify its own tokens against
+  # the standalone student app. Referenced by zero non-test files; no deployment
+  # manifest or .env template uses it. Retained because PR range history is scanned.
+  '''standalone-test-secret-0123456789abcdef''',
 ]
 
 paths = [
