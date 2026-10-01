@@ -54,9 +54,9 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
 ];
 
 /**
- * Platform-scoped surfaces (G-727). Every admin can open them; the gateway
- * returns 403 on the data request unless the caller holds the `platform`
- * resource, and the pages render that state explicitly.
+ * Platform-scoped surfaces (G-727). The admin landing only lists them for
+ * callers holding the `platform` resource (PRC-L234); the gateway still
+ * returns 403 on the data request for anyone else.
  */
 export const PLATFORM_SECTIONS: readonly AdminSection[] = [
   {
