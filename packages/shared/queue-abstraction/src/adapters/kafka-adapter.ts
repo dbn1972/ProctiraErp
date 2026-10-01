@@ -7,7 +7,11 @@
 import type { Producer, Consumer, EachMessagePayload, SASLOptions } from 'kafkajs';
 import { Kafka } from 'kafkajs';
 
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
+import {
+  assertTenantScopedSubscribeTopic,
+  isProductionEnv,
+  messageTenantMatchesRoute,
+} from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -35,6 +39,15 @@ export class KafkaAdapter implements QueueAdapter {
 
   constructor(config: KafkaAdapterConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // PRC-L356: never ship credentials / tenant payloads over plaintext in production.
+    if (isProductionEnv() && !this.config.ssl) {
+      throw new Error(
+        'KafkaAdapter: ssl must be enabled in production (plaintext' +
+          (this.config.sasl?.mechanism === 'plain' ? ' SASL/PLAIN credentials' : '') +
+          ' refused; set KAFKA_SSL=true) (PRC-L356)',
+      );
+    }
 
     this.kafka = new Kafka({
       clientId: this.config.clientId,
@@ -120,6 +133,9 @@ export class KafkaAdapter implements QueueAdapter {
         if (!payload.message.value) return;
 
         const message = JSON.parse(payload.message.value.toString()) as QueueMessage;
+
+        // PRC-L355: body tenant must match the concrete topic the broker routed on.
+        if (!messageTenantMatchesRoute(payload.topic, message)) return;
 
         await handler(message);
       },

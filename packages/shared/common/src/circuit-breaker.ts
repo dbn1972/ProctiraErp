@@ -24,6 +24,12 @@ export interface CircuitBreakerOptions {
   resetTimeoutMs?: number;
   /** Optional name for logging/identification */
   name?: string;
+  /**
+   * Classify a thrown error as a breaker failure (default: every error counts).
+   * Return false for caller errors (e.g. validation/4xx) that say nothing about
+   * downstream health (PRC-L349).
+   */
+  isFailure?: (error: unknown) => boolean;
 }
 
 export class CircuitBreakerError extends Error {
@@ -43,11 +49,15 @@ export class CircuitBreaker {
   private readonly failureThreshold: number;
   private readonly resetTimeoutMs: number;
   private readonly name: string;
+  private readonly isFailure: (error: unknown) => boolean;
+  /** PRC-L349: only one probe may run while HALF_OPEN. */
+  private probeInFlight = false;
 
   constructor(options: CircuitBreakerOptions = {}) {
     this.failureThreshold = options.failureThreshold ?? 5;
     this.resetTimeoutMs = options.resetTimeoutMs ?? 30_000;
     this.name = options.name ?? 'default';
+    this.isFailure = options.isFailure ?? (() => true);
   }
 
   /**
@@ -62,14 +72,29 @@ export class CircuitBreaker {
         throw new CircuitBreakerError(this.name, this.state);
       }
     }
-
+    let isProbe = false;
+    if (this.state === CircuitState.HALF_OPEN) {
+      // PRC-L349: a single in-flight probe; concurrent callers fail fast.
+      if (this.probeInFlight) {
+        throw new CircuitBreakerError(this.name, this.state);
+      }
+      this.probeInFlight = true;
+      isProbe = true;
+    }
     try {
       const result = await fn();
       this.onSuccess();
       return result;
     } catch (error) {
-      this.onFailure();
+      if (this.isFailure(error)) {
+        this.onFailure(isProbe);
+      } else if (isProbe) {
+        // Non-failure error proves the downstream answered — treat as recovery.
+        this.onSuccess();
+      }
       throw error;
+    } finally {
+      if (isProbe) this.probeInFlight = false;
     }
   }
 
@@ -94,6 +119,7 @@ export class CircuitBreaker {
     this.state = CircuitState.CLOSED;
     this.failureCount = 0;
     this.lastFailureTime = 0;
+    this.probeInFlight = false;
   }
 
   private onSuccess(): void {
@@ -101,11 +127,12 @@ export class CircuitBreaker {
     this.state = CircuitState.CLOSED;
   }
 
-  private onFailure(): void {
+  private onFailure(isProbe = false): void {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    if (this.failureCount >= this.failureThreshold) {
+    // A failed half-open probe re-opens immediately.
+    if (isProbe || this.failureCount >= this.failureThreshold) {
       this.state = CircuitState.OPEN;
     }
   }

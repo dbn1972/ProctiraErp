@@ -20,6 +20,8 @@ export {
   TenantScopeError,
   assertTenantId,
   assertTenantScopedCacheKey,
+  assertTenantScopedCachePattern,
+  assertSafeKeySegment,
   isTenantScopedCacheKey,
   isProductionEnv,
   isUnscopedTenantNamespaceAllowed,

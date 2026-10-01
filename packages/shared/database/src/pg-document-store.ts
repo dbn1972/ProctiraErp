@@ -108,39 +108,63 @@ export async function withPlatformScope<T>(
 /** Revive ISO-8601 strings produced by JSON.stringify(Date) back into Dates. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
-export function reviveDates<T>(value: T): T {
+/**
+ * Revive ISO-8601 strings into Dates.
+ *
+ * - Without `keys`: every ISO-looking string at any depth (legacy behaviour).
+ * - With `keys` (PRC-L352): only string values stored under those property names
+ *   (at any depth); other ISO-looking strings such as codes stay strings.
+ */
+export function reviveDates<T>(value: T, keys?: readonly string[]): T {
+  return reviveInner(value, keys ? new Set(keys) : undefined, true) as T;
+}
+
+function reviveInner(value: unknown, keys: Set<string> | undefined, eligible: boolean): unknown {
   if (typeof value === 'string') {
-    return (ISO_DATE.test(value) ? new Date(value) : value) as unknown as T;
+    return eligible && ISO_DATE.test(value) ? new Date(value) : value;
   }
   if (Array.isArray(value)) {
-    return (value as unknown[]).map((v) => reviveDates(v)) as unknown as T;
+    return value.map((v) => reviveInner(v, keys, eligible));
   }
-  if (value && typeof value === 'object') {
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = reviveDates(v);
+      out[k] = reviveInner(v, keys, keys ? keys.has(k) : true);
     }
-    return out as T;
+    return out;
   }
   return value;
+}
+
+export interface PgDocumentCollectionOptions {
+  /**
+   * Date revival for stored JSON:
+   * - `true` (default, legacy): revive every ISO-looking string.
+   * - `false`: return stored JSON untouched.
+   * - `string[]` (PRC-L352, preferred): revive only these property names.
+   */
+  reviveDates?: boolean | readonly string[];
 }
 
 export class PgDocumentCollection<T extends object> {
   constructor(
     private readonly pool: PgPoolWithConnect | PgQueryable,
     private readonly collection: string,
-    private readonly options: {
-      /** Extra date fields to revive (defaults to any ISO string). */
-      reviveDates?: boolean;
-    } = { reviveDates: true },
+    private readonly options: PgDocumentCollectionOptions = { reviveDates: true },
   ) {}
+
+  private reviveData(raw: T): T {
+    const mode = this.options.reviveDates ?? true;
+    if (mode === false) return raw;
+    return mode === true ? reviveDates(raw) : reviveDates(raw, mode);
+  }
 
   private map(row: Record<string, unknown>): DocumentRow<T> {
     const raw = row.data as T;
     return {
       id: String(row.id),
       tenantId: row.tenant_id == null ? null : String(row.tenant_id),
-      data: this.options.reviveDates === false ? raw : reviveDates(raw),
+      data: this.reviveData(raw),
       createdAt: toDate(row.created_at),
       updatedAt: toDate(row.updated_at),
     };

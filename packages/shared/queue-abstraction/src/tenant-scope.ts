@@ -93,3 +93,42 @@ export function assertTenantScopedSubscribeTopic(
     assertTenantScopedQueueName(topic, options.surface ?? 'queue.subscribe');
   }
 }
+
+/** PRC-L355 — tenant segment must not contain routing separators / wildcards / whitespace. */
+// eslint-disable-next-line no-control-regex
+const UNSAFE_TENANT_SEGMENT = /[.*#>\s\u0000-\u001f\u007f]/;
+
+/** Reject tenant ids that would shift or widen a `tenant.{id}.…` routing name. */
+export function assertSafeTenantSegment(tenantId: string, surface = 'queue'): void {
+  if (UNSAFE_TENANT_SEGMENT.test(tenantId)) {
+    throw new TenantScopeError(
+      `${surface}: tenantId must not contain '.', '*', '#', '>', whitespace or control characters (PRC-L355)`,
+    );
+  }
+}
+
+/**
+ * Concrete tenant segment of a `tenant.{tenantId}.{…}` name, or undefined when the
+ * name is unscoped or the segment is a wildcard (`*` / `#`).
+ */
+export function tenantFromScopedName(name: string): string | undefined {
+  const parts = name.split('.');
+  if (parts[0] !== 'tenant' || parts.length < 3) return undefined;
+  const seg = parts[1];
+  if (!seg || seg === '*' || seg === '#') return undefined;
+  return seg;
+}
+
+/**
+ * PRC-L355 — receive-side guard: the body's `tenantId` must equal the tenant the
+ * broker routed on (concrete topic / queue name). Messages failing this check
+ * must not reach the handler.
+ */
+export function messageTenantMatchesRoute(
+  routedName: string,
+  message: { tenantId?: unknown } | null | undefined,
+): boolean {
+  const routeTenant = tenantFromScopedName(routedName);
+  if (!routeTenant || !message || typeof message.tenantId !== 'string') return false;
+  return message.tenantId === routeTenant;
+}
