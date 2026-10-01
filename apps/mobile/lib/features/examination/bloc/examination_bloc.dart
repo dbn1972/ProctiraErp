@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/examination_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 // --- Events ---
 
@@ -70,16 +71,21 @@ class ExaminationState extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      <Object?>[status, examinations, results, studentId, errorMessage];
+  List<Object?> get props => <Object?>[
+    status,
+    examinations,
+    results,
+    studentId,
+    errorMessage,
+  ];
 }
 
 // --- Bloc ---
 
 class ExaminationBloc extends Bloc<ExaminationEvent, ExaminationState> {
   ExaminationBloc({required ExaminationRepository repository})
-      : _repository = repository,
-        super(const ExaminationState()) {
+    : _repository = repository,
+      super(const ExaminationState()) {
     on<ExaminationListRequested>(_onListRequested);
     on<ExaminationResultsRequested>(_onResultsRequested);
   }
@@ -91,33 +97,38 @@ class ExaminationBloc extends Bloc<ExaminationEvent, ExaminationState> {
     Emitter<ExaminationState> emit,
   ) async {
     if (event.studentId.trim().isEmpty) {
-      emit(state.copyWith(
-        status: ExaminationStatus.error,
-        studentId: '',
-        examinations: const <Examination>[],
-        errorMessage: 'Choose a student to view examinations.',
-      ));
+      emit(
+        state.copyWith(
+          status: ExaminationStatus.error,
+          studentId: '',
+          examinations: const <Examination>[],
+          errorMessage: 'Choose a student to view examinations.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: ExaminationStatus.loading,
-      studentId: event.studentId,
-    ));
+    emit(
+      state.copyWith(
+        status: ExaminationStatus.loading,
+        studentId: event.studentId,
+      ),
+    );
 
     try {
       final List<Examination> exams = await _repository.getExaminations(
         studentId: event.studentId,
       );
-      emit(state.copyWith(
-        status: ExaminationStatus.loaded,
-        examinations: exams,
-      ));
+      emit(
+        state.copyWith(status: ExaminationStatus.loaded, examinations: exams),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        status: ExaminationStatus.error,
-        errorMessage: error.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: ExaminationStatus.error,
+          errorMessage: userErrorMessage(error),
+        ),
+      );
     }
   }
 
@@ -126,34 +137,37 @@ class ExaminationBloc extends Bloc<ExaminationEvent, ExaminationState> {
     Emitter<ExaminationState> emit,
   ) async {
     if (event.studentId.trim().isEmpty) {
-      emit(state.copyWith(
-        status: ExaminationStatus.error,
-        studentId: '',
-        results: const <ExaminationResult>[],
-        errorMessage: 'Choose a student to view examination results.',
-      ));
+      emit(
+        state.copyWith(
+          status: ExaminationStatus.error,
+          studentId: '',
+          results: const <ExaminationResult>[],
+          errorMessage: 'Choose a student to view examination results.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: ExaminationStatus.loading,
-      studentId: event.studentId,
-    ));
+    emit(
+      state.copyWith(
+        status: ExaminationStatus.loading,
+        studentId: event.studentId,
+      ),
+    );
 
     try {
       final List<ExaminationResult> results = await _repository.getResults(
         studentId: event.studentId,
         examinationId: event.examinationId,
       );
-      emit(state.copyWith(
-        status: ExaminationStatus.loaded,
-        results: results,
-      ));
+      emit(state.copyWith(status: ExaminationStatus.loaded, results: results));
     } catch (error) {
-      emit(state.copyWith(
-        status: ExaminationStatus.error,
-        errorMessage: error.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: ExaminationStatus.error,
+          errorMessage: userErrorMessage(error),
+        ),
+      );
     }
   }
 }

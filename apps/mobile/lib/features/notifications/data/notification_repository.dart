@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -37,7 +38,9 @@ class CachedNotification {
         if (v is Map) {
           decoded = Map<String, dynamic>.from(v);
         }
-      } catch (_) {/* ignore malformed cached payloads */}
+      } catch (_) {
+        /* ignore malformed cached payloads */
+      }
     }
     return CachedNotification(
       id: row['id'] as String,
@@ -62,9 +65,9 @@ class NotificationRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _now = now;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _now = now;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -86,9 +89,8 @@ class NotificationRepository {
   }) async {
     final Database db = await _database.database;
     final int ts = receivedAt ?? _now().millisecondsSinceEpoch;
-    await db.insert(
-      'notifications_cache',
-      <String, Object?>{
+    await db.transaction((Transaction txn) async {
+      await _upsertPreservingRead(txn, <String, Object?>{
         'id': id,
         'tenant_id': tenantId ?? _tenantProvider.tenantId,
         'type': type,
@@ -97,10 +99,79 @@ class NotificationRepository {
         'payload': payload == null ? null : jsonEncode(payload),
         'received_at': ts,
         'read': read ? 1 : 0,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      });
+    });
     return id;
+  }
+
+  /// Upsert that never clears a local read flag: once the user has read a
+  /// notification, a re-delivery or inbox refresh keeps it read (PRC-L014).
+  /// Implemented as query + insert/update so it works on SQLite builds that
+  /// predate `ON CONFLICT DO UPDATE` (older Android).
+  static Future<void> _upsertPreservingRead(
+    DatabaseExecutor ex,
+    Map<String, Object?> row,
+  ) async {
+    final String id = row['id']! as String;
+    final List<Map<String, Object?>> existing = await ex.query(
+      'notifications_cache',
+      columns: <String>['read'],
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      await ex.insert('notifications_cache', row);
+      return;
+    }
+    final bool wasRead = (existing.first['read'] as int? ?? 0) == 1;
+    final Map<String, Object?> update = Map<String, Object?>.from(row)
+      ..remove('id');
+    if (wasRead) {
+      update['read'] = 1;
+    }
+    await ex.update(
+      'notifications_cache',
+      update,
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// Deterministic content id for payloads without a server/message id.
+  /// `Map.hashCode` is identity-based, so the same payload delivered twice
+  /// used to create two rows; this hashes canonical (key-sorted) JSON with
+  /// two 32-bit FNV-1a passes instead.
+  @visibleForTesting
+  static String stableContentId(Map<String, dynamic> data, {int? sentAtMs}) {
+    final String canonical = '${sentAtMs ?? 0}|${jsonEncode(_canonical(data))}';
+    final List<int> bytes = utf8.encode(canonical);
+    int fnv(int seed) {
+      int h = seed;
+      for (final int b in bytes) {
+        h ^= b;
+        h = (h * 0x01000193) & 0xFFFFFFFF;
+      }
+      return h;
+    }
+
+    final String a = fnv(0x811C9DC5).toRadixString(16).padLeft(8, '0');
+    final String b = fnv(0x050C5D1F).toRadixString(16).padLeft(8, '0');
+    return 'h-$a$b';
+  }
+
+  static Object? _canonical(Object? value) {
+    if (value is Map) {
+      final List<String> keys =
+          value.keys.map((Object? k) => k.toString()).toList()..sort();
+      return <String, Object?>{
+        for (final String k in keys) k: _canonical(value[k]),
+      };
+    }
+    if (value is List) {
+      return value.map(_canonical).toList();
+    }
+    return value;
   }
 
   /// List every cached notification scoped to the current tenant (most
@@ -158,17 +229,24 @@ class NotificationRepository {
   /// don't double-count messages without an explicit id.
   Future<String> upsertFromRemote(RemoteMessage message) async {
     final RemoteNotification? notification = message.notification;
-    final Map<String, dynamic> data =
-        Map<String, dynamic>.from(message.data);
-    final String id = message.messageId ??
-        '${message.sentTime?.millisecondsSinceEpoch ?? 0}-${data.hashCode}';
+    final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final Object? serverId = data['notificationId'] ?? data['id'];
+    final String id =
+        message.messageId ??
+        (serverId is String && serverId.isNotEmpty
+            ? serverId
+            : stableContentId(
+                data,
+                sentAtMs: message.sentTime?.millisecondsSinceEpoch,
+              ));
     return insert(
       id: id,
       type: data['type'] is String ? data['type'] as String : null,
       title: notification?.title ?? data['title'] as String?,
       body: notification?.body ?? data['body'] as String?,
       payload: data,
-      receivedAt: message.sentTime?.millisecondsSinceEpoch ??
+      receivedAt:
+          message.sentTime?.millisecondsSinceEpoch ??
           _now().millisecondsSinceEpoch,
     );
   }
@@ -182,24 +260,22 @@ class NotificationRepository {
       // Keep historical notifications around even when the server-side list
       // truncates older entries; we only upsert the latest items.
       for (final Map<String, dynamic> item in remote) {
-        final String id = (item['id'] as String?) ??
+        final String id =
+            (item['id'] as String?) ??
             (item['messageId'] as String?) ??
-            item.toString();
-        await txn.insert(
-          'notifications_cache',
-          <String, Object?>{
-            'id': id,
-            'tenant_id': tenantId,
-            'type': item['type'] as String?,
-            'title': item['title'] as String?,
-            'body': item['body'] as String?,
-            'payload': jsonEncode(item),
-            'received_at': (item['receivedAt'] as num?)?.toInt() ??
-                _now().millisecondsSinceEpoch,
-            'read': item['read'] == true ? 1 : 0,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+            stableContentId(item);
+        await _upsertPreservingRead(txn, <String, Object?>{
+          'id': id,
+          'tenant_id': tenantId,
+          'type': item['type'] as String?,
+          'title': item['title'] as String?,
+          'body': item['body'] as String?,
+          'payload': jsonEncode(item),
+          'received_at':
+              (item['receivedAt'] as num?)?.toInt() ??
+              _now().millisecondsSinceEpoch,
+          'read': item['read'] == true ? 1 : 0,
+        });
       }
     });
   }

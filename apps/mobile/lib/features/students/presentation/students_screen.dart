@@ -8,6 +8,7 @@ import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/student_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 /// Searchable list of students backed by [StudentRepository] (cache-first).
 class StudentsScreen extends StatefulWidget {
@@ -74,42 +75,45 @@ class _StudentsScreenState extends State<StudentsScreen> {
             Expanded(
               child: FutureBuilder<List<CachedStudent>>(
                 future: _future,
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<CachedStudent>> snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return _StateMessage(
-                      icon: Icons.error_outline,
-                      title: 'Something went wrong',
-                      message: '${snapshot.error}',
-                    );
-                  }
-                  final List<CachedStudent> students =
-                      snapshot.data ?? const <CachedStudent>[];
-                  if (students.isEmpty) {
-                    return const _StateMessage(
-                      icon: Icons.groups_outlined,
-                      title: 'No students yet',
-                      message:
-                          'Connect to the network to populate the cache, '
-                          'then pull the latest roster.',
-                    );
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    itemBuilder: (BuildContext context, int index) {
-                      final CachedStudent s = students[index];
-                      return _StudentCard(
-                        student: s,
-                        onTap: () => context.push('/students/${s.id}'),
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<CachedStudent>> snapshot,
+                    ) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return _StateMessage(
+                          icon: Icons.error_outline,
+                          title: 'Something went wrong',
+                          message: userErrorMessage(snapshot.error!),
+                        );
+                      }
+                      final List<CachedStudent> students =
+                          snapshot.data ?? const <CachedStudent>[];
+                      if (students.isEmpty) {
+                        return const _StateMessage(
+                          icon: Icons.groups_outlined,
+                          title: 'No students yet',
+                          message:
+                              'Connect to the network to populate the cache, '
+                              'then pull the latest roster.',
+                        );
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        itemBuilder: (BuildContext context, int index) {
+                          final CachedStudent s = students[index];
+                          return _StudentCard(
+                            student: s,
+                            onTap: () => context.push('/students/${s.id}'),
+                          );
+                        },
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemCount: students.length,
                       );
                     },
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemCount: students.length,
-                  );
-                },
               ),
             ),
           ],
@@ -173,16 +177,18 @@ class _StudentCard extends StatelessWidget {
                       student.fullName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -230,8 +236,9 @@ class _StateMessage extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),

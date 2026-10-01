@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../../core/errors/user_error_message.dart';
 
 /// Default geofence radius (meters). Marks recorded outside this radius show a
 /// banner warning but are still saved for backend audit.
@@ -111,20 +112,16 @@ class _AppGeofenceLocator implements GeofenceLocator {
         'createdAt': remote.createdAt,
         'updatedAt': remote.updatedAt,
       };
-      await db.insert(
-        'institutions_cache',
-        <String, Object?>{
-          'id': remote.id,
-          'tenant_id': tenantId,
-          'name': remote.name,
-          'code': remote.code,
-          'latitude': null,
-          'longitude': null,
-          'payload': jsonEncode(raw),
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('institutions_cache', <String, Object?>{
+        'id': remote.id,
+        'tenant_id': tenantId,
+        'name': remote.name,
+        'code': remote.code,
+        'latitude': null,
+        'longitude': null,
+        'payload': jsonEncode(raw),
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       return (latitude: null, longitude: null, name: remote.name);
     } on ApiException {
       return (latitude: null, longitude: null, name: null);
@@ -160,7 +157,8 @@ class AttendanceGeofenceWidget extends StatefulWidget {
   final GeoPlatform? _platform;
 
   @override
-  State<AttendanceGeofenceWidget> createState() => _AttendanceGeofenceWidgetState();
+  State<AttendanceGeofenceWidget> createState() =>
+      _AttendanceGeofenceWidgetState();
 }
 
 class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
@@ -192,7 +190,8 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
       if (!serviceEnabled) {
         return const GeofenceCheck(
           status: GeofenceStatus.permissionDenied,
-          message: 'Location services are disabled. Enable them to validate attendance location.',
+          message:
+              'Location services are disabled. Enable them to validate attendance location.',
         );
       }
 
@@ -204,7 +203,8 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
           permission == LocationPermission.deniedForever) {
         return const GeofenceCheck(
           status: GeofenceStatus.permissionDenied,
-          message: 'Location permission denied. Attendance can still be saved without geo validation.',
+          message:
+              'Location permission denied. Attendance can still be saved without geo validation.',
         );
       }
 
@@ -231,7 +231,9 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
 
       final bool inside = distance <= widget.radiusMeters;
       return GeofenceCheck(
-        status: inside ? GeofenceStatus.insideRadius : GeofenceStatus.outsideRadius,
+        status: inside
+            ? GeofenceStatus.insideRadius
+            : GeofenceStatus.outsideRadius,
         userPosition: position,
         institutionLatitude: institution.latitude,
         institutionLongitude: institution.longitude,
@@ -239,12 +241,14 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
         message: inside
             ? 'You are within the ${widget.radiusMeters.toStringAsFixed(0)} m geofence.'
             : 'You are ${distance.toStringAsFixed(0)} m from the institution. '
-                'Attendance will still be recorded, but the location is logged for audit.',
+                  'Attendance will still be recorded, but the location is logged for audit.',
       );
     } catch (error) {
       return GeofenceCheck(
         status: GeofenceStatus.unavailable,
-        message: 'Unable to determine your location: $error',
+        message:
+            'Unable to determine your location. '
+            '${userErrorMessage(error, fallback: 'Check location permission and try again.')}',
       );
     }
   }
@@ -265,8 +269,10 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               const SizedBox(width: 12),
-              Text('Checking attendance location…',
-                  style: theme.textTheme.bodyMedium),
+              Text(
+                'Checking attendance location…',
+                style: theme.textTheme.bodyMedium,
+              ),
             ],
           ),
         ),
@@ -276,33 +282,34 @@ class _AttendanceGeofenceWidgetState extends State<AttendanceGeofenceWidget> {
     final GeofenceCheck? check = _check;
     if (check == null) return const SizedBox.shrink();
 
-    final (Color background, IconData icon, Color foreground) style = switch (check.status) {
-      GeofenceStatus.insideRadius => (
-        theme.colorScheme.primaryContainer,
-        Icons.check_circle,
-        theme.colorScheme.onPrimaryContainer,
-      ),
-      GeofenceStatus.outsideRadius => (
-        theme.colorScheme.errorContainer,
-        Icons.warning_amber_rounded,
-        theme.colorScheme.onErrorContainer,
-      ),
-      GeofenceStatus.institutionLocationUnknown => (
-        theme.colorScheme.surfaceContainerHighest,
-        Icons.location_off,
-        theme.colorScheme.onSurface,
-      ),
-      GeofenceStatus.permissionDenied => (
-        theme.colorScheme.tertiaryContainer,
-        Icons.location_disabled,
-        theme.colorScheme.onTertiaryContainer,
-      ),
-      GeofenceStatus.unavailable => (
-        theme.colorScheme.surfaceContainerHighest,
-        Icons.error_outline,
-        theme.colorScheme.onSurface,
-      ),
-    };
+    final (Color background, IconData icon, Color foreground) style =
+        switch (check.status) {
+          GeofenceStatus.insideRadius => (
+            theme.colorScheme.primaryContainer,
+            Icons.check_circle,
+            theme.colorScheme.onPrimaryContainer,
+          ),
+          GeofenceStatus.outsideRadius => (
+            theme.colorScheme.errorContainer,
+            Icons.warning_amber_rounded,
+            theme.colorScheme.onErrorContainer,
+          ),
+          GeofenceStatus.institutionLocationUnknown => (
+            theme.colorScheme.surfaceContainerHighest,
+            Icons.location_off,
+            theme.colorScheme.onSurface,
+          ),
+          GeofenceStatus.permissionDenied => (
+            theme.colorScheme.tertiaryContainer,
+            Icons.location_disabled,
+            theme.colorScheme.onTertiaryContainer,
+          ),
+          GeofenceStatus.unavailable => (
+            theme.colorScheme.surfaceContainerHighest,
+            Icons.error_outline,
+            theme.colorScheme.onSurface,
+          ),
+        };
 
     return Card(
       color: style.$1,
@@ -357,10 +364,8 @@ class _RealGeoPlatform implements GeoPlatform {
 
   @override
   Future<Position> getCurrentPosition() => Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+  );
 }
 
 /// Great-circle distance in meters between two coordinates.
@@ -368,7 +373,8 @@ double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
   const double earthRadius = 6371000; // meters
   final double dLat = _radians(lat2 - lat1);
   final double dLon = _radians(lon2 - lon1);
-  final double a = math.pow(math.sin(dLat / 2), 2).toDouble() +
+  final double a =
+      math.pow(math.sin(dLat / 2), 2).toDouble() +
       math.cos(_radians(lat1)) *
           math.cos(_radians(lat2)) *
           math.pow(math.sin(dLon / 2), 2).toDouble();

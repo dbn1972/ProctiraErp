@@ -9,6 +9,7 @@ import '../../features/attendance/data/attendance_repository.dart';
 import '../../features/examination/data/examination_repository.dart';
 import '../../features/health/data/health_repository.dart';
 import '../../features/institutions/data/institution_repository.dart';
+import '../../features/notifications/data/local_notification_preferences.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../../features/parent_portal/data/parent_portal_repository.dart';
 import '../../features/scholarship/data/scholarship_repository.dart';
@@ -280,6 +281,9 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       repository: getIt<NotificationRepository>(),
       router: getIt<NotificationRouter>(),
       localNotifications: getIt<LocalNotifications>(),
+      preferencesLoader: () async => LocalNotificationPreferences.decode(
+        await getIt<SecureStorage>().readNotificationPreferences(),
+      ),
     ),
   );
 

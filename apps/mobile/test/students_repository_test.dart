@@ -94,12 +94,13 @@ void main() {
         'id': 'stu-1',
         'tenant_id': 'tenant-a',
         'institution_id': 'inst-1',
-        'full_name': 'Ada Lovelace',
-        'national_id': 'A1',
+        'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+        'national_id': await ctx.crypto.encrypt('A1'),
         'grade': null,
         'class_name': null,
-        'payload':
+        'payload': await ctx.crypto.encrypt(
             '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1815-12-10","gender":"F","nationalId":"A1","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
+            ),
         'updated_at': 1,
       });
 
@@ -139,12 +140,13 @@ void main() {
       'id': 'stu-1',
       'tenant_id': 'tenant-a',
       'institution_id': 'inst-1',
-      'full_name': 'Ada Lovelace',
-      'national_id': 'A1',
+      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+      'national_id': await ctx.crypto.encrypt('A1'),
       'grade': null,
       'class_name': null,
-      'payload':
+      'payload': await ctx.crypto.encrypt(
           '{"id":"stu-1","firstName":"Ada","lastName":"Lovelace","institutionId":"inst-1","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}',
+          ),
       'updated_at': 1,
       'version': 'v-1',
     });

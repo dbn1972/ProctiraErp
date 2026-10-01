@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/assessment_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 // --- Events ---
 
@@ -79,10 +80,12 @@ class AssessmentState extends Equatable {
       results: results ?? this.results,
       subjects: subjects ?? this.subjects,
       periods: periods ?? this.periods,
-      selectedSubject:
-          clearSubject ? null : (selectedSubject ?? this.selectedSubject),
-      selectedPeriod:
-          clearPeriod ? null : (selectedPeriod ?? this.selectedPeriod),
+      selectedSubject: clearSubject
+          ? null
+          : (selectedSubject ?? this.selectedSubject),
+      selectedPeriod: clearPeriod
+          ? null
+          : (selectedPeriod ?? this.selectedPeriod),
       studentId: studentId ?? this.studentId,
       errorMessage: errorMessage,
     );
@@ -90,23 +93,23 @@ class AssessmentState extends Equatable {
 
   @override
   List<Object?> get props => <Object?>[
-        status,
-        results,
-        subjects,
-        periods,
-        selectedSubject,
-        selectedPeriod,
-        studentId,
-        errorMessage,
-      ];
+    status,
+    results,
+    subjects,
+    periods,
+    selectedSubject,
+    selectedPeriod,
+    studentId,
+    errorMessage,
+  ];
 }
 
 // --- Bloc ---
 
 class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
   AssessmentBloc({required AssessmentRepository repository})
-      : _repository = repository,
-        super(const AssessmentState()) {
+    : _repository = repository,
+      super(const AssessmentState()) {
     on<AssessmentResultsRequested>(_onResultsRequested);
     on<AssessmentFilterChanged>(_onFilterChanged);
   }
@@ -118,21 +121,25 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
     Emitter<AssessmentState> emit,
   ) async {
     if (event.studentId.trim().isEmpty) {
-      emit(state.copyWith(
-        status: AssessmentStatus.error,
-        studentId: '',
-        results: const <AssessmentResult>[],
-        subjects: const <String>[],
-        periods: const <String>[],
-        errorMessage: 'Choose a student to view assessment results.',
-      ));
+      emit(
+        state.copyWith(
+          status: AssessmentStatus.error,
+          studentId: '',
+          results: const <AssessmentResult>[],
+          subjects: const <String>[],
+          periods: const <String>[],
+          errorMessage: 'Choose a student to view assessment results.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: AssessmentStatus.loading,
-      studentId: event.studentId,
-    ));
+    emit(
+      state.copyWith(
+        status: AssessmentStatus.loading,
+        studentId: event.studentId,
+      ),
+    );
 
     try {
       final List<AssessmentResult> results = await _repository.getResults(
@@ -140,22 +147,28 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
         subjectFilter: event.subjectFilter,
         periodFilter: event.periodFilter,
       );
-      final List<String> subjects =
-          await _repository.getSubjects(studentId: event.studentId);
-      final List<String> periods =
-          await _repository.getPeriods(studentId: event.studentId);
+      final List<String> subjects = await _repository.getSubjects(
+        studentId: event.studentId,
+      );
+      final List<String> periods = await _repository.getPeriods(
+        studentId: event.studentId,
+      );
 
-      emit(state.copyWith(
-        status: AssessmentStatus.loaded,
-        results: results,
-        subjects: subjects,
-        periods: periods,
-      ));
+      emit(
+        state.copyWith(
+          status: AssessmentStatus.loaded,
+          results: results,
+          subjects: subjects,
+          periods: periods,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        status: AssessmentStatus.error,
-        errorMessage: error.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: AssessmentStatus.error,
+          errorMessage: userErrorMessage(error),
+        ),
+      );
     }
   }
 
@@ -163,19 +176,23 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
     AssessmentFilterChanged event,
     Emitter<AssessmentState> emit,
   ) async {
-    emit(state.copyWith(
-      selectedSubject: event.subject,
-      selectedPeriod: event.period,
-      clearSubject: event.subject == null,
-      clearPeriod: event.period == null,
-    ));
+    emit(
+      state.copyWith(
+        selectedSubject: event.subject,
+        selectedPeriod: event.period,
+        clearSubject: event.subject == null,
+        clearPeriod: event.period == null,
+      ),
+    );
 
     if (state.studentId.isNotEmpty) {
-      add(AssessmentResultsRequested(
-        studentId: state.studentId,
-        subjectFilter: event.subject ?? state.selectedSubject,
-        periodFilter: event.period ?? state.selectedPeriod,
-      ));
+      add(
+        AssessmentResultsRequested(
+          studentId: state.studentId,
+          subjectFilter: event.subject ?? state.selectedSubject,
+          periodFilter: event.period ?? state.selectedPeriod,
+        ),
+      );
     }
   }
 }

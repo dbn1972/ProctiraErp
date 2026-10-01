@@ -12,6 +12,7 @@ import '../data/scholarship_document_rules.dart';
 import '../data/scholarship_file_picker.dart';
 import '../data/scholarship_repository.dart';
 import 'scholarship_document_slots.dart';
+import '../../../core/errors/user_error_message.dart';
 
 /// Screen for submitting a scholarship application.
 class ScholarshipApplicationScreen extends StatelessWidget {
@@ -30,18 +31,12 @@ class ScholarshipApplicationScreen extends StatelessWidget {
     return StudentRequiredGate(
       studentId: id,
       title: 'Apply for scholarship',
-      locationFor: (String picked) => withStudentQuery(
-        '/scholarships/apply/$programId',
-        picked,
-      ),
+      locationFor: (String picked) =>
+          withStudentQuery('/scholarships/apply/$programId', picked),
       child: BlocProvider<ScholarshipBloc>(
-        create: (BuildContext context) => ScholarshipBloc(
-          repository: context.read<ScholarshipRepository>(),
-        ),
-        child: _ScholarshipApplicationForm(
-          programId: programId,
-          studentId: id,
-        ),
+        create: (BuildContext context) =>
+            ScholarshipBloc(repository: context.read<ScholarshipRepository>()),
+        child: _ScholarshipApplicationForm(programId: programId, studentId: id),
       ),
     );
   }
@@ -95,15 +90,16 @@ class _ScholarshipApplicationFormState
       _programError = null;
     });
     try {
-      final ScholarshipRepository repository =
-          context.read<ScholarshipRepository>();
-      final ScholarshipProgram? program =
-          await repository.findProgram(widget.programId);
+      final ScholarshipRepository repository = context
+          .read<ScholarshipRepository>();
+      final ScholarshipProgram? program = await repository.findProgram(
+        widget.programId,
+      );
       if (!mounted) {
         return;
       }
-      final bool uploadsAvailable =
-          await repository.scholarshipDocumentUploadsAvailable();
+      final bool uploadsAvailable = await repository
+          .scholarshipDocumentUploadsAvailable();
       if (!mounted) {
         return;
       }
@@ -117,7 +113,7 @@ class _ScholarshipApplicationFormState
         return;
       }
       setState(() {
-        _programError = error.toString();
+        _programError = userErrorMessage(error);
         _loadingProgram = false;
       });
     }
@@ -154,10 +150,11 @@ class _ScholarshipApplicationFormState
     if (existing != null && existing.isNotEmpty) {
       return existing;
     }
-    final ScholarshipRepository repository =
-        context.read<ScholarshipRepository>();
-    final String? institutionId =
-        await repository.institutionIdForStudent(widget.studentId);
+    final ScholarshipRepository repository = context
+        .read<ScholarshipRepository>();
+    final String? institutionId = await repository.institutionIdForStudent(
+      widget.studentId,
+    );
     if (institutionId == null || institutionId.isEmpty) {
       throw StateError(
         'This student\'s school is not on the device yet. Open the student list, then try the upload again.',
@@ -180,24 +177,24 @@ class _ScholarshipApplicationFormState
     PickedScholarshipFile file,
     void Function(double progress) onProgress,
   ) async {
-    final ScholarshipRepository repository =
-        context.read<ScholarshipRepository>();
+    final ScholarshipRepository repository = context
+        .read<ScholarshipRepository>();
     final String applicationId = await _ensureDraft();
     if (!mounted) {
       return;
     }
     await repository.uploadApplicationDocument(
-          applicationId: applicationId,
-          documentType: documentType,
-          bytes: file.bytes,
-          filename: file.filename,
-          mimeType: file.mimeType,
-          onSendProgress: (int sent, int total) {
-            if (total > 0) {
-              onProgress(sent / total);
-            }
-          },
-        );
+      applicationId: applicationId,
+      documentType: documentType,
+      bytes: file.bytes,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      onSendProgress: (int sent, int total) {
+        if (total > 0) {
+          onProgress(sent / total);
+        }
+      },
+    );
   }
 
   void _submit(BuildContext context) {
@@ -221,7 +218,9 @@ class _ScholarshipApplicationFormState
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to the terms and conditions')),
+        const SnackBar(
+          content: Text('Please agree to the terms and conditions'),
+        ),
       );
       return;
     }
@@ -245,18 +244,19 @@ class _ScholarshipApplicationFormState
     }
 
     context.read<ScholarshipBloc>().add(
-          ScholarshipApplicationSubmitted(
-            programId: widget.programId,
-            studentId: widget.studentId,
-            draftApplicationId:
-                _documentUploadsAvailable ? _draftApplicationId : null,
-            additionalData: <String, dynamic>{
-              'personalStatement': _statementCtrl.text.trim(),
-              if (_incomeCtrl.text.trim().isNotEmpty)
-                'familyIncome': double.tryParse(_incomeCtrl.text.trim()),
-            },
-          ),
-        );
+      ScholarshipApplicationSubmitted(
+        programId: widget.programId,
+        studentId: widget.studentId,
+        draftApplicationId: _documentUploadsAvailable
+            ? _draftApplicationId
+            : null,
+        additionalData: <String, dynamic>{
+          'personalStatement': _statementCtrl.text.trim(),
+          if (_incomeCtrl.text.trim().isNotEmpty)
+            'familyIncome': double.tryParse(_incomeCtrl.text.trim()),
+        },
+      ),
+    );
   }
 
   @override
@@ -264,9 +264,7 @@ class _ScholarshipApplicationFormState
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     if (_loadingProgram) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_programError != null) {
       return _BlockedApplication(
@@ -307,9 +305,7 @@ class _ScholarshipApplicationFormState
             context.pop();
           } else if (state.status == ScholarshipStatus.error) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? l10n.error),
-              ),
+              SnackBar(content: Text(state.errorMessage ?? l10n.error)),
             );
           }
         },
@@ -398,7 +394,8 @@ class _ScholarshipApplicationFormState
                               Semantics(
                                 button: true,
                                 enabled: false,
-                                label: 'Upload supporting documents unavailable',
+                                label:
+                                    'Upload supporting documents unavailable',
                                 child: OutlinedButton.icon(
                                   onPressed: null,
                                   icon: Icon(Icons.upload_file_outlined),
@@ -474,9 +471,7 @@ class _BlockedApplication extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scholarship application'),
-      ),
+      appBar: AppBar(title: const Text('Scholarship application')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -504,10 +499,7 @@ class _BlockedApplication extends StatelessWidget {
               ),
               if (onAction != null && actionLabel != null) ...<Widget>[
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: onAction,
-                  child: Text(actionLabel!),
-                ),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ],
           ),
@@ -533,10 +525,7 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              title,
-              style: theme.textTheme.titleMedium,
-            ),
+            Text(title, style: theme.textTheme.titleMedium),
             const SizedBox(height: 14),
             ...children,
           ],
