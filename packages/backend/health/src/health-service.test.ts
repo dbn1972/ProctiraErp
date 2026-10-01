@@ -127,17 +127,91 @@ describe('HealthService', () => {
       ).rejects.toThrow(ForbiddenError);
     });
 
-    it('allows guardian to create measurement for their student', async () => {
-      const result = await service.createMeasurement(
+    // PRC-L314 / PRC-L311: the guardian grant is read-only.
+    it('denies guardian creating a measurement for their own student', async () => {
+      await expect(
+        service.createMeasurement(
+          tenantId,
+          { studentId: 'student-001', date: '2024-03-15', height: 165 },
+          guardianContext,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('denies guardian update/delete, other writes and break-glass; guardian reads stay', async () => {
+      const created = await service.createMeasurement(
         tenantId,
-        {
-          studentId: 'student-001',
-          date: '2024-03-15',
-          height: 165,
-        },
+        { studentId: 'student-001', date: '2024-03-15', height: 165 },
+        healthOfficerContext,
+      );
+      await expect(
+        service.updateMeasurement(tenantId, created.id, { height: 170 }, guardianContext),
+      ).rejects.toThrow(ForbiddenError);
+      await expect(
+        service.deleteMeasurement(tenantId, created.id, guardianContext),
+      ).rejects.toThrow(ForbiddenError);
+      await expect(
+        service.createAllergy(
+          tenantId,
+          { studentId: 'student-001', allergen: 'Peanut', severity: 'severe' } as never,
+          guardianContext,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+      await expect(
+        service.createNurseIncident(
+          tenantId,
+          {
+            studentId: 'student-001',
+            incidentAt: '2024-09-01T10:00:00.000Z',
+            category: 'clinic_visit',
+            severity: 'low',
+            notes: 'x',
+            reportedBy: 'x',
+          } as never,
+          guardianContext,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+      await expect(
+        service.requestBreakGlass(
+          tenantId,
+          {
+            studentId: 'student-001',
+            fieldPath: 'medical_conditions',
+            justification: 'emergency treatment',
+          } as never,
+          guardianContext,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+      const listed = await service.listMeasurements(
+        tenantId,
+        'student-001',
+        { page: 1, pageSize: 20 },
         guardianContext,
       );
+      expect(listed.data.map((m) => m.id)).toContain(created.id);
+      await expect(
+        service.listMeasurements(
+          tenantId,
+          'student-999',
+          { page: 1, pageSize: 20 },
+          guardianContext,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+    });
 
+    it('still lets a school nurse in the student institution write', async () => {
+      repository.setStudentInstitution(tenantId, 'student-001', 'inst-1');
+      const nurse: HealthAccessContext = {
+        userId: 'user-nurse',
+        roles: ['school_nurse'],
+        guardianOfStudentIds: [],
+        authoritativeInstitutionIds: ['inst-1'],
+      };
+      const result = await service.createMeasurement(
+        tenantId,
+        { studentId: 'student-001', date: '2024-03-15', height: 165 },
+        nurse,
+      );
       expect(result.studentId).toBe('student-001');
     });
 

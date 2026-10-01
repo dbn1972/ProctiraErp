@@ -333,6 +333,28 @@ export class HealthService {
    * W1-SEC-10: fail closed in production when auditor missing/misconfigured
    * unless ALLOW_PHI_AUDIT_DEGRADE=1.
    */
+  /**
+   * PRC-L314 / PRC-L311: writes (and break-glass requests) need a treating health role.
+   * The guardian short-circuit in {@link hasHealthAccess} is a read-only grant, so it is
+   * stripped here; the authorised role still has to pass the institution-scope check.
+   */
+  private async assertHealthWriteAccess(
+    accessContext: HealthAccessContext,
+    studentId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    if (!hasHealthRole(accessContext.roles, HEALTH_AUTHORIZED_ROLES)) {
+      throw new ForbiddenError(
+        "Access denied: not authorized to modify this student's health records",
+      );
+    }
+    await this.assertHealthAccess(
+      { ...accessContext, guardianOfStudentIds: [] },
+      studentId,
+      tenantId,
+    );
+  }
+
   private async auditPhiRead(
     accessContext: HealthAccessContext,
     input: Omit<PhiAccessLogInput, 'actorUserId'>,
@@ -407,7 +429,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -437,7 +459,7 @@ export class HealthService {
   ): Promise<HealthMeasurementEntity> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateMeasurement(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Measurement with id '${id}' not found`);
     return updated;
@@ -487,7 +509,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteMeasurement(id, tenantId, options);
   }
 
@@ -501,7 +523,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -527,7 +549,7 @@ export class HealthService {
   ): Promise<AllergyEntity> {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateAllergy(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Allergy with id '${id}' not found`);
     return updated;
@@ -544,7 +566,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteAllergy(id, tenantId, options);
   }
 
@@ -575,7 +597,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -602,7 +624,7 @@ export class HealthService {
   ): Promise<HealthConditionEntity> {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateCondition(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Condition with id '${id}' not found`);
     return updated;
@@ -619,7 +641,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteCondition(id, tenantId, options);
   }
 
@@ -650,7 +672,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -677,7 +699,7 @@ export class HealthService {
   ): Promise<VaccinationEntity> {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateVaccination(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Vaccination with id '${id}' not found`);
     return updated;
@@ -694,7 +716,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteVaccination(id, tenantId, options);
   }
 
@@ -738,7 +760,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -764,7 +786,7 @@ export class HealthService {
   ): Promise<InsuranceEntity> {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateInsurance(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Insurance with id '${id}' not found`);
     return updated;
@@ -781,7 +803,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteInsurance(id, tenantId, options);
   }
 
@@ -815,7 +837,7 @@ export class HealthService {
       ) => Promise<void>;
     },
   ): Promise<SpecialNeedsAssessmentEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -857,7 +879,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -900,7 +922,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -925,7 +947,7 @@ export class HealthService {
   ): Promise<ReferralEntity> {
     const existing = await this.repository.findReferralById(id, tenantId);
     if (!existing) throw new NotFoundError(`Referral with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateReferral(id, tenantId, input);
     if (!updated) throw new NotFoundError(`Referral with id '${id}' not found`);
     return updated;
@@ -958,7 +980,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -983,7 +1005,7 @@ export class HealthService {
   ): Promise<AccommodationPlanEntity> {
     const existing = await this.repository.findAccommodationPlanById(id, tenantId);
     if (!existing) throw new NotFoundError(`Accommodation plan with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     const updated = await this.repository.updateAccommodationPlan(id, tenantId, input);
     if (!updated) throw new NotFoundError(`Accommodation plan with id '${id}' not found`);
     return updated;
@@ -1020,7 +1042,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     if (input.followUpRequired && !input.followUpDate) {
       throw new BusinessRuleError(
         'Follow-up date is required when follow-up is marked as required',
@@ -1051,7 +1073,7 @@ export class HealthService {
   ): Promise<CounsellingSessionEntity> {
     const existing = await this.repository.findCounsellingSessionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Counselling session with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     // Validate follow-up consistency
     const followUpRequired = input.followUpRequired ?? existing.followUpRequired;
     const followUpDate = input.followUpDate ?? existing.followUpDate;
@@ -1256,7 +1278,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ): Promise<HealthBreakGlassGrant> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     if (!accessContext.userId) {
       throw new ForbiddenError('Access denied: authenticated user required for break-glass');
     }
@@ -1376,7 +1398,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ) {
-    await this.assertHealthAccess(access, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(access, input.studentId, tenantId);
     const create = this.repository.createNurseIncident?.bind(this.repository);
     if (!create) {
       throw new BusinessRuleError('Nurse incidents are not available on this repository');
