@@ -32,13 +32,17 @@ class SyncEngine {
     int maxAttempts = 3,
     Duration baseBackoff = const Duration(seconds: 2),
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _connectivity = connectivity,
-        _dispatchers = dispatchers,
-        _maxAttempts = maxAttempts,
-        _baseBackoff = baseBackoff,
-        _now = now;
+    Duration flushInterval = const Duration(seconds: 30),
+    Duration maxFlushInterval = const Duration(minutes: 5),
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _connectivity = connectivity,
+       _dispatchers = dispatchers,
+       _maxAttempts = maxAttempts,
+       _baseBackoff = baseBackoff,
+       _now = now,
+       _flushInterval = flushInterval,
+       _maxFlushInterval = maxFlushInterval;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -50,24 +54,105 @@ class SyncEngine {
   final Duration _baseBackoff;
   final DateTime Function() _now;
 
-  StreamSubscription<bool>? _connectivitySubscription;
-  bool _isFlushing = false;
+  final Duration _flushInterval;
+  final Duration _maxFlushInterval;
 
-  /// Begin listening for connectivity changes. When the device transitions to
-  /// online the engine runs [flushPending].
+  StreamSubscription<bool>? _connectivitySubscription;
+  Timer? _periodicTimer;
+  bool _running = false;
+  bool _isFlushing = false;
+  bool _rerunRequested = false;
+  int _idleBackoffLevel = 0;
+
+  /// Whether [start] has been called (and [stop] has not).
+  bool get isRunning => _running;
+
+  /// Tenant whose queue the UI should show.
+  String? get activeTenantId => _tenantProvider.tenantId;
+
+  /// Begin automatic draining (PRC-H010). Once started the engine flushes:
+  /// - immediately (rows left over from a previous launch while online),
+  /// - whenever the device transitions to online,
+  /// - right after every [saveLocallyAndQueue] / [enqueue] (no-op offline),
+  /// - on [requestFlush] (app resume / login, see `SyncLifecycleFlusher`),
+  /// - on a periodic timer while pending rows exist, backing off
+  ///   exponentially (capped at `maxFlushInterval`) while nothing syncs.
   void start() {
-    _connectivitySubscription ??= _connectivity.onlineStream.listen((bool online) {
+    if (_running) return;
+    _running = true;
+    _connectivitySubscription ??= _connectivity.onlineStream.listen((
+      bool online,
+    ) {
       if (online) {
+        _idleBackoffLevel = 0;
         // Fire-and-forget; failures are recorded against the queued rows.
         unawaited(flushPending());
       }
     });
+    unawaited(flushPending());
+    _schedulePeriodic();
   }
 
-  /// Stop listening for connectivity events. Idempotent.
+  /// Stop automatic draining. Idempotent.
   Future<void> stop() async {
+    _running = false;
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
+  }
+
+  /// Ask the engine to drain now (e.g. app resumed, user logged in). Ignored
+  /// until [start] has run so nothing is sent before the app is ready.
+  void requestFlush() {
+    if (!_running) return;
+    _idleBackoffLevel = 0;
+    unawaited(flushPending());
+  }
+
+  void _afterEnqueue() {
+    _notifyChanged();
+    if (_running) unawaited(flushPending());
+  }
+
+  final StreamController<void> _changes = StreamController<void>.broadcast();
+
+  /// Emits whenever the queue may have changed (enqueue, flush, retry,
+  /// conflict resolution). UI surfaces re-read [queueSummary] on each event.
+  Stream<void> get changes => _changes.stream;
+
+  void _notifyChanged() {
+    if (!_changes.isClosed) _changes.add(null);
+  }
+
+  /// Let collaborators (e.g. the conflict resolver) signal a queue change.
+  void notifyQueueChanged() => _notifyChanged();
+
+  void _schedulePeriodic() {
+    _periodicTimer?.cancel();
+    if (!_running) return;
+    final int factor = 1 << _idleBackoffLevel;
+    Duration delay = _flushInterval * factor;
+    if (delay > _maxFlushInterval) delay = _maxFlushInterval;
+    _periodicTimer = Timer(delay, () async {
+      if (!_running) return;
+      try {
+        if (await pendingCount() > 0) {
+          final SyncFlushResult result = await flushPending();
+          if (result.synced > 0) {
+            _idleBackoffLevel = 0;
+          } else if (_flushInterval * (1 << _idleBackoffLevel) <
+              _maxFlushInterval) {
+            _idleBackoffLevel += 1;
+          }
+        } else {
+          _idleBackoffLevel = 0;
+        }
+      } catch (_) {
+        // Database closed / tenant switched; try again on the next tick.
+      }
+      _schedulePeriodic();
+    });
   }
 
   // ------------------------------------------------------------------
@@ -89,16 +174,46 @@ class SyncEngine {
     required Map<String, dynamic> syncPayload,
     String? entityId,
     String? baseVersion,
+    bool coalesceIntoPendingCreate = false,
   }) async {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
 
-    return db.transaction<int>((Transaction txn) async {
+    final int queuedId = await db.transaction<int>((Transaction txn) async {
       await txn.insert(
         cacheTable,
         cachePayload,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      // PRC-H012: an edit of a record whose create has never been sent is
+      // folded into that create instead of queueing an update that has no
+      // server version to send as If-Match.
+      if (coalesceIntoPendingCreate &&
+          operation == SyncOperation.update &&
+          baseVersion == null &&
+          entityId != null) {
+        final List<Map<String, Object?>> creates = await txn.query(
+          'pending_sync',
+          columns: <String>['id'],
+          where:
+              'tenant_id = ? AND entity_type = ? AND entity_id = ? '
+              "AND operation = 'create' AND status = 'pending' "
+              'AND attempts = 0',
+          whereArgs: <Object>[tenantId, entityType.toWire(), entityId],
+          orderBy: 'id DESC',
+          limit: 1,
+        );
+        if (creates.isNotEmpty) {
+          final int existingId = creates.first['id']! as int;
+          await txn.update(
+            'pending_sync',
+            <String, Object?>{'payload': jsonEncode(syncPayload)},
+            where: 'id = ?',
+            whereArgs: <Object>[existingId],
+          );
+          return existingId;
+        }
+      }
       final String idempotencyKey = const Uuid().v4();
       final int id = await txn.insert('pending_sync', <String, Object?>{
         'tenant_id': tenantId,
@@ -116,6 +231,8 @@ class SyncEngine {
       });
       return id;
     });
+    _afterEnqueue();
+    return queuedId;
   }
 
   /// Queue an op without writing to a cache table (e.g. deletes where the row
@@ -131,7 +248,7 @@ class SyncEngine {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
     final String key = idempotencyKey ?? const Uuid().v4();
-    return db.insert('pending_sync', <String, Object?>{
+    final int queuedId = await db.insert('pending_sync', <String, Object?>{
       'tenant_id': tenantId,
       'entity_type': entityType.toWire(),
       'entity_id': entityId,
@@ -143,6 +260,8 @@ class SyncEngine {
       'status': SyncStatus.pending.toWire(),
       'idempotency_key': key,
     });
+    _afterEnqueue();
+    return queuedId;
   }
 
   // ------------------------------------------------------------------
@@ -183,14 +302,107 @@ class SyncEngine {
     return (rows.first['c'] as num?)?.toInt() ?? 0;
   }
 
+  /// Counts of queued ops by lifecycle state for the active tenant (or
+  /// [tenantId]). Parked and conflicted rows are never retried automatically,
+  /// so the UI must surface them (PRC-H011).
+  Future<SyncQueueSummary> queueSummary({String? tenantId}) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      tenant == null
+          ? 'SELECT status, COUNT(*) AS c FROM pending_sync GROUP BY status'
+          : 'SELECT status, COUNT(*) AS c FROM pending_sync '
+                'WHERE tenant_id = ? GROUP BY status',
+      tenant == null ? null : <Object>[tenant],
+    );
+    int pending = 0;
+    int parked = 0;
+    int conflicted = 0;
+    for (final Map<String, Object?> row in rows) {
+      final int c = (row['c'] as num?)?.toInt() ?? 0;
+      switch (SyncStatus.fromWire(row['status'] as String? ?? 'pending')) {
+        case SyncStatus.pending:
+          pending += c;
+        case SyncStatus.parked:
+          parked += c;
+        case SyncStatus.conflicted:
+          conflicted += c;
+      }
+    }
+    return SyncQueueSummary(
+      pending: pending,
+      parked: parked,
+      conflicted: conflicted,
+    );
+  }
+
+  /// Most severe queue state per entity id (conflicted > parked > pending)
+  /// so lists can show per-row "failed" / "conflict" markers.
+  Future<Map<String, SyncStatus>> entityQueueStatuses(
+    SyncEntityType entityType, {
+    String? tenantId,
+  }) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.query(
+      'pending_sync',
+      columns: <String>['entity_id', 'status'],
+      where: tenant == null
+          ? 'entity_type = ? AND entity_id IS NOT NULL'
+          : 'entity_type = ? AND entity_id IS NOT NULL AND tenant_id = ?',
+      whereArgs: tenant == null
+          ? <Object>[entityType.toWire()]
+          : <Object>[entityType.toWire(), tenant],
+    );
+    int rank(SyncStatus s) => switch (s) {
+      SyncStatus.pending => 0,
+      SyncStatus.parked => 1,
+      SyncStatus.conflicted => 2,
+    };
+    final Map<String, SyncStatus> out = <String, SyncStatus>{};
+    for (final Map<String, Object?> row in rows) {
+      final String id = row['entity_id']! as String;
+      final SyncStatus status = SyncStatus.fromWire(
+        row['status'] as String? ?? 'pending',
+      );
+      final SyncStatus? existing = out[id];
+      if (existing == null || rank(status) > rank(existing)) out[id] = status;
+    }
+    return out;
+  }
+
+  /// Move parked rows back to `pending` with a fresh retry budget and kick a
+  /// flush. Returns the number of rows re-queued.
+  Future<int> retryParked({String? tenantId}) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final int count = await db.update(
+      'pending_sync',
+      <String, Object?>{
+        'status': SyncStatus.pending.toWire(),
+        'attempts': 0,
+        'last_attempt_at': null,
+      },
+      where: tenant == null
+          ? "status = 'parked'"
+          : "status = 'parked' AND tenant_id = ?",
+      whereArgs: tenant == null ? null : <Object>[tenant],
+    );
+    _notifyChanged();
+    requestFlush();
+    return count;
+  }
+
   // ------------------------------------------------------------------
   // Flush pipeline.
   // ------------------------------------------------------------------
 
   /// Drain the queue. Safe to call concurrently — additional callers no-op
-  /// while a flush is in progress.
+  /// while a flush is in progress, but a follow-up pass is scheduled so rows
+  /// queued mid-flush are not stranded until the next trigger.
   Future<SyncFlushResult> flushPending() async {
     if (_isFlushing) {
+      _rerunRequested = true;
       return const SyncFlushResult(
         processed: 0,
         synced: 0,
@@ -229,10 +441,42 @@ class SyncEngine {
       int conflicted = 0;
       int parked = 0;
 
+      // Entities whose create is still queued (any status). Updates/deletes
+      // for them that carry no base version wait for the create instead of
+      // being parked as "missing base version" (PRC-H012).
+      final List<Map<String, Object?>> createRows = await db.query(
+        'pending_sync',
+        columns: <String>['entity_type', 'entity_id'],
+        where: tenantId == null
+            ? "operation = 'create' AND entity_id IS NOT NULL"
+            : "operation = 'create' AND entity_id IS NOT NULL AND tenant_id = ?",
+        whereArgs: tenantId == null ? null : <Object>[tenantId],
+      );
+      final Set<String> queuedCreates = <String>{
+        for (final Map<String, Object?> c in createRows)
+          '${c['entity_type']}:${c['entity_id']}',
+      };
+
       for (final Map<String, Object?> raw in rawRows) {
-        final PendingSyncRow row = PendingSyncRow.fromDb(raw);
+        PendingSyncRow row = PendingSyncRow.fromDb(raw);
         if (!_isReadyForRetry(row, nowMs)) {
           continue; // Backoff window not elapsed yet.
+        }
+        if (row.operation != SyncOperation.create &&
+            row.baseVersion == null &&
+            row.entityId != null) {
+          if (queuedCreates.contains(_entityKey(row))) {
+            continue; // Wait for the create to land first.
+          }
+          // The create may have succeeded earlier in this pass and
+          // back-filled base_version; re-read the row.
+          final List<Map<String, Object?>> fresh = await db.query(
+            'pending_sync',
+            where: 'id = ?',
+            whereArgs: <Object>[row.id],
+          );
+          if (fresh.isEmpty) continue;
+          row = PendingSyncRow.fromDb(fresh.first);
         }
         processed += 1;
 
@@ -255,6 +499,9 @@ class SyncEngine {
 
         if (outcome is DispatchSuccess) {
           await _onSuccess(row, outcome);
+          if (row.operation == SyncOperation.create) {
+            queuedCreates.remove(_entityKey(row));
+          }
           synced += 1;
         } else if (outcome is DispatchConflict) {
           await _onConflict(row, outcome);
@@ -263,7 +510,10 @@ class SyncEngine {
           await _markPermanentFailure(row, outcome.message);
           parked += 1;
         } else if (outcome is DispatchTransient) {
-          final bool exhausted = await _markTransientFailure(row, outcome.message);
+          final bool exhausted = await _markTransientFailure(
+            row,
+            outcome.message,
+          );
           if (exhausted) {
             parked += 1;
           } else {
@@ -281,20 +531,89 @@ class SyncEngine {
       );
     } finally {
       _isFlushing = false;
+      _notifyChanged();
+      if (_rerunRequested) {
+        _rerunRequested = false;
+        if (_running) unawaited(flushPending());
+      }
     }
   }
 
   bool _isReadyForRetry(PendingSyncRow row, int nowMs) {
     if (row.attempts == 0 || row.lastAttemptAt == null) return true;
-    final int waitMs =
-        _baseBackoff.inMilliseconds * (1 << (row.attempts - 1));
+    final int waitMs = _baseBackoff.inMilliseconds * (1 << (row.attempts - 1));
     return nowMs - row.lastAttemptAt! >= waitMs;
   }
+
+  static String _entityKey(PendingSyncRow row) =>
+      '${row.entityType.toWire()}:${row.entityId}';
 
   Future<void> _onSuccess(PendingSyncRow row, DispatchSuccess outcome) async {
     final Database db = await _database.database;
     await db.transaction((Transaction txn) async {
-      await txn.delete('pending_sync', where: 'id = ?', whereArgs: <Object>[row.id]);
+      final List<Map<String, Object?>> current = await txn.query(
+        'pending_sync',
+        columns: <String>['payload'],
+        where: 'id = ?',
+        whereArgs: <Object>[row.id],
+      );
+      final bool editedInFlight =
+          row.operation == SyncOperation.create &&
+          outcome.serverVersion.isNotEmpty &&
+          current.isNotEmpty &&
+          jsonEncode(jsonDecode(current.first['payload']! as String)) !=
+              jsonEncode(row.payload);
+      if (editedInFlight) {
+        // The user edited the record while its create was on the wire: the
+        // server has the old payload, so replay the newest payload as an
+        // update against the version the create just produced.
+        await txn.update(
+          'pending_sync',
+          <String, Object?>{
+            'operation': SyncOperation.update.toWire(),
+            'base_version': outcome.serverVersion,
+            'attempts': 0,
+            'last_attempt_at': null,
+            'last_error': null,
+            'idempotency_key': const Uuid().v4(),
+          },
+          where: 'id = ?',
+          whereArgs: <Object>[row.id],
+        );
+      } else {
+        await txn.delete(
+          'pending_sync',
+          where: 'id = ?',
+          whereArgs: <Object>[row.id],
+        );
+      }
+      if (row.operation == SyncOperation.create &&
+          outcome.serverVersion.isNotEmpty &&
+          row.entityId != null) {
+        // Queued follow-up edits now have a server version to send.
+        await txn.update(
+          'pending_sync',
+          <String, Object?>{'base_version': outcome.serverVersion},
+          where:
+              'tenant_id = ? AND entity_type = ? AND entity_id = ? '
+              "AND operation != 'create' AND base_version IS NULL",
+          whereArgs: <Object>[
+            row.tenantId,
+            row.entityType.toWire(),
+            row.entityId!,
+          ],
+        );
+      }
+      final List<Map<String, Object?>> remaining = row.entityId == null
+          ? const <Map<String, Object?>>[]
+          : await txn.rawQuery(
+              'SELECT COUNT(*) AS c FROM pending_sync '
+              'WHERE tenant_id = ? AND entity_type = ? AND entity_id = ?',
+              <Object>[row.tenantId, row.entityType.toWire(), row.entityId!],
+            );
+      final bool stillQueued =
+          remaining.isNotEmpty &&
+          ((remaining.first['c'] as num?)?.toInt() ?? 0) > 0;
       // Refresh local cache with server-canonical version when applicable.
       switch (row.entityType) {
         case SyncEntityType.attendance:
@@ -303,12 +622,10 @@ class SyncEngine {
             'attendance_offline',
             <String, Object?>{
               'version': outcome.serverVersion,
-              'synced': 1,
+              'synced': stillQueued ? 0 : 1,
             },
             where: 'id = ?',
-            whereArgs: <Object>[
-              outcome.serverEntityId ?? row.entityId ?? '',
-            ],
+            whereArgs: <Object>[outcome.serverEntityId ?? row.entityId ?? ''],
           );
           break;
         case SyncEntityType.student:

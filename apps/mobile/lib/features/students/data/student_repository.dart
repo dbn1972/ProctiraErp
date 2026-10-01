@@ -1,10 +1,13 @@
 import 'dart:convert';
 
 import 'package:proctira_api_client/proctira_api_client.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
+import '../../../core/sync/student_document_dispatcher.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_models.dart';
 import '../../../core/tenant/tenant_provider.dart';
@@ -46,12 +49,12 @@ class StudentRepository {
     required CacheCrypto cacheCrypto,
     StudentApi? studentApi,
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _syncEngine = syncEngine,
-        _cacheCrypto = cacheCrypto,
-        _studentApi = studentApi,
-        _now = now;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _syncEngine = syncEngine,
+       _cacheCrypto = cacheCrypto,
+       _studentApi = studentApi,
+       _now = now;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -84,12 +87,12 @@ class StudentRepository {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
 
-    List<CachedStudent> results =
-        await _queryCache(db, tenantId, query, limit);
+    List<CachedStudent> results = await _queryCache(db, tenantId, query, limit);
     if (results.isEmpty && seedFromApi && _studentApi != null) {
       try {
-        final List<Student> remote =
-            await _studentApi.listStudents(pageSize: limit);
+        final List<Student> remote = await _studentApi.listStudents(
+          pageSize: limit,
+        );
         if (remote.isNotEmpty) {
           await db.transaction((Transaction txn) async {
             for (final Student s in remote) {
@@ -123,11 +126,14 @@ class StudentRepository {
     return _fromCacheRow(rows.first);
   }
 
-  /// Persist a captured document path locally and queue a `student.update`
-  /// op so the sync engine can replay the upload when the device is online.
+  /// Persist a captured document path locally and queue a
+  /// `student_document` create op; [StudentDocumentSyncDispatcher] uploads
+  /// the file bytes to `POST /students/:id/documents` when online
+  /// (PRC-H016).
   Future<CachedStudent?> attachDocument({
     required String studentId,
     required String filePath,
+    String category = 'other',
   }) async {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
@@ -162,15 +168,19 @@ class StudentRepository {
 
     await _syncEngine.saveLocallyAndQueue(
       entityType: SyncEntityType.student,
-      operation: SyncOperation.update,
+      operation: SyncOperation.create,
       cacheTable: 'students_cache',
       cachePayload: updated,
       syncPayload: <String, dynamic>{
-        'id': studentId,
-        'documents': documents,
+        'kind': kStudentDocumentKind,
+        'studentId': studentId,
+        'filePath': filePath,
+        'fileName': p.basename(filePath),
+        'mimeType': documentMimeType(filePath),
+        'category': category,
       },
-      entityId: studentId,
-      baseVersion: rows.first['version'] as String?,
+      // One queue row per captured document.
+      entityId: const Uuid().v4(),
     );
 
     return _fromCacheRow(updated);
@@ -236,8 +246,9 @@ class StudentRepository {
   }
 
   Future<CachedStudent> _fromCacheRow(Map<String, Object?> row) async {
-    final String payloadRaw =
-        await _cacheCrypto.decrypt(row['payload'] as String);
+    final String payloadRaw = await _cacheCrypto.decrypt(
+      row['payload'] as String,
+    );
     final Map<String, dynamic> payload =
         jsonDecode(payloadRaw) as Map<String, dynamic>;
     final List<String> docs = (payload['documents'] is List)
@@ -246,8 +257,9 @@ class StudentRepository {
     return CachedStudent(
       id: row['id'] as String,
       fullName: await _cacheCrypto.decrypt(row['full_name'] as String),
-      nationalId:
-          await _cacheCrypto.decryptNullable(row['national_id'] as String?),
+      nationalId: await _cacheCrypto.decryptNullable(
+        row['national_id'] as String?,
+      ),
       institutionId: row['institution_id'] as String?,
       dateOfBirth: payload['dateOfBirth'] as String?,
       gender: payload['gender'] as String?,
@@ -259,7 +271,9 @@ class StudentRepository {
   String _requireTenantId() {
     final String? tenantId = _tenantProvider.tenantId;
     if (tenantId == null || tenantId.isEmpty) {
-      throw StateError('Cannot use student repository without an active tenant.');
+      throw StateError(
+        'Cannot use student repository without an active tenant.',
+      );
     }
     return tenantId;
   }

@@ -8,6 +8,8 @@ import 'core/auth/auth_bloc.dart';
 import 'core/di/injector.dart';
 import 'core/notifications/fcm_service.dart';
 import 'core/router/app_router.dart';
+import 'core/sync/sync_engine.dart';
+import 'core/sync/sync_lifecycle.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +21,21 @@ Future<void> main() async {
   await configureDependencies();
 
   // Kick off initial auth state restoration before the app renders.
-  getIt<AuthBloc>().add(const AuthBootstrapRequested());
+  final AuthBloc authBloc = getIt<AuthBloc>();
+  // Drain the offline queue on login / restored session and on app resume
+  // (PRC-H010). The engine is resolved lazily so it never runs pre-auth.
+  SyncLifecycleFlusher(
+    onFlush: () {
+      final SyncEngine engine = getIt<SyncEngine>();
+      if (!engine.isRunning) engine.start();
+      engine.requestFlush();
+    },
+    authenticatedStream: authBloc.stream.map(
+      (AuthState state) => state.isAuthenticated,
+    ),
+    initiallyAuthenticated: authBloc.state.isAuthenticated,
+  ).attach();
+  authBloc.add(const AuthBootstrapRequested());
 
   runApp(const OpenEmisApp());
 

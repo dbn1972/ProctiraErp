@@ -60,10 +60,10 @@ class _StatusView extends StatelessWidget {
                 message: state.errorMessage ?? l10n.error,
                 onRetry: () {
                   context.read<ScholarshipBloc>().add(
-                        ScholarshipApplicationsRequested(
-                          studentId: state.studentId,
-                        ),
-                      );
+                    ScholarshipApplicationsRequested(
+                      studentId: state.studentId,
+                    ),
+                  );
                 },
               );
             case ScholarshipStatus.loaded:
@@ -111,12 +111,11 @@ class _ApplicationCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool decided =
         app.status == ScholarshipApplicationStatus.approved ||
-            app.status == ScholarshipApplicationStatus.rejected;
-    final bool rejected =
         app.status == ScholarshipApplicationStatus.rejected;
+    final bool rejected = app.status == ScholarshipApplicationStatus.rejected;
 
     return Semantics(
-      label: '${app.programName}, status: ${app.status.displayName}',
+      label: '${app.displayProgramName}, status: ${app.status.displayName}',
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -129,7 +128,7 @@ class _ApplicationCard extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      app.programName,
+                      app.displayProgramName,
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
@@ -142,17 +141,15 @@ class _ApplicationCard extends StatelessWidget {
               _TimelineStep(
                 label: 'Submitted',
                 date: app.submittedAt,
-                isCompleted:
-                    app.status != ScholarshipApplicationStatus.draft,
-                isActive: app.status ==
-                    ScholarshipApplicationStatus.submitted,
+                isCompleted: app.status != ScholarshipApplicationStatus.draft,
+                isActive: app.status == ScholarshipApplicationStatus.submitted,
               ),
               _TimelineStep(
                 label: 'Under Review',
                 date: null,
                 isCompleted: decided,
-                isActive: app.status ==
-                    ScholarshipApplicationStatus.underReview,
+                isActive:
+                    app.status == ScholarshipApplicationStatus.underReview,
               ),
               _TimelineStep(
                 label: rejected ? 'Rejected' : 'Approved',
@@ -168,8 +165,9 @@ class _ApplicationCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.5),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: theme.dividerColor),
                   ),
@@ -228,6 +226,9 @@ class _StatusBadge extends StatelessWidget {
       case ScholarshipApplicationStatus.draft:
         color = const Color(0xFF64748B); // slate
         break;
+      case ScholarshipApplicationStatus.unknown:
+        color = const Color(0xFF64748B); // slate
+        break;
     }
 
     return Container(
@@ -275,10 +276,10 @@ class _TimelineStep extends StatelessWidget {
     final Color dotColor = isError
         ? red
         : isCompleted
-            ? green
-            : isActive
-                ? brand
-                : theme.colorScheme.outlineVariant;
+        ? green
+        : isActive
+        ? brand
+        : theme.colorScheme.outlineVariant;
     final bool filled = isCompleted || isActive || isError;
 
     return Row(
@@ -297,17 +298,14 @@ class _TimelineStep extends StatelessWidget {
               child: isCompleted
                   ? const Icon(Icons.check, size: 13, color: Colors.white)
                   : isActive
-                      ? const Icon(Icons.schedule,
-                          size: 13, color: Colors.white)
-                      : null,
+                  ? const Icon(Icons.schedule, size: 13, color: Colors.white)
+                  : null,
             ),
             if (!isLast)
               Container(
                 width: 2,
                 height: 26,
-                color: isCompleted
-                    ? green
-                    : theme.colorScheme.outlineVariant,
+                color: isCompleted ? green : theme.colorScheme.outlineVariant,
               ),
           ],
         ),
@@ -328,10 +326,10 @@ class _TimelineStep extends StatelessWidget {
                       color: isError
                           ? red
                           : isActive
-                              ? brand
-                              : isCompleted
-                                  ? theme.colorScheme.onSurface
-                                  : theme.colorScheme.onSurfaceVariant,
+                          ? brand
+                          : isCompleted
+                          ? theme.colorScheme.onSurface
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -379,30 +377,33 @@ class _ShimmerLoading extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ...List<Widget>.generate(3, (int i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      children: <Widget>[
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.surfaceContainerHighest,
+                  ...List<Widget>.generate(
+                    3,
+                    (int i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: theme.colorScheme.surfaceContainerHighest,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          height: 12,
-                          width: 100,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(4),
+                          const SizedBox(width: 12),
+                          Container(
+                            height: 12,
+                            width: 100,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                 ],
               ),
             ),
@@ -430,7 +431,11 @@ class _ErrorView extends StatelessWidget {
           children: <Widget>[
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text(message, style: theme.textTheme.bodyLarge, textAlign: TextAlign.center),
+            Text(
+              message,
+              style: theme.textTheme.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             Semantics(
               button: true,
@@ -478,7 +483,9 @@ class _EmptyView extends StatelessWidget {
             Text(
               'Browse available programs and submit your first application.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
               textAlign: TextAlign.center,
             ),

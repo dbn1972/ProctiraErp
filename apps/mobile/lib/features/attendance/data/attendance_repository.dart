@@ -21,6 +21,7 @@ class AttendanceRosterEntry {
     this.comment,
     this.version,
     this.synced = false,
+    this.queueStatus,
   });
 
   final String studentId;
@@ -32,6 +33,10 @@ class AttendanceRosterEntry {
   String? comment;
   String? version;
   bool synced;
+
+  /// Most severe state of any still-queued op for this mark (PRC-H011):
+  /// `parked` / `conflicted` rows never reach the server on their own.
+  SyncStatus? queueStatus;
 }
 
 /// Wraps the SQLite cache + [SyncEngine] for the attendance feature.
@@ -44,13 +49,13 @@ class AttendanceRepository {
     StudentApi? studentApi,
     Uuid uuid = const Uuid(),
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _syncEngine = syncEngine,
-        _cacheCrypto = cacheCrypto,
-        _studentApi = studentApi,
-        _uuid = uuid,
-        _now = now;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _syncEngine = syncEngine,
+       _cacheCrypto = cacheCrypto,
+       _studentApi = studentApi,
+       _uuid = uuid,
+       _now = now;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -119,22 +124,27 @@ class AttendanceRepository {
     }
 
     if (classId != null && classId.isNotEmpty) {
-      rows = rows.where((Map<String, Object?> row) {
-        final String? cls = row['class_name'] as String?;
-        return cls == classId;
-      }).toList(growable: false);
+      rows = rows
+          .where((Map<String, Object?> row) {
+            final String? cls = row['class_name'] as String?;
+            return cls == classId;
+          })
+          .toList(growable: false);
     }
 
     final List<Map<String, Object?>> existing = await db.query(
       'attendance_offline',
-      where:
-          'tenant_id = ? AND institution_id = ? AND attendance_date = ?',
+      where: 'tenant_id = ? AND institution_id = ? AND attendance_date = ?',
       whereArgs: <Object>[tenantId, institutionId, date],
     );
-    final Map<String, Map<String, Object?>> byStudent = <String, Map<String, Object?>>{
-      for (final Map<String, Object?> row in existing)
-        row['student_id'] as String: row,
-    };
+    final Map<String, Map<String, Object?>> byStudent =
+        <String, Map<String, Object?>>{
+          for (final Map<String, Object?> row in existing)
+            row['student_id'] as String: row,
+        };
+
+    final Map<String, SyncStatus> queueStatuses = await _syncEngine
+        .entityQueueStatuses(SyncEntityType.attendance, tenantId: tenantId);
 
     final List<AttendanceRosterEntry> roster = <AttendanceRosterEntry>[];
     for (final Map<String, Object?> row in rows) {
@@ -154,6 +164,7 @@ class AttendanceRepository {
           comment: attendance?['remarks'] as String?,
           version: attendance?['version'] as String?,
           synced: ((attendance?['synced'] as int?) ?? 0) == 1,
+          queueStatus: queueStatuses[attendance?['id'] as String?],
         ),
       );
     }
@@ -176,9 +187,26 @@ class AttendanceRepository {
     final String tenantId = _requireTenantId();
     final bool isUpdate = entry.recordId != null;
     final String recordId = entry.recordId ?? _uuid.v4();
+    // The roster entry may be stale (e.g. the create synced after the roster
+    // was loaded), so take the server version from the cache (PRC-H012).
+    String? baseVersion = entry.version;
+    if (isUpdate) {
+      final Database db = await _database.database;
+      final List<Map<String, Object?>> cached = await db.query(
+        'attendance_offline',
+        columns: <String>['version'],
+        where: 'id = ? AND tenant_id = ?',
+        whereArgs: <Object>[recordId, tenantId],
+        limit: 1,
+      );
+      if (cached.isNotEmpty) {
+        baseVersion = cached.first['version'] as String? ?? baseVersion;
+      }
+    }
     final int recordedAtMs = _now().millisecondsSinceEpoch;
-    final String recordedAtIso =
-        DateTime.fromMillisecondsSinceEpoch(recordedAtMs).toUtc().toIso8601String();
+    final String recordedAtIso = DateTime.fromMillisecondsSinceEpoch(
+      recordedAtMs,
+    ).toUtc().toIso8601String();
 
     final Map<String, Object?> cacheRow = <String, Object?>{
       'id': recordId,
@@ -192,7 +220,7 @@ class AttendanceRepository {
       'remarks': comment,
       'recorded_at': recordedAtMs,
       'synced': 0,
-      'version': entry.version,
+      'version': baseVersion,
     };
 
     final Map<String, dynamic> syncPayload = <String, dynamic>{
@@ -218,7 +246,10 @@ class AttendanceRepository {
       cachePayload: cacheRow,
       syncPayload: syncPayload,
       entityId: recordId,
-      baseVersion: entry.version,
+      baseVersion: baseVersion,
+      // Unsynced creates absorb later edits instead of queueing an update
+      // without a base version (which used to be parked permanently).
+      coalesceIntoPendingCreate: true,
     );
 
     return AttendanceRosterEntry(
@@ -227,7 +258,8 @@ class AttendanceRepository {
       recordId: recordId,
       status: status,
       comment: comment,
-      version: entry.version,
+      version: baseVersion,
+      queueStatus: SyncStatus.pending,
     );
   }
 
@@ -264,7 +296,9 @@ class AttendanceRepository {
   String _requireTenantId() {
     final String? tenantId = _tenantProvider.tenantId;
     if (tenantId == null || tenantId.isEmpty) {
-      throw StateError('Cannot use attendance repository without an active tenant.');
+      throw StateError(
+        'Cannot use attendance repository without an active tenant.',
+      );
     }
     return tenantId;
   }
