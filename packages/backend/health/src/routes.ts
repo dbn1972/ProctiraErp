@@ -1442,6 +1442,7 @@ export async function registerHealthRoutes(
         const entity = await healthService.createScreeningProgram(
           tenantId,
           result.data,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
@@ -1465,8 +1466,17 @@ export async function registerHealthRoutes(
       const pagination = { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 };
       try {
         const result = query.gradeLevel
-          ? await healthService.listScreeningProgramsByGrade(tenantId, query.gradeLevel, pagination)
-          : await healthService.listScreeningPrograms(tenantId, pagination);
+          ? await healthService.listScreeningProgramsByGrade(
+              tenantId,
+              query.gradeLevel,
+              pagination,
+              getAccessContext(request),
+            )
+          : await healthService.listScreeningPrograms(
+              tenantId,
+              pagination,
+              getAccessContext(request),
+            );
         return reply.status(200).send(result);
       } catch (error) {
         return sendError(reply, error);
@@ -1493,7 +1503,11 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       try {
-        const entity = await healthService.getScreeningProgram(tenantId, params.data.id);
+        const entity = await healthService.getScreeningProgram(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+        );
         return reply.status(200).send(entity);
       } catch (error) {
         return sendError(reply, error);
@@ -1532,6 +1546,7 @@ export async function registerHealthRoutes(
           tenantId,
           params.data.id,
           body.data,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
@@ -1564,6 +1579,7 @@ export async function registerHealthRoutes(
         await healthService.deleteScreeningProgram(
           tenantId,
           params.data.id,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId, 'DELETE'),
         );
         return reply.status(204).send();

@@ -712,15 +712,19 @@ describe('HealthService', () => {
 
   describe('Screening Programs', () => {
     it('creates a screening program', async () => {
-      const result = await service.createScreeningProgram(tenantId, {
-        name: 'Grade 1 Vision Screening',
-        description: 'Annual vision screening for Grade 1 students',
-        gradeLevel: 'Grade 1',
-        academicPeriodId: 'period-2024',
-        assessmentTypes: ['vision', 'hearing'],
-        scheduledDate: '2024-09-15',
-        status: 'planned',
-      });
+      const result = await service.createScreeningProgram(
+        tenantId,
+        {
+          name: 'Grade 1 Vision Screening',
+          description: 'Annual vision screening for Grade 1 students',
+          gradeLevel: 'Grade 1',
+          academicPeriodId: 'period-2024',
+          assessmentTypes: ['vision', 'hearing'],
+          scheduledDate: '2024-09-15',
+          status: 'planned',
+        },
+        healthOfficerContext,
+      );
 
       expect(result.name).toBe('Grade 1 Vision Screening');
       expect(result.gradeLevel).toBe('Grade 1');
@@ -728,52 +732,131 @@ describe('HealthService', () => {
     });
 
     it('lists screening programs by grade level', async () => {
-      await service.createScreeningProgram(tenantId, {
-        name: 'Grade 1 Vision',
-        gradeLevel: 'Grade 1',
-        academicPeriodId: 'period-2024',
-        assessmentTypes: ['vision'],
-        status: 'planned',
-      });
-      await service.createScreeningProgram(tenantId, {
-        name: 'Grade 2 Dental',
-        gradeLevel: 'Grade 2',
-        academicPeriodId: 'period-2024',
-        assessmentTypes: ['dental'],
-        status: 'planned',
-      });
+      await service.createScreeningProgram(
+        tenantId,
+        {
+          name: 'Grade 1 Vision',
+          gradeLevel: 'Grade 1',
+          academicPeriodId: 'period-2024',
+          assessmentTypes: ['vision'],
+          status: 'planned',
+        },
+        healthOfficerContext,
+      );
+      await service.createScreeningProgram(
+        tenantId,
+        {
+          name: 'Grade 2 Dental',
+          gradeLevel: 'Grade 2',
+          academicPeriodId: 'period-2024',
+          assessmentTypes: ['dental'],
+          status: 'planned',
+        },
+        healthOfficerContext,
+      );
 
-      const grade1 = await service.listScreeningProgramsByGrade(tenantId, 'Grade 1', {
-        page: 1,
-        pageSize: 10,
-      });
+      const grade1 = await service.listScreeningProgramsByGrade(
+        tenantId,
+        'Grade 1',
+        { page: 1, pageSize: 10 },
+        healthOfficerContext,
+      );
       expect(grade1.data).toHaveLength(1);
       expect(grade1.data[0]!.name).toBe('Grade 1 Vision');
 
-      const all = await service.listScreeningPrograms(tenantId, { page: 1, pageSize: 10 });
+      const all = await service.listScreeningPrograms(
+        tenantId,
+        { page: 1, pageSize: 10 },
+        healthOfficerContext,
+      );
       expect(all.data).toHaveLength(2);
     });
 
     it('updates a screening program', async () => {
-      const created = await service.createScreeningProgram(tenantId, {
-        name: 'Vision Screening',
-        gradeLevel: 'Grade 1',
-        academicPeriodId: 'period-2024',
-        assessmentTypes: ['vision'],
-        status: 'planned',
-      });
+      const created = await service.createScreeningProgram(
+        tenantId,
+        {
+          name: 'Vision Screening',
+          gradeLevel: 'Grade 1',
+          academicPeriodId: 'period-2024',
+          assessmentTypes: ['vision'],
+          status: 'planned',
+        },
+        healthOfficerContext,
+      );
 
-      const updated = await service.updateScreeningProgram(tenantId, created.id, {
-        status: 'in-progress',
-      });
+      const updated = await service.updateScreeningProgram(
+        tenantId,
+        created.id,
+        {
+          status: 'in-progress',
+        },
+        healthOfficerContext,
+      );
 
       expect(updated.status).toBe('in-progress');
     });
 
     it('throws NotFoundError for non-existent program', async () => {
-      await expect(service.getScreeningProgram(tenantId, 'non-existent-id')).rejects.toThrow(
-        NotFoundError,
+      await expect(
+        service.getScreeningProgram(tenantId, 'non-existent-id', healthOfficerContext),
+      ).rejects.toThrow(NotFoundError);
+    });
+    // PRC-L315: screening CRUD is gated in the domain, not only at the gateway.
+    it('denies parent, student and teacher on every screening operation', async () => {
+      const program = await service.createScreeningProgram(
+        tenantId,
+        {
+          name: 'Vision',
+          gradeLevel: 'Grade 1',
+          academicPeriodId: 'p',
+          assessmentTypes: ['vision'],
+          status: 'planned',
+        },
+        { userId: 'u-officer', roles: ['health_officer'], guardianOfStudentIds: [] },
       );
+      const outsiders: HealthAccessContext[] = [
+        guardianContext,
+        { userId: 'u-parent', roles: ['parent'], guardianOfStudentIds: ['student-001'] },
+        { userId: 'u-student', roles: ['student'], guardianOfStudentIds: [] },
+        unauthorizedContext,
+      ];
+      for (const ctx of outsiders) {
+        await expect(
+          service.createScreeningProgram(
+            tenantId,
+            {
+              name: 'x',
+              gradeLevel: 'Grade 1',
+              academicPeriodId: 'p',
+              assessmentTypes: ['vision'],
+              status: 'planned',
+            },
+            ctx,
+          ),
+        ).rejects.toThrow(ForbiddenError);
+        await expect(
+          service.updateScreeningProgram(tenantId, program.id, { status: 'completed' }, ctx),
+        ).rejects.toThrow(ForbiddenError);
+        await expect(service.deleteScreeningProgram(tenantId, program.id, ctx)).rejects.toThrow(
+          ForbiddenError,
+        );
+        await expect(service.getScreeningProgram(tenantId, program.id, ctx)).rejects.toThrow(
+          ForbiddenError,
+        );
+        await expect(
+          service.listScreeningPrograms(tenantId, { page: 1, pageSize: 10 }, ctx),
+        ).rejects.toThrow(ForbiddenError);
+      }
+      const nurse: HealthAccessContext = {
+        userId: 'u-nurse',
+        roles: ['school_nurse'],
+        guardianOfStudentIds: [],
+      };
+      await expect(service.getScreeningProgram(tenantId, program.id, nurse)).resolves.toBeDefined();
+      await expect(
+        service.updateScreeningProgram(tenantId, program.id, { status: 'completed' }, nurse),
+      ).rejects.toThrow(ForbiddenError);
     });
   });
 

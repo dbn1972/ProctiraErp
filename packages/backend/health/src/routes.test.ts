@@ -194,6 +194,44 @@ describe('Health Routes', () => {
     });
   });
 
+  // PRC-L315: domain-level screening role gate over HTTP.
+  describe('screening programs role gate', () => {
+    const payload = {
+      name: 'Vision',
+      gradeLevel: 'Grade 1',
+      academicPeriodId: 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f',
+      assessmentTypes: ['vision'],
+      status: 'planned',
+    };
+    it.each([['parent'], ['student'], ['teacher']])(
+      '%s gets 403 on POST/GET/PUT/DELETE',
+      async (role) => {
+        const created = await app.inject({
+          method: 'POST',
+          url: '/health/screening-programs',
+          payload,
+        });
+        expect(created.statusCode).toBe(201);
+        const id = JSON.parse(created.body).id as string;
+        healthOfficerContext.roles = [role];
+        const url = `/health/screening-programs/${id}`;
+        const results = await Promise.all([
+          app.inject({ method: 'POST', url: '/health/screening-programs', payload }),
+          app.inject({ method: 'GET', url: '/health/screening-programs' }),
+          app.inject({ method: 'GET', url }),
+          app.inject({ method: 'PUT', url, payload: { status: 'completed' } }),
+          app.inject({ method: 'DELETE', url }),
+        ]);
+        expect(results.map((r) => r.statusCode)).toEqual([403, 403, 403, 403, 403]);
+      },
+    );
+    it('health_officer can create', async () => {
+      healthOfficerContext.roles = ['health_officer'];
+      const res = await app.inject({ method: 'POST', url: '/health/screening-programs', payload });
+      expect(res.statusCode).toBe(201);
+    });
+  });
+
   describe('GET /health/dsar/:studentId (G-734)', () => {
     const studentId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 

@@ -283,6 +283,20 @@ export function hasHealthAccess(
 }
 
 /**
+ * PRC-L315: screening programmes are health-team configuration, not open tenant data.
+ * Read: health staff (admin, officer, nurse); write: health admins and officers only.
+ * Guardians, students and teachers are denied in the domain, not just at the gateway.
+ */
+const SCREENING_READ_ROLES = ['health_admin', 'system_admin', 'health_officer', 'school_nurse'];
+const SCREENING_WRITE_ROLES = ['health_admin', 'system_admin', 'health_officer'];
+function assertScreeningAccess(context: HealthAccessContext, mode: 'read' | 'write'): void {
+  const allowed = mode === 'write' ? SCREENING_WRITE_ROLES : SCREENING_READ_ROLES;
+  if (!hasHealthRole(context.roles, allowed)) {
+    throw new ForbiddenError(`Access denied: not authorized to ${mode} screening programs`);
+  }
+}
+
+/**
  * Health Service class providing business logic for all health operations.
  */
 export class HealthService {
@@ -1115,10 +1129,12 @@ export class HealthService {
   async createScreeningProgram(
     tenantId: string,
     input: CreateScreeningProgramInput,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
+    assertScreeningAccess(accessContext, 'write');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -1137,10 +1153,12 @@ export class HealthService {
     tenantId: string,
     id: string,
     input: UpdateScreeningProgramInput,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
+    assertScreeningAccess(accessContext, 'write');
     const existing = await this.repository.findScreeningProgramById(id, tenantId);
     if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
     const updated = await this.repository.updateScreeningProgram(id, tenantId, input, options);
@@ -1152,16 +1170,23 @@ export class HealthService {
   async deleteScreeningProgram(
     tenantId: string,
     id: string,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<void> {
+    assertScreeningAccess(accessContext, 'write');
     const existing = await this.repository.findScreeningProgramById(id, tenantId);
     if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
     await this.repository.deleteScreeningProgram(id, tenantId, options);
   }
 
-  async getScreeningProgram(tenantId: string, id: string): Promise<ScreeningProgramEntity> {
+  async getScreeningProgram(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+  ): Promise<ScreeningProgramEntity> {
+    assertScreeningAccess(accessContext, 'read');
     const entity = await this.repository.findScreeningProgramById(id, tenantId);
     if (!entity) throw new NotFoundError(`Screening program with id '${id}' not found`);
     return entity;
@@ -1170,7 +1195,9 @@ export class HealthService {
   async listScreeningPrograms(
     tenantId: string,
     pagination: PaginationOptions,
+    accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    assertScreeningAccess(accessContext, 'read');
     return this.repository.listScreeningPrograms(tenantId, pagination);
   }
 
@@ -1178,7 +1205,9 @@ export class HealthService {
     tenantId: string,
     gradeLevel: string,
     pagination: PaginationOptions,
+    accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    assertScreeningAccess(accessContext, 'read');
     return this.repository.listScreeningProgramsByGrade(tenantId, gradeLevel, pagination);
   }
   /**
