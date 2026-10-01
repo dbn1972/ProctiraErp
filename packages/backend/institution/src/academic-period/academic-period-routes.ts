@@ -7,14 +7,19 @@
  * PUT    /academic-periods/:id   - Update an academic period
  * DELETE /academic-periods/:id   - Soft-delete an academic period
  * POST   /academic-periods/:id/validate-active - Validate period is active
+ * POST   /academic-periods/:id/supersede - Append a corrected-window successor version
  */
+import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type {
-  CreateAcademicPeriodDto,
-  UpdateAcademicPeriodDto,
+import {
+  SupersedeAcademicPeriodSchema,
+  type CreateAcademicPeriodDto,
+  type UpdateAcademicPeriodDto,
 } from './academic-period-schemas.js';
 import type { AcademicPeriodService } from './academic-period-service.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AcademicPeriodRoutesOptions {
   service: AcademicPeriodService;
@@ -207,6 +212,53 @@ export async function registerAcademicPeriodRoutes(
           : undefined);
       const period = await service.validateActivePeriod(tenantId, request.params.id, asOf);
       return reply.status(200).send({ valid: true, period: formatPeriodResponse(period) });
+    },
+  );
+
+  /**
+   * POST /academic-periods/:id/supersede
+   * PRC-L321: correct a period's window/code-preserving successor. PUT forbids
+   * date changes (append-only versions), so this is the only API path to fix a
+   * wrong window. The prior version is archived; overlapping windows → 409,
+   * unknown / foreign-tenant ids → 404. RBAC: gateway maps POST on
+   * `academic-periods` to institution:create.
+   */
+  fastify.post(
+    `${prefix}/:id/supersede`,
+    async function supersedeHandler(
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      if (!UUID_RE.test(request.params.id)) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: `Academic period '${request.params.id}' not found`,
+          statusCode: 404,
+        });
+      }
+      const body = validate(SupersedeAcademicPeriodSchema, request.body ?? {});
+      if (!body.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid supersede request',
+          statusCode: 400,
+          errors: body.errors,
+        });
+      }
+      const prior = await service.getById(tenantId, request.params.id);
+      const successor = await service.supersede(tenantId, request.params.id, {
+        ...body.data,
+        code: body.data.code ?? prior.code,
+      });
+      return reply.status(201).send(formatPeriodResponse(successor));
     },
   );
 }
