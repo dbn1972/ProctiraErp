@@ -8,6 +8,7 @@
 import { NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { collectAllPages } from './collect-all.js';
 import type { TranslationRepository } from './translation-repository.js';
 import type {
   Translation,
@@ -26,6 +27,8 @@ export interface TranslationServiceConfig {
   supportedLanguages: string[];
   /** Maximum translations per import batch */
   maxImportBatchSize: number;
+  /** Page size used when paging through all rows for export (default 1000). */
+  fetchPageSize?: number;
 }
 
 export class TranslationService {
@@ -189,12 +192,19 @@ export class TranslationService {
     const format = query.format || 'json';
 
     // Get all translations matching the filter
-    const result = await this.translationRepository.listTranslations(warehouseId, tenantId, {
-      language: query.language,
-      entityType: query.entityType,
-      page: 1,
-      pageSize: 100000, // Get all for export
-    });
+    // Page through every matching translation (no silent truncation).
+    const result = {
+      data: await collectAllPages(
+        (page, pageSize) =>
+          this.translationRepository.listTranslations(warehouseId, tenantId, {
+            language: query.language,
+            entityType: query.entityType,
+            page,
+            pageSize,
+          }),
+        this.config.fetchPageSize,
+      ),
+    };
 
     let content: string;
     if (format === 'csv') {

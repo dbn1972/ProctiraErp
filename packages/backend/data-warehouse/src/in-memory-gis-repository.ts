@@ -5,6 +5,7 @@
  */
 import { NotFoundError } from '@proctira/common';
 
+import { collectAllPages } from './collect-all.js';
 import type { GISRepository, GISLayerListOptions, GISListResult } from './gis-repository.js';
 import type { GISLayer } from './gis-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
@@ -108,10 +109,12 @@ export class InMemoryGISRepository implements GISRepository {
     if (!this.warehouseRepository) return result;
 
     // Get all areas and build a tree
-    const allAreas = await this.warehouseRepository.listAreas(warehouseId, tenantId, {}, 1, 10000);
+    const warehouseRepository = this.warehouseRepository;
+    const allAreas = await collectAllPages((page, pageSize) =>
+      warehouseRepository.listAreas(warehouseId, tenantId, {}, page, pageSize),
+    );
     const childMap = new Map<string, string[]>();
-
-    for (const area of allAreas.data) {
+    for (const area of allAreas) {
       if (area.parentId) {
         const children = childMap.get(area.parentId) || [];
         children.push(area.id);

@@ -5,9 +5,11 @@
  * mobile apps, web portals, and API endpoints.
  * Implements Requirement 15.4.
  */
-import { v4 as uuidv4 } from 'uuid';
 import { NotFoundError } from '@proctira/common';
+import { v4 as uuidv4 } from 'uuid';
 
+import { collectAllPages } from './collect-all.js';
+import type { GISRepository } from './gis-repository.js';
 import type {
   PublishTarget,
   PublishRequestInput,
@@ -17,13 +19,10 @@ import type {
   PublishedDataRecord,
   PublishedGISLayer,
   PublishedMetadata,
-  PublishedIndicatorMeta,
-  PublishedAreaMeta,
 } from './publishing-schemas.js';
-import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
-import type { GISRepository } from './gis-repository.js';
-import type { TranslationRepository } from './translation-repository.js';
 import type { Indicator, Unit, Subgroup, Area, DataRecord } from './schemas.js';
+import type { TranslationRepository } from './translation-repository.js';
+import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface PublishingServiceConfig {
   /** Base URL for API endpoint publishing */
@@ -32,6 +31,8 @@ export interface PublishingServiceConfig {
   webBaseUrl: string;
   /** Base URL for mobile app data endpoint */
   mobileBaseUrl: string;
+  /** Page size used when paging through all rows (default 1000). */
+  fetchPageSize?: number;
 }
 
 export class PublishingService {
@@ -218,19 +219,18 @@ export class PublishingService {
       }
     }
 
-    const result = await this.warehouseRepository.queryData(
-      warehouseId,
-      tenantId,
-      {
-        indicatorIds: input.indicatorIds,
-        areaIds: input.areaIds,
-        timePeriodIds,
-      },
-      1,
-      100000, // Get all matching records for publishing
+    // Page through every matching record (no silent truncation).
+    return collectAllPages(
+      (page, pageSize) =>
+        this.warehouseRepository.queryData(
+          warehouseId,
+          tenantId,
+          { indicatorIds: input.indicatorIds, areaIds: input.areaIds, timePeriodIds },
+          page,
+          pageSize,
+        ),
+      this.config.fetchPageSize,
     );
-
-    return result.data;
   }
 
   private async gatherIndicators(
@@ -238,17 +238,15 @@ export class PublishingService {
     warehouseId: string,
     indicatorIds?: string[],
   ): Promise<Indicator[]> {
-    const result = await this.warehouseRepository.listIndicators(
-      warehouseId,
-      tenantId,
-      {},
-      1,
-      10000,
+    const all = await collectAllPages(
+      (page, pageSize) =>
+        this.warehouseRepository.listIndicators(warehouseId, tenantId, {}, page, pageSize),
+      this.config.fetchPageSize,
     );
     if (indicatorIds && indicatorIds.length > 0) {
-      return result.data.filter((i) => indicatorIds.includes(i.id));
+      return all.filter((i) => indicatorIds.includes(i.id));
     }
-    return result.data;
+    return all;
   }
 
   private async gatherAreas(
@@ -256,30 +254,36 @@ export class PublishingService {
     warehouseId: string,
     areaIds?: string[],
   ): Promise<Area[]> {
-    const result = await this.warehouseRepository.listAreas(warehouseId, tenantId, {}, 1, 10000);
+    const all = await collectAllPages(
+      (page, pageSize) =>
+        this.warehouseRepository.listAreas(warehouseId, tenantId, {}, page, pageSize),
+      this.config.fetchPageSize,
+    );
     if (areaIds && areaIds.length > 0) {
-      return result.data.filter((a) => areaIds.includes(a.id));
+      return all.filter((a) => areaIds.includes(a.id));
     }
-    return result.data;
+    return all;
   }
 
   private async buildUnitMap(tenantId: string, warehouseId: string): Promise<Map<string, Unit>> {
-    const result = await this.warehouseRepository.listUnits(warehouseId, tenantId, {}, 1, 10000);
-    return new Map(result.data.map((u) => [u.id, u]));
+    const all = await collectAllPages(
+      (page, pageSize) =>
+        this.warehouseRepository.listUnits(warehouseId, tenantId, {}, page, pageSize),
+      this.config.fetchPageSize,
+    );
+    return new Map(all.map((u) => [u.id, u]));
   }
 
   private async buildSubgroupMap(
     tenantId: string,
     warehouseId: string,
   ): Promise<Map<string, Subgroup>> {
-    const result = await this.warehouseRepository.listSubgroups(
-      warehouseId,
-      tenantId,
-      {},
-      1,
-      10000,
+    const all = await collectAllPages(
+      (page, pageSize) =>
+        this.warehouseRepository.listSubgroups(warehouseId, tenantId, {}, page, pageSize),
+      this.config.fetchPageSize,
     );
-    return new Map(result.data.map((s) => [s.id, s]));
+    return new Map(all.map((s) => [s.id, s]));
   }
 
   private async gatherGISLayers(
@@ -290,13 +294,12 @@ export class PublishingService {
   ): Promise<PublishedGISLayer[]> {
     if (!this.gisRepository) return [];
 
-    const result = await this.gisRepository.listLayers(warehouseId, tenantId, {
-      activeOnly: true,
-      page: 1,
-      pageSize: 10000,
-    });
-
-    let layers = result.data;
+    const gisRepository = this.gisRepository;
+    let layers = await collectAllPages(
+      (page, pageSize) =>
+        gisRepository.listLayers(warehouseId, tenantId, { activeOnly: true, page, pageSize }),
+      this.config.fetchPageSize,
+    );
     if (areaIds && areaIds.length > 0) {
       layers = layers.filter((l) => areaIds.includes(l.areaId));
     }
