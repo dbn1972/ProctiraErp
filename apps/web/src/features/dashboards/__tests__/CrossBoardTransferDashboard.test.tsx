@@ -20,10 +20,8 @@ import {
   type DashboardQueryResult,
 } from '../api';
 
-const useCrossBoardTransferDataMock = vi.fn<
-  [string?],
-  DashboardQueryResult<CrossBoardTransferData>
->();
+const useCrossBoardTransferDataMock =
+  vi.fn<(...args: [string?]) => DashboardQueryResult<CrossBoardTransferData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();

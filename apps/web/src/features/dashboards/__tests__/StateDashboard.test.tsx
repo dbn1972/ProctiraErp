@@ -25,7 +25,8 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 
 import { STATE_DASHBOARD_MOCK, type DashboardQueryResult, type StateDashboardData } from '../api';
 
-const useStateDashboardDataMock = vi.fn<[string?], DashboardQueryResult<StateDashboardData>>();
+const useStateDashboardDataMock =
+  vi.fn<(...args: [string?]) => DashboardQueryResult<StateDashboardData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
