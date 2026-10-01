@@ -1,4 +1,6 @@
+import { getLocale } from 'next-intl/server';
 import { requireSession } from '@/lib/auth/server';
+import { formatSchoolDate } from '@/lib/fees/parent-display';
 import { listChildren } from '@/lib/api/parent-portal';
 import {
   listLibraryHoldsResult,
@@ -32,6 +34,7 @@ export default async function ParentLibraryPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireSession();
+  const locale = await getLocale();
   const params = await searchParams;
   const q = firstSearchParam(params.q) ?? '';
   const children = await listChildren();
@@ -125,7 +128,7 @@ export default async function ParentLibraryPage({
                 <li key={loan.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">{loan.status}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    due {loan.dueAt.slice(0, 10)}
+                    due {formatSchoolDate(loan.dueAt, locale)}
                   </p>
                 </li>
               ))}

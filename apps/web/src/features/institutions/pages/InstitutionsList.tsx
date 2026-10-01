@@ -6,7 +6,7 @@
  */
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { browserGatewayFetch } from '@/lib/api/browser-gateway';
 
@@ -35,6 +35,9 @@ interface InstitutionListResponse {
 
 /* ------------------------------------------------------------------ Component */
 
+/** Delay before a search query is sent, so typing does not fire one request per key. */
+export const SEARCH_DEBOUNCE_MS = 300;
+
 export default function InstitutionsList() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({
@@ -44,10 +47,19 @@ export default function InstitutionsList() {
     totalPages: 0,
   });
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Monotonic request id: only the latest request may write state, so a slow
+  // response for "ab" cannot overwrite the results for "abc" (PRC-L072).
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchInstitutions = useCallback(async (page: number, query: string) => {
+    const requestId = ++requestIdRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
     setError(null);
     try {
@@ -55,23 +67,33 @@ export default function InstitutionsList() {
       if (query) params.set('search', query);
       const result = await browserGatewayFetch<InstitutionListResponse>(
         `/institutions?${params.toString()}`,
+        { signal: controller.signal },
       );
+      if (requestId !== requestIdRef.current) return;
       setInstitutions(result.data);
       setMeta(result.meta);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load institutions');
       setInstitutions([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchInstitutions(1, search);
-  }, [fetchInstitutions, search]);
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    void fetchInstitutions(1, debouncedSearch);
+  }, [fetchInstitutions, debouncedSearch]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const handlePageChange = (newPage: number) => {
-    fetchInstitutions(newPage, search);
+    void fetchInstitutions(newPage, debouncedSearch);
   };
 
   return (
@@ -134,7 +156,14 @@ export default function InstitutionsList() {
                 institutions.map((inst) => (
                   <tr key={inst.id} className="border-b hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono text-xs">{inst.code}</td>
-                    <td className="px-4 py-3 font-medium">{inst.name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <a
+                        href={`/institutions/${encodeURIComponent(inst.id)}`}
+                        className="text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {inst.name}
+                      </a>
+                    </td>
                     <td className="px-4 py-3">{inst.parentArea?.name ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span
@@ -157,12 +186,13 @@ export default function InstitutionsList() {
 
       {/* Pagination */}
       {meta.totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <nav aria-label="Institutions pagination" className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
             Page {meta.page} of {meta.totalPages}
           </span>
           <div className="flex gap-2">
             <button
+              type="button"
               className="rounded-md border px-3 py-1 text-sm disabled:opacity-50"
               disabled={meta.page <= 1}
               onClick={() => handlePageChange(meta.page - 1)}
@@ -170,6 +200,7 @@ export default function InstitutionsList() {
               Previous
             </button>
             <button
+              type="button"
               className="rounded-md border px-3 py-1 text-sm disabled:opacity-50"
               disabled={meta.page >= meta.totalPages}
               onClick={() => handlePageChange(meta.page + 1)}
@@ -177,7 +208,7 @@ export default function InstitutionsList() {
               Next
             </button>
           </div>
-        </div>
+        </nav>
       )}
     </div>
   );

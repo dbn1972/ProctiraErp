@@ -1,6 +1,7 @@
 /**
  * Parent fees (Server Component) — invoices, instalment schedule, remaining balance (F3).
  */
+import { getLocale } from 'next-intl/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import {
@@ -17,15 +18,15 @@ import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { humanizeStatus } from '@/lib/status-label';
 import { PayInvoiceButton } from './_components/pay-invoice-button';
+import {
+  DEFAULT_SCHOOL_TIME_ZONE,
+  formatMoney,
+  formatSchoolDate,
+  formatSchoolDateTime,
+  totalsByCurrency,
+} from '@/lib/fees/parent-display';
 
 export const dynamic = 'force-dynamic';
-
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency || 'USD',
-  }).format(cents / 100);
-}
 
 function remainingBalanceCents(invoice: FeeInvoice, receipts: FeeReceipt[]): number {
   if (invoice.status === 'paid' || invoice.status === 'void') return 0;
@@ -52,6 +53,9 @@ function dueDateForInstalment(invoice: FeeInvoice, instalment: FeeInstalment): D
 
 export default async function ParentFeesPage() {
   await requireSession();
+  const locale = await getLocale();
+  const timeZone = DEFAULT_SCHOOL_TIME_ZONE;
+  const formatAmount = (cents: number, currency: string) => formatMoney(cents, currency, locale);
   const [invoicesResult, receiptsResult] = await Promise.all([
     listInvoicesResult('parent'),
     listReceiptsResult('parent'),
@@ -86,9 +90,12 @@ export default async function ParentFeesPage() {
     return parts == null || parts.length > 0;
   });
 
-  const openRemaining = invoices.reduce(
-    (sum, invoice) => sum + remainingBalanceCents(invoice, receipts),
-    0,
+  // One line per currency: amounts in different currencies are never summed (PRC-L064).
+  const openRemaining = totalsByCurrency(
+    invoices.map((invoice) => ({
+      currency: invoice.currency,
+      cents: remainingBalanceCents(invoice, receipts),
+    })),
   );
   const openCount = invoices.filter(
     (invoice) => remainingBalanceCents(invoice, receipts) > 0,
@@ -114,12 +121,26 @@ export default async function ParentFeesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p
-            className="text-2xl font-semibold tracking-tight"
-            data-testid="parent-remaining-balance"
-          >
-            {formatAmount(openRemaining, 'INR')}
-          </p>
+          {openRemaining.length === 0 ? (
+            <p
+              className="text-2xl font-semibold tracking-tight"
+              data-testid="parent-remaining-balance"
+            >
+              Nothing owed
+            </p>
+          ) : (
+            <ul className="space-y-1" role="list">
+              {openRemaining.map(({ currency, cents }) => (
+                <li
+                  key={currency}
+                  className="text-2xl font-semibold tracking-tight"
+                  data-testid="parent-remaining-balance"
+                >
+                  {formatAmount(cents, currency)}
+                </li>
+              ))}
+            </ul>
+          )}
           <p className="mt-1 text-sm text-muted-foreground">
             {`${openCount} open invoice${openCount === 1 ? '' : 's'}`}
           </p>
@@ -158,7 +179,7 @@ export default async function ParentFeesPage() {
                       {resolveEntityLabel(invoice.studentId, studentLabels, 'Child')} ·{' '}
                       {humanizeStatus(invoice.status)}
                       {invoice.dueAt
-                        ? ` · due ${new Date(invoice.dueAt).toLocaleDateString()}`
+                        ? ` · due ${formatSchoolDate(invoice.dueAt, locale, timeZone)}`
                         : ''}
                     </p>
                     {invoice.description ? (
@@ -253,7 +274,7 @@ export default async function ParentFeesPage() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   {formatAmount(part.amountCents, invoice.currency)} · due{' '}
-                                  {due.toLocaleDateString()} · {state}
+                                  {formatSchoolDate(due, locale, timeZone)} · {state}
                                   {partRemaining > 0 && applied > 0
                                     ? ` · still ${formatAmount(partRemaining, invoice.currency)}`
                                     : ''}
@@ -295,7 +316,7 @@ export default async function ParentFeesPage() {
                   <p className="text-sm font-medium text-foreground">{receipt.receiptNumber}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatAmount(receipt.amountCents, receipt.currency)} ·{' '}
-                    {new Date(receipt.issuedAt).toLocaleString()}
+                    {formatSchoolDateTime(receipt.issuedAt, locale, timeZone)}
                   </p>
                 </li>
               ))}

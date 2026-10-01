@@ -17,6 +17,7 @@ import {
   getSessionContext,
 } from './gateway';
 import { clampPageSize } from './pagination';
+import { gatewayFetchAllPages } from './gateway-all-pages';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -317,11 +318,10 @@ export async function createEnrollment(input: CreateEnrollmentInput): Promise<En
 }
 
 export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
-  const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
-    `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  return gatewayFetchAllPages<EnrollmentEntry>(
+    `/enrollments?studentId=${encodeURIComponent(studentId)}`,
+    { next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data : [];
 }
 
 export async function getEnrollmentHistory(studentId: string): Promise<EnrollmentHistoryEntry[]> {
@@ -402,15 +402,10 @@ export async function bulkUpdateEnrollmentStatus(
 /* ---------------------------------------------------------- Custom Fields */
 
 export async function getStudentCustomFields(): Promise<CustomFieldDefinition[]> {
-  const result = await gatewayFetch<{
-    data: CustomFieldDefinition[];
-    meta?: StudentListMeta;
-  }>('/custom-fields?entityType=student&isActive=true&pageSize=100', {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 60 },
-  });
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+  return gatewayFetchAllPages<CustomFieldDefinition>(
+    '/custom-fields?entityType=student&isActive=true',
+    { next: { revalidate: 60 } },
+  );
 }
 
 /* ----------------------------------------------------------- Bulk Import */
