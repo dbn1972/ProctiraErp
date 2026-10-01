@@ -60,6 +60,22 @@ const BRANDING_ACTIONS: Record<string, PermissionAction> = {
 };
 
 /**
+ * PRC-L208: undefined/blank → null (not supplied); a parseable https URL → its normalised
+ * form; anything else (javascript:, data:, http:, garbage) → false (reject).
+ */
+function normaliseHttpsAssetUrl(value: string | undefined): string | null | false {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || !url.hostname) return false;
+    return url.toString();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * PRC-L004: branding permission check backed by the shared gateway RBAC registry.
  * Platform administrators (canonical {@link PLATFORM_ADMIN_ROLE_IDS}) are allowed, matching
  * the gateway's platform bypass; unknown permissions are denied.
@@ -216,9 +232,26 @@ export const tenantAdminPlugin = fp(
         Promise.resolve(brandingPermissionGranted(request.user, permission)),
     });
 
-    // Logo asset staging (URL/data-URI already validated on publish; this stores a draft logo URL helper)
+    // Logo/favicon asset staging onto tenant settings branding.
+    // PRC-L208: https URLs only (no javascript:/data:/http:), branding:edit required, and both
+    // logoUrl and faviconUrl are persisted (faviconUrl used to be echoed but dropped).
+    const httpsAssetUrl = {
+      type: 'string',
+      minLength: 9,
+      maxLength: 2048,
+      pattern: '^https://\\S+$',
+    };
     fastify.post<{ Body: { logoUrl?: string; faviconUrl?: string } }>(
       `${prefix}/branding/assets`,
+      {
+        schema: {
+          body: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { logoUrl: httpsAssetUrl, faviconUrl: httpsAssetUrl },
+          },
+        },
+      },
       async (request, reply) => {
         const tenantId =
           (request as { tenantId?: string }).tenantId ??
@@ -228,8 +261,22 @@ export const tenantAdminPlugin = fp(
             .code(400)
             .send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
         }
-        const logoUrl = request.body?.logoUrl?.trim() || null;
-        const faviconUrl = request.body?.faviconUrl?.trim() || null;
+        if (!brandingPermissionGranted(request.user, 'branding:edit')) {
+          return reply.code(403).send({
+            statusCode: 403,
+            code: 'FORBIDDEN',
+            message: "Missing required permission 'branding:edit'",
+          });
+        }
+        const logoUrl = normaliseHttpsAssetUrl(request.body?.logoUrl);
+        const faviconUrl = normaliseHttpsAssetUrl(request.body?.faviconUrl);
+        if (logoUrl === false || faviconUrl === false) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'logoUrl and faviconUrl must be absolute https URLs',
+          });
+        }
         if (!logoUrl && !faviconUrl) {
           return reply.code(400).send({
             statusCode: 400,
@@ -240,18 +287,20 @@ export const tenantAdminPlugin = fp(
         // Persist onto settings branding for immediate admin console use.
         const current = await settingsStore.get(tenantId);
         const base = effectiveTenantSettings(tenantId, current);
+        const sub = (request.user as { sub?: unknown } | undefined)?.sub;
         const next = {
           ...base,
           tenantId,
           updatedAt: new Date().toISOString(),
-          updatedBy: (request as { user?: { id?: string } }).user?.id ?? null,
+          updatedBy: typeof sub === 'string' ? sub : null,
           branding: {
             ...base.branding,
             ...(logoUrl ? { logoUrl } : {}),
+            ...(faviconUrl ? { faviconUrl } : {}),
           },
         };
         await settingsStore.put(next);
-        return reply.code(200).send({ tenantId, branding: next.branding, faviconUrl });
+        return reply.code(200).send({ tenantId, branding: next.branding });
       },
     );
 

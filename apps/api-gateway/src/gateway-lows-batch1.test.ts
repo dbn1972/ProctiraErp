@@ -12,6 +12,7 @@ delete process.env['DATABASE_URL'];
 
 const TENANT_A = '550e8400-e29b-41d4-a716-446655440000';
 const TENANT_C = '770e8400-e29b-41d4-a716-446655440002';
+const TENANT_D = '880e8400-e29b-41d4-a716-446655440003';
 
 function config(): GatewayConfig {
   return {
@@ -211,6 +212,59 @@ describe('gateway lows batch 1', () => {
       expect(typeof failure!['requestId']).toBe('string');
       expect(failure!['riskLevel']).toBe('high');
       await bare.close();
+    });
+  });
+  describe('PRC-L208 branding asset staging validates and persists URLs', () => {
+    const url = '/api/v1/tenant/branding/assets';
+
+    it('rejects javascript:, data: and http: URLs with 400', async () => {
+      for (const bad of [
+        'javascript:alert(1)',
+        'data:image/svg+xml;base64,PHN2Zz4=',
+        'http://cdn.example.com/logo.png',
+        'not a url',
+      ]) {
+        for (const field of ['logoUrl', 'faviconUrl']) {
+          const res = await app.inject({
+            method: 'POST',
+            url,
+            headers: headersFor(app, 'admin', TENANT_D),
+            payload: { [field]: bad },
+          });
+          expect(res.statusCode, `${field}=${bad}`).toBe(400);
+        }
+      }
+    });
+
+    it('persists faviconUrl and logoUrl, returned by GET /tenant/settings', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        headers: headersFor(app, 'admin', TENANT_D),
+        payload: {
+          logoUrl: 'https://cdn.example.com/logo.png',
+          faviconUrl: 'https://cdn.example.com/favicon.ico',
+        },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const settings = await app.inject({
+        method: 'GET',
+        url: '/api/v1/tenant/settings',
+        headers: headersFor(app, 'admin', TENANT_D),
+      });
+      expect(settings.statusCode, settings.body).toBe(200);
+      const body = settings.json<Record<string, unknown>>();
+      const branding = (body['branding'] ??
+        (body['data'] as Record<string, unknown> | undefined)?.['branding']) as
+        Record<string, unknown> | undefined;
+      expect(branding?.['faviconUrl']).toBe('https://cdn.example.com/favicon.ico');
+      expect(branding?.['logoUrl']).toBe('https://cdn.example.com/logo.png');
+    });
+
+    it('requires branding:edit beyond the gateway user gate', () => {
+      expect(brandingPermissionGranted({ roles: [{ roleId: 'admin' }] }, 'branding:edit')).toBe(
+        true,
+      );
     });
   });
 });
