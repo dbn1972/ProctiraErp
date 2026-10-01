@@ -143,6 +143,18 @@ export class StaffService {
    * @throws NotFoundError if staff not found
    */
   async delete(tenantId: string, id: string): Promise<void> {
+    // PRC-L157: block delete when HR/payroll history references this staff member.
+    if (this.repository.countDependents) {
+      const counts = await this.repository.countDependents(id, tenantId);
+      const kinds = Object.entries(counts)
+        .filter(([, n]) => n > 0)
+        .map(([kind]) => kind);
+      if (kinds.length > 0) {
+        throw new ConflictError(
+          `Staff with id '${id}' has dependent records (${kinds.join(', ')}); offboard the staff member instead of deleting`,
+        );
+      }
+    }
     const deleted = await this.repository.delete(id, tenantId);
     if (!deleted) {
       throw new NotFoundError(`Staff with id '${id}' not found`);

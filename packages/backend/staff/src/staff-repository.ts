@@ -61,4 +61,10 @@ export interface StaffRepository {
 
   /** Delete a staff record */
   delete(id: string, tenantId: string): Promise<boolean>;
+
+  /**
+   * PRC-L157: count dependent HR records (payroll lines, contracts, attendance, leave,
+   * appraisals, training) keyed by kind. Staff with dependents must be offboarded, not deleted.
+   */
+  countDependents?(id: string, tenantId: string): Promise<Record<string, number>>;
 }

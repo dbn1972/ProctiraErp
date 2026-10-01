@@ -23,6 +23,17 @@ import type { StaffEntity, StaffFilter, StaffRepository } from './staff-reposito
 
 const PROFILE_KEY = '__profile';
 
+/** PRC-L157: static allowlist of tables holding per-staff HR/payroll history. */
+const STAFF_DEPENDENT_TABLES: ReadonlyArray<readonly [kind: string, table: string]> = [
+  ['payrollLines', 'staff_payroll_lines'],
+  ['contracts', 'staff_contracts'],
+  ['attendance', 'staff_hr_attendance'],
+  ['leaveRequests', 'staff_leave_requests'],
+  ['appraisals', 'hr_appraisals'],
+  ['trainingAttendance', 'hr_training_attendance'],
+  ['certifications', 'hr_certifications'],
+];
+
 interface ProfileEnvelope {
   contactPhone: string;
   contactEmail: string | null;
@@ -216,6 +227,31 @@ export class PrismaStaffRepository implements StaffRepository {
           totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
         },
       };
+    });
+  }
+
+  /**
+   * PRC-L157: counts rows referencing the staff member in HR/payroll tables. Table names come
+   * from a static allowlist; tables absent in this deployment are skipped via to_regclass so
+   * the check never aborts the transaction.
+   */
+  async countDependents(id: string, tenantId: string): Promise<Record<string, number>> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const counts: Record<string, number> = {};
+      for (const [kind, table] of STAFF_DEPENDENT_TABLES) {
+        const exists = await tx.$queryRawUnsafe<{ present: boolean }[]>(
+          `SELECT to_regclass($1) IS NOT NULL AS present`,
+          `public.${table}`,
+        );
+        if (!exists[0]?.present) continue;
+        const rows = await tx.$queryRawUnsafe<{ n: number }[]>(
+          `SELECT COUNT(*)::int AS n FROM ${table} WHERE tenant_id = $1::uuid AND staff_id = $2::uuid`,
+          tenantId,
+          id,
+        );
+        counts[kind] = Number(rows[0]?.n ?? 0);
+      }
+      return counts;
     });
   }
 
