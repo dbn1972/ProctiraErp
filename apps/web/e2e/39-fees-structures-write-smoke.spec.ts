@@ -370,7 +370,8 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     const invoiceId = ((await bulk.json()).created as Array<{ id: string }>)[0]?.id;
     expect(invoiceId).toBeTruthy();
 
-    const disbursementId = `e2e-disb-${stamp()}`;
+    // PRC-L105: netting validates disbursementId as a UUID.
+    const disbursementId = crypto.randomUUID();
     const net = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
       headers: headers(),
       data: {
@@ -401,7 +402,7 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
       headers: headers(TENANT_B),
       data: {
         studentId: STUDENT_A,
-        disbursementId: `foreign-${stamp()}`,
+        disbursementId: crypto.randomUUID(),
         amountCents: 100,
         invoiceId,
       },
