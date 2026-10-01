@@ -1034,12 +1034,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             entityType: event.entityType,
             entityId: event.entityId,
             operation: event.operation,
+            // PRC-L205: real caller from the tenant admin request context; 'system' / 0.0.0.0
+            // only for events raised outside an authenticated request.
             userId: event.actorId ?? 'system',
             userName: event.actorId ?? 'system',
-            ipAddress: '0.0.0.0',
+            ipAddress: event.ipAddress ?? '0.0.0.0',
             beforeValues: event.beforeValues,
             afterValues: event.afterValues,
-            metadata: event.metadata,
+            metadata: event.requestId
+              ? { ...event.metadata, requestId: event.requestId }
+              : event.metadata,
           });
         },
       });

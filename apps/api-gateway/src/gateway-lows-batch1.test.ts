@@ -2,15 +2,16 @@
  * Gateway low-severity audit gaps, batch 1 (PRC-L001 … PRC-L528).
  * Each describe block maps to one audit row.
  */
-import type { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
-import { brandingPermissionGranted } from './tenant-admin-plugin.js';
+import { brandingPermissionGranted, tenantAdminPlugin } from './tenant-admin-plugin.js';
 
 delete process.env['DATABASE_URL'];
 
 const TENANT_A = '550e8400-e29b-41d4-a716-446655440000';
+const TENANT_C = '770e8400-e29b-41d4-a716-446655440002';
 
 function config(): GatewayConfig {
   return {
@@ -152,6 +153,64 @@ describe('gateway lows batch 1', () => {
         payload: { tokens: {} },
       });
       expect(res.statusCode).not.toBe(403);
+    });
+  });
+  describe('PRC-L205 roles audit records carry the real actor and IP', () => {
+    it('invite via /api/v1/tenant/users stores admin sub and client ip', async () => {
+      const invited = await app.inject({
+        method: 'POST',
+        url: '/api/v1/tenant/users',
+        headers: headersFor(app, 'admin', TENANT_C),
+        remoteAddress: '203.0.113.7',
+        payload: { email: 'audit.actor@school.test', displayName: 'Audit Actor', roleIds: [] },
+      });
+      expect(invited.statusCode, invited.body).toBe(201);
+      const logs = await app.auditService.queryAuditLogs({
+        tenantId: TENANT_C,
+        page: 1,
+        pageSize: 100,
+      });
+      const rolesRecords = logs.data.filter(
+        (row) => row.entityType === 'user' && row.afterValues != null,
+      );
+      expect(rolesRecords.length).toBeGreaterThan(0);
+      for (const row of rolesRecords) {
+        expect(row.userId).toBe('admin-1');
+        expect(row.ipAddress).toBe('203.0.113.7');
+      }
+    });
+
+    it('sink failure is logged with the request id and the request still succeeds', async () => {
+      const lines: string[] = [];
+      const bare = Fastify({
+        logger: { level: 'error', stream: { write: (line: string) => lines.push(line) } },
+      });
+      bare.addHook('onRequest', (request, _reply, done) => {
+        (request as unknown as { user: unknown }).user = { sub: 'admin-9', tenantId: TENANT_C };
+        (request as unknown as { tenantId: string }).tenantId = TENANT_C;
+        done();
+      });
+      await bare.register(tenantAdminPlugin, {
+        prefix: '/tenant',
+        scimPrefix: false,
+        onAudit: () => {
+          throw new Error('audit sink down');
+        },
+      });
+      await bare.ready();
+      const res = await bare.inject({
+        method: 'POST',
+        url: '/tenant/users',
+        payload: { email: 'sink.fail@school.test', displayName: 'Sink Fail', roleIds: [] },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const failure = lines
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+        .find((entry) => entry['msg'] === 'tenant admin audit write failed');
+      expect(failure).toBeDefined();
+      expect(typeof failure!['requestId']).toBe('string');
+      expect(failure!['riskLevel']).toBe('high');
+      await bare.close();
     });
   });
 });

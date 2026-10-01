@@ -23,6 +23,8 @@
  * `/scim/v2/{Users,Groups}` (see scim-plugin.ts) so IdP pushes are audited
  * exactly like console edits.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { DEFAULT_ROLES, type PermissionAction } from '@proctira/backend-auth';
 import {
   createRolesRepository,
@@ -75,11 +77,28 @@ export function brandingPermissionGranted(user: unknown, permission: string): bo
   });
 }
 
+/** PRC-L205: roles/SCIM audit event enriched with the HTTP actor that caused it. */
+export type TenantAdminAuditEvent = RolesAuditEvent & {
+  /** JWT `sub` of the caller; null when no authenticated user (e.g. SCIM bearer). */
+  actorId: string | null;
+  /** Client IP as resolved by Fastify (`request.ip`); null outside a request. */
+  ipAddress: string | null;
+  requestId: string | null;
+};
+
+interface AuditActorContext {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+const auditActorStore = new AsyncLocalStorage<AuditActorContext>();
+
 export interface TenantAdminPluginOptions {
   /** Default `/tenant`; the gateway mounts `/api/v1` above. */
   prefix?: string;
   /** Receives every role/user mutation (wired to the audit service). */
-  onAudit?: (event: RolesAuditEvent & { actorId: string | null }) => Promise<void> | void;
+  onAudit?: (event: TenantAdminAuditEvent) => Promise<void> | void;
   /** G-924: SCIM 2.0 base path; default `/scim/v2`. Set `false` to disable. */
   scimPrefix?: string | false;
   /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
@@ -114,12 +133,46 @@ export const tenantAdminPlugin = fp(
     }
     fastify.log.info({ persistence }, 'tenant admin console repository ready');
 
+    // PRC-L205: RolesService emits audit events without request context, so bind the caller
+    // (JWT sub, IP, request id) for the duration of each request handler.
+    fastify.addHook('preHandler', (request, _reply, done) => {
+      const sub = (request.user as { sub?: unknown } | undefined)?.sub;
+      auditActorStore.run(
+        {
+          actorId: typeof sub === 'string' && sub ? sub : null,
+          ipAddress: request.ip || null,
+          requestId: request.id,
+        },
+        done,
+      );
+    });
+
     const rolesService = new RolesService(repository, async (event) => {
       if (!options.onAudit) return;
+      const actor = auditActorStore.getStore();
       try {
-        await options.onAudit({ ...event, actorId: null });
-      } catch {
-        // Audit must not break the primary request path.
+        await options.onAudit({
+          ...event,
+          actorId: actor?.actorId ?? null,
+          ipAddress: actor?.ipAddress ?? null,
+          requestId: actor?.requestId ?? null,
+        });
+      } catch (error) {
+        // Policy: the role/user mutation has already committed, and the gateway onSend mutation
+        // audit records the same request with the real actor, so the request is not failed.
+        // The lost before/after record must be visible to operators, never silently dropped.
+        fastify.log.error(
+          {
+            err: error,
+            requestId: actor?.requestId ?? null,
+            tenantId: event.tenantId,
+            entityType: event.entityType,
+            entityId: event.entityId,
+            operation: event.operation,
+            riskLevel: event.metadata.riskLevel,
+          },
+          'tenant admin audit write failed',
+        );
       }
     });
 
