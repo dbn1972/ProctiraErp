@@ -4,6 +4,7 @@ import { Activity, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
+  createCachedSnapshotLoader,
   loadStatusSnapshot,
   readStatusProbeUrlsFromEnv,
   type ProbeState,
@@ -43,9 +44,11 @@ const SERVICES = [
   },
 ];
 
-async function loadPageStatusSnapshot(): Promise<StatusSnapshot> {
-  return loadStatusSnapshot(readStatusProbeUrlsFromEnv());
-}
+// Rendered dynamically, but probes are cached in-process (~30s) so page views
+// do not each fan out a fresh probe set.
+const loadPageStatusSnapshot: () => Promise<StatusSnapshot> = createCachedSnapshotLoader(() =>
+  loadStatusSnapshot(readStatusProbeUrlsFromEnv()),
+);
 
 function serviceState(
   probeKey: 'web' | 'api' | 'auth' | null,
