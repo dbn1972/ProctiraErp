@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockTenantId = '11111111-1111-1111-1111-111111111111';
 const mockAccessToken = 'eyJ.access.token';
-const mockGet = vi.fn<[string], { value: string } | undefined>();
-const mockHeaderGet = vi.fn<[string], string | null>();
+const mockGet = vi.fn<(...args: [string]) => { value: string } | undefined>();
+const mockHeaderGet = vi.fn<(...args: [string]) => string | null>();
 
 vi.mock('next/headers', () => ({
   cookies: () => ({ get: mockGet }),
@@ -33,7 +33,7 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 
-const fetchMock = vi.fn<[string, RequestInit?], Promise<Response>>();
+const fetchMock = vi.fn<(...args: [string, RequestInit?]) => Promise<Response>>();
 vi.stubGlobal('fetch', fetchMock);
 
 beforeEach(() => {

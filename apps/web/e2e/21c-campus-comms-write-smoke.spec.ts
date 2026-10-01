@@ -72,10 +72,26 @@ test.describe('Communication — live campaign create (E2E_BACKEND_READY)', () =
     const name = `E2E campaign ${Date.now()}`;
     await page.getByLabel(/^name/i).fill(name);
     await page.getByLabel(/message body/i).fill('Created by campus live write smoke.');
-    await page.getByRole('button', { name: /create campaign/i }).click();
 
-    await expect(page).toHaveURL(/\/communication\/campaigns/, { timeout: 20_000 });
-    await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+    // CI serves `next dev`: the create action can sit at "Saving…" for well
+    // over 10s while another worker's route compiles. Wait on the action POST
+    // itself, then on the redirect to the list (`?created=<id>`). The old
+    // `/\/communication\/campaigns/` URL check already matched `/new`, so it
+    // never waited for the redirect at all.
+    const createAction = page.waitForResponse(
+      async (res) =>
+        res.request().method() === 'POST' &&
+        new URL(res.url()).pathname === '/communication/campaigns/new' &&
+        (await res.request().headerValue('next-action')) !== null,
+      { timeout: 45_000 },
+    );
+    await page.getByRole('button', { name: /create campaign/i }).click();
+    expect((await createAction).status()).toBe(200);
+
+    await expect(page).toHaveURL(/\/communication\/campaigns\?created=[^&]+/, {
+      timeout: 30_000,
+    });
+    await expect(page.getByText(name)).toBeVisible({ timeout: 20_000 });
   });
 });
 

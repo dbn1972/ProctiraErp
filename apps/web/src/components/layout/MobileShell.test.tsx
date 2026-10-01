@@ -25,7 +25,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 
 // ─── Module mocks ────────────────────────────────────────────────────────────
@@ -112,6 +112,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Vitest >=2 runs afterEach hooks in stack order, so unmount explicitly
+  // before wiping the body; otherwise React cannot detach the drawer portal.
+  cleanup();
   vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
