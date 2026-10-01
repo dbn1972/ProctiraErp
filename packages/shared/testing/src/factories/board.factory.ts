@@ -1,5 +1,4 @@
-import { faker } from '@faker-js/faker';
-
+import { faker } from './seeded-faker.js';
 import type { Board, BoardType } from './types.js';
 
 /**
@@ -23,10 +22,12 @@ export function createBoard(overrides: Partial<Board> = {}): Board {
 
 export function createBoardList(count: number, overrides: Partial<Board> = {}): Board[] {
   return Array.from({ length: count }, (_, i) =>
+    // PRC-L498: omit code/name (never set them to undefined) so createBoard's
+    // generated defaults survive the `...overrides` spread.
     createBoard({
       ...overrides,
-      code: overrides.code ? `${overrides.code}${i + 1}` : undefined,
-      name: overrides.name ? `${overrides.name} ${i + 1}` : undefined,
+      ...(overrides.code ? { code: `${overrides.code}${i + 1}` } : {}),
+      ...(overrides.name ? { name: `${overrides.name} ${i + 1}` } : {}),
     }),
   );
 }

@@ -1,5 +1,4 @@
-import { faker } from '@faker-js/faker';
-
+import { faker } from './seeded-faker.js';
 import type { Area } from './types.js';
 
 /**
@@ -34,13 +33,15 @@ export function createAreaHierarchy(
 
   let parentId: string | null = null;
 
-  for (let level = 1; level <= Math.min(depth, 10); level++) {
+  // PRC-L498: the loop is capped at 10 levels, so the leaf is the effective depth.
+  const effectiveDepth = Math.min(depth, 10);
+  for (let level = 1; level <= effectiveDepth; level++) {
     const area = createArea({
       tenantId,
       level,
       parentId,
       name: `${levelNames[level - 1] ?? `Level ${level}`} - ${faker.location.city()}`,
-      isLeaf: level === depth,
+      isLeaf: level === effectiveDepth,
     });
     areas.push(area);
     parentId = area.id;

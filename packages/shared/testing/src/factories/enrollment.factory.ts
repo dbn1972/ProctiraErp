@@ -1,5 +1,4 @@
-import { faker } from '@faker-js/faker';
-
+import { faker } from './seeded-faker.js';
 import type { Enrollment } from './types.js';
 
 /**
@@ -14,7 +13,8 @@ export function createEnrollment(overrides: Partial<Enrollment> = {}): Enrollmen
     studentId: faker.string.uuid(),
     institutionId: faker.string.uuid(),
     academicPeriodId: faker.string.uuid(),
-    status: faker.helpers.arrayElement(['ENROLLED', 'TRANSFERRED', 'WITHDRAWN', 'GRADUATED']),
+    // PRC-L498: deterministic default; override `status` to exercise other states.
+    status: 'ENROLLED',
     startDate,
     endDate: null,
     gradeId: faker.string.uuid(),

@@ -11,6 +11,7 @@ export { createStaff, createStaffList } from './staff.factory.js';
 export { createEnrollment } from './enrollment.factory.js';
 export { createArea, createAreaHierarchy } from './area.factory.js';
 export { createAcademicPeriod } from './academic-period.factory.js';
+export { seedFactories, resolveFactorySeed } from './seeded-faker.js';
 
 export type {
   Tenant,

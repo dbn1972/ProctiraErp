@@ -1,5 +1,4 @@
-import { faker } from '@faker-js/faker';
-
+import { faker } from './seeded-faker.js';
 import type { Staff } from './types.js';
 
 /**

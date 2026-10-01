@@ -17,6 +17,7 @@ export {
   createArea,
   createAreaHierarchy,
   createAcademicPeriod,
+  seedFactories,
 } from './factories/index.js';
 
 export type {

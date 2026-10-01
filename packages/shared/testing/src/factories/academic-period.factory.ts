@@ -1,5 +1,4 @@
-import { faker } from '@faker-js/faker';
-
+import { faker } from './seeded-faker.js';
 import type { AcademicPeriod } from './types.js';
 
 /**
@@ -18,7 +17,8 @@ export function createAcademicPeriod(overrides: Partial<AcademicPeriod> = {}): A
     code: `AY-${year}`,
     startDate,
     endDate,
-    status: faker.helpers.arrayElement(['ACTIVE', 'INACTIVE', 'ARCHIVED']),
+    // PRC-L498: deterministic default; override `status` to exercise other states.
+    status: 'ACTIVE',
     createdAt: faker.date.past(),
     updatedAt: faker.date.recent(),
     ...overrides,
