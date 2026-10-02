@@ -25,6 +25,7 @@
 
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { isSafeGatewayPath } from './gateway-path';
 
 /** Base URL of the API gateway, configurable per environment. */
 export const BROWSER_GATEWAY_BASE_URL = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
@@ -77,6 +78,14 @@ export async function browserGatewayFetch<T>(
   path: string,
   init: BrowserGatewayRequestInit = {},
 ): Promise<T> {
+  // PRC-L232 / PRC-L241: never let an interpolated value retarget the request.
+  if (!path.startsWith('http') && !isSafeGatewayPath(path)) {
+    throw new BrowserGatewayError({
+      status: 400,
+      code: 'INVALID_PATH',
+      message: 'Invalid request path.',
+    });
+  }
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.tenantId) headers.set('X-Tenant-ID', init.tenantId);

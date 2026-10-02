@@ -4,6 +4,8 @@
  * Server Actions for reports generate / schedules (G-909).
  */
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import { importJobInputSchema } from '@/lib/validation/dashboard-action-schemas';
 
 import { createImportJob, type CreateImportJobInput } from '@/lib/api/data-warehouse';
 import {
@@ -88,6 +90,9 @@ export async function generateReportAction(
 export async function createImportJobAction(
   input: CreateImportJobInput,
 ): Promise<InsightsActionState> {
+  const parsed = parseActionInput(importJobInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   const result = await createImportJob(input);
   if (!result.job) {
     return {

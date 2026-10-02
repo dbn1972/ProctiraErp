@@ -15,6 +15,7 @@
 import { cookies, headers } from 'next/headers';
 
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
+import { isSafeGatewayPath } from './gateway-path';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
@@ -68,6 +69,12 @@ export async function gatewayFetch<T>(
   path: string,
   init: GatewayRequestInit = {},
 ): Promise<GatewayResponse<T>> {
+  // PRC-L232 / PRC-L241: never let an interpolated value retarget the request.
+  if (!path.startsWith('http') && !isSafeGatewayPath(path)) {
+    const error = { code: 'INVALID_PATH', message: 'Invalid request path.' };
+    if (init.throwOnError !== false) throw new GatewayError({ status: 400, ...error });
+    return { status: 400, ok: false, data: null, error };
+  }
   const { tenantId: ctxTenantId, accessToken } = await getSessionContext();
   const tenantId = init.tenantId ?? ctxTenantId;
 

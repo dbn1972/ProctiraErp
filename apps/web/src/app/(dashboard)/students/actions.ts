@@ -9,6 +9,7 @@
  * as defence-in-depth, so malformed direct calls fail before any upstream call.
  */
 import { revalidatePath } from 'next/cache';
+import { areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { redirect } from 'next/navigation';
 
 import {
@@ -462,6 +463,8 @@ export async function removeStudentDisciplineAction(
 export async function getInstitutionGradesAction(
   institutionId: string,
 ): Promise<{ id: string; name: string }[]> {
+  // PRC-L232: the id is interpolated into the gateway path.
+  if (institutionId && !areValidActionIds(institutionId)) return [];
   if (!institutionId) return [];
   try {
     const grades = await listInstitutionGrades(institutionId);
@@ -485,6 +488,8 @@ export async function getInstitutionGradesAction(
 export async function getInstitutionPeriodsAction(
   institutionId: string,
 ): Promise<{ id: string; name: string }[]> {
+  // PRC-L232: the id is interpolated into the gateway path.
+  if (institutionId && !areValidActionIds(institutionId)) return [];
   if (!institutionId) return [];
   try {
     const periods = await listAcademicPeriods(institutionId);
@@ -505,6 +510,8 @@ export async function getInstitutionClassesAction(
   institutionId: string,
   academicPeriodId?: string,
 ): Promise<{ id: string; name: string; gradeId: string; academicPeriodId: string }[]> {
+  if (institutionId && !areValidActionIds(institutionId)) return [];
+  if (academicPeriodId && !areValidActionIds(academicPeriodId)) return [];
   if (!institutionId) return [];
   try {
     const classes = await listInstitutionClasses(institutionId, academicPeriodId);

@@ -4,6 +4,13 @@
  * Server Actions for Health redesign write paths.
  */
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import {
+  counsellingSessionInputSchema,
+  allergyInputSchema,
+  vaccinationInputSchema,
+  nurseIncidentInputSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -26,6 +33,9 @@ export interface HealthActionState {
 export async function createCounsellingSessionAction(
   input: CreateCounsellingSessionInput,
 ): Promise<HealthActionState> {
+  const parsed = parseActionInput(counsellingSessionInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const session = await createCounsellingSession(input);
     revalidatePath('/health/counselling');
@@ -47,6 +57,9 @@ export async function createCounsellingSessionAction(
 }
 
 export async function createAllergyAction(input: CreateAllergyInput): Promise<HealthActionState> {
+  const parsed = parseActionInput(allergyInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const row = await createAllergy(input);
     revalidatePath('/health');
@@ -67,6 +80,9 @@ export async function createAllergyAction(input: CreateAllergyInput): Promise<He
 export async function createVaccinationAction(
   input: CreateVaccinationInput,
 ): Promise<HealthActionState> {
+  const parsed = parseActionInput(vaccinationInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const row = await createVaccination(input);
     revalidatePath('/health');
@@ -87,6 +103,9 @@ export async function createVaccinationAction(
 export async function createNurseIncidentAction(
   input: CreateNurseIncidentInput,
 ): Promise<HealthActionState> {
+  const parsed = parseActionInput(nurseIncidentInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const row = await createNurseIncident(input);
     revalidatePath('/health/incidents');

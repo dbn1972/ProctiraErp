@@ -4,6 +4,7 @@
  * Server Actions for transport route, vehicle, assignment, and G-920 ops writes.
  */
 import { revalidatePath } from 'next/cache';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { z } from 'zod';
 
 import { safeActionErrorMessage } from '@/lib/api/action-error';
@@ -300,6 +301,8 @@ export async function createAlertRuleAction(
 }
 
 export async function evaluateAlertsAction(routeId?: string): Promise<TransportActionState> {
+  if (routeId && !areValidActionIds(routeId))
+    return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const result = await evaluateAlerts({
       tripDate: new Date().toISOString().slice(0, 10),

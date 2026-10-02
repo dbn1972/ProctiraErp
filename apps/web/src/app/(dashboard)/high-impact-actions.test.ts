@@ -45,6 +45,12 @@ const S1 = '11111111-1111-4111-8111-111111111111';
 const S2 = '22222222-2222-4222-8222-222222222222';
 // PRC-L24x (#532): action ids are validated as UUIDs before the gateway.
 const APPROVAL = '33333333-3333-4333-8333-333333333333';
+// PRC-L232: timetable actions validate every id as a UUID before the gateway.
+const I1 = '44444444-4444-4444-8444-444444444441';
+const P1 = '44444444-4444-4444-8444-444444444442';
+const SEC1 = '44444444-4444-4444-8444-444444444443';
+const T1 = '44444444-4444-4444-8444-444444444444';
+const PD1 = '44444444-4444-4444-8444-444444444445';
 const gwError = (status: number, code: string, message: string, details?: unknown) =>
   new GatewayError({ status, code, message, details });
 
@@ -183,18 +189,18 @@ describe('createTransportRouteAction', () => {
 
 describe('timetable actions', () => {
   const meeting = {
-    institutionId: 'i1',
-    academicPeriodId: 'p1',
-    sectionId: 's1',
-    staffId: 't1',
-    periodId: 'pd1',
+    institutionId: I1,
+    academicPeriodId: P1,
+    sectionId: SEC1,
+    staffId: T1,
+    periodId: PD1,
     dayOfWeek: 1,
   };
 
   it('createMeetingAction returns the new id', async () => {
     timetable.createMeeting.mockResolvedValue({ id: 'm1' });
     expect(await createMeetingAction(meeting)).toEqual({ ok: true, id: 'm1' });
-    expect(revalidatePath).toHaveBeenCalledWith('/institutions/i1/schedule/s1');
+    expect(revalidatePath).toHaveBeenCalledWith(`/institutions/${I1}/schedule/${SEC1}`);
   });
 
   it('createMeetingAction returns clash details from a 409', async () => {
@@ -215,7 +221,7 @@ describe('timetable actions', () => {
     timetable.publishSection.mockRejectedValue(new Error('boom'));
     // PRC-L24x (#532): non-gateway errors return a generic message with a
     // correlation ref instead of leaking the raw error text.
-    const result = await publishSectionAction({ institutionId: 'i1', sectionId: 's1' });
+    const result = await publishSectionAction({ institutionId: I1, sectionId: SEC1 });
     expect(result.ok).toBe(false);
     expect(result).not.toMatchObject({ error: 'boom' });
     expect((result as { error: string }).error).toMatch(/\(ref [0-9a-f]{8}\)$/);
@@ -228,8 +234,8 @@ describe('timetable actions', () => {
     });
     expect(
       await bulkEnrollStudentsAction({
-        institutionId: 'i1',
-        sectionId: 's1',
+        institutionId: I1,
+        sectionId: SEC1,
         studentIds: [S1, S2],
       }),
     ).toEqual({ ok: true, enrolled: 1, failed: [{ studentId: S2, message: 'Section full' }] });

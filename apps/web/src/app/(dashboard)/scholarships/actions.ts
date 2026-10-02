@@ -4,6 +4,12 @@
  * Server Actions for scholarship program updates and disbursement retries.
  */
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
+import {
+  scholarshipProgramInputSchema,
+  scholarshipProgramUpdateSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -29,6 +35,9 @@ export interface ScholarshipActionState {
 export async function createScholarshipProgramAction(
   input: CreateScholarshipProgramInput,
 ): Promise<ScholarshipActionState> {
+  const parsed = parseActionInput(scholarshipProgramInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const program = await createScholarshipProgram(input);
     revalidatePath('/scholarships');
@@ -53,6 +62,10 @@ export async function updateScholarshipProgramAction(
   id: string,
   input: UpdateScholarshipProgramInput,
 ): Promise<ScholarshipActionState> {
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const parsed = parseActionInput(scholarshipProgramUpdateSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     await updateScholarshipProgram(id, input);
     revalidatePath(`/scholarships/programs/${id}`);
@@ -121,6 +134,10 @@ export async function decideApplicationAction(input: {
 export async function retryFailedDisbursementsAction(
   ids: string[],
 ): Promise<ScholarshipActionState> {
+  // PRC-L232: bounded list of well-formed ids (each is interpolated into a gateway path).
+  if (!Array.isArray(ids) || ids.length > 500 || !areValidActionIds(...ids)) {
+    return { status: 'error', message: INVALID_ID_MESSAGE };
+  }
   if (ids.length === 0) {
     return { status: 'error', message: 'No failed transfers to retry.' };
   }

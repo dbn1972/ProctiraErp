@@ -27,6 +27,49 @@ import {
   type AttendanceMarkingFormValues,
   type AttendanceReportFiltersValues,
 } from '@/lib/validation/attendance-schema';
+import { z } from 'zod';
+import {
+  actionIdSchema,
+  approveRejectSchema,
+  httpUrlSchema,
+  isoDateSchema,
+  parseActionInput,
+} from '@/lib/validation/server-action-input';
+
+// PRC-L232: closed, bounded inputs for the attendance ops actions.
+const STUDENT_ATTENDANCE_STATUSES = [
+  'PRESENT',
+  'ABSENT',
+  'LATE',
+  'EXCUSED',
+  'EARLY_DEPARTURE',
+] as const;
+const regularisationInputSchema = z.object({
+  attendanceId: actionIdSchema,
+  studentId: actionIdSchema,
+  institutionId: actionIdSchema,
+  classId: actionIdSchema,
+  attendanceDate: isoDateSchema,
+  fromStatus: z.string().min(1).max(40),
+  toStatus: z.enum(STUDENT_ATTENDANCE_STATUSES),
+  reason: z.string().max(2000).optional(),
+});
+const leaveRequestInputSchema = z
+  .object({
+    studentId: actionIdSchema,
+    institutionId: actionIdSchema,
+    classId: actionIdSchema,
+    academicPeriodId: actionIdSchema,
+    fromDate: isoDateSchema,
+    toDate: isoDateSchema,
+    reason: z.string().max(2000).optional(),
+    attachmentUrl: httpUrlSchema.optional().or(z.literal('')),
+  })
+  .refine((v) => v.toDate >= v.fromDate, {
+    message: 'End date must be on or after start date.',
+    path: ['toDate'],
+  });
+const decisionInputSchema = z.object({ id: actionIdSchema, decision: approveRejectSchema });
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -140,8 +183,10 @@ export async function createRegularisationAction(input: {
   toStatus: StudentAttendanceStatus;
   reason?: string;
 }): Promise<ActionState<{ id: string }>> {
+  const parsed = parseActionInput(regularisationInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const row = await createRegularisation(input);
+    const row = await createRegularisation(parsed.data);
     revalidatePath('/attendance/ops');
     return { status: 'success', data: { id: row.id } };
   } catch (error) {
@@ -153,8 +198,10 @@ export async function decideRegularisationAction(
   id: string,
   decision: 'approve' | 'reject',
 ): Promise<ActionState<{ id: string }>> {
+  const parsed = parseActionInput(decisionInputSchema, { id, decision });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const row = await decideRegularisation(id, decision);
+    const row = await decideRegularisation(parsed.data.id, parsed.data.decision);
     revalidatePath('/attendance/ops');
     revalidatePath('/attendance');
     return { status: 'success', data: { id: row.id } };
@@ -173,8 +220,11 @@ export async function createLeaveRequestAction(input: {
   reason?: string;
   attachmentUrl?: string;
 }): Promise<ActionState<{ id: string }>> {
+  const parsed = parseActionInput(leaveRequestInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const row = await createLeaveRequest(input);
+    const { attachmentUrl, ...rest } = parsed.data;
+    const row = await createLeaveRequest(attachmentUrl ? { ...rest, attachmentUrl } : rest);
     revalidatePath('/attendance/ops');
     return { status: 'success', data: { id: row.id } };
   } catch (error) {
@@ -186,8 +236,10 @@ export async function decideLeaveAction(
   id: string,
   decision: 'approve' | 'reject',
 ): Promise<ActionState<{ id: string }>> {
+  const parsed = parseActionInput(decisionInputSchema, { id, decision });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const row = await decideLeaveRequest(id, decision);
+    const row = await decideLeaveRequest(parsed.data.id, parsed.data.decision);
     revalidatePath('/attendance/ops');
     revalidatePath('/attendance');
     return { status: 'success', data: { id: row.id } };

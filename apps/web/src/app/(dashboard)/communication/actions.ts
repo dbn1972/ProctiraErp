@@ -20,7 +20,13 @@ import {
 } from '@/lib/api/communication';
 import { requireSession } from '@/lib/auth/server';
 import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
-import { circularFormSchema } from '@/lib/validation/communication-schema';
+import {
+  campaignAudienceSchema,
+  circularFormSchema,
+  createCampaignInputSchema,
+  emergencyBlastInputSchema,
+} from '@/lib/validation/communication-schema';
+import { parseActionInput } from '@/lib/validation/server-action-input';
 
 export interface CommunicationActionState {
   status: 'idle' | 'success' | 'error';
@@ -33,8 +39,12 @@ export interface CommunicationActionState {
 export async function createCampaignAction(
   input: CreateCampaignInput,
 ): Promise<CommunicationActionState> {
+  // PRC-L232: closed channel/audience enums, bounded text; client createdBy is dropped
+  // (the gateway derives the author from the session).
+  const parsed = parseActionInput(createCampaignInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const campaign = await createCampaign(input);
+    const campaign = await createCampaign(parsed.data);
     revalidatePath('/communication');
     revalidatePath('/communication/campaigns');
     return { status: 'success', message: 'Campaign created.', id: campaign.id };
@@ -80,8 +90,10 @@ export async function sendCampaignAction(id: string): Promise<CommunicationActio
 export async function previewAudienceAction(
   audienceJson: Record<string, unknown>,
 ): Promise<CommunicationActionState> {
+  const parsed = parseActionInput(campaignAudienceSchema, audienceJson);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const preview = await previewCampaignAudience(audienceJson);
+    const preview = await previewCampaignAudience(parsed.data);
     return {
       status: 'success',
       message: `Estimated ${preview.estimatedRecipients} recipients.`,
@@ -107,8 +119,10 @@ export async function createEmergencyBlastAction(
   // PRC-L235: the author is the signed-in user, never a client-supplied id.
   // Outside try so the login redirect is not swallowed as an error state.
   const session = await requireSession('/communication/emergency');
+  const parsed = parseActionInput(emergencyBlastInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const blast = await createEmergencyBlast({ ...input, createdBy: session.user.sub });
+    const blast = await createEmergencyBlast({ ...parsed.data, createdBy: session.user.sub });
     revalidatePath('/communication/emergency');
     return { status: 'success', message: 'Emergency blast drafted.', id: blast.id };
   } catch (error) {

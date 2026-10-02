@@ -20,10 +20,13 @@ export interface RouteStop {
 }
 
 export async function listRouteStops(routeId: string): Promise<RouteStop[]> {
-  const result = await gatewayFetch<{ data: RouteStop[] }>(`/transport/routes/${routeId}/stops`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<{ data: RouteStop[] }>(
+    `/transport/routes/${encodeURIComponent(routeId)}/stops`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data?.data ?? [];
 }
 
@@ -59,7 +62,7 @@ export async function createRouteStop(input: {
 }
 
 export async function deleteRouteStop(id: string): Promise<void> {
-  const result = await gatewayFetch(`/transport/stops/${id}`, {
+  const result = await gatewayFetch(`/transport/stops/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     throwOnError: false,
   });
@@ -77,7 +80,7 @@ export async function registerVehicleDevice(
   deviceId?: string,
 ): Promise<{ deviceId: string; deviceKey: string; vehicleId: string }> {
   const result = await gatewayFetch<{ deviceId: string; deviceKey: string; vehicleId: string }>(
-    `/transport/vehicles/${vehicleId}/device`,
+    `/transport/vehicles/${encodeURIComponent(vehicleId)}/device`,
     { method: 'POST', json: deviceId ? { deviceId } : {} },
   );
   if (!result.data) {
@@ -279,10 +282,13 @@ export async function evaluateAlerts(input: { tripDate?: string; routeId?: strin
 }
 
 export async function acknowledgeAlert(id: string): Promise<TransportAlert> {
-  const result = await gatewayFetch<TransportAlert>(`/transport/alerts/${id}/acknowledge`, {
-    method: 'POST',
-    json: {},
-  });
+  const result = await gatewayFetch<TransportAlert>(
+    `/transport/alerts/${encodeURIComponent(id)}/acknowledge`,
+    {
+      method: 'POST',
+      json: {},
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,

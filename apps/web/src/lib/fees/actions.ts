@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 
 import { majorUnitsToCents } from '@proctira/common';
 import { GatewayError } from '@/lib/api/gateway';
@@ -180,6 +181,7 @@ export async function refundInvoiceAction(
 export async function payInvoiceStaffAction(
   invoiceId: string,
 ): Promise<ActionResult<{ id: string }>> {
+  if (!areValidActionIds(invoiceId)) return { success: false, error: INVALID_ID_MESSAGE };
   try {
     const invoice = await recordInvoicePayment(invoiceId);
     refreshFees();
@@ -296,6 +298,9 @@ export async function addReminderSuppressionAction(
 export async function removeReminderSuppressionAction(
   suppressionId: string,
 ): Promise<ActionResult<{ id: string }>> {
+  if (suppressionId?.trim() && !areValidActionIds(suppressionId.trim())) {
+    return { success: false, error: INVALID_ID_MESSAGE };
+  }
   if (!suppressionId?.trim()) {
     return { success: false, error: 'Suppression id is required' };
   }

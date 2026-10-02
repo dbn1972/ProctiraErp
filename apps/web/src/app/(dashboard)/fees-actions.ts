@@ -1,6 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import { feePlanInputSchema, invoiceInputSchema } from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -17,6 +19,9 @@ export interface FeesActionState {
 }
 
 export async function createFeePlanAction(input: CreateFeePlanInput): Promise<FeesActionState> {
+  const parsed = parseActionInput(feePlanInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const plan = await createFeePlan(input);
     revalidatePath('/fees');
@@ -36,6 +41,9 @@ export async function createFeePlanAction(input: CreateFeePlanInput): Promise<Fe
 }
 
 export async function createInvoiceAction(input: CreateInvoiceInput): Promise<FeesActionState> {
+  const parsed = parseActionInput(invoiceInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const invoice = await createInvoice(input);
     revalidatePath('/fees');

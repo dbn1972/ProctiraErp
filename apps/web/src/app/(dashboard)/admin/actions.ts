@@ -17,6 +17,7 @@ import {
   updateTenantRole,
 } from '@/lib/api/admin.server';
 import { GatewayError } from '@/lib/api/gateway';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { settingsIssuesToFieldErrors } from '@/lib/admin/settings-field-errors';
 
 export interface AdminActionState {
@@ -175,6 +176,8 @@ export async function updateRoleAction(
 }
 
 export async function deleteRoleAction(id: string): Promise<AdminActionState> {
+  // PRC-L232: the id is interpolated into the gateway path.
+  if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     await deleteTenantRole(id);
     revalidatePath('/admin/roles');

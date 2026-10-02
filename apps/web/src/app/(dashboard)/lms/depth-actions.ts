@@ -1,6 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import {
+  discussionFlagSchema,
+  discussionPostInputSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -206,6 +211,10 @@ export async function createDiscussionPostAction(
   threadId: string,
   body: string,
 ): Promise<LmsDepthActionState> {
+  const parsed = parseActionInput(discussionPostInputSchema, { threadId, body });
+  if (!parsed.ok) {
+    return { status: 'error', message: body?.trim() ? parsed.message : 'Write a reply first.' };
+  }
   if (!body.trim()) return { status: 'error', message: 'Write a reply first.' };
   try {
     const post = await createDiscussionPost(threadId, body.trim());
@@ -220,6 +229,8 @@ export async function lockDiscussionAction(
   threadId: string,
   locked: boolean,
 ): Promise<LmsDepthActionState> {
+  const parsed = parseActionInput(discussionFlagSchema, { threadId, value: locked });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
     await lockDiscussion(threadId, locked);
     revalidatePath('/lms/discussions');
@@ -234,6 +245,9 @@ export async function hidePostAction(
   postId: string,
   hidden: boolean,
 ): Promise<LmsDepthActionState> {
+  const parsed = parseActionInput(discussionFlagSchema, { threadId, postId, value: hidden });
+  if (!parsed.ok || !postId)
+    return { status: 'error', message: parsed.ok ? 'Invalid post.' : parsed.message };
   try {
     await hideDiscussionPost(threadId, postId, hidden);
     revalidatePath('/lms/discussions');
@@ -300,6 +314,9 @@ export async function pinPostAction(
   postId: string,
   pinned: boolean,
 ): Promise<LmsDepthActionState> {
+  const parsed = parseActionInput(discussionFlagSchema, { threadId, postId, value: pinned });
+  if (!parsed.ok || !postId)
+    return { status: 'error', message: parsed.ok ? 'Invalid post.' : parsed.message };
   try {
     await pinDiscussionPost(threadId, postId, pinned);
     revalidatePath('/lms/discussions');

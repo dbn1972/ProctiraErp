@@ -1,6 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
+import {
+  guardianOfferAcceptSchema,
+  parentConsentDecisionSchema,
+  parentReplyInputSchema,
+  parentThreadInputSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -19,6 +27,9 @@ export interface ParentActionState {
 }
 
 export async function createThreadAction(input: CreateThreadInput): Promise<ParentActionState> {
+  const parsed = parseActionInput(parentThreadInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const { thread } = await createThread(input);
     revalidatePath('/parent/messages');
@@ -40,6 +51,8 @@ export async function replyToThreadAction(
   threadId: string,
   body: string,
 ): Promise<ParentActionState> {
+  const parsed = parseActionInput(parentReplyInputSchema, { threadId, body });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
     const message = await replyToThread(threadId, body);
     revalidatePath(`/parent/messages/${threadId}`);
@@ -62,6 +75,8 @@ export async function decideConsentAction(
   id: string,
   status: 'approved' | 'denied',
 ): Promise<ParentActionState> {
+  const parsed = parseActionInput(parentConsentDecisionSchema, { id, status });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
     await decideConsent(id, status);
     revalidatePath('/parent/consents');
@@ -84,6 +99,7 @@ export async function decideConsentAction(
 }
 
 export async function payInvoiceAction(invoiceId: string): Promise<ParentActionState> {
+  if (!areValidActionIds(invoiceId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     const { payment, receipt } = await payInvoice(invoiceId, 'sandbox');
     revalidatePath('/parent/fees');
@@ -110,6 +126,9 @@ export async function acceptGuardianOfferAction(input: {
   paymentRef: string;
   offerFeeInvoiceId?: string;
 }): Promise<ParentActionState> {
+  const parsed = parseActionInput(guardianOfferAcceptSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const offer = await acceptGuardianOffer(input.offerId, {
       paymentRef: input.paymentRef,

@@ -8,6 +8,7 @@
  * via the same zod schemas, so direct calls are safe.
  */
 import { revalidatePath } from 'next/cache';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { redirect } from 'next/navigation';
 
 import { GatewayError } from '@/lib/api/gateway';
@@ -134,6 +135,7 @@ export async function updateStaffAction(
 /* ------------------------------------------------------------------ Delete */
 
 export async function deleteStaffAction(staffId: string): Promise<ActionState> {
+  if (!areValidActionIds(staffId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     await deleteStaff(staffId);
     revalidatePath('/staff');

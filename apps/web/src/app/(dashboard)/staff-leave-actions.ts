@@ -1,6 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import {
+  staffLeaveDecisionSchema,
+  staffLeaveInputSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import { createStaffLeave, decideStaffLeave, type CreateStaffLeaveInput } from '@/lib/api/staff';
@@ -14,6 +19,9 @@ export interface StaffActionState {
 export async function createStaffLeaveAction(
   input: CreateStaffLeaveInput,
 ): Promise<StaffActionState> {
+  const parsed = parseActionInput(staffLeaveInputSchema, input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
+  input = parsed.data;
   try {
     const row = await createStaffLeave(input);
     revalidatePath('/staff/leaves');
@@ -35,6 +43,8 @@ export async function decideStaffLeaveAction(
   id: string,
   status: 'approved' | 'rejected',
 ): Promise<StaffActionState> {
+  const parsed = parseActionInput(staffLeaveDecisionSchema, { id, status });
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
     const row = await decideStaffLeave(id, status);
     revalidatePath('/staff/leaves');

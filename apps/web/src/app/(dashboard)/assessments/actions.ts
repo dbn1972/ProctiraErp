@@ -24,6 +24,7 @@ import {
   type UpdateGradingSchemeInput,
 } from '@/lib/api/assessments';
 import { GatewayError } from '@/lib/api/gateway';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import {
   assessmentItemsFormSchema,
   gradingSchemeFormSchema,
@@ -133,6 +134,8 @@ export async function updateGradingSchemeAction(
 }
 
 export async function deleteGradingSchemeAction(schemeId: string): Promise<ActionState> {
+  // PRC-L232: the id is interpolated into the gateway path.
+  if (!areValidActionIds(schemeId)) return { status: 'error', message: INVALID_ID_MESSAGE };
   try {
     await deleteGradingScheme(schemeId);
     revalidatePath('/assessments');
@@ -269,9 +272,15 @@ export async function createOutcomeAction(input: {
   code: string;
   description?: string;
 }): Promise<ActionState<{ id: string }>> {
-  const subjectId = input.subjectId.trim();
-  const name = input.name.trim();
-  const code = input.code.trim();
+  const subjectId = String(input?.subjectId ?? '').trim();
+  const name = String(input?.name ?? '').trim();
+  const code = String(input?.code ?? '').trim();
+  if (subjectId && !areValidActionIds(subjectId)) {
+    return { status: 'error', message: INVALID_ID_MESSAGE, fieldErrors: { subjectId: 'Invalid' } };
+  }
+  if (name.length > 255 || code.length > 64 || (input.description ?? '').length > 2000) {
+    return { status: 'error', message: 'Name, code or description is too long.' };
+  }
   if (!subjectId) {
     return {
       status: 'error',

@@ -7,6 +7,7 @@
  * and proxy validated input to the institution backend service.
  */
 import { revalidatePath } from 'next/cache';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 
 import {
   ApiClientError,
@@ -123,6 +124,10 @@ export async function deactivateInstitutionAction(
   id: string,
   reason: string,
 ): Promise<ActionResult<{ id: string }>> {
+  if (!areValidActionIds(id)) return { success: false, error: INVALID_ID_MESSAGE };
+  if (typeof reason === 'string' && reason.length > 2000) {
+    return { success: false, error: 'Reason is too long (max 2000 characters).' };
+  }
   if (!reason || reason.trim().length === 0) {
     return {
       success: false,
@@ -145,6 +150,10 @@ export async function reactivateInstitutionAction(
   id: string,
   reason: string,
 ): Promise<ActionResult<{ id: string; status: string }>> {
+  if (!areValidActionIds(id)) return { success: false, error: INVALID_ID_MESSAGE };
+  if (typeof reason === 'string' && reason.length > 2000) {
+    return { success: false, error: 'Reason is too long (max 2000 characters).' };
+  }
   if (!reason || reason.trim().length === 0) {
     return {
       success: false,
@@ -220,6 +229,7 @@ export async function updateAcademicPeriodAction(
 export async function deleteAcademicPeriodAction(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
+  if (!areValidActionIds(id)) return { success: false, error: INVALID_ID_MESSAGE };
   try {
     await deleteAcademicPeriod(id);
     revalidatePath('/academic-periods');

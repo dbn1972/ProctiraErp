@@ -5,6 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 
 import {
   createNotificationRule,
@@ -70,7 +71,9 @@ export async function toggleNotificationRuleAction(
   ruleId: string,
   isActive: boolean,
 ): Promise<NotificationRulesActionState> {
-  if (!ruleId) return { status: 'error', message: 'Missing rule' };
+  // PRC-L232: id is interpolated into the gateway path; the flag must be a boolean.
+  if (!areValidActionIds(ruleId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  if (typeof isActive !== 'boolean') return { status: 'error', message: 'Invalid rule state.' };
 
   const { rule, error } = await updateNotificationRule(ruleId, { isActive });
   if (!rule) {
@@ -87,7 +90,7 @@ export async function toggleNotificationRuleAction(
 export async function deleteNotificationRuleAction(
   ruleId: string,
 ): Promise<NotificationRulesActionState> {
-  if (!ruleId) return { status: 'error', message: 'Missing rule' };
+  if (!areValidActionIds(ruleId)) return { status: 'error', message: INVALID_ID_MESSAGE };
 
   const { ok, error } = await deleteNotificationRule(ruleId);
   if (!ok) {

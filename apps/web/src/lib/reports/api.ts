@@ -93,7 +93,7 @@ export interface CreateReportScheduleInput {
 
 function webDownloadUrl(artifactId: string | null | undefined): string | null {
   if (!artifactId) return null;
-  return `/api/reports/artifacts/${artifactId}/download`;
+  return `/api/reports/artifacts/${encodeURIComponent(artifactId)}/download`;
 }
 
 function withWebDownload(run: ReportRun): ReportRun {
@@ -121,10 +121,13 @@ export async function getReportTemplate(id: string): Promise<{
   template: ReportTemplate | null;
   source: ScaffoldDataSource;
 }> {
-  const result = await gatewayFetch<ReportTemplate>(`/reports/templates/${id}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<ReportTemplate>(
+    `/reports/templates/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   if (result.ok) {
     return { template: result.data, source: 'gateway' };
   }
@@ -215,11 +218,14 @@ export async function setReportScheduleEnabled(
   schedule: ReportSchedule | null;
   error?: string;
 }> {
-  const result = await gatewayFetch<ReportSchedule>(`/reports/schedules/${scheduleId}`, {
-    method: 'PATCH',
-    json: { enabled },
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<ReportSchedule>(
+    `/reports/schedules/${encodeURIComponent(scheduleId)}`,
+    {
+      method: 'PATCH',
+      json: { enabled },
+      throwOnError: false,
+    },
+  );
   if (result.ok && result.data) {
     return { schedule: result.data };
   }
@@ -229,10 +235,13 @@ export async function setReportScheduleEnabled(
 export async function deleteReportSchedule(
   scheduleId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const result = await gatewayFetch<unknown>(`/reports/schedules/${scheduleId}`, {
-    method: 'DELETE',
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<unknown>(
+    `/reports/schedules/${encodeURIComponent(scheduleId)}`,
+    {
+      method: 'DELETE',
+      throwOnError: false,
+    },
+  );
   if (result.ok || result.status === 204) return { ok: true };
   return { ok: false, error: result.error?.message ?? 'Failed to delete schedule' };
 }
@@ -241,10 +250,13 @@ export async function runReportSchedule(scheduleId: string): Promise<{
   run: ReportRun | null;
   error?: string;
 }> {
-  const result = await gatewayFetch<ReportRun>(`/reports/schedules/${scheduleId}/run`, {
-    method: 'POST',
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<ReportRun>(
+    `/reports/schedules/${encodeURIComponent(scheduleId)}/run`,
+    {
+      method: 'POST',
+      throwOnError: false,
+    },
+  );
   if (result.ok && result.data) {
     return { run: withWebDownload(result.data) };
   }

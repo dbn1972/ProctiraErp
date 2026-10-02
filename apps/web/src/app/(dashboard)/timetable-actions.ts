@@ -1,6 +1,19 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseActionInput } from '@/lib/validation/server-action-input';
+import {
+  generationJobInputSchema,
+  meetingInputSchema,
+  meetingRefSchema,
+  periodInputSchema,
+  sectionBulkEnrollSchema,
+  sectionInputSchema,
+  sectionRefSchema,
+  sectionStudentSchema,
+  substitutionInputSchema,
+  teacherAbsenceInputSchema,
+} from '@/lib/validation/dashboard-action-schemas';
 
 import { GatewayError } from '@/lib/api/gateway';
 import { safeActionErrorMessage } from '@/lib/api/action-error';
@@ -30,6 +43,11 @@ function clashList(details: unknown): MeetingClash[] | undefined {
   if (!details || typeof details !== 'object' || !('conflicts' in details)) return undefined;
   const conflicts = (details as { conflicts?: unknown }).conflicts;
   return Array.isArray(conflicts) ? (conflicts as MeetingClash[]) : undefined;
+}
+
+/** PRC-L232: validation failure, reported like a gateway 400 without calling it. */
+function invalidInput(message: string): TimetableActionResult & { ok: false } {
+  return { ok: false, error: message, code: 'VALIDATION_ERROR', status: 400 };
 }
 
 function fail(error: unknown): TimetableActionResult {
@@ -72,6 +90,9 @@ export async function createPeriodAction(input: {
   startTime: string;
   endTime: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(periodInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const { bellScheduleId, academicPeriodId, ...body } = input;
     const row = await createPeriod(bellScheduleId, body);
@@ -92,6 +113,9 @@ export async function createMeetingAction(input: {
   subjectId?: string | null;
   roomId?: string | null;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(meetingInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await createMeeting(input);
     revalidatePath(`/institutions/${input.institutionId}/timetable`);
@@ -108,6 +132,9 @@ export async function deleteMeetingAction(input: {
   meetingId: string;
   sectionId: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(meetingRefSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     await deleteMeeting(input.meetingId);
     revalidatePath(`/institutions/${input.institutionId}/timetable`);
@@ -124,6 +151,9 @@ export async function createSubstitutionAction(input: {
   substitutionDate: string;
   reason?: string | null;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(substitutionInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await createSubstitution(input);
     revalidatePath('/staff/substitutions');
@@ -142,6 +172,9 @@ export async function createSectionAction(input: {
   primaryTeacherId?: string;
   defaultRoomId?: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(sectionInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await createSection(input);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
@@ -156,6 +189,9 @@ export async function enrollStudentAction(input: {
   sectionId: string;
   studentId: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(sectionStudentSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await enrollStudent(input.sectionId, input.studentId);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
@@ -177,6 +213,9 @@ export async function bulkEnrollStudentsAction(input: {
     }
   | TimetableActionResult
 > {
+  const parsed = parseActionInput(sectionBulkEnrollSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const result = await bulkEnrollStudents(input.sectionId, input.studentIds);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
@@ -195,6 +234,9 @@ export async function withdrawStudentAction(input: {
   sectionId: string;
   studentId: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(sectionStudentSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await withdrawStudent(input.sectionId, input.studentId);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
@@ -208,6 +250,9 @@ export async function publishSectionAction(input: {
   institutionId: string;
   sectionId: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(sectionRefSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await publishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
@@ -223,6 +268,9 @@ export async function unpublishSectionAction(input: {
   institutionId: string;
   sectionId: string;
 }): Promise<TimetableActionResult> {
+  const parsed = parseActionInput(sectionRefSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await unpublishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
@@ -248,6 +296,9 @@ export async function runGenerationJobAction(input: {
     enrollmentCount?: number;
   }>;
 }): Promise<TimetableActionResult & { clashCount?: number; assignedCount?: number }> {
+  const parsed = parseActionInput(generationJobInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await runGenerationJob(input);
     revalidatePath(`/institutions/${input.institutionId}/timetable`);
@@ -264,6 +315,9 @@ export async function markTeacherAbsentAction(input: {
   absenceDate: string;
   reason?: string | null;
 }): Promise<TimetableActionResult & { affectedCount?: number }> {
+  const parsed = parseActionInput(teacherAbsenceInputSchema, input);
+  if (!parsed.ok) return invalidInput(parsed.message);
+  input = parsed.data;
   try {
     const row = await markTeacherAbsent(input);
     revalidatePath(`/institutions/${input.institutionId}/timetable/substitutions`);
