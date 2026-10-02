@@ -53,6 +53,15 @@ export type {
   AreaHierarchyResolver,
 } from './rbac.js';
 
+// Campus role table shared by gateway + web (PRC-L237)
+export {
+  CAMPUS_MANAGE,
+  CAMPUS_MANAGE_RESOURCES,
+  PORTAL_SELF_SERVICE_WRITES,
+  createCampusRbacRegistry,
+  createCampusRoleDefinitions,
+} from './campus-rbac.js';
+
 // Password strength scoring (Task 49.6)
 export { scorePassword, scorePasswordDetails } from './scorePassword.js';
 export type {

@@ -1,84 +1,18 @@
 /**
- * Web-side RBAC registry aligned with gateway campus extensions (G-101).
+ * Web-side RBAC registry (G-101, PRC-L237).
  *
- * Scope is intentionally minimal: only the examination.read grants that the
- * gateway adds beyond {@link DEFAULT_ROLES}, so UI route guards match API
- * deny-matrix behaviour without importing the api-gateway package.
+ * UI route guards and navigation use the exact role table the API gateway
+ * enforces: `createCampusRbacRegistry()` from `@proctira/auth`, which the
+ * gateway's `createGatewayRbacRegistry()` also returns. There are no
+ * web-only copies of gateway grants any more, so a grant added or removed in
+ * the shared table changes both sides together.
+ *
+ * Gating here is UX only; the gateway remains the enforcement point.
  */
-import {
-  DEFAULT_ROLES,
-  RbacPermissionRegistry,
-  type Permission,
-  type RoleDefinition,
-} from '@proctira/auth';
-
-const EXAMINATION_READ: Permission = { resource: 'examination', action: 'read' };
-
-/** Gateway STAFF_READS + student examination.read (rbac-registry.ts). */
-const EXAMINATION_READ_ROLE_IDS = ['teacher', 'staff', 'student'] as const;
-
-/** Gateway CAMPUS_MANAGE / STAFF_READS subset used by dashboard domain guards. */
-const DOMAIN_GRANTS: Record<string, Permission[]> = {
-  admin: [{ resource: 'communication', action: 'manage' }],
-  principal: [
-    { resource: 'communication', action: 'manage' },
-    { resource: 'report', action: 'manage' },
-  ],
-  teacher: [
-    { resource: 'communication', action: 'read' },
-    { resource: 'report', action: 'read' },
-  ],
-  staff: [
-    { resource: 'communication', action: 'read' },
-    { resource: 'report', action: 'read' },
-  ],
-};
-
-function cloneRoles(roles: RoleDefinition[]): RoleDefinition[] {
-  return roles.map((role) => ({
-    ...role,
-    permissions: [...role.permissions],
-  }));
-}
-
-function roleGrantsExamination(role: RoleDefinition): boolean {
-  return role.permissions.some(
-    (permission) =>
-      permission.resource === 'examination' &&
-      (permission.action === 'read' || permission.action === 'manage'),
-  );
-}
+import { createCampusRbacRegistry, type RbacPermissionRegistry } from '@proctira/auth';
 
 export function createWebRbacRegistry(): RbacPermissionRegistry {
-  const roles = cloneRoles(DEFAULT_ROLES);
-
-  for (const roleId of EXAMINATION_READ_ROLE_IDS) {
-    const role = roles.find((entry) => entry.roleId === roleId);
-    if (role && !roleGrantsExamination(role)) {
-      role.permissions.push(EXAMINATION_READ);
-    }
-  }
-
-  // PRC-L034: dashboard domain guards (communication / data-warehouse→report /
-  // platform) mirror the gateway grants in apps/api-gateway/src/rbac-registry.ts.
-  for (const [roleId, extras] of Object.entries(DOMAIN_GRANTS)) {
-    const role = roles.find((entry) => entry.roleId === roleId);
-    if (role) role.permissions.push(...extras);
-  }
-  // PRC-L234: mirror the gateway's platform_admin role (platform + '*' manage)
-  // so platform surfaces are only advertised to callers the gateway serves.
-  if (!roles.some((role) => role.roleId === 'platform_admin')) {
-    roles.push({
-      roleId: 'platform_admin',
-      roleName: 'Platform Administrator',
-      permissions: [
-        { resource: 'platform', action: 'manage' },
-        { resource: '*', action: 'manage' },
-      ],
-    });
-  }
-
-  return new RbacPermissionRegistry(roles);
+  return createCampusRbacRegistry();
 }
 
 let cachedRegistry: RbacPermissionRegistry | undefined;
