@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   createHostel,
   createHostelAssignment,
@@ -120,7 +121,10 @@ export async function checkoutLibraryItemAction(input: {
     return { status: 'error', message: firstIssue(parsed.error, 'Checkout fields are invalid.') };
   }
   try {
-    const loan = await checkoutLibraryItem(parsed.data);
+    // PRC-L047: the form sends a wall-clock date; resolve in tenant TZ.
+    // Validated input (PRC-L033) is what reaches the gateway.
+    const dueAt = await toTenantUtcIso(parsed.data.dueAt);
+    const loan = await checkoutLibraryItem({ ...parsed.data, dueAt });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');

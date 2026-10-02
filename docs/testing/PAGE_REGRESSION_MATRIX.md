@@ -121,7 +121,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/institutions/[id]/overview/report` | smoke | `16d-institutions-detail-live.spec.ts` |
 | `/institutions/[id]/schedule` | smoke | `16d-institutions-detail-live.spec.ts`<br>`23-master-schedule-inventory-smoke.spec.ts` |
 | `/institutions/[id]/schedule/[sectionId]` | smoke | `16d-institutions-detail-live.spec.ts`<br>`23-master-schedule-inventory-smoke.spec.ts` |
-| `/institutions/[id]/timetable` | functional, smoke | `16e-institutions-timetable-write-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts` |
+| `/institutions/[id]/timetable` | functional, smoke, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/[id]/timetable/generate` | dark, functional, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/[id]/timetable/substitutions` | dark, functional, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/new` | a11y, functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`a11y-axe.spec.ts` |

@@ -37,7 +37,9 @@ export function ReportScheduleForm({ templates }: ScheduleFormProps) {
     event.preventDefault();
     setError(null);
     setSuccess(null);
-    const form = new FormData(event.currentTarget);
+    // Capture before await: React clears currentTarget once dispatch finishes.
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     startTransition(async () => {
       const result = await createReportScheduleAction({
         reportKey: String(form.get('reportKey') ?? ''),
@@ -52,7 +54,7 @@ export function ReportScheduleForm({ templates }: ScheduleFormProps) {
         return;
       }
       setSuccess(result.message ?? 'Schedule created');
-      event.currentTarget.reset();
+      formEl.reset();
     });
   }
 

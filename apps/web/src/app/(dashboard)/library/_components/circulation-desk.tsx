@@ -70,7 +70,8 @@ export function CirculationDesk({
             itemId,
             patronUserId,
             studentId: studentId || undefined,
-            dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+            // Wall-clock date; the server action converts it in the tenant timezone.
+            dueAt: dueAt || undefined,
           });
       if (result.status === 'error') {
         setError(result.message ?? 'Checkout failed');
@@ -134,7 +135,9 @@ export function CirculationDesk({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Checkout</CardTitle>
-          <CardDescription>POST `/library/circulation/checkout`</CardDescription>
+          <CardDescription>
+            Scan a barcode or pick a catalog item to lend it to a patron.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -193,7 +196,7 @@ export function CirculationDesk({
         <CardHeader>
           <CardTitle className="text-base">Return / renew</CardTitle>
           <CardDescription>
-            POST `/library/circulation/return` · `/library/circulation/renew`
+            Return a loan by barcode or loan id, or extend it by 14 days.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

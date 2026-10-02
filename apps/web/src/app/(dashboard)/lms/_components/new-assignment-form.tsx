@@ -162,7 +162,8 @@ export function NewAssignmentForm({
         gradeLevel: gradeLevel.trim() || undefined,
         skillIds: skillIds.length ? skillIds : undefined,
         maxScore: Number(maxScore),
-        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        // Wall-clock value; the server action converts it in the tenant timezone.
+        dueAt: dueAt || undefined,
         timeLimitMinutes: isQuiz && timeLimit ? Number(timeLimit) : undefined,
         allowLate,
         publish,
