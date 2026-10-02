@@ -2,8 +2,8 @@
  * Gateway RBAC registry — DEFAULT_ROLES plus campus/platform extensions (G-101).
  */
 
-import type { PermissionAction, RbacPermissionRegistry } from '@proctira/backend-auth';
 import { PORTAL_SELF_SERVICE_WRITES, createCampusRbacRegistry } from '@proctira/auth';
+import type { PermissionAction, RbacPermissionRegistry } from '@proctira/backend-auth';
 
 /**
  * URL path segment (first under /api/v1) → RBAC resource name.
