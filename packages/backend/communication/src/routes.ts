@@ -105,7 +105,6 @@ export async function registerCommunicationRoutes(
     }
   });
 
-
   fastify.post(
     `${prefix}/audience/preview`,
     async function audiencePreviewHandler(

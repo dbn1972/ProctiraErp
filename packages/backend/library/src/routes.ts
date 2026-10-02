@@ -78,9 +78,7 @@ function roleIds(request: FastifyRequest): string[] {
 }
 
 type PortalScope =
-  | { kind: 'staff' }
-  | { kind: 'student'; subject: string }
-  | { kind: 'parent'; subject: string };
+  { kind: 'staff' } | { kind: 'student'; subject: string } | { kind: 'parent'; subject: string };
 
 /**
  * Portal principals are bound to their own/linked student; only a genuine LIBRARY STAFF role

@@ -198,7 +198,14 @@ export class ParentPortalService {
     const links = await this.repository.listChildLinksForParent(tenantId, parentUserId);
     const accessible: ParentChildLinkEntity[] = [];
     for (const link of links) {
-      if (await this.hasHouseholdCustodyAccess(tenantId, parentUserId, link.studentId, link.householdId)) {
+      if (
+        await this.hasHouseholdCustodyAccess(
+          tenantId,
+          parentUserId,
+          link.studentId,
+          link.householdId,
+        )
+      ) {
         accessible.push(link);
       }
     }
@@ -222,7 +229,11 @@ export class ParentPortalService {
         link.studentId,
       );
       const blocked = restrictions.some((row) => {
-        if (link.householdId != null && row.householdId != null && row.householdId !== link.householdId) {
+        if (
+          link.householdId != null &&
+          row.householdId != null &&
+          row.householdId !== link.householdId
+        ) {
           return false;
         }
         return row.blocksFees;
@@ -288,7 +299,9 @@ export class ParentPortalService {
     if (!link) {
       throw new NotFoundError(`Student with id '${studentId}' not found`);
     }
-    if (!(await this.hasHouseholdCustodyAccess(tenantId, parentUserId, studentId, link.householdId))) {
+    if (
+      !(await this.hasHouseholdCustodyAccess(tenantId, parentUserId, studentId, link.householdId))
+    ) {
       throw new NotFoundError(`Student with id '${studentId}' not found`);
     }
     return link;
@@ -341,7 +354,11 @@ export class ParentPortalService {
       studentId,
     );
     const blockedByRestriction = restrictions.some((row) => {
-      if (link.householdId != null && row.householdId != null && row.householdId !== link.householdId) {
+      if (
+        link.householdId != null &&
+        row.householdId != null &&
+        row.householdId !== link.householdId
+      ) {
         return false;
       }
       if (flag === 'canConsentMedical') return row.blocksMedical;
@@ -542,7 +559,9 @@ export class ParentPortalService {
       throw new BusinessRuleError('Consent is already withdrawn');
     }
     if (consent.status === 'pending') {
-      throw new BusinessRuleError('Pending consents cannot be withdrawn; deny or supersede instead');
+      throw new BusinessRuleError(
+        'Pending consents cannot be withdrawn; deny or supersede instead',
+      );
     }
 
     if (consent.consentType === 'medical_treatment') {
