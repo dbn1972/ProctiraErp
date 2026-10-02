@@ -235,6 +235,8 @@ async function main() {
   const json = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
+    // PRC-L379: lets assert-dod-evidence.mjs prove the report is for this commit.
+    commitSha: process.env.GITHUB_SHA ?? null,
     charterRef: 'Section 32 (Definition of Done)',
     totals,
     checks: reports.map((r) => r.toJSON()),

@@ -23,9 +23,8 @@ test('target migration stage applies both tracks with strict FKs and verifies ma
   const source = readFileSync(migrateScript, 'utf8');
   assert.match(source, /prisma:migrate:deploy/);
   assert.match(source, /APPLY_SEEDS=0 APPLY_STRICT_FKS=1/);
-  assert.match(source, /082_repair_strict_tenant_fk_validate\.sql/);
-  assert.match(source, /092_hostel_assignment_uniqueness\.sql/);
-  assert.match(source, /093_developer_portal_tenant_fks\.sql/);
+  // PRC-L188: markers are derived from db/sql (see required-migrations-lib.test.mjs).
+  assert.match(source, /required_sql_migrations "\$ROOT\/db\/sql"/);
   assert.match(source, /proctira_hostel_assignment_index_ready/);
   assert.doesNotMatch(source, /\|\|\s*true|continue-on-error/);
 });

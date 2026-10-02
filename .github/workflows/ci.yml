@@ -860,6 +860,16 @@ jobs:
       - name: Unit-test apply-sql.sh apply/skip ledger
         run: env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run tools/scripts/__tests__/apply-sql.test.ts
 
+      # PRC-L378/L379/L380: the same reachability gap applied to these gate
+      # suites; run them explicitly (psql is a PATH stub in apply-sql-guards).
+      - name: Unit-test tools/scripts fail-closed gates
+        run: >-
+          env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run
+          tools/scripts/__tests__/apply-sql-guards.test.ts
+          tools/scripts/assert-dod-evidence.test.ts
+          tools/scripts/assert-live-test-execution.test.ts
+          tools/scripts/assert-vitest-skips.test.ts
+
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
       # skipped in CI (they self-skip without DATABASE_URL). Run the backend
@@ -1357,6 +1367,10 @@ jobs:
 
       - name: Fail when reusable CI assets lose callers
         run: node tools/scripts/assert-reusable-ci-assets.mjs
+
+      # PRC-L176+: dependency-free contracts for tools/ gates (always required).
+      - name: Unit-test tools fail-closed contracts
+        run: node --test tools/load-test/lib.test.mjs tools/scripts/required-migrations-lib.test.mjs
 
   # ---------------------------------------------------------------------------
   # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)

@@ -5,12 +5,12 @@
  * This script generates the .load file with actual connection credentials substituted.
  */
 
-import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { execPgloader, parsePgloaderSummary } from './pgloader-exec.js';
 import type { MigrationConfig, MigrationStepResult } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -77,22 +77,38 @@ export function runPgloader(config: MigrationConfig): MigrationStepResult {
     console.log(`[pgloader] Target: ${config.pg.host}:${config.pg.port}/${config.pg.database}`);
     console.log(`[pgloader] Staging schema: ${config.stagingSchema}`);
 
-    const output = execSync(`${config.pgloaderBin} ${configPath}`, {
-      encoding: 'utf-8',
-      timeout: 600_000, // 10 minute timeout for large databases
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    // PRC-L377: no shell — PGLOADER_BIN is a program path, the config path an argv entry.
+    const output = execPgloader(config.pgloaderBin, configPath);
+    const summary = parsePgloaderSummary(output);
 
     // Parse pgloader output for table counts
     const tableMatches = output.match(/(\d+) tables? created/);
-    const rowMatches = output.match(/(\d+) rows? imported/);
-    const tablesProcessed = tableMatches?.[1] ? parseInt(tableMatches[1], 10) : 0;
-    const rowsProcessed = rowMatches?.[1] ? parseInt(rowMatches[1], 10) : 0;
+    const tablesProcessed = tableMatches?.[1] ? parseInt(tableMatches[1], 10) : summary.entries;
+    const rowsProcessed = summary.rowsImported;
 
     // Check for warnings in output
     const warningLines = output.split('\n').filter((l) => l.includes('WARNING'));
     for (const line of warningLines) {
       warnings.push({ table: 'unknown', message: line.trim() });
+    }
+
+    // Rejected rows show up only in the summary `errors` column; never call that success.
+    if (!summary.parsed) {
+      errors.push({ table: 'all', message: 'pgloader summary not found in output' });
+    }
+    for (const entry of summary.failedEntries) {
+      errors.push({ table: entry.name, message: `pgloader reported ${entry.errors} error(s)` });
+    }
+    if (errors.length > 0) {
+      return {
+        step: 'pgloader-bulk-transfer',
+        status: 'error',
+        tablesProcessed,
+        rowsProcessed,
+        errors,
+        warnings,
+        durationMs: Date.now() - startTime,
+      };
     }
 
     return {
