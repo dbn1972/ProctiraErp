@@ -41,7 +41,7 @@ export const MOBILE_DRAWER_DESTINATIONS: readonly MobileShellDestination[] = [
    * page so the link resolves; keep available=true once that page exists.
    */
   { key: 'help', label: 'Help', href: '/help', available: true },
-  { key: 'signout', label: 'Sign out', href: '/api/auth/logout', available: true },
+  { key: 'signout', label: 'Sign out', href: '/logout', available: true },
 ] as const;
 
 export function availableDestinations(

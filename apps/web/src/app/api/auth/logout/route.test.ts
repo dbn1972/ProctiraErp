@@ -17,7 +17,9 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-import { POST } from './route';
+import * as routeModule from './route';
+
+const { POST } = routeModule;
 
 function token(payload: Record<string, unknown>): string {
   const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
@@ -79,5 +81,11 @@ describe('POST /api/auth/logout tenant for upstream revocation', () => {
     const cleared = res.headers.getSetCookie().join(';');
     expect(cleared).toMatch(/access_token=;/);
     expect(cleared).toMatch(/refresh_token=;/);
+  });
+});
+
+describe('GET /api/auth/logout (PRC-L259)', () => {
+  it('is not exported, so a cross-site GET cannot sign the user out', () => {
+    expect('GET' in routeModule).toBe(false);
   });
 });

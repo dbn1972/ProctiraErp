@@ -51,20 +51,5 @@ export async function POST(request: Request): Promise<NextResponse> {
   return response;
 }
 
-/**
- * Allow GET as a fallback so that <a href="/api/auth/logout"> works as a
- * graceful degradation when JavaScript is disabled.
- */
-export async function GET(request: Request): Promise<NextResponse> {
-  const result = await POST(request);
-  // Convert the JSON success response into a redirect to /login.
-  const redirect = NextResponse.redirect(new URL('/login', request.url));
-  // Copy cookie clears across.
-  result.cookies.getAll().forEach((cookie) => {
-    redirect.cookies.set(cookie.name, cookie.value, {
-      ...cookie,
-      // Preserve the cookie clearing options.
-    });
-  });
-  return redirect;
-}
+// PRC-L259: no GET handler. Logout is state-changing, so it is POST-only and
+// CSRF-checked by middleware; the /logout page calls signOut() instead.
