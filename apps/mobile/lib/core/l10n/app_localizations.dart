@@ -121,7 +121,7 @@ class AppLocalizations {
 
   // --- English ---
   static const Map<String, String> _en = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'Home',
     'attendance': 'Attendance',
     'students': 'Students',
@@ -200,7 +200,7 @@ class AppLocalizations {
 
   // --- Hindi ---
   static const Map<String, String> _hi = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'होम',
     'attendance': 'उपस्थिति',
     'students': 'छात्र',
@@ -245,7 +245,7 @@ class AppLocalizations {
 
   // --- Tamil ---
   static const Map<String, String> _ta = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'முகப்பு',
     'attendance': 'வருகை',
     'students': 'மாணவர்கள்',
@@ -290,7 +290,7 @@ class AppLocalizations {
 
   // --- Telugu ---
   static const Map<String, String> _te = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'హోమ్',
     'attendance': 'హాజరు',
     'students': 'విద్యార్థులు',
@@ -335,7 +335,7 @@ class AppLocalizations {
 
   // --- Marathi ---
   static const Map<String, String> _mr = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'मुख्यपृष्ठ',
     'attendance': 'उपस्थिती',
     'students': 'विद्यार्थी',
@@ -380,7 +380,7 @@ class AppLocalizations {
 
   // --- Bengali ---
   static const Map<String, String> _bn = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'হোম',
     'attendance': 'উপস্থিতি',
     'students': 'শিক্ষার্থী',
@@ -425,7 +425,7 @@ class AppLocalizations {
 
   // --- Gujarati ---
   static const Map<String, String> _gu = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'હોમ',
     'attendance': 'હાજરી',
     'students': 'વિદ્યાર્થીઓ',
@@ -470,7 +470,7 @@ class AppLocalizations {
 
   // --- Kannada ---
   static const Map<String, String> _kn = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'ಮುಖಪುಟ',
     'attendance': 'ಹಾಜರಾತಿ',
     'students': 'ವಿದ್ಯಾರ್ಥಿಗಳು',
@@ -515,7 +515,7 @@ class AppLocalizations {
 
   // --- Arabic ---
   static const Map<String, String> _ar = <String, String>{
-    'appTitle': 'OpenEMIS',
+    'appTitle': 'ProctiraERP',
     'home': 'الرئيسية',
     'attendance': 'الحضور',
     'students': 'الطلاب',

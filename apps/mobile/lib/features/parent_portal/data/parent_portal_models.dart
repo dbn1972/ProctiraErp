@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 /// Linked child returned by `GET /parent-portal/children`.
 ///
 /// Name and class are filled from the link payload when the API includes them,
@@ -85,17 +87,29 @@ class ParentInvoice {
   final String studentId;
   final String title;
   final String status;
-  final int amountCents;
+
+  /// Minor units. `null` when the server sent a missing or non-numeric
+  /// amount; never coerced to 0 so a broken payload is not shown as "paid"
+  /// (PRC-L012).
+  final int? amountCents;
   final String currency;
 
+  bool get hasValidAmount => amountCents != null;
+
+  /// Locale-aware money label with currency symbol (e.g. `₹1,23,450.00`).
   String get amountLabel {
-    final bool negative = amountCents < 0;
-    final int abs = amountCents.abs();
-    final String major = (abs ~/ 100).toString();
-    final String minor = (abs % 100).toString().padLeft(2, '0');
-    final String sign = negative ? '-' : '';
-    final String code = currency.trim().isEmpty ? '' : '${currency.trim()} ';
-    return '$sign$code$major.$minor';
+    final int? cents = amountCents;
+    if (cents == null) {
+      return 'Amount unavailable';
+    }
+    final String code = currency.trim().toUpperCase();
+    final NumberFormat format = code.isEmpty
+        ? NumberFormat.decimalPatternDigits(locale: 'en_IN', decimalDigits: 2)
+        : NumberFormat.simpleCurrency(
+            name: code,
+            locale: code == 'INR' ? 'en_IN' : null,
+          );
+    return format.format(cents / 100);
   }
 }
 
