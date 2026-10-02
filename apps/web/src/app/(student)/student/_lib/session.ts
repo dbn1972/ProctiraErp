@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireSession } from '@/lib/auth/server';
+import { requireSession, type ServerSession } from '@/lib/auth/server';
 import type { AcademicFetchResult } from '@/lib/api/parent-portal';
 
 export type StudentFrameStatus = 'ok' | 'forbidden' | 'not-found' | 'error';
@@ -24,4 +24,14 @@ export function studentStatus(result: AcademicFetchResult<unknown>): StudentFram
 
 export async function requireStudentSession() {
   return requireSession();
+}
+
+/**
+ * PRC-L023: the student portal is for principals holding the `student` role.
+ * Staff, parents and guardians are stopped at the (student) layout instead of
+ * rendering self-service pages that resolve against their own (non-student)
+ * identity. UX gating only — the gateway enforces on every call.
+ */
+export function isStudentPortalSession(session: Pick<ServerSession, 'user'>): boolean {
+  return (session.user.roles ?? []).some((role) => role.roleId?.toLowerCase() === 'student');
 }
