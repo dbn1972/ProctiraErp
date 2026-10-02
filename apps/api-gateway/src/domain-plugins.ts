@@ -159,6 +159,7 @@ import type { FastifyInstance } from 'fastify';
 
 import {
   formatAdmissionNumber,
+  loadAdmissionsTimeZone,
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
@@ -503,11 +504,7 @@ async function createAdmissionsEnrollment(
       );
       const seq = Number((counter.rows[0] as { last_value: number }).last_value);
       // PRC-L002: admission-number year and enrolment date follow the tenant's local calendar.
-      const tenantTz = await client.query(
-        `SELECT config->'locale'->>'timezone' AS tz FROM tenants WHERE id = $1::uuid`,
-        [input.tenantId],
-      );
-      const timeZone = (tenantTz.rows[0] as { tz?: string | null } | undefined)?.tz;
+      const timeZone = await loadAdmissionsTimeZone(client, input.tenantId);
       const acceptedAt = new Date();
       const admissionNo = formatAdmissionNumber(acceptedAt, timeZone, seq);
       await client.query(
