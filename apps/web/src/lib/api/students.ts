@@ -16,8 +16,8 @@ import {
   gatewayFetch,
   getSessionContext,
 } from './gateway';
-import { clampPageSize } from './pagination';
-import { gatewayFetchAllPages } from './gateway-all-pages';
+import { MAX_API_PAGE_SIZE, clampPageSize } from './pagination';
+import { MAX_AUTO_PAGES, gatewayFetchAllPages } from './gateway-all-pages';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -315,6 +315,38 @@ export async function createEnrollment(input: CreateEnrollmentInput): Promise<En
     throw new Error('Empty response from enrollment-service');
   }
   return result.data;
+}
+
+export type EnrollmentLookupResult =
+  { ok: true; enrollments: EnrollmentEntry[] } | { ok: false; status: number };
+
+/**
+ * Enrollment lookup that distinguishes "no enrollments" from "lookup failed"
+ * so callers can report failures instead of silently dropping a student
+ * (PRC-L247).
+ */
+export async function getStudentEnrollmentsResult(
+  studentId: string,
+): Promise<EnrollmentLookupResult> {
+  // PRC-L074: follow meta.totalPages instead of truncating at one page; any
+  // failed page is a failed lookup (a partial list would drop enrollments).
+  const enrollments: EnrollmentEntry[] = [];
+  try {
+    for (let page = 1; page <= MAX_AUTO_PAGES; page += 1) {
+      const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta?: StudentListMeta }>(
+        `/enrollments?studentId=${encodeURIComponent(studentId)}&page=${page}&pageSize=${MAX_API_PAGE_SIZE}`,
+        { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+      );
+      if (!result.ok || !result.data) return { ok: false, status: result.status };
+      // A failed page already returned above; this only appends real rows.
+      if (Array.isArray(result.data.data)) enrollments.push(...result.data.data);
+      const totalPages = result.data.meta?.totalPages;
+      if (!totalPages || page >= totalPages) break;
+    }
+    return { ok: true, enrollments };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 }
 
 export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {

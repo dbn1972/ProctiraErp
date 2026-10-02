@@ -81,6 +81,10 @@ const OFFLINE_HTML =
   '</main></body></html>';
 
 // ─── Strategy classifier — mirror of src/lib/sw/pickStrategy.ts ────────
+//
+// Keep this verbatim with the TS module. The TS module has the unit
+// tests; this one has the runtime. Any rule change MUST update both.
+// src/lib/sw/sw-parity.test.ts loads this file and fails on drift.
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 

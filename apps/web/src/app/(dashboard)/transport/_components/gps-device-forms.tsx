@@ -22,6 +22,11 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
+  // The plaintext key is only returned once (the API stores a hash). Keep it on
+  // screen until the user acknowledges storing it (PRC-L251).
+  const [issued, setIssued] = useState<{ deviceId: string; deviceKey: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [registeredVehicles, setRegisteredVehicles] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setHydrated(true);
@@ -48,6 +53,15 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
               const fd = new FormData(event.currentTarget);
               const vehicleId = String(fd.get('vehicleId') ?? '');
               const deviceId = String(fd.get('deviceId') ?? '').trim();
+              if (issued) return;
+              if (
+                registeredVehicles.has(vehicleId) &&
+                !window.confirm(
+                  'A device was already registered for this vehicle. Register another device? The existing device must be deactivated first or the request will be rejected.',
+                )
+              ) {
+                return;
+              }
               startTransition(async () => {
                 setError(null);
                 setMessage(null);
@@ -56,7 +70,10 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
                   setError(result.message ?? 'Failed');
                   return;
                 }
-                setMessage(`Device ${result.deviceId}. Key (copy now): ${result.deviceKey}`);
+                setMessage(null);
+                setCopied(false);
+                setIssued({ deviceId: result.deviceId ?? '', deviceKey: result.deviceKey ?? '' });
+                setRegisteredVehicles((prev) => new Set(prev).add(vehicleId));
               });
             }}
           >
@@ -80,11 +97,57 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
             <FormField id="dev-id" label="Device id (optional)">
               <Input id="dev-id" name="deviceId" className="h-11 min-h-11" />
             </FormField>
-            <Button type="submit" disabled={pending || vehicles.length === 0}>
+            <Button type="submit" disabled={pending || vehicles.length === 0 || issued !== null}>
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Registering…' : 'Register device'}
             </Button>
           </form>
+          {issued ? (
+            <section
+              aria-labelledby="dev-key-title"
+              data-testid="transport-device-key"
+              className="mt-4 space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              <h3 id="dev-key-title" className="font-medium" role="status">
+                Device {issued.deviceId} registered. Copy the key now; it will not be shown again.
+              </h3>
+              <FormField id="dev-key-value" label="Device key">
+                <Input
+                  id="dev-key-value"
+                  readOnly
+                  value={issued.deviceKey}
+                  className="h-11 min-h-11 font-mono"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              </FormField>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(issued.deviceKey);
+                      setCopied(true);
+                    } catch {
+                      setCopied(false);
+                      setError('Copy failed. Select the key and copy it manually.');
+                    }
+                  }}
+                >
+                  {copied ? 'Copied' : 'Copy key'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setIssued(null);
+                    setCopied(false);
+                  }}
+                >
+                  I have stored it
+                </Button>
+              </div>
+            </section>
+          ) : null}
         </CardContent>
       </Card>
 
