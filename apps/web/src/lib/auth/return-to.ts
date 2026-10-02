@@ -31,8 +31,19 @@ function isSafeRelativePath(value: string): boolean {
   if (!value.startsWith('/')) return false;
   if (value.startsWith('//') || value.startsWith('/\\')) return false;
   if (value.includes('\\')) return false;
-  // Block scheme-looking prefixes after the leading slash, e.g. `/javascript:...`
-  // is already a path, but `/\t/evil` style oddities are caught by startsWith checks.
+  // Control characters (incl. tab/CR/LF) and DEL are stripped by WHATWG URL
+  // parsers, so `/\t/evil.com` would collapse into `//evil.com` (PRC-M064).
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(value)) return false;
   if (/^\/[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) return false;
+  // Final guard: resolving against a sentinel origin must stay same-origin.
+  try {
+    const resolved = new URL(value, 'http://sentinel.invalid');
+    if (resolved.origin !== 'http://sentinel.invalid' || !resolved.pathname.startsWith('/')) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
   return true;
 }
