@@ -38,9 +38,7 @@ describe('etl-worker health probes (W1-OPS-02 B4 / W3-C2)', () => {
     }
   });
 
-  async function app(
-    options: Parameters<typeof buildEtlWorkerApp>[0] = {},
-  ) {
+  async function app(options: Parameters<typeof buildEtlWorkerApp>[0] = {}) {
     const instance = await buildEtlWorkerApp({
       repository: new InMemoryPipelineRepository(),
       ...options,
@@ -60,7 +58,9 @@ describe('etl-worker health probes (W1-OPS-02 B4 / W3-C2)', () => {
   });
 
   it('GET /health/live returns 200 (k8s liveness)', async () => {
-    const response = await (await app()).inject({
+    const response = await (
+      await app()
+    ).inject({
       method: 'GET',
       url: ETL_WORKER_K8S_PROBE_PATHS.liveness,
     });
@@ -69,7 +69,9 @@ describe('etl-worker health probes (W1-OPS-02 B4 / W3-C2)', () => {
   });
 
   it('GET /health/ready returns 200 with persistence mode (k8s readiness, in-memory)', async () => {
-    const response = await (await app()).inject({
+    const response = await (
+      await app()
+    ).inject({
       method: 'GET',
       url: ETL_WORKER_K8S_PROBE_PATHS.readiness,
     });
@@ -151,5 +153,13 @@ describe('etl-worker health probes (W1-OPS-02 B4 / W3-C2)', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('keeps the PRC-H050 role guard on pipeline routes only', async () => {
+    const instance = await app();
+    const pipelines = await instance.inject({ method: 'GET', url: '/api/v1/pipelines' });
+    expect(pipelines.statusCode).toBe(403);
+    const health = await instance.inject({ method: 'GET', url: ETL_WORKER_K8S_PROBE_PATHS.legacy });
+    expect(health.statusCode).toBe(200);
   });
 });
