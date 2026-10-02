@@ -1,17 +1,16 @@
 /**
  * G-805 — School (institution) scope gate.
+ *
+ * PRC-H004: the school-bound rule (positive board/tenant admin role allowlist) lives in
+ * `@proctira/common` so domain handlers that resolve a record's institution from `:id` apply the
+ * exact same rule via `assertInstitutionInScope`.
  */
-const BOARD_TENANT_ADMIN_ROLES = new Set([
-  'admin',
-  'board_admin',
-  'tenant-admin',
-  'tenant_admin',
-  'platform_admin',
-  'super-admin',
-  'super_admin',
-  'administrator',
-]);
-
+import {
+  isBoardOrTenantAdminPrincipal,
+  isSchoolBoundPrincipal,
+  principalInstitutions,
+  principalRoleIds,
+} from '@proctira/common';
 export const INSTITUTION_SCOPED_SEGMENTS = new Set([
   'students',
   'enrollments',
@@ -42,23 +41,17 @@ export type InstitutionScopeUser = {
 };
 
 export function roleIdsOf(user: InstitutionScopeUser | null | undefined): string[] {
-  return (user?.roles ?? [])
-    .map((r) => (typeof r === 'string' ? r : (r.roleId ?? r.roleName ?? '')))
-    .filter(Boolean);
+  return principalRoleIds(user);
 }
-
 export function isBoardOrTenantAdmin(user: InstitutionScopeUser | null | undefined): boolean {
-  return roleIdsOf(user).some((id) => BOARD_TENANT_ADMIN_ROLES.has(id));
+  return isBoardOrTenantAdminPrincipal(user);
 }
-
 export function isSchoolBound(user: InstitutionScopeUser | null | undefined): boolean {
-  return (user?.institutions?.length ?? 0) > 0 && !isBoardOrTenantAdmin(user);
+  return isSchoolBoundPrincipal(user);
 }
-
 export function allowedInstitutions(user: InstitutionScopeUser | null | undefined): string[] {
-  return [...new Set((user?.institutions ?? []).filter(Boolean))];
+  return principalInstitutions(user);
 }
-
 export function extractInstitutionId(input: {
   query?: unknown;
   params?: unknown;

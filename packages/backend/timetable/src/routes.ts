@@ -6,7 +6,7 @@
  * - Section meetings (institution timetable grid)
  * - Substitutions list/create with teacher double-book → 409
  */
-import { AppError } from '@proctira/common';
+import { AppError, assertInstitutionInScope } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -155,6 +155,31 @@ export async function registerTimetableRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/timetable';
   const { service } = options;
+
+  // PRC-H004: every `/sections/:id…` route addresses a section only by id, so the gateway scope
+  // hook cannot see its school. Load the section and 404 a school-bound caller outside it
+  // (classified by the matched route pattern, not the raw URL).
+  const sectionRoutePrefix = `${fastify.prefix}${prefix}/sections/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    const routeUrl = request.routeOptions.url ?? '';
+    if (routeUrl !== sectionRoutePrefix && !routeUrl.startsWith(`${sectionRoutePrefix}/`)) return;
+    const user = (
+      request as FastifyRequest & {
+        user?: { tenantId?: string; institutions?: unknown; roles?: unknown };
+      }
+    ).user;
+    const tenantId = user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
+    if (!tenantId) return; // handler answers 401
+    const { id } = request.params as { id: string };
+    const section = await service.getSection(tenantId, id);
+    if (!section) return; // handler answers its own 404
+    try {
+      assertInstitutionInScope(user, section.institutionId, 'Section not found');
+    } catch (error) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
+  });
 
   // ── Bell schedules ────────────────────────────────────────────────────────
 

@@ -15,15 +15,14 @@ const PERIOD = '44444444-4444-4444-8444-444444444444';
 describe('PRC-H022 timetable section institution ownership', () => {
   let app: FastifyInstance;
   let sectionId: string;
+  let caller: { id: string; roles: unknown[]; institutions?: string[] };
 
   beforeEach(async () => {
+    caller = { id: 'actor-1', roles: ['admin'] };
     app = Fastify({ logger: false });
     app.addHook('onRequest', async (request) => {
       (request as FastifyRequest & { tenantId?: string }).tenantId = TENANT;
-      (request as FastifyRequest & { user: { id: string; roles: string[] } }).user = {
-        id: 'actor-1',
-        roles: ['admin'],
-      };
+      (request as FastifyRequest & { user: typeof caller }).user = caller;
     });
     await app.register(timetablePlugin, {
       repository: new InMemoryTimetableRepository(),
@@ -85,5 +84,46 @@ describe('PRC-H022 timetable section institution ownership', () => {
       url: `/timetable/sections/${sectionId}?institutionId=${SCHOOL_A}`,
     });
     expect(del.statusCode).toBe(204);
+  });
+
+  describe('PRC-H004 school-bound caller, section addressed only by id', () => {
+    const otherSchoolPrincipal = () => ({
+      id: 'principal-b',
+      roles: [{ roleId: 'principal' }, 'admin-lookalike'],
+      institutions: [SCHOOL_B],
+    });
+
+    it.each([
+      ['GET', ''],
+      ['GET', '/enrollments'],
+      ['POST', '/publish'],
+      ['POST', '/unpublish'],
+      ['POST', '/enrollments'],
+      ['POST', '/enrollments/bulk'],
+    ] as const)('%s /sections/:id%s of another school → 404', async (method, suffix) => {
+      caller = otherSchoolPrincipal();
+      const response = await app.inject({
+        method,
+        url: `/timetable/sections/${sectionId}${suffix}`,
+        ...(method === 'POST' ? { payload: {} } : {}),
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('PUT naming the section school it does not belong to is still a 404', async () => {
+      caller = otherSchoolPrincipal();
+      const put = await app.inject({
+        method: 'PUT',
+        url: `/timetable/sections/${sectionId}?institutionId=${SCHOOL_A}`,
+        payload: { name: 'Hijacked' },
+      });
+      expect(put.statusCode).toBe(404);
+    });
+
+    it('a principal of the owning school reads its section', async () => {
+      caller = { id: 'principal-a', roles: [{ roleId: 'principal' }], institutions: [SCHOOL_A] };
+      const response = await app.inject({ method: 'GET', url: `/timetable/sections/${sectionId}` });
+      expect(response.statusCode).toBe(200);
+    });
   });
 });

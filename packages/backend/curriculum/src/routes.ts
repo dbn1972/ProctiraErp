@@ -1,7 +1,7 @@
 /**
  * Curriculum Fastify routes (G-923). Prefix default: `/curriculum`
  */
-import { AppError } from '@proctira/common';
+import { AppError, assertInstitutionInScope } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -88,6 +88,41 @@ export async function registerCurriculumRoutes(
 
   const prefix = options.prefix ?? '/curriculum';
   const { service } = options;
+  // PRC-H004: `/units/:id…` and `/lesson-plans/:id` address records only by id, so the gateway
+  // scope hook cannot see their school. 404 a school-bound caller when the owning unit belongs to
+  // another school (tenant-wide units with no institution stay visible).
+  const unitRoute = `${fastify.prefix}${prefix}/units/:id`;
+  const planRoute = `${fastify.prefix}${prefix}/lesson-plans/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    const routeUrl = request.routeOptions.url ?? '';
+    const isUnit = routeUrl === unitRoute || routeUrl.startsWith(`${unitRoute}/`);
+    if (!isUnit && routeUrl !== planRoute) return;
+    const tenantId = tenantOf(request);
+    const id = (request.params as { id?: unknown }).id;
+    if (!tenantId || typeof id !== 'string') return;
+    let owner: string | null | undefined;
+    if (isUnit) {
+      try {
+        owner = (await service.getUnit(tenantId, id)).institutionId;
+      } catch (error) {
+        if (error instanceof AppError) return; // handler answers its own 404
+        throw error;
+      }
+    } else {
+      const found = await service.lessonPlanInstitution(tenantId, id);
+      if (!found) return;
+      owner = found.institutionId;
+    }
+    if (!owner) return;
+    try {
+      const user = (request as FastifyRequest & { user?: unknown }).user as
+        Parameters<typeof assertInstitutionInScope>[0] | undefined;
+      assertInstitutionInScope(user, owner, `Curriculum record ${id} not found`);
+    } catch (error) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
+  });
 
   fastify.post(`${prefix}/units`, async (request, reply) => {
     const tenantId = tenantOf(request);

@@ -40,6 +40,16 @@ export {
   ForbiddenError,
 } from './exceptions/index.js';
 
+// PRC-H004: canonical school-scope rule (gateway hook + per-handler record checks)
+export {
+  BOARD_TENANT_ADMIN_ROLE_IDS,
+  assertInstitutionInScope,
+  isBoardOrTenantAdminPrincipal,
+  isSchoolBoundPrincipal,
+  principalInstitutions,
+  principalRoleIds,
+} from './institution-scope.js';
+export type { InstitutionScopePrincipal } from './institution-scope.js';
 // Utilities
 export { CircuitBreaker, CircuitState, CircuitBreakerError } from './circuit-breaker.js';
 export type { CircuitBreakerOptions } from './circuit-breaker.js';

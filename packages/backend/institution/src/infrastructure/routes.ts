@@ -24,7 +24,7 @@
  * @module infrastructure/routes
  * @requirements 5.6
  */
-import { AppError } from '@proctira/common';
+import { AppError, assertInstitutionInScope } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -78,6 +78,29 @@ export async function registerInfrastructureRoutes(
   options: InfrastructureRoutesOptions,
 ): Promise<void> {
   const { infrastructureService, prefix = '/infrastructure' } = options;
+  // PRC-H004: `/:id` routes address an item only by id, so the gateway scope hook cannot see its
+  // school. Load it and 404 a school-bound caller outside that school (route pattern match).
+  const itemRoute = `${fastify.prefix}${prefix}/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.routeOptions.url !== itemRoute) return;
+    const id = (request.params as { id?: unknown }).id;
+    if (typeof id !== 'string' || !validate(InfrastructureParamsSchema, { id }).success) return;
+    let ownerInstitutionId: string;
+    try {
+      ownerInstitutionId = (await infrastructureService.getById(id)).institutionId;
+    } catch (error: unknown) {
+      if (error instanceof AppError) return; // handler answers its own 404
+      throw error;
+    }
+    try {
+      const user = (request as FastifyRequest & { user?: unknown }).user as
+        Parameters<typeof assertInstitutionInScope>[0] | undefined;
+      assertInstitutionInScope(user, ownerInstitutionId, `Infrastructure item not found: ${id}`);
+    } catch (error: unknown) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
+  });
   /**
    * PRC-H022: `/:id` writes must name the owning institution (`?institutionId=`, authorized by
    * the gateway institution-scope hook) and the item must belong to it. Missing → 400; a foreign
