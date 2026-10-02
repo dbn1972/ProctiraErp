@@ -117,3 +117,62 @@ describe('POST /api/auth/signup — weak password rejection (Task 49.6)', () => 
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/auth/signup — role allowlist (PRC-M057)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ requiresApproval: false }), { status: 200 }),
+    );
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  function upstreamBody(): Record<string, unknown> {
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    return JSON.parse(String(init.body)) as Record<string, unknown>;
+  }
+
+  it.each(['admin', 'principal', 'super_admin', 'Teacher'])(
+    'never forwards privileged role %s as a granted roleId',
+    async (roleId) => {
+      const response = await POST(
+        makeRequest({ ...VALID_BASE, roleId, password: 'Tr0ub4dor&3xQrSt' }),
+      );
+      expect(response.status).toBe(200);
+      const sent = upstreamBody();
+      expect(sent.roleId).toBeUndefined();
+      expect(sent.requestedRoleId).toBe(roleId.toLowerCase());
+      expect(sent.accountStatus).toBe('pending_approval');
+      // Even if upstream claims no approval is needed, the account is pending.
+      expect((await response.json()).requiresApproval).toBe(true);
+    },
+  );
+
+  it('forwards self-service roles directly', async () => {
+    const response = await POST(
+      makeRequest({ ...VALID_BASE, roleId: 'parent', password: 'Tr0ub4dor&3xQrSt' }),
+    );
+    expect(response.status).toBe(200);
+    const sent = upstreamBody();
+    expect(sent.roleId).toBe('parent');
+    expect(sent.requestedRoleId).toBeUndefined();
+  });
+
+  it('ignores a forged X-Tenant-ID header and uses the host tenant', async () => {
+    const request = new Request('http://acme.proctira.io/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': 'other-tenant' },
+      body: JSON.stringify({ ...VALID_BASE, roleId: 'parent', password: 'Tr0ub4dor&3xQrSt' }),
+    });
+    await POST(request);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['X-Tenant-ID']).not.toBe('other-tenant');
+  });
+});

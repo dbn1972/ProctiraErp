@@ -31,6 +31,12 @@ import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/reque
  * `User-Agent` so the Auth Service can persist them on the audit row
  * without trusting client-supplied values.
  */
+/**
+ * Roles an anonymous visitor may hold immediately after sign-up. Every other
+ * role id is treated as a request that requires tenant-admin approval.
+ */
+const SELF_SERVICE_SIGNUP_ROLES: ReadonlySet<string> = new Set(['parent', 'guardian', 'student']);
+
 export async function POST(request: Request): Promise<NextResponse> {
   let body: {
     fullName?: string;
@@ -93,6 +99,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!tenantId) {
     return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
   }
+  // PRC-M057: anonymous sign-up can never grant a role directly. Only the
+  // public self-service roles are forwarded as `roleId`; anything else
+  // (principal, admin, teacher, …) is sent as a *requested* role on a
+  // pending account that a tenant administrator must approve.
+  const normalisedRole = roleId.trim().toLowerCase();
+  const selfService = SELF_SERVICE_SIGNUP_ROLES.has(normalisedRole);
+  const roleFields = selfService
+    ? { roleId: normalisedRole }
+    : { requestedRoleId: normalisedRole, accountStatus: 'pending_approval' as const };
+
   const forwardedFor =
     request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? '';
   const userAgent = request.headers.get('user-agent') ?? '';
@@ -112,7 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         email,
         password,
         institutionName,
-        roleId,
+        ...roleFields,
         termsAcceptance: {
           acceptedAt: termsAcceptance.acceptedAt,
           termsVersion: termsAcceptance.termsVersion,
@@ -154,7 +170,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   return NextResponse.json({
     success: true,
-    requiresApproval: Boolean(data.requiresApproval),
+    requiresApproval: !selfService || Boolean(data.requiresApproval),
     email: data.email ?? email,
     message: data.message,
   });
