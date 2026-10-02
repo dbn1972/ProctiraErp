@@ -12,6 +12,8 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 const students = vi.hoisted(() => ({
   getStudentEnrollments: vi.fn(),
+  // PRC-L247 (#532): bulk graduate distinguishes lookup failure from "none".
+  getStudentEnrollmentsResult: vi.fn(),
   bulkUpdateEnrollmentStatus: vi.fn(),
   submitBulkImport: vi.fn(),
 }));
@@ -41,6 +43,8 @@ import {
 
 const S1 = '11111111-1111-4111-8111-111111111111';
 const S2 = '22222222-2222-4222-8222-222222222222';
+// PRC-L24x (#532): action ids are validated as UUIDs before the gateway.
+const APPROVAL = '33333333-3333-4333-8333-333333333333';
 const gwError = (status: number, code: string, message: string, details?: unknown) =>
   new GatewayError({ status, code, message, details });
 
@@ -50,14 +54,16 @@ beforeEach(() => {
 
 describe('bulkGraduateStudentsAction', () => {
   it('graduates ENROLLED enrollments only and revalidates', async () => {
-    students.getStudentEnrollments.mockImplementation(async (id: string) =>
-      id === S1
-        ? [
-            { id: 'e1', status: 'ENROLLED' },
-            { id: 'e0', status: 'WITHDRAWN' },
-          ]
-        : [{ id: 'e2', status: 'ENROLLED' }],
-    );
+    students.getStudentEnrollmentsResult.mockImplementation(async (id: string) => ({
+      ok: true,
+      enrollments:
+        id === S1
+          ? [
+              { id: 'e1', status: 'ENROLLED' },
+              { id: 'e0', status: 'WITHDRAWN' },
+            ]
+          : [{ id: 'e2', status: 'ENROLLED' }],
+    }));
     students.bulkUpdateEnrollmentStatus.mockResolvedValue({ updated: ['e1', 'e2'], failed: [] });
     const result = await bulkGraduateStudentsAction([S1, S2, S1]);
     expect(result).toMatchObject({ status: 'success', data: { graduated: 2, failed: 0 } });
@@ -70,18 +76,23 @@ describe('bulkGraduateStudentsAction', () => {
   it('rejects empty / non-UUID selections without calling the API', async () => {
     const result = await bulkGraduateStudentsAction(['not-a-uuid']);
     expect(result).toEqual({ status: 'error', message: 'Select at least one student.' });
-    expect(students.getStudentEnrollments).not.toHaveBeenCalled();
+    expect(students.getStudentEnrollmentsResult).not.toHaveBeenCalled();
   });
 
   it('reports partial failure as an error state', async () => {
-    students.getStudentEnrollments.mockResolvedValue([{ id: 'e1', status: 'ENROLLED' }]);
+    students.getStudentEnrollmentsResult.mockResolvedValue({
+      ok: true,
+      enrollments: [{ id: 'e1', status: 'ENROLLED' }],
+    });
     students.bulkUpdateEnrollmentStatus.mockResolvedValue({ updated: [], failed: ['e1'] });
     const result = await bulkGraduateStudentsAction([S1]);
     expect(result).toMatchObject({ status: 'error', message: 'Graduated 0; 1 failed.' });
   });
 
   it('maps GatewayError to its message', async () => {
-    students.getStudentEnrollments.mockRejectedValue(gwError(403, 'FORBIDDEN', 'Not allowed'));
+    students.getStudentEnrollmentsResult.mockRejectedValue(
+      gwError(403, 'FORBIDDEN', 'Not allowed'),
+    );
     const result = await bulkGraduateStudentsAction([S1]);
     expect(result).toEqual({ status: 'error', message: 'Not allowed' });
     expect(students.bulkUpdateEnrollmentStatus).not.toHaveBeenCalled();
@@ -123,16 +134,16 @@ describe('submitBulkImportAction', () => {
 describe('decideWorkflowApprovalAction', () => {
   it('approves and revalidates approvals + instances', async () => {
     workflows.decideWorkflowApproval.mockResolvedValue({});
-    const result = await decideWorkflowApprovalAction('a1', 'approve');
+    const result = await decideWorkflowApprovalAction(APPROVAL, 'approve');
     expect(result).toEqual({ status: 'success', message: 'Approved.' });
-    expect(workflows.decideWorkflowApproval).toHaveBeenCalledWith('a1', 'approve');
+    expect(workflows.decideWorkflowApproval).toHaveBeenCalledWith(APPROVAL, 'approve');
     expect(revalidatePath).toHaveBeenCalledWith('/workflows/approvals');
     expect(revalidatePath).toHaveBeenCalledWith('/workflows/instances');
   });
 
   it('maps GatewayError (e.g. already decided)', async () => {
     workflows.decideWorkflowApproval.mockRejectedValue(gwError(409, 'CONFLICT', 'Already decided'));
-    expect(await decideWorkflowApprovalAction('a1', 'reject')).toEqual({
+    expect(await decideWorkflowApprovalAction(APPROVAL, 'reject')).toEqual({
       status: 'error',
       message: 'Already decided',
     });
@@ -140,10 +151,17 @@ describe('decideWorkflowApprovalAction', () => {
   });
 });
 
+const VALID_ROUTE: Parameters<typeof createTransportRouteAction>[0] = {
+  name: 'Route A',
+  startLocation: 'Depot',
+  endLocation: 'School',
+  operatingDays: ['monday'],
+} as Parameters<typeof createTransportRouteAction>[0];
+
 describe('createTransportRouteAction', () => {
   it('returns the created route id', async () => {
     transport.createTransportRoute.mockResolvedValue({ id: 'r1' });
-    const result = await createTransportRouteAction({ name: 'Route A' } as never);
+    const result = await createTransportRouteAction(VALID_ROUTE);
     expect(result).toEqual({ status: 'success', message: 'Route created.', routeId: 'r1' });
     expect(revalidatePath).toHaveBeenCalledWith('/transport/routes/r1');
   });
@@ -152,10 +170,14 @@ describe('createTransportRouteAction', () => {
     transport.createTransportRoute.mockRejectedValue(
       gwError(400, 'VALIDATION_ERROR', 'name is required'),
     );
-    expect(await createTransportRouteAction({ name: '' } as never)).toEqual({
+    expect(await createTransportRouteAction(VALID_ROUTE)).toEqual({
       status: 'error',
       message: 'name is required',
     });
+    // PRC-L24x (#532): obviously invalid input is rejected before the gateway.
+    transport.createTransportRoute.mockClear();
+    expect((await createTransportRouteAction({ ...VALID_ROUTE, name: '' })).status).toBe('error');
+    expect(transport.createTransportRoute).not.toHaveBeenCalled();
   });
 });
 
@@ -191,10 +213,12 @@ describe('timetable actions', () => {
 
   it('publishSectionAction maps non-gateway errors', async () => {
     timetable.publishSection.mockRejectedValue(new Error('boom'));
-    expect(await publishSectionAction({ institutionId: 'i1', sectionId: 's1' })).toEqual({
-      ok: false,
-      error: 'boom',
-    });
+    // PRC-L24x (#532): non-gateway errors return a generic message with a
+    // correlation ref instead of leaking the raw error text.
+    const result = await publishSectionAction({ institutionId: 'i1', sectionId: 's1' });
+    expect(result.ok).toBe(false);
+    expect(result).not.toMatchObject({ error: 'boom' });
+    expect((result as { error: string }).error).toMatch(/\(ref [0-9a-f]{8}\)$/);
   });
 
   it('bulkEnrollStudentsAction reports enrolled + failed rows', async () => {

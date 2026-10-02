@@ -34,6 +34,8 @@ describe('due dates use the tenant timezone (PRC-L047)', () => {
   it('assignment deadline 17:00 IST stores 11:30Z', async () => {
     const result = await createAssignmentAction({
       scope: 'school',
+      // PRC-L24x (#532): school-scoped assignments need their institution.
+      institutionId: '01890a5d-ac96-774b-bcce-b302099a8058',
       kind: 'assignment',
       title: 'T',
       subject: 'S',
@@ -56,6 +58,7 @@ describe('due dates use the tenant timezone (PRC-L047)', () => {
   it('rejects an unparseable deadline instead of storing it', async () => {
     const result = await createAssignmentAction({
       scope: 'school',
+      institutionId: '01890a5d-ac96-774b-bcce-b302099a8058',
       kind: 'assignment',
       title: 'T',
       subject: 'S',
