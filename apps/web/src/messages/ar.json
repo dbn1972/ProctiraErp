@@ -468,7 +468,13 @@
     "statusDraft": "مسودة",
     "statusOpen": "فترة التقديم مفتوحة",
     "statusClosed": "مغلق",
-    "statusArchived": "مؤرشف"
+    "statusArchived": "مؤرشف",
+    "statusFilterLabel": "حالة الطلب",
+    "statusFilterAll": "الكل",
+    "statusFilterPending": "قيد الانتظار",
+    "statusFilterUnderReview": "قيد المراجعة",
+    "statusFilterApproved": "مقبول",
+    "statusFilterRejected": "مرفوض"
   },
   "lms": {
     "title": "التعلّم · التكليفات والواجبات والاختبارات",
@@ -623,7 +629,13 @@
     "fieldSkillName": "الاسم",
     "fieldPrerequisite": "المتطلب السابق",
     "fieldPrerequisiteHint": "يجب أن يتقن المتعلّمون هذا أولاً",
-    "createSkill": "إنشاء مهارة"
+    "createSkill": "إنشاء مهارة",
+    "rubricsTitle": "سلالم التقدير",
+    "rubricsSubtitle": "معايير × مستويات. اربطها بالتكليفات وعناصر بنك المقالات، ثم قيّم التسليمات.",
+    "rubricsNew": "سلّم تقدير جديد",
+    "rubricsEmptyTitle": "لا توجد سلالم تقدير بعد",
+    "rubricsEmptyBody": "أنشئ سلّم تقدير لتقييم المقالات.",
+    "rubricsAnySubject": "أي مادة"
   },
   "health": {
     "title": "السجلات الصحية",
@@ -877,5 +889,16 @@
     "managePlans": "إدارة الخطط",
     "manageInvoices": "إدارة الفواتير",
     "viewReceipts": "عرض الإيصالات"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "subtitle": "صندوق وارد داخل التطبيق لتنبيهات مدرستك. أدر تفضيلات البريد الإلكتروني والإشعارات الفورية والرسائل القصيرة في أي وقت.",
+    "preferences": "التفضيلات",
+    "rules": "قواعد الإشعارات",
+    "inbox": "صندوق الوارد",
+    "inboxDescription": "تنبيهات لحسابك المسجّل.",
+    "empty": "لا توجد إشعارات بعد. استخدم التفضيلات لاختيار البريد الإلكتروني أو الإشعارات الفورية أو الرسائل القصيرة — وسجّل جهازًا عند رغبتك في تنبيهات الجوال.",
+    "read": "مقروء",
+    "unread": "غير مقروء"
   }
 }

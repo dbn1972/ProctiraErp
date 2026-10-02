@@ -33,6 +33,7 @@ export function FeesPanel({
   links: Array<{ id: string; status: string; feesInvoiceId: string | null; reason: string | null }>;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
 
@@ -60,10 +61,12 @@ export function FeesPanel({
             data-hydrated={hydrated ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault();
-              const fd = new FormData(event.currentTarget);
+              const form = event.currentTarget;
+              const fd = new FormData(form);
               const rupees = Number(fd.get('amountRupees'));
               startTransition(async () => {
                 setError(null);
+                setMessage(null);
                 let amountCents: number;
                 try {
                   amountCents = majorUnitsToCents(rupees);
@@ -84,7 +87,12 @@ export function FeesPanel({
                   amountCents,
                   currency: 'INR',
                 });
-                if (result.status === 'error') setError(result.message ?? 'Failed');
+                if (result.status === 'error') {
+                  setError(result.message ?? 'Failed');
+                  return;
+                }
+                setMessage(result.message ?? 'Fee band created.');
+                form.reset();
               });
             }}
           >
@@ -158,6 +166,11 @@ export function FeesPanel({
                 {error}
               </p>
             ) : null}
+            {message ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                {message}
+              </p>
+            ) : null}
             <Button type="submit" disabled={pending}>
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Saving…' : 'Create band'}
@@ -185,8 +198,16 @@ export function FeesPanel({
                   <p className="text-sm font-medium">{b.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {(b.amountCents / 100).toFixed(2)} {b.currency}
-                    {b.feesStructureId ? ' · fees structure linked' : ' · local band only'}
+                    {b.feesStructureId ? ' · linked to Fees' : null}
                   </p>
+                  {!b.feesStructureId ? (
+                    <p
+                      className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
+                      data-testid="transport-fee-band-unlinked"
+                    >
+                      Not linked to Fees — students on this band are not invoiced.
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>

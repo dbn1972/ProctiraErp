@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 
 import { issueTranscriptAction } from '@/app/(dashboard)/gradebook-actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import {
   Button,
   Label,
@@ -36,6 +37,23 @@ export function IssueTranscriptByName({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const selectedLabel = students.find((student) => student.id === studentId)?.label ?? '';
+
+  function issue() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await issueTranscriptAction({ studentId });
+      setConfirming(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      const version = String(result.extra?.version ?? '');
+      setMessage(version ? `Issued transcript version ${version}.` : 'Issued transcript.');
+    });
+  }
 
   if (students.length === 0) {
     return (
@@ -50,17 +68,8 @@ export function IssueTranscriptByName({
       className="flex flex-wrap items-end gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        setMessage(null);
-        setError(null);
-        startTransition(async () => {
-          const result = await issueTranscriptAction({ studentId });
-          if (!result.ok) {
-            setError(result.error);
-            return;
-          }
-          const version = String(result.extra?.version ?? '');
-          setMessage(version ? `Issued transcript version ${version}.` : 'Issued transcript.');
-        });
+        // PRC-L056: issuing an official transcript requires an explicit confirm.
+        setConfirming(true);
       }}
     >
       <div className="space-y-1.5">
@@ -81,7 +90,21 @@ export function IssueTranscriptByName({
       <Button type="submit" disabled={pending || !studentId}>
         {pending ? 'Issuing…' : 'Issue official transcript'}
       </Button>
-      {message ? <p className="basis-full text-sm text-foreground">{message}</p> : null}
+      <ConfirmActionDialog
+        open={confirming}
+        onOpenChange={(open) => !pending && setConfirming(open)}
+        title={`Issue official transcript for ${selectedLabel}?`}
+        description="A new transcript version will be issued and recorded for this student."
+        confirmLabel="Issue transcript"
+        pending={pending}
+        onConfirm={issue}
+        testId="issue-transcript-confirm"
+      />
+      {message ? (
+        <p className="basis-full text-sm text-foreground" role="status">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="basis-full text-sm text-destructive" role="alert">
           {error}

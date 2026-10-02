@@ -2,12 +2,11 @@
 
 /**
  * Inline SVG equirectangular projection of lat/lng (G-920).
- * No MapLibre / Leaflet. Each marker has an OpenStreetMap deep link.
+ * No MapLibre / Leaflet. Each marker is a focusable OpenStreetMap link (PRC-L057).
  */
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { refreshLiveMapAction } from '../actions';
 import type { LiveStop, LiveVehicle } from '@/lib/transport/api';
 
 const WIDTH = 800;
@@ -45,48 +44,87 @@ export function LiveMapSvg({ vehicles, stops }: { vehicles: LiveVehicle[]; stops
   }
 
   return (
-    <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      role="img"
-      aria-label="Live transport map of stops and buses"
-      className="h-auto w-full max-w-full rounded-md border border-border bg-muted/30"
-      data-testid="transport-live-map"
-    >
-      <title>Stops (circles) and buses (squares) on an equirectangular projection</title>
-      {stops.map((stop) => {
-        const { x, y } = project(points, stop.latitude, stop.longitude);
-        return (
-          <g key={stop.id}>
-            <title>{stop.name}</title>
-            <circle cx={x} cy={y} r={8} fill="hsl(var(--primary))" />
-            <text x={x + 12} y={y + 4} fontSize="17" fill="currentColor" className="max-sm:hidden">
-              {stop.name}
-            </text>
-          </g>
-        );
-      })}
-      {vehicles.map((bus) => {
-        const { x, y } = project(points, bus.latitude, bus.longitude);
-        const label = bus.registrationNumber ?? 'Bus';
-        return (
-          <g key={bus.vehicleId}>
-            <title>{label}</title>
-            <rect x={x - 7} y={y - 7} width={14} height={14} fill="hsl(var(--destructive))" />
-            <text x={x + 12} y={y + 4} fontSize="17" fill="currentColor" className="max-sm:hidden">
-              {label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <figure className="space-y-2">
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        role="group"
+        aria-label="Live transport map of stops and buses"
+        className="h-auto w-full max-w-full rounded-md border border-border bg-muted/30"
+        data-testid="transport-live-map"
+      >
+        <title>Stops (circles) and buses (squares) on an equirectangular projection</title>
+        {stops.map((stop) => {
+          const { x, y } = project(points, stop.latitude, stop.longitude);
+          return (
+            <a
+              key={stop.id}
+              href={stop.osmUrl}
+              aria-label={`Stop ${stop.name} — open in OpenStreetMap`}
+              data-testid="transport-live-stop-marker"
+              className="focus:outline-none [&:focus-visible>circle]:stroke-foreground [&:focus-visible>circle]:stroke-[3]"
+            >
+              <title>{stop.name}</title>
+              <circle cx={x} cy={y} r={10} fill="hsl(var(--primary))" />
+              <text
+                x={x + 12}
+                y={y + 4}
+                fontSize="17"
+                fill="currentColor"
+                className="max-sm:hidden"
+              >
+                {stop.name}
+              </text>
+            </a>
+          );
+        })}
+        {vehicles.map((bus) => {
+          const { x, y } = project(points, bus.latitude, bus.longitude);
+          const label = bus.registrationNumber ?? 'Bus';
+          return (
+            <a
+              key={bus.vehicleId}
+              href={bus.osmUrl}
+              aria-label={`Bus ${label} — open in OpenStreetMap`}
+              data-testid="transport-live-bus-marker"
+              className="focus:outline-none [&:focus-visible>rect]:stroke-foreground [&:focus-visible>rect]:stroke-[3]"
+            >
+              <title>{label}</title>
+              <rect x={x - 9} y={y - 9} width={18} height={18} fill="hsl(var(--destructive))" />
+              <text
+                x={x + 12}
+                y={y + 4}
+                fontSize="17"
+                fill="currentColor"
+                className="max-sm:hidden"
+              >
+                {label}
+              </text>
+            </a>
+          );
+        })}
+      </svg>
+      <figcaption className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block h-3 w-3 rounded-full bg-primary" />
+          Stop ({stops.length})
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block h-3 w-3 bg-destructive" />
+          Bus ({vehicles.length})
+        </span>
+        <span className="sm:hidden">
+          Bus registrations are listed below the map; select a marker for its name.
+        </span>
+      </figcaption>
+    </figure>
   );
 }
 
 export function LiveMapRefresher() {
   const router = useRouter();
   useEffect(() => {
+    // router.refresh() re-renders the dynamic server page: one request per tick.
     const id = setInterval(() => {
-      void refreshLiveMapAction();
       router.refresh();
     }, 15_000);
     return () => clearInterval(id);

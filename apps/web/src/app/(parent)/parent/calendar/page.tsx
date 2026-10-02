@@ -30,7 +30,7 @@ export default async function ParentCalendarPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -38,7 +38,7 @@ export default async function ParentCalendarPage({
         title="Calendar"
         description="Holidays, breaks, and school events for the current period."
         testId="parent-calendar"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No calendar to show."
         hasRows={false}
       >

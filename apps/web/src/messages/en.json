@@ -598,7 +598,13 @@
     "statusDraft": "Draft",
     "statusOpen": "Window open",
     "statusClosed": "Closed",
-    "statusArchived": "Archived"
+    "statusArchived": "Archived",
+    "statusFilterLabel": "Application status",
+    "statusFilterAll": "All",
+    "statusFilterPending": "Pending",
+    "statusFilterUnderReview": "Under review",
+    "statusFilterApproved": "Approved",
+    "statusFilterRejected": "Rejected"
   },
   "lms": {
     "title": "Learning · assignments, homework & quizzes",
@@ -753,7 +759,13 @@
     "fieldSkillName": "Name",
     "fieldPrerequisite": "Prerequisite",
     "fieldPrerequisiteHint": "Learners must master this first",
-    "createSkill": "Create skill"
+    "createSkill": "Create skill",
+    "rubricsTitle": "Rubrics",
+    "rubricsSubtitle": "Criteria × levels. Attach to assignments and essay bank items, then grade submissions.",
+    "rubricsNew": "New rubric",
+    "rubricsEmptyTitle": "No rubrics yet",
+    "rubricsEmptyBody": "Create a rubric to grade essays.",
+    "rubricsAnySubject": "Any subject"
   },
   "health": {
     "title": "Health records",
@@ -942,5 +954,16 @@
     "managePlans": "Manage plans",
     "manageInvoices": "Manage invoices",
     "viewReceipts": "View receipts"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "In-app inbox for your school alerts. Manage email, push, and SMS preferences anytime.",
+    "preferences": "Preferences",
+    "rules": "Notification rules",
+    "inbox": "Inbox",
+    "inboxDescription": "Alerts for your signed-in account.",
+    "empty": "No notifications yet. Use Preferences to choose email, push, or SMS — and register a device when you want mobile alerts.",
+    "read": "read",
+    "unread": "unread"
   }
 }

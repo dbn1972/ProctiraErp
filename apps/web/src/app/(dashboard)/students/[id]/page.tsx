@@ -15,7 +15,6 @@ import {
   Pencil,
   CheckCircle2,
   ClipboardList,
-  Award,
   DollarSign,
   GraduationCap,
 } from 'lucide-react';
@@ -57,6 +56,8 @@ import {
   type Student,
   type TransferRecord,
 } from '@/lib/api/students';
+import { listGradeEntries, type GradeEntry } from '@/lib/api/gradebook';
+import { listInvoicesResult } from '@/lib/api/fees';
 import { cn } from '@/lib/utils';
 import { Student360Panel } from '../_components/student-360-panel';
 import {
@@ -64,6 +65,14 @@ import {
   StudentHealthTab,
   StudentLmsTab,
 } from '../_components/student-360-live-panels';
+import {
+  ATTENDANCE_ON_TRACK_PCT,
+  averageScore,
+  gradeBadgeVariant,
+  gradeOutcome,
+  recentGradeEntries,
+  summarizeFeeStatus,
+} from '../_components/student-profile-kpis';
 import { GraduateStudentButton } from '../_components/graduate-student-button';
 import { loadPlacementDirectories } from '../_components/load-student-placement';
 import {
@@ -121,16 +130,6 @@ function readStr(cd: Record<string, unknown>, key: string): string {
   return typeof v === 'string' && v.length > 0 ? v : '';
 }
 
-function readNum(cd: Record<string, unknown>, key: string): number | null {
-  const v = cd[key];
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string') {
-    const n = parseFloat(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
 function titleCase(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -170,6 +169,8 @@ export default async function StudentProfilePage(props: PageProps) {
     consents,
     incidents,
     hasPhoto,
+    gradeEntries,
+    invoices,
   ] = await Promise.all([
     getStudentEnrollments(params.id),
     getEnrollmentHistory(params.id),
@@ -180,6 +181,8 @@ export default async function StudentProfilePage(props: PageProps) {
     listStudentConsents(params.id),
     listStudentDiscipline(params.id),
     studentHasPhoto(params.id),
+    listGradeEntries({ studentId: params.id }),
+    listInvoicesResult('staff', { studentId: params.id }),
   ]);
 
   const cd = student.customData ?? {};
@@ -199,11 +202,12 @@ export default async function StudentProfilePage(props: PageProps) {
   const dob = student.dateOfBirth ? formatDate(student.dateOfBirth) : null;
   const genderInit = student.gender ? student.gender[0]?.toUpperCase() : null;
   const admNo = readStr(cd, 'admissionNo') || readStr(cd, 'admissionNumber');
-  const attendance = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
-  const avgScore = readNum(cd, 'avgScore') ?? readNum(cd, 'averageScore');
-  const rankBand = readStr(cd, 'rankBand') || readStr(cd, 'rank');
-  const feeStatus = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
-  const attendancePct = heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
+  // PRC-L054: KPIs come from attendance records, the gradebook and fee
+  // invoices only — never from free-form customData.
+  const attendancePct = heatmap?.totalRecords ? heatmap.attendancePercentage : null;
+  const grades: GradeEntry[] = gradeEntries.ok ? gradeEntries.data : [];
+  const avgScore = averageScore(grades);
+  const feeStatus = invoices.ok ? summarizeFeeStatus(invoices.items) : null;
   const profileSection = classSectionLabel({
     classId: currentEnrollment?.classId,
     gradeId: currentEnrollment?.gradeId,
@@ -356,41 +360,44 @@ export default async function StudentProfilePage(props: PageProps) {
             {/* Main column */}
             <div className="space-y-6">
               {/* KPI row */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <KpiCard
                   icon={<CheckCircle2 className="h-5 w-5" />}
                   iconColors="bg-emerald-50 text-emerald-600"
                   label="Attendance"
                   value={attendancePct !== null ? `${Math.round(attendancePct)}%` : '—'}
                   foot={
-                    attendancePct !== null && attendancePct >= 90
+                    attendancePct !== null && attendancePct >= ATTENDANCE_ON_TRACK_PCT
                       ? 'On track this term'
                       : attendancePct !== null
                         ? 'Needs attention'
                         : undefined
                   }
                 />
-                <KpiCard
-                  icon={<ClipboardList className="h-5 w-5" />}
-                  iconColors="bg-primary/10 text-primary"
-                  label="Avg score"
-                  value={avgScore !== null ? avgScore.toFixed(1) : '—'}
-                />
-                <KpiCard
-                  icon={<Award className="h-5 w-5" />}
-                  iconColors="bg-violet-50 text-violet-600"
-                  label="Rank band"
-                  value={rankBand || '—'}
-                />
-                <KpiCard
-                  icon={<DollarSign className="h-5 w-5" />}
-                  iconColors="bg-teal-50 text-teal-600"
-                  label="Fee status"
-                  value={feeStatus || '—'}
-                  valueColor={
-                    feeStatus.toLowerCase().includes('clear') ? 'text-emerald-600' : undefined
-                  }
-                />
+                {avgScore !== null && (
+                  <KpiCard
+                    icon={<ClipboardList className="h-5 w-5" />}
+                    iconColors="bg-primary/10 text-primary"
+                    label="Avg score"
+                    value={avgScore.toFixed(1)}
+                    foot="From gradebook entries"
+                  />
+                )}
+                {feeStatus && (
+                  <KpiCard
+                    icon={<DollarSign className="h-5 w-5" />}
+                    iconColors="bg-teal-50 text-teal-600"
+                    label="Fee status"
+                    value={feeStatus.label}
+                    valueColor={
+                      feeStatus.tone === 'clear'
+                        ? 'text-emerald-600'
+                        : feeStatus.tone === 'overdue'
+                          ? 'text-destructive'
+                          : undefined
+                    }
+                  />
+                )}
               </div>
 
               {/* Attendance heatmap */}
@@ -417,7 +424,7 @@ export default async function StudentProfilePage(props: PageProps) {
               />
 
               {/* Recent assessments */}
-              <RecentAssessmentsCard cd={cd} />
+              <RecentAssessmentsCard entries={grades} loadError={!gradeEntries.ok} />
             </div>
 
             {/* Sidebar */}
@@ -457,7 +464,7 @@ export default async function StudentProfilePage(props: PageProps) {
 
         {/* ── Assessments tab ── */}
         <TabsContent value="assessments" className="mt-6">
-          <RecentAssessmentsCard cd={cd} expanded />
+          <RecentAssessmentsCard entries={grades} loadError={!gradeEntries.ok} expanded />
         </TabsContent>
 
         {/* ── Guardians tab ── */}
@@ -648,33 +655,29 @@ function AttendanceHeatmap({ heatmap }: { heatmap: AttendanceHeatmap | null }) {
 /* --------------------------------------------------------------- recent assessments */
 
 function RecentAssessmentsCard({
-  cd,
+  entries,
+  loadError,
   expanded = false,
 }: {
-  cd: Record<string, unknown>;
+  entries: GradeEntry[];
+  loadError: boolean;
   expanded?: boolean;
 }) {
-  type Assessment = {
-    name: string;
-    subject: string;
-    date?: string;
-    score?: string;
-    grade?: string;
-    classAvg?: string | number;
-  };
-  const raw = cd['recentAssessments'];
-  const items: Assessment[] = Array.isArray(raw) ? (raw as Assessment[]) : [];
-
+  const items = recentGradeEntries(entries, expanded ? undefined : 5);
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">Recent assessments</CardTitle>
         <CardDescription className="text-xs">
-          {expanded ? 'All recorded assessments' : 'Latest results'}
+          {expanded ? 'All gradebook entries' : 'Latest gradebook entries'}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        {items.length === 0 ? (
+        {loadError ? (
+          <p className="px-4 pb-4 text-sm text-destructive" role="alert">
+            Gradebook entries could not be loaded.
+          </p>
+        ) : items.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">
             No assessment results recorded yet.
           </p>
@@ -684,36 +687,40 @@ function RecentAssessmentsCard({
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead className="ps-4 text-xs">Assessment</TableHead>
-                  <TableHead className="text-xs">Subject</TableHead>
                   <TableHead className="text-xs">Date</TableHead>
                   <TableHead className="text-end text-xs">Score</TableHead>
-                  <TableHead className="text-xs">Grade</TableHead>
-                  <TableHead className="pe-4 text-xs text-muted-foreground">Class avg</TableHead>
+                  <TableHead className="pe-4 text-xs">Grade</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((a, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="ps-4 font-medium">{a.name}</TableCell>
-                    <TableCell>{a.subject}</TableCell>
-                    <TableCell>{a.date ?? '—'}</TableCell>
-                    <TableCell className="text-end font-semibold tabular-nums">
-                      {a.score ?? '—'}
-                    </TableCell>
-                    <TableCell>
-                      {a.grade ? (
-                        <Badge variant="success" className="text-xs">
-                          {a.grade}
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
-                    <TableCell className="pe-4 text-muted-foreground">
-                      {a.classAvg ?? '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {items.map((entry) => {
+                  const outcome = gradeOutcome(entry);
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell className="ps-4 font-medium">
+                        {entry.assessmentCode ?? '—'}
+                      </TableCell>
+                      <TableCell>{formatDate(entry.enteredAt)}</TableCell>
+                      <TableCell className="text-end font-semibold tabular-nums">
+                        {entry.numericScore ?? '—'}
+                      </TableCell>
+                      <TableCell className="pe-4">
+                        {entry.letterGrade ? (
+                          <Badge
+                            variant={gradeBadgeVariant(outcome)}
+                            className="text-xs"
+                            data-outcome={outcome}
+                          >
+                            {entry.letterGrade}
+                            {outcome === 'fail' ? <span className="sr-only"> (fail)</span> : null}
+                          </Badge>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -722,7 +729,6 @@ function RecentAssessmentsCard({
     </Card>
   );
 }
-
 /* --------------------------------------------------------------- student facts sidebar */
 
 function StudentFactsCard({ student, cd }: { student: Student; cd: Record<string, unknown> }) {

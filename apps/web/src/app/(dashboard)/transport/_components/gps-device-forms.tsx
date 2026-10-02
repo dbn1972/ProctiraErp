@@ -50,6 +50,7 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
               const deviceId = String(fd.get('deviceId') ?? '').trim();
               startTransition(async () => {
                 setError(null);
+                setMessage(null);
                 const result = await registerVehicleDeviceAction(vehicleId, deviceId || undefined);
                 if (result.status === 'error') {
                   setError(result.message ?? 'Failed');
@@ -103,9 +104,11 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
             data-testid="transport-gps-form"
             onSubmit={(event) => {
               event.preventDefault();
-              const fd = new FormData(event.currentTarget);
+              const form = event.currentTarget;
+              const fd = new FormData(form);
               startTransition(async () => {
                 setError(null);
+                setMessage(null);
                 const result = await ingestGpsPingAction({
                   deviceId: String(fd.get('deviceId') ?? '').trim(),
                   deviceKey: String(fd.get('deviceKey') ?? '').trim(),
@@ -118,6 +121,7 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
                   return;
                 }
                 setMessage(result.message ?? 'Ping stored.');
+                form.reset();
               });
             }}
           >

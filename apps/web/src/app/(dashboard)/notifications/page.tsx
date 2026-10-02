@@ -2,6 +2,7 @@
  * Notifications inbox (Server Component) — redesign Services surface.
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { Bell, Settings } from 'lucide-react';
 
 import {
@@ -29,26 +30,27 @@ function titleFor(n: { templateId: string; variables: Record<string, string> }):
 
 export default async function NotificationsInboxPage() {
   const session = await requireSession();
-  const items = await listUserNotifications(session.user.sub);
+  const [items, t] = await Promise.all([
+    listUserNotifications(session.user.sub),
+    getTranslations('notifications'),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Notifications</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            In-app inbox for your school alerts. Manage email, push, and SMS preferences anytime.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link href="/notifications/preferences">
               <Settings className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Preferences
+              {t('preferences')}
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/admin/notification-rules">Notification rules</Link>
+            <Link href="/admin/notification-rules">{t('rules')}</Link>
           </Button>
         </div>
       </div>
@@ -57,15 +59,14 @@ export default async function NotificationsInboxPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-4 w-4" aria-hidden="true" />
-            Inbox
+            {t('inbox')}
           </CardTitle>
-          <CardDescription>Alerts for your signed-in account.</CardDescription>
+          <CardDescription>{t('inboxDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No notifications yet. Use Preferences to choose email, push, or SMS — and register a
-              device when you want mobile alerts.
+              {t('empty')}
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
@@ -80,7 +81,7 @@ export default async function NotificationsInboxPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {item.channel} · {item.status}
                       {item.priority ? ` · ${item.priority}` : ''}
-                      {item.readAt ? ' · read' : ' · unread'}
+                      {` · ${item.readAt ? t('read') : t('unread')}`}
                     </p>
                   </div>
                   <time className="text-xs text-muted-foreground" dateTime={item.createdAt}>

@@ -30,7 +30,7 @@ export default async function ParentPalPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -38,7 +38,7 @@ export default async function ParentPalPage({
         title="PAL plan"
         description="Spiral PAL skills to review, reinforce, and introduce."
         testId="parent-pal"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No PAL plan to show."
         hasRows={false}
       >

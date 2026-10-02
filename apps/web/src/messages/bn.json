@@ -468,7 +468,13 @@
     "statusDraft": "খসড়া",
     "statusOpen": "আবেদনের সময় খোলা",
     "statusClosed": "বন্ধ",
-    "statusArchived": "সংরক্ষিত"
+    "statusArchived": "সংরক্ষিত",
+    "statusFilterLabel": "আবেদনের অবস্থা",
+    "statusFilterAll": "সব",
+    "statusFilterPending": "অপেক্ষমাণ",
+    "statusFilterUnderReview": "পর্যালোচনাধীন",
+    "statusFilterApproved": "অনুমোদিত",
+    "statusFilterRejected": "প্রত্যাখ্যাত"
   },
   "lms": {
     "title": "শিক্ষণ · অ্যাসাইনমেন্ট, হোমওয়ার্ক ও কুইজ",
@@ -623,7 +629,13 @@
     "fieldSkillName": "নাম",
     "fieldPrerequisite": "পূর্বশর্ত",
     "fieldPrerequisiteHint": "শিক্ষার্থীদের প্রথমে এটিতে দক্ষ হতে হবে",
-    "createSkill": "দক্ষতা তৈরি"
+    "createSkill": "দক্ষতা তৈরি",
+    "rubricsTitle": "রুব্রিক",
+    "rubricsSubtitle": "মানদণ্ড × স্তর। অ্যাসাইনমেন্ট ও প্রবন্ধ ব্যাংক আইটেমে যুক্ত করুন, তারপর জমা মূল্যায়ন করুন।",
+    "rubricsNew": "নতুন রুব্রিক",
+    "rubricsEmptyTitle": "এখনও কোনো রুব্রিক নেই",
+    "rubricsEmptyBody": "প্রবন্ধ মূল্যায়নের জন্য একটি রুব্রিক তৈরি করুন।",
+    "rubricsAnySubject": "যেকোনো বিষয়"
   },
   "health": {
     "title": "স্বাস্থ্য রেকর্ড",
@@ -877,5 +889,16 @@
     "managePlans": "পরিকল্পনা পরিচালনা করুন",
     "manageInvoices": "ইনভয়েস পরিচালনা করুন",
     "viewReceipts": "রসিদ দেখুন"
+  },
+  "notifications": {
+    "title": "বিজ্ঞপ্তি",
+    "subtitle": "আপনার বিদ্যালয়ের সতর্কতার জন্য অ্যাপ ইনবক্স। ইমেল, পুশ ও SMS পছন্দ যেকোনো সময় পরিচালনা করুন।",
+    "preferences": "পছন্দসমূহ",
+    "rules": "বিজ্ঞপ্তির নিয়ম",
+    "inbox": "ইনবক্স",
+    "inboxDescription": "আপনার সাইন-ইন করা অ্যাকাউন্টের সতর্কতা।",
+    "empty": "এখনও কোনো বিজ্ঞপ্তি নেই। ইমেল, পুশ বা SMS বেছে নিতে পছন্দসমূহ ব্যবহার করুন — মোবাইল সতর্কতার জন্য ডিভাইস নিবন্ধন করুন।",
+    "read": "পড়া হয়েছে",
+    "unread": "অপঠিত"
   }
 }

@@ -468,7 +468,13 @@
     "statusDraft": "ડ્રાફ્ટ",
     "statusOpen": "અરજી સમયગાળો ખુલ્લો",
     "statusClosed": "બંધ",
-    "statusArchived": "આર્કાઇવ કરેલ"
+    "statusArchived": "આર્કાઇવ કરેલ",
+    "statusFilterLabel": "અરજીની સ્થિતિ",
+    "statusFilterAll": "બધા",
+    "statusFilterPending": "બાકી",
+    "statusFilterUnderReview": "સમીક્ષા હેઠળ",
+    "statusFilterApproved": "મંજૂર",
+    "statusFilterRejected": "નામંજૂર"
   },
   "lms": {
     "title": "અધ્યયન · અસાઇનમેન્ટ, ગૃહકાર્ય અને ક્વિઝ",
@@ -623,7 +629,13 @@
     "fieldSkillName": "નામ",
     "fieldPrerequisite": "પૂર્વશરત",
     "fieldPrerequisiteHint": "વિદ્યાર્થીઓએ પહેલા આમાં નિપુણ થવું જોઈએ",
-    "createSkill": "કૌશલ્ય બનાવો"
+    "createSkill": "કૌશલ્ય બનાવો",
+    "rubricsTitle": "રુબ્રિક",
+    "rubricsSubtitle": "માપદંડ × સ્તર. અસાઇનમેન્ટ અને નિબંધ બેંક આઇટમ સાથે જોડો, પછી સબમિશનનું મૂલ્યાંકન કરો.",
+    "rubricsNew": "નવી રુબ્રિક",
+    "rubricsEmptyTitle": "હજી કોઈ રુબ્રિક નથી",
+    "rubricsEmptyBody": "નિબંધોના મૂલ્યાંકન માટે રુબ્રિક બનાવો.",
+    "rubricsAnySubject": "કોઈપણ વિષય"
   },
   "health": {
     "title": "આરોગ્ય રેકોર્ડ",
@@ -877,5 +889,16 @@
     "managePlans": "યોજનાઓ સંચાલિત કરો",
     "manageInvoices": "ઇન્વૉઇસ સંચાલિત કરો",
     "viewReceipts": "રસીદો જુઓ"
+  },
+  "notifications": {
+    "title": "સૂચનાઓ",
+    "subtitle": "તમારી શાળાના એલર્ટ માટે ઍપ ઇનબોક્સ. ઇમેઇલ, પુશ અને SMS પસંદગીઓ ગમે ત્યારે સંચાલિત કરો.",
+    "preferences": "પસંદગીઓ",
+    "rules": "સૂચના નિયમો",
+    "inbox": "ઇનબોક્સ",
+    "inboxDescription": "તમારા સાઇન-ઇન એકાઉન્ટ માટે એલર્ટ.",
+    "empty": "હજી કોઈ સૂચના નથી. ઇમેઇલ, પુશ અથવા SMS પસંદ કરવા માટે પસંદગીઓનો ઉપયોગ કરો — અને મોબાઇલ એલર્ટ માટે ઉપકરણ નોંધાવો.",
+    "read": "વાંચેલું",
+    "unread": "ન વાંચેલું"
   }
 }

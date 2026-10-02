@@ -407,14 +407,6 @@ export function listChildrenResult(): Promise<ListResult<ParentChildLink>> {
   return fetchList<ParentChildLink>('/parent-portal/children', { next: { revalidate: 0 } });
 }
 
-export async function listChildren(): Promise<ParentChildLink[]> {
-  const result = await gatewayFetch<{ data: ParentChildLink[] }>('/parent-portal/children', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
-}
-
 export async function linkChild(input: LinkChildInput): Promise<ParentChildLink> {
   const result = await gatewayFetch<ParentChildLink>('/parent-portal/children/links', {
     method: 'POST',

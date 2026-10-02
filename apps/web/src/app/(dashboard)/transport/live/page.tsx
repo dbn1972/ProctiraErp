@@ -22,7 +22,8 @@ export default async function TransportLivePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Live map</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Last known vehicle positions on route stops. Tap a marker for an OpenStreetMap link.
+          Last known vehicle positions on route stops. Select a marker to open its location in
+          OpenStreetMap.
         </p>
       </div>
       <LiveMapRefresher />
