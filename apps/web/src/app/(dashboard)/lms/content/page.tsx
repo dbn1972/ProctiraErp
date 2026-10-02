@@ -8,6 +8,7 @@ import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
 import { ContentForm } from '../_components/content-form';
+import { ResourceLink } from '../_components/resource-link';
 import { LmsSubnav } from '../_components/lms-subnav';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +53,14 @@ export default async function LmsContentPage() {
                 {item.published ? ' · published' : ' · draft'}
                 {item.classKey ? ` · ${item.classKey}` : ''}
               </p>
-              {item.body ? <p className="mt-2 text-sm">{item.body}</p> : null}
+              {item.body && item.kind === 'link' ? (
+                // PRC-H024 / PRC-H033: link bodies only become hrefs via safeHref.
+                <p className="mt-2 text-sm">
+                  <ResourceLink url={item.body} />
+                </p>
+              ) : item.body ? (
+                <p className="mt-2 text-sm">{item.body}</p>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -13,6 +13,7 @@ import {
   isUnsafeMethod,
   verifyCsrf,
 } from './lib/auth/csrf';
+import { CSP_HEADER, NONCE_HEADER, cspFromEnv, generateNonce } from './lib/security/csp';
 
 export { resolveTenantFromSubdomain };
 
@@ -360,9 +361,16 @@ export async function middleware(request: NextRequest) {
   // (branding only). A client-supplied X-Tenant-ID is never trusted.
   const hostTenant = resolveTenantForRequest(request);
   const resolvedTenantSlug = hostTenant || 'default';
-  const response = NextResponse.next({
-    request: { headers: withTrustedTenantHeader(request, hostTenant) },
-  });
+  // PRC-H024 / PRC-H033: per-request nonce CSP. Next.js reads the nonce from
+  // the *request* CSP header and stamps it on its own scripts; the root
+  // layout reads x-nonce for the theme boot script.
+  const nonce = generateNonce();
+  const csp = cspFromEnv(nonce);
+  const forwardedHeaders = withTrustedTenantHeader(request, hostTenant);
+  forwardedHeaders.set(CSP_HEADER, csp.value);
+  forwardedHeaders.set(NONCE_HEADER, nonce);
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } });
+  response.headers.set(csp.header, csp.value);
   ensureCsrfCookie(request, response);
 
   // Look up tenant config from cache (5-min TTL). This validates the tenant

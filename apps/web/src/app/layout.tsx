@@ -49,6 +49,7 @@ import { BrandConfigProvider } from '@/providers/BrandConfigProvider';
 import { LanguageProvider } from '@/providers/LanguageProvider';
 import type { TranslationMap } from '@/providers/LanguageProvider';
 import { getThemeBootScript } from '@/lib/theme/boot-script';
+import { NONCE_HEADER } from '@/lib/security/csp';
 import { AppProviders } from '@/components/AppProviders';
 import '@/styles/globals.css';
 
@@ -137,6 +138,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // `next/headers` is only called from Server Components, the Theme
   // Service fetch falls back to ProctiraERP defaults on any failure.
   const headerStore = await headers();
+  // PRC-H024 / PRC-H033: middleware's per-request CSP nonce; without it the
+  // inline boot script would be blocked by the nonce-only script-src.
+  const nonce = headerStore.get(NONCE_HEADER) ?? undefined;
   const tenantSlug = await resolveRequestTenantSlug(headerStore);
   const { tokens } = await getPublishedTenantTheme(tenantSlug);
   const tenantThemeCSS = renderTenantThemeCSS(tokens);
@@ -181,6 +185,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           other tenant without baking in the brand at build time.
         */}
         <script
+          nonce={nonce}
+          // Browsers hide the nonce attribute after parsing (nonce hiding).
+          suppressHydrationWarning
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: getThemeBootScript() }}
         />
