@@ -33,8 +33,8 @@ const ANY_ID = '770e8400-e29b-41d4-a716-446655440002';
 /**
  * Read classifications that are NOT domain-gated on this branch (gateway RBAC only):
  * - 'gateway-read': list/detail reads gated by the api-gateway resource map.
- * - 'hr-read-H088': HR reads (incl. GET /payroll/export, which persists runs) that PR #499
- *   (PRC-H088) domain-gates; tighten these to a StaffAction once that PR lands.
+ * - 'hr-read-H088': kept for compatibility; with PR #499 (PRC-H088) merged, HR reads map to
+ *   staff.hr.read and GET /payroll/export (which persists runs) to payroll.export.
  */
 type Classification = StaffAction | 'gateway-read' | 'hr-read-H088';
 
@@ -57,6 +57,9 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   'POST /staff/leaves': 'staff.hr.write',
   'POST /staff/leaves/:id/decide': 'staff.hr.write',
   'GET /staff/leaves': 'gateway-read',
+  // PRC-H091 (#499): per-staff leave balances are HR data; reads are gated like writes.
+  'GET /staff/:id/leave-balances': 'staff.hr.write',
+  'PUT /staff/:id/leave-balances': 'staff.hr.write',
   // hr-routes.ts
   'POST /staff/contracts': 'staff.hr.write',
   'PATCH /staff/contracts/:id': 'staff.hr.write',
@@ -66,12 +69,12 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   'POST /staff/attendance/bulk': 'staff.hr.write',
   'POST /staff/import/dry-run': 'staff.import',
   'POST /staff/import/commit': 'staff.import',
-  'GET /staff/contracts': 'hr-read-H088',
-  'GET /staff/contracts/:id': 'hr-read-H088',
-  'GET /staff/qualifications': 'hr-read-H088',
-  'GET /staff/attendance': 'hr-read-H088',
-  'GET /staff/attendance/summary': 'hr-read-H088',
-  'GET /staff/payroll/export': 'hr-read-H088',
+  'GET /staff/contracts': 'staff.hr.read',
+  'GET /staff/contracts/:id': 'staff.hr.read',
+  'GET /staff/qualifications': 'staff.hr.read',
+  'GET /staff/attendance': 'staff.hr.read',
+  'GET /staff/attendance/summary': 'staff.hr.read',
+  'GET /staff/payroll/export': 'payroll.export',
   // appraisal-routes.ts
   'POST /staff/appraisals/templates': 'staff.hr.write',
   'POST /staff/appraisals': 'staff.hr.write',
