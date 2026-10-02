@@ -79,7 +79,7 @@ export async function registerAssignmentRoutes(
   const { assignmentService, prefix = '/staff/assignments' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    staffWritePreHandler(request, reply, 'staff.hr.write');
+    if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
   });
 
   /**

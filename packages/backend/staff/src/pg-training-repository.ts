@@ -3,7 +3,7 @@
  * `hr_training_sessions`, `hr_training_attendance`, `hr_certifications`
  * (db/sql/024). All access is tenant-bound via `withPgTenant` for RLS.
  */
-import type { PaginatedResult, PaginationOptions } from '@proctira/common';
+import { ConflictError, type PaginatedResult, type PaginationOptions } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import { ensureHrSchema, toDate, toDateStr, type PgPoolLike } from './pg-hr-schema.js';
@@ -272,17 +272,27 @@ export class PgTrainingAttendanceRepository extends PgBase implements TrainingAt
   async create(
     data: Omit<TrainingAttendanceEntity, 'createdAt'>,
   ): Promise<TrainingAttendanceEntity> {
-    return this.run(data.tenantId, async (c) => {
-      const res = await c.query(
-        `INSERT INTO hr_training_attendance (id, tenant_id, session_id, staff_id, status, comment)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (tenant_id, session_id, staff_id)
-           DO UPDATE SET status = EXCLUDED.status, comment = EXCLUDED.comment
-         RETURNING *`,
-        [data.id, data.tenantId, data.sessionId, data.staffId, data.status, data.comment],
-      );
-      return mapAttendance(res.rows[0] as Row);
-    });
+    // PRC-L156: plain INSERT. The service contract is "duplicate -> 409"; the previous
+    // ON CONFLICT DO UPDATE silently overwrote an existing record when two requests raced
+    // past the service pre-check. A unique violation now surfaces as ConflictError.
+    try {
+      return await this.run(data.tenantId, async (c) => {
+        const res = await c.query(
+          `INSERT INTO hr_training_attendance (id, tenant_id, session_id, staff_id, status, comment)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           RETURNING *`,
+          [data.id, data.tenantId, data.sessionId, data.staffId, data.status, data.comment],
+        );
+        return mapAttendance(res.rows[0] as Row);
+      });
+    } catch (error: unknown) {
+      if ((error as { code?: unknown } | null)?.code === '23505') {
+        throw new ConflictError(
+          `Attendance already recorded for staff '${data.staffId}' at session '${data.sessionId}'`,
+        );
+      }
+      throw error;
+    }
   }
 
   async findBySessionAndStaff(

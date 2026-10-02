@@ -14,7 +14,9 @@ export type StaffAction =
   | 'payroll.export'
   // PRC-H088: HR record reads (contracts incl. monthlyGrossCents, qualifications, staff
   // attendance). These GETs previously skipped the domain guard entirely.
-  | 'staff.hr.read';
+  | 'staff.hr.read'
+  // PRC-L362: staff directory reads (GET /staff, /staff/:id, offboard status).
+  | 'staff.read';
 
 const ADMIN_ROLES = [
   'admin',
@@ -44,6 +46,8 @@ const ACTION_ROLES: Record<StaffAction, readonly string[]> = {
   'staff.import': ['hr_officer', 'staff_admin', 'registrar', ...ADMIN_ROLES],
   'payroll.export': ['hr_officer', 'staff_admin', 'bursar', 'finance_officer', ...ADMIN_ROLES],
   'staff.hr.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
+  // Finance roles reconcile payroll against the staff list, but see masked identity numbers.
+  'staff.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
 };
 
 /**
@@ -61,6 +65,19 @@ export function staffHrActionFor(method: string, path: string, prefix = '/staff'
   if (isRead) return 'staff.hr.read';
   if (new RegExp(`${base}/import(?:/|$)`).test(pathOnly)) return 'staff.import';
   return 'staff.hr.write';
+}
+
+/**
+ * PRC-L362 need-to-know: only HR writers see full government identity numbers on reads.
+ */
+export function canViewStaffIdentity(roles: unknown): boolean {
+  return hasStaffAccess(roles, 'staff.update');
+}
+
+/** Mask all but the last 4 characters of an identity number. */
+export function maskIdentityNumber(value: string): string {
+  if (value.length <= 4) return '*'.repeat(value.length);
+  return `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
 }
 
 export function normalizeStaffRoles(roles: unknown): string[] {

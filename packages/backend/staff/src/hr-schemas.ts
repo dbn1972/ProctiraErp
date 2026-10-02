@@ -127,6 +127,8 @@ export type AttendanceSummaryQuery = Static<typeof AttendanceSummaryQuerySchema>
 export const StaffImportSchema = Type.Object({
   csv: Type.String({ minLength: 1, maxLength: 1_000_000 }),
   filename: Type.Optional(Type.String({ maxLength: 255 })),
+  /** PRC-L153: when true, any invalid row rejects the whole import before anything is written. */
+  allOrNothing: Type.Optional(Type.Boolean()),
 });
 export type StaffImportInput = Static<typeof StaffImportSchema>;
 
