@@ -32,6 +32,8 @@ export const INSTITUTION_SCOPED_SEGMENTS = new Set([
   'classes',
   'infrastructure',
   'institution-subjects',
+  // PRC-H022: lesson-plan writes name ?institutionId= so the gateway authorizes the school.
+  'curriculum',
 ]);
 
 export type InstitutionScopeUser = {

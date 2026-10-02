@@ -78,6 +78,37 @@ export async function registerInfrastructureRoutes(
   options: InfrastructureRoutesOptions,
 ): Promise<void> {
   const { infrastructureService, prefix = '/infrastructure' } = options;
+  /**
+   * PRC-H022: `/:id` writes must name the owning institution (`?institutionId=`, authorized by
+   * the gateway institution-scope hook) and the item must belong to it. Missing → 400; a foreign
+   * or unknown id → 404 so another school's ownership is not disclosed. False when replied.
+   */
+  async function assertItemInInstitution(
+    id: string,
+    query: { institutionId?: string } | undefined,
+    reply: FastifyReply,
+  ): Promise<boolean> {
+    const institutionId = query?.institutionId;
+    const scope = validate(InstitutionScopeParamsSchema, { institutionId });
+    if (!institutionId || !scope.success) {
+      reply.status(400).send({
+        code: 'INSTITUTION_REQUIRED',
+        message: 'A valid institutionId query parameter is required',
+        statusCode: 400,
+      });
+      return false;
+    }
+    const existing = await infrastructureService.getById(id);
+    if (existing.institutionId !== institutionId) {
+      reply.status(404).send({
+        code: 'NOT_FOUND',
+        message: `Infrastructure item not found: ${id}`,
+        statusCode: 404,
+      });
+      return false;
+    }
+    return true;
+  }
 
   // Static paths must be registered before `/:id`, which would otherwise
   // capture "repair-requests" as an infrastructure id.
@@ -475,19 +506,7 @@ export async function registerInfrastructureRoutes(
       }
 
       try {
-        // PRC-H022: when the caller names the owning institution (which the
-        // gateway institution-scope hook authorizes), the item must belong to it.
-        const scopedInstitutionId = request.query?.institutionId;
-        if (scopedInstitutionId) {
-          const existing = await infrastructureService.getById(paramsResult.data.id);
-          if (existing.institutionId !== scopedInstitutionId) {
-            return reply.status(404).send({
-              code: 'NOT_FOUND',
-              message: `Infrastructure item not found: ${paramsResult.data.id}`,
-              statusCode: 404,
-            });
-          }
-        }
+        if (!(await assertItemInInstitution(paramsResult.data.id, request.query, reply))) return;
         const updated = await infrastructureService.update(paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(updated);
       } catch (error: unknown) {
@@ -506,7 +525,10 @@ export async function registerInfrastructureRoutes(
   fastify.delete(
     `${prefix}/:id`,
     async function deleteHandler(
-      request: FastifyRequest<{ Params: InfrastructureParams }>,
+      request: FastifyRequest<{
+        Params: InfrastructureParams;
+        Querystring: { institutionId?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(InfrastructureParamsSchema, request.params);
@@ -520,6 +542,7 @@ export async function registerInfrastructureRoutes(
       }
 
       try {
+        if (!(await assertItemInInstitution(paramsResult.data.id, request.query, reply))) return;
         await infrastructureService.delete(paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {

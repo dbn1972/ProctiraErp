@@ -114,6 +114,41 @@ function sendDomainError(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+function institutionIdOfQuery(request: FastifyRequest): string | undefined {
+  const value = (request.query as { institutionId?: unknown } | undefined)?.institutionId;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * PRC-H022: a section-addressed write must name the owning institution (`?institutionId=`, which
+ * the gateway institution-scope hook authorizes against the caller's schools) and the section must
+ * belong to it. Missing → 400; foreign or unknown section → 404 so ownership is not disclosed.
+ * Returns false when a reply has been sent.
+ */
+async function assertSectionInInstitution(
+  service: TimetableService,
+  tenantId: string,
+  sectionId: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const institutionId = institutionIdOfQuery(request);
+  if (!institutionId) {
+    reply.status(400).send({
+      code: 'INSTITUTION_REQUIRED',
+      message: 'institutionId query parameter is required',
+      statusCode: 400,
+    });
+    return false;
+  }
+  const section = await service.getSection(tenantId, sectionId);
+  if (!section || section.institutionId !== institutionId) {
+    reply.status(404).send({ code: 'NOT_FOUND', message: 'Section not found', statusCode: 404 });
+    return false;
+  }
+  return true;
+}
+
 export async function registerTimetableRoutes(
   fastify: FastifyInstance,
   options: TimetableRoutesOptions,
@@ -620,6 +655,7 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
+      if (!(await assertSectionInInstitution(service, tenantId, id, request, reply))) return;
       const expectedUpdatedAt = ifMatchOf(request);
       const row = await service.updateSection(
         tenantId,
@@ -647,6 +683,7 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
+      if (!(await assertSectionInInstitution(service, tenantId, id, request, reply))) return;
       const ok = await service.deleteSection(tenantId, id);
       if (!ok) {
         return reply.status(404).send({

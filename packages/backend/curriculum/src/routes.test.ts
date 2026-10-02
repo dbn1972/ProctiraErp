@@ -73,6 +73,69 @@ describe('curriculum routes', () => {
     expect(coverage.json()).toMatchObject({ planned: 1, taught: 1, percent: 100 });
   });
 
+  describe('PRC-H022 lesson-plan institution ownership', () => {
+    const SCHOOL_A = '44444444-4444-4444-8444-444444444444';
+    const SCHOOL_B = '55555555-5555-4555-8555-555555555555';
+    async function planOfSchoolA(): Promise<string> {
+      const unit = await app.inject({
+        method: 'POST',
+        url: '/curriculum/units',
+        payload: {
+          institutionId: SCHOOL_A,
+          subjectId: SUBJECT,
+          gradeId: GRADE,
+          academicPeriodId: PERIOD,
+          code: 'FR',
+          name: 'Fractions',
+        },
+      });
+      expect(unit.statusCode).toBe(201);
+      const plan = await app.inject({
+        method: 'POST',
+        url: `/curriculum/units/${(unit.json() as { id: string }).id}/lesson-plans`,
+        payload: { title: 'Halves' },
+      });
+      expect(plan.statusCode).toBe(201);
+      return (plan.json() as { id: string }).id;
+    }
+    it('PATCH/DELETE without institutionId are rejected (400)', async () => {
+      const id = await planOfSchoolA();
+      const patch = await app.inject({
+        method: 'PATCH',
+        url: `/curriculum/lesson-plans/${id}`,
+        payload: { title: 'x' },
+      });
+      expect(patch.statusCode).toBe(400);
+      const del = await app.inject({ method: 'DELETE', url: `/curriculum/lesson-plans/${id}` });
+      expect(del.statusCode).toBe(400);
+    });
+    it('PATCH/DELETE naming another institution 404 and leave the plan intact', async () => {
+      const id = await planOfSchoolA();
+      const patch = await app.inject({
+        method: 'PATCH',
+        url: `/curriculum/lesson-plans/${id}?institutionId=${SCHOOL_B}`,
+        payload: { title: 'Hijacked' },
+      });
+      expect(patch.statusCode).toBe(404);
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/curriculum/lesson-plans/${id}?institutionId=${SCHOOL_B}`,
+      });
+      expect(del.statusCode).toBe(404);
+      const own = await app.inject({
+        method: 'PATCH',
+        url: `/curriculum/lesson-plans/${id}?institutionId=${SCHOOL_A}`,
+        payload: { title: 'Quarters' },
+      });
+      expect(own.statusCode).toBe(200);
+      expect(own.json()).toMatchObject({ title: 'Quarters' });
+      const ownDelete = await app.inject({
+        method: 'DELETE',
+        url: `/curriculum/lesson-plans/${id}?institutionId=${SCHOOL_A}`,
+      });
+      expect(ownDelete.statusCode).toBe(204);
+    });
+  });
   describe('W1-SEC-02 package RBAC', () => {
     it('returns 403 when roles are empty (fail closed)', async () => {
       await app.close();

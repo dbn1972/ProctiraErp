@@ -138,6 +138,24 @@ describe('G-805 institution scope', () => {
     expect(extractInstitutionIds({ body: [{ institutionId: 'x' }] })).toEqual([]);
   });
 
+  it('denies a curriculum lesson-plan write naming another school (PRC-H022)', () => {
+    expect(
+      decideInstitutionScope(
+        schoolPrincipal,
+        '/api/v1/curriculum/lesson-plans/plan-1',
+        'school-z',
+        'PATCH',
+      ),
+    ).toEqual({ action: 'deny', institutionId: 'school-z' });
+    expect(
+      decideInstitutionScope(
+        schoolPrincipal,
+        '/api/v1/curriculum/lesson-plans/plan-1',
+        'school-b',
+        'DELETE',
+      ),
+    ).toEqual({ action: 'allow' });
+  });
   it('scopes /institutions/:id records for school-bound users without injecting', () => {
     const user = { institutions: ['s1'], roles: ['principal'] };
     expect(institutionRecordIdFromParams('/api/v1/institutions/s2', { id: 's2' })).toBe('s2');
