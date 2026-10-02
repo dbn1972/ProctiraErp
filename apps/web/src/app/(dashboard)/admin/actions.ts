@@ -17,6 +17,7 @@ import {
   updateTenantRole,
 } from '@/lib/api/admin.server';
 import { GatewayError } from '@/lib/api/gateway';
+import { settingsIssuesToFieldErrors } from '@/lib/admin/settings-field-errors';
 
 export interface AdminActionState {
   status: 'idle' | 'success' | 'error';
@@ -189,7 +190,8 @@ export async function saveTenantSettingsAction(
     return {
       status: 'error',
       message: 'Validation failed',
-      fieldErrors: flatten(parsed.error.flatten().fieldErrors),
+      // Nested branding/contact issues map to their input ids (PRC-L066).
+      fieldErrors: settingsIssuesToFieldErrors(parsed.error.issues),
     };
   }
   if (!parsed.data.supportedLocales.includes(parsed.data.defaultLocale)) {

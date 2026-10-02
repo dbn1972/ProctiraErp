@@ -256,6 +256,19 @@ describe('CommandPalette', () => {
     expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
   });
 
+  it('PRC-L065: parent role lists no staff campus entries (Fees, Hostel, …)', () => {
+    const ids = buildPaletteItems(['student.read'], ['parent']).map((i) => i.id);
+    for (const id of ['fees', 'hostel', 'transport', 'library', 'communication', 'admissions']) {
+      expect(ids).not.toContain(id);
+    }
+    // Staff still need the H028 grant for each campus module.
+    const staff = buildPaletteItems(['student.read', 'fees.read', 'hostel.read'], ['teacher']).map(
+      (i) => i.id,
+    );
+    expect(staff).toEqual(expect.arrayContaining(['fees', 'hostel', 'admissions']));
+    expect(buildPaletteItems([], ['teacher']).map((i) => i.id)).not.toContain('admissions');
+    expect(buildPaletteItems(['student.read'], ['teacher']).map((i) => i.id)).not.toContain('fees');
+  });
   it('W2-UX-02: app-scope palette hrefs resolve to live App Router aliases', () => {
     const items = buildPaletteItems([
       'institution.read',

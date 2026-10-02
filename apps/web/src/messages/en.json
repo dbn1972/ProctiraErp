@@ -15,7 +15,9 @@
     "import": "Import",
     "back": "Back",
     "next": "Next",
-    "previous": "Previous"
+    "previous": "Previous",
+    "language": "Language",
+    "selectLanguage": "Select language"
   },
   "nav": {
     "dashboard": "Dashboard",

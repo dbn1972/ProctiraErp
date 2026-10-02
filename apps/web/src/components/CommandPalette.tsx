@@ -34,6 +34,8 @@ export interface PaletteNavItem {
   label: string;
   href: string;
   requiredPermissions: string[];
+  /** Hide from users whose roles match any of these substrings (mirrors the sidebar). */
+  hideForRoleSubstrings?: readonly string[];
   group: 'Navigation' | 'Campus';
 }
 
@@ -72,14 +74,27 @@ export function getRoutePath(module: FeatureModule): string {
   }
 }
 
-/** Campus modules mounted under Next.js `(dashboard)` (G-406). */
+/**
+ * Campus modules mounted under Next.js `(dashboard)` (G-406). Access keys mirror
+ * the staff sidebar entries for the same routes (PRC-L065), so the palette never
+ * lists a module the sidebar hides — e.g. Fees/Hostel for parents.
+ */
+const STAFF_ONLY: readonly string[] = ['parent', 'guardian'];
 export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
-  { id: 'fees', label: 'Fees', href: '/fees', requiredPermissions: ['fees.read'], group: 'Campus' },
+  {
+    id: 'fees',
+    label: 'Fees',
+    href: '/fees',
+    requiredPermissions: ['fees.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
+    group: 'Campus',
+  },
   {
     id: 'hostel',
     label: 'Hostel',
     href: '/hostel',
     requiredPermissions: ['hostel.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
     group: 'Campus',
   },
   {
@@ -87,6 +102,7 @@ export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
     label: 'Transport',
     href: '/transport',
     requiredPermissions: ['transport.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
     group: 'Campus',
   },
   {
@@ -94,6 +110,7 @@ export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
     label: 'Library',
     href: '/library',
     requiredPermissions: ['library.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
     group: 'Campus',
   },
   {
@@ -101,13 +118,15 @@ export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
     label: 'Communication',
     href: '/communication',
     requiredPermissions: ['communication.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
     group: 'Campus',
   },
   {
     id: 'admissions',
     label: 'Admissions',
     href: '/admissions',
-    requiredPermissions: [],
+    requiredPermissions: ['student.read'],
+    hideForRoleSubstrings: STAFF_ONLY,
     group: 'Campus',
   },
 ] as const;
@@ -156,7 +175,11 @@ export function buildPaletteItems(
       group: 'Navigation' as const,
     }));
 
-  const campus = CAMPUS_PALETTE_LINKS.filter((item) => allowed(item.requiredPermissions));
+  // PRC-L065: same role hide rules as the sidebar, on top of the H028 grants.
+  const campus = CAMPUS_PALETTE_LINKS.filter(
+    (item) =>
+      !isHiddenForRole(haystack, item.hideForRoleSubstrings) && allowed(item.requiredPermissions),
+  );
 
   // De-dupe by href (registry may already include overlapping labels).
   const seen = new Set(fromRegistry.map((i) => i.href));

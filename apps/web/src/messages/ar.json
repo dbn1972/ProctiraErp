@@ -15,7 +15,9 @@
     "import": "استيراد",
     "back": "رجوع",
     "next": "التالي",
-    "previous": "السابق"
+    "previous": "السابق",
+    "language": "اللغة",
+    "selectLanguage": "اختر اللغة"
   },
   "nav": {
     "dashboard": "لوحة التحكم",

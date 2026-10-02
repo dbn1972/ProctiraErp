@@ -15,7 +15,9 @@
     "import": "இறக்குமதி",
     "back": "பின்",
     "next": "அடுத்து",
-    "previous": "முந்தைய"
+    "previous": "முந்தைய",
+    "language": "மொழி",
+    "selectLanguage": "மொழியைத் தேர்ந்தெடுக்கவும்"
   },
   "nav": {
     "dashboard": "டாஷ்போர்டு",

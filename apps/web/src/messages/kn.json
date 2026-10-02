@@ -15,7 +15,9 @@
     "import": "ಆಮದು",
     "back": "ಹಿಂದಕ್ಕೆ",
     "next": "ಮುಂದೆ",
-    "previous": "ಹಿಂದಿನ"
+    "previous": "ಹಿಂದಿನ",
+    "language": "ಭಾಷೆ",
+    "selectLanguage": "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ"
   },
   "nav": {
     "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
