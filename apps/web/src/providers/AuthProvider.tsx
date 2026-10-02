@@ -36,6 +36,7 @@ import {
   signOut as sessionSignOut,
 } from '@/lib/auth/session';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { noteSignedInIdentity, purgeUserOfflineData } from '@/lib/auth/offline-purge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -141,10 +142,15 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
     }
     if (status !== 'authenticated' || !user) return;
     const identity = `${user.tenant_id}:${user.id}`;
-    if (lastIdentity.current !== null && lastIdentity.current !== identity) {
-      void purgeServiceWorkerCaches();
-    }
+    // A different user/tenant than last time on this browser — in this tab, or
+    // remembered in localStorage across an expired/closed session — drops the
+    // previous user's caches, queued offline writes and drafts.
+    const inTabSwitch = lastIdentity.current !== null && lastIdentity.current !== identity;
     lastIdentity.current = identity;
+    void (async () => {
+      if (inTabSwitch) await purgeUserOfflineData();
+      await noteSignedInIdentity(identity);
+    })();
   }, [status, user]);
   const applySession = useCallback(async (signal?: AbortSignal) => {
     const snapshot = await fetchSession({ signal });

@@ -149,7 +149,34 @@ function getRoute(): string {
 
 /** Build the localStorage key for a given form id at the current route. */
 export function buildDraftKey(formId: string): string {
-  return `${getBrand()}-draft:${getRoute()}:${formId}`;
+  return `${draftKeyPrefix()}${getRoute()}:${formId}`;
+}
+
+/** Storage-key prefix shared by every draft written by this hook. */
+export function draftKeyPrefix(): string {
+  return `${getBrand()}-draft:`;
+}
+
+/**
+ * Remove every autosaved draft from `localStorage` (PRC-H026 / PRC-H032).
+ * Called on sign-out and on a user/tenant switch so a shared device never
+ * rehydrates the previous user's in-progress forms. Returns how many drafts
+ * were removed; never throws.
+ */
+export function clearAllDrafts(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const prefix = draftKeyPrefix();
+    const doomed: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(prefix)) doomed.push(key);
+    }
+    doomed.forEach((key) => window.localStorage.removeItem(key));
+    return doomed.length;
+  } catch {
+    return 0;
+  }
 }
 
 /**

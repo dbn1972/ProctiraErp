@@ -364,6 +364,16 @@ export async function persistAttempt(
  * normal product code — Sync_Queue contents are user data.
  */
 export async function _resetForTests(): Promise<void> {
+  await clearSyncQueue();
+}
+
+/**
+ * Delete the whole Sync_Queue database (PRC-H026 / PRC-H032). Called only on
+ * explicit sign-out or when a different user/tenant signs in on this browser,
+ * so one user's queued writes are never replayed under another's session.
+ * No-op where IndexedDB is unavailable.
+ */
+export async function clearSyncQueue(): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   await new Promise<void>((resolve, reject) => {
     const req = indexedDB.deleteDatabase(DB_NAME);

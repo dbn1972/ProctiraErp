@@ -25,9 +25,24 @@ function ciReporter(): PlaywrightTestConfig['reporter'] {
   return [['list'], ['html', { open: 'never' }]];
 }
 
+/**
+ * PRC-H026 / PRC-H032 / PRC-L253: `*.sw.spec.ts` files exercise the real
+ * service worker (cache purge on logout / user switch), so they run only in
+ * this project, with registration allowed. Every other project ignores them.
+ */
+const SW_SPEC = /.*\.sw\.spec\.ts/;
+const serviceWorkerProject: NonNullable<PlaywrightTestConfig['projects']>[number] = {
+  name: 'chromium-sw',
+  testMatch: SW_SPEC,
+  // Overrides the config-level `testIgnore: SW_SPEC` for this project only.
+  testIgnore: [],
+  use: { ...devices['Desktop Chrome'], serviceWorkers: 'allow' },
+};
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.ts/,
+  testIgnore: SW_SPEC,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -55,7 +70,8 @@ export default defineConfig({
     // tracking success mock then never runs (the axe checkpoint gives the
     // worker time to claim the page) and the UI shows "not found". No spec
     // asserts service-worker behavior; block registration so network mocks
-    // stay deterministic under the production server.
+    // stay deterministic under the production server. The `chromium-sw`
+    // project below is the single exception (PRC-L253).
     serviceWorkers: 'block',
   },
   // `pnpm test:e2e` only installs Chromium. Keep the full matrix available
@@ -95,6 +111,7 @@ export default defineConfig({
             browserName: 'chromium',
           },
         },
+        serviceWorkerProject,
       ]
     : [
         {
@@ -115,6 +132,7 @@ export default defineConfig({
             browserName: 'chromium',
           },
         },
+        serviceWorkerProject,
       ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined

@@ -8,7 +8,7 @@
  */
 
 import { withCsrfHeader } from '@/lib/auth/csrf';
-import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { purgeOnSignOut } from '@/lib/auth/offline-purge';
 
 import type { AuthUserFromToken } from './auth-user';
 import { decodeJwtPayload } from './jwt-payload';
@@ -268,8 +268,9 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
   } catch {
     // Even if the API call fails, we redirect to login.
   }
-  // PRC-H026 / PRC-H032: never leave this user's cached responses behind.
-  await purgeServiceWorkerCaches();
+  // PRC-H026 / PRC-H032: never leave this user's cached responses, queued
+  // offline writes or autosaved drafts behind on a shared device.
+  await purgeOnSignOut();
 
   if (typeof window !== 'undefined') {
     window.location.href = redirectTo;
