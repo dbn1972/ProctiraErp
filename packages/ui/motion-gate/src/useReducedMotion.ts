@@ -35,7 +35,13 @@ export function useReducedMotion(): boolean {
       return;
     }
 
-    const mql = window.matchMedia(REDUCED_MOTION_QUERY);
+    let mql: MediaQueryList;
+    try {
+      mql = window.matchMedia(REDUCED_MOTION_QUERY);
+    } catch {
+      // A matchMedia that throws (not ready / sandboxed) means "motion allowed".
+      return;
+    }
 
     // Read the real preference after mount (client only).
     setReduced(mql.matches);
