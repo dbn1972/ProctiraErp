@@ -50,9 +50,9 @@ describe('transcript artifact path safety (PRC-H063)', () => {
 
   it('refuses to write outside the artifact root for a traversal studentId', () => {
     const escapeTarget = resolve(root, '..', 'escaped-h063');
-    expect(() =>
-      writeTranscriptPdfLite({ ...base, studentId: '../../escaped-h063' }),
-    ).toThrow(/invalid transcript artifact scope/i);
+    expect(() => writeTranscriptPdfLite({ ...base, studentId: '../../escaped-h063' })).toThrow(
+      /invalid transcript artifact scope/i,
+    );
     expect(existsSync(escapeTarget)).toBe(false);
   });
 

@@ -92,7 +92,10 @@ export function extractInstitutionIds(input: {
  * Returns that id so a school-bound caller cannot read or change another school's record. Static
  * sub-paths (e.g. `/institutions/directory-context`) have no `id` param and are unaffected.
  */
-export function institutionRecordIdFromParams(urlPath: string, params: unknown): string | undefined {
+export function institutionRecordIdFromParams(
+  urlPath: string,
+  params: unknown,
+): string | undefined {
   if (firstPathSegment(urlPath) !== 'institutions') return undefined;
   if (!params || typeof params !== 'object') return undefined;
   const id = (params as Record<string, unknown>)['id'];

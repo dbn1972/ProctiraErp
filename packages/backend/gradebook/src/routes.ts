@@ -117,9 +117,7 @@ function actorUserId(request: FastifyRequest): string | null {
  *  - kind 'denied': reply already sent (403).
  */
 type GradebookReadScope =
-  | { kind: 'staff' }
-  | { kind: 'self'; studentIds: string[] }
-  | { kind: 'denied' };
+  { kind: 'staff' } | { kind: 'self'; studentIds: string[] } | { kind: 'denied' };
 
 async function resolveReadScope(
   request: FastifyRequest,

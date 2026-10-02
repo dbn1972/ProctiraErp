@@ -124,6 +124,8 @@ describe('createScholarshipDisbursementLookup (PRC-H020)', () => {
       throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' });
     };
     const lookup = createScholarshipDisbursementLookup(() => repo);
-    await expect(lookup.findDisbursement(TENANT_A, 'disb-paid')).rejects.toThrow('connection reset');
+    await expect(lookup.findDisbursement(TENANT_A, 'disb-paid')).rejects.toThrow(
+      'connection reset',
+    );
   });
 });

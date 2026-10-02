@@ -142,9 +142,15 @@ describe('G-805 institution scope', () => {
     const user = { institutions: ['s1'], roles: ['principal'] };
     expect(institutionRecordIdFromParams('/api/v1/institutions/s2', { id: 's2' })).toBe('s2');
     expect(institutionRecordIdFromParams('/api/v1/students/s2', { id: 's2' })).toBeUndefined();
-    expect(decideInstitutionScope(user, '/api/v1/institutions/s2', 's2', 'PUT').action).toBe('deny');
-    expect(decideInstitutionScope(user, '/api/v1/institutions/s1', 's1', 'GET').action).toBe('allow');
-    expect(decideInstitutionScope(user, '/api/v1/institutions', undefined, 'GET').action).toBe('allow');
+    expect(decideInstitutionScope(user, '/api/v1/institutions/s2', 's2', 'PUT').action).toBe(
+      'deny',
+    );
+    expect(decideInstitutionScope(user, '/api/v1/institutions/s1', 's1', 'GET').action).toBe(
+      'allow',
+    );
+    expect(decideInstitutionScope(user, '/api/v1/institutions', undefined, 'GET').action).toBe(
+      'allow',
+    );
   });
 });
 

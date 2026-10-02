@@ -29,13 +29,17 @@ describe('hasActiveBreakGlassGrant', () => {
   it('rejects expired, revoked, other-tenant and other-subject grants', () => {
     const expired = { ...base, expiresAt: now.toISOString() };
     expect(hasActiveBreakGlassGrant([expired], 'tnt_1', me, now)).toBe(false);
-    expect(hasActiveBreakGlassGrant([{ ...base, status: 'revoked' }], 'tnt_1', me, now)).toBe(false);
-    expect(hasActiveBreakGlassGrant([base], 'tnt_2', me, now)).toBe(false);
-    // Same email but a different verified subject must not match.
-    expect(hasActiveBreakGlassGrant([base], 'tnt_1', { sub: 'sub-other', email: me.email }, now)).toBe(
+    expect(hasActiveBreakGlassGrant([{ ...base, status: 'revoked' }], 'tnt_1', me, now)).toBe(
       false,
     );
-    expect(hasActiveBreakGlassGrant([{ ...base, expiresAt: undefined }], 'tnt_1', me, now)).toBe(false);
+    expect(hasActiveBreakGlassGrant([base], 'tnt_2', me, now)).toBe(false);
+    // Same email but a different verified subject must not match.
+    expect(
+      hasActiveBreakGlassGrant([base], 'tnt_1', { sub: 'sub-other', email: me.email }, now),
+    ).toBe(false);
+    expect(hasActiveBreakGlassGrant([{ ...base, expiresAt: undefined }], 'tnt_1', me, now)).toBe(
+      false,
+    );
   });
 
   it('falls back to email only for legacy rows without requesterSub', () => {

@@ -176,7 +176,9 @@ describe('PRC-H067/H068 library read scoping', () => {
   it('H067: student cannot read tenant-wide overdues or fine policy (403)', async () => {
     const app = await appAs({ sub: CHILD, roles: [{ roleId: 'student', roleName: 'Student' }] });
     expect((await app.inject({ method: 'GET', url: '/library/overdues' })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'GET', url: '/library/fines/policy' })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/library/fines/policy' })).statusCode).toBe(
+      403,
+    );
     expect(
       (await app.inject({ method: 'GET', url: '/library/copies/by-barcode?barcode=X' })).statusCode,
     ).toBe(403);
@@ -198,7 +200,10 @@ describe('PRC-H067/H068 library read scoping', () => {
   });
 
   it('H067: parent /fines is linked-child 200, unlinked 404, no-studentId 400', async () => {
-    const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
+    const app = await appAs({
+      sub: PARENT_SUB,
+      roles: [{ roleId: 'guardian', roleName: 'Guardian' }],
+    });
     const own = await app.inject({ method: 'GET', url: `/library/fines?studentId=${CHILD}` });
     expect(own.statusCode).toBe(200);
     const other = await app.inject({
@@ -212,7 +217,10 @@ describe('PRC-H067/H068 library read scoping', () => {
   });
 
   it('H067: parent clearance is bound — linked child 200, unlinked 404', async () => {
-    const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
+    const app = await appAs({
+      sub: PARENT_SUB,
+      roles: [{ roleId: 'guardian', roleName: 'Guardian' }],
+    });
     const own = await app.inject({ method: 'GET', url: `/library/patrons/${CHILD}/clearance` });
     expect(own.statusCode).toBe(200);
     const other = await app.inject({

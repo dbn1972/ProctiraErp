@@ -25,7 +25,10 @@ export interface AdapterProbe {
 }
 
 /** Ping Postgres with SELECT 1. Never reports healthy without a successful round-trip. */
-export async function probePostgres(pool: SqlPool | null, now: () => Date = () => new Date()): Promise<AdapterProbe> {
+export async function probePostgres(
+  pool: SqlPool | null,
+  now: () => Date = () => new Date(),
+): Promise<AdapterProbe> {
   const lastChecked = now().toISOString();
   if (!pool) {
     return {
@@ -114,11 +117,7 @@ export async function queryPlatformAudit(
 }
 
 export type ConsoleTenantStatus =
-  | 'provisioning'
-  | 'active'
-  | 'suspended'
-  | 'decommissioning'
-  | 'archived';
+  'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
 export interface ConsoleTenant {
   id: string;

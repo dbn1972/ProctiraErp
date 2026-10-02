@@ -71,8 +71,8 @@ export default async function TenantDetailPage({
           {tenant.plan}
         </Badge>
         <span className="text-sm text-muted-foreground">
-          Created {formatDate(tenant.createdAt)} · {tenant.activeUsers?.toLocaleString() ?? 'unknown'} active
-          users
+          Created {formatDate(tenant.createdAt)} ·{' '}
+          {tenant.activeUsers?.toLocaleString() ?? 'unknown'} active users
         </span>
       </div>
 

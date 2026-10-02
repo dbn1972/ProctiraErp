@@ -39,11 +39,7 @@ const ACADEMIC_STAFF_ROLES = new Set<string>([
   'academic_coordinator',
 ]);
 
-const EXAM_STAFF_ROLES = new Set<string>([
-  'examinations_officer',
-  'exam_officer',
-  'board_officer',
-]);
+const EXAM_STAFF_ROLES = new Set<string>(['examinations_officer', 'exam_officer', 'board_officer']);
 
 const REGISTRAR_ROLES = new Set<string>(['registrar', 'admissions_officer', 'staff_admin']);
 

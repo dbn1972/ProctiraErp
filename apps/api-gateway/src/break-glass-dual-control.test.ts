@@ -30,7 +30,12 @@ describe('break-glass policy', () => {
   const t0 = new Date('2026-01-01T10:00:00Z');
 
   it('takes the requester from the actor, never the body', () => {
-    const result = createRequest({ ...validBody, requester: 'someone-else@x' }, REQUESTER, t0, 'bg_1');
+    const result = createRequest(
+      { ...validBody, requester: 'someone-else@x' },
+      REQUESTER,
+      t0,
+      'bg_1',
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.row.requesterSub).toBe('op-requester');
@@ -38,7 +43,9 @@ describe('break-glass policy', () => {
   });
 
   it('rejects out-of-range durations and unknown scopes', () => {
-    expect(createRequest({ ...validBody, durationMinutes: 241 }, REQUESTER, t0, 'x').ok).toBe(false);
+    expect(createRequest({ ...validBody, durationMinutes: 241 }, REQUESTER, t0, 'x').ok).toBe(
+      false,
+    );
     expect(createRequest({ ...validBody, durationMinutes: 0 }, REQUESTER, t0, 'x').ok).toBe(false);
     expect(createRequest({ ...validBody, scope: 'root' }, REQUESTER, t0, 'x').ok).toBe(false);
   });
@@ -50,9 +57,9 @@ describe('break-glass policy', () => {
     expect(self).toMatchObject({ ok: false, statusCode: 403 });
 
     // Same person under a second subject (same email) is still the requester.
-    expect(approveRequest(created.row, { sub: 'other-sub', email: 'REQUESTER@proctira.org' }, t0)).toMatchObject(
-      { ok: false, statusCode: 403 },
-    );
+    expect(
+      approveRequest(created.row, { sub: 'other-sub', email: 'REQUESTER@proctira.org' }, t0),
+    ).toMatchObject({ ok: false, statusCode: 403 });
   });
 
   it('refuses to approve legacy rows without a verified requester subject', () => {

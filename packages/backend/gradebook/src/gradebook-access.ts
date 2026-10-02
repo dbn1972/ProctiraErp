@@ -31,9 +31,7 @@ const REGISTRAR_ROLES = [
 
 // Staff who may read gradebook surfaces: teachers + registrar/exam officers + admins.
 // Portal roles (parent/student/guardian) are NOT here; their access is self-scoped separately.
-const READ_STAFF_ROLES = [
-  ...new Set<string>([...TEACHER_ROLES, ...REGISTRAR_ROLES]),
-] as const;
+const READ_STAFF_ROLES = [...new Set<string>([...TEACHER_ROLES, ...REGISTRAR_ROLES])] as const;
 
 const ACTION_ROLES: Record<GradebookAction, readonly string[]> = {
   'grade.entry': TEACHER_ROLES,

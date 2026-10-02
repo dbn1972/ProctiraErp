@@ -137,8 +137,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-  const resolveHost =
-    options.deps?.resolveHost ?? ((host: string) => lookup(host, { all: true }));
+  const resolveHost = options.deps?.resolveHost ?? ((host: string) => lookup(host, { all: true }));
   const fetchImpl = options.deps?.fetchImpl ?? fetch;
 
   let currentUrl = rawUrl;

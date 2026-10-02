@@ -160,9 +160,7 @@ describe('G-910 tenant admin console mount', () => {
     // The route table carries branding only under /api/v1, never at the root. printRoutes()
     // renders a tree, so assert there is no branding path that is not prefixed by /api/v1.
     const routes = app.printRoutes();
-    const brandingLines = routes
-      .split('\n')
-      .filter((line) => line.includes('branding'));
+    const brandingLines = routes.split('\n').filter((line) => line.includes('branding'));
     // Every branding route must live under the /api/v1/tenant subtree (verified via a live
     // request rather than tree indentation): the root POST above already proved 404.
     expect(brandingLines.length).toBeGreaterThan(0); // branding IS mounted (under /api/v1)

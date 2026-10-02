@@ -10,10 +10,7 @@
  */
 import type { ExcelSourceConfig } from '../schemas.js';
 
-import {
-  assertInlineContentWithinCap,
-  assertNoHostFilePath,
-} from './file-source-policy.js';
+import { assertInlineContentWithinCap, assertNoHostFilePath } from './file-source-policy.js';
 import type { SourceConnector, ExtractionResult, DataRow } from './types.js';
 
 export class ExcelSourceConnector implements SourceConnector {
@@ -35,7 +32,10 @@ export class ExcelSourceConnector implements SourceConnector {
     try {
       assertNoHostFilePath(this.config.filePath);
     } catch (error) {
-      return { valid: false, error: error instanceof Error ? error.message : 'Invalid file source' };
+      return {
+        valid: false,
+        error: error instanceof Error ? error.message : 'Invalid file source',
+      };
     }
     if (!this.config.fileContent) {
       return { valid: false, error: 'Inline fileContent is required' };

@@ -7,12 +7,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  SsrfError,
-  assertPublicHttpsUrl,
-  isDisallowedAddress,
-  safeFetch,
-} from './safe-fetch.js';
+import { SsrfError, assertPublicHttpsUrl, isDisallowedAddress, safeFetch } from './safe-fetch.js';
 
 const publicResolver = async () => [{ address: '93.184.216.34', family: 4 }];
 
@@ -49,12 +44,12 @@ describe('isDisallowedAddress (PRC-C003)', () => {
 
 describe('assertPublicHttpsUrl (PRC-C003)', () => {
   it('rejects non-https schemes', async () => {
-    await expect(assertPublicHttpsUrl('http://example.com/', publicResolver)).rejects.toBeInstanceOf(
+    await expect(
+      assertPublicHttpsUrl('http://example.com/', publicResolver),
+    ).rejects.toBeInstanceOf(SsrfError);
+    await expect(assertPublicHttpsUrl('file:///etc/passwd', publicResolver)).rejects.toBeInstanceOf(
       SsrfError,
     );
-    await expect(
-      assertPublicHttpsUrl('file:///etc/passwd', publicResolver),
-    ).rejects.toBeInstanceOf(SsrfError);
   });
 
   it('rejects the cloud metadata endpoint by literal IP', async () => {
@@ -80,9 +75,9 @@ describe('assertPublicHttpsUrl (PRC-C003)', () => {
   });
 
   it('accepts a public https host', async () => {
-    await expect(assertPublicHttpsUrl('https://example.com/', publicResolver)).resolves.toBeInstanceOf(
-      URL,
-    );
+    await expect(
+      assertPublicHttpsUrl('https://example.com/', publicResolver),
+    ).resolves.toBeInstanceOf(URL);
   });
 
   it('rejects IPv6 loopback / IPv4-mapped literal URL hosts by policy', async () => {
@@ -109,8 +104,9 @@ describe('assertPublicHttpsUrl (PRC-C003)', () => {
 
 describe('safeFetch (PRC-C003)', () => {
   it('rejects a 302 redirect to a private IP without following it', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(null, { status: 302, headers: { location: 'https://169.254.169.254/' } }),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(null, { status: 302, headers: { location: 'https://169.254.169.254/' } }),
     ) as unknown as typeof fetch;
     await expect(
       safeFetch('https://example.com/', {
@@ -122,7 +118,9 @@ describe('safeFetch (PRC-C003)', () => {
 
   it('caps oversized response bodies', async () => {
     const big = new Uint8Array(50);
-    const fetchImpl = vi.fn(async () => new Response(big, { status: 200 })) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async () => new Response(big, { status: 200 }),
+    ) as unknown as typeof fetch;
     await expect(
       safeFetch('https://example.com/', {
         deps: { resolveHost: publicResolver, fetchImpl },
@@ -149,8 +147,8 @@ describe('safeFetch (PRC-C003)', () => {
   });
 
   it('returns the response for an allowed public target', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify([{ id: 1 }]), { status: 200 }),
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify([{ id: 1 }]), { status: 200 }),
     ) as unknown as typeof fetch;
     const res = await safeFetch('https://example.com/data', {
       deps: { resolveHost: publicResolver, fetchImpl },

@@ -84,7 +84,6 @@ describe('admin API clients', () => {
     expect((await getTenant('tnt_002')).tenant?.slug).toBe('district-northwest');
     expect((await getTenant('missing')).tenant).toBeNull();
 
-
     const plugins = await listPlugins();
     expect(plugins.source).toBe('stub');
     expect(plugins.plugins.length).toBeGreaterThan(0);

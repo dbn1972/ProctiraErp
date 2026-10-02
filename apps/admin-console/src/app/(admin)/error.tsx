@@ -24,9 +24,7 @@ export default function AdminError({
       <Alert variant="destructive">
         <AlertTitle>Something went wrong</AlertTitle>
         <AlertDescription>
-          <p>
-            The request did not complete. If you submitted a change, it was not applied.
-          </p>
+          <p>The request did not complete. If you submitted a change, it was not applied.</p>
           {error.message ? <p className="mt-1">{error.message}</p> : null}
           {error.digest ? <p className="mt-1 text-xs">Reference: {error.digest}</p> : null}
         </AlertDescription>

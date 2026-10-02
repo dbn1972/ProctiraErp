@@ -66,6 +66,10 @@ export function hasEtlAccess(roles: unknown): boolean {
 
 export function assertEtlAccess(roles: unknown): void {
   if (!hasEtlAccess(roles)) {
-    throw new AppError('Forbidden: ETL pipeline access requires an ETL or admin role', 'FORBIDDEN', 403);
+    throw new AppError(
+      'Forbidden: ETL pipeline access requires an ETL or admin role',
+      'FORBIDDEN',
+      403,
+    );
   }
 }

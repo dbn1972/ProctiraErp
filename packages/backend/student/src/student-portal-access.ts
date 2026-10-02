@@ -50,11 +50,7 @@ const STUDENT_READ_STAFF_ROLES = new Set<string>([
 const MEDICAL_STAFF_ROLES = new Set<string>([...ADMIN_ROLES, ...REGISTRAR_ROLES, 'nurse']);
 
 /** Roles allowed to manage/read discipline (staff view — includes visibleToParent=false rows). */
-const DISCIPLINE_STAFF_ROLES = new Set<string>([
-  ...ADMIN_ROLES,
-  ...REGISTRAR_ROLES,
-  'teacher',
-]);
+const DISCIPLINE_STAFF_ROLES = new Set<string>([...ADMIN_ROLES, ...REGISTRAR_ROLES, 'teacher']);
 
 const PORTAL_ROLES = new Set<string>(['guardian', 'parent', 'student']);
 
@@ -85,9 +81,7 @@ export function mayViewNationalId(roles: unknown): boolean {
 }
 
 export type StudentReadScope =
-  | { kind: 'staff' }
-  | { kind: 'self'; studentIds: Set<string> }
-  | { kind: 'denied' };
+  { kind: 'staff' } | { kind: 'self'; studentIds: Set<string> } | { kind: 'denied' };
 
 /**
  * Resolve a read request's scope. Staff (roster readers) get 'staff'; portal readers get 'self'

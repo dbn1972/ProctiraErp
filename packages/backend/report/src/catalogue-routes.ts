@@ -13,11 +13,7 @@ import {
 } from './catalogue-schemas.js';
 import type { CatalogueService } from './catalogue-service.js';
 import { formatApiLabel, resolveReportKey, type CatalogueReportKey } from './catalogue.js';
-import {
-  canAccessReport,
-  isReportManager,
-  isReportStaff,
-} from './report-access.js';
+import { canAccessReport, isReportManager, isReportStaff } from './report-access.js';
 import { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
 
 export interface CatalogueRoutesOptions {
@@ -331,7 +327,9 @@ export function registerCatalogueRoutes(
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
     if (!requireReportStaff(request, reply)) return;
-    const scheduleKey = resolveReportKey({ reportKey: (parsed.data as { reportKey?: string }).reportKey });
+    const scheduleKey = resolveReportKey({
+      reportKey: (parsed.data as { reportKey?: string }).reportKey,
+    });
     if (scheduleKey && !canAccessReport(resolveRoles(request), scheduleKey)) {
       return reply.status(403).send({
         code: 'FORBIDDEN',

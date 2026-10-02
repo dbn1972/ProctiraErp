@@ -63,7 +63,11 @@ describe('scholarship document download token signing (PRC-H082)', () => {
     // A token minted with it must no longer verify (the default is gone).
     process.env['SCHOLARSHIP_DOC_URL_SECRET'] = 'a-real-configured-secret';
     const body = Buffer.from(
-      JSON.stringify({ tenantId: TENANT, documentId: DOCUMENT, exp: Math.floor(Date.now() / 1000) + 120 }),
+      JSON.stringify({
+        tenantId: TENANT,
+        documentId: DOCUMENT,
+        exp: Math.floor(Date.now() / 1000) + 120,
+      }),
     ).toString('base64url');
     const forged = `${body}.${createHmac('sha256', 'dev-scholarship-doc-url-secret')
       .update(body)

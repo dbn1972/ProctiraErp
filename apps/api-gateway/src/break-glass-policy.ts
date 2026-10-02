@@ -15,12 +15,7 @@ export const BREAK_GLASS_SCOPES = ['read', 'support', 'admin'] as const;
 export type BreakGlassScope = (typeof BREAK_GLASS_SCOPES)[number];
 
 export type BreakGlassStatus =
-  | 'pending_approval'
-  | 'approved'
-  | 'active'
-  | 'expired'
-  | 'revoked'
-  | 'denied';
+  'pending_approval' | 'approved' | 'active' | 'expired' | 'revoked' | 'denied';
 
 export interface BreakGlassRow {
   id: string;
@@ -141,7 +136,11 @@ export function createRequest(
   };
 }
 
-export function approveRequest(row: BreakGlassRow, actor: BreakGlassActor, now: Date): PolicyResult {
+export function approveRequest(
+  row: BreakGlassRow,
+  actor: BreakGlassActor,
+  now: Date,
+): PolicyResult {
   if (row.status !== 'pending_approval') {
     return {
       ok: false,

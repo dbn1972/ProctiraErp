@@ -429,10 +429,7 @@ export const platformAdminUiPlugin = fp(
       if (!sub) return null;
       return { sub, email: typeof user?.email === 'string' ? user.email : undefined };
     };
-    const sendPolicyError = (
-      reply: FastifyReply,
-      result: Extract<PolicyResult, { ok: false }>,
-    ) =>
+    const sendPolicyError = (reply: FastifyReply, result: Extract<PolicyResult, { ok: false }>) =>
       reply
         .status(result.statusCode)
         .send({ code: result.code, message: result.message, statusCode: result.statusCode });
@@ -545,13 +542,17 @@ export const platformAdminUiPlugin = fp(
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/deny', async (request, reply) => {
       const actor = actorOf(request);
       if (!actor) return noActor(reply);
-      return decide(reply, request.params.id, (row) => denyRequest(row, actor, now(), decisionReason(request)));
+      return decide(reply, request.params.id, (row) =>
+        denyRequest(row, actor, now(), decisionReason(request)),
+      );
     });
 
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/revoke', async (request, reply) => {
       const actor = actorOf(request);
       if (!actor) return noActor(reply);
-      return decide(reply, request.params.id, (row) => revokeRequest(row, actor, now(), decisionReason(request)));
+      return decide(reply, request.params.id, (row) =>
+        revokeRequest(row, actor, now(), decisionReason(request)),
+      );
     });
 
     fastify.get('/plans', async (_request, reply) => {
@@ -599,7 +600,12 @@ export const platformAdminUiPlugin = fp(
       const up = (status: string) => (status === 'healthy' ? 'up' : status);
       return reply.send({
         // Only 'ok' when every dependency was actually verified.
-        status: postgres.status === 'healthy' ? 'ok' : postgres.status === 'down' ? 'degraded' : 'unknown',
+        status:
+          postgres.status === 'healthy'
+            ? 'ok'
+            : postgres.status === 'down'
+              ? 'degraded'
+              : 'unknown',
         services: [
           { name: 'gateway', status: 'up' },
           { name: 'postgres', status: up(postgres.status), note: postgres.note },
