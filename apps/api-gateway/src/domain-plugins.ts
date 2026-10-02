@@ -173,6 +173,7 @@ import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 
@@ -817,6 +818,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         outboxStore: documentOutboxHandle?.outboxStore,
         examOpsStore,
         prefix: '/examinations',
+        // PRC-L104: exam calendar-date rules run in the tenant's configured timezone.
+        timeZone: createTenantTimeZoneResolver({ sources: pgTenantTimeZoneSources() }),
       });
     },
   },
