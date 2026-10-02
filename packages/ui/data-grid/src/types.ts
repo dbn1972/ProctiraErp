@@ -1,5 +1,3 @@
-import type { ColumnDef } from '@tanstack/react-table';
-
 export interface SortingState {
   id: string;
   desc: boolean;
@@ -56,12 +54,29 @@ export interface DataGridProps<TData> {
   onFilterChange?: (filters: FilterState[]) => void;
   /** Callback when pagination changes */
   onPaginationChange?: (pagination: PaginationState) => void;
-  /** Callback for export action */
+  /**
+   * Callback for export action. Client mode receives all filtered/sorted
+   * rows; server mode (`totalRows` set) receives only the loaded page, so
+   * delegate to a server export that applies the current sort/filter state.
+   */
   onExport?: (data: TData[], options: DataGridExportOptions) => void;
-  /** Total row count for server-side pagination */
+  /**
+   * Total row count for server-side mode. When set, pagination, sorting and
+   * filtering are manual: the grid emits state changes and renders `data`
+   * as given.
+   */
   totalRows?: number;
   /** Loading state */
   loading?: boolean;
+  /**
+   * Fetch/load error. When set (and not loading) the body renders a
+   * `role="alert"` row instead of the empty-state message.
+   */
+  error?: unknown;
+  /** Message shown for `error`. Defaults to `"Could not load data."` */
+  errorMessage?: string;
+  /** When provided with `error`, renders a Retry button in the alert row. */
+  onRetry?: () => void;
   /** Accessible label for the data grid */
   ariaLabel: string;
   /** Additional CSS class name */

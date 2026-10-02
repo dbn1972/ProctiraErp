@@ -20,7 +20,13 @@ export interface UploadedFile {
 }
 
 export interface FileUploadProps {
-  /** Accepted file types (MIME types or extensions) */
+  /**
+   * Accepted file types (MIME types or extensions).
+   *
+   * UX-only: matching uses the file-name extension and the browser-reported
+   * `File.type`, both of which the user controls. Every upload endpoint must
+   * re-validate size, content (magic bytes) and malware scan server-side.
+   */
   accept?: string[];
   /** Maximum file size in bytes */
   maxSize?: number;
@@ -32,6 +38,12 @@ export interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
   /** Callback when validation errors occur */
   onValidationError?: (errors: FileValidationError[]) => void;
+  /**
+   * Render rejected files as a visible `role="alert"` list inside the
+   * component. Defaults to `true` so validation never fails silently; set
+   * `false` only when the caller renders `onValidationError` output itself.
+   */
+  showValidationErrors?: boolean;
   /** Callback when a file is removed */
   onFileRemove?: (fileId: string) => void;
   /** Currently uploaded/uploading files */

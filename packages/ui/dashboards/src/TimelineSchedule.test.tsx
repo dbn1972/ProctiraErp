@@ -89,4 +89,17 @@ describe('<TimelineSchedule />', () => {
     const marker = screen.getByTestId('timeline-now-marker');
     expect(marker).toBeInTheDocument();
   });
+  it('shows a visible status label, not colour alone (PRC-L395)', () => {
+    render(
+      <TimelineSchedule
+        title="Schedule"
+        items={[{ id: 'x', time: '12:00', title: 'Sports', status: 'cancelled' }]}
+      />,
+    );
+    const status = screen.getByTestId('timeline-item-status');
+    expect(status).toBeVisible();
+    expect(status).toHaveTextContent('Status: cancelled');
+    expect(status.querySelector('.sr-only')).toHaveTextContent('Status:');
+    expect(status.querySelector('.capitalize')).toHaveTextContent('cancelled');
+  });
 });

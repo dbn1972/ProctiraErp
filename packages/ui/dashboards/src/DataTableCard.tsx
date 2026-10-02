@@ -27,8 +27,6 @@
  * loading→loaded; assertive on error.
  */
 
-import type { ReactNode } from 'react';
-
 import {
   Card,
   CardContent,
@@ -43,9 +41,14 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui-components';
+import type { ReactNode } from 'react';
 
-import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
+
+/** Elements whose own activation must not also trigger the row click. */
+const INTERACTIVE_SELECTOR =
+  'a, button, input, select, textarea, summary, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
 
 export interface DataTableCardColumn<T> {
   /** Stable id used as React key + a11y label hook. */
@@ -172,27 +175,38 @@ export function DataTableCard<T>({
               ) : (
                 rows.map((row, rowIndex) => {
                   const interactive = Boolean(onRowClick);
+                  // The <tr> keeps its native row semantics. Keyboard / AT
+                  // activation goes through a real <button> in the first
+                  // cell; the row-level click is a mouse convenience only
+                  // and ignores clicks on interactive cell content.
                   return (
                     <TableRow
                       key={rowKey(row, rowIndex)}
-                      onClick={interactive ? () => onRowClick?.(row) : undefined}
-                      onKeyDown={
+                      onClick={
                         interactive
                           ? (e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                onRowClick?.(row);
-                              }
+                              const target = e.target as HTMLElement;
+                              if (target.closest(INTERACTIVE_SELECTOR)) return;
+                              onRowClick?.(row);
                             }
                           : undefined
                       }
-                      tabIndex={interactive ? 0 : undefined}
-                      role={interactive ? 'button' : undefined}
                       className={cn(interactive && 'cursor-pointer')}
                     >
-                      {columns.map((col) => (
+                      {columns.map((col, colIndex) => (
                         <TableCell key={col.id} className={col.className}>
-                          {col.cell(row, rowIndex)}
+                          {interactive && colIndex === 0 ? (
+                            <button
+                              type="button"
+                              data-testid="data-table-card-row-action"
+                              className="text-start font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 rounded-sm"
+                              onClick={() => onRowClick?.(row)}
+                            >
+                              {col.cell(row, rowIndex)}
+                            </button>
+                          ) : (
+                            col.cell(row, rowIndex)
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>

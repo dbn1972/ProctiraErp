@@ -113,4 +113,45 @@ describe('<DataTableCard />', () => {
     fireEvent.click(screen.getByText('Tamil Nadu'));
     expect(onRowClick).toHaveBeenCalledWith(rows[0]);
   });
+  it('keeps native row semantics and exposes a real button per row (PRC-L395)', () => {
+    const onRowClick = vi.fn();
+    const withLink: ReadonlyArray<DataTableCardColumn<Row>> = [
+      ...columns,
+      { id: 'more', header: 'More', cell: (r) => <a href={`#${r.id}`}>Details</a> },
+    ];
+    render(
+      <DataTableCard
+        title="State breakdown"
+        columns={withLink}
+        rows={rows}
+        rowKey={(r) => r.id}
+        onRowClick={onRowClick}
+      />,
+    );
+    const bodyRows = screen.getAllByRole('row').slice(1);
+    for (const tr of bodyRows) {
+      expect(tr).not.toHaveAttribute('role');
+      expect(tr).not.toHaveAttribute('tabindex');
+      // No interactive control nests another interactive control.
+      tr.querySelectorAll('button, a').forEach((el) => {
+        expect(el.parentElement?.closest('button, a, [role="button"]')).toBeNull();
+      });
+    }
+    const action = screen.getByRole('button', { name: 'Tamil Nadu' });
+    fireEvent.click(action);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+    expect(onRowClick).toHaveBeenCalledWith(rows[0]);
+    // Activating other interactive cell content does not also drill down.
+    fireEvent.click(screen.getAllByRole('link', { name: 'Details' })[0]!);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+    // Mouse click on a plain cell still drills down.
+    fireEvent.click(screen.getByText('102,300'));
+    expect(onRowClick).toHaveBeenLastCalledWith(rows[1]);
+  });
+  it('renders no row buttons when onRowClick is omitted', () => {
+    render(
+      <DataTableCard title="State breakdown" columns={columns} rows={rows} rowKey={(r) => r.id} />,
+    );
+    expect(screen.queryAllByTestId('data-table-card-row-action')).toHaveLength(0);
+  });
 });

@@ -7,4 +7,5 @@ export type {
   FieldType,
   FieldOption,
   ValidationRule,
+  CustomValidator,
 } from './types';
