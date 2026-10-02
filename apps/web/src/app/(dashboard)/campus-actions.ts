@@ -24,15 +24,34 @@ import {
   returnLibraryLoan,
   type CreateLibraryItemInput,
 } from '@/lib/api/library';
+// PRC-L033 (#513) and PRC-L241 (#529) boundary checks both apply.
 import {
   INVALID_ID_MESSAGE,
   areValidActionIds,
-  firstIssue,
+  firstIssue as firstActionIssue,
   hostelAssignmentInputSchema,
   hostelLeaveInputSchema,
   hostelVisitorInputSchema,
   libraryCheckoutInputSchema,
 } from '@/lib/validation/campus-action-schema';
+
+import {
+  checkoutSchema,
+  createHostelSchema,
+  createLibraryItemSchema,
+  decideLeaveSchema,
+  firstIssue,
+  hostelAssignmentSchema,
+  hostelBedSchema,
+  hostelBlockSchema,
+  hostelLeaveSchema,
+  hostelRoomSchema,
+  hostelVisitorSchema,
+  renewSchema,
+  uuid,
+  visitorStatusSchema,
+} from '@/lib/validation/campus-actions-schema';
+import type { ZodError } from 'zod';
 
 export interface CampusActionState {
   status: 'idle' | 'success' | 'error';
@@ -43,9 +62,16 @@ export interface CampusActionState {
   overdueCount?: number;
 }
 
+/** PRC-L241: every action validates before any gateway request. */
+function invalid(error: ZodError): CampusActionState {
+  return { status: 'error', message: firstIssue(error) };
+}
+
 export async function createHostelAction(input: CreateHostelInput): Promise<CampusActionState> {
+  const v = createHostelSchema.safeParse(input);
+  if (!v.success) return invalid(v.error);
   try {
-    const hostel = await createHostel(input);
+    const hostel = await createHostel(v.data);
     revalidatePath('/hostel');
     return { status: 'success', message: 'Hostel created.', id: hostel.id };
   } catch (error) {
@@ -64,8 +90,10 @@ export async function createHostelAction(input: CreateHostelInput): Promise<Camp
 export async function createLibraryItemAction(
   input: CreateLibraryItemInput,
 ): Promise<CampusActionState> {
+  const v = createLibraryItemSchema.safeParse(input);
+  if (!v.success) return invalid(v.error);
   try {
-    const item = await createLibraryItem(input);
+    const item = await createLibraryItem(v.data);
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', message: 'Catalog item created.', id: item.id };
@@ -84,8 +112,10 @@ export async function createLibraryItemAction(
 
 export async function checkLibraryClearanceAction(studentId: string): Promise<CampusActionState> {
   if (!areValidActionIds(studentId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = uuid.safeParse(studentId);
+  if (!v.success) return invalid(v.error);
   try {
-    const clearance = await getLibraryClearance(studentId);
+    const clearance = await getLibraryClearance(v.data);
     return {
       status: 'success',
       message: clearance.clear
@@ -118,13 +148,18 @@ export async function checkoutLibraryItemAction(input: {
 }): Promise<CampusActionState> {
   const parsed = libraryCheckoutInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: firstIssue(parsed.error, 'Checkout fields are invalid.') };
+    return {
+      status: 'error',
+      message: firstActionIssue(parsed.error, 'Checkout fields are invalid.'),
+    };
   }
+  const v = checkoutSchema.safeParse(parsed.data);
+  if (!v.success) return invalid(v.error);
   try {
     // PRC-L047: the form sends a wall-clock date; resolve in tenant TZ.
-    // Validated input (PRC-L033) is what reaches the gateway.
-    const dueAt = await toTenantUtcIso(parsed.data.dueAt);
-    const loan = await checkoutLibraryItem({ ...parsed.data, dueAt });
+    // Input validated by both L033 and L241 schemas is what reaches the gateway.
+    const dueAt = await toTenantUtcIso(v.data.dueAt);
+    const loan = await checkoutLibraryItem({ ...v.data, dueAt });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');
@@ -144,8 +179,10 @@ export async function checkoutLibraryItemAction(input: {
 
 export async function returnLibraryLoanAction(loanId: string): Promise<CampusActionState> {
   if (!areValidActionIds(loanId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = uuid.safeParse(loanId);
+  if (!v.success) return invalid(v.error);
   try {
-    const loan = await returnLibraryLoan(loanId);
+    const loan = await returnLibraryLoan(v.data);
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');
@@ -174,8 +211,10 @@ export async function renewLibraryLoanAction(
   ) {
     return { status: 'error', message: 'Extend days must be a whole number between 1 and 365.' };
   }
+  const v = renewSchema.safeParse({ loanId, extendDays });
+  if (!v.success) return invalid(v.error);
   try {
-    const loan = await renewLibraryLoan(loanId, extendDays);
+    const loan = await renewLibraryLoan(v.data.loanId, v.data.extendDays);
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     revalidatePath('/library/overdues');
@@ -202,10 +241,15 @@ export async function createHostelAssignmentAction(input: {
 }): Promise<CampusActionState> {
   const parsed = hostelAssignmentInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: firstIssue(parsed.error, 'Assignment fields are invalid.') };
+    return {
+      status: 'error',
+      message: firstActionIssue(parsed.error, 'Assignment fields are invalid.'),
+    };
   }
+  const v = hostelAssignmentSchema.safeParse(parsed.data);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelAssignment(parsed.data);
+    const row = await createHostelAssignment(v.data);
     revalidatePath('/hostel');
     revalidatePath('/hostel/assignments');
     return { status: 'success', message: 'Assignment created.', id: row.id };
@@ -231,10 +275,15 @@ export async function createHostelLeaveAction(input: {
 }): Promise<CampusActionState> {
   const parsed = hostelLeaveInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: firstIssue(parsed.error, 'Leave fields are invalid.') };
+    return {
+      status: 'error',
+      message: firstActionIssue(parsed.error, 'Leave fields are invalid.'),
+    };
   }
+  const v = hostelLeaveSchema.safeParse(parsed.data);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelLeave(parsed.data);
+    const row = await createHostelLeave(v.data);
     revalidatePath('/hostel/leaves');
     return { status: 'success', message: 'Leave recorded.', id: row.id };
   } catch (error) {
@@ -256,8 +305,10 @@ export async function decideHostelLeaveAction(
 ): Promise<CampusActionState> {
   if (!areValidActionIds(id) || (status !== 'approved' && status !== 'rejected'))
     return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = decideLeaveSchema.safeParse({ id, status });
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await decideHostelLeave(id, status);
+    const row = await decideHostelLeave(v.data.id, v.data.status);
     revalidatePath('/hostel/leaves');
     return {
       status: 'success',
@@ -284,8 +335,10 @@ export async function updateHostelVisitorStatusAction(
   if (!areValidActionIds(id) || !['checked_in', 'checked_out', 'denied'].includes(status)) {
     return { status: 'error', message: INVALID_ID_MESSAGE };
   }
+  const v = visitorStatusSchema.safeParse({ id, status });
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await updateHostelVisitorStatus(id, status);
+    const row = await updateHostelVisitorStatus(v.data.id, v.data.status);
     revalidatePath('/hostel/visitors');
     return {
       status: 'success',
@@ -313,10 +366,15 @@ export async function createHostelVisitorAction(input: {
 }): Promise<CampusActionState> {
   const parsed = hostelVisitorInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: firstIssue(parsed.error, 'Visitor fields are invalid.') };
+    return {
+      status: 'error',
+      message: firstActionIssue(parsed.error, 'Visitor fields are invalid.'),
+    };
   }
+  const v = hostelVisitorSchema.safeParse(parsed.data);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelVisitor(parsed.data);
+    const row = await createHostelVisitor(v.data);
     revalidatePath('/hostel/visitors');
     return { status: 'success', message: 'Visitor recorded.', id: row.id };
   } catch (error) {
@@ -338,8 +396,10 @@ export async function createHostelBlockAction(input: {
   floor?: number;
 }): Promise<CampusActionState> {
   if (!areValidActionIds(input.hostelId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = hostelBlockSchema.safeParse(input);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelBlock(input);
+    const row = await createHostelBlock(v.data);
     revalidatePath('/hostel');
     revalidatePath('/hostel/structure');
     return { status: 'success', message: 'Block created.', id: row.id };
@@ -362,8 +422,10 @@ export async function createHostelRoomAction(input: {
   capacity?: number;
 }): Promise<CampusActionState> {
   if (!areValidActionIds(input.blockId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = hostelRoomSchema.safeParse(input);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelRoom(input);
+    const row = await createHostelRoom(v.data);
     revalidatePath('/hostel');
     revalidatePath('/hostel/structure');
     return { status: 'success', message: 'Room created.', id: row.id };
@@ -386,8 +448,10 @@ export async function createHostelBedAction(input: {
   isAvailable?: boolean;
 }): Promise<CampusActionState> {
   if (!areValidActionIds(input.roomId)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  const v = hostelBedSchema.safeParse(input);
+  if (!v.success) return invalid(v.error);
   try {
-    const row = await createHostelBed(input);
+    const row = await createHostelBed(v.data);
     revalidatePath('/hostel');
     revalidatePath('/hostel/structure');
     revalidatePath('/hostel/assignments');

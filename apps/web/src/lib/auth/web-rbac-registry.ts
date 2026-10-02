@@ -65,11 +65,18 @@ export function createWebRbacRegistry(): RbacPermissionRegistry {
     const role = roles.find((entry) => entry.roleId === roleId);
     if (role) role.permissions.push(...extras);
   }
-  roles.push({
-    roleId: 'platform_admin',
-    roleName: 'Platform Administrator',
-    permissions: [{ resource: 'platform', action: 'manage' }],
-  });
+  // PRC-L234: mirror the gateway's platform_admin role (platform + '*' manage)
+  // so platform surfaces are only advertised to callers the gateway serves.
+  if (!roles.some((role) => role.roleId === 'platform_admin')) {
+    roles.push({
+      roleId: 'platform_admin',
+      roleName: 'Platform Administrator',
+      permissions: [
+        { resource: 'platform', action: 'manage' },
+        { resource: '*', action: 'manage' },
+      ],
+    });
+  }
 
   return new RbacPermissionRegistry(roles);
 }

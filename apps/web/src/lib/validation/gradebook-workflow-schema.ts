@@ -37,3 +37,56 @@ export const computeRankFormSchema = z.object({
 });
 
 export type GradeWorkflowActionValue = z.infer<typeof gradeWorkflowActionSchema>;
+
+/*
+ * PRC-L239 — web-tier boundary schemas mirroring the gradebook TypeBox
+ * schemas (packages/backend/gradebook/src/schemas.ts) with UUID ids. `.strict()`
+ * rejects unknown keys so a crafted action payload cannot smuggle fields.
+ */
+const uuid = z.string().uuid();
+const optionalUuid = uuid.nullish();
+
+export const upsertGradeEntryActionSchema = z
+  .object({
+    sectionId: optionalUuid,
+    studentId: uuid,
+    assessmentCode: z.string().max(100).nullish(),
+    numericScore: z.number().finite().min(0).max(100).nullish(),
+    letterGrade: z.string().max(10).nullish(),
+    creditRuleCode: z.string().max(50).nullish(),
+    remark: z.string().max(4000).nullish(),
+    commentBankId: optionalUuid,
+    institutionId: uuid.optional(),
+  })
+  .strict();
+
+export const computeGpaActionSchema = z
+  .object({
+    studentId: uuid,
+    academicPeriodId: optionalUuid,
+    boardId: optionalUuid,
+    institutionId: uuid.optional(),
+  })
+  .strict();
+
+export const issueTranscriptActionSchema = z
+  .object({ studentId: uuid, gpaSnapshotId: optionalUuid })
+  .strict();
+
+export const createReportCardJobActionSchema = z
+  .object({
+    studentId: uuid,
+    boardId: uuid,
+    institutionId: optionalUuid,
+    academicPeriodId: optionalUuid,
+  })
+  .strict();
+
+export const createBoardExportJobActionSchema = z
+  .object({
+    boardId: uuid.optional(),
+    boardCode: z.string().min(1).max(32).optional(),
+    institutionId: uuid,
+    studentIds: z.array(uuid).max(500).optional(),
+  })
+  .strict();

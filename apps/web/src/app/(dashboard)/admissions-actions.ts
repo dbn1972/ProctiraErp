@@ -23,6 +23,7 @@ import {
 import {
   acceptOfferFormSchema,
   createEnquiryFormSchema,
+  createInterviewSlotFormSchema,
   createOfferFormSchema,
   followupFormSchema,
   generateMeritFormSchema,
@@ -99,8 +100,12 @@ export async function createInterviewSlotAction(input: {
   capacity?: number;
   location?: string;
 }): Promise<AdmissionsActionState> {
-  const parsed = createSlotSchema.safeParse(input);
-  if (!parsed.success) return invalid(parsed.error, 'Invalid interview slot');
+  // Boundary schema (uuid institution, offset datetimes) then the form rules
+  // from PRC-L23x (end after start, bounded capacity).
+  const base = createSlotSchema.safeParse(input);
+  if (!base.success) return invalid(base.error, 'Invalid interview slot');
+  const parsed = createInterviewSlotFormSchema.safeParse(base.data);
+  if (!parsed.success) return invalid(parsed.error, 'Invalid slot');
   try {
     const slot = await createInterviewSlot(parsed.data);
     revalidatePath('/admissions');

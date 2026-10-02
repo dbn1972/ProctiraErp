@@ -89,7 +89,7 @@ export function EmergencyBlastPanel({
       setError(null);
       setMessage(null);
       setHonesty(null);
-      const result = await confirmEmergencyBlastAction(blastId, actorId);
+      const result = await confirmEmergencyBlastAction(blastId);
       if (result.status === 'error') {
         setError(result.message ?? 'Confirm failed');
         return;

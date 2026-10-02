@@ -70,3 +70,17 @@ export const acceptOfferFormSchema = z.object({
   paymentRef: z.string().min(1).max(100),
   offerFeeInvoiceId: z.string().uuid().optional(),
 });
+
+/** PRC-L233: bounded interview slot; endsAt must be after startsAt. */
+export const createInterviewSlotFormSchema = z
+  .object({
+    institutionId: uuid,
+    startsAt: z.string().datetime({ offset: true }),
+    endsAt: z.string().datetime({ offset: true }),
+    capacity: z.coerce.number().int().min(1).max(1000).default(1),
+    location: z.string().trim().max(200).optional(),
+  })
+  .refine((v) => Date.parse(v.endsAt) > Date.parse(v.startsAt), {
+    path: ['endsAt'],
+    message: 'End time must be after the start time.',
+  });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { zonedLocalToUtcIso } from '@/lib/datetime/zoned';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -312,10 +313,15 @@ export function EnquiryPanel({
                     onSubmit={(event) => {
                       event.preventDefault();
                       const fd = new FormData(event.currentTarget);
+                      const dueAt = zonedLocalToUtcIso(String(fd.get('dueAt') ?? ''));
+                      if (!dueAt) {
+                        setError('Enter a valid follow-up due date and time.');
+                        return;
+                      }
                       run(() =>
                         addFollowupAction({
                           enquiryId: row.id,
-                          dueAt: new Date(String(fd.get('dueAt') ?? '')).toISOString(),
+                          dueAt,
                           ownerId: String(fd.get('ownerId') ?? '') || undefined,
                           notes: String(fd.get('notes') ?? ''),
                         }),

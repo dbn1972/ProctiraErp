@@ -18,6 +18,7 @@ import {
   type CreateCircularInput,
   type CreateEmergencyBlastInput,
 } from '@/lib/api/communication';
+import { requireSession } from '@/lib/auth/server';
 import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
 import { circularFormSchema } from '@/lib/validation/communication-schema';
 
@@ -103,8 +104,11 @@ export async function previewAudienceAction(
 export async function createEmergencyBlastAction(
   input: CreateEmergencyBlastInput,
 ): Promise<CommunicationActionState> {
+  // PRC-L235: the author is the signed-in user, never a client-supplied id.
+  // Outside try so the login redirect is not swallowed as an error state.
+  const session = await requireSession('/communication/emergency');
   try {
-    const blast = await createEmergencyBlast(input);
+    const blast = await createEmergencyBlast({ ...input, createdBy: session.user.sub });
     revalidatePath('/communication/emergency');
     return { status: 'success', message: 'Emergency blast drafted.', id: blast.id };
   } catch (error) {
@@ -120,13 +124,14 @@ export async function createEmergencyBlastAction(
   }
 }
 
-export async function confirmEmergencyBlastAction(
-  id: string,
-  actorId: string,
-): Promise<CommunicationActionState> {
+export async function confirmEmergencyBlastAction(id: string): Promise<CommunicationActionState> {
+  // PRC-L033: never interpolate a non-UUID into the gateway path.
   if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
+  // PRC-L235: two-person control is only meaningful if each confirmation is
+  // bound to the session; a client-supplied actor id could forge the second.
+  const session = await requireSession('/communication/emergency');
   try {
-    const blast = await confirmEmergencyBlast(id, actorId);
+    const blast = await confirmEmergencyBlast(id, session.user.sub);
     revalidatePath('/communication/emergency');
     return {
       status: 'success',

@@ -8,12 +8,17 @@ import { BoardExportTriggerForm } from '@/components/examinations/board-export-t
 import { listBoardExportJobs, listBoardPacks, listGradebookBoards } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/api/institutions';
 import { formatCodeNameLabel } from '@/lib/entity-label';
+import { requireSession } from '@/lib/auth/server';
+import { canModerateGrades } from '@/lib/gradebook-roles';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BoardExportsPage() {
+  const session = await requireSession('/examinations/board-exports');
+  // PRC-L237: only registrar/admin roles may generate packs (gradebook board_export.create).
+  const canExport = canModerateGrades(session.user.roles);
   const [packs, boards, jobs, institutions, studentOptions] = await Promise.all([
     listBoardPacks(),
     listGradebookBoards(),
@@ -95,13 +100,21 @@ export default async function BoardExportsPage() {
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Generate pack</h2>
-        <BoardExportTriggerForm
-          institutionOptions={institutionOptions}
-          studentOptions={studentOptions}
-          boardOptions={
-            packs.ok ? packs.data.map((pack) => ({ code: pack.code, label: pack.code })) : undefined
-          }
-        />
+        {canExport ? (
+          <BoardExportTriggerForm
+            institutionOptions={institutionOptions}
+            studentOptions={studentOptions}
+            boardOptions={
+              packs.ok
+                ? packs.data.map((pack) => ({ code: pack.code, label: pack.code }))
+                : undefined
+            }
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground" role="note">
+            Generating board packs requires a registrar or administrator role.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">

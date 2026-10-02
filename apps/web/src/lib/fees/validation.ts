@@ -76,24 +76,28 @@ export const concessionFormSchema = z
     structureId: z.string().regex(UUID, 'Structure must be a UUID'),
     invoiceId: z.string().regex(UUID).optional().or(z.literal('')),
     kind: z.enum(['percent', 'amount']),
-    percent: z.preprocess(toNumberOrUndefined, z.number().min(0).max(100).optional()),
+    percent: z.preprocess(
+      toNumberOrUndefined,
+      z.number().min(0).max(100, 'Percent must be at most 100').optional(),
+    ),
     amount: z.preprocess(toNumberOrUndefined, z.number().min(0).max(MAX_FEE_AMOUNT).optional()),
-    reason: z.string().min(1, 'Reason is required').max(2000),
+    reason: z.string().trim().min(1, 'Reason is required').max(2000),
   })
+  // PRC-L025 / PRC-L238: the value matching the chosen kind is required and
+  // non-zero, so a blank/0 value never silently applies a 0% (or 0) concession.
   .superRefine((value, ctx) => {
-    // PRC-L025: the value matching the chosen kind is required and non-zero.
     if (value.kind === 'percent' && !(value.percent != null && value.percent > 0)) {
       ctx.addIssue({
-        code: 'custom',
+        code: z.ZodIssueCode.custom,
         path: ['percent'],
-        message: 'Percent must be greater than 0',
+        message: 'Enter a percent greater than 0 and at most 100',
       });
     }
     if (value.kind === 'amount' && !(value.amount != null && value.amount > 0)) {
       ctx.addIssue({
-        code: 'custom',
+        code: z.ZodIssueCode.custom,
         path: ['amount'],
-        message: 'Amount must be greater than 0',
+        message: 'Enter an amount greater than 0',
       });
     }
   });

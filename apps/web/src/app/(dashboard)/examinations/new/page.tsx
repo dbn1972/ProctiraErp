@@ -5,7 +5,9 @@
  * centres, grading schemes, and a start date ≥7 days ahead.
  * Wired to POST /examinations via gateway examinationPlugin.
  */
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { PageHeader } from '@/components/page';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 
@@ -15,6 +17,10 @@ import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 export const dynamic = 'force-dynamic';
 
 export default async function NewExaminationPage() {
+  // PRC-L237: scheduling needs examination write, not the layout's read gate.
+  if (!(await hasSessionPermission('examination', 'create'))) {
+    return <RouteAccessDenied returnHref="/examinations" returnLabel="Back to examinations" />;
+  }
   const [institutions, periods] = await Promise.all([
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listAcademicPeriods().catch(() => []),
