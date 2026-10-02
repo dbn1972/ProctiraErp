@@ -222,15 +222,16 @@ describe('parent-portal fee client', () => {
   it('pays with the documented method payload and propagates failures', async () => {
     const data = { invoice: { id: 'inv1' }, payment: { id: 'pay1' }, receipt: { id: 'rc1' } };
     gatewayFetch.mockResolvedValueOnce(ok(data));
-    await expect(payInvoice('inv1', 'upi')).resolves.toEqual(data);
+    // PRC-C001: parents may only request the honest 'sandbox' method.
+    await expect(payInvoice('inv1', 'sandbox')).resolves.toEqual(data);
     expect(gatewayFetch.mock.calls[0]).toEqual([
       '/parent-portal/fees/invoices/inv1/pay',
-      { method: 'POST', json: { method: 'upi' } },
+      { method: 'POST', json: { method: 'sandbox' } },
     ]);
     gatewayFetch.mockResolvedValueOnce(ok(data));
     await payInvoice('inv1');
     expect(gatewayFetch.mock.calls[1]![1]).toEqual({ method: 'POST', json: { method: 'sandbox' } });
     gatewayFetch.mockResolvedValueOnce(fail(409, 'ALREADY_PAID', 'Invoice already paid'));
-    await expect(payInvoice('inv1', 'card')).rejects.toMatchObject({ code: 'ALREADY_PAID' });
+    await expect(payInvoice('inv1')).rejects.toMatchObject({ code: 'ALREADY_PAID' });
   });
 });
