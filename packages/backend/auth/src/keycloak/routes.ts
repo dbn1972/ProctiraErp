@@ -8,6 +8,7 @@ import {
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 
 import {
+  KeycloakIdentityError,
   identityInputFromClaims,
   linkKeycloakIdentity,
   type KeycloakIdentityStore,
@@ -187,6 +188,23 @@ async function revokePresentedTokensBeforeIdpLogout(
   }
 }
 
+/** PRC-L283: login-time identity link failure → 401 (rejected mapping) or 503 (store down). */
+function sendIdentityLinkFailure(request: FastifyRequest, reply: FastifyReply, error: unknown) {
+  if (error instanceof KeycloakIdentityError) {
+    return reply.status(401).send({
+      code: 'IDENTITY_LINK_REJECTED',
+      message: error.message,
+      statusCode: 401,
+    });
+  }
+  request.log.error({ err: error }, 'Keycloak identity store unavailable during login');
+  return reply.status(503).send({
+    code: 'IDENTITY_UNAVAILABLE',
+    message: 'Identity service temporarily unavailable',
+    statusCode: 503,
+  });
+}
+
 export async function registerKeycloakAuthRoutes(
   fastify: FastifyInstance,
   config: KeycloakRouteConfig,
@@ -288,8 +306,10 @@ export async function registerKeycloakAuthRoutes(
             identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
             config.identityStore,
           );
-        } catch {
-          // Login still succeeds; /me will retry the tenant projection.
+        } catch (error) {
+          // PRC-L283: fail closed. Never hand out tokens for a session whose local identity could
+          // not be linked: a mapping rejection is a 401, a store outage a 503.
+          return sendIdentityLinkFailure(request, reply, error);
         }
       }
 
@@ -398,8 +418,10 @@ export async function registerKeycloakAuthRoutes(
             identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
             config.identityStore,
           );
-        } catch {
-          // Login still succeeds; /me will retry the tenant projection.
+        } catch (error) {
+          // PRC-L283: fail closed. Never hand out tokens for a session whose local identity could
+          // not be linked: a mapping rejection is a 401, a store outage a 503.
+          return sendIdentityLinkFailure(request, reply, error);
         }
       }
 
