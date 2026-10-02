@@ -18,6 +18,7 @@ vi.mock('@/lib/api/gateway', () => ({
   GATEWAY_BASE_URL: 'http://gw',
   GATEWAY_API_PREFIX: '/api/v1',
   getSessionContext: vi.fn(async () => ({ tenantId: 'tenant-a', accessToken: 'tok-a' })),
+  tenantHeader: (tenantId: string | null) => (tenantId ? { 'X-Tenant-ID': tenantId } : {}),
 }));
 
 import { GET } from './route';

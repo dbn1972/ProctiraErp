@@ -7,7 +7,12 @@
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  getSessionContext,
+  tenantHeader,
+} from '@/lib/api/gateway';
 
 const SUBJECT = /^[A-Za-z0-9._@-]{1,200}$/;
 
@@ -31,7 +36,7 @@ export async function GET(
   const upstream = await fetch(
     `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/audit-logs/dsar/${encodeURIComponent(subjectId)}`,
     {
-      headers: { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId },
+      headers: { Authorization: `Bearer ${accessToken}`, ...tenantHeader(tenantId) },
       cache: 'no-store',
     },
   );

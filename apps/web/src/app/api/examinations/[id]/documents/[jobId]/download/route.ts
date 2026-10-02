@@ -7,7 +7,12 @@
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  getSessionContext,
+  tenantHeader,
+} from '@/lib/api/gateway';
 import { canAccessExaminationRoutes } from '@/lib/auth/examination-route-guards';
 import { getSession } from '@/lib/auth/server';
 
@@ -42,7 +47,7 @@ export async function GET(
   const upstream = await fetch(
     `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/examinations/${id}/documents/jobs/${jobId}/download`,
     {
-      headers: { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId },
+      headers: { Authorization: `Bearer ${accessToken}`, ...tenantHeader(tenantId) },
       cache: 'no-store',
     },
   );

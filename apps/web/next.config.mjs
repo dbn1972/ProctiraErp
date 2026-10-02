@@ -18,8 +18,8 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      // PRC-H096: student photo upload goes through a server action as base64 (2 MB client
-      // cap -> ~2.7 MB body). Next's 1 MB default rejected it before it reached the gateway.
+      // PRC-H096 set this for the base64 photo server action. PRC-L076 moved photo upload to
+      // multipart POST /api/students/:id/photo; the limit stays for base64 bulk-import actions.
       bodySizeLimit: '3mb',
     },
   },

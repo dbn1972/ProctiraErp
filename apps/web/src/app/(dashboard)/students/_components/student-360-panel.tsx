@@ -49,8 +49,31 @@ import {
   addStudentSiblingAction,
   removeStudentDisciplineAction,
   setStudentConsentAction,
-  uploadStudentPhotoAction,
 } from '../actions';
+import { withCsrfHeader } from '@/lib/auth/csrf';
+import { studentPhotoProblem } from '@/lib/validation/student-360-schema';
+
+/**
+ * PRC-L076: the photo goes up as multipart/form-data to the BFF route, so the
+ * 2 MB limit applies to raw bytes and errors come back as clear messages.
+ */
+async function uploadPhoto(studentId: string, file: File): Promise<string | null> {
+  const body = new FormData();
+  body.append('photo', file);
+  try {
+    const response = await fetch(`/api/students/${encodeURIComponent(studentId)}/photo`, {
+      method: 'POST',
+      body,
+      credentials: 'same-origin',
+      headers: withCsrfHeader(),
+    });
+    if (response.ok) return null;
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+    return payload?.message ?? 'Upload failed';
+  } catch {
+    return 'Upload failed — check your connection and try again.';
+  }
+}
 
 const CONSENT_LABELS: Record<ConsentKind, string> = {
   photo: 'Photo',
@@ -101,33 +124,23 @@ function PhotoAndIdCard({ studentId, hasPhoto }: { studentId: string; hasPhoto: 
 
   const onFile = (file: File | undefined) => {
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Choose a JPEG, PNG, or WebP photo.');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setError('Photo must be 2 MB or smaller.');
+    const problem = studentPhotoProblem(file);
+    if (problem) {
+      setError(problem);
       return;
     }
     setError(null);
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? '');
-      const base64 = result.includes(',') ? result.slice(result.indexOf(',') + 1) : result;
-      setPreview(result);
-      startTransition(async () => {
-        const outcome = await uploadStudentPhotoAction(studentId, {
-          contentBase64: base64,
-          mimeType: file.type,
-        });
-        if (outcome.status === 'error') {
-          setError(outcome.message ?? 'Upload failed');
-          return;
-        }
-        router.refresh();
-      });
-    };
+    reader.onload = () => setPreview(String(reader.result ?? ''));
     reader.readAsDataURL(file);
+    startTransition(async () => {
+      const uploadError = await uploadPhoto(studentId, file);
+      if (uploadError) {
+        setError(uploadError);
+        return;
+      }
+      router.refresh();
+    });
   };
 
   return (

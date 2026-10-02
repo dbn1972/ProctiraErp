@@ -15,6 +15,7 @@ import {
   GatewayError,
   gatewayFetch,
   getSessionContext,
+  tenantHeader,
 } from './gateway';
 import { MAX_API_PAGE_SIZE, clampPageSize } from './pagination';
 import { MAX_AUTO_PAGES, gatewayFetchAllPages } from './gateway-all-pages';
@@ -592,7 +593,7 @@ export async function studentHasPhoto(studentId: string): Promise<boolean> {
       {
         method: 'HEAD',
         headers: {
-          'X-Tenant-ID': tenantId,
+          ...tenantHeader(tenantId),
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         cache: 'no-store',

@@ -10,7 +10,12 @@
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  getSessionContext,
+  tenantHeader,
+} from '@/lib/api/gateway';
 import { canAccessExaminationRoutes } from '@/lib/auth/examination-route-guards';
 import { getSession } from '@/lib/auth/server';
 
@@ -50,7 +55,7 @@ export async function GET(
   if (!accessToken) {
     return NextResponse.json({ code: 'UNAUTHENTICATED', message: 'Sign in' }, { status: 401 });
   }
-  const headers = { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId };
+  const headers = { Authorization: `Bearer ${accessToken}`, ...tenantHeader(tenantId) };
   const base = `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/gradebook/board-exports/${encodeURIComponent(jobId)}`;
 
   const signed = await fetch(`${base}/signed-download`, {

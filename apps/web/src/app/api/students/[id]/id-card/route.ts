@@ -3,7 +3,12 @@
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  getSessionContext,
+  tenantHeader,
+} from '@/lib/api/gateway';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -24,7 +29,7 @@ export async function GET(
   const upstream = await fetch(
     `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${id}/id-card.pdf`,
     {
-      headers: { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId },
+      headers: { Authorization: `Bearer ${accessToken}`, ...tenantHeader(tenantId) },
       cache: 'no-store',
     },
   );

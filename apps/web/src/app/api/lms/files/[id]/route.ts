@@ -4,7 +4,12 @@
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  getSessionContext,
+  tenantHeader,
+} from '@/lib/api/gateway';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,7 +27,7 @@ export async function GET(
     return NextResponse.json({ code: 'UNAUTHENTICATED', message: 'Sign in' }, { status: 401 });
   }
 
-  const auth = { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId };
+  const auth = { Authorization: `Bearer ${accessToken}`, ...tenantHeader(tenantId) };
   const queryToken = new URL(request.url).searchParams.get('token') ?? '';
   let token = tokenFrom(queryToken);
   if (!token) {

@@ -36,7 +36,6 @@ import {
   transferStudent,
   updateEnrollmentStatus,
   updateStudent,
-  uploadStudentPhoto,
   type BulkImportRequest,
   type CreateEnrollmentInput,
   type CreateStudentInput,
@@ -60,7 +59,6 @@ import {
 import {
   studentConsentSchema,
   studentDisciplineSchema,
-  studentPhotoUploadSchema,
   studentSiblingSchema,
 } from '@/lib/validation/student-360-schema';
 
@@ -332,30 +330,6 @@ export async function enrollStudentAction(
 function revalidateStudent(studentId: string) {
   revalidatePath(`/students/${studentId}`);
   revalidatePath('/students');
-}
-
-export async function uploadStudentPhotoAction(
-  studentId: string,
-  values: { contentBase64: string; mimeType: string },
-): Promise<ActionState> {
-  if (!UUID_RE.test(studentId)) {
-    return { status: 'error', message: 'Invalid student' };
-  }
-  const parsed = studentPhotoUploadSchema.safeParse(values);
-  if (!parsed.success) {
-    return {
-      status: 'error',
-      message: 'Please choose a JPEG, PNG, or WebP photo up to 2 MB.',
-      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
-    };
-  }
-  try {
-    await uploadStudentPhoto(studentId, parsed.data);
-    revalidateStudent(studentId);
-    return { status: 'success', message: 'Photo uploaded.' };
-  } catch (error) {
-    return toErrorState(error, 'Failed to upload photo');
-  }
 }
 
 export async function addStudentSiblingAction(

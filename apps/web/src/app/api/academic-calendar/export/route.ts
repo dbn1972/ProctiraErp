@@ -20,6 +20,13 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ code: 'UNAUTHENTICATED', message: 'Sign in' }, { status: 401 });
   }
 
+  // PRC-L076: the ICS UIDs are tenant-scoped; never fall back to a 'default' tenant.
+  if (!tenantId) {
+    return NextResponse.json(
+      { code: 'TENANT_REQUIRED', message: 'Tenant could not be resolved for this session' },
+      { status: 400 },
+    );
+  }
   const periodId = new URL(request.url).searchParams.get('periodId');
   if (periodId && !UUID_RE.test(periodId)) {
     return NextResponse.json(

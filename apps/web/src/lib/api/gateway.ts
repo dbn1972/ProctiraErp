@@ -44,9 +44,17 @@ export interface GatewayResponse<T> {
   error?: { code: string; message: string; details?: unknown };
 }
 
-/** Reads the current session's tenant + access token from cookies / headers. */
+/**
+ * Reads the current session's tenant + access token from cookies / headers.
+ *
+ * PRC-L076: there is no `'default'` tenant fallback. When neither the access
+ * token claim nor the middleware's Host-derived header yields a tenant, the
+ * tenant is `null` and no `X-Tenant-ID` is sent — the gateway then resolves
+ * the tenant from the verified JWT or rejects the call, instead of the BFF
+ * silently addressing a tenant literally named "default".
+ */
 export async function getSessionContext(): Promise<{
-  tenantId: string;
+  tenantId: string | null;
   accessToken: string | null;
 }> {
   const cookieStore = await cookies();
@@ -55,10 +63,15 @@ export async function getSessionContext(): Promise<{
   const accessToken = cookieStore.get(AUTH_COOKIES.ACCESS_TOKEN)?.value ?? null;
   const payload = accessToken ? decodeTokenPayload(accessToken) : null;
 
-  // Prefer JWT claim; fall back to middleware-injected header; finally to "default".
-  const tenantId = payload?.tenantId ?? headerStore.get('x-tenant-id') ?? 'default';
+  // Prefer the JWT claim; fall back to the middleware-injected (Host-derived) header.
+  const tenantId = payload?.tenantId?.trim() || headerStore.get('x-tenant-id')?.trim() || null;
 
   return { tenantId, accessToken };
+}
+
+/** `X-Tenant-ID` header entry for a resolved tenant, or nothing when it is unknown. */
+export function tenantHeader(tenantId: string | null | undefined): Record<string, string> {
+  return tenantId ? { 'X-Tenant-ID': tenantId } : {};
 }
 
 /**
@@ -79,7 +92,7 @@ export async function gatewayFetch<T>(
   const tenantId = init.tenantId ?? ctxTenantId;
 
   const requestHeaders = new Headers(init.headers);
-  requestHeaders.set('X-Tenant-ID', tenantId);
+  if (tenantId) requestHeaders.set('X-Tenant-ID', tenantId);
   requestHeaders.set('Accept', 'application/json');
 
   if (accessToken) {

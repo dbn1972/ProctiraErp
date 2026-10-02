@@ -37,7 +37,7 @@ async function proxy(
 
   const headers = new Headers();
   headers.set('Authorization', `Bearer ${accessToken}`);
-  headers.set('X-Tenant-ID', tenantId);
+  if (tenantId) headers.set('X-Tenant-ID', tenantId);
   headers.set('Accept', request.headers.get('accept') ?? 'application/json');
   const contentType = request.headers.get('content-type');
   if (contentType) headers.set('Content-Type', contentType);
