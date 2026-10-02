@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useMemo } from 'react';
+
 import { useReducedMotion } from './useReducedMotion';
 
 /**
@@ -26,6 +27,8 @@ const DEFAULT_PREFERENCE: MotionPreference = {
 };
 
 const MotionPreferenceContext = createContext<MotionPreference>(DEFAULT_PREFERENCE);
+/** Internal: whether an ancestor gate set `forceReduce` (a hard kill switch). */
+const ForcedReduceContext = createContext<boolean>(false);
 
 export interface MotionGateProps {
   /** Children that may opt out of animations via {@link useMotionPreference}. */
@@ -33,13 +36,15 @@ export interface MotionGateProps {
   /**
    * Force motion to be disabled regardless of the OS-level media query.
    * Useful for storybook examples or feature flags that disable motion
-   * globally for QA.
+   * globally for QA. Takes precedence over `forceMotion`, including on
+   * nested gates.
    */
   forceReduce?: boolean;
   /**
    * Force motion to be allowed regardless of the OS-level media query.
    * Reserved for essential animations (e.g. progress indicators) that
    * must run even under `prefers-reduced-motion: reduce`. Use sparingly.
+   * Ignored when this gate or any ancestor gate sets `forceReduce`.
    */
   forceMotion?: boolean;
 }
@@ -50,6 +55,11 @@ export interface MotionGateProps {
  * (Motion / framer-motion animations, custom transitions) with this provider so
  * descendants can read the flag via {@link useMotionPreference} and skip
  * non-essential animations.
+ *
+ * Precedence (highest first): `forceReduce` on this or any ancestor gate,
+ * then `forceMotion` on this gate, then the ancestor gate's `disableMotion`
+ * OR the OS preference. A nested gate never re-enables motion an ancestor
+ * disabled unless it sets `forceMotion` (essential animation only).
  *
  * SSR-safe: the initial value is `false` (motion enabled). The hook subscribes
  * to `window.matchMedia('(prefers-reduced-motion: reduce)')` after mount.
@@ -72,20 +82,27 @@ export interface MotionGateProps {
  */
 export function MotionGate({ children, forceReduce, forceMotion }: MotionGateProps) {
   const systemPrefersReduced = useReducedMotion();
+  const parent = useContext(MotionPreferenceContext);
+  const parentForcedReduce = useContext(ForcedReduceContext);
+  const forcedReduce = parentForcedReduce || !!forceReduce;
 
   const value = useMemo<MotionPreference>(() => {
-    let disableMotion = systemPrefersReduced;
-    if (forceReduce) disableMotion = true;
-    if (forceMotion) disableMotion = false;
+    const disableMotion = forcedReduce
+      ? true
+      : forceMotion
+        ? false
+        : parent.disableMotion || systemPrefersReduced;
     return {
       disableMotion,
       enableMotion: !disableMotion,
       prefersReducedMotion: disableMotion,
     };
-  }, [systemPrefersReduced, forceReduce, forceMotion]);
+  }, [systemPrefersReduced, forcedReduce, forceMotion, parent.disableMotion]);
 
   return (
-    <MotionPreferenceContext.Provider value={value}>{children}</MotionPreferenceContext.Provider>
+    <ForcedReduceContext.Provider value={forcedReduce}>
+      <MotionPreferenceContext.Provider value={value}>{children}</MotionPreferenceContext.Provider>
+    </ForcedReduceContext.Provider>
   );
 }
 

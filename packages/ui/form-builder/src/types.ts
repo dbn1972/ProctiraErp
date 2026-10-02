@@ -64,7 +64,13 @@ export interface FormFieldSchema {
   /** Conditional visibility: field name to check */
   visibleWhen?: {
     field: string;
+    /** Value to compare; an array when `operator` is `'in'`. */
     value: unknown;
+    /**
+     * Comparison (default `'eq'`). Values are compared loosely by string form,
+     * so `1` matches `'1'` and `true` matches `'true'`.
+     */
+    operator?: 'eq' | 'neq' | 'in';
   };
   /** CSS class for layout */
   className?: string;
@@ -94,6 +100,17 @@ export interface FormSchema {
   cancelLabel?: string;
 }
 
+/** Built-in UI strings. Schema `submitLabel`/`cancelLabel` still take precedence. */
+export interface FormBuilderLabels {
+  selectPlaceholder?: string;
+  submit?: string;
+  submitting?: string;
+  cancel?: string;
+  errorSummaryTitle?: string;
+  /** Shown when onSubmit rejects without an Error message. */
+  submitError?: string;
+}
+
 export interface FormBuilderProps {
   /** JSON schema defining the form structure */
   schema: FormSchema;
@@ -111,4 +128,11 @@ export interface FormBuilderProps {
   ariaLabel?: string;
   /** Named validators used by `custom` validation rules (`rule.value` = name). */
   validators?: Record<string, CustomValidator>;
+  /**
+   * Called when `onSubmit` rejects. The form also shows the error message in a
+   * role="alert" region and re-enables submit.
+   */
+  onSubmitError?: (error: unknown) => void;
+  /** Localised overrides for built-in strings. */
+  labels?: FormBuilderLabels;
 }
