@@ -186,7 +186,11 @@ export function DataTableCard<T>({
                         interactive
                           ? (e) => {
                               const target = e.target as HTMLElement;
-                              if (target.closest(INTERACTIVE_SELECTOR)) return;
+                              // Only interactive content inside this row counts;
+                              // ancestors such as the focusable scroll wrapper
+                              // (PRC-L197) must not swallow row clicks.
+                              const hit = target.closest(INTERACTIVE_SELECTOR);
+                              if (hit && e.currentTarget.contains(hit)) return;
                               onRowClick?.(row);
                             }
                           : undefined
