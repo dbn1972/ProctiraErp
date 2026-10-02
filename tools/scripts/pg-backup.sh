@@ -9,6 +9,8 @@
 #   BACKUP_AGE_RECIPIENT    age public key — encrypt dump at rest (.dump.age)
 #   BACKUP_GPG_RECIPIENT    gpg recipient — encrypt dump at rest (.dump.gpg)
 #   BACKUP_ENCRYPT          when 1/true, require encryption keys (fail closed)
+#   BACKUP_ALLOW_PLAINTEXT  must be 1 to keep an unencrypted dump when no
+#                           recipient is configured (PRC-L383; default refuses)
 #   BACKUP_OFFSITE_URI      s3://bucket/prefix/ — push encrypted artifact offsite
 #   BACKUP_REQUIRE_OFFSITE  when 1/true, refuse if BACKUP_OFFSITE_URI empty
 #   BACKUP_S3_SSE           S3 server-side encryption (AES256 or aws:kms)
@@ -16,6 +18,8 @@
 #   BACKUP_S3_OBJECT_LOCK_MODE  GOVERNANCE|COMPLIANCE (WORM; optional)
 #   BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS  retain-until days for Object Lock
 set -euo pipefail
+# Dumps (and any plaintext intermediate) are readable by the owner only.
+umask 077
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=tools/scripts/backup-crypto.sh

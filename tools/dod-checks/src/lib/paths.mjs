@@ -45,8 +45,8 @@ export function toRepoRelative(absPath) {
  * Derive a service id from any path under `packages/backend/<service>/...`.
  * Returns the empty string if the path is not within a backend service.
  */
-export function getBackendServiceName(absPath) {
-  const rel = relative(BACKEND_DIR, absPath);
+export function getBackendServiceName(absPath, backendDir = BACKEND_DIR) {
+  const rel = relative(backendDir, absPath);
   if (rel.startsWith('..') || rel.startsWith('/')) return '';
   return rel.split('/')[0] || '';
 }

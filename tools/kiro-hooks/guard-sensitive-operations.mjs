@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -212,6 +212,39 @@ function unwrapCommand(tokens) {
       command = stripLeadingOptions(command.slice(1), new Set(['-u', '--unset', '-C', '--chdir']));
     } else if (['command', 'builtin', 'nohup', 'time'].includes(executable)) {
       command = stripLeadingOptions(command.slice(1));
+    } else if (executable === 'timeout') {
+      // timeout [OPTION] DURATION COMMAND...
+      command = stripLeadingOptions(
+        command.slice(1),
+        new Set(['-s', '--signal', '-k', '--kill-after']),
+      ).slice(1);
+    } else if (['nice', 'ionice', 'stdbuf', 'chronic'].includes(executable)) {
+      command = stripLeadingOptions(
+        command.slice(1),
+        new Set(['-n', '--adjustment', '-c', '--class', '-i', '-o', '-e']),
+      );
+    } else if (executable === 'xargs') {
+      command = stripLeadingOptions(
+        command.slice(1),
+        new Set([
+          '-I',
+          '-i',
+          '-n',
+          '--max-args',
+          '-P',
+          '--max-procs',
+          '-L',
+          '--max-lines',
+          '-d',
+          '--delimiter',
+          '-E',
+          '-e',
+          '-s',
+          '--max-chars',
+          '-a',
+          '--arg-file',
+        ]),
+      );
     } else if (executable === 'pnpm') {
       const execIndex = command.findIndex((token, index) => index > 0 && token === 'exec');
       if (execIndex === -1) break;
@@ -381,6 +414,45 @@ function analyzeCommand(rawTokens, eventCwd) {
     }
   }
 
+  // PRC-L505: destructive local data / volume operations.
+  if (executable === 'docker' || executable === 'docker-compose' || executable === 'podman') {
+    const removesVolumes = args.some((arg) => arg === '--volumes' || hasShortFlag(arg, 'v'));
+    if (args.includes('down') && removesVolumes) {
+      return 'docker compose down with volumes destroys local database data';
+    }
+    if (args[0] === 'volume' && ['rm', 'remove', 'prune'].includes(args[1])) {
+      return 'removing docker volumes destroys persisted data';
+    }
+    if (['system', 'volume'].includes(args[0]) && args.includes('prune')) {
+      return 'docker prune can remove volumes and persisted data';
+    }
+  }
+  if (executable === 'dropdb' || executable === 'dropuser') {
+    return 'dropping a database or role is irreversible';
+  }
+  if (['psql', 'pg_restore'].includes(executable)) {
+    if (executable === 'pg_restore' && args.some((arg) => arg === '--clean' || arg === '-c')) {
+      return 'pg_restore --clean drops existing database objects';
+    }
+    const sql = args.join(' ');
+    if (/\b(?:DROP\s+(?:DATABASE|SCHEMA|TABLE|ROLE|USER|OWNED)|TRUNCATE)\b/i.test(sql)) {
+      return 'SQL DROP/TRUNCATE irreversibly destroys database objects or data';
+    }
+  }
+  if (executable === 'find' && args.some((arg) => arg === '-delete')) {
+    return 'find -delete removes files in bulk';
+  }
+  if (executable === 'find') {
+    const execIndex = args.findIndex((arg) => arg === '-exec' || arg === '-execdir');
+    if (execIndex !== -1) {
+      const inner = args.slice(execIndex + 1);
+      const end = inner.findIndex((arg) => arg === ';' || arg === '+');
+      const reason = analyzeCommand(end === -1 ? inner : inner.slice(0, end), eventCwd);
+      if (reason) return reason;
+      if (basename(inner[0] ?? '') === 'rm') return 'find -exec rm removes files in bulk';
+    }
+  }
+
   const subcommand = stripLeadingOptions(args)[0];
   if (executable === 'kubectl' && subcommand === 'delete') {
     return 'infrastructure deletion can cause an outage or data loss';
@@ -430,7 +502,12 @@ const pathValues = [toolInput.path, toolInput.targetFile, toolInput.target_file]
 );
 const protectedPath =
   /(?:^|[\\/])(?:\.env(?:\.(?!example\b)[^\\/]*)?|[^\\/]+\.(?:pem|key|p12|pfx))$/i;
-const migrationPath = /(?:^|[\\/])prisma[\\/]migrations[\\/]/i;
+// PRC-L505: the project's real migrations live in db/sql; deployment
+// manifests (k8s/helm/terraform) in infra/ and infrastructure/.
+const migrationPath = /(?:^|[\\/])(?:prisma[\\/]migrations|db[\\/]sql)[\\/]/i;
+const infraPath = /(?:^|[\\/])(?:infra|infrastructure)[\\/]/i;
+const eventCwd = typeof event.cwd === 'string' ? event.cwd : process.cwd();
+const existingFile = (path) => existsSync(resolve(eventCwd, path));
 
 if (mutatingTool && pathValues.some((path) => protectedPath.test(path))) {
   requestConfirmation(
@@ -441,5 +518,26 @@ if (mutatingTool && pathValues.some((path) => protectedPath.test(path))) {
 if (toolName === 'delete_file' && pathValues.some((path) => migrationPath.test(path))) {
   requestConfirmation(
     'Deleting a committed database migration requires explicit approval and a forward-migration plan.',
+  );
+}
+
+// Editing an existing (committed) migration rewrites applied history; new
+// migration files are allowed.
+if (mutatingTool && pathValues.some((path) => migrationPath.test(path) && existingFile(path))) {
+  requestConfirmation(
+    'Modifying an existing database migration requires explicit approval; add a forward migration instead.',
+  );
+}
+
+const overwritesFile = /^fs_write$/i.test(toolName);
+if (
+  pathValues.some(
+    (path) =>
+      infraPath.test(path) &&
+      (toolName === 'delete_file' || (overwritesFile && existingFile(path))),
+  )
+) {
+  requestConfirmation(
+    'Deleting or overwriting an infrastructure manifest requires explicit approval.',
   );
 }

@@ -347,8 +347,10 @@ export function auditDocContract(text) {
   if (!/W1-DATA-01/.test(text)) {
     issues.push('audit doc must reference W1-DATA-01');
   }
-  if (!/COMPLETE|Complete/.test(text)) {
-    issues.push('audit doc must mark COMPLETE');
+  // PRC-L385: a self-declared "COMPLETE" word is not evidence. Require a link
+  // to the executable tip evidence (the CI job that runs the live role gate).
+  if (!/\.github\/workflows\/ci\.yml/.test(text) || !/runtime-role-gate/.test(text)) {
+    issues.push('audit doc must link tip evidence: .github/workflows/ci.yml job runtime-role-gate');
   }
   if (!/assert-runtime-database-role/.test(text)) {
     issues.push('audit doc must reference assert-runtime-database-role');

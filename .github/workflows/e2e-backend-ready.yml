@@ -303,6 +303,8 @@ jobs:
               echo "specs=${INPUT_SPECS:-$NIGHTLY_SPECS}" >> "$GITHUB_OUTPUT"
               if [ "$INPUT_REQUIRE_LIVE" = "false" ]; then
                 echo "require_live=0" >> "$GITHUB_OUTPUT"
+                # Operator explicitly opted out of the live gate (PRC-L389).
+                echo "allow_skip=1" >> "$GITHUB_OUTPUT"
               else
                 echo "require_live=1" >> "$GITHUB_OUTPUT"
               fi
@@ -327,6 +329,8 @@ jobs:
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
           E2E_SPECS: ${{ steps.mode.outputs.specs }}
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
+          # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).
+          E2E_ALLOW_SKIP: ${{ steps.mode.outputs.allow_skip || '0' }}
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
           CI: true
 

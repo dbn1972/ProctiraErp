@@ -91,6 +91,11 @@ spec:
                     secretKeyRef:
                       name: {{ include "proctira.secretName" . }}
                       key: {{ .Values.dr.backup.encrypt.secretKey }}
+                {{- else }}
+                # PRC-L383: pg-backup.sh refuses plaintext unless explicitly allowed;
+                # production cannot reach this branch (encrypt.enabled is required).
+                - name: BACKUP_ALLOW_PLAINTEXT
+                  value: "1"
                 {{- end }}
                 {{- if .Values.dr.backup.offsite.enabled }}
                 - name: BACKUP_REQUIRE_OFFSITE

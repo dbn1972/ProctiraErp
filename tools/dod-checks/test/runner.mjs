@@ -19,7 +19,9 @@ let failed = 0;
 
 async function loadCases() {
   const entries = await readdir(casesDir, { withFileTypes: true });
-  return entries.filter((e) => e.isFile() && e.name.endsWith('.test.mjs')).map((e) => resolve(casesDir, e.name));
+  return entries
+    .filter((e) => e.isFile() && e.name.endsWith('.test.mjs'))
+    .map((e) => resolve(casesDir, e.name));
 }
 
 console.log('═'.repeat(70));
@@ -30,7 +32,9 @@ const cases = await loadCases();
 for (const file of cases) {
   const mod = await import(pathToFileURL(file).href);
   if (typeof mod.run !== 'function') {
-    console.warn(`  ⚠️  ${file} has no exported run()`);
+    // Fail closed: a case file that cannot run is not passing evidence.
+    console.error(`  ❌ ${file} has no exported run()`);
+    failed++;
     continue;
   }
   console.log(`\n📋 ${mod.title ?? file}`);

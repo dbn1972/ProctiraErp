@@ -32,17 +32,27 @@ function usesTypebox(text) {
   return TYPEBOX_PATTERNS.some((p) => p.test(text));
 }
 
-export async function runApiSchemaCheck() {
+/**
+ * @param {{ backendDir?: string, services?: readonly string[] }} [opts]
+ *   overrides for the scanned root and service list (used by fixture tests).
+ */
+export async function runApiSchemaCheck({
+  backendDir = BACKEND_DIR,
+  services = KNOWN_SERVICES,
+} = {}) {
   const report = new Report(CHECK_IDS.API_SCHEMA, TITLE);
   let scanned = 0;
 
-  for (const svc of KNOWN_SERVICES) {
-    const svcDir = resolve(BACKEND_DIR, svc, 'src');
+  for (const svc of services) {
+    const svcDir = resolve(backendDir, svc, 'src');
     const routeFiles = await findFiles(svcDir, (n) => isProductionTsFile(n) && n.includes('route'));
     if (routeFiles.length === 0) continue;
 
     scanned += routeFiles.length;
-    const schemaFiles = await findFiles(svcDir, (n) => isProductionTsFile(n) && n.includes('schema'));
+    const schemaFiles = await findFiles(
+      svcDir,
+      (n) => isProductionTsFile(n) && n.includes('schema'),
+    );
 
     let typeboxFound = false;
     for (const f of schemaFiles) {

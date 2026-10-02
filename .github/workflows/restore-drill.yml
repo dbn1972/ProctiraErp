@@ -58,6 +58,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # PRC-L383: pg-backup.sh refuses plaintext dumps unless opted in; the drill's
+    # plaintext steps opt in here, the encrypted round-trip sets recipients.
+    env:
+      BACKUP_ALLOW_PLAINTEXT: '1'
     steps:
       - uses: actions/checkout@v7
 
@@ -215,7 +219,7 @@ jobs:
       - name: Smoke the image
         run: |
           docker run --rm --network host \
-            -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups \
+            -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups -e BACKUP_ALLOW_PLAINTEXT=1 \
             proctira/dr-tools:drill bash tools/scripts/pg-backup.sh /backups/from-image.dump
           docker run --rm -e RETENTION_DRY_RUN=1 proctira/dr-tools:drill \
             node tools/scripts/phi-retention-job.mjs \

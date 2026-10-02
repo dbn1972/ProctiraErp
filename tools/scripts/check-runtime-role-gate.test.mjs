@@ -97,8 +97,9 @@ const GOOD_README = `
 `;
 
 const GOOD_AUDIT = `
-# DATA — W1-DATA-01 COMPLETE
+# DATA — W1-DATA-01
 assert-runtime-database-role proves ExternalSecret DATABASE_URL → proctira_app.
+Tip evidence: \`.github/workflows/ci.yml\` job \`runtime-role-gate\`.
 `;
 
 function writeFixture(overrides = {}) {
@@ -296,9 +297,16 @@ test('secretDocsContract requires ExternalSecret + Helm proctira_app docs', () =
   );
 });
 
-test('auditDocContract requires COMPLETE evidence pack', () => {
+test('auditDocContract requires a tip evidence link, not a COMPLETE claim', () => {
   assert.equal(auditDocContract(GOOD_AUDIT).length, 0);
   assert.ok(auditDocContract('# incomplete').length > 0);
+  // PRC-L385: the word COMPLETE alone no longer satisfies the contract.
+  const claimOnly =
+    '# W1-DATA-01 COMPLETE\nassert-runtime-database-role ExternalSecret proctira_app\n';
+  assert.ok(
+    auditDocContract(claimOnly).some((i) => /tip evidence/.test(i)),
+    'COMPLETE without a CI evidence link must fail',
+  );
 });
 
 test('evaluateRuntimeRoleGate passes a complete fixture', () => {
