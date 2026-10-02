@@ -19,6 +19,7 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { HostelBed, HostelFeeStructure } from '@/lib/api/hostel';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { createHostelAssignmentAction } from '../../campus-actions';
+import { firstIssue, hostelAssignmentInputSchema } from '@/lib/validation/campus-action-schema';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -67,13 +68,20 @@ export function NewHostelAssignmentForm({
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelAssignmentAction({
+      // PRC-L241: same schema the server action enforces.
+      const payload = {
         studentId,
         bedId,
         startDate,
         endDate: endDate || undefined,
         feeStructureId: feeStructureId || undefined,
-      });
+      };
+      const checked = hostelAssignmentInputSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelAssignmentAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create assignment');
         return;

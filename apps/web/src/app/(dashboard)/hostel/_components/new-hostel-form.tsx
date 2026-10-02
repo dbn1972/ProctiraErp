@@ -16,6 +16,8 @@ import {
 } from '@proctira/ui/components';
 
 import { createHostelAction } from '../../campus-actions';
+import { createHostelSchema } from '@/lib/validation/campus-actions-schema';
+import { firstIssue } from '@/lib/validation/campus-action-schema';
 
 export function NewHostelForm() {
   const router = useRouter();
@@ -46,12 +48,19 @@ export function NewHostelForm() {
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelAction({
+      // PRC-L241: same schema the server action enforces.
+      const payload = {
         name,
         code,
         address: address || undefined,
         capacity,
-      });
+      };
+      const checked = createHostelSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create hostel');
         return;

@@ -21,6 +21,12 @@ import {
   createHostelRoomAction,
 } from '../../campus-actions';
 import type { Hostel, HostelBlock, HostelRoom } from '@/lib/api/hostel';
+import {
+  hostelBedSchema,
+  hostelBlockSchema,
+  hostelRoomSchema,
+} from '@/lib/validation/campus-actions-schema';
+import { firstIssue } from '@/lib/validation/campus-action-schema';
 
 export function NewBlockForm({ hostels }: { hostels: Hostel[] }) {
   const router = useRouter();
@@ -50,7 +56,14 @@ export function NewBlockForm({ hostels }: { hostels: Hostel[] }) {
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelBlockAction({ hostelId, name, floor });
+      // PRC-L241: same schema the server action enforces.
+      const payload = { hostelId, name, floor };
+      const checked = hostelBlockSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelBlockAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create block');
         return;
@@ -145,7 +158,14 @@ export function NewRoomForm({ blocks }: { blocks: HostelBlock[] }) {
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelRoomAction({ blockId, roomNumber, capacity });
+      // PRC-L241: same schema the server action enforces.
+      const payload = { blockId, roomNumber, capacity };
+      const checked = hostelRoomSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelRoomAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create room');
         return;
@@ -241,7 +261,14 @@ export function NewBedForm({ rooms }: { rooms: HostelRoom[] }) {
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelBedAction({ roomId, bedLabel, isAvailable });
+      // PRC-L241: same schema the server action enforces.
+      const payload = { roomId, bedLabel, isAvailable };
+      const checked = hostelBedSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelBedAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create bed');
         return;

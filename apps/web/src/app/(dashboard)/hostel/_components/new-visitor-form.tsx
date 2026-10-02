@@ -19,6 +19,7 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { Hostel } from '@/lib/api/hostel';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { createHostelVisitorAction } from '../../campus-actions';
+import { firstIssue, hostelVisitorInputSchema } from '@/lib/validation/campus-action-schema';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -64,12 +65,19 @@ export function NewVisitorForm({
 
     startTransition(async () => {
       setError(null);
-      const result = await createHostelVisitorAction({
+      // PRC-L241: same schema the server action enforces.
+      const payload = {
         hostelId,
         visitorName,
         studentId,
         visitDate,
-      });
+      };
+      const checked = hostelVisitorInputSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createHostelVisitorAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create visitor');
         return;

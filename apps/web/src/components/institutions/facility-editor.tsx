@@ -9,6 +9,8 @@ import {
   updateFacilityAction,
 } from '@/app/(dashboard)/institutions/[id]/infrastructure/actions';
 import { Button, Input, Label } from '@proctira/ui/components';
+import { createRoomSchema, updateFacilitySchema } from '@/lib/validation/campus-actions-schema';
+import { firstIssue } from '@/lib/validation/campus-action-schema';
 
 const CONDITIONS = ['Good', 'Fair', 'Needs repair', 'Unknown'] as const;
 
@@ -42,13 +44,20 @@ export function FacilityEditor({
           const fd = new FormData(form);
           setError(null);
           startTransition(async () => {
-            const result = await createRoomAction({
+            // PRC-L241: same schema the server action enforces.
+            const payload = {
               institutionId,
               floorId: String(fd.get('floorId') ?? ''),
               name: String(fd.get('name') ?? ''),
               capacity: Number(fd.get('capacity') ?? 1),
               condition: String(fd.get('condition') ?? 'Good') as (typeof CONDITIONS)[number],
-            });
+            };
+            const checked = createRoomSchema.safeParse(payload);
+            if (!checked.success) {
+              setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+              return;
+            }
+            const result = await createRoomAction(payload);
             if (!result.ok) {
               setError(result.error);
               return;
@@ -111,13 +120,20 @@ export function FacilityEditor({
           const fd = new FormData(event.currentTarget);
           setError(null);
           startTransition(async () => {
-            const result = await updateFacilityAction({
+            // PRC-L241: same schema the server action enforces.
+            const payload = {
               institutionId,
               id: editId,
               name: String(fd.get('name') ?? ''),
               capacity: Number(fd.get('capacity') ?? 1),
               condition: String(fd.get('condition') ?? 'Good') as (typeof CONDITIONS)[number],
-            });
+            };
+            const checked = updateFacilitySchema.safeParse(payload);
+            if (!checked.success) {
+              setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+              return;
+            }
+            const result = await updateFacilityAction(payload);
             if (!result.ok) {
               setError(result.error);
               return;

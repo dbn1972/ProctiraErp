@@ -18,6 +18,8 @@ import { useHydrated } from '@/hooks/useHydrated';
 
 import { createLibraryItemAction } from '../../campus-actions';
 import { lookupIsbnFillAction } from '../../campus-ops-actions';
+import { createLibraryItemSchema } from '@/lib/validation/campus-actions-schema';
+import { firstIssue } from '@/lib/validation/campus-action-schema';
 
 export function NewLibraryItemForm() {
   const router = useRouter();
@@ -71,12 +73,19 @@ export function NewLibraryItemForm() {
     startTransition(async () => {
       setError(null);
       setMessage(null);
-      const result = await createLibraryItemAction({
+      // PRC-L241: same schema the server action enforces.
+      const payload = {
         title: nextTitle,
         author: nextAuthor || undefined,
         isbn: nextIsbn || undefined,
         copies,
-      });
+      };
+      const checked = createLibraryItemSchema.safeParse(payload);
+      if (!checked.success) {
+        setError(firstIssue(checked.error, 'Please check the highlighted fields.'));
+        return;
+      }
+      const result = await createLibraryItemAction(payload);
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create item');
         return;

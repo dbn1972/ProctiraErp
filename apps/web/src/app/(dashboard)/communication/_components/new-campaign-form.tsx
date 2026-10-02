@@ -23,8 +23,13 @@ import type { EntityLabelOption } from '@/lib/entity-label';
 import { channelLabel } from '@/lib/communication/channel-label';
 
 import { createCampaignAction, previewAudienceAction } from '../actions';
+import {
+  CAMPAIGN_CHANNELS,
+  createCampaignInputSchema,
+} from '@/lib/validation/communication-schema';
 
-const CHANNELS = ['email', 'sms', 'push', 'in_app'] as const;
+// PRC-L241: the same channel list and schema the server action enforces.
+const CHANNELS = CAMPAIGN_CHANNELS;
 const SCOPES = [
   { value: 'all', label: 'Entire tenant' },
   { value: 'grade', label: 'Grade / class' },
@@ -109,15 +114,20 @@ export function NewCampaignForm({
       return;
     }
 
+    const candidate = {
+      name,
+      body: body || undefined,
+      channels,
+      audienceJson: buildAudience(fd),
+    };
+    const checked = createCampaignInputSchema.safeParse(candidate);
+    if (!checked.success) {
+      setError(checked.error.issues[0]?.message ?? 'Please check the campaign details.');
+      return;
+    }
     startTransition(async () => {
       setError(null);
-      const result = await createCampaignAction({
-        name,
-        body: body || undefined,
-        channels,
-        audienceJson: buildAudience(fd),
-        createdBy,
-      });
+      const result = await createCampaignAction({ ...candidate, createdBy });
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create campaign');
         return;

@@ -23,8 +23,15 @@ import {
   dispatchEmergencyBlastAction,
 } from '../actions';
 import type { EmergencyBlast } from '@/lib/api/communication';
+import type { CAMPAIGN_CHANNELS } from '@/lib/validation/communication-schema';
 
-const CHANNELS = ['sms', 'push', 'email', 'in_app'] as const;
+// PRC-L241: same closed channel list the server action validates against.
+const CHANNELS = [
+  'sms',
+  'push',
+  'email',
+  'in_app',
+] as const satisfies readonly (typeof CAMPAIGN_CHANNELS)[number][];
 
 export function EmergencyBlastPanel({
   actorId,
