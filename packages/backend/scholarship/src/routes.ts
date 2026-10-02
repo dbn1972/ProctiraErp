@@ -41,8 +41,8 @@ import {
   type ApplicantAttributesLookup,
   type ApplicantStudentLookup,
 } from './application-intake.js';
-import { applicantAttributesForStudent } from './parent-links.js';
 import { authorizeApplicationCreate } from './document-routes.js';
+import { applicantAttributesForStudent } from './parent-links.js';
 import {
   CreateScholarshipProgramSchema,
   UpdateScholarshipProgramSchema,

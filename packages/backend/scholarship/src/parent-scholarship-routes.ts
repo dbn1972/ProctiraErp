@@ -10,6 +10,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { deriveApplicantAttributes, type ApplicantAttributesLookup } from './application-intake.js';
 import { actorFromRequest, assertCanReadDocuments } from './document-access.js';
 import {
   createScholarshipDocumentBlobStore,
@@ -29,7 +30,6 @@ import {
   institutionIdForStudent,
   linkLookupUnavailable,
 } from './parent-links.js';
-import { deriveApplicantAttributes, type ApplicantAttributesLookup } from './application-intake.js';
 import { CreateApplicationSchema } from './schemas.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
 import { ScholarshipService } from './scholarship-service.js';
