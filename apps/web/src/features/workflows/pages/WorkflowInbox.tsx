@@ -218,12 +218,19 @@ export default function WorkflowInbox() {
     return result;
   }, [items, filters.priority, filters.slaStatus]);
 
-  const handleFilterChange = (key: keyof InboxFilters, value: string) => {
+  // Page stays numeric: string pages turned "Next" into "21" (PRC-L077).
+  const goToPage = (page: number) => {
+    setFilters((prev) => ({ ...prev, page: Math.max(1, Math.trunc(page)) }));
+  };
+  const handleFilterChange = (
+    key: Exclude<keyof InboxFilters, 'page' | 'pageSize'>,
+    value: string,
+  ) => {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
       // Reset page when filters change
-      ...(key !== 'page' ? { page: 1 } : {}),
+      page: 1,
     }));
   };
 
@@ -393,14 +400,14 @@ export default function WorkflowInbox() {
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => handleFilterChange('page', String(filters.page - 1))}
+              onClick={() => goToPage(filters.page - 1)}
               disabled={filters.page <= 1}
               className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
             >
               Previous
             </button>
             <button
-              onClick={() => handleFilterChange('page', String(filters.page + 1))}
+              onClick={() => goToPage(filters.page + 1)}
               disabled={filters.page >= totalPages}
               className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
             >

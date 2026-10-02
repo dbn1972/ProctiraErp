@@ -123,7 +123,9 @@ const recordMarksSchema = z.object({
     .array(
       z.object({
         studentId: UUID,
-        marks: z.array(z.object({ subjectId: UUID, score: z.number().min(0).nullable() })).min(1),
+        marks: z
+          .array(z.object({ subjectId: UUID, score: z.number().finite().min(0).nullable() }))
+          .min(1),
       }),
     )
     .min(1, 'No marks supplied'),

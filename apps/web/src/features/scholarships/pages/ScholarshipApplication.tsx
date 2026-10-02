@@ -27,6 +27,8 @@ import {
   type UploadedScholarshipDocument,
 } from '../components/document-upload-slots';
 import { missingRequiredDocuments } from '../document-upload';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -81,7 +83,17 @@ const STEPS: { key: Step; label: string }[] = [
 
 /* ------------------------------------------------------------------ Component */
 
-export default function ScholarshipApplication() {
+export interface ScholarshipApplicationProps {
+  /** Students the signed-in staff member may apply for (real directory ids). */
+  applicantOptions?: EntityLabelOption[];
+  /** Institutions the application can be filed under. */
+  institutionOptions?: EntityLabelOption[];
+}
+
+export default function ScholarshipApplication({
+  applicantOptions = [],
+  institutionOptions = [],
+}: ScholarshipApplicationProps = {}) {
   const [currentStep, setCurrentStep] = useState<Step>('program');
   const [programs, setPrograms] = useState<ScholarshipProgramSummary[]>([]);
   const [loadingPrograms, setLoadingPrograms] = useState(true);
@@ -91,6 +103,9 @@ export default function ScholarshipApplication() {
 
   // Form state
   const [selectedProgramId, setSelectedProgramId] = useState('');
+  // PRC-L077: applicant and institution are explicit choices — never a nil UUID.
+  const [applicantId, setApplicantId] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([
     {
       institutionName: '',
@@ -159,6 +174,11 @@ export default function ScholarshipApplication() {
 
   const createDraft = async (): Promise<string | null> => {
     const records = completedRecords();
+    // PRC-L077: staff pick a real applicant and institution from the directories.
+    if (!applicantId || !institutionId) {
+      setSubmitError('Choose the applicant and institution before continuing.');
+      return null;
+    }
     if (!selectedProgramId || records.length === 0) {
       setSubmitError('Add at least one academic record before uploading documents.');
       return null;
@@ -167,8 +187,11 @@ export default function ScholarshipApplication() {
       method: 'POST',
       json: {
         programId: selectedProgramId,
-        // PRC-H030: no placeholder subject ids — the gateway resolves the applicant
-        // (own student / linked child) and institution from the signed-in session.
+        // PRC-H030: never placeholder ids. These are real directory ids (L077);
+        // the gateway still rejects placeholders and checks tenant membership and
+        // the caller's right to apply for this student.
+        applicantId,
+        institutionId,
         academicRecords: records,
         financialInfo,
         documents: [],
@@ -339,6 +362,31 @@ export default function ScholarshipApplication() {
           </div>
         )}
 
+        {currentStep === 'program' && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <EntitySearchSelect
+              id="scholarship-applicant"
+              name="applicantId"
+              label="Applicant (student)"
+              options={applicantOptions}
+              defaultValue={applicantId}
+              onValueChange={setApplicantId}
+              required
+              placeholder="Search student…"
+            />
+            <EntitySearchSelect
+              id="scholarship-institution"
+              name="institutionId"
+              label="Institution"
+              options={institutionOptions}
+              defaultValue={institutionId}
+              onValueChange={setInstitutionId}
+              required
+              placeholder="Search institution…"
+              emptyMessage="No institutions loaded. Try again when the institution directory is available."
+            />
+          </div>
+        )}
         {/* Step 2: Academic Records */}
         {currentStep === 'academic' && (
           <div className="space-y-4">
@@ -667,7 +715,9 @@ export default function ScholarshipApplication() {
           <button
             type="button"
             onClick={goNext}
-            disabled={currentStep === 'program' && !selectedProgramId}
+            disabled={
+              currentStep === 'program' && (!selectedProgramId || !applicantId || !institutionId)
+            }
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm disabled:opacity-50"
           >
             Next

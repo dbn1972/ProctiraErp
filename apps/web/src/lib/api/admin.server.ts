@@ -132,10 +132,13 @@ export async function inviteTenantUser(input: {
 }
 
 export async function setTenantUserRoles(userId: string, roleIds: string[]): Promise<TenantUser> {
-  const result = await gatewayFetch<TenantUser>(`/tenant/users/${userId}/roles`, {
-    method: 'PATCH',
-    json: { roleIds },
-  });
+  const result = await gatewayFetch<TenantUser>(
+    `/tenant/users/${encodeURIComponent(userId)}/roles`,
+    {
+      method: 'PATCH',
+      json: { roleIds },
+    },
+  );
   if (!result.data) throw new Error('Empty response from tenant service');
   return result.data;
 }
@@ -144,10 +147,13 @@ export async function setTenantUserStatus(
   userId: string,
   status: 'ACTIVE' | 'SUSPENDED',
 ): Promise<TenantUser> {
-  const result = await gatewayFetch<TenantUser>(`/tenant/users/${userId}/status`, {
-    method: 'PATCH',
-    json: { status },
-  });
+  const result = await gatewayFetch<TenantUser>(
+    `/tenant/users/${encodeURIComponent(userId)}/status`,
+    {
+      method: 'PATCH',
+      json: { status },
+    },
+  );
   if (!result.data) throw new Error('Empty response from tenant service');
   return result.data;
 }
@@ -166,7 +172,7 @@ export async function updateTenantRole(
   id: string,
   input: { name?: string; description?: string | null; permissions?: PermissionRef[] },
 ): Promise<TenantRole> {
-  const result = await gatewayFetch<TenantRole>(`/tenant/roles/${id}`, {
+  const result = await gatewayFetch<TenantRole>(`/tenant/roles/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     json: input,
   });
@@ -175,5 +181,5 @@ export async function updateTenantRole(
 }
 
 export async function deleteTenantRole(id: string): Promise<void> {
-  await gatewayFetch(`/tenant/roles/${id}`, { method: 'DELETE' });
+  await gatewayFetch(`/tenant/roles/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

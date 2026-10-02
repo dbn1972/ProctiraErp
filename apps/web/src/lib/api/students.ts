@@ -418,9 +418,28 @@ export interface BulkImportRequest {
   async?: boolean;
 }
 
+/** Mirrors the student import route limit (MAX_IMPORT_FILE_SIZE, 50 MB). */
+export const MAX_STUDENT_IMPORT_BYTES = 50 * 1024 * 1024;
+
+/** Decoded byte size of a base64 payload (ignores padding). */
+export function base64DecodedSize(base64: string): number {
+  const trimmed = base64.replace(/\s/g, '');
+  const padding = trimmed.endsWith('==') ? 2 : trimmed.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding);
+}
+
+/** Returns a user-facing error when the import file exceeds the gateway limit. */
+export function validateBulkImportSize(fileBase64: string): string | null {
+  return base64DecodedSize(fileBase64) > MAX_STUDENT_IMPORT_BYTES
+    ? 'The import file is larger than 50 MB. Split it into smaller files and try again.'
+    : null;
+}
+
 export async function submitBulkImport(
   request: BulkImportRequest,
 ): Promise<ImportResult | ImportProgress> {
+  const sizeError = validateBulkImportSize(request.fileBase64);
+  if (sizeError) throw new Error(sizeError);
   const result = await gatewayFetch<ImportResult | ImportProgress>('/students/import', {
     method: 'POST',
     json: {
@@ -522,20 +541,30 @@ export async function uploadStudentPhoto(
   return result.data;
 }
 
+/** Timeout for the photo existence probe; the profile page must not hang on it. */
+export const STUDENT_PHOTO_PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Checks whether a student has a stored photo without downloading it.
+ * Uses HEAD (Fastify exposes HEAD for every GET route), a bounded timeout,
+ * and cancels any body a proxy might still attach.
+ */
 export async function studentHasPhoto(studentId: string): Promise<boolean> {
   const { tenantId, accessToken } = await getSessionContext();
   try {
     const response = await fetch(
-      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${studentId}/photo`,
+      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${encodeURIComponent(studentId)}/photo`,
       {
-        method: 'GET',
+        method: 'HEAD',
         headers: {
           'X-Tenant-ID': tenantId,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(STUDENT_PHOTO_PROBE_TIMEOUT_MS),
       },
     );
+    await response.body?.cancel().catch(() => undefined);
     return response.ok;
   } catch {
     return false;

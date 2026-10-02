@@ -1,6 +1,7 @@
 /**
  * ScholarshipApplication wizard — draft creation contract.
- * PRC-H030: the draft POST never carries placeholder subject ids.
+ * PRC-H030: the draft POST never carries placeholder subject ids; with PRC-L077 it
+ * carries the real applicant and institution the user chose.
  * PRC-H031: later edits (incl. the Review-step statement) are synced before submit, and
  * a double-click on Next creates exactly one draft.
  */
@@ -10,6 +11,27 @@ import ScholarshipApplication from './ScholarshipApplication';
 
 const PROGRAM = '11111111-1111-4111-8111-111111111111';
 const NIL = '00000000-0000-4000-8000-000000000000';
+const STUDENT = '33333333-3333-4333-8333-333333333333';
+const INSTITUTION = '44444444-4444-4444-8444-444444444444';
+
+/** PRC-L077: the wizard needs a real applicant and institution from the directories. */
+function renderWizard() {
+  return render(
+    <ScholarshipApplication
+      applicantOptions={[{ id: STUDENT, label: 'ADM-1 · Asha' }]}
+      institutionOptions={[{ id: INSTITUTION, label: 'NHS · North High' }]}
+    />,
+  );
+}
+
+function chooseSubject() {
+  fireEvent.change(screen.getByLabelText('Applicant (student)', { selector: 'select' }), {
+    target: { value: STUDENT },
+  });
+  fireEvent.change(screen.getByLabelText('Institution', { selector: 'select' }), {
+    target: { value: INSTITUTION },
+  });
+}
 
 type Call = { path: string; method: string; json?: Record<string, unknown> };
 const calls: Call[] = [];
@@ -56,9 +78,10 @@ vi.mock('../components/document-upload-slots', () => ({
 async function reachDocuments(container: HTMLElement) {
   await screen.findByText('Merit grant');
   fireEvent.click(screen.getByText('Merit grant'));
+  chooseSubject();
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   const [institution, level] = Array.from(
-    container.querySelectorAll<HTMLInputElement>('input[type="text"]'),
+    container.querySelectorAll<HTMLInputElement>('fieldset input[type="text"]'),
   );
   fireEvent.change(institution!, { target: { value: 'Sunrise School' } });
   fireEvent.change(level!, { target: { value: 'Grade 10' } });
@@ -74,8 +97,8 @@ beforeEach(() => {
 });
 
 describe('ScholarshipApplication draft (PRC-H030)', () => {
-  it('creates the draft without placeholder applicant or institution ids', async () => {
-    const { container } = render(<ScholarshipApplication />);
+  it('creates the draft with the chosen real ids, never placeholders', async () => {
+    const { container } = renderWizard();
     await reachDocuments(container);
     const posts = calls.filter(
       (c) => c.path === '/scholarships/applications' && c.method === 'POST',
@@ -83,8 +106,8 @@ describe('ScholarshipApplication draft (PRC-H030)', () => {
     expect(posts).toHaveLength(1);
     const body = posts[0]!.json!;
     expect(JSON.stringify(body)).not.toContain(NIL);
-    expect(body).not.toHaveProperty('applicantId');
-    expect(body).not.toHaveProperty('institutionId');
+    expect(body.applicantId).toBe(STUDENT);
+    expect(body.institutionId).toBe(INSTITUTION);
     expect(body.programId).toBe(PROGRAM);
     await waitFor(() => expect(screen.getByTestId('upload-slots')).toBeTruthy());
   });
@@ -92,7 +115,7 @@ describe('ScholarshipApplication draft (PRC-H030)', () => {
 
 describe('ScholarshipApplication draft sync (PRC-H031)', () => {
   it('sends the Review-step personal statement to the draft before submitting', async () => {
-    const { container } = render(<ScholarshipApplication />);
+    const { container } = renderWizard();
     await reachDocuments(container);
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const textarea = await screen.findByPlaceholderText(/why should you receive/i);
@@ -109,7 +132,7 @@ describe('ScholarshipApplication draft sync (PRC-H031)', () => {
   });
 
   it('syncs a GPA edited after the draft was created', async () => {
-    const { container } = render(<ScholarshipApplication />);
+    const { container } = renderWizard();
     await reachDocuments(container);
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
@@ -127,12 +150,13 @@ describe('ScholarshipApplication draft sync (PRC-H031)', () => {
   });
 
   it('creates exactly one draft when Next is clicked twice quickly', async () => {
-    const { container } = render(<ScholarshipApplication />);
+    const { container } = renderWizard();
     await screen.findByText('Merit grant');
     fireEvent.click(screen.getByText('Merit grant'));
+    chooseSubject();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const [institution, level] = Array.from(
-      container.querySelectorAll<HTMLInputElement>('input[type="text"]'),
+      container.querySelectorAll<HTMLInputElement>('fieldset input[type="text"]'),
     );
     fireEvent.change(institution!, { target: { value: 'Sunrise School' } });
     fireEvent.change(level!, { target: { value: 'Grade 10' } });

@@ -50,6 +50,7 @@ import {
   type ActionState,
 } from '../actions';
 import type { BulkResultEntryResponse } from '@/lib/api/assessments';
+import { itemScoreError } from '@/lib/assessments/score-range';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 
 interface ItemMeta {
@@ -102,6 +103,8 @@ interface ResultsEntryGridProps {
   items: ItemMeta[];
   existingResults: ExistingResult[];
   scheme: SchemeMeta | null;
+  /** True when items reference a grading scheme that could not be loaded. */
+  schemeUnavailable?: boolean;
 }
 
 interface RowDraft {
@@ -165,6 +168,7 @@ export function ResultsEntryGrid({
   items,
   existingResults,
   scheme,
+  schemeUnavailable = false,
 }: ResultsEntryGridProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -232,8 +236,6 @@ export function ResultsEntryGrid({
   }, [draft, subjectId, academicPeriodId, rows]);
 
   const canEdit = items.length > 0;
-  const minScore = scheme?.minValue ?? 0;
-  const maxScore = scheme?.maxValue ?? 100;
 
   function updateRow(id: string, patch: Partial<RowDraft>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -285,20 +287,13 @@ export function ResultsEntryGrid({
       for (const item of items) {
         const raw = row.scores[item.id];
         if (raw === undefined || raw === '') continue;
+        const scoreError = itemScoreError(item, raw);
+        if (scoreError) {
+          rowErrors.set(row.id, scoreError);
+          rowFailed = true;
+          break;
+        }
         const score = Number(raw);
-        if (Number.isNaN(score)) {
-          rowErrors.set(row.id, `${item.name}: score must be a number`);
-          rowFailed = true;
-          break;
-        }
-        if (score < minScore || score > maxScore) {
-          rowErrors.set(
-            row.id,
-            `${item.name}: score ${score} is outside scheme range [${minScore}, ${maxScore}]`,
-          );
-          rowFailed = true;
-          break;
-        }
         payload.push({
           studentId: row.studentId,
           assessmentItemId: item.id,
@@ -430,12 +425,11 @@ export function ResultsEntryGrid({
       for (const item of items) {
         const v = data[item.name];
         if (v === undefined || v === '') continue;
-        const num = Number(v);
-        if (Number.isNaN(num) || num < minScore || num > maxScore) {
+        if (itemScoreError(item, String(v))) {
           errors.push({
             row,
             field: item.name,
-            message: `Score must be in [${minScore}, ${maxScore}]`,
+            message: `Score must be in [${item.minScore}, ${item.maxScore}]`,
             value: String(v),
             severity: 'error',
           });
@@ -473,7 +467,7 @@ export function ResultsEntryGrid({
     const headers = (lines[0] ?? '').split(',').map((s) => s.trim());
     const studentIdIdx = headers.indexOf('studentId');
     const itemColumns = items
-      .map((it) => ({ id: it.id, name: it.name, idx: headers.indexOf(it.name) }))
+      .map((it) => ({ item: it, id: it.id, idx: headers.indexOf(it.name) }))
       .filter((c) => c.idx >= 0);
 
     const rowsToImport: {
@@ -489,8 +483,8 @@ export function ResultsEntryGrid({
       for (const col of itemColumns) {
         const raw = cells[col.idx];
         if (raw === undefined || raw === '') continue;
+        if (itemScoreError(col.item, raw)) continue;
         const num = Number(raw);
-        if (Number.isNaN(num) || num < minScore || num > maxScore) continue;
         rowsToImport.push({
           studentId,
           assessmentItemId: col.id,
@@ -562,11 +556,22 @@ export function ResultsEntryGrid({
 
       {scheme && (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Grading scheme: <span className="font-medium">{scheme.name}</span> (range {minScore}–
-          {maxScore})
+          Grading scheme: <span className="font-medium">{scheme.name}</span> (range{' '}
+          {scheme.minValue}–{scheme.maxValue}). Scores are checked against each item&apos;s own
+          range.
         </p>
       )}
 
+      {schemeUnavailable && (
+        <p
+          role="alert"
+          data-testid="scheme-unavailable"
+          className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"
+        >
+          The grading scheme for these assessment items could not be loaded. Grades cannot be
+          previewed; reload the page or contact an administrator before entering results.
+        </p>
+      )}
       {!canEdit && (
         <p className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]">
           Choose a subject and academic period above. Once assessment items are configured for that

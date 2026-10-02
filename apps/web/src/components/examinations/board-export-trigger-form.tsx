@@ -3,23 +3,32 @@
 import { useMemo, useState, useTransition } from 'react';
 
 import { createBoardExportJobAction } from '@/app/(dashboard)/examinations/board-exports/actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
-const BOARD_OPTIONS = [
+/** Fallback when the pack registry is unavailable; prefer `boardOptions` from config. */
+const DEFAULT_BOARD_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
   { code: 'CBSE', label: 'CBSE' },
   { code: 'ICSE', label: 'ICSE' },
   { code: 'MH-STATE', label: 'MH-STATE' },
-] as const;
+];
 
 export function BoardExportTriggerForm({
   institutionOptions = [],
   studentOptions = [],
+  boardOptions,
 }: {
   institutionOptions?: EntityLabelOption[];
   studentOptions?: EntityLabelOption[];
+  /** Boards from the configured pack registry. */
+  boardOptions?: ReadonlyArray<{ code: string; label: string }>;
 }) {
-  const [boardCode, setBoardCode] = useState('CBSE');
+  const boards = boardOptions && boardOptions.length > 0 ? boardOptions : DEFAULT_BOARD_OPTIONS;
+  const [boardCode, setBoardCode] = useState(boards[0]?.code ?? '');
+  // No default: the operator must choose the institution explicitly (PRC-L227).
+  const [institutionId, setInstitutionId] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +38,32 @@ export function BoardExportTriggerForm({
     () => new Map(studentOptions.map((o) => [o.id, o.label])),
     [studentOptions],
   );
+
+  const institutionLabel = institutionOptions.find((o) => o.id === institutionId)?.label;
+
+  function submitExport() {
+    setConfirmOpen(false);
+    startTransition(async () => {
+      const result = await createBoardExportJobAction({
+        boardCode,
+        institutionId,
+        studentIds: selectedStudentIds.length > 0 ? selectedStudentIds : undefined,
+      });
+      if (!result.ok) {
+        setError(
+          `${result.error}${result.status ? ` (${result.status})` : ''}${
+            result.code ? ` · ${result.code}` : ''
+          }`,
+        );
+        return;
+      }
+      setMessage(
+        `Export job ready · ${result.status}${
+          result.checksum ? ` · checksum ${result.checksum.slice(0, 12)}…` : ''
+        }`,
+      );
+    });
+  }
 
   function addStudent(event: React.ChangeEvent<HTMLSelectElement>) {
     const id = event.target.value;
@@ -44,32 +79,11 @@ export function BoardExportTriggerForm({
         e.preventDefault();
         setMessage(null);
         setError(null);
-        const fd = new FormData(e.currentTarget);
-        const institutionId = String(fd.get('institutionId') ?? '').trim();
-        startTransition(async () => {
-          if (!institutionId) {
-            setError('Select an institution.');
-            return;
-          }
-          const result = await createBoardExportJobAction({
-            boardCode,
-            institutionId,
-            studentIds: selectedStudentIds.length > 0 ? selectedStudentIds : undefined,
-          });
-          if (!result.ok) {
-            setError(
-              `${result.error}${result.status ? ` (${result.status})` : ''}${
-                result.code ? ` · ${result.code}` : ''
-              }`,
-            );
-            return;
-          }
-          setMessage(
-            `Export job ready · ${result.status}${
-              result.checksum ? ` · checksum ${result.checksum.slice(0, 12)}…` : ''
-            }`,
-          );
-        });
+        if (!institutionId) {
+          setError('Select an institution.');
+          return;
+        }
+        setConfirmOpen(true);
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
@@ -81,7 +95,7 @@ export function BoardExportTriggerForm({
             onChange={(e) => setBoardCode(e.target.value)}
             required
           >
-            {BOARD_OPTIONS.map((board) => (
+            {boards.map((board) => (
               <option key={board.code} value={board.code}>
                 {board.label}
               </option>
@@ -93,7 +107,8 @@ export function BoardExportTriggerForm({
           name="institutionId"
           label="Institution"
           options={institutionOptions}
-          defaultValue={institutionOptions[0]?.id ?? ''}
+          defaultValue=""
+          onValueChange={setInstitutionId}
           required
           placeholder="Search institution…"
         />
@@ -156,12 +171,28 @@ export function BoardExportTriggerForm({
 
       <button
         type="submit"
-        disabled={pending || institutionOptions.length === 0}
+        disabled={pending || !institutionId}
         className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
       >
         {pending ? 'Generating…' : 'Generate board pack'}
       </button>
 
+      <ConfirmActionDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Generate board pack?"
+        description={`${boards.find((b) => b.code === boardCode)?.label ?? boardCode} pack for ${
+          institutionLabel ?? 'the selected institution'
+        } · ${
+          selectedStudentIds.length > 0
+            ? `${selectedStudentIds.length} selected student${selectedStudentIds.length === 1 ? '' : 's'}`
+            : 'all students in the institution cohort (no students selected)'
+        }.`}
+        confirmLabel="Generate pack"
+        pending={pending}
+        onConfirm={submitExport}
+        testId="board-export-confirm"
+      />
       {message ? (
         <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status">
           {message}
