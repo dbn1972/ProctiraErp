@@ -4,8 +4,10 @@
  * Used for unit testing without database dependencies.
  * Implements the EnrollmentRepository interface with Map-based stores.
  */
+import { randomUUID } from 'node:crypto';
+
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { ConflictError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 
 import type {
   EnrollmentEntity,
@@ -14,8 +16,11 @@ import type {
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
+  TransferEnrollmentResult,
+  TransferEnrollmentWrite,
   TransferRecordDetail,
   TransferRecordEntity,
+  UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export class InMemoryEnrollmentRepository implements EnrollmentRepository {
@@ -30,6 +35,72 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     InstitutionLookup & { tenantId: string; name?: string; boardName?: string }
   > = new Map();
   private studentNames: Map<string, { tenantId: string; name: string }> = new Map();
+
+  /**
+   * PRC-H094: all-or-nothing like the Postgres transaction — state is
+   * snapshotted and restored when any step throws. History is written here
+   * (no DB trigger in memory).
+   */
+  async transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult> {
+    const snapshot = {
+      enrollments: new Map(this.enrollments),
+      history: [...this.historyEntries],
+      transfers: [...this.transferRecords],
+    };
+    try {
+      const source = await this.findEnrollmentById(write.sourceEnrollmentId, write.tenantId);
+      if (!source) {
+        throw new NotFoundError(
+          `Source enrollment with id '${write.sourceEnrollmentId}' not found`,
+        );
+      }
+      if (source.status !== write.expectedSourceStatus) {
+        throw new ConflictError(
+          `Source enrollment changed concurrently (status '${source.status}')`,
+        );
+      }
+      const sourceEnrollment = (await this.updateEnrollment(
+        source.id,
+        write.tenantId,
+        write.sourceUpdate,
+      ))!;
+      await this.createHistoryEntry({
+        id: randomUUID(),
+        tenantId: write.tenantId,
+        enrollmentId: source.id,
+        previousStatus: source.status,
+        newStatus: write.sourceUpdate.status,
+        effectiveDate: write.sourceHistory.effectiveDate ?? new Date(),
+        institutionId: source.institutionId,
+        academicPeriodId: source.academicPeriodId,
+        reason: write.sourceHistory.reason ?? null,
+      });
+      await this.beforeTransferStep?.('destination');
+      const destinationEnrollment = await this.createEnrollment(write.destination);
+      await this.createHistoryEntry({
+        id: randomUUID(),
+        tenantId: write.tenantId,
+        enrollmentId: destinationEnrollment.id,
+        previousStatus: null,
+        newStatus: destinationEnrollment.status,
+        effectiveDate: write.destinationHistory.effectiveDate ?? new Date(),
+        institutionId: destinationEnrollment.institutionId,
+        academicPeriodId: destinationEnrollment.academicPeriodId,
+        reason: write.destinationHistory.reason ?? null,
+      });
+      await this.beforeTransferStep?.('transfer_record');
+      const transferRecord = await this.createTransferRecord(write.transfer);
+      return { sourceEnrollment, destinationEnrollment, transferRecord };
+    } catch (error) {
+      this.enrollments = snapshot.enrollments;
+      this.historyEntries = snapshot.history;
+      this.transferRecords = snapshot.transfers;
+      throw error;
+    }
+  }
+
+  /** Test seam: inject a failure before a transfer step (PRC-H094 atomicity tests). */
+  beforeTransferStep?: (step: 'destination' | 'transfer_record') => Promise<void> | void;
 
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
@@ -63,10 +134,16 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     _history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null> {
     const existing = this.enrollments.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
+    }
+    if (options?.expectedStatus && existing.status !== options.expectedStatus) {
+      throw new ConflictError(
+        `Enrollment status changed concurrently (now '${existing.status}'); reload and retry`,
+      );
     }
 
     const updated: EnrollmentEntity = {

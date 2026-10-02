@@ -38,7 +38,8 @@ import {
 // Stub the query hook with a synchronous response so the page renders the
 // loaded state on first paint. Each test re-imports the page via
 // `await import()` so this mock applies before module evaluation.
-const useCountryDashboardDataMock = vi.fn<[], DashboardQueryResult<CountryDashboardData>>();
+const useCountryDashboardDataMock =
+  vi.fn<(...args: []) => DashboardQueryResult<CountryDashboardData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();

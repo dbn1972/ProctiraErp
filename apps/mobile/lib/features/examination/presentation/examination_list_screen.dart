@@ -44,10 +44,7 @@ class _ExaminationListView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Semantics(
-          header: true,
-          child: Text(l10n.examinations),
-        ),
+        title: Semantics(header: true, child: Text(l10n.examinations)),
         actions: <Widget>[
           Semantics(
             button: true,
@@ -56,9 +53,12 @@ class _ExaminationListView extends StatelessWidget {
               icon: const Icon(Icons.assessment_outlined),
               tooltip: 'Results',
               onPressed: () {
-                final ExaminationState state =
-                    context.read<ExaminationBloc>().state;
-                context.push('/examinations/results?studentId=${state.studentId}');
+                final ExaminationState state = context
+                    .read<ExaminationBloc>()
+                    .state;
+                context.push(
+                  '/examinations/results?studentId=${state.studentId}',
+                );
               },
             ),
           ),
@@ -75,8 +75,8 @@ class _ExaminationListView extends StatelessWidget {
                 message: state.errorMessage ?? l10n.error,
                 onRetry: () {
                   context.read<ExaminationBloc>().add(
-                        ExaminationListRequested(studentId: state.studentId),
-                      );
+                    ExaminationListRequested(studentId: state.studentId),
+                  );
                 },
               );
             case ExaminationStatus.loaded:
@@ -166,11 +166,16 @@ class _ExamList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final Examination exam = examinations[index];
         final int daysLeft = exam.daysUntil;
+        final bool showCountdown = exam.isUpcoming && daysLeft >= 0;
+        final String countdown = daysLeft == 0
+            ? 'Today'
+            : 'In $daysLeft day${daysLeft == 1 ? "" : "s"}';
         final Color statusColor = _statusColor(exam.status);
 
         return Semantics(
-          label: '${exam.name}, ${exam.subjectName}, '
-              '${daysLeft >= 0 ? "$daysLeft days remaining" : "completed"}',
+          label:
+              '${exam.name}, ${exam.subjectName}, '
+              '${showCountdown ? countdown : exam.status.name}',
           child: Card(
             margin: const EdgeInsets.only(bottom: 12),
             child: InkWell(
@@ -241,12 +246,10 @@ class _ExamList extends StatelessWidget {
                           icon: Icons.schedule_outlined,
                           text: '${exam.startTime} – ${exam.endTime}',
                         ),
-                        if (daysLeft >= 0)
+                        if (showCountdown)
                           _MetaRow(
                             icon: Icons.hourglass_empty_outlined,
-                            text: daysLeft == 0
-                                ? 'Today'
-                                : 'In $daysLeft day${daysLeft == 1 ? "" : "s"}',
+                            text: countdown,
                           ),
                         if (exam.venue != null)
                           _MetaRow(
@@ -286,8 +289,9 @@ class _ExamList extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.3),
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -296,7 +300,10 @@ class _ExamList extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: Text(exam.name, style: theme.textTheme.headlineSmall),
+                      child: Text(
+                        exam.name,
+                        style: theme.textTheme.headlineSmall,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     _StatChip(
@@ -333,11 +340,9 @@ class _ExamList extends StatelessWidget {
                 if (exam.instructions != null &&
                     exam.instructions!.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 16),
-                  Text('Instructions',
-                      style: theme.textTheme.titleSmall),
+                  Text('Instructions', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  Text(exam.instructions!,
-                      style: theme.textTheme.bodyMedium),
+                  Text(exam.instructions!, style: theme.textTheme.bodyMedium),
                 ],
                 const SizedBox(height: 24),
               ],
@@ -369,9 +374,12 @@ class _DetailRow extends StatelessWidget {
         children: <Widget>[
           Icon(icon, size: 18, color: theme.colorScheme.primary),
           const SizedBox(width: 8),
-          Text('$label: ', style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          )),
+          Text(
+            '$label: ',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
@@ -482,7 +490,11 @@ class _ErrorView extends StatelessWidget {
           children: <Widget>[
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text(message, style: theme.textTheme.bodyLarge, textAlign: TextAlign.center),
+            Text(
+              message,
+              style: theme.textTheme.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             Semantics(
               button: true,
@@ -530,7 +542,9 @@ class _EmptyView extends StatelessWidget {
             Text(
               'Examination schedules will appear here when published.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
               textAlign: TextAlign.center,
             ),

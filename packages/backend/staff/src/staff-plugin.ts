@@ -110,6 +110,8 @@ export const staffPlugin = fp(
       await registerStaffLeaveRoutes(scope, {
         leaveService,
         prefix,
+        staffExists: async (tenantId, staffId) =>
+          (await repository.findById(staffId, tenantId)) !== null,
       });
     });
 

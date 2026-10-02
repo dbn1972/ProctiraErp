@@ -45,7 +45,12 @@ describe('ListLoadFailure', () => {
   it('ships a way to sign in for the one kind whose copy asks the user to', () => {
     render(<ListLoadFailure kind="unauthenticated" returnTo="/health" />);
     const link = screen.getByRole('link', { name: /sign in/i });
-    expect(link).toHaveAttribute('href', '/login?next=%2Fhealth');
+    // `returnTo` is the param login-form.tsx and middleware read (PRC-L068).
+    expect(link).toHaveAttribute('href', '/login?returnTo=%2Fhealth');
+  });
+  it('drops an unsafe return path instead of forwarding it to login', () => {
+    render(<ListLoadFailure kind="unauthenticated" returnTo="//evil.example" />);
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login');
   });
 
   it('does not offer a sign-in control for the other kinds', () => {

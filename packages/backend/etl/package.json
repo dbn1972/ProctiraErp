@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proctira/backend-auth": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/validation": "workspace:*",
@@ -29,7 +30,7 @@
     "fast-check": "^4.10.1",
     "fastify": "^5.7.2",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^3.2.7"
   },
   "peerDependencies": {
     "fastify": "^5.7.2"

@@ -20,6 +20,7 @@ import {
 import { EmptyState } from '@/components/page';
 import { cn } from '@/lib/utils';
 import { listExaminations } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,11 @@ function formatDate(d: string): string {
 }
 
 export default async function ExaminationsPage() {
-  const examinations = await listExaminations();
+  const [examinations, canSchedule] = await Promise.all([
+    listExaminations(),
+    // PRC-L237: hide write CTAs from read-only roles (teacher/staff/student).
+    hasSessionPermission('examination', 'create'),
+  ]);
 
   return (
     <section aria-labelledby="examinations-heading" className="space-y-6">
@@ -69,12 +74,14 @@ export default async function ExaminationsPage() {
           <Button asChild size="sm" variant="outline">
             <Link href="/examinations/board-exports">Board export packs</Link>
           </Button>
-          <Button asChild size="sm">
-            <Link href="/examinations/new">
-              <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Schedule exam
-            </Link>
-          </Button>
+          {canSchedule ? (
+            <Button asChild size="sm">
+              <Link href="/examinations/new">
+                <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Schedule exam
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -84,14 +91,20 @@ export default async function ExaminationsPage() {
           {examinations.length === 0 ? (
             <EmptyState
               title="No examinations yet"
-              description="Create your first examination definition to get started."
+              description={
+                canSchedule
+                  ? 'Create your first examination definition to get started.'
+                  : 'No examinations have been scheduled yet.'
+              }
               action={
-                <Button asChild size="sm">
-                  <Link href="/examinations/new">
-                    <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-                    Schedule exam
-                  </Link>
-                </Button>
+                canSchedule ? (
+                  <Button asChild size="sm">
+                    <Link href="/examinations/new">
+                      <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+                      Schedule exam
+                    </Link>
+                  </Button>
+                ) : undefined
               }
             />
           ) : (

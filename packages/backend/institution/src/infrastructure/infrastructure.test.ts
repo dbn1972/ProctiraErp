@@ -608,6 +608,27 @@ describe('Infrastructure Routes', () => {
       expect(body.name).toBe('New Name');
       expect(body.capacity).toBe(9999);
     });
+    it('rejects an update scoped to a different institution (PRC-H022)', async () => {
+      const landRes = await app.inject({
+        method: 'POST',
+        url: '/infrastructure/lands',
+        payload: { name: 'School B land', institutionId, capacity: 100, condition: 'Good' },
+      });
+      const land = JSON.parse(landRes.body);
+      const otherInstitution = '87654321-4321-4321-8321-cba987654321';
+      const response = await app.inject({
+        method: 'PUT',
+        url: `/infrastructure/${land.id}?institutionId=${otherInstitution}`,
+        payload: { name: 'Hijacked' },
+      });
+      expect(response.statusCode).toBe(404);
+      const same = await app.inject({
+        method: 'PUT',
+        url: `/infrastructure/${land.id}?institutionId=${institutionId}`,
+        payload: { name: 'Renamed' },
+      });
+      expect(same.statusCode).toBe(200);
+    });
   });
 
   describe('DELETE /infrastructure/:id', () => {

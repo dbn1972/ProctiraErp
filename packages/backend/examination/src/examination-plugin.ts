@@ -12,9 +12,9 @@
  * - 10.7: 1–10 grading schemes per examination with pass thresholds
  * - 10.8: Result analysis with breakdowns by subject, center, gender, area
  */
+import type { OutboxStore } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import type { OutboxStore } from '@proctira/queue-abstraction';
 
 import type { DocumentTaskQueue } from './document-generation-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
@@ -22,6 +22,7 @@ import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
 import type { ExaminationRepository } from './examination-repository.js';
 import { ExaminationService } from './examination-service.js';
+import type { ExaminationServiceOptions } from './examination-service.js';
 import { registerExamOpsRoutes } from './ops-routes.js';
 import { ExamOpsService } from './ops-service.js';
 import type { ExamOpsStore } from './ops-store.js';
@@ -51,6 +52,8 @@ export interface ExaminationPluginOptions {
   examOpsStore?: ExamOpsStore;
   /** Route prefix for examinations (default: '/examinations') */
   prefix?: string;
+  /** Tenant/institution timezone for exam calendar-date rules (PRC-L104). Default 'UTC'. */
+  timeZone?: ExaminationServiceOptions['timeZone'];
 }
 
 // Extend Fastify types
@@ -80,10 +83,11 @@ export const examinationPlugin = fp(
       outboxStore,
       examOpsStore,
       prefix = '/examinations',
+      timeZone,
     } = options;
 
     // Create examination service instance
-    const examinationService = new ExaminationService(repository);
+    const examinationService = new ExaminationService(repository, resultRepository, { timeZone });
 
     // Decorate fastify with the examination service
     fastify.decorate('examinationService', examinationService);
@@ -95,14 +99,40 @@ export const examinationPlugin = fp(
     });
 
     // Register result publication service and routes if result repository is provided
+    // PRC-H057: ops (double-entry / re-evaluation) and result publication share
+    // candidate results; ops write final marks back and publication is gated
+    // on unresolved variances.
+    let resultPublicationService: ResultPublicationService | undefined;
+    const examOpsService = examOpsStore
+      ? new ExamOpsService({
+          store: examOpsStore,
+          examinations: repository,
+          documents: documentRepository,
+          results: resultRepository,
+          republish: resultRepository
+            ? async (tenantId, examinationId) => {
+                if (!resultPublicationService) {
+                  throw new Error('Result publication service is not initialised');
+                }
+                return resultPublicationService.publishResults(tenantId, examinationId);
+              }
+            : undefined,
+        })
+      : undefined;
     if (resultRepository) {
-      const resultPublicationService = new ResultPublicationService(repository, resultRepository);
-      fastify.decorate('resultPublicationService', resultPublicationService);
+      const publisher = new ResultPublicationService(repository, resultRepository, {
+        countUnresolvedVariances: examOpsService
+          ? (tenantId, examinationId) =>
+              examOpsService.countUnresolvedVariances(tenantId, examinationId)
+          : undefined,
+      });
+      resultPublicationService = publisher;
+      fastify.decorate('resultPublicationService', publisher);
 
       // Encapsulate: result-routes installs a plugin-wide write preHandler.
       await fastify.register(async (scope) => {
         await registerResultRoutes(scope, {
-          resultPublicationService,
+          resultPublicationService: publisher,
           prefix,
         });
       });
@@ -130,12 +160,7 @@ export const examinationPlugin = fp(
       });
     }
 
-    if (examOpsStore) {
-      const examOpsService = new ExamOpsService({
-        store: examOpsStore,
-        examinations: repository,
-        documents: documentRepository,
-      });
+    if (examOpsService) {
       fastify.decorate('examOpsService', examOpsService);
       await fastify.register(async (scope) => {
         await registerExamOpsRoutes(scope, { examOpsService, prefix });

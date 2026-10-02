@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  resolveTenantTimezoneDetailed,
   DEFAULT_TENANT_TIMEZONE,
   isValidIanaTimezone,
   resolveTenantTimezone,
@@ -70,5 +71,30 @@ describe('W3-TIME-01 tenant timezone foundation', () => {
         }),
       ).toBe(DEFAULT_TENANT_TIMEZONE);
     });
+  });
+});
+
+describe('resolveTenantTimezoneDetailed (PRC-L358)', () => {
+  it('reports origin and no fallback for a valid zone', () => {
+    expect(resolveTenantTimezoneDetailed({ settings: { timezone: 'Asia/Kolkata' } })).toEqual({
+      timezone: 'Asia/Kolkata',
+      source: 'settings',
+      fellBack: false,
+      rejected: [],
+    });
+  });
+
+  it('flags fallback and rejected invalid zones', () => {
+    const r = resolveTenantTimezoneDetailed({ timezone: 'Mars/Olympus' });
+    expect(r).toEqual({
+      timezone: DEFAULT_TENANT_TIMEZONE,
+      source: 'default',
+      fellBack: true,
+      rejected: ['Mars/Olympus'],
+    });
+  });
+
+  it('flags fallback with no rejections when nothing is configured', () => {
+    expect(resolveTenantTimezoneDetailed({})).toMatchObject({ fellBack: true, rejected: [] });
   });
 });

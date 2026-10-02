@@ -81,6 +81,7 @@ class PendingSyncRow {
   final String? lastError;
   final String? baseVersion;
   final SyncStatus status;
+
   /// Stable client key used as `Idempotency-Key` on replay (W2-MOB-03).
   final String idempotencyKey;
 
@@ -103,7 +104,8 @@ class PendingSyncRow {
       lastError: row['last_error'] as String?,
       baseVersion: row['base_version'] as String?,
       status: SyncStatus.fromWire(row['status'] as String? ?? 'pending'),
-      idempotencyKey: (row['idempotency_key'] as String?) ??
+      idempotencyKey:
+          (row['idempotency_key'] as String?) ??
           'missing-${(row['id'] as num).toInt()}',
     );
   }
@@ -175,4 +177,26 @@ class SyncFlushResult {
   final int parked;
 
   bool get hasIssues => failed > 0 || conflicted > 0 || parked > 0;
+}
+
+/// Queue counts by lifecycle state, used by the sync status surfaces.
+class SyncQueueSummary {
+  const SyncQueueSummary({
+    this.pending = 0,
+    this.parked = 0,
+    this.conflicted = 0,
+  });
+
+  static const SyncQueueSummary empty = SyncQueueSummary();
+
+  final int pending;
+
+  /// Rows that exhausted retries or were rejected permanently.
+  final int parked;
+
+  /// Rows rejected with 409 awaiting a keep-local / keep-server decision.
+  final int conflicted;
+
+  bool get isEmpty => pending == 0 && parked == 0 && conflicted == 0;
+  bool get needsAttention => parked > 0 || conflicted > 0;
 }

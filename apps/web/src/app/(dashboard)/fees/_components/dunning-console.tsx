@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -14,6 +15,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { formatAmount } from './format-amount';
 import {
   addReminderSuppressionAction,
   removeReminderSuppressionAction,
@@ -28,10 +30,6 @@ import type {
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
-
-function formatMoney(cents: number, currency = 'INR'): string {
-  return `${currency} ${(cents / 100).toFixed(2)}`;
-}
 
 export function DunningConsole({
   overdue,
@@ -51,6 +49,7 @@ export function DunningConsole({
   studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const hydrated = useHydrated();
   const [selected, setSelected] = useState<string[]>([]);
   const [channels, setChannels] = useState<{ email: boolean; sms: boolean }>({
@@ -193,29 +192,33 @@ export function DunningConsole({
                   onClick={toggleAll}
                   disabled={!hydrated || pending || selectable.length === 0}
                   data-testid="dunning-select-all"
+                  aria-controls="dunning-overdue-table"
                 >
                   {selected.length === selectable.length && selectable.length > 0
                     ? 'Clear selection'
                     : 'Select all sendable'}
                 </Button>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={channels.email}
-                    onChange={(e) => setChannels((c) => ({ ...c, email: e.target.checked }))}
-                    disabled={!hydrated || pending}
-                  />
-                  Email
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={channels.sms}
-                    onChange={(e) => setChannels((c) => ({ ...c, sms: e.target.checked }))}
-                    disabled={!hydrated || pending}
-                  />
-                  SMS
-                </label>
+                <fieldset className="flex items-center gap-3" data-testid="dunning-channels">
+                  <legend className="sr-only">Reminder channels</legend>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={channels.email}
+                      onChange={(e) => setChannels((c) => ({ ...c, email: e.target.checked }))}
+                      disabled={!hydrated || pending}
+                    />
+                    Email
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={channels.sms}
+                      onChange={(e) => setChannels((c) => ({ ...c, sms: e.target.checked }))}
+                      disabled={!hydrated || pending}
+                    />
+                    SMS
+                  </label>
+                </fieldset>
                 <FormField id="min-overdue" label="Min overdue days">
                   <Input
                     id="min-overdue"
@@ -254,7 +257,12 @@ export function DunningConsole({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="dunning-overdue-table">
+                <table
+                  id="dunning-overdue-table"
+                  className="w-full text-sm"
+                  data-testid="dunning-overdue-table"
+                  aria-label="Overdue invoices — select rows to send reminders"
+                >
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-2 font-medium">Select</th>
@@ -284,7 +292,9 @@ export function DunningConsole({
                         <td className="py-2 pr-2">
                           {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                         </td>
-                        <td className="py-2 pr-2">{formatMoney(row.amountCents, row.currency)}</td>
+                        <td className="py-2 pr-2">
+                          {formatAmount(row.amountCents, row.currency, locale)}
+                        </td>
                         <td className="py-2 pr-2">{row.overdueDays}d</td>
                         <td className="py-2">
                           {row.suppressed ? (

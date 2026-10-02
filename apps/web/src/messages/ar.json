@@ -15,7 +15,9 @@
     "import": "استيراد",
     "back": "رجوع",
     "next": "التالي",
-    "previous": "السابق"
+    "previous": "السابق",
+    "language": "اللغة",
+    "selectLanguage": "اختر اللغة"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -29,11 +31,13 @@
     "examinations": "الامتحانات",
     "scholarships": "المنح الدراسية",
     "health": "الصحة",
+    "parentPortal": "بوابة أولياء الأمور",
     "workflows": "سير العمل",
     "dataWarehouse": "مستودع البيانات",
     "reports": "التقارير",
     "admin": "الإدارة",
     "fees": "الرسوم",
+    "notifications": "الإشعارات",
     "transport": "Transport",
     "library": "Library",
     "communication": "Communication",
@@ -77,6 +81,7 @@
     "resendEmail": "إعادة إرسال البريد",
     "backToSignIn": "العودة لتسجيل الدخول",
     "passwordResetFailed": "تعذر إرسال البريد. يرجى المحاولة مرة أخرى.",
+    "passwordResetSuccess": "تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.",
     "createNewPassword": "أنشئ كلمة مرور جديدة",
     "createNewPasswordSubtitle": "اختر كلمة مرور قوية يمكنك تذكرها.",
     "updatePassword": "تحديث كلمة المرور",
@@ -465,7 +470,13 @@
     "statusDraft": "مسودة",
     "statusOpen": "فترة التقديم مفتوحة",
     "statusClosed": "مغلق",
-    "statusArchived": "مؤرشف"
+    "statusArchived": "مؤرشف",
+    "statusFilterLabel": "حالة الطلب",
+    "statusFilterAll": "الكل",
+    "statusFilterPending": "قيد الانتظار",
+    "statusFilterUnderReview": "قيد المراجعة",
+    "statusFilterApproved": "مقبول",
+    "statusFilterRejected": "مرفوض"
   },
   "lms": {
     "title": "التعلّم · التكليفات والواجبات والاختبارات",
@@ -620,7 +631,13 @@
     "fieldSkillName": "الاسم",
     "fieldPrerequisite": "المتطلب السابق",
     "fieldPrerequisiteHint": "يجب أن يتقن المتعلّمون هذا أولاً",
-    "createSkill": "إنشاء مهارة"
+    "createSkill": "إنشاء مهارة",
+    "rubricsTitle": "سلالم التقدير",
+    "rubricsSubtitle": "معايير × مستويات. اربطها بالتكليفات وعناصر بنك المقالات، ثم قيّم التسليمات.",
+    "rubricsNew": "سلّم تقدير جديد",
+    "rubricsEmptyTitle": "لا توجد سلالم تقدير بعد",
+    "rubricsEmptyBody": "أنشئ سلّم تقدير لتقييم المقالات.",
+    "rubricsAnySubject": "أي مادة"
   },
   "health": {
     "title": "السجلات الصحية",
@@ -727,7 +744,16 @@
     "statusApproved": "مقبول",
     "statusRejected": "مرفوض",
     "statusWaitlisted": "في قائمة الانتظار",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "Applicant date of birth",
+    "dateOfBirthHint": "Enter the date of birth given on the application. It is required to protect the applicant's details.",
+    "dateOfBirthRequired": "Date of birth is required.",
+    "institution": "School",
+    "waitlistPosition": "Waitlist position",
+    "remarks": "Remarks from the admissions office",
+    "interviews": "Interviews",
+    "interviewsEmpty": "No interview has been booked yet.",
+    "interviewsBooked": "Interviews booked: {count}"
   },
   "settings": {
     "branding": {
@@ -865,5 +891,16 @@
     "managePlans": "إدارة الخطط",
     "manageInvoices": "إدارة الفواتير",
     "viewReceipts": "عرض الإيصالات"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "subtitle": "صندوق وارد داخل التطبيق لتنبيهات مدرستك. أدر تفضيلات البريد الإلكتروني والإشعارات الفورية والرسائل القصيرة في أي وقت.",
+    "preferences": "التفضيلات",
+    "rules": "قواعد الإشعارات",
+    "inbox": "صندوق الوارد",
+    "inboxDescription": "تنبيهات لحسابك المسجّل.",
+    "empty": "لا توجد إشعارات بعد. استخدم التفضيلات لاختيار البريد الإلكتروني أو الإشعارات الفورية أو الرسائل القصيرة — وسجّل جهازًا عند رغبتك في تنبيهات الجوال.",
+    "read": "مقروء",
+    "unread": "غير مقروء"
   }
 }

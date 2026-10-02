@@ -3,20 +3,28 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError, gatewayFetch } from '@/lib/api/gateway';
+import {
+  createRoomSchema,
+  firstIssue,
+  repairRequestSchema,
+  updateFacilitySchema,
+} from '@/lib/validation/campus-actions-schema';
 
 export async function logRepairRequestAction(input: {
   institutionId: string;
   infrastructureId: string;
   summary: string;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const summary = input.summary.trim();
-  if (!summary) return { ok: false, error: 'Describe the repair before submitting.' };
+  // PRC-L241: uuid ids + bounded summary before the gateway call.
+  const v = repairRequestSchema.safeParse(input);
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
+  const { summary } = v.data;
   try {
     const result = await gatewayFetch<{ id: string }>('/infrastructure/repair-requests', {
       method: 'POST',
       json: {
-        institutionId: input.institutionId,
-        infrastructureId: input.infrastructureId,
+        institutionId: v.data.institutionId,
+        infrastructureId: v.data.infrastructureId,
         summary,
       },
       cache: 'no-store',
@@ -43,10 +51,12 @@ export async function createRoomAction(input: {
   capacity: number;
   condition: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const v = createRoomSchema.safeParse(input);
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
     const result = await gatewayFetch('/infrastructure/rooms', {
       method: 'POST',
-      json: input,
+      json: v.data,
       throwOnError: false,
       cache: 'no-store',
     });
@@ -68,13 +78,21 @@ export async function updateFacilityAction(input: {
   capacity: number;
   condition: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const v = updateFacilitySchema.safeParse(input);
+  if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
-    const result = await gatewayFetch(`/infrastructure/${input.id}`, {
-      method: 'PUT',
-      json: { name: input.name, capacity: input.capacity, condition: input.condition },
-      throwOnError: false,
-      cache: 'no-store',
-    });
+    const result = await gatewayFetch(
+      // PRC-H022: scope the mutation to the route institution; the gateway
+      // authorizes institutionId and the handler rejects foreign facility ids.
+      // PRC-L241: only schema-validated values reach the gateway.
+      `/infrastructure/${encodeURIComponent(v.data.id)}?institutionId=${encodeURIComponent(v.data.institutionId)}`,
+      {
+        method: 'PUT',
+        json: { name: v.data.name, capacity: v.data.capacity, condition: v.data.condition },
+        throwOnError: false,
+        cache: 'no-store',
+      },
+    );
     if (!result.ok) {
       return { ok: false, error: result.error?.message ?? 'Could not update the facility.' };
     }

@@ -31,7 +31,7 @@ export default async function ParentTimetablePage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -39,7 +39,7 @@ export default async function ParentTimetablePage({
         title="Timetable"
         description="Class meetings for the current term."
         testId="parent-timetable"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No timetable to show."
         hasRows={false}
       >

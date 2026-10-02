@@ -20,6 +20,17 @@ import type {
 } from '../types';
 import { buildTenantName } from '../types';
 
+import {
+  DEFAULT_MAX_RETRIES,
+  DeliveryFailureCounter,
+  decideDisposition,
+  errorMessage,
+  reportDeliveryFailure,
+  withIncrementedRetry,
+  type DeliveryFailureEvent,
+  type QueueConsumerLogger,
+} from './delivery-failure';
+
 export interface DurableQueuedMessage {
   deliveryTag: string;
   routingKey: string;
@@ -33,6 +44,8 @@ export interface DurableQueuedMessage {
 export class InMemoryDurableQueueStore {
   readonly pending: DurableQueuedMessage[] = [];
   readonly inFlight = new Map<string, DurableQueuedMessage>();
+  /** Dead-letter queue (PRC-H086): exhausted deliveries keep the original payload. */
+  readonly deadLetters: DurableQueuedMessage[] = [];
 
   enqueue(routingKey: string, message: QueueMessage): DurableQueuedMessage {
     const entry: DurableQueuedMessage = {
@@ -72,6 +85,25 @@ export class InMemoryDurableQueueStore {
     if (requeue) {
       this.pending.unshift(entry);
     }
+  }
+
+  /**
+   * Handler failure: requeue `retryMessage` at the tail (bounded retry) or move
+   * the delivery to the dead-letter queue when no retry is given.
+   */
+  fail(deliveryTag: string, retryMessage?: QueueMessage): void {
+    const entry = this.inFlight.get(deliveryTag);
+    if (!entry) return;
+    this.inFlight.delete(deliveryTag);
+    if (retryMessage) {
+      this.pending.push({ ...entry, deliveryTag: randomUUID(), message: retryMessage });
+    } else {
+      this.deadLetters.push(entry);
+    }
+  }
+
+  get deadLetterCount(): number {
+    return this.deadLetters.length;
   }
 
   /** Move all in-flight messages back to pending (consumer crash). */
@@ -126,6 +158,12 @@ export interface InMemoryDurableQueueAdapterOptions {
   store?: InMemoryDurableQueueStore;
   /** Poll interval when draining the queue (ms). */
   pollIntervalMs?: number;
+  /** Retry budget when a message has no `metadata.maxRetries` (default 3). */
+  defaultMaxRetries?: number;
+  /** Structured logger for failed deliveries. */
+  logger?: QueueConsumerLogger;
+  /** Metric hook invoked once per failed delivery. */
+  onDeliveryFailure?: (event: DeliveryFailureEvent) => void;
 }
 
 export class InMemoryDurableQueueAdapter implements QueueAdapter {
@@ -136,10 +174,18 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
   private handler: MessageHandler | null = null;
   private consumeTopic: string | null = null;
   private draining = false;
+  private readonly defaultMaxRetries: number;
+  private readonly logger: QueueConsumerLogger | undefined;
+  private readonly onDeliveryFailure: ((event: DeliveryFailureEvent) => void) | undefined;
+  /** Failed-delivery counter (retried vs dead-lettered). */
+  readonly failures = new DeliveryFailureCounter();
 
   constructor(options: InMemoryDurableQueueAdapterOptions = {}) {
     this.store = options.store ?? new InMemoryDurableQueueStore();
     this.pollIntervalMs = Math.max(5, options.pollIntervalMs ?? 10);
+    this.defaultMaxRetries = options.defaultMaxRetries ?? DEFAULT_MAX_RETRIES;
+    this.logger = options.logger;
+    this.onDeliveryFailure = options.onDeliveryFailure;
   }
 
   /** Expose store for test assertions / multi-adapter restarts. */
@@ -215,10 +261,30 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
           if (this.connected && this.store.inFlight.has(entry.deliveryTag)) {
             this.store.ack(entry.deliveryTag);
           }
-        } catch {
+        } catch (err: unknown) {
           if (this.connected && this.store.inFlight.has(entry.deliveryTag)) {
-            // Handler failure → dead-letter (drop) to mirror RabbitMQ adapter.
-            this.store.nack(entry.deliveryTag, false);
+            // PRC-H086: bounded retry, then dead-letter (mirrors RabbitMQ adapter).
+            const decision = decideDisposition(entry.message, this.defaultMaxRetries);
+            this.store.fail(
+              entry.deliveryTag,
+              decision.disposition === 'retry' ? withIncrementedRetry(entry.message) : undefined,
+            );
+            reportDeliveryFailure(
+              {
+                messageId: entry.message.id,
+                type: entry.message.type,
+                tenantId: entry.message.tenantId,
+                retryCount: decision.retryCount,
+                maxRetries: decision.maxRetries,
+                disposition: decision.disposition,
+                error: errorMessage(err),
+              },
+              this.failures,
+              this.logger,
+              this.onDeliveryFailure,
+            );
+            // Yield so a retried message is redelivered on a later drain pass.
+            break;
           }
         }
         // autoAck is accepted for interface parity; ack still happens after success.

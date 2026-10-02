@@ -1,11 +1,18 @@
 /**
  * ESM resolve hook companion for `backend-runtime-resolve.mjs`.
  * See that file for motivation (pnpm + bundled workspace entrypoints).
+ *
+ * PRC-L178: the fallback is limited to an explicit allowlist — a bare
+ * specifier is only resolved from a workspace package whose package.json
+ * declares it (dependencies / peerDependencies / optionalDependencies).
+ * Undeclared (phantom) packages keep Node's original resolution error.
+ * `bundle-backend-runtime.mjs` enforces the same declarations at build time.
  */
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { declaredRuntimeDeps, packageNameOf } from './backend-runtime-deps-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '../..');
@@ -43,16 +50,32 @@ function listPackageJsonFiles() {
   return files;
 }
 
-const requireFns = listPackageJsonFiles().map((pkgJson) => {
-  try {
-    // Touch package name so empty/invalid packages are skipped quietly.
-    JSON.parse(readFileSync(pkgJson, 'utf8'));
-    return createRequire(pkgJson);
-  } catch {
-    return null;
+/**
+ * Allowlist: package name → require functions of workspace packages declaring it.
+ * @param {string[]} pkgJsonFiles
+ * @returns {Map<string, NodeRequire[]>}
+ */
+export function buildDeclaredResolvers(pkgJsonFiles) {
+  /** @type {Map<string, NodeRequire[]>} */
+  const map = new Map();
+  for (const pkgJson of pkgJsonFiles) {
+    let deps;
+    try {
+      deps = declaredRuntimeDeps(JSON.parse(readFileSync(pkgJson, 'utf8')));
+    } catch {
+      continue;
+    }
+    if (deps.size === 0) continue;
+    const req = createRequire(pkgJson);
+    for (const name of deps) {
+      const list = map.get(name) ?? [];
+      list.push(req);
+      map.set(name, list);
+    }
   }
-}).filter(Boolean);
-
+  return map;
+}
+const declaredResolvers = buildDeclaredResolvers(listPackageJsonFiles());
 export async function resolve(specifier, context, nextResolve) {
   try {
     return await nextResolve(specifier, context);
@@ -66,7 +89,10 @@ export async function resolve(specifier, context, nextResolve) {
     ) {
       throw err;
     }
-    for (const req of requireFns) {
+    const name = packageNameOf(specifier);
+    const allowed = name ? declaredResolvers.get(name) : undefined;
+    if (!allowed) throw err;
+    for (const req of allowed) {
       try {
         const resolved = req.resolve(specifier);
         return {
@@ -74,7 +100,7 @@ export async function resolve(specifier, context, nextResolve) {
           url: pathToFileURL(resolved).href,
         };
       } catch {
-        // try next workspace package
+        // try next declaring workspace package
       }
     }
     throw err;

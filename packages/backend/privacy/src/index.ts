@@ -1,12 +1,13 @@
 export { privacyPlugin } from './privacy-plugin.js';
 export type { PrivacyPluginOptions } from './privacy-plugin.js';
-export { PrivacyService } from './privacy-service.js';
+export { PrivacyExecutorNotConfiguredError, PrivacyService } from './privacy-service.js';
 export type { DestructiveDeleteGuard, PrivacyServiceOptions } from './privacy-service.js';
 export type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
   ErasureRequestEntity,
   LegalHoldEntity,
+  ListPage,
   OffboardChecklistItem,
   PrivacyRepository,
   TenantOffboardJobEntity,
@@ -16,10 +17,7 @@ export {
   getSharedInMemoryPrivacyRepository,
   resetSharedInMemoryPrivacyRepositoryForTests,
 } from './shared-store.js';
-export {
-  createPrivacyRepository,
-  isPgPrivacyEnabled,
-} from './create-privacy-repository.js';
+export { createPrivacyRepository, isPgPrivacyEnabled } from './create-privacy-repository.js';
 export {
   PgPrivacyRepository,
   getSharedPrivacyPool,
@@ -51,10 +49,7 @@ export type {
 } from './schemas.js';
 export { registerPrivacyRoutes } from './routes.js';
 export type { PrivacyRoutesOptions } from './routes.js';
-export {
-  RecordingPrivacyAuditPort,
-  NoopPrivacyAuditPort,
-} from './privacy-audit.js';
+export { RecordingPrivacyAuditPort, NoopPrivacyAuditPort } from './privacy-audit.js';
 export type { PrivacyAuditPort, PrivacyAuditEvent } from './privacy-audit.js';
 export {
   RecordingSubjectAnonymizer,
@@ -81,10 +76,7 @@ export type {
 } from './queue-privacy-publisher.js';
 export { createPrivacyQueuePublishersFromEnv } from './privacy-queue-factory.js';
 export type { PrivacyQueueHandle } from './privacy-queue-factory.js';
-export {
-  createPrivacyAnonymizationWorker,
-  createPrivacyOffboardWorker,
-} from './privacy-worker.js';
+export { createPrivacyAnonymizationWorker, createPrivacyOffboardWorker } from './privacy-worker.js';
 export type {
   PrivacyWorker,
   PrivacyWorkerLogger,

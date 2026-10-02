@@ -107,7 +107,8 @@ describe('Score Validation and Grade Calculation', () => {
                 thresholds.push({
                   grade: grades[i]!,
                   minScore: cursor,
-                  maxScore: cursor + size - 1,
+                  // PRC-H114: the top band closes the range so maxValue itself is graded.
+                  maxScore: i === 0 ? maxValue : cursor + size - 1,
                 });
                 cursor += size;
               }

@@ -11,6 +11,7 @@ const GATEWAY_URL =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+const APPLICANT_STUDENT_A = '00000000-0000-4000-8000-000000000094';
 
 const PDF = Buffer.from(
   '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n',
@@ -170,7 +171,8 @@ async function seedDraft(request: APIRequestContext): Promise<string> {
     headers: { ...headers(), 'Content-Type': 'application/json' },
     data: {
       programId,
-      applicantId: crypto.randomUUID(),
+      // PRC-H030: applicant must be a seeded tenant-A student (seed-e2e-tenants.sql).
+      applicantId: APPLICANT_STUDENT_A,
       institutionId: INSTITUTION_A,
       academicRecords: [
         {

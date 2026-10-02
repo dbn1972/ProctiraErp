@@ -33,7 +33,7 @@
 #
 # G-705: demo seed files inside db/sql (NNNb_*_seed.sql) are applied only when
 #        APPLY_SEEDS=1 (CI / local dev). Production must not set it.
-# G-718 / W1-DATA-06 COMPLETE: 021a + 021b (create), 068 (VALIDATE), 082 (repair
+# G-718 / W1-DATA-06: 021a + 021b (create), 068 (VALIDATE), 082 (repair
 #        create+validate+assert), and 100 (text→uuid completion for the last 23
 #        tables, plus the repo-wide FK assertion) apply when APPLY_STRICT_FKS=1.
 #        Default ON when CI=true or NODE_ENV=production; local fixtures may set
@@ -66,7 +66,7 @@ source "$ROOT/tools/scripts/migration-timeouts.sh"
 SQL_DIR="${APPLY_SQL_DIR:-$ROOT/db/sql}"
 DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
-# W1-DATA-06 COMPLETE: production/CI default ON; explicit 0/1 always wins.
+# W1-DATA-06: production/CI default ON; explicit 0/1 always wins.
 if [[ -z "${APPLY_STRICT_FKS+x}" ]]; then
   if [[ "${CI:-}" == "true" || "${NODE_ENV:-}" == "production" ]]; then
     APPLY_STRICT_FKS=1
@@ -204,6 +204,13 @@ for arg in "$@"; do
       ;;
   esac
 done
+# PRC-L380: demo seeds must never reach a production database by env mistake.
+if [[ "$APPLY_SEEDS" == "1" ]] \
+  && [[ "${NODE_ENV:-}" == "production" || "${ENVIRONMENT:-}" == "production" ]] \
+  && [[ "${ALLOW_PROD_SEEDS:-}" != "1" ]]; then
+  echo "error: APPLY_SEEDS=1 refused with NODE_ENV/ENVIRONMENT=production (set ALLOW_PROD_SEEDS=1 only for an approved demo tenant)" >&2
+  exit 2
+fi
 
 if [[ ! -d "$SQL_DIR" ]]; then
   echo "error: SQL directory not found: $SQL_DIR" >&2
@@ -307,6 +314,38 @@ maybe_bootstrap_roles() {
 }
 
 maybe_bootstrap_roles
+
+# PRC-L380: one apply-sql run per database. The ledger is read and then written
+# per file, so two concurrent runs could both apply the same file. A
+# session-level advisory lock is held by a coprocess psql for the whole run; it
+# is released when this script exits (the coprocess sees EOF and disconnects).
+APPLY_SQL_LOCK_KEY="proctira_apply_sql"
+APPLY_SQL_LOCK_WAIT_SECONDS="${APPLY_SQL_LOCK_WAIT_SECONDS:-120}"
+acquire_apply_sql_lock() {
+  local deadline=$((SECONDS + APPLY_SQL_LOCK_WAIT_SECONDS)) got
+  coproc APPLY_SQL_LOCK { psql "${PSQL_TARGET[@]}" -X -q -At -v ON_ERROR_STOP=1 2>&1; }
+  while :; do
+    got=''
+    printf "SELECT pg_try_advisory_lock(hashtext('%s'));\n" "$APPLY_SQL_LOCK_KEY" \
+      >&"${APPLY_SQL_LOCK[1]}" 2>/dev/null || true
+    IFS= read -r -t 30 got <&"${APPLY_SQL_LOCK[0]}" || true
+    if [[ "$got" == "t" ]]; then
+      echo "==> Holding migration advisory lock ($APPLY_SQL_LOCK_KEY)"
+      return 0
+    fi
+    if [[ "$got" != "f" ]]; then
+      echo "error: could not take the apply-sql advisory lock: ${got:-no response from psql}" >&2
+      exit 3
+    fi
+    if ((SECONDS >= deadline)); then
+      echo "error: another apply-sql run holds the migration advisory lock ($APPLY_SQL_LOCK_KEY); waited ${APPLY_SQL_LOCK_WAIT_SECONDS}s, refusing to apply concurrently" >&2
+      exit 3
+    fi
+    echo "==> Waiting for migration advisory lock ($APPLY_SQL_LOCK_KEY) held by another run..."
+    sleep 2
+  done
+}
+acquire_apply_sql_lock
 
 echo "==> Ensuring schema_migrations + schema_migration_phases ledgers exist"
 psql_q -q <<'SQL'
@@ -542,7 +581,7 @@ done
 
 echo "==> Domain SQL apply complete (applied=$APPLIED, ledger_skipped=$LEDGER_SKIPPED, null_checksum_adopted=$ADOPTED)"
 
-# W1-DATA-11 COMPLETE: classify proctira_app privileges from
+# W1-DATA-11: classify proctira_app privileges from
 # db/runtime-table-privileges.json (no blanket TABLE DEFAULT PRIVILEGES).
 PRIV_SYNC="$ROOT/tools/scripts/apply-runtime-table-privileges.sh"
 if [[ ! -f "$PRIV_SYNC" ]]; then

@@ -35,10 +35,7 @@ grep -q 'W1-OPS-15: Production deploy requires REGISTRY_USERNAME and REGISTRY_PA
   || die "deploy.yml missing production fail-closed error (W1-OPS-15)"
 grep -q 'ENVIRONMENT: \${{ steps.env.outputs.environment }}' "$DEPLOY_WF" \
   || die "deploy.yml registry check must bind ENVIRONMENT from prepare"
-# Production branch must exit 1 immediately after the production error marker.
-grep -A2 'W1-OPS-15: Production deploy requires REGISTRY_USERNAME and REGISTRY_PASSWORD' "$DEPLOY_WF" \
-  | grep -q 'exit 1' \
-  || die "deploy.yml production secrets path must exit 1 (W1-OPS-15)"
+# Production exit-1-after-error is asserted by check-deploy-workflow-contract.mjs below.
 
 echo "==> explicit deploy-secrets-gate aggregate job"
 grep -qE '^[[:space:]]*deploy-secrets-gate:' "$DEPLOY_WF" \
@@ -47,11 +44,10 @@ grep -q 'Deploy secrets gate (W1-OPS-15)' "$DEPLOY_WF" \
   || die "deploy.yml missing named secrets gate job"
 grep -q 'needs.prepare.outputs.can-deploy' "$DEPLOY_WF" \
   || die "deploy.yml secrets gate must read can-deploy"
-# Gate must fail (exit 1) when secrets are missing — not soft-pass.
-grep -A40 'deploy-secrets-gate:' "$DEPLOY_WF" | grep -q 'exit 1' \
-  || die "deploy-secrets-gate must exit 1 when can_deploy is not true"
-grep -A20 'deploy-secrets-gate:' "$DEPLOY_WF" | grep -q 'always()' \
-  || die "deploy-secrets-gate should use always() so skipped deploy still evaluates"
+# PRC-L182: parse the YAML job graph (needs / if: always() / blocking step
+# ending in exit 1; production error followed by exit 1) instead of grep windows.
+node tools/scripts/check-deploy-workflow-contract.mjs "$DEPLOY_WF" \
+  || die "deploy.yml W1-OPS-15 job-graph contract failed"
 
 echo "==> forbid greenwash-only warning"
 if grep -qE '::warning::.*skipping image build/push and deploy' "$DEPLOY_WF"; then

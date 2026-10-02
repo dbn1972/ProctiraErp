@@ -186,7 +186,14 @@ export class SimplePdfGenerator implements PdfGenerator {
       );
       flow.keyValue('Total Score', `${result.totalScore} / ${result.maxPossibleScore}`);
       flow.keyValue('Overall Grade', result.overallGrade);
-      flow.keyValue('Overall Result', result.overallPassed ? 'PASSED' : 'FAILED');
+      flow.keyValue(
+        'Overall Result',
+        result.overallPassed
+          ? 'PASSED'
+          : (result.incompleteSubjects?.length ?? 0) > 0
+            ? 'INCOMPLETE'
+            : 'FAILED',
+      );
       flow.spacer(8);
       flow.paragraph('This is a computer-generated certificate.', { size: 8, grey: 0.4 });
     });

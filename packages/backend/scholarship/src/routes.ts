@@ -34,11 +34,16 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  resolveApplicationSubject,
+  resolveScholarshipActor,
+  type ApplicantStudentLookup,
+} from './application-intake.js';
 import { authorizeApplicationCreate } from './document-routes.js';
 import {
   CreateScholarshipProgramSchema,
   UpdateScholarshipProgramSchema,
-  CreateApplicationSchema,
+  CreateApplicationRequestSchema,
   CreateDisbursementSchema,
   UpdateDisbursementSchema,
   RecipientComplianceSchema,
@@ -47,7 +52,7 @@ import {
   type ApplicationDecisionInput,
   type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
-  type CreateApplicationInput,
+  type CreateApplicationRequest,
   type CreateDisbursementInput,
   type UpdateDisbursementInput,
   type RecipientComplianceInput,
@@ -91,6 +96,8 @@ export interface ScholarshipRoutesOptions {
   prefix?: string;
   /** Active parent_child_links for the caller, when Postgres is available. */
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** PRC-H030: when set, an application's applicant must be a student of the tenant. */
+  applicantExists?: ApplicantStudentLookup;
 }
 
 /**
@@ -122,7 +129,12 @@ export async function registerScholarshipRoutes(
   fastify: FastifyInstance,
   options: ScholarshipRoutesOptions,
 ): Promise<void> {
-  const { scholarshipService, prefix = '/scholarships', resolveLinkedStudentIds } = options;
+  const {
+    scholarshipService,
+    prefix = '/scholarships',
+    resolveLinkedStudentIds,
+    applicantExists,
+  } = options;
 
   // ─── Program Routes ────────────────────────────────────────────────────
 
@@ -371,10 +383,10 @@ export async function registerScholarshipRoutes(
   fastify.post(
     `${prefix}/applications`,
     async function submitApplicationHandler(
-      request: FastifyRequest<{ Body: CreateApplicationInput }>,
+      request: FastifyRequest<{ Body: CreateApplicationRequest }>,
       reply: FastifyReply,
     ) {
-      const result = validate(CreateApplicationSchema, request.body);
+      const result = validate(CreateApplicationRequestSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
@@ -393,11 +405,29 @@ export async function registerScholarshipRoutes(
         });
       }
 
+      // PRC-H030: resolve who the application is for server-side; never trust placeholders.
+      let subject: { applicantId: string; institutionId: string };
+      try {
+        subject = await resolveApplicationSubject({
+          request,
+          tenantId,
+          actor: await resolveScholarshipActor(request, tenantId, resolveLinkedStudentIds),
+          applicantId: result.data.applicantId,
+          institutionId: result.data.institutionId,
+          applicantExists,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+
       if (
         !(await authorizeApplicationCreate(
           request,
           reply,
-          result.data.applicantId,
+          subject.applicantId,
           resolveLinkedStudentIds,
         ))
       ) {
@@ -405,7 +435,10 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.submitApplication(tenantId, result.data);
+        const application = await scholarshipService.submitApplication(tenantId, {
+          ...result.data,
+          ...subject,
+        });
         return reply.status(201).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -893,7 +926,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const record = await scholarshipService.recordCompliance(tenantId, result.data);
+        const record = await scholarshipService.recordCompliance(
+          tenantId,
+          result.data,
+          getActorId(request),
+        );
         return reply.status(201).send({
           ...record,
           createdAt: record.createdAt.toISOString(),

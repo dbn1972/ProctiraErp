@@ -26,7 +26,10 @@ export function OutcomeCreateForm({
       data-hydrated={hydrated ? 'true' : 'false'}
       onSubmit={(event) => {
         event.preventDefault();
-        const fd = new FormData(event.currentTarget);
+        // Capture before the await: React clears `currentTarget` once dispatch
+        // finishes, so reading it after the action resolves throws (PRC-L029).
+        const formEl = event.currentTarget;
+        const fd = new FormData(formEl);
         setError(null);
         startTransition(async () => {
           const result = await createOutcomeAction({
@@ -39,7 +42,7 @@ export function OutcomeCreateForm({
             setError(result.message ?? 'Unable to save outcome');
             return;
           }
-          event.currentTarget.reset();
+          formEl.reset();
           router.refresh();
         });
       }}

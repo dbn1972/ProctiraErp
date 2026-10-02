@@ -113,6 +113,28 @@ export class InMemoryStaffRepository implements StaffRepository {
     };
   }
 
+  private dependents = new Map<string, Record<string, number>>();
+
+  async findExistingIds(ids: readonly string[], tenantId: string): Promise<string[]> {
+    return ids.filter((id) => this.staff.get(id)?.tenantId === tenantId);
+  }
+
+  async purgeCreated(id: string, tenantId: string): Promise<void> {
+    if (this.staff.get(id)?.tenantId === tenantId) this.staff.delete(id);
+  }
+
+  /** Test helper: record a dependent HR row (e.g. a payroll line) for a staff member. */
+  recordDependent(tenantId: string, staffId: string, kind: string): void {
+    const key = `${tenantId}:${staffId}`;
+    const counts = this.dependents.get(key) ?? {};
+    counts[kind] = (counts[kind] ?? 0) + 1;
+    this.dependents.set(key, counts);
+  }
+
+  async countDependents(id: string, tenantId: string): Promise<Record<string, number>> {
+    return { ...(this.dependents.get(`${tenantId}:${id}`) ?? {}) };
+  }
+
   async delete(id: string, tenantId: string): Promise<boolean> {
     const entity = this.staff.get(id);
     if (!entity || entity.tenantId !== tenantId) {

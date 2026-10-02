@@ -29,7 +29,8 @@ const TITLE = 'tenant_id Threading (every persistence call carries tenant)';
 
 const TENANT_FREE_SERVICES = new Set(['tenant', 'install']);
 
-const HELPER_NAME_RE = /^(get[A-Z]\w*(Name|Id|Number|Config|Type|Label|Slug|Url)|find[A-Z]\w*(By|Index)|update[A-Z]\w*(Status|Progress)|build|format|parse|to[A-Z]|is[A-Z]|has[A-Z])/;
+const HELPER_NAME_RE =
+  /^(get[A-Z]\w*(Name|Id|Number|Config|Type|Label|Slug|Url)|find[A-Z]\w*(By|Index)|update[A-Z]\w*(Status|Progress)|build|format|parse|to[A-Z]|is[A-Z]|has[A-Z])/;
 
 /** Returns true when a parameter list mentions a tenant scope. */
 function paramsHaveTenant(paramsText) {
@@ -52,7 +53,10 @@ async function checkViaAst(sourceFile, ownerService, file, report) {
       if (modifiers.includes('private') || modifiers.includes('protected')) continue;
       if (method.getName().startsWith('#')) continue;
 
-      const paramsText = method.getParameters().map((p) => p.getText()).join(', ');
+      const paramsText = method
+        .getParameters()
+        .map((p) => p.getText())
+        .join(', ');
       if (paramsHaveTenant(paramsText)) continue;
       if (method.getParameters().length === 0) continue; // no-arg accessors
 
@@ -107,9 +111,13 @@ function checkViaRegex(text, ownerService, file, report) {
   }
 }
 
-export async function runTenantIdCheck() {
+/**
+ * @param {{ backendDir?: string }} [opts] backendDir overrides the scanned
+ *   packages/backend root (used by fixture tests).
+ */
+export async function runTenantIdCheck({ backendDir = BACKEND_DIR } = {}) {
   const report = new Report(CHECK_IDS.TENANT_ID, TITLE);
-  const serviceFiles = await findFiles(BACKEND_DIR, (name) => {
+  const serviceFiles = await findFiles(backendDir, (name) => {
     if (!isProductionTsFile(name)) return false;
     if (!name.includes('service')) return false;
     if (name.includes('in-memory')) return false;
@@ -120,7 +128,7 @@ export async function runTenantIdCheck() {
   report.filesScanned = serviceFiles.length;
 
   for (const file of serviceFiles) {
-    const ownerService = getBackendServiceName(file);
+    const ownerService = getBackendServiceName(file, backendDir);
     if (TENANT_FREE_SERVICES.has(ownerService)) continue;
 
     const sf = await loadSourceFile(file);

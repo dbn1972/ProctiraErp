@@ -45,24 +45,34 @@ class Examination {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'name': name,
-        'subjectName': subjectName,
-        'examDate': examDate,
-        'startTime': startTime,
-        'endTime': endTime,
-        'venue': venue,
-        'instructions': instructions,
-        'status': status.toWire(),
-      };
+    'id': id,
+    'name': name,
+    'subjectName': subjectName,
+    'examDate': examDate,
+    'startTime': startTime,
+    'endTime': endTime,
+    'venue': venue,
+    'instructions': instructions,
+    'status': status.toWire(),
+  };
 
-  /// Days remaining until the exam. Negative means past.
-  int get daysUntil {
+  /// Calendar days remaining until the exam (0 = today, 1 = tomorrow).
+  /// Negative means the exam date has passed.
+  int get daysUntil => daysUntilFrom(DateTime.now());
+
+  /// [daysUntil] against an injected clock. Compares calendar dates only so
+  /// an exam tomorrow is 1 day away regardless of the current hour
+  /// (PRC-L010). Uses the device-local calendar as the institution proxy.
+  int daysUntilFrom(DateTime now) {
     final DateTime exam = DateTime.parse(examDate);
-    return exam.difference(DateTime.now()).inDays;
+    final DateTime examDay = DateTime.utc(exam.year, exam.month, exam.day);
+    final DateTime today = DateTime.utc(now.year, now.month, now.day);
+    return examDay.difference(today).inDays;
   }
 
-  bool get isUpcoming => daysUntil >= 0;
+  /// Server status drives the upcoming/completed label, not the date maths.
+  bool get isUpcoming =>
+      status == ExamStatus.upcoming || status == ExamStatus.ongoing;
 }
 
 enum ExamStatus {
@@ -123,17 +133,17 @@ class ExaminationResult {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'examinationId': examinationId,
-        'examinationName': examinationName,
-        'subjectName': subjectName,
-        'score': score,
-        'maxScore': maxScore,
-        'grade': grade,
-        'rank': rank,
-        'remarks': remarks,
-        'publishedAt': publishedAt,
-      };
+    'id': id,
+    'examinationId': examinationId,
+    'examinationName': examinationName,
+    'subjectName': subjectName,
+    'score': score,
+    'maxScore': maxScore,
+    'grade': grade,
+    'rank': rank,
+    'remarks': remarks,
+    'publishedAt': publishedAt,
+  };
 }
 
 /// Repository for examination schedules and results with offline caching.
@@ -142,9 +152,9 @@ class ExaminationRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _dio = dio;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _dio = dio;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
@@ -174,8 +184,11 @@ class ExaminationRepository {
       await _cacheExaminations(tenantId, studentId, exams);
       return exams;
     } on DioException {
-      return _getCachedExaminations(tenantId, studentId,
-          upcomingOnly: upcomingOnly);
+      return _getCachedExaminations(
+        tenantId,
+        studentId,
+        upcomingOnly: upcomingOnly,
+      );
     }
   }
 
@@ -197,8 +210,10 @@ class ExaminationRepository {
 
       final List<dynamic> data = response.data['data'] as List<dynamic>;
       final List<ExaminationResult> results = data
-          .map((dynamic e) =>
-              ExaminationResult.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) =>
+                ExaminationResult.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false);
 
       await _cacheResults(tenantId, studentId, results);
@@ -239,8 +254,7 @@ class ExaminationRepository {
     bool upcomingOnly = true,
   }) async {
     final Database db = await _database.database;
-    final StringBuffer where =
-        StringBuffer('tenant_id = ? AND student_id = ?');
+    final StringBuffer where = StringBuffer('tenant_id = ? AND student_id = ?');
     final List<Object> args = <Object>[tenantId, studentId];
 
     if (upcomingOnly) {
@@ -254,11 +268,13 @@ class ExaminationRepository {
       orderBy: 'exam_date ASC',
     );
 
-    return rows.map((Map<String, Object?> row) {
-      final Map<String, dynamic> json =
-          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-      return Examination.fromJson(json);
-    }).toList(growable: false);
+    return rows
+        .map((Map<String, Object?> row) {
+          final Map<String, dynamic> json =
+              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+          return Examination.fromJson(json);
+        })
+        .toList(growable: false);
   }
 
   Future<void> _cacheResults(
@@ -296,11 +312,13 @@ class ExaminationRepository {
       whereArgs: <Object>[tenantId, studentId],
     );
 
-    return rows.map((Map<String, Object?> row) {
-      final Map<String, dynamic> json =
-          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-      return ExaminationResult.fromJson(json);
-    }).toList(growable: false);
+    return rows
+        .map((Map<String, Object?> row) {
+          final Map<String, dynamic> json =
+              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+          return ExaminationResult.fromJson(json);
+        })
+        .toList(growable: false);
   }
 
   String _requireTenantId() {

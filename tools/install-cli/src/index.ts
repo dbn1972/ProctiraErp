@@ -14,7 +14,13 @@
 export { run, parseArgs, formatResultText, createConsoleLogger } from './cli';
 
 // Installer
-export { Installer, DefaultMigrationRunner, DefaultAdminCreator } from './installer';
+export {
+  Installer,
+  NotImplementedMigrationRunner,
+  NotImplementedAdminCreator,
+  NOT_IMPLEMENTED_MIGRATIONS,
+  NOT_IMPLEMENTED_ADMIN,
+} from './installer';
 export type {
   InstallerLogger,
   InstallerDependencies,

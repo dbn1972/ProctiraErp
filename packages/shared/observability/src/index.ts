@@ -53,6 +53,7 @@ export type {
   SaturationSLI,
   QueueLagSLI,
   AlertConfig,
+  RegisterServiceSLOOptions,
 } from './slo.js';
 
 export { SLO_CATALOG } from './slo-catalog.js';

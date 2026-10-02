@@ -26,6 +26,8 @@ export const TenantSettingsSchema = Type.Object({
     primaryColor: Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }),
     accentColor: Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }),
     logoUrl: Type.Optional(Type.Union([Type.String({ maxLength: 2048 }), Type.Null()])),
+    // PRC-L208: favicon staged via POST /tenant/branding/assets.
+    faviconUrl: Type.Optional(Type.Union([Type.String({ maxLength: 2048 }), Type.Null()])),
   }),
   contact: Type.Object({
     email: Type.Optional(Type.Union([Type.String({ maxLength: 320 }), Type.Null()])),
@@ -70,7 +72,10 @@ export class InMemoryTenantSettingsStore implements TenantSettingsStore {
 export class PgTenantSettingsStore implements TenantSettingsStore {
   private readonly docs: PgDocumentCollection<TenantSettingsRecord>;
   constructor(pool: PgPoolWithConnect | PgQueryable) {
-    this.docs = new PgDocumentCollection<TenantSettingsRecord>(pool, 'tenant.settings');
+    // PRC-L352: record is plain JSON (updatedAt is typed string) — never revive dates.
+    this.docs = new PgDocumentCollection<TenantSettingsRecord>(pool, 'tenant.settings', {
+      reviveDates: false,
+    });
   }
   async get(tenantId: string): Promise<TenantSettingsRecord | null> {
     const doc = await this.docs.get(tenantId);

@@ -860,6 +860,16 @@ jobs:
       - name: Unit-test apply-sql.sh apply/skip ledger
         run: env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run tools/scripts/__tests__/apply-sql.test.ts
 
+      # PRC-L378/L379/L380: the same reachability gap applied to these gate
+      # suites; run them explicitly (psql is a PATH stub in apply-sql-guards).
+      - name: Unit-test tools/scripts fail-closed gates
+        run: >-
+          env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run
+          tools/scripts/__tests__/apply-sql-guards.test.ts
+          tools/scripts/assert-dod-evidence.test.ts
+          tools/scripts/assert-live-test-execution.test.ts
+          tools/scripts/assert-vitest-skips.test.ts
+
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
       # skipped in CI (they self-skip without DATABASE_URL). Run the backend
@@ -909,6 +919,41 @@ jobs:
           RUNTIME_ROLE_GATE_REQUIRED: '1'
           RUNTIME_ROLE_EXPECTED: proctira_app
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+
+      # PRC-L385: behavioural negatives — the live gate must reject superuser,
+      # BYPASSRLS and table-owner roles. RUNTIME_ROLE_EXPECTED is set to the
+      # role under test so only the attribute checks can fail it.
+      - name: Assert runtime role gate rejects elevated roles (W1-DATA-01 negatives)
+        run: |
+          set -euo pipefail
+          SUPER=postgresql://postgres:postgres@localhost:5432/proctira_test
+          psql "$SUPER" -v ON_ERROR_STOP=1 -q <<'SQL'
+          DROP ROLE IF EXISTS prc_l385_bypass;
+          CREATE ROLE prc_l385_bypass LOGIN PASSWORD 'prc_l385_bypass' NOSUPERUSER BYPASSRLS;
+          GRANT CONNECT ON DATABASE proctira_test TO prc_l385_bypass;
+          SQL
+          expect_reject() {
+            local label="$1" role="$2" url="$3" pattern="$4" out rc
+            set +e
+            out="$(RUNTIME_ROLE_GATE_REQUIRED=1 RUNTIME_ROLE_EXPECTED="$role" DATABASE_URL="$url" \
+              bash tools/scripts/assert-runtime-database-role.sh 2>&1)"
+            rc=$?
+            set -e
+            if [[ "$rc" -eq 0 ]]; then
+              echo "::error::runtime role gate accepted ${label}"; echo "$out"; exit 1
+            fi
+            grep -Eq "$pattern" <<<"$out" \
+              || { echo "::error::${label} rejected for the wrong reason"; echo "$out"; exit 1; }
+            echo "rejected ${label} OK" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          expect_reject superuser postgres "$SUPER" 'superuser'
+          expect_reject BYPASSRLS prc_l385_bypass \
+            postgresql://prc_l385_bypass:prc_l385_bypass@localhost:5432/proctira_test 'BYPASSRLS'
+          expect_reject table-owner proctira \
+            postgresql://proctira:proctira_test@localhost:5432/proctira_test 'owns [0-9]+ application table'
+          psql "$SUPER" -v ON_ERROR_STOP=1 -q \
+            -c 'REVOKE ALL ON DATABASE proctira_test FROM prc_l385_bypass;' \
+            -c 'DROP ROLE prc_l385_bypass;'
 
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='${{ steps.turbo.outputs.filter }}'
@@ -1358,6 +1403,10 @@ jobs:
       - name: Fail when reusable CI assets lose callers
         run: node tools/scripts/assert-reusable-ci-assets.mjs
 
+      # PRC-L176+: dependency-free contracts for tools/ gates (always required).
+      - name: Unit-test tools fail-closed contracts
+        run: node --test tools/load-test/lib.test.mjs tools/scripts/required-migrations-lib.test.mjs
+
   # ---------------------------------------------------------------------------
   # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)
   # ---------------------------------------------------------------------------
@@ -1412,6 +1461,20 @@ jobs:
 
       - name: Unit-test runtime database role evaluator
         run: node --test tools/scripts/assert-runtime-database-role.test.mjs
+      # PRC-L382+: stub-backed tools/scripts gate contracts (no database).
+      - name: Unit-test tools/scripts low-gap gate contracts
+        run: >-
+          node --test
+          tools/scripts/bootstrap-db-roles-secrets.test.mjs
+          tools/scripts/backup-crypto.test.mjs
+          tools/scripts/check-bundle-gate.test.mjs
+          tools/scripts/setup-live-db-and-onboard.test.mjs
+          tools/scripts/run-e2e-backend-ready.test.mjs
+          tools/kiro-hooks/guard-sensitive-operations.test.mjs
+          tools/scripts/check-security-scans-required.test.mjs
+          tools/scripts/check-dod-evidence.test.mjs
+          tools/scripts/check-i18n.test.mjs
+          tools/scripts/check-icon-only-button.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs
@@ -1421,9 +1484,15 @@ jobs:
 
       - name: Unit-test target migration contract
         run: node --test tools/scripts/target-database-migration-contract.test.mjs
+      - name: Unit-test tools/scripts hygiene contracts
+        run: node --test tools/scripts/no-completion-claims.test.mjs tools/scripts/backend-runtime-deps.test.mjs tools/scripts/check-campus-i18n.test.mjs tools/scripts/operational-script-credentials.test.mjs tools/scripts/dod-script-wiring.test.mjs tools/scripts/simulate-onboard-boards-schools.test.mjs
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
+      - name: Unit-test deploy/release workflow_run gate (PRC-H061)
+        run: node --test tools/scripts/check-workflow-run-gate.test.mjs
+      - name: Fail when deploy/release workflow_run gate trusts branch name only
+        run: node tools/scripts/check-workflow-run-gate.mjs
 
       - name: Fail when application runtimes load migrations or issue DDL
         run: node tools/scripts/check-no-runtime-ddl.mjs
@@ -1613,6 +1682,16 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v7
+      # PRC-L179: the path-filter gate parses ci.yml with the `yaml` package.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install dependencies for YAML-backed path-filter gate
+        run: pnpm install --frozen-lockfile
 
       - name: Assert CI path-filter matrix (W1-OPS-05)
         run: |

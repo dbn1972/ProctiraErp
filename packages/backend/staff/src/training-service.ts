@@ -8,7 +8,7 @@
  *         including certification expiry dates
  * - 7.8: Update certification status to expired and trigger notification on expiry
  */
-import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -23,7 +23,7 @@ import type {
   TrainingAttendanceRepository,
   CertificationRepository,
 } from './training-repository.js';
-import { CertificationStatus } from './training-schemas.js';
+import { CertificationStatus, isCalendarDate } from './training-schemas.js';
 import type {
   CreateTrainingProgramInput,
   UpdateTrainingProgramInput,
@@ -43,6 +43,36 @@ export interface NotificationIntegration {
     certificationName: string,
     expiryDate: string,
   ): Promise<void>;
+}
+
+/** PRC-L154: defense in depth — never let non-positive/unbounded paging reach SQL. */
+export const TRAINING_MAX_PAGE_SIZE = 100;
+
+export function clampTrainingPagination(p: PaginationOptions): PaginationOptions {
+  const page = Number.isFinite(p.page) ? Math.max(1, Math.floor(p.page)) : 1;
+  const size = Number.isFinite(p.pageSize) ? Math.floor(p.pageSize) : 20;
+  return { ...p, page, pageSize: Math.min(TRAINING_MAX_PAGE_SIZE, Math.max(1, size)) };
+}
+
+/** PRC-L155: reject impossible calendar dates with a 400 instead of a PG cast 500. */
+function assertCalendarDates(fields: Record<string, string | null | undefined>): void {
+  const errors = Object.entries(fields)
+    .filter(([, v]) => v != null && !isCalendarDate(v))
+    .map(([field]) => ({
+      field,
+      message: `${field} must be a valid calendar date (YYYY-MM-DD)`,
+      rule: 'format',
+    }));
+  if (errors.length > 0) throw new ValidationError('Validation failed', errors);
+}
+
+/**
+ * PRC-L361: pure calendar-day arithmetic in UTC. `new Date('YYYY-MM-DD')` parses as UTC
+ * midnight, so mixing it with local `setDate` drifts by a day across DST in non-UTC hosts.
+ */
+export function addUtcDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 /**
@@ -69,6 +99,7 @@ export class TrainingService {
     tenantId: string,
     input: CreateTrainingProgramInput,
   ): Promise<TrainingProgramEntity> {
+    assertCalendarDates({ startDate: input.startDate, endDate: input.endDate });
     if (input.endDate <= input.startDate) {
       throw new BusinessRuleError(
         `Program end date (${input.endDate}) must be after start date (${input.startDate})`,
@@ -114,6 +145,7 @@ export class TrainingService {
     programId: string,
     input: UpdateTrainingProgramInput,
   ): Promise<TrainingProgramEntity> {
+    assertCalendarDates({ startDate: input.startDate, endDate: input.endDate });
     const existing = await this.programRepository.findById(programId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Training program with id '${programId}' not found`);
@@ -126,6 +158,11 @@ export class TrainingService {
       throw new BusinessRuleError(
         `Program end date (${newEndDate}) must be after start date (${newStartDate})`,
       );
+    }
+
+    // PRC-L361: a date-range edit must not orphan existing sessions outside the program.
+    if (newStartDate !== existing.startDate || newEndDate !== existing.endDate) {
+      await this.assertSessionsWithin(tenantId, programId, newStartDate, newEndDate);
     }
 
     const updateData: Partial<TrainingProgramEntity> = {};
@@ -147,6 +184,27 @@ export class TrainingService {
     return updated;
   }
 
+  private async assertSessionsWithin(
+    tenantId: string,
+    programId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    for (let page = 1; ; page++) {
+      const result = await this.sessionRepository.listByProgram(tenantId, programId, {
+        page,
+        pageSize: TRAINING_MAX_PAGE_SIZE,
+      });
+      const outside = result.data.filter((x) => x.date < startDate || x.date > endDate);
+      if (outside.length > 0) {
+        throw new BusinessRuleError(
+          `Program date range (${startDate} to ${endDate}) would exclude ${outside.length} existing session(s); reschedule them first`,
+        );
+      }
+      if (page >= result.meta.totalPages || result.data.length === 0) return;
+    }
+  }
+
   /**
    * List training programs with optional search.
    */
@@ -155,7 +213,7 @@ export class TrainingService {
     search: string | undefined,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TrainingProgramEntity>> {
-    return this.programRepository.list(tenantId, search, pagination);
+    return this.programRepository.list(tenantId, search, clampTrainingPagination(pagination));
   }
 
   // ─── Training Sessions ───────────────────────────────────────────────
@@ -174,6 +232,12 @@ export class TrainingService {
     tenantId: string,
     input: CreateTrainingSessionInput,
   ): Promise<TrainingSessionEntity> {
+    assertCalendarDates({ date: input.date });
+    if (input.startTime && input.endTime && input.endTime <= input.startTime) {
+      throw new ValidationError('Validation failed', [
+        { field: 'endTime', message: 'endTime must be after startTime', rule: 'invalid' },
+      ]);
+    }
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {
       throw new NotFoundError(`Training program with id '${input.programId}' not found`);
@@ -221,7 +285,11 @@ export class TrainingService {
     programId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TrainingSessionEntity>> {
-    return this.sessionRepository.listByProgram(tenantId, programId, pagination);
+    return this.sessionRepository.listByProgram(
+      tenantId,
+      programId,
+      clampTrainingPagination(pagination),
+    );
   }
 
   // ─── Training Attendance ─────────────────────────────────────────────
@@ -262,7 +330,7 @@ export class TrainingService {
       tenantId,
       sessionId: input.sessionId,
       staffId: input.staffId,
-      status: input.status as 'PRESENT' | 'ABSENT' | 'EXCUSED',
+      status: input.status,
       comment: input.comment ?? null,
     };
 
@@ -302,6 +370,7 @@ export class TrainingService {
     tenantId: string,
     input: IssueCertificationInput,
   ): Promise<CertificationEntity> {
+    assertCalendarDates({ issuedDate: input.issuedDate, expiryDate: input.expiryDate });
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {
       throw new NotFoundError(`Training program with id '${input.programId}' not found`);
@@ -311,14 +380,26 @@ export class TrainingService {
     let expiryDate = input.expiryDate ?? null;
     if (!expiryDate && program.certificationValidityDays) {
       // Calculate expiry from issued date + validity days
-      const issued = new Date(input.issuedDate);
-      issued.setDate(issued.getDate() + program.certificationValidityDays);
-      expiryDate = issued.toISOString().split('T')[0]!;
+      expiryDate = addUtcDays(input.issuedDate, program.certificationValidityDays);
     }
 
     if (expiryDate && expiryDate <= input.issuedDate) {
       throw new BusinessRuleError(
         `Certification expiry date (${expiryDate}) must be after issued date (${input.issuedDate})`,
+      );
+    }
+
+    // PRC-L361 explicit re-issue rule: one ACTIVE certification per staff+program. Re-issue
+    // requires the previous one to be expired/revoked first. (A partial unique index in the DB
+    // is a tracked follow-up migration; this is the application-level guard.)
+    const active = await this.certificationRepository.list(
+      tenantId,
+      { staffId: input.staffId, programId: input.programId, status: CertificationStatus.ACTIVE },
+      { page: 1, pageSize: 1 },
+    );
+    if (active.meta.totalItems > 0) {
+      throw new ConflictError(
+        `Staff '${input.staffId}' already holds an active certification for program '${input.programId}'`,
       );
     }
 
@@ -357,7 +438,7 @@ export class TrainingService {
     filter: CertificationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CertificationEntity>> {
-    return this.certificationRepository.list(tenantId, filter, pagination);
+    return this.certificationRepository.list(tenantId, filter, clampTrainingPagination(pagination));
   }
 
   /**
@@ -375,6 +456,7 @@ export class TrainingService {
     tenantId: string,
     asOfDate?: string,
   ): Promise<CertificationEntity[]> {
+    assertCalendarDates({ asOfDate });
     const checkDate = asOfDate ?? new Date().toISOString().split('T')[0]!;
 
     const expiredCerts = await this.certificationRepository.findExpiredCertifications(

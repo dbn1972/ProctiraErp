@@ -1,11 +1,16 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
+
 import type { FileUploadProps, FileValidationError } from './types';
 
 /**
  * FileUpload component with drag-and-drop, file type and size validation.
  * Meets WCAG 2.1 Level AA accessibility standards.
+ *
+ * Security: type/size checks here are advisory UX only (extension and
+ * client-reported MIME). Consumers' upload endpoints must enforce size,
+ * magic-byte content checks and malware scanning server-side.
  *
  * @example
  * ```tsx
@@ -26,6 +31,7 @@ export function FileUpload({
   multiple = false,
   onFilesSelected,
   onValidationError,
+  showValidationErrors = true,
   onFileRemove,
   files = [],
   disabled = false,
@@ -34,6 +40,7 @@ export function FileUpload({
   className = '',
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<FileValidationError[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -53,11 +60,13 @@ export function FileUpload({
 
       for (const file of fileList) {
         // Check max files
-        if (currentCount + addedCount >= maxFiles) {
+        // Single-file mode also applies to drag-and-drop, which ignores `multiple`
+        const limit = multiple ? maxFiles : 1;
+        if (currentCount + addedCount >= limit) {
           errors.push({
             file,
             error: 'count',
-            message: `Maximum ${maxFiles} files allowed`,
+            message: `Maximum ${limit} ${limit === 1 ? 'file' : 'files'} allowed`,
           });
           continue;
         }
@@ -69,7 +78,7 @@ export function FileUpload({
               return file.name.toLowerCase().endsWith(type.toLowerCase());
             }
             if (type.endsWith('/*')) {
-              const category = type.split('/')[0];
+              const category = type.split('/')[0] ?? '';
               return file.type.startsWith(`${category}/`);
             }
             return file.type === type;
@@ -101,7 +110,7 @@ export function FileUpload({
 
       return { valid, errors };
     },
-    [accept, maxSize, maxFiles, files.length],
+    [accept, maxSize, maxFiles, multiple, files.length],
   );
 
   const handleFiles = useCallback(
@@ -110,6 +119,8 @@ export function FileUpload({
 
       const fileArray = Array.from(fileList);
       const { valid, errors } = validateFiles(fileArray);
+      // Replace (not append) so the alert reflects the latest attempt only.
+      setValidationErrors(errors);
 
       if (errors.length > 0) {
         onValidationError?.(errors);
@@ -230,6 +241,20 @@ export function FileUpload({
           {multiple && <span> • Max files: {maxFiles}</span>}
         </p>
       </div>
+
+      {/* Validation errors: visible and announced even without onValidationError */}
+      {showValidationErrors && validationErrors.length > 0 && (
+        <div className="proctira-file-upload__errors" role="alert" data-testid="file-upload-errors">
+          <ul>
+            {validationErrors.map((err, index) => (
+              <li key={`${err.file.name}-${err.error}-${index}`}>
+                <span className="proctira-file-upload__error-file">{err.file.name}</span>:{' '}
+                {err.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* File list */}
       {files.length > 0 && (

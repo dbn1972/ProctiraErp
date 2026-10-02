@@ -3,9 +3,10 @@
  * filename sanitisation, and a stable placeholder PDF for seeds/tests.
  * No ClamAV client exists in this repo; callers pass an optional scan hook.
  */
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import { AppError, ValidationError } from '@proctira/common';
+import { createLogger } from '@proctira/logging';
 
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -159,23 +160,134 @@ export function parseMultipartForm(body: Buffer, contentType: string): ParsedMul
 export interface DocumentDownloadClaims {
   tenantId: string;
   documentId: string;
+  /** User the link was minted for (PRC-L344). Empty when minted without a session. */
+  sub: string;
+  /** Unique token id; each link is single-use (PRC-L344). */
+  jti: string;
   exp: number;
 }
+/**
+ * Single-use guard for download tokens (PRC-L344). Process-local: a shared
+ * store is required for strict single-use across multiple gateway replicas.
+ */
+export class DownloadTokenReplayGuard {
+  private readonly used = new Map<string, number>();
+  constructor(private readonly maxEntries = 50_000) {}
+  /** Returns false when the jti was already consumed. */
+  consume(jti: string, exp: number, nowSeconds = Date.now() / 1000): boolean {
+    for (const [key, keyExp] of this.used) {
+      if (keyExp < nowSeconds) this.used.delete(key);
+    }
+    if (this.used.has(jti)) return false;
+    if (this.used.size >= this.maxEntries) {
+      const oldest = this.used.keys().next().value;
+      if (oldest !== undefined) this.used.delete(oldest);
+    }
+    this.used.set(jti, exp);
+    return true;
+  }
+}
 
-function signingSecret(): string {
-  const configured = process.env['SCHOLARSHIP_DOC_URL_SECRET']?.trim();
-  if (configured) return configured;
-  // Dev/test only. Production must set SCHOLARSHIP_DOC_URL_SECRET.
-  return 'dev-scholarship-doc-url-secret';
+const DOC_SIGNING_KEY_MISSING_MESSAGE =
+  'SCHOLARSHIP_DOC_URL_SECRET is required in production. Scholarship document download links ' +
+  'are unauthenticated except for this signed token, so no key may be defaulted. Set a strong, ' +
+  'dedicated SCHOLARSHIP_DOC_URL_SECRET (not JWT_SECRET) before serving downloads.';
+
+/**
+ * PRC-H082: the scholarship document download endpoint is exempt from JWT auth, so the signed
+ * token is the *only* credential guarding applicants' income/caste/ID documents. A hard-coded
+ * default secret let anyone who read the source forge a token for any (tenantId, documentId).
+ * Issuance/verification now fail closed in production when the dedicated secret is unset.
+ */
+export class ScholarshipDocSigningKeyMissingError extends AppError {
+  constructor(detail?: string) {
+    super(detail ?? DOC_SIGNING_KEY_MISSING_MESSAGE, 'SCHOLARSHIP_DOC_SIGNING_KEY_MISSING', 503);
+    this.name = 'ScholarshipDocSigningKeyMissingError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export function isScholarshipDocSigningKeyMissingError(
+  error: unknown,
+): error is ScholarshipDocSigningKeyMissingError {
+  return (
+    error instanceof ScholarshipDocSigningKeyMissingError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: string }).code === 'SCHOLARSHIP_DOC_SIGNING_KEY_MISSING')
+  );
+}
+
+/** Process-local ephemeral key for non-production only. Never persisted, never used in prod. */
+let ephemeralDevSecret: { secret: string; logged: boolean } | null = null;
+
+let docSigningLog: ReturnType<typeof createLogger> | null = null;
+function getDocSigningLog(): ReturnType<typeof createLogger> {
+  if (!docSigningLog)
+    docSigningLog = createLogger({ name: 'scholarship-doc-signing', level: 'warn' });
+  return docSigningLog;
+}
+
+/** Test hook. Production code must not call this. */
+export function resetScholarshipDocSigningForTests(): void {
+  ephemeralDevSecret = null;
+}
+
+function isProduction(env: NodeJS.ProcessEnv): boolean {
+  return (env.NODE_ENV ?? '').toLowerCase() === 'production';
+}
+
+/**
+ * Resolve the HMAC secret for scholarship document download tokens.
+ * - Configured `SCHOLARSHIP_DOC_URL_SECRET` is always used when present.
+ * - Production with no configured secret fails closed (503) — no key is invented.
+ * - Non-production with no configured secret uses a per-process ephemeral random key
+ *   (logged once) so local/dev/test flows work without shipping a guessable default.
+ * - The dedicated secret must not be aliased to `JWT_SECRET`.
+ */
+function signingSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env['SCHOLARSHIP_DOC_URL_SECRET']?.trim();
+  if (configured) {
+    const jwtSecret = env['JWT_SECRET']?.trim();
+    if (jwtSecret && configured === jwtSecret) {
+      throw new ScholarshipDocSigningKeyMissingError(
+        'SCHOLARSHIP_DOC_URL_SECRET must not equal JWT_SECRET (use a dedicated document key)',
+      );
+    }
+    return configured;
+  }
+  if (isProduction(env)) {
+    throw new ScholarshipDocSigningKeyMissingError();
+  }
+  if (!ephemeralDevSecret) {
+    ephemeralDevSecret = { secret: randomBytes(32).toString('base64url'), logged: false };
+  }
+  if (!ephemeralDevSecret.logged) {
+    ephemeralDevSecret.logged = true;
+    getDocSigningLog().warn(
+      { event: 'scholarship_doc_signing_dev_ephemeral_key', nodeEnv: env.NODE_ENV ?? 'undefined' },
+      'SCHOLARSHIP_DOC_URL_SECRET is unset outside production; using an ephemeral in-memory HMAC ' +
+        'key for this process only. Tokens are not valid across restarts. Set ' +
+        'SCHOLARSHIP_DOC_URL_SECRET before production.',
+    );
+  }
+  return ephemeralDevSecret.secret;
 }
 
 export function signDocumentDownloadToken(
-  claims: Omit<DocumentDownloadClaims, 'exp'> & { expiresInSeconds?: number; exp?: number },
+  claims: Omit<DocumentDownloadClaims, 'exp' | 'jti' | 'sub'> & {
+    sub?: string;
+    jti?: string;
+    expiresInSeconds?: number;
+    exp?: number;
+  },
 ): { token: string; expiresAt: string } {
   const exp = claims.exp ?? Math.floor(Date.now() / 1000) + (claims.expiresInSeconds ?? 120);
   const payload: DocumentDownloadClaims = {
     tenantId: claims.tenantId,
     documentId: claims.documentId,
+    sub: claims.sub ?? '',
+    jti: claims.jti ?? randomUUID(),
     exp,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -208,7 +320,7 @@ export function verifyDocumentDownloadToken(
   if (!claims.exp || claims.exp < nowSeconds) {
     throw new AppError('Download link has expired', 'UNAUTHORIZED', 401);
   }
-  if (!claims.tenantId || !claims.documentId) {
+  if (!claims.tenantId || !claims.documentId || typeof claims.jti !== 'string' || !claims.jti) {
     throw new AppError('Download link is invalid', 'UNAUTHORIZED', 401);
   }
   return claims;

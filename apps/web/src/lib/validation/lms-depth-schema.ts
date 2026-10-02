@@ -1,8 +1,29 @@
 import { z } from 'zod';
+import { isHttpUrl } from '@/lib/safe-url';
+import { refineScopeTarget } from './lms-schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HTTP_URL_MESSAGE = 'Enter a full http:// or https:// link';
+/** User-supplied link — http(s) only (PRC-H024 / PRC-H033). */
+const httpUrl = z.string().max(2048).refine(isHttpUrl, { message: HTTP_URL_MESSAGE });
 
-export const lmsBankItemSchema = z.object({
+function splitOptions(raw?: string): string[] {
+  return (raw ?? '')
+    .split('\n')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+/** Parses "0,2" into indexes; returns null when any token is not a non-negative integer. */
+export function parseCorrectIndexes(raw?: string): number[] | null {
+  const tokens = (raw ?? '')
+    .split(',')
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0);
+  const indexes = tokens.map((n) => (/^\d+$/.test(n) ? Number(n) : NaN));
+  if (indexes.some((n) => !Number.isInteger(n))) return null;
+  return [...new Set(indexes)];
+}
+export const lmsBankItemFieldsSchema = z.object({
   scope: z.enum(['board', 'school']),
   boardId: z.string().regex(UUID).optional().or(z.literal('')),
   institutionId: z.string().regex(UUID).optional().or(z.literal('')),
@@ -20,17 +41,50 @@ export const lmsBankItemSchema = z.object({
   tolerance: z.coerce.number().min(0).optional(),
   pairs: z.string().max(4000).optional().or(z.literal('')),
 });
-export type LmsBankItemValues = z.infer<typeof lmsBankItemSchema>;
-
-export const lmsRubricSchema = z.object({
-  scope: z.enum(['board', 'school']),
-  boardId: z.string().regex(UUID).optional().or(z.literal('')),
-  institutionId: z.string().regex(UUID).optional().or(z.literal('')),
-  name: z.string().min(1).max(200),
-  subject: z.string().max(120).optional().or(z.literal('')),
-  criterionName: z.string().min(1).max(200),
-  maxPoints: z.coerce.number().positive().max(1000),
+export const lmsBankItemSchema = lmsBankItemFieldsSchema.superRefine((data, ctx) => {
+  refineScopeTarget(data, ctx);
+  if (data.questionType === 'mcq' || data.questionType === 'msq') {
+    const options = splitOptions(data.options);
+    if (options.length < 2) {
+      ctx.addIssue({ code: 'custom', path: ['options'], message: 'At least two options' });
+      return;
+    }
+    if (data.questionType === 'mcq') {
+      if (data.correctOptionIndex === undefined || data.correctOptionIndex >= options.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['correctOptionIndex'],
+          message: 'Correct answer must be one of the options',
+        });
+      }
+    } else {
+      const indexes = parseCorrectIndexes(data.correctIndexes);
+      if (!indexes || indexes.length === 0 || indexes.some((n) => n >= options.length)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['correctIndexes'],
+          message: 'Correct answers must list valid option numbers',
+        });
+      }
+    }
+  }
+  if (data.questionType === 'numeric' && data.correctValue === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['correctValue'], message: 'Correct value is required' });
+  }
 });
+export type LmsBankItemValues = z.infer<typeof lmsBankItemFieldsSchema>;
+
+export const lmsRubricSchema = z
+  .object({
+    scope: z.enum(['board', 'school']),
+    boardId: z.string().regex(UUID).optional().or(z.literal('')),
+    institutionId: z.string().regex(UUID).optional().or(z.literal('')),
+    name: z.string().min(1).max(200),
+    subject: z.string().max(120).optional().or(z.literal('')),
+    criterionName: z.string().min(1).max(200),
+    maxPoints: z.coerce.number().positive().max(1000),
+  })
+  .superRefine(refineScopeTarget);
 export type LmsRubricValues = z.infer<typeof lmsRubricSchema>;
 
 export const lmsRubricGradeSchema = z.object({
@@ -77,20 +131,29 @@ export const lmsLessonSchema = z.object({
   subject: z.string().max(120).optional().or(z.literal('')),
   description: z.string().max(10000).optional().or(z.literal('')),
   resourceTitle: z.string().max(255).optional().or(z.literal('')),
-  resourceUrl: z.string().max(2048).optional().or(z.literal('')),
+  resourceUrl: httpUrl.optional().or(z.literal('')),
   published: z.boolean().optional(),
 });
 export type LmsLessonValues = z.infer<typeof lmsLessonSchema>;
 
-export const lmsContentSchema = z.object({
-  scope: z.enum(['board', 'school']),
-  boardId: z.string().regex(UUID).optional().or(z.literal('')),
-  institutionId: z.string().regex(UUID).optional().or(z.literal('')),
-  title: z.string().min(1).max(255),
-  kind: z.enum(['link', 'file', 'text']),
-  body: z.string().max(20000).optional().or(z.literal('')),
-  classKey: z.string().max(120).optional().or(z.literal('')),
-  subject: z.string().max(120).optional().or(z.literal('')),
-  published: z.boolean().optional(),
-});
+export const lmsContentSchema = z
+  .object({
+    scope: z.enum(['board', 'school']),
+    boardId: z.string().regex(UUID).optional().or(z.literal('')),
+    institutionId: z.string().regex(UUID).optional().or(z.literal('')),
+    title: z.string().min(1).max(255),
+    kind: z.enum(['link', 'file', 'text']),
+    body: z.string().max(20000).optional().or(z.literal('')),
+    classKey: z.string().max(120).optional().or(z.literal('')),
+    subject: z.string().max(120).optional().or(z.literal('')),
+    published: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    // PRC-L24x: board/school scope needs its target id.
+    refineScopeTarget(value, ctx);
+    // A 'link' body becomes an href — enforce the same scheme allow-list (H024/H033).
+    if (value.kind === 'link' && value.body && !isHttpUrl(value.body)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body'], message: HTTP_URL_MESSAGE });
+    }
+  });
 export type LmsContentValues = z.infer<typeof lmsContentSchema>;

@@ -12,6 +12,8 @@
  * Env:
  *   DOD_BASELINE_PATH — override baseline.json location
  *   DOD_REQUIRE_CI    — when "1", require process.env.CI (for unit tests)
+ *   DOD_EVIDENCE_MAX_AGE_HOURS — max report age (default 24)
+ *   GITHUB_SHA        — under GITHUB_ACTIONS=true the report commitSha must match
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -31,14 +33,8 @@ export const REQUIRED_CHECK_IDS = Object.freeze([
   'i18n-readiness',
 ]);
 
-export const DEFAULT_REPORT_PATH = resolve(
-  REPO_ROOT,
-  'tools/dod-checks/reports/dod-report.json',
-);
-export const DEFAULT_BASELINE_PATH = resolve(
-  REPO_ROOT,
-  'tools/dod-checks/reports/baseline.json',
-);
+export const DEFAULT_REPORT_PATH = resolve(REPO_ROOT, 'tools/dod-checks/reports/dod-report.json');
+export const DEFAULT_BASELINE_PATH = resolve(REPO_ROOT, 'tools/dod-checks/reports/baseline.json');
 
 function isIsoTimestamp(value) {
   const t = Date.parse(String(value ?? ''));
@@ -74,7 +70,7 @@ export function evaluateDodReport(report, options = {}) {
     errors.push('totals object is required');
   } else {
     for (const key of ['totalErrors', 'totalWarnings', 'totalFiles']) {
-      if (typeof /** @type {Record<string, unknown>} */ (totals)[key] !== 'number') {
+      if (typeof (/** @type {Record<string, unknown>} */ (totals)[key]) !== 'number') {
         errors.push(`totals.${key} must be a number`);
       }
     }
@@ -117,9 +113,7 @@ export function evaluateDodReport(report, options = {}) {
       errors.push(`unexpected DoD check ids: ${extra.join(', ')}`);
     }
     if (checkIds.length !== REQUIRED_CHECK_IDS.length) {
-      errors.push(
-        `expected exactly ${REQUIRED_CHECK_IDS.length} checks, got ${checkIds.length}`,
-      );
+      errors.push(`expected exactly ${REQUIRED_CHECK_IDS.length} checks, got ${checkIds.length}`);
     }
   }
 
@@ -143,12 +137,104 @@ export function evaluateBaselinePack(baseline) {
   return { ok: errors.length === 0, errors };
 }
 
+export const DEFAULT_MAX_REPORT_AGE_MS = 24 * 60 * 60 * 1000;
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/** Same fingerprint as tools/dod-checks/bin/dod-check.mjs (line numbers omitted). */
+function fingerprint(finding) {
+  return [finding.check, finding.severity, finding.file ?? '', finding.message].join('|');
+}
+
+function errorFindings(doc) {
+  const out = [];
+  for (const c of Array.isArray(doc?.checks) ? doc.checks : []) {
+    for (const f of Array.isArray(c?.findings) ? c.findings : []) {
+      if (f?.severity === 'error') out.push({ ...f, check: f.check ?? c.check });
+    }
+  }
+  return out;
+}
+
+/**
+ * PRC-L379: the evidence step used to validate shape only. It now fails when the
+ * report regresses against the committed baseline (totals, per-check counts or
+ * net-new error fingerprints), when its own counts are inconsistent with its
+ * findings, when it is stale, or when it was produced for a different commit.
+ *
+ * @param {any} report
+ * @param {any} baseline
+ * @param {{ now?: number, maxAgeMs?: number, expectedSha?: string }} [options]
+ */
+export function evaluateReportAgainstBaseline(report, baseline, options = {}) {
+  const errors = [];
+  const now = options.now ?? Date.now();
+  const maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_REPORT_AGE_MS;
+
+  const generatedAt = Date.parse(String(report?.generatedAt ?? ''));
+  if (Number.isFinite(generatedAt)) {
+    if (now - generatedAt > maxAgeMs) {
+      errors.push(
+        `report is stale: generatedAt ${report.generatedAt} is older than ${Math.round(maxAgeMs / 3_600_000)}h`,
+      );
+    }
+    if (generatedAt - now > CLOCK_SKEW_MS) {
+      errors.push(`report generatedAt ${report.generatedAt} is in the future`);
+    }
+  }
+
+  if (options.expectedSha && report?.commitSha !== options.expectedSha) {
+    errors.push(
+      `report commitSha ${String(report?.commitSha ?? 'missing')} does not match ${options.expectedSha}`,
+    );
+  }
+
+  // Internal consistency: counts must agree with the findings they summarise.
+  let summed = 0;
+  for (const c of Array.isArray(report?.checks) ? report.checks : []) {
+    const actual = (Array.isArray(c?.findings) ? c.findings : []).filter(
+      (f) => f?.severity === 'error',
+    ).length;
+    if (c.errorCount !== actual) {
+      errors.push(`checks[${c.check}].errorCount ${c.errorCount} != ${actual} error findings`);
+    }
+    summed += actual;
+  }
+  if (report?.totals?.totalErrors !== summed) {
+    errors.push(`totals.totalErrors ${report?.totals?.totalErrors} != ${summed} error findings`);
+  }
+
+  const baseTotal = baseline?.totals?.totalErrors;
+  if (typeof baseTotal === 'number' && summed > baseTotal) {
+    errors.push(`totalErrors ${summed} exceeds baseline ${baseTotal}`);
+  }
+  const baseByCheck = new Map(
+    (Array.isArray(baseline?.checks) ? baseline.checks : []).map((c) => [c.check, c]),
+  );
+  for (const c of Array.isArray(report?.checks) ? report.checks : []) {
+    const base = baseByCheck.get(c.check)?.errorCount ?? 0;
+    if (typeof c.errorCount === 'number' && c.errorCount > base) {
+      errors.push(`checks[${c.check}] errorCount ${c.errorCount} exceeds baseline ${base}`);
+    }
+  }
+  const known = new Set(errorFindings(baseline).map(fingerprint));
+  const fresh = errorFindings(report).filter((f) => !known.has(fingerprint(f)));
+  for (const f of fresh.slice(0, 20)) {
+    errors.push(`new error finding not in baseline: ${f.check} ${f.file ?? ''} ${f.message}`);
+  }
+  if (fresh.length > 20) errors.push(`... and ${fresh.length - 20} more new error findings`);
+
+  return { ok: errors.length === 0, errors };
+}
+
 /**
  * @param {{
  *   reportPath?: string,
  *   baselinePath?: string,
  *   requireReportFile?: boolean,
  *   requireBaselineFile?: boolean,
+ *   now?: number,
+ *   maxAgeMs?: number,
+ *   expectedSha?: string,
  * }} [options]
  */
 export function evaluateEvidencePaths(options = {}) {
@@ -167,9 +253,10 @@ export function evaluateEvidencePaths(options = {}) {
     return { ok: false, errors, reportPath, baselinePath };
   }
 
+  let baseline = null;
   if (requireBaseline && existsSync(baselinePath)) {
     try {
-      const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
+      baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
       const baseEval = evaluateBaselinePack(baseline);
       if (!baseEval.ok) errors.push(...baseEval.errors);
     } catch (err) {
@@ -182,6 +269,14 @@ export function evaluateEvidencePaths(options = {}) {
       const report = JSON.parse(readFileSync(reportPath, 'utf8'));
       const reportEval = evaluateDodReport(report);
       if (!reportEval.ok) errors.push(...reportEval.errors);
+      if (baseline) {
+        const cmp = evaluateReportAgainstBaseline(report, baseline, {
+          now: options.now,
+          maxAgeMs: options.maxAgeMs,
+          expectedSha: options.expectedSha,
+        });
+        if (!cmp.ok) errors.push(...cmp.errors);
+      }
     } catch (err) {
       errors.push(`failed to parse DoD report JSON: ${err}`);
     }
@@ -203,10 +298,18 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     return 1;
   }
 
+  const maxAgeHours = Number(env.DOD_EVIDENCE_MAX_AGE_HOURS ?? 24);
+  if (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0) {
+    console.error('[W3-D6] DOD_EVIDENCE_MAX_AGE_HOURS must be a positive number');
+    return 1;
+  }
   const result = evaluateEvidencePaths({
     reportPath,
     baselinePath,
     requireReportFile: !baselineOnly,
+    maxAgeMs: maxAgeHours * 60 * 60 * 1000,
+    // PRC-L379: in GitHub Actions the report must come from this commit.
+    expectedSha: env.GITHUB_ACTIONS === 'true' ? env.GITHUB_SHA : undefined,
   });
   console.log(
     `[W3-D6] report=${reportPath} baseline=${baselinePath} checks=${REQUIRED_CHECK_IDS.length}`,

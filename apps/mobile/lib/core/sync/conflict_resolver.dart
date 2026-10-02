@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 import '../storage/database.dart';
 import 'sync_models.dart';
@@ -22,9 +23,7 @@ enum ConflictResolution {
 /// - A dialog that shows local vs server values side-by-side.
 /// - Resolution logic that applies the user's choice to the local cache.
 class ConflictResolver {
-  ConflictResolver({
-    required AppDatabase database,
-  }) : _database = database;
+  ConflictResolver({required AppDatabase database}) : _database = database;
 
   final AppDatabase _database;
 
@@ -72,7 +71,9 @@ class ConflictResolver {
           'last_error': null,
           'base_version': conflict.serverVersion,
           'status': SyncStatus.pending.toWire(),
-          'priority': 'high',
+          // pending_sync.idempotency_key is NOT NULL + unique; the re-queued
+          // write is a new logical request against the new base version.
+          'idempotency_key': const Uuid().v4(),
         });
       }
 
@@ -126,8 +127,7 @@ class _ConflictDialog extends StatelessWidget {
       final dynamic localVal = local[key];
       final dynamic serverVal = server?[key];
       return localVal?.toString() != serverVal?.toString();
-    }).toList()
-      ..sort();
+    }).toList()..sort();
 
     return AlertDialog(
       title: Semantics(
@@ -179,9 +179,7 @@ class _ConflictDialog extends StatelessWidget {
                 Navigator.of(context).pop(ConflictResolution.keepServer),
             icon: const Icon(Icons.cloud_outlined),
             label: const Text('Keep server'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(48, 48),
-            ),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           ),
         ),
         Semantics(
@@ -192,9 +190,7 @@ class _ConflictDialog extends StatelessWidget {
                 Navigator.of(context).pop(ConflictResolution.keepLocal),
             icon: const Icon(Icons.phone_android_outlined),
             label: const Text('Keep local'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(48, 48),
-            ),
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
           ),
         ),
       ],
@@ -238,17 +234,15 @@ class _ConflictFieldRow extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer
-                          .withValues(alpha: 0.3),
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          'Local',
-                          style: theme.textTheme.labelSmall,
-                        ),
+                        Text('Local', style: theme.textTheme.labelSmall),
                         const SizedBox(height: 2),
                         Text(
                           localValue,
@@ -268,17 +262,15 @@ class _ConflictFieldRow extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.tertiaryContainer
-                          .withValues(alpha: 0.3),
+                      color: theme.colorScheme.tertiaryContainer.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          'Server',
-                          style: theme.textTheme.labelSmall,
-                        ),
+                        Text('Server', style: theme.textTheme.labelSmall),
                         const SizedBox(height: 2),
                         Text(
                           serverValue,

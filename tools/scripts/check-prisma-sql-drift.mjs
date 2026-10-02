@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * W1-DATA-04 — Prisma ↔ SQL schema drift gate (COMPLETE / fail closed).
+ * W1-DATA-04 — Prisma ↔ SQL schema drift gate (fail closed).
  *
  * Schema authority (documented in db/README.md + prisma-sql-schema-authority.json):
  *   1. Apply order is mandatory: `prisma migrate deploy` THEN `apply-sql.sh`.
@@ -179,7 +179,10 @@ export function defaultsCompatible(prismaDefault, sqlDefault, opts = {}) {
   if (p === 'false' && (s === 'false' || s === 'f' || s === '0')) return true;
 
   if (p.includes('uuid_generate_v4') && s.includes('uuid_generate_v4')) return true;
-  if (p.includes('gen_random_uuid') && (s.includes('gen_random_uuid') || s.includes('uuid_generate_v4')))
+  if (
+    p.includes('gen_random_uuid') &&
+    (s.includes('gen_random_uuid') || s.includes('uuid_generate_v4'))
+  )
     return true;
 
   // JSON / string literals
@@ -264,9 +267,7 @@ export function prismaTypeToPg(scalar, dbNative, unsupported) {
  */
 export function parsePrismaModels(schemaText) {
   // Enum names for scalar detection
-  const enumNames = new Set(
-    [...schemaText.matchAll(/^enum\s+(\w+)\s*\{/gm)].map((m) => m[1]),
-  );
+  const enumNames = new Set([...schemaText.matchAll(/^enum\s+(\w+)\s*\{/gm)].map((m) => m[1]));
 
   const models = [];
   const modelRe = /model\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
@@ -315,12 +316,8 @@ export function parsePrismaModels(schemaText) {
       }
 
       // Unsupported("tsvector")? or normal scalar
-      const unsupportedMatch = line.match(
-        /^(\w+)\s+Unsupported\(\s*"([^"]+)"\s*\)(\[\])?(\?)?/,
-      );
-      const fieldMatch =
-        unsupportedMatch ||
-        line.match(/^(\w+)\s+(\w+)(\[\])?(\?)?/);
+      const unsupportedMatch = line.match(/^(\w+)\s+Unsupported\(\s*"([^"]+)"\s*\)(\[\])?(\?)?/);
+      const fieldMatch = unsupportedMatch || line.match(/^(\w+)\s+(\w+)(\[\])?(\?)?/);
       if (!fieldMatch) continue;
 
       const fieldName = fieldMatch[1];
@@ -594,9 +591,7 @@ export function takeSqlType(rest) {
     const m = s.match(re);
     if (m) return { type: normalizeType(m[0]), rest: s.slice(m[0].length).trim() };
   }
-  const single = s.match(
-    /^([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(\s*\d+(?:\s*,\s*\d+)?\s*\))?/i,
-  );
+  const single = s.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(\s*\d+(?:\s*,\s*\d+)?\s*\))?/i);
   if (!single) return null;
   return {
     type: normalizeType(single[0]),
@@ -701,7 +696,9 @@ export function buildSqlCatalog(sqlText, opts = {}) {
         }
         continue;
       }
-      const uqTable = trimmed.match(/^(?:CONSTRAINT\s+"?[a-zA-Z_][\w]*"?\s+)?UNIQUE\s*\(\s*([^)]+)\s*\)/i);
+      const uqTable = trimmed.match(
+        /^(?:CONSTRAINT\s+"?[a-zA-Z_][\w]*"?\s+)?UNIQUE\s*\(\s*([^)]+)\s*\)/i,
+      );
       if (uqTable) {
         entry.uniques.push(splitSqlList(uqTable[1]).map(unquoteIdent));
         continue;
@@ -713,9 +710,7 @@ export function buildSqlCatalog(sqlText, opts = {}) {
         entry.foreignKeys.push({
           columns: splitSqlList(fkTable[1]).map(unquoteIdent),
           refTable: unquoteIdent(fkTable[2]),
-          refColumns: fkTable[3]
-            ? splitSqlList(fkTable[3]).map(unquoteIdent)
-            : ['id'],
+          refColumns: fkTable[3] ? splitSqlList(fkTable[3]).map(unquoteIdent) : ['id'],
         });
         continue;
       }
@@ -795,7 +790,9 @@ export function buildSqlCatalog(sqlText, opts = {}) {
     const def = action.match(/\bSET\s+DEFAULT\s+((?:'[^']*'|"[^"]*"|\([^\)]*\)|[^\s;]+))/i);
     if (def) col.defaultExpr = def[1].trim();
     if (/\bDROP\s+DEFAULT\b/i.test(action)) col.defaultExpr = null;
-    const typ = action.match(/\bTYPE\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)/i);
+    const typ = action.match(
+      /\bTYPE\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)/i,
+    );
     if (typ) col.type = normalizeType(typ[1]);
   }
 
@@ -929,7 +926,11 @@ export function loadSqlCorpus(root, paths = defaultPaths(root)) {
 export function loadAuthorityManifest(root, authorityPath) {
   const path = authorityPath ?? join(root, AUTHORITY_REL);
   if (!existsSync(path)) {
-    return { ok: false, error: `missing schema authority manifest at ${relative(root, path)}`, tables: {} };
+    return {
+      ok: false,
+      error: `missing schema authority manifest at ${relative(root, path)}`,
+      tables: {},
+    };
   }
   const raw = JSON.parse(readFileSync(path, 'utf8'));
   const tables = raw?.tables && typeof raw.tables === 'object' ? raw.tables : null;
@@ -1013,8 +1014,7 @@ export function evaluateDrift(input) {
     input.applySqlText ??
     (existsSync(paths.applySqlScript) ? readFileSync(paths.applySqlScript, 'utf8') : '');
   const dbReadmeText =
-    input.dbReadmeText ??
-    (existsSync(paths.dbReadme) ? readFileSync(paths.dbReadme, 'utf8') : '');
+    input.dbReadmeText ?? (existsSync(paths.dbReadme) ? readFileSync(paths.dbReadme, 'utf8') : '');
 
   if (!/prisma migrate deploy|prisma:migrate:deploy/i.test(applySqlText + dbReadmeText)) {
     errors.push(
@@ -1022,9 +1022,7 @@ export function evaluateDrift(input) {
     );
   }
   if (!/W1-DATA-04|schema authority|canonical apply order/i.test(dbReadmeText)) {
-    errors.push(
-      'db/README.md must document schema authority (W1-DATA-04 / canonical apply order)',
-    );
+    errors.push('db/README.md must document schema authority (W1-DATA-04 / canonical apply order)');
   }
 
   const authority =
@@ -1089,9 +1087,14 @@ export function evaluateDrift(input) {
       }
     }
 
-    if (!created.has(decl.authority) && !extractCreatedTables(
-      decl.authority === 'prisma' ? corpus.prismaSqlOnly || corpus.combined : corpus.domainSqlOnly || corpus.combined,
-    ).has(table)) {
+    if (
+      !created.has(decl.authority) &&
+      !extractCreatedTables(
+        decl.authority === 'prisma'
+          ? corpus.prismaSqlOnly || corpus.combined
+          : corpus.domainSqlOnly || corpus.combined,
+      ).has(table)
+    ) {
       errors.push(
         `table "${model.table}" authority is ${decl.authority} but no CREATE TABLE in that layer`,
       );
@@ -1167,7 +1170,12 @@ export function evaluateDrift(input) {
       const prismaPk = model.primaryKey.map((c) => c.toLowerCase());
       if (!sameCols(sqlPk, prismaPk)) {
         // Inline PRIMARY KEY on single column may have been recorded
-        if (!(sqlPk.length === 0 && prismaPk.length === 1 && entry.columns.get(prismaPk[0]) && !entry.columns.get(prismaPk[0]).nullable)) {
+        if (!(
+          sqlPk.length === 0 &&
+          prismaPk.length === 1 &&
+          entry.columns.get(prismaPk[0]) &&
+          !entry.columns.get(prismaPk[0]).nullable
+        )) {
           if (!sameCols(sqlPk, prismaPk)) {
             errors.push(
               `table "${model.table}": PK drift Prisma=(${prismaPk.join(',')}) SQL=(${sqlPk.join(',') || 'missing'})`,
@@ -1194,7 +1202,13 @@ export function evaluateDrift(input) {
       const cols = idx.columns.map((c) => c.toLowerCase());
       const wantType = idx.type ? idx.type.toLowerCase() : null;
       const found = entry.indexes.some((sqlIdx) => {
-        if (!sameCols(sqlIdx.columns.map((c) => c.toLowerCase()), cols)) return false;
+        if (
+          !sameCols(
+            sqlIdx.columns.map((c) => c.toLowerCase()),
+            cols,
+          )
+        )
+          return false;
         if (wantType === 'gin') return sqlIdx.type === 'gin';
         if (wantType === 'gist') return sqlIdx.type === 'gist';
         // btree / default — accept null or btree
@@ -1202,7 +1216,11 @@ export function evaluateDrift(input) {
       });
       // Unique constraints also satisfy unique indexes of same cols
       const satisfiedAsUnique =
-        !wantType && hasColList(entry.uniques.map((u) => u.map((c) => c.toLowerCase())), cols);
+        !wantType &&
+        hasColList(
+          entry.uniques.map((u) => u.map((c) => c.toLowerCase())),
+          cols,
+        );
       if (!found && !satisfiedAsUnique) {
         errors.push(
           `table "${model.table}": INDEX (${cols.join(', ')})${wantType ? ` USING ${wantType}` : ''} declared in Prisma but missing in SQL`,
@@ -1217,7 +1235,10 @@ export function evaluateDrift(input) {
       const refCols = fk.refColumns.map((c) => c.toLowerCase());
       const found = entry.foreignKeys.some(
         (sqlFk) =>
-          sameCols(sqlFk.columns.map((c) => c.toLowerCase()), cols) &&
+          sameCols(
+            sqlFk.columns.map((c) => c.toLowerCase()),
+            cols,
+          ) &&
           sqlFk.refTable.toLowerCase() === refTable &&
           sameCols(
             (sqlFk.refColumns.length ? sqlFk.refColumns : ['id']).map((c) => c.toLowerCase()),

@@ -30,6 +30,8 @@ import { InMemoryOutcomeRepository } from './in-memory-repository.js';
 import { registerReportCardRoutes } from './report-card-routes.js';
 import { ReportCardService, type ReportCardData } from './report-card-service.js';
 import { ResultService } from './result-service.js';
+import { InMemoryReportCardDirectory } from './report-card-directory.js';
+import { anyIdReportCardDirectory } from './report-card-test-directory.js';
 
 const sampleData = (): ReportCardData => ({
   student: { id: 'stu-1', name: 'Ada Lovelace' },
@@ -150,7 +152,7 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
       itemRepo,
       null,
       new ReportCardPdfGenerator(),
-      { artifactStore, processInline },
+      { artifactStore, processInline, directory: anyIdReportCardDirectory },
     );
     app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
@@ -330,7 +332,17 @@ describe('report cards include every graded subject for the student (G-716)', ()
       itemRepo,
       null,
       new ReportCardPdfGenerator(),
-      { artifactStore, processInline: true, resultRepository: resultRepo },
+      {
+        artifactStore,
+        processInline: true,
+        resultRepository: resultRepo,
+        // PRC-H036: real names resolved through the directory port.
+        directory: new InMemoryReportCardDirectory()
+          .addStudent(tenantId, studentId, 'Asha Rao')
+          .addSubject(tenantId, mathId, 'Mathematics')
+          .addSubject(tenantId, physicsId, 'Physics')
+          .addPeriod(tenantId, academicPeriodId, 'Term 1 2026-27'),
+      },
     );
 
     const job = await service.queueReportCardGeneration(tenantId, {
@@ -343,8 +355,12 @@ describe('report cards include every graded subject for the student (G-716)', ()
 
     const pdf = await service.getReportCardPdf(tenantId, job.id);
     const info = inspectPdf(pdf.bytes);
-    expect(info.literalStrings).toContain(mathId);
-    expect(info.literalStrings).toContain(physicsId);
+    // PRC-H036: PDF text carries the student's full name, subject and period names.
+    expect(info.literalStrings).toContain('Asha Rao');
+    expect(info.literalStrings).toContain('Mathematics');
+    expect(info.literalStrings).toContain('Physics');
+    expect(info.literalStrings).toContain('Term 1 2026-27');
+    expect(info.literalStrings).not.toContain(mathId);
     expect(info.literalStrings).toContain(`Midterm-${mathId.slice(0, 4)}`);
     expect(info.literalStrings).toContain(`Final-${physicsId.slice(0, 4)}`);
     // maxScore column populated from the assessment item (50 / 100), not 0.

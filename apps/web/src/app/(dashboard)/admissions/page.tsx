@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { getTenantSettings } from '@/lib/api/admin.server';
+import { formatInTimeZone } from '@/lib/datetime/zoned';
 import { listApplications, listInterviewSlots, listWaitlist } from '@/lib/api/admissions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { waitlistApplicantLabel } from '@/lib/admissions/waitlist-label';
@@ -24,12 +26,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsPage() {
   await requireSession();
-  const [applications, waitlist, slots, lookups] = await Promise.all([
+  const [applications, waitlist, slots, lookups, tenant] = await Promise.all([
     listApplications(),
     listWaitlist(),
     listInterviewSlots(),
     loadAdmissionsLookups(),
+    getTenantSettings().catch(() => ({ settings: null })),
   ]);
+  // PRC-L233: render and capture slot times in the tenant timezone, not the server/browser one.
+  const timeZone = tenant.settings?.timezone ?? null;
   const institutions = lookups.institutions.map((row) => ({ id: row.id, label: row.name }));
 
   return (
@@ -51,7 +56,7 @@ export default async function AdmissionsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <StatusForm applications={applications} />
-        <NewInterviewSlotForm institutions={institutions} />
+        <NewInterviewSlotForm institutions={institutions} timeZone={timeZone} />
       </div>
       <BookInterviewForm applications={applications} slots={slots} />
 
@@ -136,8 +141,8 @@ export default async function AdmissionsPage() {
               {slots.map((slot) => (
                 <li key={slot.id} className="py-3 first:pt-0 last:pb-0" data-testid="slot-row">
                   <p className="text-sm font-medium text-foreground">
-                    {new Date(slot.startsAt).toLocaleString()} →{' '}
-                    {new Date(slot.endsAt).toLocaleTimeString()}
+                    {formatInTimeZone(slot.startsAt, timeZone)} →{' '}
+                    {formatInTimeZone(slot.endsAt, timeZone, { timeStyle: 'short' })}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     capacity {slot.capacity} · {slot.status}

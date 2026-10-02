@@ -42,12 +42,16 @@ export async function findFiles(dir, predicate) {
   return results;
 }
 
-/** Read a file, returning '' on failure (so checks can degrade gracefully). */
+/**
+ * Read a file enumerated by `findFiles`. PRC-L375: an unreadable file used to
+ * come back as '' and was silently scanned as "clean"; it now throws so the
+ * aggregator exits 2 instead of passing on content it never saw.
+ */
 export async function safeReadFile(path) {
   try {
     return await readFile(path, 'utf8');
-  } catch {
-    return '';
+  } catch (err) {
+    throw new Error(`[dod-checks] cannot read ${path}: ${err && err.message ? err.message : err}`);
   }
 }
 

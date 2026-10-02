@@ -1,10 +1,51 @@
 #!/usr/bin/env bash
-# Apply raw SQL schema + multi-board onboarding seed (no Prisma).
+# CERTIFICATION-ONLY (G-408): apply raw SQL schema + the multi-board demo seed
+# (one cert tenant, 3000 synthetic students). Not an onboarding tool for real
+# tenants — never point it at a staging/production database.
+#
+# PRC-L388 target guard (runs before any DB work):
+#   - NODE_ENV=production            → always refused
+#   - DATABASE_URL host not local    → refused unless ALLOW_DEMO_SEED=1
+#     (local = localhost, 127.0.0.1, ::1, unix socket, or the CI service
+#     container host `postgres`)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-export PGPASSWORD="${PGPASSWORD:-proctira_dev_password}"
-DB_URL="${DATABASE_URL:-postgresql://proctira:proctira_dev_password@127.0.0.1:5432/proctira}"
+# PRC-L183: no committed credential defaults — DATABASE_URL must be supplied
+# (embed the password in the URL or export PGPASSWORD separately).
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  echo "usage: DATABASE_URL=postgresql://user:pass@host:port/db $0" >&2
+  echo "error: DATABASE_URL is required (no default credentials are shipped)" >&2
+  exit 2
+fi
+DB_URL="$DATABASE_URL"
+
+if [[ "${NODE_ENV:-}" == "production" ]]; then
+  echo "error: setup-live-db-and-onboard.sh is certification-only and refuses NODE_ENV=production" >&2
+  exit 1
+fi
+# Host = URL authority after optional userinfo, before :port, /db or ?query.
+db_authority="${DB_URL#*://}"
+db_authority="${db_authority%%[/?]*}"
+db_authority="${db_authority##*@}"
+if [[ "$db_authority" == \[* ]]; then
+  db_host="${db_authority#[}"
+  db_host="${db_host%%]*}"
+else
+  db_host="${db_authority%%:*}"
+fi
+case "$db_host" in
+  "" | localhost | 127.0.0.1 | ::1 | postgres) ;;
+  *)
+    if [[ "${ALLOW_DEMO_SEED:-0}" != "1" ]]; then
+      echo "error: refusing to seed the 3000-student demo tenant into non-local host '${db_host}'" >&2
+      echo "       set ALLOW_DEMO_SEED=1 only for a disposable certification database" >&2
+      exit 1
+    fi
+    echo "warn: ALLOW_DEMO_SEED=1 — seeding demo tenant into non-local host '${db_host}'" >&2
+    ;;
+esac
+# PRC-L183: no PGPASSWORD default either — supply it in the URL or the environment.
 ARTIFACT_DIR="${ARTIFACT_DIR:-/opt/cursor/artifacts/multi-board-onboard}"
 mkdir -p "$ARTIFACT_DIR"
 export ARTIFACT_DIR
@@ -22,7 +63,7 @@ else
 fi
 
 echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh, APPLY_STRICT_FKS=1)"
-# W1-DATA-06 COMPLETE: certification onboard uses production tenant FK create +
+# W1-DATA-06: certification onboard uses production tenant FK create +
 # VALIDATE + repair posture (also the apply-sql.sh CI/production default).
 DATABASE_URL="$DB_URL" APPLY_STRICT_FKS=1 bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"

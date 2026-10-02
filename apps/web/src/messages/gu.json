@@ -15,7 +15,9 @@
     "import": "આયાત",
     "back": "પાછળ",
     "next": "આગળ",
-    "previous": "પાછલું"
+    "previous": "પાછલું",
+    "language": "ભાષા",
+    "selectLanguage": "ભાષા પસંદ કરો"
   },
   "nav": {
     "dashboard": "ડેશબોર્ડ",
@@ -29,11 +31,13 @@
     "examinations": "પરીક્ષાઓ",
     "scholarships": "શિષ્યવૃત્તિ",
     "health": "આરોગ્ય",
+    "parentPortal": "વાલી પોર્ટલ",
     "workflows": "વર્કફ્લો",
     "dataWarehouse": "ડેટા વેરહાઉસ",
     "reports": "અહેવાલો",
     "admin": "વહીવટ",
     "fees": "ફી",
+    "notifications": "સૂચનાઓ",
     "transport": "Transport",
     "library": "Library",
     "communication": "Communication",
@@ -77,6 +81,7 @@
     "resendEmail": "ઈમેઇલ ફરી મોકલો",
     "backToSignIn": "સાઇન ઇન પર પાછા",
     "passwordResetFailed": "અમે રીસેટ ઈમેઇલ મોકલી શક્યા નથી. કૃપા કરીને ફરી પ્રયાસ કરો.",
+    "passwordResetSuccess": "તમારો પાસવર્ડ અપડેટ થયો છે. નવા પાસવર્ડથી સાઇન ઇન કરો.",
     "createNewPassword": "નવો પાસવર્ડ બનાવો",
     "createNewPasswordSubtitle": "કંઈક મજબૂત પસંદ કરો જે તમને યાદ રહે.",
     "updatePassword": "પાસવર્ડ અપડેટ કરો",
@@ -465,7 +470,13 @@
     "statusDraft": "ડ્રાફ્ટ",
     "statusOpen": "અરજી સમયગાળો ખુલ્લો",
     "statusClosed": "બંધ",
-    "statusArchived": "આર્કાઇવ કરેલ"
+    "statusArchived": "આર્કાઇવ કરેલ",
+    "statusFilterLabel": "અરજીની સ્થિતિ",
+    "statusFilterAll": "બધા",
+    "statusFilterPending": "બાકી",
+    "statusFilterUnderReview": "સમીક્ષા હેઠળ",
+    "statusFilterApproved": "મંજૂર",
+    "statusFilterRejected": "નામંજૂર"
   },
   "lms": {
     "title": "અધ્યયન · અસાઇનમેન્ટ, ગૃહકાર્ય અને ક્વિઝ",
@@ -620,7 +631,13 @@
     "fieldSkillName": "નામ",
     "fieldPrerequisite": "પૂર્વશરત",
     "fieldPrerequisiteHint": "વિદ્યાર્થીઓએ પહેલા આમાં નિપુણ થવું જોઈએ",
-    "createSkill": "કૌશલ્ય બનાવો"
+    "createSkill": "કૌશલ્ય બનાવો",
+    "rubricsTitle": "રુબ્રિક",
+    "rubricsSubtitle": "માપદંડ × સ્તર. અસાઇનમેન્ટ અને નિબંધ બેંક આઇટમ સાથે જોડો, પછી સબમિશનનું મૂલ્યાંકન કરો.",
+    "rubricsNew": "નવી રુબ્રિક",
+    "rubricsEmptyTitle": "હજી કોઈ રુબ્રિક નથી",
+    "rubricsEmptyBody": "નિબંધોના મૂલ્યાંકન માટે રુબ્રિક બનાવો.",
+    "rubricsAnySubject": "કોઈપણ વિષય"
   },
   "health": {
     "title": "આરોગ્ય રેકોર્ડ",
@@ -711,7 +728,16 @@
     "statusApproved": "મંજૂર",
     "statusRejected": "નકારેલ",
     "statusWaitlisted": "પ્રતીક્ષા યાદીમાં",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "Applicant date of birth",
+    "dateOfBirthHint": "Enter the date of birth given on the application. It is required to protect the applicant's details.",
+    "dateOfBirthRequired": "Date of birth is required.",
+    "institution": "School",
+    "waitlistPosition": "Waitlist position",
+    "remarks": "Remarks from the admissions office",
+    "interviews": "Interviews",
+    "interviewsEmpty": "No interview has been booked yet.",
+    "interviewsBooked": "Interviews booked: {count}"
   },
   "settings": {
     "branding": {
@@ -865,5 +891,16 @@
     "managePlans": "યોજનાઓ સંચાલિત કરો",
     "manageInvoices": "ઇન્વૉઇસ સંચાલિત કરો",
     "viewReceipts": "રસીદો જુઓ"
+  },
+  "notifications": {
+    "title": "સૂચનાઓ",
+    "subtitle": "તમારી શાળાના એલર્ટ માટે ઍપ ઇનબોક્સ. ઇમેઇલ, પુશ અને SMS પસંદગીઓ ગમે ત્યારે સંચાલિત કરો.",
+    "preferences": "પસંદગીઓ",
+    "rules": "સૂચના નિયમો",
+    "inbox": "ઇનબોક્સ",
+    "inboxDescription": "તમારા સાઇન-ઇન એકાઉન્ટ માટે એલર્ટ.",
+    "empty": "હજી કોઈ સૂચના નથી. ઇમેઇલ, પુશ અથવા SMS પસંદ કરવા માટે પસંદગીઓનો ઉપયોગ કરો — અને મોબાઇલ એલર્ટ માટે ઉપકરણ નોંધાવો.",
+    "read": "વાંચેલું",
+    "unread": "ન વાંચેલું"
   }
 }

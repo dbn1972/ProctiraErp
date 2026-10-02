@@ -3,6 +3,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import { createHash } from 'node:crypto';
+
 import { InMemoryOtpChallengeStore, OtpAuthError, OtpService, hashOtpCode } from './otp-service.js';
 import {
   ConsoleSmsProvider,
@@ -13,9 +15,20 @@ import {
 
 describe('hashOtpCode', () => {
   it('is deterministic and not plaintext', () => {
-    expect(hashOtpCode('123456')).toBe(hashOtpCode('123456'));
-    expect(hashOtpCode('123456')).not.toBe('123456');
-    expect(hashOtpCode('123456')).not.toBe(hashOtpCode('654321'));
+    expect(hashOtpCode('123456', 'pepper', 'tok-1')).toBe(hashOtpCode('123456', 'pepper', 'tok-1'));
+    expect(hashOtpCode('123456', 'pepper', 'tok-1')).not.toBe('123456');
+    expect(hashOtpCode('123456', 'pepper', 'tok-1')).not.toBe(
+      hashOtpCode('654321', 'pepper', 'tok-1'),
+    );
+  });
+
+  it('same code hashes differently per challenge and per pepper (PRC-L281)', () => {
+    const base = hashOtpCode('123456', 'pepper', 'tok-1');
+    expect(hashOtpCode('123456', 'pepper', 'tok-2')).not.toBe(base);
+    expect(hashOtpCode('123456', 'other-pepper', 'tok-1')).not.toBe(base);
+    // Not the unkeyed SHA-256 of the code (reversible from a DB read).
+    expect(base).not.toBe(createHash('sha256').update('123456').digest('hex'));
+    expect(() => hashOtpCode('123456', '', 'tok-1')).toThrow();
   });
 });
 

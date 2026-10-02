@@ -29,11 +29,7 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const TOKEN_BYTES = 32;
 
 export type CsrfFailureReason =
-  | 'cross-site'
-  | 'origin-mismatch'
-  | 'missing-cookie'
-  | 'missing-header'
-  | 'token-mismatch';
+  'cross-site' | 'origin-mismatch' | 'missing-cookie' | 'missing-header' | 'token-mismatch';
 
 export interface CsrfVerification {
   ok: boolean;
@@ -74,7 +70,16 @@ export function parseCookieHeader(header: string | null): Map<string, string> {
     if (idx <= 0) continue;
     const name = part.slice(0, idx).trim();
     if (!name || jar.has(name)) continue;
-    jar.set(name, decodeURIComponent(part.slice(idx + 1).trim()));
+    const raw = part.slice(idx + 1).trim();
+    // PRC-L026: a malformed %-sequence must not throw (URIError → 500);
+    // keep the raw value so the token comparison simply fails.
+    let value = raw;
+    try {
+      value = decodeURIComponent(raw);
+    } catch {
+      value = raw;
+    }
+    jar.set(name, value);
   }
   return jar;
 }
@@ -112,7 +117,8 @@ function hostOf(url: string | null): string | null {
 /**
  * Verifies the origin of a request using Fetch Metadata and Origin/Referer.
  * Requests with neither header (e.g. server-to-server) pass this layer and
- * are gated solely by the double-submit token.
+ * are gated solely by the double-submit token. An Origin header that is
+ * present but opaque (`null`) or unparsable is rejected (PRC-L026).
  */
 export function verifyRequestOrigin(request: Request): CsrfVerification {
   const fetchSite = request.headers.get('sec-fetch-site')?.toLowerCase();
@@ -126,7 +132,14 @@ export function verifyRequestOrigin(request: Request): CsrfVerification {
   }
 
   const expectedHost = requestHost(request);
-  const originHost = hostOf(request.headers.get('origin'));
+  const originHeader = request.headers.get('origin');
+  const originHost = hostOf(originHeader);
+  // PRC-L026: an Origin header that is present but opaque (`null`, sent by
+  // sandboxed iframes / data: URLs) or unparsable must not fall through to
+  // the Referer check — reject it outright.
+  if (originHeader !== null && originHeader.trim() !== '' && originHost === null) {
+    return { ok: false, reason: 'origin-mismatch' };
+  }
   if (originHost !== null) {
     return originHost === expectedHost ? { ok: true } : { ok: false, reason: 'origin-mismatch' };
   }

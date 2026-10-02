@@ -21,10 +21,10 @@ import {
 } from './auth';
 
 type FetchFn = typeof fetch;
-type FetchMock = ReturnType<typeof vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>>;
+type FetchMock = ReturnType<typeof vi.fn<FetchFn>>;
 
 function mockFetchOk(body: unknown): FetchMock {
-  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(
+  return vi.fn<FetchFn>(
     async () =>
       new Response(JSON.stringify(body), {
         status: 200,
@@ -34,7 +34,7 @@ function mockFetchOk(body: unknown): FetchMock {
 }
 
 function mockFetchError(status: number, body: unknown): FetchMock {
-  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(
+  return vi.fn<FetchFn>(
     async () =>
       new Response(JSON.stringify(body), {
         status,

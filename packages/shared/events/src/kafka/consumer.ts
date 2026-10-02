@@ -9,7 +9,7 @@ import { Kafka } from 'kafkajs';
 import type { DomainEvent, EventHandler } from '../types';
 
 import type { KafkaConfig } from './config';
-import { DEFAULT_KAFKA_CONFIG, buildTenantTopic } from './config';
+import { DEFAULT_KAFKA_CONFIG, assertKafkaConfigSecure, buildTenantTopic } from './config';
 
 export interface ConsumerSubscription {
   /** Tenant ID to scope the subscription */
@@ -32,6 +32,7 @@ export class KafkaEventConsumer {
 
   constructor(config: KafkaConfig) {
     const mergedConfig = { ...DEFAULT_KAFKA_CONFIG, ...config };
+    assertKafkaConfigSecure(mergedConfig);
 
     if (!mergedConfig.groupId) {
       throw new Error('KafkaEventConsumer requires a groupId in config.');

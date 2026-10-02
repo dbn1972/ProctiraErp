@@ -16,7 +16,7 @@
 import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 
-import { resolveTenantTimezone } from './tenant-timezone.js';
+import { resolveTenantTimezoneDetailed } from './tenant-timezone.js';
 
 const logger = createLogger({ name: 'tenant-provisioning' });
 
@@ -107,7 +107,18 @@ export async function provisionTenant(
 
     // Step 1: Create the Tenant record
     const tenantConfig = input.config ?? {};
-    const timezone = resolveTenantTimezone({ config: tenantConfig });
+    const tz = resolveTenantTimezoneDetailed({ config: tenantConfig });
+    if (tz.fellBack && tz.rejected.length > 0) {
+      // PRC-L358: reject an explicitly configured but invalid zone instead of silently using UTC.
+      throw new Error(`Invalid tenant timezone: ${JSON.stringify(tz.rejected[0])}`);
+    }
+    if (tz.fellBack) {
+      logger.warn(
+        { slug: input.slug, timezone: tz.timezone },
+        'No tenant timezone configured; defaulting to UTC',
+      );
+    }
+    const timezone = tz.timezone;
     const tenantRows = await tx.$queryRawUnsafe<
       Array<{
         id: string;

@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/cookies';
 import { sanitizeReturnTo } from '@/lib/auth/return-to';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest } from '@/lib/api/request-tenant';
 
 /**
  * GET /api/auth/oauth/callback?code=...&state=...&provider=...
@@ -38,7 +39,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return redirectToLogin(request, { error: 'tenant_required', returnTo });
+  }
 
   let upstream: Response;
   try {

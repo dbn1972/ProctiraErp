@@ -13,14 +13,12 @@
  * - 8.5: Reject out-of-range scores with error indicating valid range
  * - 8.8: Bulk entry up to 5000 rows with row-level validation errors
  */
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
-import type { FieldError } from '@proctira/common';
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
   AssessmentItemEntity,
   AssessmentItemRepository,
-  GradingSchemeEntity,
   GradingSchemeRepository,
 } from './assessment-repository.js';
 import type {
@@ -428,28 +426,32 @@ export class ResultService {
     }
   }
 
-  /**
-   * Assign a grade based on the weighted average and threshold boundaries.
-   *
-   * Finds the threshold where minScore <= score <= maxScore.
-   * If no threshold matches, returns 'Ungraded'.
-   */
+  /** Assign a grade based on the weighted average and threshold boundaries. */
   private assignGrade(
     score: number,
     thresholds: GradeThreshold[],
   ): { grade: string; descriptor: string | null } {
-    // Sort thresholds by minScore descending to find the highest matching grade
-    const sorted = [...thresholds].sort((a, b) => b.minScore - a.minScore);
-
-    for (const threshold of sorted) {
-      if (score >= threshold.minScore && score <= threshold.maxScore) {
-        return {
-          grade: threshold.grade,
-          descriptor: threshold.descriptor ?? null,
-        };
-      }
-    }
-
-    return { grade: 'Ungraded', descriptor: null };
+    return assignGradeForScore(score, thresholds);
   }
+}
+
+/**
+ * PRC-H114: half-open bands — the highest band whose minScore <= score wins, so an
+ * unrounded weighted average (e.g. 79.995 between B ≤79.99 and A ≥80) still gets
+ * exactly one grade. Scores outside [lowest min, highest max] stay 'Ungraded'.
+ */
+export function assignGradeForScore(
+  score: number,
+  thresholds: GradeThreshold[],
+): { grade: string; descriptor: string | null } {
+  if (thresholds.length === 0) return { grade: 'Ungraded', descriptor: null };
+  const sorted = [...thresholds].sort((a, b) => b.minScore - a.minScore);
+  const topMax = Math.max(...thresholds.map((t) => t.maxScore));
+  if (score > topMax) return { grade: 'Ungraded', descriptor: null };
+  for (const threshold of sorted) {
+    if (score >= threshold.minScore) {
+      return { grade: threshold.grade, descriptor: threshold.descriptor ?? null };
+    }
+  }
+  return { grade: 'Ungraded', descriptor: null };
 }

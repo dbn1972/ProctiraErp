@@ -38,7 +38,10 @@ import type {
   ScholarshipRepository,
   UtilizationReportData,
   UtilizationReportFilter,
+  ApproveApplicationCommand,
+  ApproveApplicationOutcome,
 } from './scholarship-repository.js';
+import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -186,6 +189,50 @@ function paginateMeta(totalItems: number, pagination: PaginationOptions) {
   };
 }
 
+/** PRC-L348: escape LIKE metacharacters so search is a literal substring match. */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/** PRC-L348: whitelisted sortBy -> column maps (never interpolate client input). */
+const PROGRAM_SORT_COLUMNS: Record<string, string> = {
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  name: 'name',
+  status: 'status',
+  applicationStartDate: 'application_start_date',
+  applicationEndDate: 'application_end_date',
+};
+const APPLICATION_SORT_COLUMNS: Record<string, string> = {
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  submittedAt: 'submitted_at',
+  status: 'status',
+};
+const DISBURSEMENT_SORT_COLUMNS: Record<string, string> = {
+  scheduledDate: 'scheduled_date',
+  paidDate: 'paid_date',
+  createdAt: 'created_at',
+  amount: 'amount_cents',
+  paymentStatus: 'payment_status',
+};
+
+export function orderByClause(
+  columns: Record<string, string>,
+  pagination: PaginationOptions,
+  fallback: { column: string; order: 'asc' | 'desc' },
+): string {
+  const mapped = pagination.sortBy ? columns[pagination.sortBy] : undefined;
+  const column = mapped ?? fallback.column;
+  const order = mapped
+    ? pagination.sortOrder === 'asc'
+      ? 'ASC'
+      : 'DESC'
+    : fallback.order.toUpperCase();
+  // Stable tie-break on id so pages do not overlap.
+  return `ORDER BY ${column} ${order}, id ${order}`;
+}
+
 export class PgScholarshipRepository implements ScholarshipRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -306,8 +353,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         conditions.push(`status = $${params.length}`);
       }
       if (filter.search) {
-        params.push(`%${filter.search.toLowerCase()}%`);
-        conditions.push(`lower(name) LIKE $${params.length}`);
+        params.push(`%${escapeLikePattern(filter.search.toLowerCase())}%`);
+        conditions.push(`lower(name) LIKE $${params.length} ESCAPE '\\'`);
       }
       const where = conditions.join(' AND ');
       const countResult = await client.query(
@@ -319,7 +366,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_programs WHERE ${where}
-         ORDER BY created_at DESC
+         ${orderByClause(PROGRAM_SORT_COLUMNS, pagination, { column: 'created_at', order: 'desc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -457,6 +504,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       };
       if (filter.programId) add('program_id = ?', filter.programId);
       if (filter.applicantId) add('applicant_id = ?', filter.applicantId);
+      if (filter.applicantIds) add('applicant_id = ANY(?)', filter.applicantIds);
       if (filter.institutionId) add('institution_id = ?', filter.institutionId);
       if (filter.status) add('status = ?', filter.status);
       if (filter.areaId) add('area_id = ?', filter.areaId);
@@ -471,7 +519,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_applications WHERE ${where}
-         ORDER BY created_at DESC
+         ${orderByClause(APPLICATION_SORT_COLUMNS, pagination, { column: 'created_at', order: 'desc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -479,6 +527,99 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         data: result.rows.map((row) => mapApplication(row as Record<string, unknown>)),
         meta: paginateMeta(totalItems, pagination),
       };
+    });
+  }
+
+  /**
+   * PRC-H083: one withPgTenant transaction. Locks the application row, then
+   * claims a slot with a conditional UPDATE (used_slots < total_slots) and
+   * flips status with a status-guarded UPDATE, inserting the first instalment
+   * last. Any throw rolls every step back.
+   */
+  async approveApplicationAtomic(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const appResult = await client.query(
+        `SELECT * FROM scholarship_applications WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [id, tenantId],
+      );
+      const appRow = appResult.rows[0] as Record<string, unknown> | undefined;
+      if (!appRow) return { kind: 'application_not_found' } as const;
+      const application = mapApplication(appRow);
+      if (!APPROVABLE_APPLICATION_STATUSES.includes(application.status)) {
+        return { kind: 'invalid_status', status: application.status } as const;
+      }
+
+      const slotResult = await client.query(
+        `UPDATE scholarship_programs
+            SET used_slots = used_slots + 1, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND used_slots < total_slots
+          RETURNING *`,
+        [application.programId, tenantId],
+      );
+      const programRow = slotResult.rows[0] as Record<string, unknown> | undefined;
+      if (!programRow) {
+        const exists = await client.query(
+          `SELECT 1 FROM scholarship_programs WHERE id = $1 AND tenant_id = $2`,
+          [application.programId, tenantId],
+        );
+        return exists.rows[0]
+          ? ({ kind: 'no_slots' } as const)
+          : ({ kind: 'program_not_found' } as const);
+      }
+      const program = mapProgram(programRow);
+
+      const updatedApp = await client.query(
+        `UPDATE scholarship_applications
+            SET status = 'approved', reviewed_at = $3, reviewer_id = $4, review_notes = $5,
+                updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND status = ANY($6::text[])
+          RETURNING *`,
+        [
+          id,
+          tenantId,
+          command.reviewedAt,
+          command.reviewerId,
+          command.reviewNotes,
+          [...APPROVABLE_APPLICATION_STATUSES],
+        ],
+      );
+      if (!updatedApp.rows[0]) {
+        // Row is locked above, so this is unreachable unless RLS hides it;
+        // throw so the slot claim is rolled back.
+        throw new Error('scholarship approval lost its application row lock');
+      }
+
+      let disbursement: DisbursementEntity | null = null;
+      if (command.firstDisbursement) {
+        const inserted = await client.query(
+          `INSERT INTO scholarship_disbursements (
+             id, tenant_id, application_id, amount, amount_cents, scheduled_date,
+             paid_date, payment_status, payment_method, transaction_reference, notes
+           ) VALUES ($1,$2,$3,$4,$5,$6::date,NULL,'scheduled',NULL,NULL,$7) RETURNING *`,
+          [
+            command.firstDisbursement.id,
+            tenantId,
+            id,
+            program.amountPerRecipient,
+            program.amountPerRecipientCents,
+            command.firstDisbursement.scheduledDate,
+            command.firstDisbursement.notes,
+          ],
+        );
+        disbursement = mapDisbursement(inserted.rows[0] as Record<string, unknown>);
+      }
+
+      return {
+        kind: 'approved',
+        application: mapApplication(updatedApp.rows[0] as Record<string, unknown>),
+        program,
+        disbursement,
+      } as const;
     });
   }
 
@@ -630,7 +771,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       params.push(pagination.pageSize, offset);
       const result = await client.query(
         `SELECT * FROM scholarship_disbursements WHERE ${where}
-         ORDER BY scheduled_date ASC
+         ${orderByClause(DISBURSEMENT_SORT_COLUMNS, pagination, { column: 'scheduled_date', order: 'asc' })}
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );

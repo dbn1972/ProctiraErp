@@ -12,7 +12,28 @@ import type { ImportQueue } from './types.js';
 export interface StudentImportQueueHandle {
   importQueue: ImportQueue;
   adapter: QueueAdapter;
+  /** PRC-H092: fresh (unconnected) adapter on the same backend for the worker. */
+  createConsumerAdapter(): QueueAdapter;
   disconnect(): Promise<void>;
+}
+
+function buildAdapterFromEnv(
+  backend: string | undefined,
+  rabbitUrl: string | undefined,
+): QueueAdapter {
+  if (backend) {
+    return createQueueAdapterFromEnv();
+  }
+  return createQueueAdapter({
+    backend: 'rabbitmq',
+    rabbitmq: {
+      url: rabbitUrl!,
+      exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
+      exchangeType: 'topic',
+      deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
+      durable: true,
+    },
+  });
 }
 
 export async function createStudentImportQueueFromEnv(): Promise<StudentImportQueueHandle | null> {
@@ -23,26 +44,12 @@ export async function createStudentImportQueueFromEnv(): Promise<StudentImportQu
     return null;
   }
 
-  let adapter: QueueAdapter;
-  if (backend) {
-    adapter = createQueueAdapterFromEnv();
-  } else {
-    adapter = createQueueAdapter({
-      backend: 'rabbitmq',
-      rabbitmq: {
-        url: rabbitUrl!,
-        exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
-        exchangeType: 'topic',
-        deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
-        durable: true,
-      },
-    });
-  }
-
+  const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
   return {
     importQueue: new QueueImportQueue(adapter),
     adapter,
+    createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: () => adapter.disconnect(),
   };
 }

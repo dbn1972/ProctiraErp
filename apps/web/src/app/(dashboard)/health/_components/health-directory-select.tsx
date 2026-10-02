@@ -11,15 +11,18 @@ export function HealthStudentSelect({
   id = 'studentId',
   name = 'studentId',
   label = 'Student',
+  error,
 }: {
   options: EntityLabelOption[];
   id?: string;
   name?: string;
   label?: string;
+  /** PRC-L240: field-level error, announced via aria-invalid/aria-describedby. */
+  error?: string;
 }) {
   if (options.length === 0) {
     return (
-      <FormField label={label} htmlFor={id}>
+      <FormField label={label} htmlFor={id} error={error}>
         <p
           id={id}
           data-testid={`${id}-empty`}
@@ -33,7 +36,7 @@ export function HealthStudentSelect({
   }
 
   return (
-    <FormField label={label} htmlFor={id}>
+    <FormField label={label} htmlFor={id} required error={error}>
       <select id={id} name={name} required className={SELECT_CLASS}>
         <option value="">Select a student…</option>
         {options.map((option) => (

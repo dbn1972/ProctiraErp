@@ -19,6 +19,23 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
 
 /**
+ * 24h clock time (HH:MM) — PRC-L155. start/end_time are TEXT columns, so junk would persist.
+ */
+const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
+
+/**
+ * PRC-L155: DATE_PATTERN only checks shape; reject impossible calendar dates (2026-02-31)
+ * before they reach a PG DATE column (which would otherwise surface as a 500).
+ */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  if (y < 1 || m < 1 || m > 12 || d < 1) return false;
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return d <= daysInMonth;
+}
+
+/**
  * Certification status values.
  */
 export enum CertificationStatus {
@@ -81,8 +98,12 @@ export const CreateTrainingSessionSchema = Type.Object({
   programId: Type.String({ pattern: UUID_PATTERN, description: 'Training program UUID' }),
   title: Type.String({ minLength: 1, maxLength: 200, description: 'Session title' }),
   date: Type.String({ pattern: DATE_PATTERN, description: 'Session date' }),
-  startTime: Type.Optional(Type.String({ description: 'Session start time (HH:MM)' })),
-  endTime: Type.Optional(Type.String({ description: 'Session end time (HH:MM)' })),
+  startTime: Type.Optional(
+    Type.String({ pattern: TIME_PATTERN, description: 'Session start time (HH:MM)' }),
+  ),
+  endTime: Type.Optional(
+    Type.String({ pattern: TIME_PATTERN, description: 'Session end time (HH:MM)' }),
+  ),
   location: Type.Optional(Type.String({ maxLength: 200, description: 'Session location' })),
   instructorName: Type.Optional(Type.String({ maxLength: 200, description: 'Instructor name' })),
 });
@@ -95,8 +116,8 @@ export type CreateTrainingSessionInput = Static<typeof CreateTrainingSessionSche
 export const RecordTrainingAttendanceSchema = Type.Object({
   sessionId: Type.String({ pattern: UUID_PATTERN, description: 'Training session UUID' }),
   staffId: Type.String({ pattern: UUID_PATTERN, description: 'Staff member UUID' }),
-  status: Type.String({
-    enum: ['PRESENT', 'ABSENT', 'EXCUSED'],
+  // PRC-L158: TypeBox Value.Check ignores `enum` on Type.String, so use literal unions.
+  status: Type.Union([Type.Literal('PRESENT'), Type.Literal('ABSENT'), Type.Literal('EXCUSED')], {
     description: 'Attendance status',
   }),
   comment: Type.Optional(Type.String({ maxLength: 500, description: 'Attendance comment' })),
@@ -154,25 +175,34 @@ export type CertificationParams = Static<typeof CertificationParamsSchema>;
  * Schema for training program list query parameters.
  */
 export const TrainingProgramListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
   search: Type.Optional(Type.String({ description: 'Search by program name' })),
 });
 
 export type TrainingProgramListQuery = Static<typeof TrainingProgramListQuerySchema>;
 
 /**
+ * Schema for session list query parameters (PRC-L154).
+ */
+export const TrainingSessionListQuerySchema = Type.Object({
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+});
+
+export type TrainingSessionListQuery = Static<typeof TrainingSessionListQuerySchema>;
+
+/**
  * Schema for certification list query parameters.
  */
 export const CertificationListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
   staffId: Type.Optional(
     Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' }),
   ),
   status: Type.Optional(
-    Type.String({
-      enum: ['ACTIVE', 'EXPIRED', 'REVOKED'],
+    Type.Union([Type.Literal('ACTIVE'), Type.Literal('EXPIRED'), Type.Literal('REVOKED')], {
       description: 'Filter by certification status',
     }),
   ),

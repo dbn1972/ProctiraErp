@@ -5,8 +5,9 @@
  *
  * Covers:
  *   • form validation: empty tracking number is rejected client-side
- *   • happy path: a 200 response renders the status badge, history
- *     timeline, and follow-up actions
+ *   • PRC-H029: the applicant DOB is required and forwarded to the fetcher
+ *   • happy path: a 200 response renders the status badge, institution,
+ *     remarks, waitlist position and booked interviews
  *   • 404 path: renders the friendly "Application not found" alert
  *   • 5xx / network error path: renders the retry alert
  *   • all user-facing copy is sourced from `useLanguage().t()` (Requirement
@@ -31,13 +32,17 @@ function renderWithLang(node: React.ReactNode) {
   );
 }
 
-function fillAndSubmit(value: string) {
+const DOB = '2012-03-15';
+
+function fillAndSubmit(value: string, dob: string = DOB) {
   const input = screen.getByLabelText(messages.tracking!.trackingNumberLabel!);
+  const dobInput = screen.getByLabelText(messages.tracking!.dateOfBirthLabel!);
   // fireEvent.change updates `input.value` and dispatches the synthetic
   // event React expects, without us having to poke the value setter
   // ourselves (which trips the unbound-method lint rule).
   act(() => {
     fireEvent.change(input, { target: { value } });
+    fireEvent.change(dobInput, { target: { value: dob } });
   });
   const submit = screen.getByRole('button', {
     name: messages.tracking!.checkStatus!,
@@ -79,36 +84,31 @@ describe('ApplicationTracking — form validation', () => {
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
+
+  it('requires the applicant date of birth (PRC-H029)', async () => {
+    const fetcher = vi.fn();
+    renderWithLang(<ApplicationTracking fetcher={fetcher as unknown as TrackingFetcher} />);
+    fillAndSubmit('REG-A1B2C3D4', '');
+    await waitFor(() => {
+      expect(screen.getByText(messages.tracking!.dateOfBirthRequired!)).toBeTruthy();
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });
 
 describe('ApplicationTracking — successful lookup', () => {
-  it('renders the status badge, history timeline, and follow-up actions on 200', async () => {
+  it('renders status, institution, remarks, waitlist and interviews on 200', async () => {
     const fetcher: TrackingFetcher = vi.fn(async () => ({
       kind: 'ok' as const,
       data: {
         trackingNumber: 'REG-A1B2C3D4',
-        status: 'under_review',
-        currentStep: 'Document review',
+        status: 'waitlisted',
+        institutionName: 'Sunrise Public School',
         submittedAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-03T00:00:00Z',
-        history: [
-          {
-            status: 'pending',
-            timestamp: '2025-01-01T00:00:00Z',
-            note: 'Application received',
-          },
-          {
-            status: 'under_review',
-            timestamp: '2025-01-03T00:00:00Z',
-            note: 'Documents being verified',
-          },
-        ],
-        followUpActions: [
-          {
-            code: 'UPLOAD_BIRTH_CERT',
-            message: 'Please upload a birth certificate',
-          },
-        ],
+        remarks: 'Documents verified',
+        waitlistPosition: 4,
+        interviewBookings: [{ id: 'b1', slotId: 's1', status: 'booked' }],
       },
     }));
 
@@ -118,31 +118,17 @@ describe('ApplicationTracking — successful lookup', () => {
     await waitFor(() => {
       expect(screen.getByTestId('tracking-result')).toBeTruthy();
     });
-
-    // Status badge shows the localized "Under review" label.
-    const badge = screen.getByTestId('status-badge');
-    expect(badge.textContent).toBe(messages.tracking!.statusUnderReview!);
-
-    // Both history entries are rendered.
-    const items = screen.getAllByTestId('timeline-item');
-    expect(items).toHaveLength(2);
-
-    // Timestamp <time> elements expose the ISO date as `dateTime`.
-    const times = items[0]!.querySelectorAll('time');
-    expect(times[0]!.getAttribute('dateTime')).toMatch(/2025-01-/);
-
-    // Notes from history entries are visible.
-    expect(screen.getByText('Application received')).toBeTruthy();
-    expect(screen.getByText('Documents being verified')).toBeTruthy();
-
-    // Follow-up action message is visible.
-    expect(screen.getByText('Please upload a birth certificate')).toBeTruthy();
-
-    // The fetcher was called with the tracking number from the form.
-    expect(fetcher).toHaveBeenCalledWith('REG-A1B2C3D4');
+    expect(screen.getByTestId('status-badge').textContent).toBe(
+      messages.tracking!.statusWaitlisted!,
+    );
+    expect(screen.getByText('Sunrise Public School')).toBeTruthy();
+    expect(screen.getByTestId('tracking-remarks').textContent).toBe('Documents verified');
+    expect(screen.getByText('4')).toBeTruthy();
+    expect(screen.getByTestId('interviews-booked').textContent).toContain('1');
+    expect(fetcher).toHaveBeenCalledWith('REG-A1B2C3D4', DOB);
   });
 
-  it('renders an empty-state message when there is no history or follow-up', async () => {
+  it('renders an empty-state message when no interview is booked', async () => {
     const fetcher: TrackingFetcher = vi.fn(async () => ({
       kind: 'ok' as const,
       data: {
@@ -150,8 +136,7 @@ describe('ApplicationTracking — successful lookup', () => {
         status: 'pending',
         submittedAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
-        history: [],
-        followUpActions: [],
+        interviewBookings: [],
       },
     }));
 
@@ -159,9 +144,9 @@ describe('ApplicationTracking — successful lookup', () => {
     fillAndSubmit('REG-EMPTY');
 
     await waitFor(() => {
-      expect(screen.getByTestId('history-empty')).toBeTruthy();
+      expect(screen.getByTestId('interviews-empty')).toBeTruthy();
     });
-    expect(screen.getByTestId('follow-up-empty')).toBeTruthy();
+    expect(screen.queryByTestId('tracking-remarks')).toBeNull();
   });
 });
 
@@ -191,8 +176,7 @@ describe('ApplicationTracking — error handling', () => {
           status: 'approved',
           submittedAt: '2025-01-01T00:00:00Z',
           updatedAt: '2025-01-02T00:00:00Z',
-          history: [],
-          followUpActions: [],
+          interviewBookings: [],
         },
       };
     });

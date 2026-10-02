@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "id": "0b7f3a52-7c1e-4f0a-9d7e-111111111111",
+      "name": "Merit Scholarship 2026",
+      "status": "open",
+      "applicationStartDate": "2026-01-01",
+      "applicationEndDate": "2099-03-31",
+      "amountPerRecipient": 25000,
+      "currency": "INR",
+      "eligibility": { "requiredDocuments": ["transcript"] }
+    }
+  ]
+}

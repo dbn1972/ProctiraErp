@@ -63,6 +63,11 @@ export interface RotateSecretResult {
   previousVersion?: string;
   /** When the rotation occurred */
   rotatedAt: Date;
+  /**
+   * Whether the previous version was invalidated. Only set when
+   * `invalidatePrevious` was requested; a failed invalidation throws (PRC-L495).
+   */
+  previousInvalidated?: boolean;
 }
 
 /**

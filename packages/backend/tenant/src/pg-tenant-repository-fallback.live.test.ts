@@ -39,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PgTenantRepository } from './pg-tenant-repository.js';
 import { TenantService } from './tenant-service.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 /** The role the runtime actually uses. In CI this is `proctira_app`. */
 const SUBJECT_CONNECTION =
@@ -358,7 +359,7 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     // (`if (deadline && deadline > now) throw`) read that as "retention elapsed", so
     // a decommissioned row was permanently deletable on the spot. Missing must fail
     // closed, not open.
-    const service = new TenantService(repo);
+    const service = new TenantService(repo, undefined, new RecordingAdminProvisioner());
     await expect(service.deleteTenant(DELETE_TENANT)).rejects.toThrow(
       /no data-retention deadline is recorded/,
     );

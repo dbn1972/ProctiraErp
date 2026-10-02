@@ -100,16 +100,23 @@ export interface TenantOffboardJobEntity {
  * W1-SEC-06: every find/update-by-id takes tenantId and filters by it (IDOR fail-closed).
  */
 export interface PrivacyRepository {
-  createLegalHold(
-    data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<LegalHoldEntity>;
+  createLegalHold(data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>): Promise<LegalHoldEntity>;
   updateLegalHold(
     id: string,
     tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
   ): Promise<LegalHoldEntity | null>;
   findLegalHoldById(id: string, tenantId: string): Promise<LegalHoldEntity | null>;
-  listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]>;
+  listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]>;
+  /**
+   * Single indexed lookup for the destructive-op gate (PRC-L138): returns an
+   * active tenant-scope hold, or an active subject-scope hold matching
+   * `subjectId` (and `subjectType` when given). Tenant-scope wins.
+   */
+  findActiveHold(
+    tenantId: string,
+    subject?: { subjectType?: string; subjectId?: string },
+  ): Promise<Pick<LegalHoldEntity, 'id' | 'scope'> | null>;
 
   createErasureRequest(
     data: Omit<ErasureRequestEntity, 'createdAt' | 'updatedAt'>,
@@ -120,9 +127,14 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
+    /**
+     * Compare-and-set guard: when set, the update applies only if the row is
+     * still in this status; otherwise `null` is returned (PRC-H076).
+     */
+    options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
-  listErasureRequests(tenantId: string): Promise<ErasureRequestEntity[]>;
+  listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]>;
 
   createCorrectionRequest(
     data: Omit<CorrectionRequestEntity, 'createdAt' | 'updatedAt'>,
@@ -137,11 +149,8 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<CorrectionRequestEntity | null>;
-  findCorrectionRequestById(
-    id: string,
-    tenantId: string,
-  ): Promise<CorrectionRequestEntity | null>;
-  listCorrectionRequests(tenantId: string): Promise<CorrectionRequestEntity[]>;
+  findCorrectionRequestById(id: string, tenantId: string): Promise<CorrectionRequestEntity | null>;
+  listCorrectionRequests(tenantId: string, page?: ListPage): Promise<CorrectionRequestEntity[]>;
 
   createAnonymizationJob(
     data: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
@@ -152,12 +161,7 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<
         AnonymizationJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'fieldsTouched'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<AnonymizationJobEntity | null>;
@@ -173,18 +177,16 @@ export interface PrivacyRepository {
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'checklist'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'checklist' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<TenantOffboardJobEntity | null>;
-  findTenantOffboardJobById(
-    id: string,
-    tenantId: string,
-  ): Promise<TenantOffboardJobEntity | null>;
-  listTenantOffboardJobs(tenantId: string): Promise<TenantOffboardJobEntity[]>;
+  findTenantOffboardJobById(id: string, tenantId: string): Promise<TenantOffboardJobEntity | null>;
+  listTenantOffboardJobs(tenantId: string, page?: ListPage): Promise<TenantOffboardJobEntity[]>;
+}
+
+/** Bounded list window for HTTP list endpoints (PRC-L137). */
+export interface ListPage {
+  limit: number;
+  offset: number;
 }

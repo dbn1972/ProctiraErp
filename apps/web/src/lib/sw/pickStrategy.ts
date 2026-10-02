@@ -19,19 +19,21 @@
  *                       so the SW must never mask a write failure with a
  *                       cached response.
  *
- *   • `swr`           — stale-while-revalidate. Read-heavy GETs where
- *                       the user benefits from instant render (cached
- *                       payload) followed by a background refresh:
- *                       dashboards, student lists, institution metadata,
- *                       staff lists.
+ *                       Also used for EVERY other `/api/*` GET: API
+ *                       responses are per-user / per-tenant (students,
+ *                       staff, fees, health, dashboards, auth) and must
+ *                       never be written to Cache Storage, where they
+ *                       would outlive logout on a shared device
+ *                       (PRC-H026 / PRC-H032).
  *
  *   • `network-first` — try network with a short timeout, fall back to
- *                       cache only if the network fails. Used for
- *                       write-sensitive or freshness-critical reads:
- *                       auth endpoints (token refresh, session probe),
- *                       tenant branding (so a republished theme
- *                       propagates within minutes), and any other
- *                       endpoint where stale data is unsafe.
+ *                       cache only if the network fails. Only used for
+ *                       the non-personal tenant-branding endpoint.
+ *
+ *   • `network-only`  — page navigations / HTML. Always fetched from the
+ *                       network and never cached (authenticated pages
+ *                       embed personal data). Offline navigations get a
+ *                       synthetic offline page from the SW.
  *
  *   • `cache-first`   — serve from cache if present, else fetch and
  *                       cache. Used for static assets that ship with a
@@ -49,38 +51,24 @@
  *      the test matrix still classifies every named branch correctly.
  */
 
-export type Strategy = 'bypass' | 'swr' | 'network-first' | 'cache-first';
-
+export type Strategy = 'bypass' | 'network-first' | 'cache-first' | 'network-only';
 /** HTTP methods that the service worker must always pass through to
  * the network without caching. The Sync_Queue handles offline replay.
  */
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
-/** API path prefixes whose GET responses are read-heavy and benefit
- * from stale-while-revalidate. Order does not matter — the first
- * prefix that matches wins.
+/** Explicit allow-list of NON-PERSONAL API GETs that may be cached
+ * (network-first). Every other `/api/` path is `bypass`.
  */
-const SWR_API_PREFIXES = [
-  '/api/v1/dashboards/',
-  '/api/v1/students',
-  '/api/v1/institutions',
-  '/api/v1/staff',
-] as const;
-
-/** API path prefixes whose GET responses are freshness-critical and
- * must hit the network first; cache is only a fallback for offline.
- */
-const NETWORK_FIRST_API_PREFIXES = ['/api/v1/auth/', '/api/v1/tenant/branding'] as const;
-
+const CACHEABLE_API_PREFIXES = ['/api/v1/tenant/branding'] as const;
 /** Path prefixes for content-hashed static assets that can safely use
  * cache-first with a long TTL. Next.js writes its hashed bundles to
  * `/_next/static/` and additional public-folder static lives under
  * `/static/`.
  */
 const STATIC_PREFIXES = ['/_next/static/', '/static/'] as const;
-
 /** File extensions for fonts and images that should be cache-first
  * regardless of path (covers brand assets dropped into `/public`).
+ * Never applied under `/api/` (e.g. student photos).
  */
 const CACHEABLE_ASSET_EXTENSIONS = [
   '.woff2',
@@ -95,63 +83,47 @@ const CACHEABLE_ASSET_EXTENSIONS = [
   '.gif',
   '.ico',
 ] as const;
-
+/** Prefix shared by every cache this app's service worker creates. */
+export const SW_CACHE_PREFIX = 'proctira-';
+/** `postMessage` type the SW handles by deleting all `proctira-*` caches. */
+export const SW_PURGE_MESSAGE = 'PURGE_CACHES';
 /**
  * Normalise the input URL to a path-only string so the matchers below
- * can use simple `startsWith` comparisons. Accepts absolute URLs
- * (e.g. the request URL the SW receives), relative paths, or anything
- * the `URL` constructor can parse against `http://localhost`.
- *
- * Returns `null` when the input cannot be parsed — in which case the
- * caller should treat the request as `bypass` rather than guess.
+ * can use simple `startsWith` comparisons. Returns `null` when the input
+ * cannot be parsed — in which case the caller should treat the request
+ * as `bypass` rather than guess.
  */
 function extractPath(url: string): string | null {
   if (typeof url !== 'string' || url.length === 0) return null;
   try {
-    // `URL` requires either an absolute URL or a base. Using a fixed
-    // `http://localhost` base lets us accept relative paths uniformly.
     const parsed = new URL(url, 'http://localhost');
     return parsed.pathname;
   } catch {
     return null;
   }
 }
-
 /**
  * Decide which fetch strategy the service worker should apply.
  *
  * Decision order (first match wins):
  *   1. Mutating verbs → `bypass`.
  *   2. Unparseable URL → `bypass` (defensive: do not cache unknowns).
- *   3. URL on a SWR API prefix → `swr`.
- *   4. URL on a network-first API prefix → `network-first`.
- *   5. URL on a known static prefix or with a cacheable extension →
- *      `cache-first`.
- *   6. Anything else (HTML navigations, other API calls) →
- *      `network-first` so navigations always try the live page first
- *      but still fall back to the precached shell when offline.
+ *   3. `/api/*`: allow-listed non-personal prefix → `network-first`;
+ *      anything else → `bypass` (never cached).
+ *   4. Known static prefix or cacheable extension → `cache-first`.
+ *   5. Anything else (HTML navigations) → `network-only`.
  */
 export function pickStrategy(method: string, url: string): Strategy {
   const upper = (method ?? '').toUpperCase();
-
-  // 1. All mutating verbs go straight through — the Sync_Queue layer
-  //    above the SW is responsible for offline write handling.
   if (MUTATING_METHODS.has(upper)) return 'bypass';
-
   const path = extractPath(url);
   if (path === null) return 'bypass';
-
-  // 3. Read-heavy GETs.
-  for (const prefix of SWR_API_PREFIXES) {
-    if (path.startsWith(prefix)) return 'swr';
+  if (path === '/api' || path.startsWith('/api/')) {
+    for (const prefix of CACHEABLE_API_PREFIXES) {
+      if (path.startsWith(prefix)) return 'network-first';
+    }
+    return 'bypass';
   }
-
-  // 4. Freshness-critical / write-sensitive GETs.
-  for (const prefix of NETWORK_FIRST_API_PREFIXES) {
-    if (path.startsWith(prefix)) return 'network-first';
-  }
-
-  // 5. Static assets and brand images/fonts.
   for (const prefix of STATIC_PREFIXES) {
     if (path.startsWith(prefix)) return 'cache-first';
   }
@@ -159,9 +131,27 @@ export function pickStrategy(method: string, url: string): Strategy {
   for (const ext of CACHEABLE_ASSET_EXTENSIONS) {
     if (lowerPath.endsWith(ext)) return 'cache-first';
   }
-
-  // 6. Default — page navigations and uncategorised API calls.
-  //    Network-first lets the SW serve the precached shell on offline
-  //    navigations while keeping fresh data when online.
-  return 'network-first';
+  return 'network-only';
+}
+/** Minimal header reader so the helper works with `Headers` or plain maps in tests. */
+interface HeaderReader {
+  get(name: string): string | null;
+}
+/**
+ * True when a response may be written to Cache Storage. Mirrors
+ * `isCacheableResponse` in `sw.js`. Refuses responses that are marked
+ * `no-store` / `private`, set cookies, or vary on credentials, and
+ * responses to requests that carried an Authorization header.
+ */
+export function isCacheableResponse(
+  responseHeaders: HeaderReader,
+  requestHeaders?: HeaderReader,
+): boolean {
+  if (requestHeaders?.get('authorization')) return false;
+  const cacheControl = (responseHeaders.get('cache-control') ?? '').toLowerCase();
+  if (/(^|[\s,])(no-store|private)([\s,=]|$)/.test(cacheControl)) return false;
+  if (responseHeaders.get('set-cookie')) return false;
+  const vary = (responseHeaders.get('vary') ?? '').toLowerCase();
+  if (/(^|[\s,])(\*|cookie|authorization)([\s,]|$)/.test(vary)) return false;
+  return true;
 }

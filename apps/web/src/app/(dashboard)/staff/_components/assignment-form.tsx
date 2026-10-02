@@ -49,6 +49,8 @@ interface AssignmentFormProps {
   /** Classes for the selected institution (reloaded via the URL). */
   classes?: ClassOption[];
   defaultInstitutionId?: string;
+  /** Called whenever the selected class or subject changes (section coverage). */
+  onSectionChange?: (selection: { classId: string; subjectId: string }) => void;
 }
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
@@ -59,6 +61,7 @@ export function AssignmentForm({
   subjects = [],
   classes = [],
   defaultInstitutionId = '',
+  onSectionChange,
 }: AssignmentFormProps) {
   const router = useRouter();
   const [serverState, setServerState] = useState<ActionState<{ assignmentId: string }> | null>(
@@ -92,6 +95,11 @@ export function AssignmentForm({
     setError,
     watch,
   } = form;
+  const selectedClassId = watch('classId');
+  const selectedSubjectId = watch('subjectId');
+  useEffect(() => {
+    onSectionChange?.({ classId: selectedClassId ?? '', subjectId: selectedSubjectId ?? '' });
+  }, [onSectionChange, selectedClassId, selectedSubjectId]);
 
   async function onSubmit(values: AssignmentFormValues) {
     setIsPending(true);

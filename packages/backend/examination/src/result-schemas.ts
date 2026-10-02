@@ -37,9 +37,10 @@ export const RecordMarksSchema = Type.Object({
       marks: Type.Array(
         Type.Object({
           subjectId: Type.String({ pattern: UUID_PATTERN }),
-          score: Type.Union([Type.Number(), Type.Null()]),
+          // PRC-L304: bound at the boundary; per-subject maxScore is enforced in the service.
+          score: Type.Union([Type.Number({ minimum: 0, maximum: 1000 }), Type.Null()]),
         }),
-        { minItems: 1 },
+        { minItems: 1, maxItems: 50 },
       ),
     }),
     { minItems: 1, maxItems: 500 },

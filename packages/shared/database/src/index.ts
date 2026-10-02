@@ -34,7 +34,7 @@ export { createPrismaClient, getPrismaClient, disconnectPrisma } from './client'
 
 // Export batch insert utilities
 export { batchInsert, batchInsertRaw } from './batch-insert';
-export type { BatchInsertOptions } from './batch-insert';
+export type { BatchInsertOptions, BatchInsertRawOptions } from './batch-insert';
 
 // Export read replica utilities
 export {
@@ -77,6 +77,7 @@ export {
 export type { PgPoolEnv, PgPoolSizing } from './pg-pool';
 export type { PgPool } from './pg-pool';
 export { PgDocumentCollection, withPlatformScope, reviveDates } from './pg-document-store';
+export type { PgDocumentCollectionOptions } from './pg-document-store';
 export type { DocumentRow, DocumentScope } from './pg-document-store';
 
 // G-714 / P0-05: in-memory fallback policy shared by repository factories

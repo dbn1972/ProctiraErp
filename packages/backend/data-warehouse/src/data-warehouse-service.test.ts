@@ -539,3 +539,18 @@ NER_001\tPCT\tSG_TOTAL\tIND\t2023\t95.5\tCensus`;
     });
   });
 });
+
+describe('Time period date validation (PRC-L454)', () => {
+  it('rejects update that makes endDate precede the existing startDate', async () => {
+    const repository = new InMemoryWarehouseRepository();
+    const service = new DataWarehouseService(repository, { maxImportBatchSize: 100 });
+    const wh = await service.createWarehouse('t1', { name: 'DW' });
+    const tp = await service.createTimePeriod('t1', wh.id, {
+      timePeriod: '2024',
+      startDate: '2024-06-01',
+    });
+    await expect(
+      service.updateTimePeriod('t1', wh.id, tp.id, { endDate: '2024-01-01' }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});

@@ -9,6 +9,8 @@
  * - 19.2: Return detailed error report for invalid rows
  */
 
+import { dateOfBirthError } from '../date-of-birth.js';
+
 import type { ImportStudentRow, ImportRowError } from './types.js';
 
 /** ISO date pattern: YYYY-MM-DD */
@@ -62,13 +64,13 @@ export function validateRow(row: ImportStudentRow): ImportRowError[] {
       code: 'INVALID_FORMAT',
     });
   } else {
-    // Validate it's a real date
-    const date = new Date(row.dateOfBirth);
-    if (isNaN(date.getTime())) {
+    // PRC-L159: strict calendar check + plausible range (>= 1900, not future)
+    const dobError = dateOfBirthError(row.dateOfBirth);
+    if (dobError) {
       errors.push({
         rowNumber: row.rowNumber,
         field: 'date_of_birth',
-        message: 'Date of birth is not a valid date',
+        message: dobError,
         code: 'INVALID_FORMAT',
       });
     }

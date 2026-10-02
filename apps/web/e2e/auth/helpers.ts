@@ -146,7 +146,8 @@ export async function mockSignup(page: Page, options: SignupMockOptions = {}): P
  */
 export async function mockOAuthAuthorize(page: Page): Promise<void> {
   // The Next route handler 302s to the upstream auth service
-  // (`AUTH_SERVICE_URL`, default localhost:3010). Match both that hop and
+  // (`AUTH_SERVICE_URL`; dev default localhost:3000, required in production).
+  // Match both that hop and
   // the app route so CI does not follow a dead TCP connection.
   await page.route(/\/(?:api\/auth\/)?oauth\/authorize/, async (route) => {
     const url = new URL(route.request().url());

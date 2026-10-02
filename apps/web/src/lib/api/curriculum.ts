@@ -63,6 +63,11 @@ export interface CoverageSummary {
   taught: number;
   percent: number;
   taughtUnitIds: string[];
+  /**
+   * Per-unit taught timestamps. Optional: the current coverage endpoint only
+   * returns `taughtUnitIds` (PRC-L242 backend follow-up).
+   */
+  taughtUnits?: Array<{ unitId: string; taughtAt: string }>;
 }
 
 export type CurriculumLoadResult<T> =
@@ -129,7 +134,7 @@ export async function createSyllabusUnit(input: {
 export async function listLessonPlans(unitId: string): Promise<CurriculumLoadResult<LessonPlan[]>> {
   try {
     const result = await gatewayFetch<{ data: LessonPlan[] }>(
-      `/curriculum/units/${unitId}/lesson-plans`,
+      `/curriculum/units/${encodeURIComponent(unitId)}/lesson-plans`,
       { next: { revalidate: 0 } },
     );
     return { ok: true, data: result.data?.data ?? [] };
@@ -142,10 +147,13 @@ export async function createLessonPlan(
   unitId: string,
   input: { title: string; objectives?: string; plannedDate?: string },
 ): Promise<LessonPlan> {
-  const result = await gatewayFetch<LessonPlan>(`/curriculum/units/${unitId}/lesson-plans`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<LessonPlan>(
+    `/curriculum/units/${encodeURIComponent(unitId)}/lesson-plans`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -160,10 +168,13 @@ export async function markUnitTaught(
   unitId: string,
   input?: { timetableMeetingId?: string | null; lmsSkillId?: string | null },
 ): Promise<UnitCoverage> {
-  const result = await gatewayFetch<UnitCoverage>(`/curriculum/units/${unitId}/mark-taught`, {
-    method: 'POST',
-    json: input ?? {},
-  });
+  const result = await gatewayFetch<UnitCoverage>(
+    `/curriculum/units/${encodeURIComponent(unitId)}/mark-taught`,
+    {
+      method: 'POST',
+      json: input ?? {},
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -264,10 +275,13 @@ export async function updateLessonPlan(
   id: string,
   input: { title?: string; plannedDate?: string | null },
 ): Promise<LessonPlan> {
-  const result = await gatewayFetch<LessonPlan>(`/curriculum/lesson-plans/${id}`, {
-    method: 'PATCH',
-    json: input,
-  });
+  const result = await gatewayFetch<LessonPlan>(
+    `/curriculum/lesson-plans/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -279,7 +293,7 @@ export async function updateLessonPlan(
 }
 
 export async function deleteLessonPlan(id: string): Promise<void> {
-  const result = await gatewayFetch<unknown>(`/curriculum/lesson-plans/${id}`, {
+  const result = await gatewayFetch<unknown>(`/curriculum/lesson-plans/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
   if (!result.ok && result.status !== 204) {
@@ -292,9 +306,12 @@ export async function deleteLessonPlan(id: string): Promise<void> {
 }
 
 export async function unmarkUnitTaught(unitId: string): Promise<void> {
-  const result = await gatewayFetch<unknown>(`/curriculum/units/${unitId}/coverage`, {
-    method: 'DELETE',
-  });
+  const result = await gatewayFetch<unknown>(
+    `/curriculum/units/${encodeURIComponent(unitId)}/coverage`,
+    {
+      method: 'DELETE',
+    },
+  );
   if (!result.ok && result.status !== 204) {
     throw new GatewayError({
       status: result.status,
@@ -308,10 +325,13 @@ export async function updateLearningOutcome(
   id: string,
   input: { code?: string; statement?: string; unitId?: string | null },
 ): Promise<LearningOutcome> {
-  const result = await gatewayFetch<LearningOutcome>(`/curriculum/outcomes/${id}`, {
-    method: 'PATCH',
-    json: input,
-  });
+  const result = await gatewayFetch<LearningOutcome>(
+    `/curriculum/outcomes/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -323,7 +343,9 @@ export async function updateLearningOutcome(
 }
 
 export async function deleteLearningOutcome(id: string): Promise<void> {
-  const result = await gatewayFetch<unknown>(`/curriculum/outcomes/${id}`, { method: 'DELETE' });
+  const result = await gatewayFetch<unknown>(`/curriculum/outcomes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
   if (!result.ok && result.status !== 204) {
     throw new GatewayError({
       status: result.status,

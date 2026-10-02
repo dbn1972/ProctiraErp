@@ -30,7 +30,7 @@ export default async function ParentHomeworkPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -38,7 +38,7 @@ export default async function ParentHomeworkPage({
         title="Homework"
         description="Assignments and quizzes that are due."
         testId="parent-homework"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No homework to show."
         hasRows={false}
       >

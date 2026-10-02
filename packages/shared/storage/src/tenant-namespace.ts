@@ -73,9 +73,46 @@ export function assertTenantScopedObjectKeyIfRequired(
   key: string,
   options: { env?: NodeJS.ProcessEnv; requireTenantScope?: boolean; surface?: string } = {},
 ): void {
-  const required = shouldRequireTenantScopedObjectKeys(options.env ?? process.env, options.requireTenantScope);
+  const required = shouldRequireTenantScopedObjectKeys(
+    options.env ?? process.env,
+    options.requireTenantScope,
+  );
   if (required) {
     assertTenantScopedObjectKey(key, options.surface ?? 'storage');
+  }
+}
+
+/** PRC-L149 — tenant ids are opaque tokens (UUID or slug): no '/', '.', whitespace or control chars. */
+const SAFE_TENANT_SEGMENT = /^[A-Za-z0-9_-]{1,128}$/;
+// eslint-disable-next-line no-control-regex
+const UNSAFE_PATH_CHARS = /[\\\u0000-\u001f\u007f]/;
+
+export function assertSafeTenantSegment(tenantId: string, surface = 'storage'): void {
+  if (!SAFE_TENANT_SEGMENT.test(tenantId)) {
+    throw new TenantScopeError(
+      `${surface}: tenantId must match ${SAFE_TENANT_SEGMENT.source} (PRC-L149)`,
+    );
+  }
+}
+
+/**
+ * PRC-L149 — reject traversal ('.'/'..' segments), backslashes, control chars and
+ * empty interior segments ('a//b'). A single trailing '/' (folder marker) is allowed.
+ */
+export function assertSafeObjectPath(path: string, surface = 'storage'): void {
+  const body = path.endsWith('/') ? path.slice(0, -1) : path;
+  if (UNSAFE_PATH_CHARS.test(path)) {
+    throw new TenantScopeError(
+      `${surface}: key contains backslash or control characters (PRC-L149)`,
+    );
+  }
+  if (body.length === 0) return;
+  for (const segment of body.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..') {
+      throw new TenantScopeError(
+        `${surface}: key must not contain empty, '.' or '..' segments (PRC-L149)`,
+      );
+    }
   }
 }
 
@@ -99,6 +136,8 @@ export function buildTenantKey(tenantId: string, key: string): string {
   // Remove trailing slashes from tenantId
   const normalizedTenantId = tenantId.replace(/\/+$/, '').trim();
 
+  assertSafeTenantSegment(normalizedTenantId, 'storage.buildTenantKey');
+  assertSafeObjectPath(normalizedKey, 'storage.buildTenantKey');
   const result = `${TENANT_PREFIX}/${normalizedTenantId}/${normalizedKey}`;
   assertTenantScopedObjectKey(result, 'storage.buildTenantKey');
   return result;
@@ -115,6 +154,7 @@ export function buildTenantPrefix(tenantId: string, prefix?: string): string {
   assertTenantId(tenantId, 'storage.buildTenantPrefix');
 
   const normalizedTenantId = tenantId.replace(/\/+$/, '').trim();
+  assertSafeTenantSegment(normalizedTenantId, 'storage.buildTenantPrefix');
   const base = `${TENANT_PREFIX}/${normalizedTenantId}/`;
 
   if (!prefix || prefix.trim().length === 0) {
@@ -122,6 +162,7 @@ export function buildTenantPrefix(tenantId: string, prefix?: string): string {
   }
 
   const normalizedPrefix = prefix.replace(/^\/+/, '');
+  assertSafeObjectPath(normalizedPrefix, 'storage.buildTenantPrefix');
   return `${base}${normalizedPrefix}`;
 }
 

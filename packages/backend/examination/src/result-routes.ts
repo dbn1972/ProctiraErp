@@ -17,7 +17,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { examinationWritePreHandler } from './examination-http-guard.js';
+import type { ExaminationAction } from './examination-access.js';
+import { examinationReadWritePreHandler } from './examination-http-guard.js';
 import type { ResultPublicationService } from './result-publication-service.js';
 import {
   RecordMarksSchema,
@@ -44,19 +45,23 @@ export async function registerResultRoutes(
 ): Promise<void> {
   const { resultPublicationService, prefix = '/examinations' } = options;
 
-  fastify.addHook('preHandler', async (request, reply) => {
-    const url = request.url;
-    const action =
-      url.includes('/publish') || url.includes('/analysis') ? 'exam.publish' : 'exam.update';
-    examinationWritePreHandler(request, reply, action);
-  });
+  // PRC-L305: RBAC action is bound per route definition, not inferred from URL substrings.
+  // PRC-C004: read routes (results, raw marks, analysis) bind exam.read.staff, so reads are no
+  // longer open to every gateway examination:read holder. The bound action is asserted for
+  // every method except OPTIONS (CORS preflight).
+  const guard =
+    (action: ExaminationAction) =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      examinationReadWritePreHandler(request, reply, action, action);
+    };
 
   /**
    * POST /examinations/:examinationId/results/publish
    * Trigger result publication and grade calculation.
    */
-  fastify.post(
+  fastify.post<{ Params: ResultExaminationParams }>(
     `${prefix}/:examinationId/results/publish`,
+    { preHandler: guard('exam.publish') },
     async function publishHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams }>,
       reply: FastifyReply,
@@ -109,8 +114,9 @@ export async function registerResultRoutes(
    * GET /examinations/:examinationId/results
    * Get publication result for an examination.
    */
-  fastify.get(
+  fastify.get<{ Params: ResultExaminationParams }>(
     `${prefix}/:examinationId/results`,
+    { preHandler: guard('exam.read.staff') },
     async function getResultsHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams }>,
       reply: FastifyReply,
@@ -163,8 +169,9 @@ export async function registerResultRoutes(
    * POST /examinations/:examinationId/results/marks
    * Record marks for registered candidates (pre-publication).
    */
-  fastify.post(
+  fastify.post<{ Params: ResultExaminationParams; Body: RecordMarksBody }>(
     `${prefix}/:examinationId/results/marks`,
+    { preHandler: guard('exam.update') },
     async function recordMarksHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams; Body: RecordMarksBody }>,
       reply: FastifyReply,
@@ -215,8 +222,9 @@ export async function registerResultRoutes(
    * GET /examinations/:examinationId/results/marks
    * Recorded marks per candidate (drives the Results tab before publication).
    */
-  fastify.get(
+  fastify.get<{ Params: ResultExaminationParams }>(
     `${prefix}/:examinationId/results/marks`,
+    { preHandler: guard('exam.read.staff') },
     async function getMarksHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams }>,
       reply: FastifyReply,
@@ -257,8 +265,9 @@ export async function registerResultRoutes(
    * POST /examinations/:examinationId/results/analysis
    * Generate result analysis for a published examination.
    */
-  fastify.post(
+  fastify.post<{ Params: ResultExaminationParams }>(
     `${prefix}/:examinationId/results/analysis`,
+    { preHandler: guard('exam.publish') },
     async function generateAnalysisHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams }>,
       reply: FastifyReply,
@@ -310,8 +319,9 @@ export async function registerResultRoutes(
    * GET /examinations/:examinationId/results/analysis
    * Get previously generated result analysis.
    */
-  fastify.get(
+  fastify.get<{ Params: ResultExaminationParams }>(
     `${prefix}/:examinationId/results/analysis`,
+    { preHandler: guard('exam.read.staff') },
     async function getAnalysisHandler(
       request: FastifyRequest<{ Params: ResultExaminationParams }>,
       reply: FastifyReply,

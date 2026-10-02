@@ -127,11 +127,12 @@ describe('G-914 students 360', () => {
       expect(doc.category).toBe('passport');
       expect(doc.uploadedBy).toBe('registrar-docs');
       const listed = await service.listDocuments(TENANT_A, student.id);
-      expect(listed).toHaveLength(1);
+      expect(listed.data).toHaveLength(1);
+      expect(listed.total).toBe(1);
       const got = await service.getDocumentBytes(TENANT_A, student.id, doc.id);
       expect(got.bytes.equals(pdf)).toBe(true);
       await service.removeDocument(TENANT_A, student.id, doc.id);
-      expect(await service.listDocuments(TENANT_A, student.id)).toEqual([]);
+      expect((await service.listDocuments(TENANT_A, student.id)).data).toEqual([]);
     });
 
     it('denies cross-tenant document list', async () => {
@@ -231,8 +232,8 @@ describe('G-914 students 360', () => {
       expect(created.reporterId).toBe('teacher-1');
 
       const listed = await service.listDiscipline(TENANT_A, student.id);
-      expect(listed).toHaveLength(1);
-      expect(listed[0]?.id).toBe(created.id);
+      expect(listed.data).toHaveLength(1);
+      expect(listed.data[0]?.id).toBe(created.id);
 
       await expect(
         service.addDiscipline(
@@ -257,7 +258,7 @@ describe('G-914 students 360', () => {
       ).rejects.toBeInstanceOf(NotFoundError);
 
       await service.removeDiscipline(TENANT_A, student.id, created.id);
-      expect(await service.listDiscipline(TENANT_A, student.id)).toHaveLength(0);
+      expect((await service.listDiscipline(TENANT_A, student.id)).data).toHaveLength(0);
 
       await expect(
         service.removeDiscipline(TENANT_A, student.id, created.id),
@@ -446,9 +447,10 @@ describe('G-914 students 360 routes', () => {
       url: `/students/${studentId}/documents`,
     });
     expect(listed.statusCode).toBe(200);
-    expect(listed.json()).toEqual(
+    expect(listed.json().data).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: doc.id, fileName: 'birth-cert.pdf' })]),
     );
+    expect(listed.json()).toMatchObject({ total: 1, limit: 50, offset: 0 });
 
     const downloaded = await app.inject({
       method: 'GET',
@@ -469,6 +471,6 @@ describe('G-914 students 360 routes', () => {
       url: `/students/${studentId}/documents`,
     });
     expect(afterDelete.statusCode).toBe(200);
-    expect(afterDelete.json()).toEqual([]);
+    expect(afterDelete.json()).toMatchObject({ data: [], total: 0 });
   });
 });

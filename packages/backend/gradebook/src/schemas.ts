@@ -33,7 +33,10 @@ export const CreateReportCardJobSchema = Type.Object({
 export type CreateReportCardJobInput = Static<typeof CreateReportCardJobSchema>;
 
 export const IssueTranscriptSchema = Type.Object({
-  studentId: Type.String({ minLength: 1 }),
+  // PRC-H063: studentId becomes a filesystem path segment for transcript artifacts — UUID only.
+  studentId: Type.String({
+    pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  }),
   /** Institution scope for dedicated transcript signing keys (W1-DATA-08). */
   institutionId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
   gpaSnapshotId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),

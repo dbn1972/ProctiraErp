@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  InMemoryKeycloakIdentityStore,
   KeycloakIdentityError,
   identityInputFromClaims,
   linkKeycloakIdentity,
@@ -74,6 +75,7 @@ describe('linkKeycloakIdentity', () => {
       {
         externalId: 'kc-admin',
         email: 'Admin@proctira.in',
+        emailVerified: true,
         displayName: 'India Admin',
         tenantSlug: 'india',
         realm: 'proctira',
@@ -98,6 +100,7 @@ describe('linkKeycloakIdentity', () => {
       {
         externalId: 'kc-teacher',
         email: 'teacher@school.in',
+        emailVerified: true,
         displayName: 'New Teacher',
         firstName: 'New',
         lastName: 'Teacher',
@@ -124,12 +127,105 @@ describe('linkKeycloakIdentity', () => {
         {
           externalId: 'kc-orphan',
           email: 'orphan@proctira.in',
+          emailVerified: true,
           displayName: 'Orphan',
           realm: 'proctira',
         },
         store,
       ),
     ).rejects.toBeInstanceOf(KeycloakIdentityError);
+  });
+});
+
+describe('linkKeycloakIdentity fail-closed email linking (PRC-H042)', () => {
+  const victim = {
+    id: 'user-victim',
+    tenantId: 'tenant-india',
+    email: 'admin@proctira.in',
+    displayName: 'India Admin',
+    countryCode: 'IN',
+  };
+
+  it('rejects email_verified=false for a provisioned email and creates no identity', async () => {
+    const store = createStore({ findUserByEmail: vi.fn().mockResolvedValue(victim) });
+    await expect(
+      linkKeycloakIdentity(
+        {
+          externalId: 'kc-attacker',
+          email: 'admin@proctira.in',
+          emailVerified: false,
+          displayName: 'Attacker',
+          tenantSlug: 'india',
+          realm: 'proctira',
+        },
+        store,
+      ),
+    ).rejects.toBeInstanceOf(KeycloakIdentityError);
+    expect(store.createIdentity).not.toHaveBeenCalled();
+    expect(store.createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token with no email_verified claim', async () => {
+    const store = createStore({ findUserByEmail: vi.fn().mockResolvedValue(victim) });
+    await expect(
+      linkKeycloakIdentity(
+        {
+          externalId: 'kc-attacker',
+          email: 'admin@proctira.in',
+          displayName: 'Attacker',
+          tenantSlug: 'india',
+          realm: 'proctira',
+        },
+        store,
+      ),
+    ).rejects.toBeInstanceOf(KeycloakIdentityError);
+    expect(store.createIdentity).not.toHaveBeenCalled();
+  });
+
+  it('tenantless verified token never resolves a user in another tenant', async () => {
+    const store = createStore({ findUserByEmail: vi.fn().mockResolvedValue(victim) });
+    await expect(
+      linkKeycloakIdentity(
+        {
+          externalId: 'kc-tenantless',
+          email: 'admin@proctira.in',
+          emailVerified: true,
+          displayName: 'Tenantless',
+          realm: 'proctira',
+        },
+        store,
+      ),
+    ).rejects.toBeInstanceOf(KeycloakIdentityError);
+    expect(store.findUserByEmail).not.toHaveBeenCalled();
+    expect(store.createIdentity).not.toHaveBeenCalled();
+  });
+
+  it('in-memory store does not match an email across tenants', async () => {
+    const store = new InMemoryKeycloakIdentityStore();
+    await store.createUser({
+      tenantId: 'tenant-b',
+      email: 'admin@proctira.in',
+      displayName: 'B Admin',
+      firstName: 'B',
+      lastName: 'Admin',
+      countryCode: 'IN',
+    });
+    expect(await store.findUserByEmail('admin@proctira.in', 'tenant-a')).toBeNull();
+    expect(await store.findUserByEmail('admin@proctira.in', '')).toBeNull();
+  });
+
+  it('maps email_verified only from an explicit true on the email claim', () => {
+    const base = { sub: 'kc-1', iss: 'x', exp: 1, email: 'a@b.in' };
+    expect(identityInputFromClaims(base, 'proctira').emailVerified).toBe(false);
+    expect(
+      identityInputFromClaims({ ...base, email_verified: true }, 'proctira').emailVerified,
+    ).toBe(true);
+    expect(
+      identityInputFromClaims(
+        { sub: 'kc-1', iss: 'x', exp: 1, preferred_username: 'a@b.in', email_verified: true },
+        'proctira',
+      ).emailVerified,
+    ).toBe(false);
   });
 });
 

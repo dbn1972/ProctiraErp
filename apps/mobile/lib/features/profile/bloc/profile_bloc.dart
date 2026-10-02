@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../../../core/errors/user_error_message.dart';
 
 // --- Events ---
 
@@ -38,11 +39,7 @@ class ProfileThemeModeChanged extends ProfileEvent {
 }
 
 class ProfileUpdated extends ProfileEvent {
-  const ProfileUpdated({
-    this.displayName,
-    this.email,
-    this.phone,
-  });
+  const ProfileUpdated({this.displayName, this.email, this.phone});
 
   final String? displayName;
   final String? email;
@@ -105,16 +102,16 @@ class ProfileState extends Equatable {
 
   @override
   List<Object?> get props => <Object?>[
-        status,
-        displayName,
-        email,
-        phone,
-        userId,
-        role,
-        locale,
-        themeMode,
-        errorMessage,
-      ];
+    status,
+    displayName,
+    email,
+    phone,
+    userId,
+    role,
+    locale,
+    themeMode,
+    errorMessage,
+  ];
 }
 
 // --- Bloc ---
@@ -140,16 +137,18 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final String? displayName = await storage.readUserDisplayName();
     final String userId = auth.userId ?? storedId ?? '';
 
-    emit(state.copyWith(
-      status: ProfileStatus.loaded,
-      displayName: (displayName != null && displayName.isNotEmpty)
-          ? displayName
-          : (email != null && email.isNotEmpty ? email : 'Signed-in user'),
-      email: email ?? '',
-      phone: '',
-      userId: userId,
-      role: '',
-    ));
+    emit(
+      state.copyWith(
+        status: ProfileStatus.loaded,
+        displayName: (displayName != null && displayName.isNotEmpty)
+            ? displayName
+            : (email != null && email.isNotEmpty ? email : 'Signed-in user'),
+        email: email ?? '',
+        phone: '',
+        userId: userId,
+        role: '',
+      ),
+    );
   }
 
   void _onLocaleChanged(
@@ -186,17 +185,21 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         );
       }
 
-      emit(state.copyWith(
-        status: ProfileStatus.loaded,
-        displayName: event.displayName ?? state.displayName,
-        email: event.email ?? state.email,
-        phone: event.phone ?? state.phone,
-      ));
+      emit(
+        state.copyWith(
+          status: ProfileStatus.loaded,
+          displayName: event.displayName ?? state.displayName,
+          email: event.email ?? state.email,
+          phone: event.phone ?? state.phone,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        status: ProfileStatus.error,
-        errorMessage: error.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: ProfileStatus.error,
+          errorMessage: userErrorMessage(error),
+        ),
+      );
     }
   }
 }

@@ -15,6 +15,7 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import { TenantService } from './tenant-service.js';
 import { InMemoryTenantRepository } from './in-memory-repository.js';
 import type { CreateTenantInput } from './schemas.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 describe('TenantService', () => {
   let service: TenantService;
@@ -35,7 +36,7 @@ describe('TenantService', () => {
 
   beforeEach(() => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
   });
 
   // ─── Tenant Creation ─────────────────────────────────────────────────────
@@ -323,7 +324,7 @@ describe('TenantService', () => {
           throw new BusinessRuleError('Destructive delete blocked: privacy legal hold');
         },
       };
-      const guarded = new TenantService(repository, guard);
+      const guarded = new TenantService(repository, guard, new RecordingAdminProvisioner());
       const tenant = await guarded.createTenant({
         ...validCreateInput,
         slug: `hold-${Date.now().toString(36)}`,
@@ -517,7 +518,11 @@ describe('TenantService', () => {
 
     it('reports a 404, not a dereferenced null, when the write resolves nothing', async () => {
       const tenant = await service.createTenant(validCreateInput);
-      const brokenService = new TenantService(repositoryThatCannotWrite(repository));
+      const brokenService = new TenantService(
+        repositoryThatCannotWrite(repository),
+        undefined,
+        new RecordingAdminProvisioner(),
+      );
 
       // Each of these gates passes, so each reaches the write.
       await expect(

@@ -43,9 +43,13 @@ function hasAuditIntegration(text) {
   return AUDIT_PATTERNS.some((p) => p.test(text));
 }
 
-export async function runAuditEventsCheck() {
+/**
+ * @param {{ backendDir?: string }} [opts] backendDir overrides the scanned
+ *   packages/backend root (used by fixture tests).
+ */
+export async function runAuditEventsCheck({ backendDir = BACKEND_DIR } = {}) {
   const report = new Report(CHECK_IDS.AUDIT_EVENTS, TITLE);
-  const routeFiles = await findFiles(BACKEND_DIR, (name) => {
+  const routeFiles = await findFiles(backendDir, (name) => {
     if (!isProductionTsFile(name)) return false;
     return name.includes('route');
   });
@@ -57,7 +61,7 @@ export async function runAuditEventsCheck() {
   const serviceTextCache = new Map();
   async function readServiceText(serviceName) {
     if (serviceTextCache.has(serviceName)) return serviceTextCache.get(serviceName);
-    const dir = resolve(BACKEND_DIR, serviceName, 'src');
+    const dir = resolve(backendDir, serviceName, 'src');
     const files = await findFiles(dir, (n) => n.endsWith('.ts') && !n.endsWith('.test.ts'));
     let combined = '';
     for (const f of files) combined += '\n' + (await safeReadFile(f));
@@ -66,7 +70,7 @@ export async function runAuditEventsCheck() {
   }
 
   for (const file of routeFiles) {
-    const ownerService = getBackendServiceName(file);
+    const ownerService = getBackendServiceName(file, backendDir);
     if (AUDIT_EXEMPT_SERVICES.has(ownerService)) continue;
 
     const routeText = await safeReadFile(file);

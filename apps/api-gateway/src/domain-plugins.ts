@@ -63,6 +63,7 @@ import {
   createWebhookReplayStoreFromEnv,
   developerPortalPlugin,
   ensureDeveloperPortalPersistence,
+  parseWebhookFanOutEvents,
   type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
@@ -94,9 +95,10 @@ import {
   createAreaHierarchyDb,
   createInstitutionRepository,
   institutionPlugin,
+  type RolloverSummary,
 } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
-import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
+import { createLmsRepository, LmsService, lmsPlugin } from '@proctira/backend-lms';
 import {
   createNotificationDeliveryPublisherFromEnv,
   createNotificationStack,
@@ -126,6 +128,7 @@ import {
   linkedStudentIdsForParent,
   scholarshipPlugin,
   parentScholarshipPlugin,
+  type ScholarshipRepository,
 } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -138,7 +141,11 @@ import {
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
-import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
+import {
+  createTimetableRepository,
+  TimetableService,
+  timetablePlugin,
+} from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
   createEscalationPublisherFromEnv,
@@ -150,6 +157,11 @@ import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 
+import {
+  formatAdmissionNumber,
+  offerFeeAmountCents,
+  tenantLocalDate,
+} from './admissions-offer-policy.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
@@ -159,6 +171,7 @@ import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
 import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
+import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
@@ -177,6 +190,15 @@ function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
   return workflowRepositoriesCache;
 }
 
+/**
+ * PRC-H020: the fees netting routes verify disbursements against the repository
+ * mounted by the scholarship registrar (same instance in in-memory mode).
+ */
+let mountedScholarshipRepository: ScholarshipRepository | null = null;
+function scholarshipRepositoryForFees(): ScholarshipRepository {
+  mountedScholarshipRepository ??= createScholarshipRepository();
+  return mountedScholarshipRepository;
+}
 /** Trusted dependencies composed once by the gateway root. */
 export interface DomainPluginDependencies {
   publicTenantResolver: PublicTenantResolver;
@@ -269,7 +291,8 @@ function createOfferFeeInvoiceHook() {
     const student = await ensureAdmissionsStudentProfile(input);
     const fees = new FeesService(createFeesRepository());
     const createOrFind = async () => {
-      const amountCents = Math.max(Math.round(Number(input.feeAmount) * 100), 0);
+      // PRC-L002: shared cents conversion rejects sub-cent / negative / non-finite amounts.
+      const amountCents = offerFeeAmountCents(input.feeAmount);
       const currency = input.feeCurrency || 'INR';
       const existing = (await fees.listInvoicesForStudentIds(input.tenantId, [student.id])).find(
         (invoice) =>
@@ -312,19 +335,29 @@ function createOfferFeeInvoiceHook() {
   };
 }
 
+/**
+ * PRC-C002: decide whether an admission offer may be accepted, given the offer-fee invoice's
+ * current status. A client-supplied paymentRef is NOT evidence of settlement — previously any
+ * non-empty string caused a fabricated sandbox payment, letting a guardian accept without
+ * paying. The invoice must already be genuinely paid (verified PSP/webhook settlement or a
+ * staff-recorded receipt on the fee ledger). Extracted as a pure function so the decision is
+ * directly unit-tested (see domain-plugins.test.ts) rather than only via an injected fake.
+ */
+export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
+  if (invoiceStatus === 'paid') return;
+  throw new BusinessRuleError(
+    'Offer fee invoice must be paid through a verified payment before enrolment',
+  );
+}
+
 function assertOfferFeePaidHook() {
+  // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
+  // PSP webhook / callback path; a client paymentRef is never payment proof.
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+    // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
-    if (invoice.status === 'paid') return;
-    if (input.paymentRef) {
-      await fees.recordPayment(input.tenantId, 'admissions-offer', {
-        invoiceId: input.invoiceId,
-        method: 'sandbox',
-      });
-      return;
-    }
-    throw new Error('Offer fee invoice must be paid before enrolment');
+    assertOfferFeeInvoicePaid(invoice.status);
   };
 }
 
@@ -468,7 +501,14 @@ async function createAdmissionsEnrollment(
         [input.tenantId],
       );
       const seq = Number((counter.rows[0] as { last_value: number }).last_value);
-      const admissionNo = `ADM-${new Date().getUTCFullYear()}-${String(seq).padStart(4, '0')}`;
+      // PRC-L002: admission-number year and enrolment date follow the tenant's local calendar.
+      const tenantTz = await client.query(
+        `SELECT config->'locale'->>'timezone' AS tz FROM tenants WHERE id = $1::uuid`,
+        [input.tenantId],
+      );
+      const timeZone = (tenantTz.rows[0] as { tz?: string | null } | undefined)?.tz;
+      const acceptedAt = new Date();
+      const admissionNo = formatAdmissionNumber(acceptedAt, timeZone, seq);
       await client.query(
         `UPDATE students
             SET admission_number = $3::text,
@@ -484,7 +524,7 @@ async function createAdmissionsEnrollment(
         [input.tenantId, student.id, admissionNo],
       );
 
-      const enrolledAt = new Date().toISOString().slice(0, 10);
+      const enrolledAt = tenantLocalDate(acceptedAt, timeZone);
       await client.query(`SELECT set_config('app.enrollment_history_reason', $1, true)`, [
         'Admission offer accepted',
       ]);
@@ -560,12 +600,27 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // W1-SEC-06: legal-hold gate on student soft-delete / merge — shared store
       // with /privacy plugin + tenant lifecycle delete guard.
       const privacyService = new PrivacyService(sharedPrivacyRepository);
+      // PRC-C010/C011: bind portal readers to the students they may see — guardians/parents to
+      // their linked children (parent-portal child-link table, same source as fees/gradebook),
+      // and a student to their own JWT subject. Without this, portal roles are denied.
+      const studentParentRepo = createParentPortalRepository();
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
+        // PRC-H092: in-process consumer (dedicated connection) for queued imports.
+        importWorkerQueue: importHandle?.createConsumerAdapter(),
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            // Guardians/parents → their linked children. A student's own-record read is served
+            // by the student portal (JWT sub) and is tracked as a follow-up; the child-link
+            // table is the authoritative ownership source here.
+            const links = await studentParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },
@@ -588,43 +643,37 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
       const feesForRollover = new FeesService(createFeesRepository());
-      // Timetable + LMS clones are best-effort — packages may be memory or PG.
-      type Dry = { dryRun?: boolean };
-      let copyTimetable:
-        | undefined
-        | ((
-            tenantId: string,
-            actorId: string,
-            sourcePeriodId: string,
-            targetPeriodId: string,
-            options?: Dry,
-          ) => Promise<{ sectionsCloned: number; meetingsCloned: number }>);
-      let copyLmsAssignments:
-        | undefined
-        | ((
-            tenantId: string,
-            actorId: string,
-            sourcePeriodId: string,
-            targetPeriodId: string,
-            options?: Dry,
-          ) => Promise<{ cloned: number; source: number }>);
-      try {
-        const { createTimetableRepository, TimetableService } =
-          await import('@proctira/backend-timetable');
-        const tt = new TimetableService(createTimetableRepository());
-        copyTimetable = (tenantId, _actor, sourcePeriodId, targetPeriodId, options) =>
-          tt.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId, options);
-      } catch {
-        copyTimetable = async () => ({ sectionsCloned: 0, meetingsCloned: 0 });
-      }
-      try {
-        const { createLmsRepository, LmsService } = await import('@proctira/backend-lms');
-        const lms = new LmsService(createLmsRepository());
-        copyLmsAssignments = (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
-          lms.cloneAssignmentsForPeriod(tenantId, actorId, sourcePeriodId, targetPeriodId, options);
-      } catch {
-        copyLmsAssignments = async () => ({ cloned: 0, source: 0 });
-      }
+      // PRC-L320: timetable/LMS clone hooks are wired directly (no catch-and-zero
+      // fallback that reported success with zero counts on an import failure).
+      const timetableForRollover = new TimetableService(createTimetableRepository());
+      const lmsForRollover = new LmsService(createLmsRepository());
+      const copyTimetable = (
+        tenantId: string,
+        _actorId: string,
+        sourcePeriodId: string,
+        targetPeriodId: string,
+        options?: { dryRun?: boolean },
+      ) =>
+        timetableForRollover.cloneForAcademicPeriod(
+          tenantId,
+          sourcePeriodId,
+          targetPeriodId,
+          options,
+        );
+      const copyLmsAssignments = (
+        tenantId: string,
+        actorId: string,
+        sourcePeriodId: string,
+        targetPeriodId: string,
+        options?: { dryRun?: boolean },
+      ) =>
+        lmsForRollover.cloneAssignmentsForPeriod(
+          tenantId,
+          actorId,
+          sourcePeriodId,
+          targetPeriodId,
+          options,
+        );
       const pgPool = getSharedPgPool();
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
@@ -642,6 +691,22 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             ),
           copyTimetable,
           copyLmsAssignments,
+          // PRC-L318: replayed real runs return the stored summary (dry-runs use a
+          // namespaced key, so they never consume the real run's key).
+          findCompletedRolloverRun: pgPool
+            ? async ({ tenantId, idempotencyKey }) =>
+                withPgTenant(pgPool, tenantId, async (client) => {
+                  const { rows } = await client.query(
+                    `SELECT summary FROM academic_rollover_runs
+                      WHERE tenant_id = $1::uuid AND idempotency_key = $2
+                        AND dry_run = false AND status = 'completed'
+                      LIMIT 1`,
+                    [tenantId, idempotencyKey],
+                  );
+                  const row = rows[0] as { summary?: RolloverSummary } | undefined;
+                  return row?.summary ?? null;
+                })
+            : undefined,
           recordRolloverRun: pgPool
             ? async (input) => {
                 await withPgTenant(pgPool, input.tenantId, async (client) => {
@@ -782,6 +847,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         institutionBrandingRepository: createInstitutionBrandingRepository(),
         reportCardJobRepository: createReportCardJobRepository(),
         taskQueuePublisher: reportCardQueueHandle?.publisher,
+        // PRC-H039: in-process consumer so queued jobs reach 'completed'.
+        reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
       });
     },
   },
@@ -803,9 +870,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Raw pg against 003/004 gradebook tables when DATABASE_URL is set;
       // in-memory otherwise. No Prisma on this path.
+      // PRC-C006: bind portal readers (guardian/parent) to their linked children so portal
+      // gradebook reads are self-scoped, not fail-closed. Uses the same child-link source as
+      // the fees parentBinding. A student reading their own grades is served via the guardian
+      // link table when present; direct student-self resolution is a tracked follow-up.
+      const gradebookParentRepo = createParentPortalRepository();
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            const links = await gradebookParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },
@@ -838,6 +916,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/016_scholarships_schema.sql); else in-memory.
       const repository = createScholarshipRepository();
+      mountedScholarshipRepository = repository;
       // G-705: demo rows only when explicitly requested or in dev/test without
       // a database; never seed into a production Postgres.
       if (shouldSeedDemoData()) {
@@ -853,6 +932,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        // PRC-H030: with Postgres, applicants must be real students of the tenant.
+        applicantExists: isPgScholarshipEnabled()
+          ? async (tenantId: string, studentId: string) =>
+              (await createStudentRepository().findById(studentId, tenantId)) !== null
+          : undefined,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
@@ -997,6 +1081,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         caseRepository,
         escalationPublisher: escalationHandle?.publisher,
+        // PRC-H110: in-process escalation consumer (dedicated connection).
+        escalationWorkerQueue: escalationHandle?.createConsumerAdapter(),
         prefix: '/workflow-engine',
       });
     },
@@ -1021,12 +1107,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             entityType: event.entityType,
             entityId: event.entityId,
             operation: event.operation,
+            // PRC-L205: real caller from the tenant admin request context; 'system' / 0.0.0.0
+            // only for events raised outside an authenticated request.
             userId: event.actorId ?? 'system',
             userName: event.actorId ?? 'system',
-            ipAddress: '0.0.0.0',
+            ipAddress: event.ipAddress ?? '0.0.0.0',
             beforeValues: event.beforeValues,
             afterValues: event.afterValues,
-            metadata: event.metadata,
+            metadata: event.requestId
+              ? { ...event.metadata, requestId: event.requestId }
+              : event.metadata,
           });
         },
       });
@@ -1134,6 +1224,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(feesPlugin, {
         repository,
         prefix: '/fees',
+        scholarshipDisbursements: createScholarshipDisbursementLookup(scholarshipRepositoryForFees),
         parentBinding: {
           listLinkedStudentIds: async (tenantId, parentUserId) => {
             const links = await parentRepo.listChildLinksForParent(tenantId, parentUserId);
@@ -1281,6 +1372,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(developerPortalPlugin, {
         repository: createDeveloperPortalRepository(),
         deliveryPublisher: webhookDelivery?.publisher,
+        // PRC-H046: in-process delivery consumer + opt-in event fan-out
+        // (WEBHOOK_FANOUT_EVENTS=student.enrolled,... ; empty → no fan-out).
+        deliveryWorkerQueue: webhookDelivery?.createConsumerAdapter(),
+        fanOutEvents: webhookDelivery
+          ? parseWebhookFanOutEvents(process.env['WEBHOOK_FANOUT_EVENTS'])
+          : [],
+        createFanOutQueue: webhookDelivery
+          ? () => webhookDelivery.createConsumerAdapter()
+          : undefined,
         replayStore: webhookReplayStore,
         prefix: '/developer',
       });
@@ -1304,6 +1404,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/privacy',
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
+        // PRC-H078: in-process consumers (dedicated connections) for both job types.
+        anonymizationWorkerQueue: queueHandle?.createConsumerAdapter(),
+        offboardWorkerQueue: queueHandle?.createConsumerAdapter(),
       });
     },
   },

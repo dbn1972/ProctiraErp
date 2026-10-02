@@ -20,9 +20,10 @@
  * POST   /warehouses/:warehouseId/query                 - Query data
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { AuditContext } from './audit.js';
 import type { DataWarehouseService } from './data-warehouse-service.js';
 import {
   CreateWarehouseSchema,
@@ -36,8 +37,6 @@ import {
   CreateAreaSchema,
   BulkImportSchema,
   DataQuerySchema,
-  type CreateWarehouseInput,
-  type WarehouseParams,
   type WarehouseListQuery,
 } from './schemas.js';
 
@@ -50,6 +49,12 @@ function getTenantId(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
 }
 
+/** Actor identity for audit events (JWT `sub`, or `userId` fallback). */
+function auditContext(request: FastifyRequest): AuditContext {
+  const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+  return { actorId: user?.sub ?? user?.userId ?? null };
+}
+
 function sendTenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -58,11 +63,39 @@ function sendTenantRequired(reply: FastifyReply) {
   });
 }
 
+/**
+ * Validate list query params (page >= 1, 1 <= pageSize <= 100) with string coercion.
+ * Sends a 400 and returns null when invalid.
+ */
+function parseListQuery(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): { page: number; pageSize: number; search?: string } | null {
+  const result = validateQuery(WarehouseListQuerySchema, request.query ?? {});
+  if (!result.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid list query',
+      statusCode: 400,
+      errors: result.errors,
+    });
+    return null;
+  }
+  const query: WarehouseListQuery = result.data;
+  return { page: query.page ?? 1, pageSize: query.pageSize ?? 20, search: query.search };
+}
+
 function handleError(error: unknown, reply: FastifyReply) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
-  throw error;
+  // Unknown failure: log server-side, never echo internal messages to the client.
+  reply.log.error({ err: error }, 'data-warehouse route failed');
+  return reply.status(500).send({
+    code: 'INTERNAL_ERROR',
+    message: 'Internal server error',
+    statusCode: 500,
+  });
 }
 
 export async function registerDataWarehouseRoutes(
@@ -88,7 +121,11 @@ export async function registerDataWarehouseRoutes(
     }
 
     try {
-      const warehouse = await dataWarehouseService.createWarehouse(tenantId, result.data);
+      const warehouse = await dataWarehouseService.createWarehouse(
+        tenantId,
+        result.data,
+        auditContext(request),
+      );
       return reply.status(201).send(warehouse);
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -99,21 +136,29 @@ export async function registerDataWarehouseRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return sendTenantRequired(reply);
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+    const query = parseListQuery(request, reply);
+    if (!query) return reply;
+    const { page, pageSize } = query;
 
-    const result = await dataWarehouseService.listWarehouses(
-      tenantId,
-      { search: query.search },
-      page,
-      pageSize,
-    );
-
-    return reply.status(200).send({
-      data: result.data,
-      meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
-    });
+    try {
+      const result = await dataWarehouseService.listWarehouses(
+        tenantId,
+        { search: query.search },
+        page,
+        pageSize,
+      );
+      return reply.status(200).send({
+        data: result.data,
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
+      });
+    } catch (error: unknown) {
+      return handleError(error, reply);
+    }
   });
 
   fastify.get(`${prefix}/:warehouseId`, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -170,6 +215,7 @@ export async function registerDataWarehouseRoutes(
         tenantId,
         paramsResult.data.warehouseId,
         bodyResult.data,
+        auditContext(request),
       );
       return reply.status(200).send(warehouse);
     } catch (error: unknown) {
@@ -192,7 +238,11 @@ export async function registerDataWarehouseRoutes(
     }
 
     try {
-      await dataWarehouseService.deleteWarehouse(tenantId, paramsResult.data.warehouseId);
+      await dataWarehouseService.deleteWarehouse(
+        tenantId,
+        paramsResult.data.warehouseId,
+        auditContext(request),
+      );
       return reply.status(204).send();
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -232,6 +282,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(indicator);
       } catch (error: unknown) {
@@ -256,9 +307,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listIndicators(
@@ -316,6 +367,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(unit);
       } catch (error: unknown) {
@@ -340,9 +392,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listUnits(
@@ -400,6 +452,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(subgroup);
       } catch (error: unknown) {
@@ -424,9 +477,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listSubgroups(
@@ -484,6 +537,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(tp);
       } catch (error: unknown) {
@@ -508,9 +562,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listTimePeriods(
@@ -568,6 +622,7 @@ export async function registerDataWarehouseRoutes(
           tenantId,
           paramsResult.data.warehouseId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(201).send(area);
       } catch (error: unknown) {
@@ -592,9 +647,9 @@ export async function registerDataWarehouseRoutes(
         });
       }
 
-      const query = request.query as WarehouseListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const query = parseListQuery(request, reply);
+      if (!query) return reply;
+      const { page, pageSize } = query;
 
       try {
         const result = await dataWarehouseService.listAreas(
@@ -657,6 +712,7 @@ export async function registerDataWarehouseRoutes(
             fileContent: bodyResult.data.fileContent,
             dbConnectionConfig: bodyResult.data.dbConnectionConfig,
           },
+          auditContext(request),
         );
         return reply.status(200).send(importResult);
       } catch (error: unknown) {

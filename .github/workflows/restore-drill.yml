@@ -58,6 +58,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # PRC-L383: pg-backup.sh refuses plaintext dumps unless opted in; the drill's
+    # plaintext steps opt in here, the encrypted round-trip sets recipients.
+    env:
+      BACKUP_ALLOW_PLAINTEXT: '1'
     steps:
       - uses: actions/checkout@v7
 
@@ -166,12 +170,19 @@ jobs:
         run: |
           set -euo pipefail
           d=/tmp/restore-drill/dumps
-          key="$(mktemp)"
-          trap 'rm -f "$key"' EXIT
+          # age-keygen -o refuses to overwrite an existing file, so a plain
+          # `mktemp` file makes it fail; generate into a fresh private dir.
+          keydir="$(mktemp -d)"
+          key="$keydir/drill-identity.txt"
+          trap 'rm -rf "$keydir"' EXIT
           age-keygen -o "$key" >/dev/null
           pub="$(age-keygen -y "$key")"
-          enc_out="$(BACKUP_DIR="$d" BACKUP_ENCRYPT=1 BACKUP_AGE_RECIPIENT="$pub" \
+          # pg-backup.sh logs "==>" progress lines on stdout and prints the
+          # final artifact path as its last line; keep only that line.
+          backup_log="$(BACKUP_DIR="$d" BACKUP_ENCRYPT=1 BACKUP_AGE_RECIPIENT="$pub" \
             bash tools/scripts/pg-backup.sh "$d/encrypted-roundtrip.dump")"
+          printf '%s\n' "$backup_log"
+          enc_out="${backup_log##*$'\n'}"
           test -f "$enc_out" || { echo "missing encrypted artifact: $enc_out"; exit 1; }
           [[ "$enc_out" == *.age ]] || { echo "expected .dump.age suffix: $enc_out"; exit 1; }
           test ! -e "$d/encrypted-roundtrip.dump" || { echo "plaintext dump must be removed"; exit 1; }
@@ -208,7 +219,7 @@ jobs:
       - name: Smoke the image
         run: |
           docker run --rm --network host \
-            -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups \
+            -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups -e BACKUP_ALLOW_PLAINTEXT=1 \
             proctira/dr-tools:drill bash tools/scripts/pg-backup.sh /backups/from-image.dump
           docker run --rm -e RETENTION_DRY_RUN=1 proctira/dr-tools:drill \
             node tools/scripts/phi-retention-job.mjs \

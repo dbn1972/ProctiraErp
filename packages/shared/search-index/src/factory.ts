@@ -9,7 +9,9 @@ import type { SearchIndexAdapter, SearchIndexConfig } from './types.js';
  * Create a SearchIndexAdapter from configuration.
  * Wave 3 wires only the in-memory stub; postgres is reserved for a later slice.
  */
-export function createSearchIndex(config: SearchIndexConfig = { adapter: 'memory' }): SearchIndexAdapter {
+export function createSearchIndex(
+  config: SearchIndexConfig = { adapter: 'memory' },
+): SearchIndexAdapter {
   switch (config.adapter) {
     case 'memory':
       return new InMemorySearchIndex();
@@ -19,15 +21,26 @@ export function createSearchIndex(config: SearchIndexConfig = { adapter: 'memory
       );
     default: {
       const exhaustive: never = config;
-      throw new Error(`Unsupported search index adapter: ${(exhaustive as SearchIndexConfig).adapter}`);
+      throw new Error(
+        `Unsupported search index adapter: ${(exhaustive as SearchIndexConfig).adapter}`,
+      );
     }
   }
 }
 
-/** Environment-driven factory — defaults to in-memory for dev/test. */
+/**
+ * Environment-driven factory — defaults to in-memory for dev/test.
+ * PRC-L494: refuses the in-memory stub when NODE_ENV=production (fail fast instead
+ * of silently serving a per-process, non-durable index).
+ */
 export function createSearchIndexFromEnv(): SearchIndexAdapter {
   const adapter = process.env.SEARCH_INDEX_ADAPTER?.trim().toLowerCase();
   if (!adapter || adapter === 'memory') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'In-memory search index is not allowed when NODE_ENV=production; configure a durable SEARCH_INDEX_ADAPTER',
+      );
+    }
     return createSearchIndex({ adapter: 'memory' });
   }
   if (adapter === 'postgres') {

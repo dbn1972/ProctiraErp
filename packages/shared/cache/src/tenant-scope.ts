@@ -37,6 +37,35 @@ export function assertTenantId(
   }
 }
 
+/** Characters forbidden in a key segment that separates/globs (`:` separator, Redis glob metachars, whitespace). */
+const UNSAFE_SEGMENT = /[:*?[\]\\\s]/;
+
+/**
+ * PRC-L146 — assert a structural key segment (tenantId / entity / configType)
+ * contains no separator or glob characters so it cannot shift or widen the key shape.
+ */
+export function assertSafeKeySegment(value: string, label: string, surface = 'cache'): void {
+  if (UNSAFE_SEGMENT.test(value)) {
+    throw new TenantScopeError(
+      `${surface}: ${label} must not contain ':', whitespace or glob characters (* ? [ ] \\) (PRC-L146)`,
+    );
+  }
+}
+
+/**
+ * PRC-L146 — a SCAN/DEL pattern must be tenant-scoped with a literal tenant segment
+ * (no `*`, `?`, `[` in the tenant position), e.g. `t:acme:student:*`.
+ */
+export function assertTenantScopedCachePattern(pattern: string, surface = 'cache'): void {
+  const m = /^(?:t|cfg|lst|tenant):([^:]*):/.exec(pattern ?? '');
+  const tenant = m?.[1] ?? '';
+  if (!m || tenant.length === 0 || /[*?[\]\\\s]/.test(tenant)) {
+    throw new TenantScopeError(
+      `${surface}: cache pattern must have a literal tenant segment (PRC-L146): "${pattern}"`,
+    );
+  }
+}
+
 /**
  * Known tenant-scoped cache key shapes:
  * - `t:{tenantId}:{entity}:{id}` (tenantKey)

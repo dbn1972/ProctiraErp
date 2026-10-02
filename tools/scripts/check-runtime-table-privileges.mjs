@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * W1-DATA-11 COMPLETE — CI catalog gate for runtime table privileges.
+ * W1-DATA-11 — CI catalog gate for runtime table privileges.
  *
  * Fails closed when:
  *   - any public CREATE TABLE is missing from db/runtime-table-privileges.json

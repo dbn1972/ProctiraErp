@@ -39,6 +39,13 @@ describe('csrf — token + parsing', () => {
     expect(parseCookieHeader(null).size).toBe(0);
   });
 
+  it('does not throw on malformed %-encoding and keeps the raw value (PRC-L026)', () => {
+    expect(() => parseCookieHeader('bad=%E0%A4%A; ok=1')).not.toThrow();
+    const jar = parseCookieHeader('bad=%E0%A4%A; ok=1');
+    expect(jar.get('bad')).toBe('%E0%A4%A');
+    expect(jar.get('ok')).toBe('1');
+  });
+
   it('classifies unsafe methods', () => {
     expect(isUnsafeMethod('GET')).toBe(false);
     expect(isUnsafeMethod('HEAD')).toBe(false);
@@ -89,6 +96,26 @@ describe('csrf — origin verification', () => {
     expect(verifyRequestOrigin(makeRequest({ headers: { referer: `${ORIGIN}/login` } })).ok).toBe(
       true,
     );
+  });
+
+  it('rejects an opaque "Origin: null" even with a same-origin Referer (PRC-L026)', () => {
+    const req = makeRequest({ headers: { origin: 'null', referer: `${ORIGIN}/login` } });
+    expect(verifyRequestOrigin(req)).toEqual({ ok: false, reason: 'origin-mismatch' });
+  });
+
+  it('rejects an unparsable Origin header (PRC-L026)', () => {
+    expect(verifyRequestOrigin(makeRequest({ headers: { origin: 'not a url' } }))).toEqual({
+      ok: false,
+      reason: 'origin-mismatch',
+    });
+  });
+
+  it('rejects an Origin: null POST even with a valid double-submit pair (PRC-L026)', () => {
+    const token = generateCsrfToken();
+    const req = makeRequest({
+      headers: { origin: 'null', cookie: `${CSRF_COOKIE}=${token}`, [CSRF_HEADER]: token },
+    });
+    expect(verifyCsrf(req)).toEqual({ ok: false, reason: 'origin-mismatch' });
   });
 
   it('passes when neither Origin nor Referer is present (server-to-server)', () => {

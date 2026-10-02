@@ -237,4 +237,11 @@ describe('provisionTenant', () => {
     // Config should be serialized as empty object
     expect(firstCall[3]).toBe('{}');
   });
+
+  it('rejects an explicitly configured invalid timezone (PRC-L358)', async () => {
+    const db = createMockDb();
+    await expect(
+      provisionTenant(db, { ...validInput, config: { timezone: 'Mars/Olympus' } }),
+    ).rejects.toThrow(/Invalid tenant timezone/);
+  });
 });

@@ -46,7 +46,7 @@ class BiometricService {
   /// Prompt the user for biometric authentication. Returns true if the
   /// platform reported a successful match.
   Future<bool> authenticate({
-    String reason = 'Sign in to OpenEMIS',
+    String reason = 'Sign in to ProctiraERP',
   }) async {
     try {
       return await _auth.authenticate(

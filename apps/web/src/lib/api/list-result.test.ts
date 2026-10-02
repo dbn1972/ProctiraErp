@@ -48,7 +48,7 @@ describe('redactPath', () => {
 });
 
 describe('fetchList', () => {
-  let logged: MockInstance<Parameters<typeof console.error>, void>;
+  let logged: MockInstance<typeof console.error>;
 
   beforeEach(() => {
     gatewayFetchMock.mockReset();

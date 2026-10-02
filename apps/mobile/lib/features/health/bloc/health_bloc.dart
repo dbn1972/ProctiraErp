@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/health_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 // --- Events ---
 
@@ -53,15 +54,20 @@ class HealthState extends Equatable {
   }
 
   @override
-  List<Object?> get props => <Object?>[status, records, studentId, errorMessage];
+  List<Object?> get props => <Object?>[
+    status,
+    records,
+    studentId,
+    errorMessage,
+  ];
 }
 
 // --- Bloc ---
 
 class HealthBloc extends Bloc<HealthEvent, HealthState> {
   HealthBloc({required HealthRepository repository})
-      : _repository = repository,
-        super(const HealthState()) {
+    : _repository = repository,
+      super(const HealthState()) {
     on<HealthRecordsRequested>(_onRecordsRequested);
   }
 
@@ -72,32 +78,33 @@ class HealthBloc extends Bloc<HealthEvent, HealthState> {
     Emitter<HealthState> emit,
   ) async {
     if (event.studentId.trim().isEmpty) {
-      emit(state.copyWith(
-        status: HealthStatus.error,
-        studentId: '',
-        records: const HealthRecords(),
-        errorMessage: 'Choose a student to view health records.',
-      ));
+      emit(
+        state.copyWith(
+          status: HealthStatus.error,
+          studentId: '',
+          records: const HealthRecords(),
+          errorMessage: 'Choose a student to view health records.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: HealthStatus.loading,
-      studentId: event.studentId,
-    ));
+    emit(
+      state.copyWith(status: HealthStatus.loading, studentId: event.studentId),
+    );
 
     try {
-      final HealthRecords records =
-          await _repository.getRecords(studentId: event.studentId);
-      emit(state.copyWith(
-        status: HealthStatus.loaded,
-        records: records,
-      ));
+      final HealthRecords records = await _repository.getRecords(
+        studentId: event.studentId,
+      );
+      emit(state.copyWith(status: HealthStatus.loaded, records: records));
     } catch (error) {
-      emit(state.copyWith(
-        status: HealthStatus.error,
-        errorMessage: error.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: HealthStatus.error,
+          errorMessage: userErrorMessage(error),
+        ),
+      );
     }
   }
 }

@@ -15,7 +15,9 @@
     "import": "ಆಮದು",
     "back": "ಹಿಂದಕ್ಕೆ",
     "next": "ಮುಂದೆ",
-    "previous": "ಹಿಂದಿನ"
+    "previous": "ಹಿಂದಿನ",
+    "language": "ಭಾಷೆ",
+    "selectLanguage": "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ"
   },
   "nav": {
     "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
@@ -29,11 +31,13 @@
     "examinations": "ಪರೀಕ್ಷೆಗಳು",
     "scholarships": "ವಿದ್ಯಾರ್ಥಿವೇತನ",
     "health": "ಆರೋಗ್ಯ",
+    "parentPortal": "ಪೋಷಕರ ಪೋರ್ಟಲ್",
     "workflows": "ವರ್ಕ್‌ಫ್ಲೋಗಳು",
     "dataWarehouse": "ಡೇಟಾ ವೇರ್‌ಹೌಸ್",
     "reports": "ವರದಿಗಳು",
     "admin": "ಆಡಳಿತ",
     "fees": "ಶುಲ್ಕ",
+    "notifications": "ಅಧಿಸೂಚನೆಗಳು",
     "transport": "Transport",
     "library": "Library",
     "communication": "Communication",
@@ -77,6 +81,7 @@
     "resendEmail": "ಇಮೇಲ್ ಮತ್ತೆ ಕಳುಹಿಸಿ",
     "backToSignIn": "ಸೈನ್ ಇನ್‌ಗೆ ಹಿಂತಿರುಗಿ",
     "passwordResetFailed": "ನಾವು ಮರುಹೊಂದಿಸುವ ಇಮೇಲ್ ಕಳುಹಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಪುನಃ ಪ್ರಯತ್ನಿಸಿ.",
+    "passwordResetSuccess": "ನಿಮ್ಮ ಪಾಸ್‌ವರ್ಡ್ ನವೀಕರಿಸಲಾಗಿದೆ. ಹೊಸ ಪಾಸ್‌ವರ್ಡ್‌ನೊಂದಿಗೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.",
     "createNewPassword": "ಹೊಸ ಪಾಸ್‌ವರ್ಡ್ ರಚಿಸಿ",
     "createNewPasswordSubtitle": "ನೀವು ನೆನಪಿಡುವ ಬಲವಾದದನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
     "updatePassword": "ಪಾಸ್‌ವರ್ಡ್ ನವೀಕರಿಸಿ",
@@ -465,7 +470,13 @@
     "statusDraft": "ಕರಡು",
     "statusOpen": "ಅರ್ಜಿ ಅವಧಿ ತೆರೆದಿದೆ",
     "statusClosed": "ಮುಚ್ಚಲಾಗಿದೆ",
-    "statusArchived": "ಆರ್ಕೈವ್ ಮಾಡಲಾಗಿದೆ"
+    "statusArchived": "ಆರ್ಕೈವ್ ಮಾಡಲಾಗಿದೆ",
+    "statusFilterLabel": "ಅರ್ಜಿ ಸ್ಥಿತಿ",
+    "statusFilterAll": "ಎಲ್ಲಾ",
+    "statusFilterPending": "ಬಾಕಿ",
+    "statusFilterUnderReview": "ಪರಿಶೀಲನೆಯಲ್ಲಿ",
+    "statusFilterApproved": "ಅನುಮೋದಿಸಲಾಗಿದೆ",
+    "statusFilterRejected": "ತಿರಸ್ಕರಿಸಲಾಗಿದೆ"
   },
   "lms": {
     "title": "ಕಲಿಕೆ · ಅಸೈನ್‌ಮೆಂಟ್, ಮನೆಕೆಲಸ ಮತ್ತು ಕ್ವಿಜ್",
@@ -620,7 +631,13 @@
     "fieldSkillName": "ಹೆಸರು",
     "fieldPrerequisite": "ಪೂರ್ವಾಪೇಕ್ಷೆ",
     "fieldPrerequisiteHint": "ವಿದ್ಯಾರ್ಥಿಗಳು ಮೊದಲು ಇದರಲ್ಲಿ ಪ್ರಾವೀಣ್ಯ ಪಡೆಯಬೇಕು",
-    "createSkill": "ಕೌಶಲ್ಯ ರಚಿಸಿ"
+    "createSkill": "ಕೌಶಲ್ಯ ರಚಿಸಿ",
+    "rubricsTitle": "ರೂಬ್ರಿಕ್‌ಗಳು",
+    "rubricsSubtitle": "ಮಾನದಂಡಗಳು × ಹಂತಗಳು. ಅಸೈನ್‌ಮೆಂಟ್‌ಗಳು ಮತ್ತು ಪ್ರಬಂಧ ಬ್ಯಾಂಕ್ ಐಟಂಗಳಿಗೆ ಲಗತ್ತಿಸಿ, ನಂತರ ಸಲ್ಲಿಕೆಗಳನ್ನು ಮೌಲ್ಯಮಾಪನ ಮಾಡಿ.",
+    "rubricsNew": "ಹೊಸ ರೂಬ್ರಿಕ್",
+    "rubricsEmptyTitle": "ಇನ್ನೂ ರೂಬ್ರಿಕ್‌ಗಳಿಲ್ಲ",
+    "rubricsEmptyBody": "ಪ್ರಬಂಧಗಳನ್ನು ಮೌಲ್ಯಮಾಪನ ಮಾಡಲು ರೂಬ್ರಿಕ್ ರಚಿಸಿ.",
+    "rubricsAnySubject": "ಯಾವುದೇ ವಿಷಯ"
   },
   "health": {
     "title": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು",
@@ -711,7 +728,16 @@
     "statusApproved": "ಅನುಮೋದಿಸಲಾಗಿದೆ",
     "statusRejected": "ತಿರಸ್ಕರಿಸಲಾಗಿದೆ",
     "statusWaitlisted": "ಕಾಯುವಿಕೆ ಪಟ್ಟಿಯಲ್ಲಿ",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "Applicant date of birth",
+    "dateOfBirthHint": "Enter the date of birth given on the application. It is required to protect the applicant's details.",
+    "dateOfBirthRequired": "Date of birth is required.",
+    "institution": "School",
+    "waitlistPosition": "Waitlist position",
+    "remarks": "Remarks from the admissions office",
+    "interviews": "Interviews",
+    "interviewsEmpty": "No interview has been booked yet.",
+    "interviewsBooked": "Interviews booked: {count}"
   },
   "settings": {
     "branding": {
@@ -865,5 +891,16 @@
     "managePlans": "ಯೋಜನೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     "manageInvoices": "ಇನ್‌ವಾಯ್ಸ್‌ಗಳನ್ನು ನಿರ್ವಹಿಸಿ",
     "viewReceipts": "ರಸೀದಿಗಳನ್ನು ವೀಕ್ಷಿಸಿ"
+  },
+  "notifications": {
+    "title": "ಅಧಿಸೂಚನೆಗಳು",
+    "subtitle": "ನಿಮ್ಮ ಶಾಲಾ ಎಚ್ಚರಿಕೆಗಳಿಗಾಗಿ ಆ್ಯಪ್ ಇನ್‌ಬಾಕ್ಸ್. ಇಮೇಲ್, ಪುಶ್ ಮತ್ತು SMS ಆದ್ಯತೆಗಳನ್ನು ಯಾವಾಗ ಬೇಕಾದರೂ ನಿರ್ವಹಿಸಿ.",
+    "preferences": "ಆದ್ಯತೆಗಳು",
+    "rules": "ಅಧಿಸೂಚನೆ ನಿಯಮಗಳು",
+    "inbox": "ಇನ್‌ಬಾಕ್ಸ್",
+    "inboxDescription": "ನಿಮ್ಮ ಸೈನ್-ಇನ್ ಖಾತೆಗಾಗಿ ಎಚ್ಚರಿಕೆಗಳು.",
+    "empty": "ಇನ್ನೂ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ. ಇಮೇಲ್, ಪುಶ್ ಅಥವಾ SMS ಆಯ್ಕೆ ಮಾಡಲು ಆದ್ಯತೆಗಳನ್ನು ಬಳಸಿ — ಮೊಬೈಲ್ ಎಚ್ಚರಿಕೆಗಳಿಗಾಗಿ ಸಾಧನವನ್ನು ನೋಂದಾಯಿಸಿ.",
+    "read": "ಓದಿದ",
+    "unread": "ಓದದ"
   }
 }

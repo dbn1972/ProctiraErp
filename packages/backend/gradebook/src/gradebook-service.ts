@@ -77,6 +77,17 @@ function actorId(requestUser?: { id?: string; sub?: string }): string | null {
 
 const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
 
+/**
+ * PRC-H065: `metadata.prep.candidates` holds the full export cohort (names, national IDs, marks)
+ * so an async worker can build the pack. It is internal worker state and must never leave the
+ * service through list/get/create responses.
+ */
+export function toPublicBoardExportJob(job: ExportJobEntity): ExportJobEntity {
+  if (!job.metadata || !('prep' in job.metadata)) return job;
+  const { prep: _prep, ...metadata } = job.metadata;
+  return { ...job, metadata };
+}
+
 export class GradebookService {
   private readonly auditLog: GradebookAuditEntry[] = [];
   private readonly extras: GradebookExtrasStore;
@@ -236,12 +247,14 @@ export class GradebookService {
     return this.repo.listInstitutionsByBoard(tenantId, boardId);
   }
 
-  listBoardExportJobs(tenantId: string) {
-    return this.repo.listExportJobs(tenantId, BOARD_EXPORT_JOB_TYPE);
+  async listBoardExportJobs(tenantId: string) {
+    const rows = await this.repo.listExportJobs(tenantId, BOARD_EXPORT_JOB_TYPE);
+    return rows.map(toPublicBoardExportJob);
   }
 
-  getBoardExportJob(tenantId: string, id: string) {
-    return this.repo.getExportJob(tenantId, id);
+  async getBoardExportJob(tenantId: string, id: string) {
+    const job = await this.repo.getExportJob(tenantId, id);
+    return job ? toPublicBoardExportJob(job) : null;
   }
 
   async createCreditRule(tenantId: string, input: CreateCreditRuleInput) {
@@ -935,6 +948,9 @@ export class GradebookService {
       artifactUri: null,
       errorMessage: null,
       metadata: {
+        // Client metadata first so it cannot override server-owned keys — notably `prep`, which
+        // would otherwise let a caller inject arbitrary candidates into the generated pack.
+        ...((input.metadata as Record<string, unknown>) ?? {}),
         boardCode: board.code as BoardPackCode,
         packVersion: pack.version,
         securityMark: pack.securityMark,
@@ -947,7 +963,6 @@ export class GradebookService {
           centreCode,
           candidates: exportCohort,
         },
-        ...((input.metadata as Record<string, unknown>) ?? {}),
       },
       createdAt: now,
       updatedAt: now,
@@ -968,8 +983,9 @@ export class GradebookService {
     });
 
     // Async mode: leave QUEUED for a worker / follow-up process call.
+    // PRC-H065: the stored job keeps `prep` for the worker, but the API response must not.
     if (input.async) {
-      return job;
+      return toPublicBoardExportJob(job);
     }
     return this.processBoardExportJob(tenantId, job.id);
   }
@@ -984,7 +1000,8 @@ export class GradebookService {
       throw new NotFoundError(`Job ${jobId} is not a board marksheet pack`);
     }
     if (job.status !== 'QUEUED' && job.status !== 'RUNNING') {
-      return job;
+      // PRC-H065: terminal rows written before prep was purged at rest may still carry it.
+      return toPublicBoardExportJob(job);
     }
 
     const prep = job.metadata.prep as
@@ -1056,14 +1073,19 @@ export class GradebookService {
         actorId: job.requestedBy,
         details: { checksumSha256: artifacts.checksumSha256 },
       });
-      return running;
+      // If the update returned null we fall back to `running`, which still has prep.
+      return toPublicBoardExportJob(running);
     } catch (error) {
       const finished = nowIso();
       const message = error instanceof Error ? error.message : 'Board export failed';
+      // PRC-H065: FAILED is terminal (never reprocessed), so purge the candidate snapshot
+      // (national IDs, names, marks) instead of leaving it in board_export_jobs.metadata.
+      const { prep: _dropFailed, ...failedMeta } = running.metadata;
       await this.repo.updateExportJob(tenantId, job.id, {
         status: 'FAILED',
         finishedAt: finished,
         errorMessage: message,
+        metadata: failedMeta,
         updatedAt: finished,
       });
       this.recordAudit({

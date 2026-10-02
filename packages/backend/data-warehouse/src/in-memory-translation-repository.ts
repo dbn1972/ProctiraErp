@@ -3,12 +3,14 @@
  *
  * In-memory implementation of TranslationRepository for testing and development.
  */
-import type { Translation, TranslatableEntityType } from './translation-schemas.js';
+import { NotFoundError } from '@proctira/common';
+
 import type {
   TranslationRepository,
   TranslationListOptions,
   TranslationListResult,
 } from './translation-repository.js';
+import type { Translation, TranslatableEntityType } from './translation-schemas.js';
 
 export class InMemoryTranslationRepository implements TranslationRepository {
   private translations: Map<string, Translation> = new Map();
@@ -51,7 +53,7 @@ export class InMemoryTranslationRepository implements TranslationRepository {
   async deleteTranslation(id: string, warehouseId: string, tenantId: string): Promise<void> {
     const existing = this.translations.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
-      throw new Error(`Translation not found: ${id}`);
+      throw new NotFoundError(`Translation not found: ${id}`);
     }
     this.translations.delete(id);
   }

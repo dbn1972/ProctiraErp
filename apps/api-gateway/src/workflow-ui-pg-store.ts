@@ -360,5 +360,13 @@ export function createWorkflowUiStore(
       return new PgWorkflowUiStore(pool);
     }
   }
-  return new InMemoryWorkflowUiStore(seed ?? createWorkflowUiSeed());
+  // PRC-L207: the in-memory fallback seeds the demo tenant only when the seed policy allows.
+  return new InMemoryWorkflowUiStore(seed ?? defaultWorkflowUiSeed());
+}
+
+/** Demo seed when {@link shouldSeedDemoData} allows it, otherwise an empty store. */
+export function defaultWorkflowUiSeed(): WorkflowUiSeed {
+  return shouldSeedDemoData()
+    ? createWorkflowUiSeed()
+    : { definitions: [], instances: [], approvals: [] };
 }

@@ -17,16 +17,9 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import { importReconciliationAction, resolveReconExceptionAction } from '@/lib/fees/actions';
 import type { FeeReconciliationBatch, FeeReconciliationRow } from '@/lib/api/fees';
-
-function formatAmount(cents: number, locale: string): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 export function ReconciliationWorkspace({
   batches,
@@ -239,7 +232,7 @@ export function ReconciliationWorkspace({
                     <li key={row.id} className="py-2" data-testid="recon-match-row">
                       <p className="text-sm font-medium text-foreground">{row.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatAmount(row.amountCents, locale)} · matched
+                        {formatAmount(row.amountCents, DEFAULT_FEE_CURRENCY, locale)} · matched
                       </p>
                     </li>
                   ))}
@@ -281,7 +274,7 @@ export function ReconciliationWorkspace({
                     >
                       <p className="text-sm font-medium text-foreground">{row.invoiceNumber}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatAmount(row.amountCents, locale)}
+                        {formatAmount(row.amountCents, DEFAULT_FEE_CURRENCY, locale)}
                         {row.note ? ` · ${row.note}` : ''} · {row.exceptionStatus}
                       </p>
                       {row.exceptionStatus === 'open' ? (

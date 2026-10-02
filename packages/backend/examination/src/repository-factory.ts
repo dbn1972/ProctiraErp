@@ -63,6 +63,7 @@ export function createExaminationRepository(
 export function createResultRepository(config: ExaminationRepositoryConfig = {}): ResultRepository {
   const databaseUrl = resolveDatabaseUrl(config);
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('examination');
     return new InMemoryResultRepository();
   }
   return new PrismaResultRepository(getPrismaClient(databaseUrl));
@@ -84,6 +85,7 @@ export function createDocumentRepository(
 ): DocumentRepository {
   const databaseUrl = resolveDatabaseUrl(config);
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('examination');
     return new InMemoryDocumentRepository(seatingStore);
   }
   return new PrismaDocumentRepository(getPrismaClient(databaseUrl), seatingStore);

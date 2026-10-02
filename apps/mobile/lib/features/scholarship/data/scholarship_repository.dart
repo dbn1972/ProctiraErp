@@ -8,13 +8,22 @@ import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import 'scholarship_document_rules.dart';
 
+String? _str(Object? v) => v is String ? v : null;
+
 /// Scholarship program model.
+///
+/// Parses the backend contract (PRC-H015): staff `GET /scholarships/programs`
+/// returns the full `ScholarshipProgramEntity` and parent
+/// `GET /parent-portal/scholarships/programs` a subset. Neither has
+/// `provider` / `isOpen` / `deadline`; the deadline is `applicationEndDate`,
+/// the amount `amountPerRecipient`, and openness `status == 'open'`. The
+/// legacy keys are still read so rows cached by older builds parse.
 class ScholarshipProgram {
   const ScholarshipProgram({
     required this.id,
     required this.name,
-    required this.description,
-    required this.provider,
+    this.description = '',
+    this.provider,
     this.amount,
     this.currency,
     this.eligibilityCriteria,
@@ -27,7 +36,9 @@ class ScholarshipProgram {
   final String id;
   final String name;
   final String description;
-  final String provider;
+
+  /// Not part of the backend contract; only shown when present.
+  final String? provider;
   final double? amount;
   final String? currency;
   final String? eligibilityCriteria;
@@ -37,17 +48,22 @@ class ScholarshipProgram {
   final List<String> requiredDocuments;
 
   factory ScholarshipProgram.fromJson(Map<String, dynamic> json) {
+    final String? status = _str(json['status']);
+    final Object? isOpen = json['isOpen'];
     return ScholarshipProgram(
       id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      provider: json['provider'] as String,
-      amount: (json['amount'] as num?)?.toDouble(),
-      currency: json['currency'] as String?,
-      eligibilityCriteria: json['eligibilityCriteria'] as String?,
-      deadline: json['deadline'] as String?,
-      applicationUrl: json['applicationUrl'] as String?,
-      isOpen: json['isOpen'] as bool? ?? true,
+      name: _str(json['name']) ?? '',
+      description: _str(json['description']) ?? '',
+      provider: _str(json['provider']),
+      amount: ((json['amountPerRecipient'] ?? json['amount']) as num?)
+          ?.toDouble(),
+      currency: _str(json['currency']),
+      eligibilityCriteria: _str(json['eligibilityCriteria']),
+      deadline: _str(json['applicationEndDate']) ?? _str(json['deadline']),
+      applicationUrl: _str(json['applicationUrl']),
+      isOpen: status != null
+          ? status == 'open'
+          : (isOpen is bool ? isOpen : true),
       requiredDocuments: _requiredDocuments(json),
     );
   }
@@ -64,18 +80,18 @@ class ScholarshipProgram {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'name': name,
-        'description': description,
-        'provider': provider,
-        'amount': amount,
-        'currency': currency,
-        'eligibilityCriteria': eligibilityCriteria,
-        'deadline': deadline,
-        'applicationUrl': applicationUrl,
-        'isOpen': isOpen,
-        'requiredDocuments': requiredDocuments,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'provider': provider,
+    'amount': amount,
+    'currency': currency,
+    'eligibilityCriteria': eligibilityCriteria,
+    'deadline': deadline,
+    'applicationUrl': applicationUrl,
+    'isOpen': isOpen,
+    'requiredDocuments': requiredDocuments,
+  };
 
   /// Days remaining until deadline. Null if no deadline or it cannot be parsed.
   int? get daysUntilDeadline {
@@ -103,22 +119,32 @@ class ScholarshipProgram {
   }
 }
 
-/// Application status enum.
+/// Application status enum. Wire values are the backend's snake_case
+/// `ApplicationStatus` (`under_review`); anything unrecognised is [unknown]
+/// rather than silently shown as a draft (PRC-H015).
 enum ScholarshipApplicationStatus {
-  draft,
-  submitted,
-  underReview,
-  approved,
-  rejected,
-  withdrawn;
+  draft('draft'),
+  submitted('submitted'),
+  underReview('under_review'),
+  approved('approved'),
+  rejected('rejected'),
+  withdrawn('withdrawn'),
+  unknown('unknown');
 
-  String toWire() => name;
+  const ScholarshipApplicationStatus(this.wire);
 
-  static ScholarshipApplicationStatus fromWire(String value) {
-    return ScholarshipApplicationStatus.values.firstWhere(
-      (ScholarshipApplicationStatus v) => v.name == value,
-      orElse: () => ScholarshipApplicationStatus.draft,
-    );
+  final String wire;
+
+  String toWire() => wire;
+
+  static ScholarshipApplicationStatus fromWire(String? value) {
+    if (value == null) return ScholarshipApplicationStatus.unknown;
+    for (final ScholarshipApplicationStatus v
+        in ScholarshipApplicationStatus.values) {
+      // `name` keeps rows cached by older builds (`underReview`) readable.
+      if (v.wire == value || v.name == value) return v;
+    }
+    return ScholarshipApplicationStatus.unknown;
   }
 
   String get displayName {
@@ -135,17 +161,23 @@ enum ScholarshipApplicationStatus {
         return 'Rejected';
       case ScholarshipApplicationStatus.withdrawn:
         return 'Withdrawn';
+      case ScholarshipApplicationStatus.unknown:
+        return 'Unknown';
     }
   }
 }
 
 /// Scholarship application model.
+///
+/// Backend rows carry `applicantId` (not `studentId`), no `programName`
+/// (joined from the program catalog by the repository), `reviewNotes`, and
+/// `documents` as `{documentType, fileName, fileUrl}` objects (PRC-H015).
 class ScholarshipApplication {
   const ScholarshipApplication({
     required this.id,
     required this.programId,
-    required this.programName,
-    required this.studentId,
+    this.programName,
+    required this.applicantId,
     required this.status,
     this.submittedAt,
     this.reviewedAt,
@@ -155,43 +187,74 @@ class ScholarshipApplication {
 
   final String id;
   final String programId;
-  final String programName;
-  final String studentId;
+  final String? programName;
+  final String applicantId;
   final ScholarshipApplicationStatus status;
   final String? submittedAt;
   final String? reviewedAt;
   final String? reviewerNotes;
   final List<String> documents;
 
+  /// Program name for display, falling back to the id when the catalog join
+  /// found nothing.
+  String get displayProgramName =>
+      (programName != null && programName!.isNotEmpty)
+      ? programName!
+      : programId;
+
+  ScholarshipApplication withProgramName(String? name) =>
+      ScholarshipApplication(
+        id: id,
+        programId: programId,
+        programName: name ?? programName,
+        applicantId: applicantId,
+        status: status,
+        submittedAt: submittedAt,
+        reviewedAt: reviewedAt,
+        reviewerNotes: reviewerNotes,
+        documents: documents,
+      );
+
   factory ScholarshipApplication.fromJson(Map<String, dynamic> json) {
+    final Object? program = json['program'];
+    final Object? docs = json['documents'];
     return ScholarshipApplication(
       id: json['id'] as String,
-      programId: json['programId'] as String,
-      programName: json['programName'] as String,
-      studentId: json['studentId'] as String,
-      status: ScholarshipApplicationStatus.fromWire(
-          json['status'] as String? ?? 'draft'),
-      submittedAt: json['submittedAt'] as String?,
-      reviewedAt: json['reviewedAt'] as String?,
-      reviewerNotes: json['reviewerNotes'] as String?,
-      documents: (json['documents'] as List<dynamic>?)
-              ?.map((dynamic e) => e as String)
-              .toList(growable: false) ??
-          const <String>[],
+      programId: _str(json['programId']) ?? '',
+      programName:
+          _str(json['programName']) ??
+          (program is Map ? _str(program['name']) : null),
+      applicantId: _str(json['applicantId']) ?? _str(json['studentId']) ?? '',
+      status: ScholarshipApplicationStatus.fromWire(_str(json['status'])),
+      submittedAt: _str(json['submittedAt']),
+      reviewedAt: _str(json['reviewedAt']),
+      reviewerNotes: _str(json['reviewNotes']) ?? _str(json['reviewerNotes']),
+      documents: docs is List
+          ? docs
+                .map(
+                  (dynamic e) => e is String
+                      ? e
+                      : e is Map
+                      ? _str(e['fileName']) ?? _str(e['documentType'])
+                      : null,
+                )
+                .whereType<String>()
+                .toList(growable: false)
+          : const <String>[],
     );
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'programId': programId,
-        'programName': programName,
-        'studentId': studentId,
-        'status': status.toWire(),
-        'submittedAt': submittedAt,
-        'reviewedAt': reviewedAt,
-        'reviewerNotes': reviewerNotes,
-        'documents': documents,
-      };
+    'id': id,
+    'programId': programId,
+    'programName': programName,
+    'applicantId': applicantId,
+    'status': status.toWire(),
+    'submittedAt': submittedAt,
+    'reviewedAt': reviewedAt,
+    'reviewerNotes': reviewerNotes,
+    'documents': documents,
+  };
 }
 
 /// Repository for scholarship programs and applications.
@@ -200,9 +263,9 @@ class ScholarshipRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _dio = dio;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _dio = dio;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
@@ -214,8 +277,9 @@ class ScholarshipRepository {
     if (id.isEmpty) {
       return null;
     }
-    final List<ScholarshipProgram> programs =
-        await getPrograms(openOnly: false);
+    final List<ScholarshipProgram> programs = await getPrograms(
+      openOnly: false,
+    );
     for (final ScholarshipProgram program in programs) {
       if (program.id == id) {
         return program;
@@ -225,29 +289,31 @@ class ScholarshipRepository {
   }
 
   /// Fetch available scholarship programs.
-  Future<List<ScholarshipProgram>> getPrograms({
-    bool openOnly = true,
-  }) async {
+  Future<List<ScholarshipProgram>> getPrograms({bool openOnly = true}) async {
     final String tenantId = _requireTenantId();
 
     try {
       final Response<dynamic> response = await _dio.get(
         '/api/v1/scholarships/programs',
-        queryParameters: <String, dynamic>{
-          if (openOnly) 'status': 'open',
-        },
+        queryParameters: <String, dynamic>{if (openOnly) 'status': 'open'},
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
+      final Object? body = response.data;
+      final Object? rows = body is Map ? body['data'] : null;
+      final List<dynamic> data = rows is List ? rows : const <dynamic>[];
       final List<ScholarshipProgram> programs = data
-          .map((dynamic e) =>
-              ScholarshipProgram.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) =>
+                ScholarshipProgram.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false);
 
-      await _cachePrograms(tenantId, programs);
+      await _bestEffortCache(() => _cachePrograms(tenantId, programs));
       return programs;
     } on DioException {
-      return _getCachedPrograms(tenantId, openOnly: openOnly);
+      return _cachedOrRethrow(
+        () => _getCachedPrograms(tenantId, openOnly: openOnly),
+      );
     }
   }
 
@@ -305,9 +371,7 @@ class ScholarshipRepository {
             'educationLevel': 'secondary',
           },
         ],
-        'financialInfo': <String, dynamic>{
-          'familyIncome': ?familyIncome,
-        },
+        'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
         'documents': <Map<String, dynamic>>[],
         'asDraft': true,
         'personalStatement': ?personalStatement,
@@ -356,14 +420,20 @@ class ScholarshipRepository {
       '/api/v1/scholarships/applications',
       data: <String, dynamic>{
         'programId': programId,
-        'studentId': studentId,
+        // Backend CreateApplicationSchema field (PRC-H015).
+        'applicantId': studentId,
         ...?additionalData,
         'documents': ?documentIds,
       },
     );
 
+    final Object? body = response.data;
+    final Object? row = body is Map && body['data'] is Map
+        ? body['data']
+        : body;
     return ScholarshipApplication.fromJson(
-        response.data as Map<String, dynamic>);
+      Map<String, dynamic>.from(row! as Map),
+    );
   }
 
   /// Fetch applications for a student.
@@ -373,22 +443,93 @@ class ScholarshipRepository {
     final String tenantId = _requireTenantId();
 
     try {
+      // The staff route filters on `applicantId`; an unknown `studentId`
+      // query was ignored and listed the whole tenant (PRC-H015).
       final Response<dynamic> response = await _dio.get(
         '/api/v1/scholarships/applications',
-        queryParameters: <String, dynamic>{'studentId': studentId},
+        queryParameters: <String, dynamic>{'applicantId': studentId},
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
-      final List<ScholarshipApplication> applications = data
-          .map((dynamic e) =>
-              ScholarshipApplication.fromJson(e as Map<String, dynamic>))
+      final Object? body = response.data;
+      final Object? rows = body is Map ? body['data'] : null;
+      final List<dynamic> data = rows is List ? rows : const <dynamic>[];
+      // Defence in depth: never show another applicant's rows under this
+      // student even if the server ignores the filter.
+      final List<ScholarshipApplication> parsed = data
+          .whereType<Map<String, dynamic>>()
+          .map(ScholarshipApplication.fromJson)
+          .where((ScholarshipApplication a) => a.applicantId == studentId)
           .toList(growable: false);
+      final List<ScholarshipApplication> applications = await _withProgramNames(
+        tenantId,
+        parsed,
+      );
 
-      await _cacheApplications(tenantId, studentId, applications);
+      await _bestEffortCache(
+        () => _cacheApplications(tenantId, studentId, applications),
+      );
       return applications;
     } on DioException {
-      return _getCachedApplications(tenantId, studentId);
+      return _cachedOrRethrow(
+        () => _getCachedApplications(tenantId, studentId),
+      );
     }
+  }
+
+  /// The `scholarship_*_cache` tables are not in the local schema yet
+  /// (needs a client DB migration), so a cache write must never turn a
+  /// successful fetch into an error (PRC-H015).
+  Future<void> _bestEffortCache(Future<void> Function() write) async {
+    try {
+      await write();
+    } on DatabaseException {
+      // Offline cache unavailable; live data is still returned.
+    }
+  }
+
+  /// Offline fallback; when the cache is unavailable surface the original
+  /// network error instead of an empty (misleading) list.
+  Future<List<T>> _cachedOrRethrow<T>(Future<List<T>> Function() read) async {
+    try {
+      return await read();
+    } on DatabaseException {
+      throw StateError('Scholarships are not available offline yet.');
+    }
+  }
+
+  /// Backend application rows have no program name; join it from the
+  /// program catalog (cached copy first, then network).
+  Future<List<ScholarshipApplication>> _withProgramNames(
+    String tenantId,
+    List<ScholarshipApplication> applications,
+  ) async {
+    if (applications.every(
+      (ScholarshipApplication a) => a.programName != null,
+    )) {
+      return applications;
+    }
+    List<ScholarshipProgram> programs;
+    try {
+      programs = await _getCachedPrograms(tenantId, openOnly: false);
+    } on DatabaseException {
+      programs = const <ScholarshipProgram>[];
+    }
+    final Set<String> known = programs
+        .map((ScholarshipProgram p) => p.id)
+        .toSet();
+    if (applications.any(
+      (ScholarshipApplication a) => !known.contains(a.programId),
+    )) {
+      programs = await getPrograms(openOnly: false);
+    }
+    final Map<String, String> names = <String, String>{
+      for (final ScholarshipProgram p in programs) p.id: p.name,
+    };
+    return applications
+        .map(
+          (ScholarshipApplication a) => a.withProgramName(names[a.programId]),
+        )
+        .toList(growable: false);
   }
 
   Future<void> _cachePrograms(
@@ -430,11 +571,13 @@ class ScholarshipRepository {
       orderBy: 'deadline ASC',
     );
 
-    return rows.map((Map<String, Object?> row) {
-      final Map<String, dynamic> json =
-          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-      return ScholarshipProgram.fromJson(json);
-    }).toList(growable: false);
+    return rows
+        .map((Map<String, Object?> row) {
+          final Map<String, dynamic> json =
+              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+          return ScholarshipProgram.fromJson(json);
+        })
+        .toList(growable: false);
   }
 
   Future<void> _cacheApplications(
@@ -453,7 +596,7 @@ class ScholarshipRepository {
         await txn.insert('scholarship_applications_cache', <String, Object?>{
           'id': app.id,
           'tenant_id': tenantId,
-          'student_id': app.studentId,
+          'student_id': app.applicantId,
           'program_id': app.programId,
           'status': app.status.toWire(),
           'payload': jsonEncode(app.toJson()),
@@ -473,11 +616,13 @@ class ScholarshipRepository {
       whereArgs: <Object>[tenantId, studentId],
     );
 
-    return rows.map((Map<String, Object?> row) {
-      final Map<String, dynamic> json =
-          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-      return ScholarshipApplication.fromJson(json);
-    }).toList(growable: false);
+    return rows
+        .map((Map<String, Object?> row) {
+          final Map<String, dynamic> json =
+              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+          return ScholarshipApplication.fromJson(json);
+        })
+        .toList(growable: false);
   }
 
   String _applicationIdFromResponse(Object? data) {

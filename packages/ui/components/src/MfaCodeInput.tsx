@@ -133,13 +133,24 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       }
     }
 
+    // Last code passed to `onComplete`. Prevents re-submitting the same
+    // OTP when a keystroke leaves the completed value unchanged; cleared
+    // whenever the code drops below `length` so a re-typed code fires again.
+    const lastCompletedRef = React.useRef<string | null>(null);
+
     function emit(next: string): void {
+      if (disabled) return;
       const sanitized = sanitizeOtp(next, length);
       valueRef.current = sanitized;
       flushSync(() => {
         onChange(sanitized);
       });
-      if (sanitized.length === length && onComplete) {
+      if (sanitized.length < length) {
+        lastCompletedRef.current = null;
+        return;
+      }
+      if (onComplete && lastCompletedRef.current !== sanitized) {
+        lastCompletedRef.current = sanitized;
         onComplete(sanitized);
       }
     }

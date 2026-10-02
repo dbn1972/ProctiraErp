@@ -53,6 +53,7 @@ export {
   pgNumericMajorToCents,
   majorUnitsNumberFromCents,
 } from './money/cents.js';
+export type { MajorUnitsToCentsOptions } from './money/cents.js';
 
 // W1-ARCH-08: fail-closed production provider mode (sandbox opt-in only)
 export {

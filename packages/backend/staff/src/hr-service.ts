@@ -24,6 +24,7 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
+import { readOffboardMeta } from './offboard-meta.js';
 import {
   assertPayrollRowBalanced,
   calendarDaysInMonth,
@@ -31,6 +32,7 @@ import {
   unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
 import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
+import type { StaffEntity } from './staff-repository.js';
 import type { StaffService } from './staff-service.js';
 
 export const CONTRACT_RENEWAL_WINDOW_DAYS = 60;
@@ -272,17 +274,25 @@ export class StaffHrService {
     input: BulkAttendanceInput,
     actorId: string | null,
   ): Promise<StaffAttendanceRecord[]> {
-    const out: StaffAttendanceRecord[] = [];
-    for (const mark of input.marks) {
-      out.push(
-        await this.markAttendance(
-          tenantId,
-          { staffId: mark.staffId, date: input.date, status: mark.status, notes: mark.notes },
-          actorId,
-        ),
-      );
-    }
-    return out;
+    // PRC-L153: one tenant-scoped existence query, then one atomic upsert for all marks.
+    await this.staffService.assertStaffExist(
+      tenantId,
+      input.marks.map((m) => m.staffId),
+    );
+    const now = new Date();
+    return this.store.upsertAttendanceBulk(
+      input.marks.map((mark) => ({
+        id: randomUUID(),
+        tenantId,
+        staffId: mark.staffId,
+        date: input.date,
+        status: mark.status,
+        notes: mark.notes ?? null,
+        markedBy: actorId,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
   }
 
   async listAttendance(
@@ -398,14 +408,28 @@ export class StaffHrService {
         { field: 'csv', rule: 'required', message: dry.errors[0]!.message },
       ]);
     }
+    // PRC-L153 all-or-nothing option: refuse to write anything when any row is invalid.
+    if (input.allOrNothing && dry.errors.length > 0) {
+      throw new ValidationError(
+        'Import rejected: allOrNothing is set and some rows are invalid',
+        dry.errors.map((e) => ({
+          field: `row${e.row}${e.field ? `.${e.field}` : ''}`,
+          rule: 'invalid',
+          message: e.message,
+        })),
+      );
+    }
     const parsed = parseCsv(input.csv);
     const errorRows = new Set(dry.errors.map((e) => e.row));
     const staffIds: string[] = [];
     const commitErrors: ImportRowError[] = [...dry.errors];
-
     for (const row of parsed.rows) {
       if (errorRows.has(row.line)) continue;
       const v = row.values;
+      // PRC-L153: staff + contract are one unit per row. Staff (Prisma) and contracts (pg
+      // pool) live in different stores, so a contract failure is compensated by purging the
+      // just-created staff row; the row is reported only as an error, never as created.
+      let createdId: string | null = null;
       try {
         const staff = await this.staffService.create(tenantId, {
           firstName: (v['firstName'] ?? '').trim(),
@@ -416,7 +440,7 @@ export class StaffHrService {
           contactEmail: (v['contactEmail'] ?? '').trim() || undefined,
           position: (v['position'] ?? '').trim(),
         });
-        staffIds.push(staff.id);
+        createdId = staff.id;
         const contractType = (v['contractType'] ?? '').trim() as StaffContractType;
         const startDate = (v['startDate'] ?? '').trim();
         if (contractType && startDate) {
@@ -428,9 +452,20 @@ export class StaffHrService {
             salaryBand: (v['salaryBand'] ?? '').trim() || undefined,
           });
         }
+        staffIds.push(staff.id);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to create staff';
-        if (error instanceof ConflictError) {
+        let message = error instanceof Error ? error.message : 'Failed to create staff';
+        if (createdId) {
+          try {
+            await this.staffService.purgeCreated(tenantId, createdId);
+          } catch {
+            message = `${message}; staff ${createdId} was created without a contract and could not be rolled back`;
+          }
+        }
+        // Prisma unique violations (P2002) are not ConflictError; attribute them to the field.
+        const isUniqueViolation =
+          error instanceof ConflictError || (error as { code?: unknown } | null)?.code === 'P2002';
+        if (isUniqueViolation) {
           commitErrors.push({ row: row.line, field: 'identityNumber', message });
         } else {
           commitErrors.push({ row: row.line, message });
@@ -455,6 +490,45 @@ export class StaffHrService {
       }),
     );
     return result;
+  }
+
+  /**
+   * PRC-H089: iterate every staff page (repositories clamp pageSize) and fail the
+   * run if the fetched count disagrees with totalItems. Excludes INACTIVE staff
+   * and staff offboarded with an effective date before the month starts; staff
+   * offboarded on/after the month start remain in the run.
+   */
+  private async listPayrollEligibleStaff(
+    tenantId: string,
+    monthStart: string,
+  ): Promise<StaffEntity[]> {
+    const all: StaffEntity[] = [];
+    const pageSize = 100;
+    let page = 1;
+    let totalItems = 0;
+    let totalPages = 1;
+    do {
+      const result = await this.staffService.list(
+        tenantId,
+        {},
+        { page, pageSize, sortBy: 'id', sortOrder: 'asc' },
+      );
+      all.push(...result.data);
+      totalItems = result.meta.totalItems;
+      totalPages = result.meta.totalPages;
+      page += 1;
+    } while (page <= totalPages);
+    const unique = new Map(all.map((s) => [s.id, s]));
+    if (all.length !== totalItems || unique.size !== totalItems) {
+      throw new BusinessRuleError(
+        `Payroll staff fetch incomplete: fetched ${unique.size} of ${totalItems} staff; run aborted`,
+      );
+    }
+    return Array.from(unique.values()).filter((staff) => {
+      const offboard = readOffboardMeta(staff.customData);
+      if (offboard) return offboard.effectiveDate >= monthStart;
+      return staff.status !== 'INACTIVE';
+    });
   }
 
   async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
@@ -485,7 +559,7 @@ export class StaffHrService {
 
     const { from, to } = monthRange(query.month);
     const daysInMonth = calendarDaysInMonth(query.month);
-    const staffPage = await this.staffService.list(tenantId, {}, { page: 1, pageSize: 500 });
+    const payrollStaff = await this.listPayrollEligibleStaff(tenantId, from);
     const contracts = await this.store.listContracts(tenantId);
     const attendance = await this.store.listAttendance(tenantId, { from, to });
     const summaries = new Map<string, AttendanceSummaryRow>();
@@ -506,7 +580,7 @@ export class StaffHrService {
       summaries.set(row.staffId, current);
     }
 
-    const rows: PayrollRow[] = staffPage.data.map((staff) => {
+    const rows: PayrollRow[] = payrollStaff.map((staff) => {
       const summary = summaries.get(staff.id);
       const contract = pickContractForMonth(
         contracts.filter((c) => c.staffId === staff.id),
@@ -631,7 +705,6 @@ export class StaffHrService {
 
     return result;
   }
-
 }
 
 function pickContractForMonth(

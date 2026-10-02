@@ -32,10 +32,10 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      const trigger = screen.getByRole('button', { name: /current language: english/i });
+      const trigger = screen.getByRole('button', { name: /^English – change language$/i });
       fireEvent.click(trigger);
 
-      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getByRole('list', { name: 'Available languages' })).toBeInTheDocument();
       expect(screen.getByText('العربية')).toBeInTheDocument();
       expect(screen.getByText('Français')).toBeInTheDocument();
     });
@@ -51,10 +51,10 @@ describe('LanguageSwitcher', () => {
       );
 
       // Open dropdown
-      fireEvent.click(screen.getByRole('button', { name: /current language: english/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^English – change language$/i }));
 
       // Select Arabic
-      fireEvent.click(screen.getByRole('button', { name: /switch to arabic/i }));
+      fireEvent.click(screen.getByRole('button', { name: /العربية \(Arabic\)/ }));
 
       expect(onLanguageChange).toHaveBeenCalledWith('ar');
     });
@@ -70,8 +70,8 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /current language: english/i }));
-      fireEvent.click(screen.getByRole('button', { name: /switch to arabic/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^English – change language$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /العربية \(Arabic\)/ }));
 
       expect(onRtlToggle).toHaveBeenCalledWith(true);
     });
@@ -87,7 +87,7 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      const rtlToggle = screen.getByRole('button', { name: /switch to right-to-left layout/i });
+      const rtlToggle = screen.getByRole('button', { name: /RTL \(right-to-left layout\)/ });
       expect(rtlToggle).toBeInTheDocument();
       expect(rtlToggle).toHaveAttribute('aria-pressed', 'false');
     });
@@ -105,7 +105,7 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /switch to right-to-left layout/i }));
+      fireEvent.click(screen.getByRole('button', { name: /RTL \(right-to-left layout\)/ }));
       expect(onRtlToggle).toHaveBeenCalledWith(true);
     });
 
@@ -121,8 +121,8 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      expect(screen.getByRole('button', { name: /current language/i })).toBeDisabled();
-      expect(screen.getByRole('button', { name: /switch to right-to-left/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /change language/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /right-to-left layout/i })).toBeDisabled();
     });
 
     it('has proper WCAG attributes on trigger', () => {
@@ -134,8 +134,8 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      const trigger = screen.getByRole('button', { name: /current language: english/i });
-      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+      const trigger = screen.getByRole('button', { name: /^English – change language$/i });
+      expect(trigger).not.toHaveAttribute('aria-haspopup');
       expect(trigger).toHaveAttribute('aria-expanded', 'false');
     });
   });
@@ -151,9 +151,9 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      expect(screen.getByRole('button', { name: /switch to english/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /switch to arabic/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /switch to french/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'العربية' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Français' })).toBeInTheDocument();
     });
 
     it('marks current language as active', () => {
@@ -166,8 +166,11 @@ describe('LanguageSwitcher', () => {
         />,
       );
 
-      const activeOption = screen.getByRole('option', { selected: true });
-      expect(activeOption).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute(
+        'aria-current',
+        'true',
+      );
+      expect(screen.getByRole('button', { name: 'Français' })).not.toHaveAttribute('aria-current');
     });
   });
 });

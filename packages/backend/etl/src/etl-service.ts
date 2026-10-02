@@ -6,9 +6,25 @@
  * Supports scheduled execution, retry with exponential backoff,
  * structured execution logging, and Kafka event publishing.
  */
+import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { AppError, NotFoundError } from '@proctira/common';
 
+import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
+import { ExecutionLogger, type LogSink } from './execution-logger.js';
+import { buildExecutionLineage } from './lineage.js';
+import {
+  type PipelineEventPublisher,
+  InMemoryEventPublisher,
+  createPipelineEvent,
+} from './pipeline-events.js';
+import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
+import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
+import {
+  RetryExecutor,
+  TestableRetryExecutor,
+  type AdminNotifier,
+  InMemoryAdminNotifier,
+} from './retry-executor.js';
 import type {
   Pipeline,
   PipelineExecution,
@@ -16,23 +32,8 @@ import type {
   UpdatePipelineInput,
   RetryPolicy,
 } from './schemas.js';
-import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
-import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
+import { containsRedactedSecret, restoreRedactedSecrets } from './secret-redaction.js';
 import { transformRows } from './transformations/index.js';
-import { ExecutionLogger, type LogSink } from './execution-logger.js';
-import { buildExecutionLineage } from './lineage.js';
-import {
-  RetryExecutor,
-  TestableRetryExecutor,
-  type AdminNotifier,
-  InMemoryAdminNotifier,
-} from './retry-executor.js';
-import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
-import {
-  type PipelineEventPublisher,
-  InMemoryEventPublisher,
-  createPipelineEvent,
-} from './pipeline-events.js';
 
 export interface ETLServiceConfig {
   /** Default retry policy for pipelines without explicit config */
@@ -156,12 +157,7 @@ export class ETLService {
     let registered = 0;
     for (const pipeline of data) {
       if (pipeline.schedule && pipeline.enabled) {
-        this.scheduler.registerSchedule(
-          pipeline.id,
-          pipeline.tenantId,
-          pipeline.schedule,
-          true,
-        );
+        this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
         registered += 1;
       } else {
         this.scheduler.unregisterSchedule(pipeline.id);
@@ -180,8 +176,40 @@ export class ETLService {
   /**
    * Create a new pipeline definition.
    */
+  /**
+   * PRC-C003: validate source/destination connector config at create/update time so an
+   * unsafe filePath (LFI) or non-public/non-https URL (SSRF) is rejected before it is ever
+   * stored or executed. Connectors are also guarded at execute time (stored rows may predate
+   * this check), but rejecting here gives the tenant immediate feedback and fails closed.
+   */
+  private async assertConnectorConfigSafe(input: {
+    source: CreatePipelineInput['source'];
+    destination: CreatePipelineInput['destination'];
+  }): Promise<void> {
+    const source = await createSourceConnector(input.source).validate();
+    if (!source.valid) {
+      throw new AppError(
+        source.error ?? 'Invalid source configuration',
+        'INVALID_SOURCE_CONFIG',
+        400,
+      );
+    }
+    const destination = await createDestinationConnector(input.destination).validate();
+    if (!destination.valid) {
+      throw new AppError(
+        destination.error ?? 'Invalid destination configuration',
+        'INVALID_DESTINATION_CONFIG',
+        400,
+      );
+    }
+  }
+
   async createPipeline(tenantId: string, input: CreatePipelineInput): Promise<Pipeline> {
+    // PRC-H115: the redaction placeholder is never a valid credential.
+    assertNoRedactedSecret(input.source, 'source');
+    assertNoRedactedSecret(input.destination, 'destination');
     await this.ensureSchedulesHydrated(tenantId);
+    await this.assertConnectorConfigSafe(input);
     const now = new Date();
     const pipeline: Pipeline = {
       id: uuidv4(),
@@ -229,11 +257,28 @@ export class ETLService {
       throw new NotFoundError(`Pipeline not found: ${pipelineId}`);
     }
 
+    // PRC-C003: validate any connector config being changed so a PATCH cannot store an unsafe
+    // filePath (LFI) or non-public/non-https URL (SSRF) that bypassed create-time checks.
+    if (input.source !== undefined || input.destination !== undefined) {
+      await this.assertConnectorConfigSafe({
+        source: input.source ?? existing.source,
+        destination: input.destination ?? existing.destination,
+      });
+    }
+
     const updates: Partial<Pipeline> = {};
     if (input.name !== undefined) updates.name = input.name;
     if (input.description !== undefined) updates.description = input.description ?? null;
-    if (input.source !== undefined) updates.source = input.source;
-    if (input.destination !== undefined) updates.destination = input.destination;
+    // PRC-H115: clients echo the redaction placeholder for unchanged secrets;
+    // keep the stored value, and reject placeholders with nothing to restore.
+    if (input.source !== undefined) {
+      updates.source = restoreRedactedSecrets(input.source, existing.source);
+      assertNoRedactedSecret(updates.source, 'source');
+    }
+    if (input.destination !== undefined) {
+      updates.destination = restoreRedactedSecrets(input.destination, existing.destination);
+      assertNoRedactedSecret(updates.destination, 'destination');
+    }
     if (input.fieldMappings !== undefined) updates.fieldMappings = input.fieldMappings;
     if (input.schedule !== undefined) updates.schedule = input.schedule ?? null;
     if (input.retryPolicy !== undefined) updates.retryPolicy = input.retryPolicy;
@@ -465,7 +510,7 @@ export class ETLService {
         {
           row: -1,
           field: null,
-          message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError}`,
+          message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError ?? 'unknown error'}`,
           data: null,
         },
       ],
@@ -676,5 +721,13 @@ export class ETLService {
     // Verify pipeline exists and belongs to tenant
     await this.getPipeline(tenantId, pipelineId);
     return this.repository.listExecutions(pipelineId, tenantId, page, pageSize);
+  }
+}
+
+function assertNoRedactedSecret(config: unknown, field: 'source' | 'destination'): void {
+  if (containsRedactedSecret(config)) {
+    throw new ValidationError('Credential placeholder cannot be saved; enter the secret value.', [
+      { field, rule: 'redacted', message: 'Redacted credential placeholder is not a valid value' },
+    ]);
   }
 }

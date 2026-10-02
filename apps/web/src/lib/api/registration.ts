@@ -7,12 +7,14 @@
  * who has the tracking number must be able to check progress without an
  * account.
  *
- * Contract (per design.md §F):
- *   GET /api/v1/registration/applications/{trackingNumber}
- *     200 → { trackingNumber, status, currentStep?, submittedAt,
- *             updatedAt, expectedCompletionAt?, history[], followUpActions[] }
- *     404 → { error: 'NOT_FOUND' }
- *     5xx → { error: 'INTERNAL_ERROR' }
+ * Contract (PRC-H029 — matches `packages/backend/registration/src/routes.ts`, proxied by
+ * the gateway under the `/registrations` prefix):
+ *   GET /api/v1/registrations/{trackingNumber}/status?dob=YYYY-MM-DD
+ *     200 → RegistrationStatusResponse { trackingNumber, status, institutionName,
+ *             applicantName, submittedAt, updatedAt, remarks?, waitlistPosition?,
+ *             interviewBookings? }
+ *     404 → unknown tracking number OR date of birth mismatch (same response, no oracle)
+ *     5xx → service error
  *
  * The response intentionally exposes no PII beyond what the applicant
  * submitted (no contact details, no document content, no internal notes).
@@ -26,7 +28,7 @@ export const REGISTRATION_API_BASE_URL =
   '';
 
 /** API version + namespace prefix. Concatenated to the base URL. */
-export const REGISTRATION_API_PREFIX = '/api/v1/registration/applications';
+export const REGISTRATION_API_PREFIX = '/api/v1/registrations';
 
 /**
  * Possible application statuses surfaced on the public tracking page.
@@ -51,49 +53,29 @@ export const KNOWN_APPLICATION_STATUSES = [
 
 export type KnownApplicationStatus = (typeof KNOWN_APPLICATION_STATUSES)[number];
 
-/** A single status transition recorded against the application. */
-export interface ApplicationStatusHistoryEntry {
-  /** Status the application moved to at this point in time. */
-  status: ApplicationStatus;
-  /** ISO-8601 timestamp of the transition. */
-  timestamp: string;
-  /** Optional public-safe note (e.g. "Documents verified"). */
-  note?: string;
-  /** Optional actor label (e.g. "System", "Admissions Office"). No user IDs. */
-  actor?: string;
+/** An interview slot booked against the application (public-safe fields only). */
+export interface ApplicationInterviewBooking {
+  id: string;
+  slotId: string;
+  status: string;
 }
 
-/**
- * A follow-up action the applicant must take. The backend uses an
- * unauthenticated dialect so labels are pre-translated server-side or
- * looked up from a known catalog of action codes — the client only renders
- * the message it receives.
- */
-export interface ApplicationFollowUpAction {
-  /** Stable code (e.g. `UPLOAD_BIRTH_CERTIFICATE`); useful for analytics. */
-  code: string;
-  /** User-visible message describing the action. */
-  message: string;
-  /** Optional ISO-8601 deadline. */
-  dueAt?: string;
-}
-
-/** Public-safe application status payload. */
+/** Public-safe application status payload (maps `RegistrationStatusResponse`). */
 export interface ApplicationTrackingResult {
   trackingNumber: string;
   status: ApplicationStatus;
-  /** Optional human-readable step name (e.g. "Document review"). */
-  currentStep?: string;
+  /** Target institution name. */
+  institutionName?: string;
   /** ISO-8601 timestamp of original submission. */
   submittedAt: string;
   /** ISO-8601 timestamp of the most recent status change. */
   updatedAt: string;
-  /** ISO-8601 expected completion target, when known. */
-  expectedCompletionAt?: string;
-  /** Chronological status history (oldest → newest). */
-  history: ApplicationStatusHistoryEntry[];
-  /** Outstanding follow-up actions for the applicant. May be empty. */
-  followUpActions: ApplicationFollowUpAction[];
+  /** Reviewer remarks shared with the applicant, when present. */
+  remarks?: string;
+  /** 1-based waitlist position, when waitlisted. */
+  waitlistPosition?: number;
+  /** Booked interview slots. May be empty. */
+  interviewBookings: ApplicationInterviewBooking[];
 }
 
 /** Discriminated result union the page consumes. */
@@ -112,6 +94,7 @@ export type GetApplicationByTrackingNumberResult =
  */
 export async function getApplicationByTrackingNumber(
   trackingNumber: string,
+  dateOfBirth: string,
   options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
 ): Promise<GetApplicationByTrackingNumberResult> {
   const trimmed = trackingNumber.trim();
@@ -122,7 +105,14 @@ export async function getApplicationByTrackingNumber(
     };
   }
 
-  const url = `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/${encodeURIComponent(trimmed)}`;
+  // The backend answers 404 for a missing/mismatched DOB, so it is required here.
+  const dob = dateOfBirth.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+    return { kind: 'error', message: 'Date of birth is required (YYYY-MM-DD).' };
+  }
+  const url =
+    `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/${encodeURIComponent(trimmed)}` +
+    `/status?dob=${encodeURIComponent(dob)}`;
   const fetcher = options.fetcher ?? fetch;
 
   let response: Response;
@@ -157,7 +147,7 @@ export async function getApplicationByTrackingNumber(
   }
 
   try {
-    const payload = (await response.json()) as Partial<ApplicationTrackingResult>;
+    const payload = (await response.json()) as RegistrationStatusPayload;
     return { kind: 'ok', data: normalizeTrackingResult(payload, trimmed) };
   } catch (err) {
     return {
@@ -167,23 +157,37 @@ export async function getApplicationByTrackingNumber(
   }
 }
 
+/** Wire shape of `RegistrationStatusResponse` (every field treated as untrusted). */
+export interface RegistrationStatusPayload {
+  trackingNumber?: string;
+  status?: string;
+  institutionName?: string;
+  applicantName?: string;
+  submittedAt?: string;
+  updatedAt?: string;
+  remarks?: string;
+  waitlistPosition?: number;
+  interviewBookings?: ApplicationInterviewBooking[];
+}
+
 /**
- * Coerces a partial server payload into the strict client shape, defaulting
- * missing arrays to `[]` so the UI doesn't have to null-check at every site.
+ * Maps the backend `RegistrationStatusResponse` onto the UI model, defaulting missing
+ * arrays to `[]` so the UI doesn't have to null-check at every site.
  */
 export function normalizeTrackingResult(
-  payload: Partial<ApplicationTrackingResult>,
+  payload: RegistrationStatusPayload,
   fallbackTrackingNumber: string,
 ): ApplicationTrackingResult {
   return {
     trackingNumber: payload.trackingNumber ?? fallbackTrackingNumber,
     status: payload.status ?? 'pending',
-    currentStep: payload.currentStep,
+    institutionName: payload.institutionName || undefined,
     submittedAt: payload.submittedAt ?? '',
     updatedAt: payload.updatedAt ?? payload.submittedAt ?? '',
-    expectedCompletionAt: payload.expectedCompletionAt,
-    history: Array.isArray(payload.history) ? payload.history : [],
-    followUpActions: Array.isArray(payload.followUpActions) ? payload.followUpActions : [],
+    remarks: payload.remarks || undefined,
+    waitlistPosition:
+      typeof payload.waitlistPosition === 'number' ? payload.waitlistPosition : undefined,
+    interviewBookings: Array.isArray(payload.interviewBookings) ? payload.interviewBookings : [],
   };
 }
 
@@ -193,11 +197,11 @@ export function normalizeTrackingResult(
 
 /**
  * URL prefix for the public School Finder endpoint. The backend route lives
- * at `GET /api/v1/registration/schools/search` (see
+ * at `GET /api/v1/registrations/schools/search` (PRC-H029) (see
  * `packages/backend/registration/src/routes.ts`). Like the tracking endpoint
  * above, this is anonymous-accessible.
  */
-export const SCHOOL_FINDER_API_PREFIX = '/api/v1/registration/schools/search';
+export const SCHOOL_FINDER_API_PREFIX = '/api/v1/registrations/schools/search';
 
 /**
  * Filters accepted by the School Finder. The geolocation triple

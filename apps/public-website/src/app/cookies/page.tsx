@@ -45,7 +45,8 @@ export default function CookiesPage() {
               security, network management, and accessibility. These cannot be turned off.
             </li>
             <li>
-              <strong>Functional</strong> cookies remember preferences such as language and region.
+              <strong>Functional</strong> cookies are not set by this site today. Your cookie choice
+              is stored in your browser&apos;s local storage, not in a cookie.
             </li>
             <li>
               <strong>Analytics</strong> cookies, where enabled, help us understand how visitors use
@@ -57,8 +58,9 @@ export default function CookiesPage() {
           <p>
             A consent bar on this site lets you choose essential cookies only, or record that
             analytics may be used later. This website does not load a third-party analytics cookie
-            today. If one is added, it loads only after you choose Allow analytics. You can also
-            block cookies in your browser. Clearing this site&apos;s data shows the bar again.
+            today. If one is added, it loads only after you choose Allow analytics. You can change
+            or withdraw your choice at any time with Cookie settings in the site footer, and you can
+            also block cookies in your browser.
           </p>
 
           <h2>Do Not Track</h2>

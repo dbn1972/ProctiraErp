@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { BulkImport } from './BulkImport';
+import { BulkImport, importErrorsToCsv } from './BulkImport';
 import type { ImportValidationResult } from './types';
 
 const targetFields = [
@@ -208,5 +208,147 @@ describe('BulkImport', () => {
     );
 
     expect(screen.getByText(/\.xlsx, \.csv/)).toBeInTheDocument();
+  });
+
+  describe('duplicate column mapping (PRC-L193)', () => {
+    it('shows an error and blocks Continue when a field is mapped twice', async () => {
+      const onFileValidate = vi.fn().mockResolvedValue({
+        ...mockValidationResult,
+        columnMappings: [
+          { sourceColumn: 'First Name', targetField: 'firstName', required: true, valid: true },
+          { sourceColumn: 'Given Name', targetField: 'firstName', required: false, valid: true },
+          { sourceColumn: 'Last Name', targetField: 'lastName', required: true, valid: true },
+        ],
+      });
+      render(
+        <BulkImport
+          title="Import Students"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi.fn()}
+        />,
+      );
+      const input = screen.getByLabelText(/choose a file/i);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      await screen.findByText('Map Columns to Fields');
+      expect(screen.getAllByText('Duplicate')).toHaveLength(2);
+      fireEvent.click(screen.getByRole('button', { name: 'Continue to Preview' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(/mapped more than once: First Name/i);
+      expect(screen.getByText('Map Columns to Fields')).toBeInTheDocument();
+      expect(screen.queryByText('Validation Preview')).not.toBeInTheDocument();
+
+      // Resolving the duplicate unblocks Continue; used options are disabled elsewhere
+      fireEvent.change(screen.getByLabelText('Map Given Name to target field'), {
+        target: { value: '' },
+      });
+      const givenNameSelect = screen.getByLabelText('Map Given Name to target field');
+      const lastNameOption = Array.from(givenNameSelect.querySelectorAll('option')).find(
+        (o) => o.value === 'lastName',
+      );
+      expect(lastNameOption).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: 'Continue to Preview' }));
+      expect(await screen.findByText('Validation Preview')).toBeInTheDocument();
+    });
+  });
+
+  describe('error download (PRC-L194)', () => {
+    const manyErrors = Array.from({ length: 75 }, (_, i) => ({
+      row: i + 1,
+      field: 'email',
+      message: 'Invalid email format',
+      value: i === 0 ? '=HYPERLINK("x")' : `bad${i}`,
+      severity: 'error' as const,
+    }));
+
+    async function goToPreview(onDownloadErrors?: ReturnType<typeof vi.fn>) {
+      const onFileValidate = vi
+        .fn()
+        .mockResolvedValue({ ...mockValidationResult, errors: manyErrors });
+      render(
+        <BulkImport
+          title="Import Students"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi
+            .fn()
+            .mockResolvedValue({ success: 1, failed: 1, errors: [manyErrors[1]] })}
+          onDownloadErrors={onDownloadErrors}
+        />,
+      );
+      const input = screen.getByLabelText(/choose a file/i);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      fireEvent.click(await screen.findByRole('button', { name: 'Continue to Preview' }));
+    }
+
+    it('offers the full error list when more than 50 errors exist', async () => {
+      const onDownloadErrors = vi.fn();
+      await goToPreview(onDownloadErrors);
+      expect(screen.getByText('Showing first 50 of 75 errors')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Download all 75 errors (CSV)' }));
+      expect(onDownloadErrors).toHaveBeenCalledWith(manyErrors, 'validation');
+
+      fireEvent.click(screen.getByRole('button', { name: /import 8 valid rows/i }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Download 1 failed row errors (CSV)' }),
+      );
+      expect(onDownloadErrors).toHaveBeenLastCalledWith([manyErrors[1]], 'import');
+    });
+
+    it('falls back to a built-in CSV download', async () => {
+      const createObjectURL = vi.fn().mockReturnValue('blob:x');
+      const revokeObjectURL = vi.fn();
+      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      await goToPreview();
+      fireEvent.click(screen.getByRole('button', { name: 'Download all 75 errors (CSV)' }));
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalled();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:x');
+      click.mockRestore();
+    });
+
+    it('serialises every error as CSV and neutralises formulas', () => {
+      const csv = importErrorsToCsv(manyErrors);
+      const lines = csv.split('\r\n');
+      expect(lines).toHaveLength(76);
+      expect(lines[0]).toBe('"Row","Field","Value","Error","Severity"');
+      expect(lines[1]).toBe('"1","email","\'=HYPERLINK(""x"")","Invalid email format","error"');
+    });
+  });
+
+  describe('labels (PRC-L195)', () => {
+    it('renders translated strings from the labels prop with English fallback', async () => {
+      const onFileValidate = vi.fn().mockResolvedValue(mockValidationResult);
+      render(
+        <BulkImport
+          title="Importer des élèves"
+          targetFields={targetFields}
+          onFileValidate={onFileValidate}
+          onImportConfirm={vi.fn()}
+          onCancel={vi.fn()}
+          labels={{
+            stepUpload: 'Téléverser',
+            chooseFile: 'Choisir un fichier',
+            mappingTitle: 'Associer les colonnes',
+            continueToPreview: 'Continuer',
+            cancelImport: "Annuler l'import",
+            mapColumn: (c) => `Associer ${c}`,
+            importValidRows: (n) => `Importer ${n} lignes valides`,
+          }}
+        />,
+      );
+      expect(screen.getByText('Téléverser')).toBeInTheDocument();
+      expect(screen.getByText('Map Columns')).toBeInTheDocument(); // English fallback
+      expect(screen.getByRole('button', { name: "Annuler l'import" })).toBeInTheDocument();
+      const input = screen.getByLabelText(/Choisir un fichier/);
+      Object.defineProperty(input, 'files', { value: [createFile('students.xlsx', 100)] });
+      fireEvent.change(input);
+      expect(await screen.findByText('Associer les colonnes')).toBeInTheDocument();
+      expect(screen.getByLabelText('Associer First Name')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
+      expect(screen.getByRole('button', { name: 'Importer 8 lignes valides' })).toBeInTheDocument();
+    });
   });
 });

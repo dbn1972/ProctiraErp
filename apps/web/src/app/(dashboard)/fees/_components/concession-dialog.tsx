@@ -30,23 +30,30 @@ export function ConcessionDialog({
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    // PRC-L238: blank stays blank (undefined) so validation rejects it instead of applying 0%.
+    const rawPercent = String(fd.get('percent') ?? '').trim();
     startTransition(async () => {
       setError(null);
+      setFieldErrors({});
       const result = await applyConcessionAction({
         studentId,
         structureId,
         invoiceId,
         kind: 'percent',
-        percent: Number(fd.get('percent') ?? 0),
+        percent: rawPercent === '' ? undefined : Number(rawPercent),
         reason: String(fd.get('reason') ?? ''),
       });
       if (!result.success) {
-        setError(result.error);
+        const byField: Record<string, string> = {};
+        for (const fe of result.fieldErrors ?? []) byField[fe.field] ??= fe.message;
+        setFieldErrors(byField);
+        setError(result.fieldErrors?.length ? null : result.error);
         return;
       }
       setOpen(false);
@@ -80,17 +87,19 @@ export function ConcessionDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-3">
-            <FormField id="concession-percent" label="Percent" required>
+            <FormField id="concession-percent" label="Percent" required error={fieldErrors.percent}>
               <Input
                 id="concession-percent"
                 name="percent"
                 type="number"
-                min="0"
+                min="0.01"
                 max="100"
+                step="any"
+                required
                 defaultValue="10"
               />
             </FormField>
-            <FormField id="concession-reason" label="Reason" required>
+            <FormField id="concession-reason" label="Reason" required error={fieldErrors.reason}>
               <Input id="concession-reason" name="reason" required />
             </FormField>
             {error ? (

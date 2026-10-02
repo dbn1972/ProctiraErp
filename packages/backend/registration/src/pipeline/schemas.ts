@@ -106,7 +106,9 @@ export const CreateOfferSchema = Type.Object({
 export type CreateOfferDto = Static<typeof CreateOfferSchema>;
 
 export const AcceptOfferSchema = Type.Object({
-  paymentRef: Type.String({ minLength: 1, maxLength: 100 }),
+  /** Informational client reference; never treated as proof of payment (PRC-H079). */
+  paymentRef: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+  /** Deprecated and ignored: the fee invoice is server-owned. */
   offerFeeInvoiceId: Type.Optional(Uuid),
 });
 export type AcceptOfferDto = Static<typeof AcceptOfferSchema>;

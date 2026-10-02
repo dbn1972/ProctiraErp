@@ -283,6 +283,25 @@ export function hasHealthAccess(
 }
 
 /**
+ * PRC-H006: the counselling `reason` (topic) is counselling PHI. Only counsellors — and the
+ * student's own guardian — may read it; nurses, health officers and admins get schedule metadata.
+ */
+export function canReadCounsellingReason(context: HealthAccessContext, studentId: string): boolean {
+  if (context.guardianOfStudentIds.includes(studentId)) return true;
+  return hasHealthRole(context.roles, ['counsellor']);
+}
+
+/** Blank `reason` on sessions the caller may not read it for (see canReadCounsellingReason). */
+export function redactCounsellingReasons<T extends { studentId: string; reason: string }>(
+  context: HealthAccessContext,
+  sessions: T[],
+): T[] {
+  return sessions.map((session) =>
+    canReadCounsellingReason(context, session.studentId) ? session : { ...session, reason: '' },
+  );
+}
+
+/**
  * Health Service class providing business logic for all health operations.
  */
 export class HealthService {
@@ -1062,7 +1081,10 @@ export class HealthService {
     }
     const updated = await this.repository.updateCounsellingSession(id, tenantId, input);
     if (!updated) throw new NotFoundError(`Counselling session with id '${id}' not found`);
-    const [aclSession] = await this.applyCaseNotesFieldAcl(tenantId, accessContext, [updated]);
+    const [aclSession] = redactCounsellingReasons(
+      accessContext,
+      await this.applyCaseNotesFieldAcl(tenantId, accessContext, [updated]),
+    );
     return aclSession!;
   }
 
@@ -1084,7 +1106,10 @@ export class HealthService {
       resourceType: 'counselling_session',
       resourceId: null,
     });
-    const data = await this.applyCaseNotesFieldAcl(tenantId, accessContext, result.data);
+    const data = redactCounsellingReasons(
+      accessContext,
+      await this.applyCaseNotesFieldAcl(tenantId, accessContext, result.data),
+    );
     return { ...result, data };
   }
 
@@ -1207,10 +1232,9 @@ export class HealthService {
       resourceId: null,
     });
 
-    const counsellingWithAcl = await this.applyCaseNotesFieldAcl(
-      tenantId,
+    const counsellingWithAcl = redactCounsellingReasons(
       accessContext,
-      counsellingSessions.data,
+      await this.applyCaseNotesFieldAcl(tenantId, accessContext, counsellingSessions.data),
     );
 
     return {

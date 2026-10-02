@@ -95,3 +95,59 @@ test.describe('Public Website — contact API (Next route, always-on)', () => {
     expect(typeof body.forwarded).toBe('boolean');
   });
 });
+test.describe('Public Website — security headers & contact origin guard', () => {
+  test('responses carry baseline security headers', async ({ request }) => {
+    const response = await request.get('/');
+    const headers = response.headers();
+    expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(headers['strict-transport-security']).toMatch(/max-age=\d+/);
+    expect(headers['x-frame-options']).toBe('DENY');
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(headers['permissions-policy']).toContain('camera=()');
+  });
+  test('cross-origin contact POST returns 403', async ({ request }) => {
+    const response = await request.post('/api/contact', {
+      headers: { Origin: 'https://evil.example' },
+      data: {
+        name: 'Cross Origin',
+        email: 'x@example.edu',
+        message: 'This should be rejected by the origin guard.',
+      },
+    });
+    expect(response.status()).toBe(403);
+  });
+});
+test.describe('Public Website — cookie consent', () => {
+  test('choose analytics, reopen from footer, and withdraw', async ({ page }) => {
+    await page.goto('/');
+    const bar = page.getByTestId('cookie-consent');
+    await expect(bar).toBeVisible();
+    await bar.getByRole('button', { name: 'Allow analytics' }).click();
+    await expect(bar).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('proctira-cookie-consent'))).toBe(
+      'analytics',
+    );
+    const settings = page.getByTestId('cookie-settings');
+    await expect(settings).toBeVisible();
+    await settings.click();
+    await expect(bar).toBeVisible();
+    await expect(bar).toBeFocused();
+    await expect(bar).toHaveAttribute('data-current-choice', 'analytics');
+    await bar.getByRole('button', { name: 'Essential only' }).click();
+    await expect(bar).toHaveCount(0);
+    await expect(settings).toBeFocused();
+    expect(await page.evaluate(() => localStorage.getItem('proctira-cookie-consent'))).toBe(
+      'essential',
+    );
+  });
+});
+test.describe('Public Website — contact form errors', () => {
+  test('empty submit announces errors and focuses the first field', async ({ page }) => {
+    await page.goto('/contact');
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect(page.locator('form').getByRole('alert')).toContainText(/Please fix \d+ fields/);
+    await expect(page.locator('#name')).toBeFocused();
+    await expect(page.locator('#name')).toHaveAttribute('aria-describedby', 'name-error');
+  });
+});

@@ -492,7 +492,7 @@ describe('Institution Routes', () => {
       expect(json.meta.totalPages).toBe(3);
     });
 
-    it('W3-D1 baseline: route-level parsing accepts pageSize above schema max without gateway cap', async () => {
+    it('PRC-L126: route-level validation rejects pageSize above schema max', async () => {
       for (let i = 0; i < 3; i++) {
         await app.inject({
           method: 'POST',
@@ -506,8 +506,9 @@ describe('Institution Routes', () => {
         url: '/institutions?pageSize=250',
       });
 
-      expect(response.statusCode).toBe(200);
-      expect(response.json().meta.pageSize).toBe(250);
+      // PRC-L126: route validates InstitutionListQuerySchema (max 100), matching the gateway cap.
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe('VALIDATION_ERROR');
     });
 
     it('should filter by status', async () => {

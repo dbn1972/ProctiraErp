@@ -1,8 +1,31 @@
 /** API client for the public registration portal. */
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_REGISTRATION_SERVICE_URL ||
-  process.env.REGISTRATION_SERVICE_URL ||
-  '/api';
+
+/** Request shape shared by the browser and server transports. */
+export interface RegistrationRequestInit {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+/**
+ * Sends `path` (relative to the gateway `/api/v1`, e.g. `/registrations/...`).
+ * Server code passes `serverTransport` from `lib/gateway`; the default is the
+ * browser transport through the portal's same-origin proxy.
+ */
+export type RegistrationTransport = (
+  path: string,
+  init?: RegistrationRequestInit,
+) => Promise<Response>;
+
+/** Browser transport: same-origin `/api/registrations/*` proxy route. */
+export const browserTransport: RegistrationTransport = (path, init = {}) => {
+  if (typeof window === 'undefined') {
+    throw new Error(
+      'Server-side registration API calls must pass serverTransport from lib/gateway',
+    );
+  }
+  return fetch(`/api${path}`, { ...init, cache: 'no-store' });
+};
 
 export interface FieldError {
   field: string;
@@ -73,10 +96,12 @@ export interface FormConfiguration {
   fields: FormFieldDefinition[];
 }
 
-export async function getFormConfiguration(institutionId: string): Promise<FormConfiguration> {
-  const response = await fetch(
-    `${API_BASE_URL}/registrations/form-config/${encodeURIComponent(institutionId)}`,
-    { cache: 'no-store' },
+export async function getFormConfiguration(
+  institutionId: string,
+  transport: RegistrationTransport = browserTransport,
+): Promise<FormConfiguration> {
+  const response = await transport(
+    `/registrations/form-config/${encodeURIComponent(institutionId)}`,
   );
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as FormConfiguration;
@@ -117,6 +142,7 @@ export interface InstitutionMapResponse {
 
 export async function getInstitutions(
   filters: InstitutionFilters = {},
+  transport: RegistrationTransport = browserTransport,
 ): Promise<InstitutionMapResponse> {
   const params = new URLSearchParams();
   if (filters.areaId) params.set('areaId', filters.areaId);
@@ -126,9 +152,7 @@ export async function getInstitutions(
   if (filters.page) params.set('page', String(filters.page));
   if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
 
-  const response = await fetch(`${API_BASE_URL}/registrations/institutions?${params.toString()}`, {
-    cache: 'no-store',
-  });
+  const response = await transport(`/registrations/institutions?${params.toString()}`);
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as InstitutionMapResponse;
 }
@@ -174,8 +198,9 @@ export interface RegistrationSubmissionResponse {
 export async function submitRegistration(
   payload: RegistrationSubmissionInput,
   submissionKey: string,
+  transport: RegistrationTransport = browserTransport,
 ): Promise<RegistrationSubmissionResponse> {
-  const response = await fetch(`${API_BASE_URL}/registrations`, {
+  const response = await transport('/registrations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -200,22 +225,25 @@ export interface RegistrationStatus {
 export async function checkApplicationStatus(
   trackingNumber: string,
   dateOfBirth: string,
+  transport: RegistrationTransport = browserTransport,
 ): Promise<RegistrationStatus | null> {
   const params = new URLSearchParams({ dob: dateOfBirth });
-  const response = await fetch(
-    `${API_BASE_URL}/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
-    { cache: 'no-store' },
+  const response = await transport(
+    `/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
   );
   if (response.status === 404) return null;
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationStatus;
 }
 
-export async function setSessionLanguage(language: string): Promise<{
+export async function setSessionLanguage(
+  language: string,
+  transport: RegistrationTransport = browserTransport,
+): Promise<{
   language: string;
   sessionId: string;
 }> {
-  const response = await fetch(`${API_BASE_URL}/registrations/language`, {
+  const response = await transport('/registrations/language', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ language }),

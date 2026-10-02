@@ -1,16 +1,14 @@
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
-import {
-  createPrivacyRepository,
-  isPgPrivacyEnabled,
-} from './create-privacy-repository.js';
+import { createPrivacyRepository, isPgPrivacyEnabled } from './create-privacy-repository.js';
 import { InMemoryPrivacyRepository } from './in-memory-repository.js';
 import { RecordingPrivacyAuditPort } from './privacy-audit.js';
 import { PrivacyService } from './privacy-service.js';
 import { resetSharedInMemoryPrivacyRepositoryForTests } from './shared-store.js';
 import {
   RecordingSubjectAnonymizer,
+  ResidualTenantWipeExecutor,
   type SubjectAnonymizer,
   type TenantWipeExecutor,
 } from './subject-anonymizer.js';
@@ -66,7 +64,9 @@ describe('PrivacyService legal hold + erasure (W1-SEC-06)', () => {
     await expect(service.assertDestructiveDeleteAllowed(TENANT_A, 'stu-1')).rejects.toThrow(
       BusinessRuleError,
     );
-    await expect(service.assertDestructiveDeleteAllowed(TENANT_A, 'stu-other')).resolves.toBeUndefined();
+    await expect(
+      service.assertDestructiveDeleteAllowed(TENANT_A, 'stu-other'),
+    ).resolves.toBeUndefined();
   });
 
   it('fail-closes anonymization job to failed when residual anonymizer leaves residuals', async () => {
@@ -130,7 +130,9 @@ describe('PrivacyService legal hold + erasure (W1-SEC-06)', () => {
       reason: 'Litigation',
       placedBy: 'counsel',
     });
-    await expect(service.executeErasure(req.id, TENANT_A, 'officer')).rejects.toThrow(/legal hold/i);
+    await expect(service.executeErasure(req.id, TENANT_A, 'officer')).rejects.toThrow(
+      /legal hold/i,
+    );
     expect((await service.getErasureRequest(req.id, TENANT_A))?.status).toBe('blocked_legal_hold');
   });
 
@@ -241,7 +243,10 @@ describe('PrivacyService tenant offboard wipe (W1-SEC-06)', () => {
 
   beforeEach(() => {
     audit = new RecordingPrivacyAuditPort();
-    service = new PrivacyService(new InMemoryPrivacyRepository(), { audit });
+    service = new PrivacyService(new InMemoryPrivacyRepository(), {
+      audit,
+      tenantWipeExecutor: new ResidualTenantWipeExecutor(),
+    });
   });
 
   it('marks offboard failed (not completed) when residual wipe executor leaves residuals', async () => {
@@ -320,7 +325,9 @@ describe('PrivacyService tenant offboard wipe (W1-SEC-06)', () => {
       placedBy: 'counsel',
     });
     await expect(svc.processTenantOffboardJob(queued.id, TENANT_A)).rejects.toThrow(/legal hold/i);
-    expect((await svc.getTenantOffboardJob(queued.id, TENANT_A))?.status).toBe('blocked_legal_hold');
+    expect((await svc.getTenantOffboardJob(queued.id, TENANT_A))?.status).toBe(
+      'blocked_legal_hold',
+    );
   });
 
   it('cross-tenant offboard id returns not-found', async () => {

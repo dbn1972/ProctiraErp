@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from './route';
 
 function makeRequest(body: unknown): Request {
-  return new Request('http://localhost/api/auth/signup', {
+  return new Request('http://acme.proctira.io/api/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

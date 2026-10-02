@@ -53,6 +53,12 @@ spec:
               containerPort: {{ .Values.registrationPortal.service.targetPort }}
               protocol: TCP
           env:
+            # Server-only gateway origin; the portal refuses to boot in
+            # production without it (PRC-H018). Override via registrationPortal.env.
+            {{- if not (hasKey .Values.registrationPortal.env "GATEWAY_URL") }}
+            - name: GATEWAY_URL
+              value: {{ printf "http://%s-api-gateway:%v" (include "proctira.fullname" .) .Values.apiGateway.service.port | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.registrationPortal.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

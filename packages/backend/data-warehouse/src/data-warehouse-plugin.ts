@@ -7,9 +7,10 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { WarehouseRepository } from './warehouse-repository.js';
+import type { DataWarehouseAuditSink } from './audit.js';
 import { DataWarehouseService, type DataWarehouseServiceConfig } from './data-warehouse-service.js';
 import { registerDataWarehouseRoutes } from './routes.js';
+import type { WarehouseRepository } from './warehouse-repository.js';
 
 /**
  * Options for the Data Warehouse plugin.
@@ -21,6 +22,8 @@ export interface DataWarehousePluginOptions {
   config: DataWarehouseServiceConfig;
   /** Route prefix (default: '/warehouses') */
   prefix?: string;
+  /** Audit sink receiving one event per successful mutation (PRC-L452). */
+  auditSink?: DataWarehouseAuditSink | null;
 }
 
 // Extend Fastify types
@@ -38,10 +41,10 @@ export const dataWarehousePlugin = fp(
     fastify: FastifyInstance,
     options: DataWarehousePluginOptions,
   ) {
-    const { repository, config, prefix = '/warehouses' } = options;
+    const { repository, config, prefix = '/warehouses', auditSink = null } = options;
 
     // Create Data Warehouse service instance
-    const dataWarehouseService = new DataWarehouseService(repository, config);
+    const dataWarehouseService = new DataWarehouseService(repository, config, { auditSink });
 
     // Decorate fastify with the Data Warehouse service
     fastify.decorate('dataWarehouseService', dataWarehouseService);

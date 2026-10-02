@@ -31,7 +31,7 @@ export default async function ParentReportCardsPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -39,7 +39,7 @@ export default async function ParentReportCardsPage({
         title="Report cards"
         description="Subject lines from completed report cards."
         testId="parent-report-cards"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No report cards to show."
         hasRows={false}
       >

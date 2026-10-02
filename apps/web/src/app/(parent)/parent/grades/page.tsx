@@ -31,7 +31,7 @@ export default async function ParentGradesPage({
     );
   }
   const children = childrenResult.items;
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -39,7 +39,7 @@ export default async function ParentGradesPage({
         title="Grades"
         description="Published marks and report cards for your child."
         testId="parent-grades"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No grades to show."
         hasRows={false}
       >

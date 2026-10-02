@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createCachedSnapshotLoader,
   hasConfiguredProbes,
   loadStatusSnapshot,
   probeUrl,
@@ -48,5 +49,34 @@ describe('status probes', () => {
       async () => new Response('nope', { status: 401 }),
     ) as unknown as typeof fetch;
     await expect(probeUrl('http://auth.example/login', fetchImpl)).resolves.toBe('degraded');
+  });
+  it('does not follow redirects and reports a 302 as degraded, not ok', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(null, { status: 302, headers: { Location: '/login' } }),
+    ) as unknown as typeof fetch;
+    await expect(probeUrl('http://web.example/health', fetchImpl)).resolves.toBe('degraded');
+    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as
+      RequestInit | undefined;
+    expect(init?.redirect).toBe('manual');
+  });
+  it('runs one probe set for repeated requests within the TTL', async () => {
+    const fetchImpl = vi.fn(async () => new Response('ok', { status: 200 }));
+    let t = 1_000;
+    const load = createCachedSnapshotLoader(
+      () =>
+        loadStatusSnapshot(
+          { web: 'http://web.example/h', api: 'http://api.example/h' },
+          { fetchImpl: fetchImpl as unknown as typeof fetch },
+        ),
+      { ttlMs: 30_000, nowMs: () => t },
+    );
+    await load();
+    await load();
+    t += 29_000;
+    await load();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    t += 2_000;
+    await load();
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 });

@@ -8,6 +8,7 @@ export default defineConfig({
     root: path.resolve(__dirname),
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
-    passWithNoTests: true,
+    // PRC-L560: an empty or mis-globbed suite must fail, not pass silently.
+    passWithNoTests: false,
   },
 });

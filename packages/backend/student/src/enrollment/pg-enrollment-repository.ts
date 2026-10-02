@@ -5,7 +5,7 @@
  * records live in `enrollment_history` / `transfer_records` (db/sql/021).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { ConflictError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
 import type {
@@ -15,8 +15,11 @@ import type {
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
+  TransferEnrollmentResult,
+  TransferEnrollmentWrite,
   TransferRecordDetail,
   TransferRecordEntity,
+  UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export type EnrollmentPgPool = PgQueryable & { connect?: () => Promise<unknown> };
@@ -56,6 +59,24 @@ function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
+/**
+ * PRC-L161: node-pg parses DATE columns as *local* midnight, so under a
+ * positive UTC offset (e.g. Asia/Kolkata) `toISOString()` yields the previous
+ * day. Normalise DATE values to UTC midnight of the stored calendar day.
+ */
+export function toDateOnly(value: unknown): Date {
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00.000Z`) : new Date(text);
+}
+
+/** Serialise a calendar-date param as YYYY-MM-DD (UTC) so ::date never shifts by TZ. */
+function toDateParam(value: Date | null | undefined): string | null {
+  return value == null ? null : value.toISOString().slice(0, 10);
+}
+
 function mapEnrollment(row: Record<string, unknown>): EnrollmentEntity {
   return {
     id: String(row.id),
@@ -66,8 +87,8 @@ function mapEnrollment(row: Record<string, unknown>): EnrollmentEntity {
     classId: row.class_id == null ? null : String(row.class_id),
     academicPeriodId: String(row.academic_period_id),
     status: String(row.status) as EnrollmentEntity['status'],
-    enrolledAt: toDate(row.enrolled_at),
-    exitedAt: row.exited_at == null ? null : toDate(row.exited_at),
+    enrolledAt: toDateOnly(row.enrolled_at),
+    exitedAt: row.exited_at == null ? null : toDateOnly(row.exited_at),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -80,7 +101,7 @@ function mapHistory(row: Record<string, unknown>): EnrollmentHistoryEntity {
     enrollmentId: String(row.enrollment_id),
     previousStatus: row.previous_status == null ? null : String(row.previous_status),
     newStatus: String(row.new_status),
-    effectiveDate: toDate(row.effective_date),
+    effectiveDate: toDateOnly(row.effective_date),
     institutionId: String(row.institution_id),
     academicPeriodId: String(row.academic_period_id),
     reason: row.reason == null ? null : String(row.reason),
@@ -97,7 +118,7 @@ function mapTransfer(row: Record<string, unknown>): TransferRecordEntity {
     sourceEnrollmentId: String(row.source_enrollment_id),
     destinationInstitutionId: String(row.destination_institution_id),
     destinationEnrollmentId: String(row.destination_enrollment_id),
-    transferDate: toDate(row.transfer_date),
+    transferDate: toDateOnly(row.transfer_date),
     reason: String(row.reason),
     createdAt: toDate(row.created_at),
   };
@@ -138,8 +159,8 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
             data.classId,
             data.academicPeriodId,
             data.status,
-            data.enrolledAt,
-            data.exitedAt,
+            toDateParam(data.enrolledAt),
+            toDateParam(data.exitedAt),
           ],
         );
         return mapEnrollment(result.rows[0] as Record<string, unknown>);
@@ -155,15 +176,22 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null> {
     return this.withTenant(tenantId, async (client) => {
+      // PRC-L160: lock the row so concurrent withdraw/graduate serialise.
       const existing = await client.query(
-        `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
         [id, tenantId],
       );
       const row = existing.rows[0] as Record<string, unknown> | undefined;
       if (!row) return null;
       const current = mapEnrollment(row);
+      if (options?.expectedStatus && current.status !== options.expectedStatus) {
+        throw new ConflictError(
+          `Enrollment status changed concurrently (now '${current.status}'); reload and retry`,
+        );
+      }
       const next = { ...current, ...data, id: current.id, tenantId: current.tenantId };
       await bindEnrollmentHistoryGucs(client, history);
       const result = await client.query(
@@ -172,6 +200,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
                academic_period_id = $7, status = $8::enrollment_status,
                enrolled_at = $9::date, exited_at = $10::date, updated_at = now()
          WHERE id = $1 AND tenant_id = $2
+           AND ($11::enrollment_status IS NULL OR status = $11::enrollment_status)
          RETURNING *`,
         [
           id,
@@ -182,11 +211,16 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
           next.classId,
           next.academicPeriodId,
           next.status,
-          next.enrolledAt,
-          next.exitedAt,
+          toDateParam(next.enrolledAt),
+          toDateParam(next.exitedAt),
+          options?.expectedStatus ?? null,
         ],
       );
-      return mapEnrollment(result.rows[0] as Record<string, unknown>);
+      const updated = result.rows[0] as Record<string, unknown> | undefined;
+      if (!updated) {
+        throw new ConflictError('Enrollment status changed concurrently; reload and retry');
+      }
+      return mapEnrollment(updated);
     });
   }
 
@@ -390,6 +424,114 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
           row.destination_board_name == null ? null : String(row.destination_board_name),
       };
     });
+  }
+
+  /**
+   * PRC-H094: one withPgTenant transaction for the whole transfer. History GUCs
+   * are re-bound before each statement so the DB trigger records the right
+   * reason/effective date for the transfer-out and transfer-in rows.
+   */
+  async transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult> {
+    const { tenantId, destination: dest } = write;
+    try {
+      return await this.withTenant(tenantId, async (client) => {
+        if (dest.classId) {
+          const cls = await client.query(
+            `SELECT institution_id, grade_id, academic_period_id
+               FROM classes
+              WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+              LIMIT 1`,
+            [dest.classId, tenantId],
+          );
+          const row = cls.rows[0] as
+            { institution_id: unknown; grade_id: unknown; academic_period_id: unknown } | undefined;
+          if (
+            !row ||
+            String(row.institution_id) !== dest.institutionId ||
+            String(row.grade_id) !== dest.gradeId ||
+            String(row.academic_period_id) !== dest.academicPeriodId
+          ) {
+            throw new BusinessRuleError(
+              'Transfer rejected: destination class does not belong to the destination institution, grade and academic period',
+            );
+          }
+        }
+        const locked = await client.query(
+          `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+          [write.sourceEnrollmentId, tenantId],
+        );
+        const sourceRow = locked.rows[0] as Record<string, unknown> | undefined;
+        if (!sourceRow) {
+          throw new NotFoundError(
+            `Source enrollment with id '${write.sourceEnrollmentId}' not found`,
+          );
+        }
+        if (String(sourceRow.status) !== write.expectedSourceStatus) {
+          throw new ConflictError(
+            `Source enrollment changed concurrently (status '${String(sourceRow.status)}')`,
+          );
+        }
+        await bindEnrollmentHistoryGucs(client, write.sourceHistory);
+        const updated = await client.query(
+          `UPDATE enrollments
+              SET status = $3::enrollment_status, exited_at = $4::date, updated_at = now()
+            WHERE id = $1 AND tenant_id = $2
+            RETURNING *`,
+          [
+            write.sourceEnrollmentId,
+            tenantId,
+            write.sourceUpdate.status,
+            write.sourceUpdate.exitedAt,
+          ],
+        );
+        await bindEnrollmentHistoryGucs(client, write.destinationHistory);
+        const inserted = await client.query(
+          `INSERT INTO enrollments (
+             id, tenant_id, student_id, institution_id, grade_id, class_id,
+             academic_period_id, status, enrolled_at, exited_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::enrollment_status,$9::date,$10::date)
+           RETURNING *`,
+          [
+            dest.id,
+            tenantId,
+            dest.studentId,
+            dest.institutionId,
+            dest.gradeId,
+            dest.classId,
+            dest.academicPeriodId,
+            dest.status,
+            dest.enrolledAt,
+            dest.exitedAt,
+          ],
+        );
+        const t = write.transfer;
+        const transfer = await client.query(
+          `INSERT INTO transfer_records (
+             id, tenant_id, student_id, source_institution_id, source_enrollment_id,
+             destination_institution_id, destination_enrollment_id, transfer_date, reason
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9) RETURNING *`,
+          [
+            t.id,
+            tenantId,
+            t.studentId,
+            t.sourceInstitutionId,
+            t.sourceEnrollmentId,
+            t.destinationInstitutionId,
+            t.destinationEnrollmentId,
+            t.transferDate,
+            t.reason,
+          ],
+        );
+        return {
+          sourceEnrollment: mapEnrollment(updated.rows[0] as Record<string, unknown>),
+          destinationEnrollment: mapEnrollment(inserted.rows[0] as Record<string, unknown>),
+          transferRecord: mapTransfer(transfer.rows[0] as Record<string, unknown>),
+        };
+      });
+    } catch (err) {
+      mapActiveEnrollmentConflict(err);
+      throw err;
+    }
   }
 
   async findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null> {

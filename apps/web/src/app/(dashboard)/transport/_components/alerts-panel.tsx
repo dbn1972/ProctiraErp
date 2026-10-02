@@ -28,6 +28,7 @@ export function AlertsPanel({
   alerts: TransportAlert[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
 
@@ -54,15 +55,22 @@ export function AlertsPanel({
             data-hydrated={hydrated ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault();
-              const fd = new FormData(event.currentTarget);
+              const form = event.currentTarget;
+              const fd = new FormData(form);
               startTransition(async () => {
                 setError(null);
+                setMessage(null);
                 const result = await createAlertRuleAction({
                   kind: String(fd.get('kind')) as AlertRule['kind'],
                   threshold: Number(fd.get('threshold')),
                   routeId: String(fd.get('routeId') ?? '') || undefined,
                 });
-                if (result.status === 'error') setError(result.message ?? 'Failed');
+                if (result.status === 'error') {
+                  setError(result.message ?? 'Failed');
+                  return;
+                }
+                setMessage(result.message ?? 'Alert rule created.');
+                form.reset();
               });
             }}
           >
@@ -107,6 +115,11 @@ export function AlertsPanel({
                 {error}
               </p>
             ) : null}
+            {message ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                {message}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={pending}>
                 <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -118,8 +131,14 @@ export function AlertsPanel({
                 disabled={pending}
                 onClick={() => {
                   startTransition(async () => {
+                    setError(null);
+                    setMessage(null);
                     const result = await evaluateAlertsAction();
-                    if (result.status === 'error') setError(result.message ?? 'Failed');
+                    if (result.status === 'error') {
+                      setError(result.message ?? 'Failed');
+                      return;
+                    }
+                    setMessage(result.message ?? 'Alerts evaluated.');
                   });
                 }}
               >
@@ -193,8 +212,14 @@ export function AlertsPanel({
                       disabled={pending}
                       onClick={() => {
                         startTransition(async () => {
+                          setError(null);
+                          setMessage(null);
                           const result = await acknowledgeAlertAction(alert.id);
-                          if (result.status === 'error') setError(result.message ?? 'Failed');
+                          if (result.status === 'error') {
+                            setError(result.message ?? 'Failed');
+                            return;
+                          }
+                          setMessage(result.message ?? 'Alert acknowledged.');
                         });
                       }}
                     >

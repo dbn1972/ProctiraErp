@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { Activity, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { displayHost } from '@/lib/site';
 import {
+  createCachedSnapshotLoader,
   loadStatusSnapshot,
   readStatusProbeUrlsFromEnv,
   type ProbeState,
@@ -18,9 +20,25 @@ export const metadata: Metadata = {
   alternates: { canonical: '/status' },
 };
 
+/**
+ * Row detail for probed services: the public host when configured, else the
+ * probe URL host — never a hard-coded hostname that may not match the probe.
+ */
+function probedDetail(publicUrl: string | undefined, probeUrl: string | undefined): string {
+  return displayHost(publicUrl) ?? displayHost(probeUrl) ?? 'No probe configured';
+}
+const probeUrls = readStatusProbeUrlsFromEnv();
 const SERVICES = [
-  { name: 'Web app', detail: 'app.proctira.org', probeKey: 'web' as const },
-  { name: 'API', detail: 'api.proctira.org', probeKey: 'api' as const },
+  {
+    name: 'Web app',
+    detail: probedDetail(process.env.NEXT_PUBLIC_WEB_APP_URL, probeUrls.web),
+    probeKey: 'web' as const,
+  },
+  {
+    name: 'API',
+    detail: probedDetail(process.env.NEXT_PUBLIC_API_URL, probeUrls.api),
+    probeKey: 'api' as const,
+  },
   {
     name: 'Authentication',
     detail: 'SSO, OTP & sessions',
@@ -43,9 +61,11 @@ const SERVICES = [
   },
 ];
 
-async function loadPageStatusSnapshot(): Promise<StatusSnapshot> {
-  return loadStatusSnapshot(readStatusProbeUrlsFromEnv());
-}
+// Rendered dynamically, but probes are cached in-process (~30s) so page views
+// do not each fan out a fresh probe set.
+const loadPageStatusSnapshot: () => Promise<StatusSnapshot> = createCachedSnapshotLoader(() =>
+  loadStatusSnapshot(readStatusProbeUrlsFromEnv()),
+);
 
 function serviceState(
   probeKey: 'web' | 'api' | 'auth' | null,
