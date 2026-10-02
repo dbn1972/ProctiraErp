@@ -52,7 +52,7 @@ describe('NewContractForm (PRC-L050)', () => {
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Science dept' } });
     fireEvent.submit(screen.getByTestId('staff-contract-form'));
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Contract recorded.'));
-    expect(createContractAction.mock.calls[0][0]).toMatchObject({
+    expect(createContractAction.mock.calls[0]?.[0]).toMatchObject({
       staffId: STAFF_ID,
       notes: 'Science dept',
       endDate: '2027-05-31',
