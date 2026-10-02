@@ -45,7 +45,12 @@ import {
   type AccessTokenRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
-import { asTenantScopedResolver, createAreaHierarchyResolver } from '@proctira/backend-institution';
+import {
+  asTenantScopedResolver,
+  configureAreaHierarchyVersionStore,
+  createAreaHierarchyResolver,
+  RedisAreaHierarchyVersionStore,
+} from '@proctira/backend-institution';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import {
   isPublicRegistrationPath,
@@ -850,6 +855,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
+  // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
+  configureAreaHierarchyVersionStore(
+    rateLimitRedis ? new RedisAreaHierarchyVersionStore(rateLimitRedis) : undefined,
+  );
   const areaResolver = createAreaHierarchyResolver();
   await app.register(rbacPlugin, {
     registry: rbacRegistry,
