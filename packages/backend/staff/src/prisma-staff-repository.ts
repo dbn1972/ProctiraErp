@@ -34,6 +34,32 @@ const STAFF_DEPENDENT_TABLES: ReadonlyArray<readonly [kind: string, table: strin
   ['certifications', 'hr_certifications'],
 ];
 
+/**
+ * Literal COUNT statement per dependent table (PRC-L157). Spelled out rather than
+ * interpolated so the no-runtime-DDL gate (PRC-L386) can prove every raw statement
+ * reaching `$queryRawUnsafe` is static DML.
+ */
+function dependentCountSql(table: string): string {
+  switch (table) {
+    case 'staff_payroll_lines':
+      return 'SELECT COUNT(*)::int AS n FROM staff_payroll_lines WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_contracts':
+      return 'SELECT COUNT(*)::int AS n FROM staff_contracts WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_hr_attendance':
+      return 'SELECT COUNT(*)::int AS n FROM staff_hr_attendance WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_leave_requests':
+      return 'SELECT COUNT(*)::int AS n FROM staff_leave_requests WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_appraisals':
+      return 'SELECT COUNT(*)::int AS n FROM hr_appraisals WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_training_attendance':
+      return 'SELECT COUNT(*)::int AS n FROM hr_training_attendance WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_certifications':
+      return 'SELECT COUNT(*)::int AS n FROM hr_certifications WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    default:
+      throw new Error(`No dependent-count statement for table ${table}`);
+  }
+}
+
 interface ProfileEnvelope {
   contactPhone: string;
   contactEmail: string | null;
@@ -245,7 +271,7 @@ export class PrismaStaffRepository implements StaffRepository {
         );
         if (!exists[0]?.present) continue;
         const rows = await tx.$queryRawUnsafe<{ n: number }[]>(
-          `SELECT COUNT(*)::int AS n FROM ${table} WHERE tenant_id = $1::uuid AND staff_id = $2::uuid`,
+          dependentCountSql(table),
           tenantId,
           id,
         );
