@@ -33,9 +33,11 @@ import {
   createUserInviteRepository,
   evaluatePermission,
   InviteService,
+  createPasswordThrottleState,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
   OtpService,
+  PasswordLoginThrottle,
   rbacPlugin,
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
@@ -475,6 +477,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // PRC-H043: the /password failure budget is shared across replicas through the same
+      // Redis client as rate limiting; production without Redis refuses to boot.
+      passwordThrottle: new PasswordLoginThrottle({
+        state: createPasswordThrottleState({
+          redis: rateLimitRedis,
+          NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+        }),
+      }),
     });
   } else {
     await app.register(authPlugin, {

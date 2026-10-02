@@ -363,7 +363,18 @@ export async function registerKeycloakAuthRoutes(
 
       // PRC-H043: refuse before contacting Keycloak when the account or source IP
       // has exceeded its failed-attempt budget.
-      const throttle = passwordThrottle.check(username, request.ip);
+      let throttle: Awaited<ReturnType<PasswordLoginThrottle['check']>>;
+      try {
+        throttle = await passwordThrottle.check(username, request.ip);
+      } catch (error) {
+        // Fail closed: without the shared failure budget the endpoint is unthrottled.
+        request.log.error({ err: error }, 'password-login throttle store unavailable');
+        return reply.status(503).send({
+          code: 'LOGIN_THROTTLE_UNAVAILABLE',
+          message: 'Sign-in is temporarily unavailable. Try again shortly.',
+          statusCode: 503,
+        });
+      }
       if (!throttle.allowed) {
         return reply.status(429).header('retry-after', String(throttle.retryAfterSeconds)).send({
           code: 'TOO_MANY_ATTEMPTS',
@@ -393,7 +404,9 @@ export async function registerKeycloakAuthRoutes(
       if (!tokenResponse.ok) {
         // Only credential rejections count; IdP outages (5xx) must not lock users out.
         if (tokenResponse.status === 400 || tokenResponse.status === 401) {
-          passwordThrottle.recordFailure(username, request.ip);
+          await passwordThrottle.recordFailure(username, request.ip).catch((error: unknown) => {
+            request.log.error({ err: error }, 'password-login throttle failure not recorded');
+          });
         }
         return reply.status(401).send({
           code: 'INVALID_CREDENTIALS',
@@ -401,7 +414,9 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 401,
         });
       }
-      passwordThrottle.recordSuccess(username);
+      await passwordThrottle.recordSuccess(username).catch((error: unknown) => {
+        request.log.warn({ err: error }, 'password-login throttle reset not recorded');
+      });
 
       const tokens = (await tokenResponse.json()) as {
         access_token: string;
