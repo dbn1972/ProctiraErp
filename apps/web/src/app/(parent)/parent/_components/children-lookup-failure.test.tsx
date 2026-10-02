@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/auth/server', () => ({
   requireSession: vi.fn(async () => ({ user: { sub: 'p1' } })),
 }));
+// PRC-L064 (#524): the library page formats due dates with the request locale.
+vi.mock('next-intl/server', () => ({ getLocale: vi.fn(async () => 'en-IN') }));
 vi.mock('@/lib/load-entity-labels', () => ({
   loadStudentLabelsForIds: vi.fn(async () => new Map()),
 }));
