@@ -53,16 +53,19 @@ describe('PRC-H022 institution scope', () => {
   it('scopes facility updates to the route institution', async () => {
     gatewayFetch.mockResolvedValue({ ok: false, error: { message: 'Not found' } });
     const { updateFacilityAction } = await import('../../infrastructure/actions');
+    // PRC-L241: ids must be UUIDs before the gateway call.
+    const INST_A = '0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a0a';
+    const FACILITY_OF_B = '0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b';
     const result = await updateFacilityAction({
-      institutionId: 'inst-A',
-      id: 'facility-of-B',
+      institutionId: INST_A,
+      id: FACILITY_OF_B,
       name: 'x',
       capacity: 1,
       condition: 'Good',
     });
     expect(result).toEqual({ ok: false, error: 'Not found' });
     expect(gatewayFetch).toHaveBeenCalledWith(
-      '/infrastructure/facility-of-B?institutionId=inst-A',
+      `/infrastructure/${FACILITY_OF_B}?institutionId=${INST_A}`,
       expect.objectContaining({ method: 'PUT' }),
     );
   });

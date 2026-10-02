@@ -41,6 +41,11 @@ import {
   sendCircularAction,
 } from './actions';
 
+// Entity ids are UUIDs: the actions reject anything else before the gateway (PRC-L033).
+const B1 = '0f2b8c1e-4a5d-4e6f-8a7b-9c0d1e2f3a01';
+const B2 = '0f2b8c1e-4a5d-4e6f-8a7b-9c0d1e2f3a02';
+const C1 = '0f2b8c1e-4a5d-4e6f-8a7b-9c0d1e2f3a03';
+const D1 = '0f2b8c1e-4a5d-4e6f-8a7b-9c0d1e2f3a04';
 beforeEach(() => {
   vi.clearAllMocks();
   session.sub = 'session-user';
@@ -48,18 +53,15 @@ beforeEach(() => {
 
 describe('emergency blast two-person control', () => {
   it('confirms as the session user, ignoring any client-supplied actor id', async () => {
-    api.confirmEmergencyBlast.mockResolvedValue({ id: 'b1', status: 'pending_second' });
+    api.confirmEmergencyBlast.mockResolvedValue({ id: B1, status: 'pending_second' });
     const forged = 'someone-else' as unknown as never;
     // Older clients passed an actorId; it must not reach the gateway.
-    await (confirmEmergencyBlastAction as (id: string, a?: string) => Promise<unknown>)(
-      'b1',
-      forged,
-    );
-    expect(api.confirmEmergencyBlast).toHaveBeenCalledWith('b1', 'session-user');
+    await (confirmEmergencyBlastAction as (id: string, a?: string) => Promise<unknown>)(B1, forged);
+    expect(api.confirmEmergencyBlast).toHaveBeenCalledWith(B1, 'session-user');
   });
 
   it('records createdBy from the session, not the client payload', async () => {
-    api.createEmergencyBlast.mockResolvedValue({ id: 'b2' });
+    api.createEmergencyBlast.mockResolvedValue({ id: B2 });
     await createEmergencyBlastAction({
       reason: 'Flood',
       channels: ['sms'],
@@ -78,7 +80,7 @@ describe('emergency blast two-person control', () => {
         message: 'A different actor must provide the second confirmation',
       }),
     );
-    const result = await confirmEmergencyBlastAction('b1');
+    const result = await confirmEmergencyBlastAction(B1);
     expect(result).toEqual({
       status: 'error',
       message: 'A different actor must provide the second confirmation',
@@ -87,8 +89,8 @@ describe('emergency blast two-person control', () => {
   });
 
   it('reports confirmed vs awaiting-second states and revalidates', async () => {
-    api.confirmEmergencyBlast.mockResolvedValue({ id: 'b1', status: 'confirmed' });
-    const result = await confirmEmergencyBlastAction('b1');
+    api.confirmEmergencyBlast.mockResolvedValue({ id: B1, status: 'confirmed' });
+    const result = await confirmEmergencyBlastAction(B1);
     expect(result.status).toBe('success');
     expect(result.message).toMatch(/blast confirmed/);
     expect(revalidatePath).toHaveBeenCalledWith('/communication/emergency');
@@ -96,7 +98,7 @@ describe('emergency blast two-person control', () => {
 
   it('maps dispatch failures to an error state', async () => {
     api.dispatchEmergencyBlast.mockRejectedValue(new Error('boom'));
-    expect(await dispatchEmergencyBlastAction('b1')).toEqual({ status: 'error', message: 'boom' });
+    expect(await dispatchEmergencyBlastAction(B1)).toEqual({ status: 'error', message: 'boom' });
   });
 });
 
@@ -127,15 +129,15 @@ describe('circulars', () => {
   });
 
   it('send revalidates circular, detail, and delivery paths', async () => {
-    api.sendCircular.mockResolvedValue({ id: 'c1', status: 'sent' });
-    await sendCircularAction('c1');
+    api.sendCircular.mockResolvedValue({ id: C1, status: 'sent' });
+    await sendCircularAction(C1);
     expect(revalidatePath).toHaveBeenCalledWith('/communication/circulars');
-    expect(revalidatePath).toHaveBeenCalledWith('/communication/circulars/c1');
+    expect(revalidatePath).toHaveBeenCalledWith(`/communication/circulars/${C1}`);
     expect(revalidatePath).toHaveBeenCalledWith('/communication/delivery');
   });
 
   it('ack rejects a blank recipient without calling the gateway', async () => {
-    expect((await ackCircularAction('c1', '  ')).status).toBe('error');
+    expect((await ackCircularAction(C1, '  ')).status).toBe('error');
     expect(api.ackCircular).not.toHaveBeenCalled();
   });
 
@@ -143,15 +145,15 @@ describe('circulars', () => {
     api.ackCircular.mockRejectedValue(
       new GatewayError({ status: 403, code: 'FORBIDDEN', message: 'Forbidden' }),
     );
-    expect(await ackCircularAction('c1', 'r1')).toEqual({ status: 'error', message: 'Forbidden' });
+    expect(await ackCircularAction(C1, 'r1')).toEqual({ status: 'error', message: 'Forbidden' });
   });
 });
 
 describe('delivery retry', () => {
   it('revalidates the delivery log on success', async () => {
-    api.retryDeliveryLog.mockResolvedValue({ id: 'd1', status: 'queued' });
-    const result = await retryDeliveryAction('d1');
-    expect(result).toMatchObject({ status: 'success', id: 'd1' });
+    api.retryDeliveryLog.mockResolvedValue({ id: D1, status: 'queued' });
+    const result = await retryDeliveryAction(D1);
+    expect(result).toMatchObject({ status: 'success', id: D1 });
     expect(revalidatePath).toHaveBeenCalledWith('/communication/delivery');
   });
 });

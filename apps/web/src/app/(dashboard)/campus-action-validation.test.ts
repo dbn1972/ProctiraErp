@@ -62,7 +62,7 @@ describe('campus/communication action validation (PRC-L033)', () => {
 
   it("rejects id='../x' without calling the gateway", async () => {
     const results = await Promise.all([
-      confirmEmergencyBlastAction('../x', ID),
+      confirmEmergencyBlastAction('../x'),
       dispatchEmergencyBlastAction('../x'),
       sendCircularAction('../x'),
       decideHostelLeaveAction('../x', 'approved'),
