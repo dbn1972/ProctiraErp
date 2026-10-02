@@ -7,8 +7,8 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { PipelineRepository } from './pipeline-repository.js';
 import { ETLService, type ETLServiceConfig } from './etl-service.js';
+import type { PipelineRepository } from './pipeline-repository.js';
 import { registerETLRoutes } from './routes.js';
 
 /**
