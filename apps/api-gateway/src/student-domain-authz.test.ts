@@ -136,14 +136,12 @@ describe('PRC-L366 student-domain authz matrix (gateway)', () => {
   }
 
   /**
-   * KNOWN GAP (S16-01, reported in PRC-L366 residual): the gateway grants
-   * parent/guardian `student:read` and the student list route has no
-   * guardian-link ownership filter, so a parent can list the whole tenant
-   * register. `it.fails` keeps this visible and flips red once fixed — then
-   * convert to a plain `it`.
+   * S16-01 (PRC-L366 residual): parents/guardians must not list the whole
+   * tenant register. Closed by PRC-C010 (staff-only roster), so this is a
+   * plain `it` now, as the original `it.fails` note required.
    */
   for (const role of ['parent', 'guardian']) {
-    it.fails(`student-register-list: ${role} is denied the full register (S16-01)`, async () => {
+    it(`student-register-list: ${role} is denied the full register (S16-01)`, async () => {
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/students',
