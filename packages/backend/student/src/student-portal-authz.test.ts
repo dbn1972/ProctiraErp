@@ -54,10 +54,18 @@ describe('PRC-C010/C011 student read authorization', () => {
       students: repo,
       store,
       blobs,
-      attendance: { async listStudentAttendanceInRange() { return []; } },
+      attendance: {
+        async listStudentAttendanceInRange() {
+          return [];
+        },
+      },
     });
     await registerStudentRoutes(a, { studentService, studentBinding: binding });
-    await registerStudents360Routes(a, { service: s360, prefix: '/students', studentBinding: binding });
+    await registerStudents360Routes(a, {
+      service: s360,
+      prefix: '/students',
+      studentBinding: binding,
+    });
     await a.ready();
     return { app: a, s360, store };
   }
@@ -121,7 +129,11 @@ describe('PRC-C010/C011 student read authorization', () => {
   });
 
   it('C010: a linked guardian reads their own child but 404s another student', async () => {
-    ({ app } = await build({ async listReadableStudentIds() { return [ownChildId]; } }));
+    ({ app } = await build({
+      async listReadableStudentIds() {
+        return [ownChildId];
+      },
+    }));
     current = principal('parent-1', 'guardian');
 
     const own = await app.inject({ method: 'GET', url: `/students/${ownChildId}` });
@@ -141,7 +153,11 @@ describe('PRC-C010/C011 student read authorization', () => {
   });
 
   it('C011: students-360 routes reject an unrelated portal caller', async () => {
-    ({ app } = await build({ async listReadableStudentIds() { return [ownChildId]; } }));
+    ({ app } = await build({
+      async listReadableStudentIds() {
+        return [ownChildId];
+      },
+    }));
     current = principal('parent-1', 'guardian');
     // Another student's 360 surfaces → 404 (not their child).
     for (const path of [
@@ -157,14 +173,23 @@ describe('PRC-C010/C011 student read authorization', () => {
   });
 
   it('C011: a guardian cannot mutate 360 records and cannot read documents even for own child', async () => {
-    ({ app } = await build({ async listReadableStudentIds() { return [ownChildId]; } }));
+    ({ app } = await build({
+      async listReadableStudentIds() {
+        return [ownChildId];
+      },
+    }));
     current = principal('parent-1', 'guardian');
 
     // Write is staff-only → 403.
     const addDiscipline = await app.inject({
       method: 'POST',
       url: `/students/${ownChildId}/discipline`,
-      payload: { incidentType: 'tardy', severity: 'low', description: 'late', incidentDate: '2026-01-01' },
+      payload: {
+        incidentType: 'tardy',
+        severity: 'low',
+        description: 'late',
+        incidentDate: '2026-01-01',
+      },
     });
     expect(addDiscipline.statusCode).toBe(403);
 
@@ -202,7 +227,11 @@ describe('PRC-C010/C011 student read authorization', () => {
   });
 
   it('C011: discipline visibleToParent filtering for a portal reader', async () => {
-    const built = await build({ async listReadableStudentIds() { return [ownChildId]; } });
+    const built = await build({
+      async listReadableStudentIds() {
+        return [ownChildId];
+      },
+    });
     app = built.app;
 
     // Registrar seeds two incidents: one visible to parent, one not.
@@ -210,25 +239,48 @@ describe('PRC-C010/C011 student read authorization', () => {
     await built.s360.addDiscipline(
       TENANT,
       ownChildId,
-      { incidentType: 'public', severity: 'low', description: 'shown', incidentDate: '2026-01-01', visibleToParent: true } as never,
+      {
+        incidentType: 'public',
+        severity: 'low',
+        description: 'shown',
+        incidentDate: '2026-01-01',
+        visibleToParent: true,
+      } as never,
       'registrar-1',
     );
     await built.s360.addDiscipline(
       TENANT,
       ownChildId,
-      { incidentType: 'private', severity: 'high', description: 'hidden', incidentDate: '2026-01-02', visibleToParent: false } as never,
+      {
+        incidentType: 'private',
+        severity: 'high',
+        description: 'hidden',
+        incidentDate: '2026-01-02',
+        visibleToParent: false,
+      } as never,
       'registrar-1',
     );
 
     // Staff sees both.
-    const staffView = await app.inject({ method: 'GET', url: `/students/${ownChildId}/discipline` });
+    const staffView = await app.inject({
+      method: 'GET',
+      url: `/students/${ownChildId}/discipline`,
+    });
     expect((staffView.json().data as unknown[]).length).toBe(2);
 
     // Guardian sees only the visibleToParent one.
     current = principal('parent-1', 'guardian');
-    const parentView = await app.inject({ method: 'GET', url: `/students/${ownChildId}/discipline` });
-    const rows = parentView.json().data as Array<{ incidentType: string; visibleToParent: boolean }>;
+    const parentView = await app.inject({
+      method: 'GET',
+      url: `/students/${ownChildId}/discipline`,
+    });
+    const rows = parentView.json().data as Array<{
+      incidentType: string;
+      visibleToParent: boolean;
+    }>;
     expect(rows.length).toBe(1);
     expect(rows[0]!.incidentType).toBe('public');
+    // PRC-L368 pagination must not leak the hidden incident through the total.
+    expect(parentView.json().total).toBe(1);
   });
 });

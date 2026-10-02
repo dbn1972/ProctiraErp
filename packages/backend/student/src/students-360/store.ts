@@ -31,6 +31,10 @@ export interface ListPage {
   limit: number;
   offset: number;
 }
+/** PRC-C011: portal readers only see incidents marked visibleToParent. */
+export interface DisciplineListOptions {
+  visibleToParentOnly?: boolean;
+}
 export interface ListPageResult<T> {
   data: T[];
   total: number;
@@ -112,6 +116,7 @@ export interface Students360Store {
     tenantId: string,
     studentId: string,
     page?: ListPage,
+    options?: DisciplineListOptions,
   ): Promise<ListPageResult<DisciplineRecord>>;
   createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord>;
   findDiscipline(
@@ -258,9 +263,15 @@ export class InMemoryStudents360Store implements Students360Store {
     tenantId: string,
     studentId: string,
     page: ListPage = DEFAULT_LIST_PAGE,
+    options: DisciplineListOptions = {},
   ): Promise<ListPageResult<DisciplineRecord>> {
     const rows = Array.from(this.discipline.values())
-      .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
+      .filter(
+        (r) =>
+          r.tenantId === tenantId &&
+          r.studentId === studentId &&
+          (!options.visibleToParentOnly || r.visibleToParent),
+      )
       .sort(
         (a, b) =>
           b.incidentDate.localeCompare(a.incidentDate) ||
@@ -708,22 +719,35 @@ export class PgStudents360Store implements Students360Store {
     tenantId: string,
     studentId: string,
     page: ListPage = DEFAULT_LIST_PAGE,
+    options: DisciplineListOptions = {},
   ): Promise<ListPageResult<DisciplineRecord>> {
+    // PRC-C011: the visibility predicate applies to both the page and its total.
+    const visibleOnly = options.visibleToParentOnly === true;
+    const where = `tenant_id = $1 AND student_id = $2${
+      visibleOnly ? ' AND visible_to_parent = true' : ''
+    }`;
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
         `SELECT *, COUNT(*) OVER() AS total_count FROM student_discipline_incidents
-          WHERE tenant_id = $1 AND student_id = $2
+          WHERE ${where}
           ORDER BY incident_date DESC, created_at DESC
           LIMIT $3 OFFSET $4`,
         [tenantId, studentId, page.limit, page.offset],
       );
-      return {
-        data: (rows as DisciplineRow[]).map(toDiscipline),
-        total: await this.totalOf(client, rows, page, 'student_discipline_incidents', [
-          tenantId,
-          studentId,
-        ]),
-      };
+      let total: number;
+      const first = rows[0] as { total_count?: unknown } | undefined;
+      if (first?.total_count != null) {
+        total = Number(first.total_count);
+      } else if (page.offset === 0) {
+        total = 0;
+      } else {
+        const { rows: c } = await client.query(
+          `SELECT COUNT(*)::int AS n FROM student_discipline_incidents WHERE ${where}`,
+          [tenantId, studentId],
+        );
+        total = Number((c[0] as { n?: unknown } | undefined)?.n ?? 0);
+      }
+      return { data: (rows as DisciplineRow[]).map(toDiscipline), total };
     });
   }
 

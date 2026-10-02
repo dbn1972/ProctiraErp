@@ -28,6 +28,7 @@ import {
 } from './schemas.js';
 import type {
   ConsentRecord,
+  DisciplineListOptions,
   DisciplineRecord,
   DocumentRecord,
   ListPage,
@@ -352,9 +353,10 @@ export class Students360Service {
     tenantId: string,
     studentId: string,
     page?: ListPage,
+    options?: DisciplineListOptions,
   ): Promise<ListPageResult<DisciplineRecord>> {
     await this.requireStudent(tenantId, studentId);
-    return this.deps.store.listDiscipline(tenantId, studentId, page);
+    return this.deps.store.listDiscipline(tenantId, studentId, page, options);
   }
 
   async addDiscipline(
