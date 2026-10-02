@@ -37,6 +37,9 @@ import {
   CreateSiblingSchema,
   DocumentParamsSchema,
   HeatmapQuerySchema,
+  LIST_PAGE_DEFAULT_LIMIT,
+  LIST_PAGE_MAX_LIMIT,
+  ListPageQuerySchema,
   SetConsentSchema,
   UploadDocumentSchema,
   UploadPhotoSchema,
@@ -83,7 +86,9 @@ function forbid(reply: FastifyReply, message = 'Forbidden') {
 }
 
 function notFoundStudent(reply: FastifyReply) {
-  return reply.status(404).send({ code: 'NOT_FOUND', message: 'Student not found', statusCode: 404 });
+  return reply
+    .status(404)
+    .send({ code: 'NOT_FOUND', message: 'Student not found', statusCode: 404 });
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -91,6 +96,37 @@ function sendError(reply: FastifyReply, error: unknown) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
   throw error;
+}
+
+/**
+ * PRC-L367: RFC 6266/5987 Content-Disposition — ASCII fallback plus UTF-8
+ * `filename*`, so non-Latin1 names never break the header (Node ERR_INVALID_CHAR).
+ */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** PRC-L368: parse ?limit&offset (limit clamped to 1..100). Returns null when invalid. */
+function parseListPage(query: unknown): { limit: number; offset: number } | null {
+  const q = validate(ListPageQuerySchema, query ?? {});
+  if (!q.success) return null;
+  const limit = q.data.limit === undefined ? LIST_PAGE_DEFAULT_LIMIT : Number(q.data.limit);
+  const offset = q.data.offset === undefined ? 0 : Number(q.data.offset);
+  if (limit < 1 || limit > LIST_PAGE_MAX_LIMIT) return null;
+  return { limit, offset };
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${LIST_PAGE_MAX_LIMIT} and offset a non-negative integer`,
+    statusCode: 400,
+  });
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -193,10 +229,7 @@ export async function registerStudents360Routes(
   ];
   const is360Url = (url: string): boolean => {
     const path = url.split('?')[0] ?? url;
-    return (
-      path.startsWith(`${prefix}/`) &&
-      STUDENTS_360_SEGMENTS.some((seg) => path.includes(seg))
-    );
+    return path.startsWith(`${prefix}/`) && STUDENTS_360_SEGMENTS.some((seg) => path.includes(seg));
   };
 
   fastify.addHook('preHandler', async (request, reply) => {
@@ -218,7 +251,8 @@ export async function registerStudents360Routes(
     const staff = isStudentReadStaff(roles);
 
     // Mutations are staff-only.
-    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    const isWrite =
+      method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
     if (isWrite && !staff) {
       forbid(reply, 'Forbidden: portal roles cannot modify student records');
       return;
@@ -328,6 +362,7 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {
@@ -523,14 +558,21 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const rows = await service.listDiscipline(tenantId, params.data.id);
         // PRC-C011: a portal reader (owning guardian/student) only sees incidents explicitly
-        // marked visibleToParent; staff discipline roles see all.
-        const visible = isDisciplineStaff(rolesOf(request))
-          ? rows
-          : rows.filter((row) => row.visibleToParent);
-        return reply.status(200).send({ data: visible.map(formatDiscipline) });
+        // marked visibleToParent; staff discipline roles see all. The filter is applied in the
+        // store so PRC-L368 pagination totals never count hidden incidents.
+        const result = await service.listDiscipline(tenantId, params.data.id, page, {
+          visibleToParentOnly: !isDisciplineStaff(rolesOf(request)),
+        });
+        return reply.status(200).send({
+          data: result.data.map(formatDiscipline),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
@@ -701,9 +743,17 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const docs = await service.listDocuments(tenantId, params.data.id);
-        return reply.status(200).send(docs.map(formatDocument));
+        const result = await service.listDocuments(tenantId, params.data.id, page);
+        // PRC-L368: consistent { data, total, limit, offset } envelope (was a bare array).
+        return reply.status(200).send({
+          data: result.data.map(formatDocument),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
@@ -736,7 +786,8 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
-          .header('content-disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`)
+          .header('content-disposition', attachmentDisposition(fileName))
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {

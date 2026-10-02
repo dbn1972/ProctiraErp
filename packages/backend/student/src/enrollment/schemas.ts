@@ -13,7 +13,9 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+import { UUID_PATTERN } from '../uuid-pattern.js';
+
+const UuidPattern = UUID_PATTERN;
 
 /**
  * Schema for creating a new enrollment.

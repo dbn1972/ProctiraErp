@@ -158,6 +158,8 @@ export class EnrollmentService {
         exitedAt: new Date(input.effectiveDate),
       },
       history,
+      // PRC-L160: compare-and-set so a concurrent withdraw/graduate loses with 409.
+      { expectedStatus: EnrollmentStatus.ENROLLED },
     );
 
     if (!updated) {

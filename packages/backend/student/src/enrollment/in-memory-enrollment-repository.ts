@@ -20,6 +20,7 @@ import type {
   TransferEnrollmentWrite,
   TransferRecordDetail,
   TransferRecordEntity,
+  UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export class InMemoryEnrollmentRepository implements EnrollmentRepository {
@@ -133,10 +134,16 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     _history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null> {
     const existing = this.enrollments.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
+    }
+    if (options?.expectedStatus && existing.status !== options.expectedStatus) {
+      throw new ConflictError(
+        `Enrollment status changed concurrently (now '${existing.status}'); reload and retry`,
+      );
     }
 
     const updated: EnrollmentEntity = {

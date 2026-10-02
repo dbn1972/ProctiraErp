@@ -30,6 +30,8 @@ import type {
   ConsentRecord,
   DisciplineRecord,
   DocumentRecord,
+  ListPage,
+  ListPageResult,
   PhotoRecord,
   SiblingRecord,
   Students360Store,
@@ -54,6 +56,41 @@ export interface Students360ServiceDeps {
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 const JPEG_SIG = Buffer.from([0xff, 0xd8, 0xff]);
 const WEBP_SIG = Buffer.from('WEBP');
+const RIFF_SIG = Buffer.from('RIFF');
+const BASE64_BODY = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/** PRC-L367: WebP = "RIFF" at 0-4 and "WEBP" at 8-12. */
+function isWebp(bytes: Buffer): boolean {
+  return (
+    bytes.subarray(0, 4).compare(RIFF_SIG) === 0 && bytes.subarray(8, 12).compare(WEBP_SIG) === 0
+  );
+}
+
+/**
+ * PRC-L367: strict base64 decode. `Buffer.from(x, 'base64')` never throws and
+ * silently drops invalid characters, so validate alphabet and padding first.
+ */
+export function decodeBase64Strict(raw: string): Buffer | null {
+  const body = raw.replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+  if (body.length === 0 || body.length % 4 !== 0 || !BASE64_BODY.test(body)) return null;
+  return Buffer.from(body, 'base64');
+}
+
+/**
+ * PRC-L367: strip control characters, path separators and leading dots from an
+ * uploaded file name; returns '' when nothing usable remains.
+ */
+export function sanitizeFileName(name: string): string {
+  return (
+    name
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/[\\/]/g, '_')
+      .replace(/^\.+/, '')
+      .trim()
+      .slice(0, 255)
+  );
+}
 
 export function decodePhotoPayload(input: UploadPhotoDto): { bytes: Buffer; mimeType: string } {
   const mime = input.mimeType;
@@ -62,10 +99,8 @@ export function decodePhotoPayload(input: UploadPhotoDto): { bytes: Buffer; mime
       { field: 'mimeType', rule: 'enum', message: 'Photo must be JPEG, PNG, or WebP' },
     ]);
   }
-  let bytes: Buffer;
-  try {
-    bytes = Buffer.from(input.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  } catch {
+  const bytes = decodeBase64Strict(input.contentBase64);
+  if (!bytes) {
     throw new ValidationError('Invalid photo encoding', [
       { field: 'contentBase64', rule: 'base64', message: 'Photo must be valid base64' },
     ]);
@@ -90,7 +125,7 @@ export function decodePhotoPayload(input: UploadPhotoDto): { bytes: Buffer; mime
       { field: 'contentBase64', rule: 'magic', message: 'Not a JPEG image' },
     ]);
   }
-  if (mime === 'image/webp' && bytes.subarray(8, 12).compare(WEBP_SIG) !== 0) {
+  if (mime === 'image/webp' && !isWebp(bytes)) {
     throw new ValidationError('Photo bytes do not match the declared MIME type', [
       { field: 'contentBase64', rule: 'magic', message: 'Not a WebP image' },
     ]);
@@ -123,16 +158,14 @@ export function decodeDocumentPayload(input: UploadDocumentDto): {
       },
     ]);
   }
-  const fileName = input.fileName.trim();
+  const fileName = sanitizeFileName(input.fileName);
   if (!fileName) {
     throw new ValidationError('File name is required', [
       { field: 'fileName', rule: 'minLength', message: 'File name is required' },
     ]);
   }
-  let bytes: Buffer;
-  try {
-    bytes = Buffer.from(input.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  } catch {
+  const bytes = decodeBase64Strict(input.contentBase64);
+  if (!bytes) {
     throw new ValidationError('Invalid document encoding', [
       { field: 'contentBase64', rule: 'base64', message: 'Document must be valid base64' },
     ]);
@@ -162,7 +195,7 @@ export function decodeDocumentPayload(input: UploadDocumentDto): {
       { field: 'contentBase64', rule: 'magic', message: 'Not a JPEG image' },
     ]);
   }
-  if (mime === 'image/webp' && bytes.subarray(8, 12).compare(WEBP_SIG) !== 0) {
+  if (mime === 'image/webp' && !isWebp(bytes)) {
     throw new ValidationError('Document bytes do not match the declared MIME type', [
       { field: 'contentBase64', rule: 'magic', message: 'Not a WebP image' },
     ]);
@@ -220,8 +253,10 @@ export class Students360Service {
     const signedUrl = this.deps.blobs.getSignedUrl
       ? await this.deps.blobs.getSignedUrl(photo.objectKey)
       : null;
+    // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
+    if (signedUrl) return { bytes: Buffer.alloc(0), mimeType: photo.mimeType, signedUrl };
     const bytes = await this.deps.blobs.get(photo.objectKey);
-    if (!bytes && !signedUrl) {
+    if (!bytes) {
       throw new NotFoundError(`Photo bytes for student '${studentId}' not found`);
     }
     return { bytes: bytes ?? Buffer.alloc(0), mimeType: photo.mimeType, signedUrl };
@@ -313,9 +348,13 @@ export class Students360Service {
     });
   }
 
-  async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
+  async listDiscipline(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DisciplineRecord>> {
     await this.requireStudent(tenantId, studentId);
-    return this.deps.store.listDiscipline(tenantId, studentId);
+    return this.deps.store.listDiscipline(tenantId, studentId, page);
   }
 
   async addDiscipline(
@@ -397,9 +436,13 @@ export class Students360Service {
     });
   }
 
-  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+  async listDocuments(
+    tenantId: string,
+    studentId: string,
+    page?: ListPage,
+  ): Promise<ListPageResult<DocumentRecord>> {
     await this.requireStudent(tenantId, studentId);
-    return this.deps.store.listDocuments(tenantId, studentId);
+    return this.deps.store.listDocuments(tenantId, studentId, page);
   }
 
   async getDocumentMeta(
@@ -422,8 +465,12 @@ export class Students360Service {
     const signedUrl = this.deps.blobs.getSignedUrl
       ? await this.deps.blobs.getSignedUrl(doc.objectKey)
       : null;
+    // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
+    if (signedUrl) {
+      return { bytes: Buffer.alloc(0), mimeType: doc.mimeType, fileName: doc.fileName, signedUrl };
+    }
     const bytes = await this.deps.blobs.get(doc.objectKey);
-    if (!bytes && !signedUrl) {
+    if (!bytes) {
       throw new NotFoundError(`Document bytes for '${documentId}' not found`);
     }
     return {
