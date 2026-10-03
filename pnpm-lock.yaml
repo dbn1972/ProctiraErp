@@ -303,6 +303,9 @@ importers:
       '@proctira/observability':
         specifier: workspace:*
         version: link:../../packages/shared/observability
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../packages/shared/queue-abstraction
       '@proctira/storage':
         specifier: workspace:*
         version: link:../../packages/shared/storage

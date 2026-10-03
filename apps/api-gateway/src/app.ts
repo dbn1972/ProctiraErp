@@ -96,6 +96,7 @@ import paginationCapPlugin from './plugins/pagination-cap.js';
 import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
+import { registerQueueObservability } from './queue-observability.js';
 import { createRateLimitRedisClient, decideRateLimitStore } from './rate-limit-store.js';
 import {
   actionForMethod,
@@ -228,6 +229,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     serviceName: 'api-gateway',
     ignorePaths: ['/health', '/health/live', '/health/ready'],
   });
+  // PRC-H086: failed queue deliveries → queue_delivery_failures_total on /metrics.
+  registerQueueObservability(app);
 
   // 3. Register CORS
   await app.register(cors, {

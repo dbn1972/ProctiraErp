@@ -19,6 +19,13 @@ export {
   DEFAULT_HTTP_DURATION_BUCKETS,
 } from './metrics-registry.js';
 export type { CounterConfig, HistogramConfig, GaugeConfig } from './metrics-registry.js';
+export {
+  QUEUE_DELIVERY_FAILURES_METRIC,
+  SLO_QUEUE_LAG_METRIC,
+  createQueueDeliveryFailureObserver,
+  recordQueueLag,
+} from './queue-metrics.js';
+export type { QueueDeliveryFailureLike, QueueDepthSample } from './queue-metrics.js';
 
 export { observabilityPlugin } from './fastify-plugin.js';
 export type { ObservabilityPluginOptions } from './fastify-plugin.js';

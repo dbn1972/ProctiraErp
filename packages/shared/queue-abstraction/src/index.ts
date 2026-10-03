@@ -36,6 +36,7 @@ export { KafkaAdapter } from './adapters/kafka-adapter';
 export { RabbitMQAdapter, deadLetterQueueName } from './adapters/rabbitmq-adapter';
 export type { RabbitMQAdapterRuntimeOptions } from './adapters/rabbitmq-adapter';
 export {
+  addDeliveryFailureObserver,
   DEFAULT_MAX_RETRIES,
   DeliveryFailureCounter,
   decideDisposition,
