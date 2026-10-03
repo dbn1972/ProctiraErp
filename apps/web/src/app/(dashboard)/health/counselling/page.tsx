@@ -34,6 +34,8 @@ import {
   type CounsellingSession,
 } from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { personDisplayName } from '@/lib/entity-label';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -97,8 +99,20 @@ export default async function CounsellingPage() {
       </section>
     );
   }
-  const sessions = result.items;
-
+  // PRC-M088: resolve student and counsellor names from the directories.
+  const [studentLabels, staffLabels] = await Promise.all([
+    loadStudentLabelMap(result.items.map((s) => s.studentId)),
+    loadStaffLabelMap(result.items.map((s) => s.counsellorId)),
+  ]);
+  const sessions = result.items.map((s) => ({
+    ...s,
+    studentName: personDisplayName(studentLabels.get(s.studentId), s.studentName, 'Unknown student'),
+    counsellorName: personDisplayName(
+      s.counsellorId ? staffLabels.get(s.counsellorId) : undefined,
+      s.counsellorName,
+      'Unknown counsellor',
+    ),
+  }));
   const total = sessions.length;
   const studentsSupported = new Set(sessions.map((s) => s.studentId)).size;
   const upcoming = sessions.filter((s) => s.status === 'SCHEDULED').length;
@@ -200,6 +214,7 @@ export default async function CounsellingPage() {
                     <TableHead className="ps-4 font-semibold">Student</TableHead>
                     <TableHead className="font-semibold">Counsellor</TableHead>
                     <TableHead className="font-semibold">Session type</TableHead>
+                    <TableHead className="font-semibold">Reason</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold">Notes</TableHead>
@@ -248,7 +263,9 @@ function SessionRow({ session }: { session: CounsellingSession }) {
       {/* Counsellor */}
       <TableCell className="text-sm">{session.counsellorName || '—'}</TableCell>
 
-      {/* Session type */}
+      {/* Session type (PRC-M088: the type, not the reason) */}
+      <TableCell className="text-sm capitalize">{session.sessionType || '—'}</TableCell>
+      {/* Reason (PHI; only present for nurses / health officers) */}
       <TableCell>
         {session.topic ? (
           <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">

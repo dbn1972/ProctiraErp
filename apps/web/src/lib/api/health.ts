@@ -42,7 +42,9 @@ export interface CounsellingSession {
   id: string;
   studentId: string;
   studentName: string;
+  counsellorId?: string;
   counsellorName: string;
+  sessionType?: string;
   sessionDate: string;
   topic: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
