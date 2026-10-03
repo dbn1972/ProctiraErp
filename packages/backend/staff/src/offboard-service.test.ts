@@ -112,6 +112,41 @@ describe('Staff offboard routes', () => {
     await app.ready();
   });
 
+  it('PRC-M371: PUT customData {} keeps offboard meta; reserved keys -> 400', async () => {
+    const created = await service.create(TENANT_A, validCreateInput());
+    await service.offboard(TENANT_A, created.id, { effectiveDate: '2026-09-12' }, 'hr-1');
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/staff/${created.id}`,
+      payload: { customData: {} },
+    });
+    expect(put.statusCode).toBe(200);
+    const status = await service.getOffboardStatus(TENANT_A, created.id);
+    expect(status.offboardStatus).toBe('offboarded');
+    expect(status.effectiveDate).toBe('2026-09-12');
+    const forged = await app.inject({
+      method: 'POST',
+      url: '/staff',
+      payload: {
+        ...validCreateInput(),
+        customData: {
+          __offboard: {
+            status: 'offboarded',
+            effectiveDate: '2000-01-01',
+            decidedBy: 'x',
+            decidedAt: '2000-01-01T00:00:00Z',
+          },
+        },
+      },
+    });
+    expect(forged.statusCode).toBe(400);
+    const forgedPut = await app.inject({
+      method: 'PUT',
+      url: `/staff/${created.id}`,
+      payload: { customData: { __profile: { status: 'ACTIVE' } } },
+    });
+    expect(forgedPut.statusCode).toBe(400);
+  });
   it('POST /staff/:id/offboard then GET returns stub', async () => {
     const created = await service.create(TENANT_A, validCreateInput());
 

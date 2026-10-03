@@ -20,10 +20,20 @@ export function sha256Hex(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+/**
+ * PRC-M382: OWASP CSV-injection guard — text starting with = + - @ tab or CR is
+ * prefixed with a single quote; numbers and plain numeric strings are untouched.
+ */
+export function csvSafeText(text: string): string {
+  if (/^-?\d+(\.\d+)?$/.test(text)) return text;
+  return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+}
+
 function cell(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
-  return String(value);
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+  return csvSafeText(String(value));
 }
 
 /**
@@ -39,7 +49,7 @@ export function escapeCsv(field: string): string {
 
 export function generateCsv(table: ReportTable): Buffer {
   const headers = table.columns.map((c) => c.label);
-  const lines = [headers.map(escapeCsv).join(',')];
+  const lines = [headers.map((h) => escapeCsv(csvSafeText(h))).join(',')];
   for (const row of table.rows) {
     lines.push(table.columns.map((col) => escapeCsv(cell(row[col.name]))).join(','));
   }

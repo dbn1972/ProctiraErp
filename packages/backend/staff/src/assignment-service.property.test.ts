@@ -16,6 +16,27 @@ import { InMemoryAssignmentRepository } from './in-memory-assignment-repository.
 import { StaffAssignmentService } from './assignment-service.js';
 import type { CreateAssignmentInput } from './assignment-schemas.js';
 
+/** Highest summed allocation of ACTIVE assignments at any instant (ranges are [start, end)). */
+async function peakConcurrentAllocation(
+  service: StaffAssignmentService,
+  tenantId: string,
+  staffId: string,
+): Promise<number> {
+  const { data } = await service.list(
+    tenantId,
+    { staffId, status: 'ACTIVE' },
+    { page: 1, pageSize: 1000 },
+  );
+  let peak = 0;
+  for (const point of data.map((a) => a.startDate)) {
+    const total = data
+      .filter((a) => a.startDate <= point && (a.endDate === null || point < a.endDate))
+      .reduce((sum, a) => sum + a.allocationPercentage, 0);
+    peak = Math.max(peak, total);
+  }
+  return peak;
+}
+
 // --- Generators ---
 
 /** Generate a valid UUID v4 string */
@@ -212,7 +233,8 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
           }
 
           // Invariant: Total allocation of all active assignments must not exceed 100%
-          const totalAllocation = await service.getTotalAllocation(tenantId, staffId);
+          // PRC-M375: the cap applies to concurrently active (overlapping) periods.
+          const totalAllocation = await peakConcurrentAllocation(service, tenantId, staffId);
           if (totalAllocation > 100) {
             throw new Error(`Total allocation exceeded 100%: got ${totalAllocation}%`);
           }
@@ -339,7 +361,8 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
           }
 
           // Verify invariant 2: Total allocation ≤ 100%
-          const totalAllocation = await service.getTotalAllocation(tenantId, staffId);
+          // PRC-M375: the cap applies to concurrently active (overlapping) periods.
+          const totalAllocation = await peakConcurrentAllocation(service, tenantId, staffId);
           if (totalAllocation > 100) {
             throw new Error(`Total allocation exceeded 100%: got ${totalAllocation}%`);
           }

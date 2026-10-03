@@ -16,7 +16,9 @@ export type StaffAction =
   // attendance). These GETs previously skipped the domain guard entirely.
   | 'staff.hr.read'
   // PRC-L362: staff directory reads (GET /staff, /staff/:id, offboard status).
-  | 'staff.read';
+  | 'staff.read'
+  // PRC-M376: approve/reject appraisals (HR + school admins; not registrar/admissions).
+  | 'staff.appraisal.decide';
 
 const ADMIN_ROLES = [
   'admin',
@@ -48,6 +50,7 @@ const ACTION_ROLES: Record<StaffAction, readonly string[]> = {
   'staff.hr.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
   // Finance roles reconcile payroll against the staff list, but see masked identity numbers.
   'staff.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
+  'staff.appraisal.decide': ['hr_officer', 'staff_admin', ...ADMIN_ROLES],
 };
 
 /**

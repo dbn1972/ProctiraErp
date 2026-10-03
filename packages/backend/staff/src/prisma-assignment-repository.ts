@@ -17,11 +17,38 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
 
-import type {
-  StaffAssignmentEntity,
-  StaffAssignmentFilter,
-  StaffAssignmentRepository,
+import {
+  assertAllocationFits,
+  type AllocationGuard,
+  type StaffAssignmentEntity,
+  type StaffAssignmentFilter,
+  type StaffAssignmentRepository,
 } from './assignment-repository.js';
+import { endedFields } from './in-memory-assignment-repository.js';
+
+type AssignmentTx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
+
+/**
+ * PRC-M375: serialize allocation checks per staff member by locking the staff
+ * row, then evaluate the cap against that staff's assignments in the same tx.
+ */
+async function lockStaffAndAssertAllocation(
+  tx: AssignmentTx,
+  tenantId: string,
+  staffId: string,
+  candidate: Parameters<typeof assertAllocationFits>[1],
+  guard: AllocationGuard,
+): Promise<void> {
+  await tx.$queryRawUnsafe(
+    'SELECT id FROM staff WHERE id = $1::uuid AND tenant_id = $2::uuid FOR UPDATE',
+    staffId,
+    tenantId,
+  );
+  const rows = (await tx.staffAssignment.findMany({
+    where: { tenantId, staffId, status: 'ACTIVE' },
+  })) as StaffAssignmentRow[];
+  assertAllocationFits(rows.map(toEntity), candidate, guard);
+}
 
 interface StaffAssignmentRow {
   id: string;
@@ -81,8 +108,12 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
 
   async create(
     data: Omit<StaffAssignmentEntity, 'createdAt' | 'updatedAt'>,
+    guard?: AllocationGuard,
   ): Promise<StaffAssignmentEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
+      if (guard) {
+        await lockStaffAndAssertAllocation(tx, data.tenantId, data.staffId, data, guard);
+      }
       const row = (await tx.staffAssignment.create({
         data: {
           id: data.id,
@@ -106,6 +137,7 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     id: string,
     tenantId: string,
     data: Partial<StaffAssignmentEntity>,
+    guard?: AllocationGuard,
   ): Promise<StaffAssignmentEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const existing = (await tx.staffAssignment.findFirst({
@@ -131,6 +163,9 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
           continue;
         }
         mergedRecord[key] = value;
+      }
+      if (guard) {
+        await lockStaffAndAssertAllocation(tx, tenantId, current.staffId, merged, guard);
       }
 
       const row = (await tx.staffAssignment.update({
@@ -234,8 +269,15 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
 
   async delete(id: string, tenantId: string): Promise<boolean> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      const result = await tx.staffAssignment.deleteMany({
+      // PRC-M375: end-date instead of hard delete so assignment history is kept.
+      const existing = (await tx.staffAssignment.findFirst({
         where: { id, tenantId },
+      })) as StaffAssignmentRow | null;
+      if (!existing) return false;
+      const ended = endedFields(toEntity(existing));
+      const result = await tx.staffAssignment.updateMany({
+        where: { id, tenantId },
+        data: { status: ended.status, endDate: ended.endDate ? new Date(ended.endDate) : null },
       });
       return result.count > 0;
     });
