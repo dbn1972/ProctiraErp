@@ -103,6 +103,21 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     } as never)}`,
     'x-tenant-id': tenantId,
   });
+  /** PRC-M021: deciders need the step's approver role; keep sub `admin-1` for audit asserts. */
+  const deciderHeaders = (roles: string[], sub = 'admin-1') => ({
+    authorization: `Bearer ${app.jwt.sign({
+      sub,
+      tenantId: WORKFLOW_DEMO_TENANT_ID,
+      email: `${sub}@example.com`,
+      displayName: sub,
+      roles: roles.map((roleId) => ({ roleId, roleName: roleId, areaId: 'root' })),
+      areas: [],
+      institutions: [],
+      jti: `jti-${sub}-${roles.join('-')}`,
+      sessionId: `session-${sub}-${roles.join('-')}`,
+    } as never)}`,
+    'x-tenant-id': WORKFLOW_DEMO_TENANT_ID,
+  });
 
   beforeAll(async () => {
     app = await buildApp({ config: config() });
@@ -189,7 +204,7 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/api/v1/workflows/approvals/${approval.id}/approve`,
-      headers: headers('admin'),
+      headers: deciderHeaders(['admin', 'accountant']),
     });
     expect(approved.statusCode, approved.body).toBe(200);
 
@@ -214,7 +229,7 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     const rejected = await app.inject({
       method: 'POST',
       url: `/api/v1/workflows/approvals/${instanceId}/reject`,
-      headers: headers('admin'),
+      headers: deciderHeaders(['admin', 'principal']),
     });
     expect(rejected.statusCode, rejected.body).toBe(200);
     const done = await app.inject({
@@ -228,7 +243,7 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     const again = await app.inject({
       method: 'POST',
       url: `/api/v1/workflows/approvals/${instanceId}/approve`,
-      headers: headers('admin'),
+      headers: deciderHeaders(['admin', 'principal']),
     });
     expect(again.statusCode).toBe(404);
   });
@@ -247,7 +262,7 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     const approve = await app.inject({
       method: 'POST',
       url: `/api/v1/workflows/approvals/${WORKFLOW_INSTANCE_PENDING_ID}/approve`,
-      headers: headers('admin'),
+      headers: deciderHeaders(['admin', 'district_admin']),
     });
     expect(approve.statusCode, approve.body).toBe(200);
     const after = await app.inject({
@@ -270,5 +285,87 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
     });
     expect(other.statusCode).toBe(200);
     expect(other.json().data).toEqual([]);
+  });
+
+  async function newPending(initiatedBy: string): Promise<string> {
+    const def = await app.inject({
+      method: 'POST',
+      url: '/api/v1/workflows/definitions',
+      headers: headers('admin'),
+      payload: {
+        name: `M021 chain ${initiatedBy}`,
+        module: 'fees',
+        steps: [{ name: 'Accounts review', approverRole: 'ACCOUNTANT' }],
+      },
+    });
+    expect(def.statusCode, def.body).toBe(201);
+    const inst = await app.inject({
+      method: 'POST',
+      url: '/api/v1/workflow-engine/instances',
+      headers: headers('admin'),
+      payload: {
+        workflowDefinitionId: def.json().id,
+        entityType: 'fees',
+        entityId: `inv-${initiatedBy}`,
+        metadata: { initiatedBy },
+      },
+    });
+    expect(inst.statusCode, inst.body).toBe(201);
+    return inst.json().id as string;
+  }
+
+  it('approving a step assigned to another role → 403 WORKFLOW_STEP_NOT_ASSIGNED (PRC-M021)', async () => {
+    const id = await newPending('someone-else');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/workflows/approvals/${id}/approve`,
+      headers: deciderHeaders(['admin', 'principal'], 'principal-9'),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('WORKFLOW_STEP_NOT_ASSIGNED');
+  });
+
+  it('initiator approving own request → 403 even with the right role (PRC-M021)', async () => {
+    const id = await newPending('self-approver');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/workflows/approvals/${id}/approve`,
+      headers: deciderHeaders(['admin', 'accountant'], 'self-approver'),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('WORKFLOW_SELF_APPROVAL_FORBIDDEN');
+  });
+
+  it('cross-tenant approval id → 404 (PRC-M021)', async () => {
+    const id = await newPending('cross-tenant');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/workflows/approvals/${id}/approve`,
+      headers: headers('admin', '00000000-0000-4000-8000-0000000000ff'),
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('pending approvals are paged with totals (PRC-M022)', async () => {
+    for (let i = 0; i < 3; i += 1) await newPending(`page-${i}`);
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/v1/workflows/approvals/pending?page=1&pageSize=2',
+      headers: headers('admin'),
+    });
+    const body = first.json() as { data: unknown[]; meta: { totalItems: number; totalPages: number } };
+    expect(body.data).toHaveLength(2);
+    expect(body.meta.totalItems).toBeGreaterThanOrEqual(3);
+    const pages = body.meta.totalPages;
+    const seen = new Set<string>();
+    for (let p = 1; p <= pages; p += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workflows/approvals/pending?page=${p}&pageSize=2`,
+        headers: headers('admin'),
+      });
+      for (const a of (res.json() as { data: Array<{ id: string }> }).data) seen.add(a.id);
+    }
+    expect(seen.size).toBe(body.meta.totalItems);
   });
 });
