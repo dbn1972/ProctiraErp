@@ -4,8 +4,13 @@
  * These values codify the platform charter (Section 32 — Definition of Done)
  * and the service catalog under packages/backend/*.
  */
+import { listBackendServices } from './paths.mjs';
 
-/** Known service prefixes that map to table names and route owners. */
+/**
+ * Charter catalog of service prefixes. PRC-M409: checks use
+ * `serviceCatalog()` (this list ∪ packages/backend/* directories) so packages
+ * missing here are still scanned.
+ */
 export const KNOWN_SERVICES = [
   'assessment',
   'attendance',
@@ -34,6 +39,11 @@ export const KNOWN_SERVICES = [
   'transport',
   'workflow',
 ];
+
+/** PRC-M409: KNOWN_SERVICES ∪ every packages/backend/* service directory. */
+export function serviceCatalog(backendDir) {
+  return [...new Set([...KNOWN_SERVICES, ...listBackendServices(backendDir)])].sort();
+}
 
 /**
  * Tables that are explicitly shared across services or are framework-owned

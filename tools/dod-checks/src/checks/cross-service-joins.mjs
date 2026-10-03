@@ -17,7 +17,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { CHECK_IDS, KNOWN_SERVICES, servicePrefix } from '../lib/constants.mjs';
+import { CHECK_IDS, serviceCatalog, servicePrefix } from '../lib/constants.mjs';
 import { findFiles, isProductionTsFile, safeReadFile } from '../lib/fs-utils.mjs';
 import { BACKEND_DIR, getBackendServiceName } from '../lib/paths.mjs';
 import { Report, printReport } from '../lib/reporter.mjs';
@@ -38,7 +38,7 @@ const RAW_SQL_CALLEES = new Set([
  * so that foreign-key column references (e.g. `s.institution_id`) on
  * service-owned tables are not falsely flagged.
  */
-function findCrossServiceTables(sqlText, ownerService) {
+function findCrossServiceTables(sqlText, ownerService, services) {
   /** @type {Array<{ otherService: string, table: string }>} */
   const hits = [];
   if (!/\bJOIN\b/i.test(sqlText)) return hits;
@@ -49,8 +49,10 @@ function findCrossServiceTables(sqlText, ownerService) {
     // Strip optional schema prefix and quoting: schema."tbl" -> tbl
     const raw = m[1].replace(/"/g, '');
     const tableName = raw.includes('.') ? raw.split('.').pop() : raw;
-    for (const svc of KNOWN_SERVICES) {
+    for (const svc of services) {
       if (svc === ownerService) continue;
+      // A longer owner prefix (e.g. custom-field vs custom) is not cross-service.
+      if (tableName.startsWith(`${servicePrefix(ownerService)}_`)) continue;
       const prefix = servicePrefix(svc);
       if (tableName.startsWith(`${prefix}_`)) {
         hits.push({ otherService: svc, table: tableName });
@@ -84,20 +86,32 @@ function collectRawSqlNodesViaAst(sourceFile, mod) {
     }
     results.push({ text, line: tag.getStartLineNumber(), source: tagText });
   }
-  // Call expressions: prisma.$queryRawUnsafe('SELECT …', …)
+  // Call expressions: prisma.$queryRawUnsafe('SELECT …', …) and (PRC-M409) pg
+  // client/pool `.query(sql, …)` / `this.query(tenantId, sql, …)` — any
+  // string/template argument is scanned.
+  const literalText = (arg) => {
+    const kind = arg.getKindName();
+    if (kind === 'StringLiteral' || kind === 'NoSubstitutionTemplateLiteral') {
+      return arg.getLiteralText?.() ?? arg.getText().slice(1, -1);
+    }
+    if (kind === 'TemplateExpression') {
+      return [arg.getHead(), ...arg.getTemplateSpans().map((sp) => sp.getLiteral())]
+        .map((seg) => seg.getLiteralText())
+        .join(' ');
+    }
+    return null;
+  };
   for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     const exprText = call.getExpression().getText();
-    const last = exprText.split('.').pop();
-    if (!RAW_SQL_CALLEES.has(last ?? '')) continue;
-    const arg0 = call.getArguments()[0];
-    if (!arg0) continue;
-    const argKind = arg0.getKindName();
-    if (argKind === 'StringLiteral' || argKind === 'NoSubstitutionTemplateLiteral') {
-      results.push({
-        text: arg0.getLiteralText?.() ?? arg0.getText().slice(1, -1),
-        line: call.getStartLineNumber(),
-        source: exprText,
-      });
+    const last = exprText.split('.').pop() ?? '';
+    const isPrismaRaw = RAW_SQL_CALLEES.has(last);
+    if (!isPrismaRaw && last !== 'query') continue;
+    const args = isPrismaRaw ? call.getArguments().slice(0, 1) : call.getArguments().slice(0, 2);
+    for (const arg of args) {
+      const text = literalText(arg);
+      if (text == null) continue;
+      results.push({ text, line: call.getStartLineNumber(), source: exprText });
+      break;
     }
   }
   return results;
@@ -129,13 +143,17 @@ function collectRawSqlNodesViaRegex(text) {
   return results;
 }
 
-export async function runCrossServiceJoinsCheck() {
+/**
+ * @param {{ backendDir?: string }} [opts] backendDir overrides packages/backend (fixture tests).
+ */
+export async function runCrossServiceJoinsCheck({ backendDir = BACKEND_DIR } = {}) {
   const report = new Report(CHECK_IDS.CROSS_SERVICE_JOINS, TITLE);
-  const tsFiles = await findFiles(BACKEND_DIR, (name) => isProductionTsFile(name));
+  const services = serviceCatalog(backendDir);
+  const tsFiles = await findFiles(backendDir, (name) => isProductionTsFile(name));
   report.filesScanned = tsFiles.length;
 
   for (const file of tsFiles) {
-    const ownerService = getBackendServiceName(file);
+    const ownerService = getBackendServiceName(file, backendDir);
     if (!ownerService) continue;
     const text = await safeReadFile(file);
     if (!/\bJOIN\b/i.test(text) && !/\$queryRaw|\$executeRaw/.test(text)) continue;
@@ -150,7 +168,7 @@ export async function runCrossServiceJoinsCheck() {
     }
 
     for (const node of nodes) {
-      const hits = findCrossServiceTables(node.text, ownerService);
+      const hits = findCrossServiceTables(node.text, ownerService, services);
       for (const hit of hits) {
         report.addError(
           file,

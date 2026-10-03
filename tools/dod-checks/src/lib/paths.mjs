@@ -4,7 +4,7 @@
  */
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -49,4 +49,22 @@ export function getBackendServiceName(absPath, backendDir = BACKEND_DIR) {
   const rel = relative(backendDir, absPath);
   if (rel.startsWith('..') || rel.startsWith('/')) return '';
   return rel.split('/')[0] || '';
+}
+
+/**
+ * PRC-M409: derive the backend service catalog from the packages/backend/*
+ * directory listing (every directory with a `src/`), so new packages are
+ * covered automatically instead of relying on a hand-maintained list.
+ */
+export function listBackendServices(backendDir = BACKEND_DIR) {
+  let entries = [];
+  try {
+    entries = readdirSync(backendDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && existsSync(resolve(backendDir, e.name, 'src')))
+    .map((e) => e.name)
+    .sort();
 }
