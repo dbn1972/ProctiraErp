@@ -2,12 +2,11 @@
  * G-925 — flatten the facility hierarchy into a verification CSV
  * (one row per land / building / floor / room).
  */
+import { csvCell } from '../csv-cell';
 import type { InfrastructureHierarchy } from './types';
 
-function cell(value: string | number | null): string {
-  const str = value === null ? '' : String(value);
-  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-}
+/** PRC-M382: formula-injection guard + RFC 4180 quoting. */
+const cell = (value: string | number | null): string => csvCell(value);
 
 export function hierarchyToCsv(hierarchy: InfrastructureHierarchy): string {
   const rows: string[] = ['level,path,name,capacity,condition,description'];

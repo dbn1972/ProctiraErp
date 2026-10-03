@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@proctira/ui/components';
 import type { AttendancePercentageResult } from '@/lib/api/attendance';
+import { csvCell } from '@/lib/csv-cell';
 
 import { getAttendanceReportAction, type ActionState } from '../actions';
 
@@ -207,10 +208,8 @@ function toReportCsv(
     ['attendance_percentage', result.attendancePercentage.toFixed(2)],
     ['absence_percentage', result.absencePercentage.toFixed(2)],
   ];
-  const cell = (v: string | number) => {
-    const str = String(v);
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
+  // PRC-M382: formula-injection guard + RFC 4180 quoting.
+  const cell = (v: string | number) => csvCell(v);
   const metricCsv = `${['metric,value', ...rows.map(([k, v]) => `${k},${cell(v)}`)].join('\n')}\n`;
   const studentRows = result.studentRows ?? [];
   if (studentRows.length === 0) return metricCsv;
