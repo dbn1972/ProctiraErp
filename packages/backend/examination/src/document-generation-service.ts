@@ -29,6 +29,29 @@ export const MAX_BATCH_SIZE = 500;
 /** Maximum allowed generation duration in milliseconds (60 seconds) */
 export const MAX_GENERATION_DURATION_MS = 60_000;
 
+/** PRC-M235: options for one processing attempt. */
+export interface ProcessDocumentJobOptions {
+  /** Queue workers set this so transient failures propagate and the broker redelivers. */
+  rethrowRetryable?: boolean;
+}
+
+/** PRC-M235: a `processing` claim older than this belongs to a crashed worker. */
+export const STALE_PROCESSING_MS = 15 * 60 * 1000;
+
+/** PRC-M235: user-facing text stored for unexpected (non-domain) failures. */
+export const GENERIC_DOCUMENT_FAILURE =
+  'Document generation failed due to a temporary error; it will be retried.';
+
+/**
+ * PRC-M235: domain errors (4xx AppErrors) are permanent and their curated
+ * message is safe to show; anything else is transient and its raw text (stack,
+ * SQL, driver detail) is never stored or returned.
+ */
+export function isPermanentDocumentError(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return typeof status === 'number' && status >= 400 && status < 500;
+}
+
 /**
  * Input for requesting document generation.
  */
@@ -250,20 +273,29 @@ export class DocumentGenerationService {
    *
    * @throws NotFoundError if job not found
    */
-  async processJob(tenantId: string, jobId: string): Promise<DocumentGenerationJob> {
+  async processJob(
+    tenantId: string,
+    jobId: string,
+    processOptions: ProcessDocumentJobOptions = {},
+  ): Promise<DocumentGenerationJob> {
     const startTime = Date.now();
 
-    // Get the job
-    const job = await this.documentRepository.getJob(jobId, tenantId);
-    if (!job) {
+    // Get the job (tenant-scoped; another tenant's job is a 404)
+    const current = await this.documentRepository.getJob(jobId, tenantId);
+    if (!current) {
       throw new NotFoundError(`Document generation job '${jobId}' not found`);
     }
 
-    // Update status to processing
-    await this.documentRepository.updateJob(jobId, tenantId, {
-      status: 'processing',
-      startedAt: new Date(),
-    });
+    // PRC-M235: claim queued -> processing atomically; completed/processing/failed
+    // jobs are never re-run by a duplicate delivery or a repeated /process call.
+    const job = await this.documentRepository.claimJob(
+      jobId,
+      tenantId,
+      new Date(Date.now() - STALE_PROCESSING_MS),
+    );
+    if (!job) {
+      return (await this.documentRepository.getJob(jobId, tenantId)) ?? current;
+    }
 
     try {
       // Fetch examination info
@@ -351,16 +383,27 @@ export class DocumentGenerationService {
       return updatedJob!;
     } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
+      if (isPermanentDocumentError(error)) {
+        // Domain rule failure: terminal, curated message is safe to surface.
+        const updatedJob = await this.documentRepository.updateJob(jobId, tenantId, {
+          status: 'failed',
+          errorMessage: (error as Error).message,
+          durationMs,
+          completedAt: new Date(),
+        });
+        return updatedJob!;
+      }
+
+      // PRC-M235: transient — release the claim so the job stays retriable and
+      // store only a sanitised message (no stack / SQL / driver text).
       const updatedJob = await this.documentRepository.updateJob(jobId, tenantId, {
-        status: 'failed',
-        errorMessage,
+        status: 'queued',
+        errorMessage: GENERIC_DOCUMENT_FAILURE,
         durationMs,
-        completedAt: new Date(),
       });
-
-      return updatedJob!;
+      if (processOptions.rethrowRetryable) throw error;
+      return updatedJob ?? job;
     }
   }
 

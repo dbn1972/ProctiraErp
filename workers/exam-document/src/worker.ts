@@ -16,7 +16,11 @@ export interface ExamDocumentWorkerLogger {
 }
 
 export interface ExamDocumentJobProcessor {
-  processJob(tenantId: string, jobId: string): Promise<unknown>;
+  processJob(
+    tenantId: string,
+    jobId: string,
+    options?: { rethrowRetryable?: boolean },
+  ): Promise<unknown>;
 }
 
 export interface ExamDocumentWorkerOptions {
@@ -77,7 +81,8 @@ export function createExamDocumentWorker(options: ExamDocumentWorkerOptions): Ex
             { tenantId: message.tenantId, jobId, messageId: message.id },
             'exam-document worker processing job',
           );
-          await options.processor.processJob(message.tenantId, jobId);
+          // PRC-M235: transient failures throw so the queue redelivers / dead-letters.
+          await options.processor.processJob(message.tenantId, jobId, { rethrowRetryable: true });
           options.logger?.info(
             { tenantId: message.tenantId, jobId },
             'exam-document worker completed job',
