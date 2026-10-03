@@ -260,7 +260,16 @@ export async function registerImportRoutes(
             statusCode: 400,
           });
         }
-        const progress = await importService.getImportProgress(jobId);
+        // PRC-H092: progress is tenant-scoped — another tenant's job id reads as 404.
+        const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+        if (!tenantId) {
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
+        }
+        const progress = await importService.getImportProgress(jobId, tenantId);
         if (!progress) {
           return reply.status(404).send({
             code: 'NOT_FOUND',

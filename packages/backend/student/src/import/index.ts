@@ -11,6 +11,7 @@
 
 // Types
 export type {
+  ImportProgressStore,
   ImportStudentRow,
   ImportRowError,
   DuplicateMatch,
@@ -64,6 +65,7 @@ export type {
 // In-memory implementations (for testing)
 export { InMemoryStudentRepository } from './in-memory-student-repository.js';
 export { InMemoryImportQueue } from './in-memory-import-queue.js';
+export { PgImportProgressStore, QueueProgressStore } from './progress-store.js';
 
 // Durable import queue spine (W2-JOB-06)
 export { QueueImportQueue } from './queue-import-queue.js';

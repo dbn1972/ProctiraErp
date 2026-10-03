@@ -147,6 +147,7 @@ import {
   createStudentBlobStore,
   createStudentImportQueueFromEnv,
   createStudentRepository,
+  PgImportProgressStore,
   studentPlugin,
 } from '@proctira/backend-student';
 import {
@@ -701,6 +702,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         importQueue: importHandle?.importQueue,
         // PRC-H092: in-process consumer (dedicated connection) for queued imports.
         importWorkerQueue: importHandle?.createConsumerAdapter(),
+        // PRC-H092: progress persisted per (tenant, job) so any instance answers polls.
+        ...(getSharedPgPool()
+          ? { importProgressStore: new PgImportProgressStore(getSharedPgPool()!) }
+          : {}),
         prefix: '/students',
         assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
           privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),

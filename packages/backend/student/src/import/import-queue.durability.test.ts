@@ -72,7 +72,14 @@ describe('W2-JOB-06 student import queue durability', () => {
         processQueuedImport: async () => {
           firstAttempts += 1;
           await hang;
-          return { totalRows: 0, successCount: 0, errorCount: 0, duplicateCount: 0, errors: [], duplicates: [] };
+          return {
+            totalRows: 0,
+            successCount: 0,
+            errorCount: 0,
+            duplicateCount: 0,
+            errors: [],
+            duplicates: [],
+          };
         },
       },
     });

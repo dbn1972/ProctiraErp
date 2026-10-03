@@ -2,11 +2,7 @@
  * W2-REC-01: lifecycle certificate issuance (bonafide / transfer / character / leaving).
  */
 
-export type LifecycleCertificateType =
-  | 'bonafide'
-  | 'transfer'
-  | 'character'
-  | 'leaving';
+export type LifecycleCertificateType = 'bonafide' | 'transfer' | 'character' | 'leaving';
 
 export type LifecycleCertificateStatus = 'issued' | 'revoked';
 

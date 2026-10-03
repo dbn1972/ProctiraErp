@@ -27,7 +27,7 @@ import {
   createStudentImportWorker,
   type StudentImportWorker,
 } from './import/student-import-worker.js';
-import type { ImportQueue } from './import/types.js';
+import type { ImportProgressStore, ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentPortalBinding } from './student-portal-access.js';
 import type { StudentRepository } from './student-repository.js';
@@ -59,6 +59,11 @@ export interface StudentPluginOptions {
    * without a worker queue falls back to in-process processing.
    */
   importWorkerQueue?: QueueAdapter;
+  /**
+   * PRC-H092: persisted, tenant-scoped import progress (Postgres in the gateway) so a poll on
+   * any instance sees jobs processed elsewhere. Default: process-local snapshot.
+   */
+  importProgressStore?: ImportProgressStore;
   /** Set false to skip enrollment + import routes (unit tests of student routes only) */
   registerEnrollmentAndImport?: boolean;
   /** G-914 persistence (default: Pg when DATABASE_URL, else in-memory) */
@@ -190,6 +195,7 @@ export const studentPlugin = fp(
     const importService: ImportService = new ImportService({
       studentRepository: new CoreRepositoryImportAdapter(repository),
       importQueue,
+      progressStore: options.importProgressStore,
     });
     fastify.decorate('studentImportService', importService);
     if (durable) {

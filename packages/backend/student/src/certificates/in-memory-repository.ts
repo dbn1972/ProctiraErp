@@ -1,7 +1,4 @@
-import type {
-  LifecycleCertificate,
-  LifecycleCertificateRepository,
-} from './types.js';
+import type { LifecycleCertificate, LifecycleCertificateRepository } from './types.js';
 
 export class InMemoryLifecycleCertificateRepository implements LifecycleCertificateRepository {
   private rows: LifecycleCertificate[] = [];
@@ -17,13 +14,8 @@ export class InMemoryLifecycleCertificateRepository implements LifecycleCertific
     return found ? { ...found } : null;
   }
 
-  async findBySerial(
-    tenantId: string,
-    serialNumber: string,
-  ): Promise<LifecycleCertificate | null> {
-    const found = this.rows.find(
-      (r) => r.tenantId === tenantId && r.serialNumber === serialNumber,
-    );
+  async findBySerial(tenantId: string, serialNumber: string): Promise<LifecycleCertificate | null> {
+    const found = this.rows.find((r) => r.tenantId === tenantId && r.serialNumber === serialNumber);
     return found ? { ...found } : null;
   }
 

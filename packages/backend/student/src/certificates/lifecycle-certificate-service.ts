@@ -94,11 +94,7 @@ export class LifecycleCertificateService {
     return this.repository.listByStudent(tenantId, studentId);
   }
 
-  async revoke(
-    tenantId: string,
-    id: string,
-    reason: string,
-  ): Promise<LifecycleCertificate> {
+  async revoke(tenantId: string, id: string, reason: string): Promise<LifecycleCertificate> {
     const existing = await this.get(tenantId, id);
     if (existing.status === 'revoked') return existing;
     const updated = await this.repository.update(tenantId, id, {

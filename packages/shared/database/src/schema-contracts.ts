@@ -188,6 +188,8 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.staff_payroll_ledger_entries',
   ],
   staffLeave: ['public.staff_leave_requests', 'public.staff_leave_balances'],
+  // PRC-H092: persisted async student import progress (migration 152).
+  studentImportJobs: ['public.student_import_jobs'],
   transport: [
     'public.transport_routes',
     'public.transport_stops',

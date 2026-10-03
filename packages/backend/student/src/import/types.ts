@@ -240,3 +240,12 @@ export const MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024;
 
 /** Threshold for async processing (rows) */
 export const ASYNC_THRESHOLD_ROWS = 1000;
+
+/**
+ * PRC-H092: tenant-scoped persisted import progress so any gateway instance can answer a
+ * poll. `get` never returns another tenant's job.
+ */
+export interface ImportProgressStore {
+  get(tenantId: string, jobId: string): Promise<ImportProgress | null>;
+  update(tenantId: string, jobId: string, progress: Partial<ImportProgress>): Promise<void>;
+}

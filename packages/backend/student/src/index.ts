@@ -83,6 +83,8 @@ export {
   registerImportRoutes,
   InMemoryStudentRepository,
   InMemoryImportQueue,
+  PgImportProgressStore,
+  QueueProgressStore,
   QueueImportQueue,
   createStudentImportWorker,
   createStudentImportQueueFromEnv,
@@ -96,6 +98,7 @@ export {
 } from './import/index.js';
 
 export type {
+  ImportProgressStore,
   ImportStudentRow,
   ImportRowError,
   DuplicateMatch,

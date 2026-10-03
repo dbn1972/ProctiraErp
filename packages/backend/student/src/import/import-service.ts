@@ -24,11 +24,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { detectDuplicates } from './duplicate-detector.js';
 import { parseExcelBuffer } from './excel-parser.js';
+import { QueueProgressStore } from './progress-store.js';
 import { validateAllRows } from './row-validator.js';
 import type {
   ImportCreateInput,
   ImportOptions,
   ImportProgress,
+  ImportProgressStore,
   ImportQueue,
   ImportResult,
   ImportStudentRow,
@@ -91,6 +93,8 @@ function updateData(row: ImportStudentRow): Partial<ImportCreateInput> {
 export interface ImportServiceDependencies {
   studentRepository: StudentRepository;
   importQueue: ImportQueue;
+  /** PRC-H092: persisted, tenant-scoped progress (Postgres in the gateway). */
+  progressStore?: ImportProgressStore;
 }
 
 /**
@@ -100,10 +104,12 @@ export interface ImportServiceDependencies {
 export class ImportService {
   private readonly repository: StudentRepository;
   private readonly queue: ImportQueue;
+  private readonly progress: ImportProgressStore;
 
   constructor(deps: ImportServiceDependencies) {
     this.repository = deps.studentRepository;
     this.queue = deps.importQueue;
+    this.progress = deps.progressStore ?? new QueueProgressStore(deps.importQueue);
   }
 
   /**
@@ -157,7 +163,7 @@ export class ImportService {
 
       // PRC-H092: record `queued` before enqueue so a fast consumer's
       // processing/completed progress is never overwritten back to `queued`.
-      await this.queue.updateProgress(jobId, progress);
+      await this.progress.update(tenantId, jobId, progress);
       await this.queue.enqueue(tenantId, jobId, fileBuffer, options);
 
       return progress;
@@ -336,7 +342,9 @@ export class ImportService {
   /**
    * Get the progress of an async import job.
    */
-  async getImportProgress(jobId: string): Promise<ImportProgress | null> {
+  async getImportProgress(jobId: string, tenantId?: string): Promise<ImportProgress | null> {
+    // PRC-H092: tenant-scoped lookup; the legacy unscoped form reads the process snapshot.
+    if (tenantId) return this.progress.get(tenantId, jobId);
     return this.queue.getProgress(jobId);
   }
 
@@ -353,7 +361,7 @@ export class ImportService {
     fileBuffer: Buffer,
     options: ImportOptions,
   ): Promise<ImportResult> {
-    await this.queue.updateProgress(jobId, {
+    await this.progress.update(tenantId, jobId, {
       jobId,
       status: 'processing',
       totalRows: 0,
@@ -367,7 +375,7 @@ export class ImportService {
       parseResult = await parseExcelBuffer(fileBuffer);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Excel parse failed';
-      await this.queue.updateProgress(jobId, {
+      await this.progress.update(tenantId, jobId, {
         status: 'failed',
         progressPercent: 100,
         errorMessage: message,
@@ -404,7 +412,7 @@ export class ImportService {
         })),
         duplicates: [],
       };
-      await this.queue.updateProgress(jobId, {
+      await this.progress.update(tenantId, jobId, {
         status: 'failed',
         progressPercent: 100,
         completedAt: new Date().toISOString(),
@@ -412,14 +420,14 @@ export class ImportService {
       return failed;
     }
 
-    await this.queue.updateProgress(jobId, {
+    await this.progress.update(tenantId, jobId, {
       totalRows: parseResult.rows.length,
       progressPercent: 10,
     });
 
     const result = await this.processRows(tenantId, parseResult.rows, options);
 
-    await this.queue.updateProgress(jobId, {
+    await this.progress.update(tenantId, jobId, {
       status: 'completed',
       processedRows: result.totalRows,
       progressPercent: 100,
