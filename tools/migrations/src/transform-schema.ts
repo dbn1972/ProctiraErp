@@ -12,6 +12,7 @@
 import type { PoolClient } from 'pg';
 import { Pool } from 'pg';
 
+import { applyEnumOverrides, loadEnumOverrides } from './enum-overrides.js';
 import { TABLE_MAPPINGS } from './table-mappings.js';
 import type {
   MigrationConfig,
@@ -226,7 +227,9 @@ export async function transformSchema(config: MigrationConfig): Promise<Migratio
     console.log(`[transform] Starting schema transformation...`);
     console.log(`[transform] Staging: ${config.stagingSchema} → Target: ${config.pg.schema}`);
 
-    for (const mapping of TABLE_MAPPINGS) {
+    // PRC-H105: owner code tables (OPENEMIS_ENUM_OVERRIDES) extend the built-in mappings.
+    const mappings = applyEnumOverrides(TABLE_MAPPINGS, loadEnumOverrides());
+    for (const mapping of mappings) {
       try {
         console.log(`[transform] Processing: ${mapping.sourceTable} → ${mapping.targetTable}`);
 
