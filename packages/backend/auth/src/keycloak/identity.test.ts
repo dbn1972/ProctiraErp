@@ -5,6 +5,7 @@ import {
   KeycloakIdentityError,
   identityInputFromClaims,
   linkKeycloakIdentity,
+  resolveKeycloakLinkingMode,
   type KeycloakIdentityStore,
 } from './identity.js';
 
@@ -109,6 +110,7 @@ describe('linkKeycloakIdentity', () => {
         realm: 'proctira',
       },
       store,
+      { linkingMode: 'verified-email-jit' },
     );
 
     expect(linked.userId).toBe('user-new');
@@ -263,5 +265,35 @@ describe('identityInputFromClaims', () => {
       'proctira',
     );
     expect(input.externalId).toBe('india-admin');
+  });
+});
+
+describe('admin-provisioned linking by default (PRC-H042 decision)', () => {
+  it('refuses just-in-time account creation unless KEYCLOAK_IDENTITY_LINKING opts in', async () => {
+    const store = createStore();
+    await expect(
+      linkKeycloakIdentity(
+        {
+          externalId: 'kc-self-registered',
+          email: 'stranger@school.in',
+          emailVerified: true,
+          displayName: 'Stranger',
+          tenantSlug: 'india',
+          realm: 'proctira',
+        },
+        store,
+      ),
+    ).rejects.toThrow(/No provisioned account/);
+    expect(store.createUser).not.toHaveBeenCalled();
+    expect(store.createIdentity).not.toHaveBeenCalled();
+  });
+  it('resolves the mode from env, defaulting to provisioned-only', () => {
+    expect(resolveKeycloakLinkingMode({})).toBe('provisioned-only');
+    expect(resolveKeycloakLinkingMode({ KEYCLOAK_IDENTITY_LINKING: 'anything' })).toBe(
+      'provisioned-only',
+    );
+    expect(resolveKeycloakLinkingMode({ KEYCLOAK_IDENTITY_LINKING: 'verified-email-jit' })).toBe(
+      'verified-email-jit',
+    );
   });
 });

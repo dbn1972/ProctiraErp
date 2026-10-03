@@ -30,6 +30,9 @@ function signed(payload: Record<string, unknown>, pem: string): string {
   return `${header}.${body}.${sig}`;
 }
 
+/** These tests exercise just-in-time provisioning (opt-in since PRC-H042). */
+const JIT = { linkingMode: 'verified-email-jit' } as const;
+
 describe('Keycloak identity projection (PRC-L283)', () => {
   beforeEach(() => {
     // Optional-call keeps the failing-first run meaningful on pre-fix code.
@@ -116,9 +119,9 @@ describe('Keycloak identity projection (PRC-L283)', () => {
       realm: 'proctira',
     };
     const results = await Promise.all([
-      linkKeycloakIdentity(input, store),
-      linkKeycloakIdentity(input, store),
-      linkKeycloakIdentity(input, store),
+      linkKeycloakIdentity(input, store, JIT),
+      linkKeycloakIdentity(input, store, JIT),
+      linkKeycloakIdentity(input, store, JIT),
     ]);
     expect(new Set(results.map((r) => r.userId)).size).toBe(1);
     const identity = await store.findIdentity('kc-race');
@@ -135,10 +138,10 @@ describe('Keycloak identity projection (PRC-L283)', () => {
       tenantId: 'tenant-1',
       realm: 'proctira',
     };
-    await linkKeycloakIdentity(input, store);
+    await linkKeycloakIdentity(input, store, JIT);
     const touch = vi.spyOn(store, 'touchIdentity').mockRejectedValue(new Error('write failed'));
     for (let i = 0; i < 5; i += 1) {
-      await expect(linkKeycloakIdentity(input, store)).resolves.toMatchObject({
+      await expect(linkKeycloakIdentity(input, store, JIT)).resolves.toMatchObject({
         tenantId: 'tenant-1',
       });
     }

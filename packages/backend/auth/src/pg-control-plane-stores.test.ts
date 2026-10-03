@@ -118,6 +118,8 @@ describe('auth control-plane Postgres stores (live)', () => {
         realm: 'proctira',
       },
       store,
+      // Just-in-time provisioning is opt-in since PRC-H042.
+      { linkingMode: 'verified-email-jit' },
     );
     expect(first.tenantId).toBe(tenantId);
     expect(first.email).toBe('teacher@example.edu');

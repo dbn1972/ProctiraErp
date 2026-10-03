@@ -76,6 +76,24 @@ export interface KeycloakIdentityStore {
 }
 
 /**
+ * PRC-H042 (decision): how a first Keycloak login may bind to a local account.
+ * - 'provisioned-only' (default): link only to a user an administrator already provisioned in
+ *   that tenant with the same verified email; never create accounts just-in-time. Provisioning by
+ *   an admin is the approval step.
+ * - 'verified-email-jit': additionally create a tenant user on first login (legacy behaviour).
+ * Defaulted: provisioned-only; owner may change via KEYCLOAK_IDENTITY_LINKING=verified-email-jit.
+ */
+export type KeycloakLinkingMode = 'provisioned-only' | 'verified-email-jit';
+
+export function resolveKeycloakLinkingMode(
+  env: Record<string, string | undefined> = process.env,
+): KeycloakLinkingMode {
+  return env['KEYCLOAK_IDENTITY_LINKING']?.trim().toLowerCase() === 'verified-email-jit'
+    ? 'verified-email-jit'
+    : 'provisioned-only';
+}
+
+/**
  * Project a Keycloak login onto a local identity store.
  * Roles and passwords stay in Keycloak; this only records tenant membership.
  *
@@ -85,7 +103,9 @@ export interface KeycloakIdentityStore {
 export async function linkKeycloakIdentity(
   input: KeycloakIdentityInput,
   store: KeycloakIdentityStore,
+  options: { linkingMode?: KeycloakLinkingMode } = {},
 ): Promise<LinkedKeycloakUser> {
+  const linkingMode = options.linkingMode ?? resolveKeycloakLinkingMode();
   const email = input.email.trim().toLowerCase();
   if (!email) {
     throw new KeycloakIdentityError('Keycloak token is missing an email');
@@ -146,6 +166,11 @@ export async function linkKeycloakIdentity(
     };
   }
 
+  if (linkingMode !== 'verified-email-jit') {
+    throw new KeycloakIdentityError(
+      'No provisioned account matches this Keycloak login; ask a tenant administrator to invite you',
+    );
+  }
   const names = splitDisplayName(input);
   const created = await store.createUser({
     tenantId,
