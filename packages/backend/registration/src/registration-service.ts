@@ -31,6 +31,7 @@ import {
   type WaitlistEntry,
 } from './admissions-crm-store.js';
 import type {
+  InstitutionFilterOptions,
   RegistrationRepository,
   InstitutionLocationFilter,
   NewRegistrationEntity,
@@ -541,6 +542,11 @@ export class RegistrationService {
    * Get institution locations for map display with filtering.
    * Requirement 16.4: Interactive map with area/type/grade filtering.
    */
+  /** PRC-M051/M056: public directory filter options from real institution data. */
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return this.repository.getInstitutionFilterOptions(tenantId);
+  }
+
   async getInstitutionLocations(
     tenantId: string,
     filter: InstitutionLocationFilter,
@@ -556,11 +562,14 @@ export class RegistrationService {
   async getFormConfiguration(
     tenantId: string,
     institutionId: string,
-  ): Promise<FormConfiguration | null> {
+  ): Promise<(FormConfiguration & { institutionName: string }) | null> {
     try {
       const institution = await this.repository.findInstitution(tenantId, institutionId);
       if (!institution || institution.status !== 'ACTIVE') return null;
-      return await this.repository.getFormConfiguration(tenantId, institutionId);
+      const config = await this.repository.getFormConfiguration(tenantId, institutionId);
+      // PRC-M056: return the school name with the form so the apply heading
+      // needs no directory scan.
+      return config ? { ...config, institutionName: institution.name } : null;
     } catch {
       throw new AppError(
         'Registration form configuration is temporarily unavailable',

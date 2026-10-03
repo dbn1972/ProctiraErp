@@ -1,9 +1,13 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 import { GraduationCap, FileText, Search, Upload, CheckCircle2 } from 'lucide-react';
 import { DesignSystemApplyCta } from '@/components/design-system-apply-cta';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { getInstitutionFilters } from '@/lib/api';
+import { serverTransport } from '@/lib/gateway';
+import { typeTileHref } from '@/lib/institution-filters';
 
 /**
  * Public-facing landing page for the Registration Portal.
@@ -173,27 +177,33 @@ function HowItWorks() {
   );
 }
 
-function InstitutionTypePicker() {
-  const t = useTranslations('landing');
-  // Public registration is keyed by institution type (primary / secondary / TVET / preschool).
-  // The server resolves the actual institution + form configuration.
-  const types = [
-    { id: 'primary', label: t('primary') },
-    { id: 'secondary', label: t('secondary') },
-    { id: 'tvet', label: t('tvet') },
-    { id: 'preschool', label: t('preschool') },
-  ];
+async function InstitutionTypePicker() {
+  const t = await getTranslations('landing');
+  // PRC-M051: tiles come from the tenant's real institution types and link with
+  // the real type id, so /schools?typeId=… actually matches institutions.
+  let types: Array<{ id: string; label: string }> | null = null;
+  try {
+    const options = await getInstitutionFilters(serverTransport);
+    types = options.types.map((type) => ({ id: type.id, label: type.name }));
+  } catch {
+    types = null;
+  }
   return (
     <section id="apply" className="bg-white py-16 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <h2 className="text-center text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl">
           {t('selectInstitutionType')}
         </h2>
+        {types === null ? (
+          <p role="status" className="mt-6 text-center text-sm text-gray-600">
+            {t('typesUnavailable')}
+          </p>
+        ) : null}
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {types.map((type) => (
+          {(types ?? []).map((type) => (
             <Link
               key={type.id}
-              href={`/schools?typeId=${encodeURIComponent(type.id)}`}
+              href={typeTileHref(type)}
               className="group flex flex-col items-center rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm transition-all hover:border-primary-300 hover:shadow-md"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary-600 transition-colors group-hover:bg-primary-100">
@@ -204,6 +214,12 @@ function InstitutionTypePicker() {
               </span>
             </Link>
           ))}
+          <Link
+            href="/schools"
+            className="group flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm font-semibold text-primary-700 hover:border-primary-300"
+          >
+            {t('browseAll')}
+          </Link>
         </div>
       </div>
     </section>

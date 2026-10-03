@@ -16,17 +16,19 @@ import type pg from 'pg';
 
 import { haversineKm } from './in-memory-repository.js';
 import type { ListPage } from './pagination.js';
-import type {
-  IdempotentRegistrationCreateResult,
-  InstitutionLocationFilter,
-  LegacyRegistrationCreate,
-  NewRegistrationEntity,
-  RegistrationEntity,
-  RegistrationInstitution,
-  RegistrationRepository,
-  RegistrationStatus,
-  SchoolFinderFilter,
-  SchoolFinderResultRow,
+import {
+  institutionFilterOptionsFrom,
+  type InstitutionFilterOptions,
+  type IdempotentRegistrationCreateResult,
+  type InstitutionLocationFilter,
+  type LegacyRegistrationCreate,
+  type NewRegistrationEntity,
+  type RegistrationEntity,
+  type RegistrationInstitution,
+  type RegistrationRepository,
+  type RegistrationStatus,
+  type SchoolFinderFilter,
+  type SchoolFinderResultRow,
 } from './registration-repository.js';
 import {
   FormConfigurationSchema,
@@ -412,6 +414,10 @@ export class PgRegistrationRepository implements RegistrationRepository {
   ): Promise<RegistrationInstitution | null> {
     const rows = await this.loadInstitutions(tenantId, institutionId);
     return rows[0] ?? null;
+  }
+
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return institutionFilterOptionsFrom(await this.loadInstitutions(tenantId));
   }
 
   async getInstitutionLocations(

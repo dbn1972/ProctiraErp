@@ -53,7 +53,9 @@
     "primary": "Primary",
     "secondary": "Secondary",
     "tvet": "TVET",
-    "preschool": "Pre-school"
+    "preschool": "Pre-school",
+    "typesUnavailable": "School types could not be loaded right now.",
+    "browseAll": "Browse all schools"
   },
   "registration": {
     "title": "Student Registration",
@@ -128,7 +130,11 @@
     "resultsCount": "{count} schools found",
     "serviceUnavailableTitle": "Service temporarily unavailable",
     "serviceUnavailableMessage": "We couldn't load schools right now. Please try again in a moment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "invalidFilterTitle": "That school type is not available",
+    "invalidFilterMessage": "The link you followed uses a school type we don't recognise. Showing nothing until you pick a valid type.",
+    "showAll": "Show all schools",
+    "loadMore": "Load more schools"
   },
   "tracking": {
     "title": "Track Your Application",

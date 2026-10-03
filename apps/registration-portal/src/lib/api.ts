@@ -94,6 +94,8 @@ export interface FormConfiguration {
   version: number;
   publishedAt: string;
   fields: FormFieldDefinition[];
+  /** School display name (PRC-M056); absent from older gateways. */
+  institutionName?: string;
 }
 
 export async function getFormConfiguration(
@@ -128,6 +130,21 @@ export interface InstitutionLocation {
   longitude: number | null;
   address?: string | null;
   availableGrades?: string[];
+}
+
+/** PRC-M051/M056: real directory filter options from active institutions. */
+export interface InstitutionFilterOptions {
+  types: Array<{ id: string; name: string }>;
+  areas: Array<{ id: string; name: string }>;
+  grades: string[];
+}
+
+export async function getInstitutionFilters(
+  transport: RegistrationTransport = browserTransport,
+): Promise<InstitutionFilterOptions> {
+  const response = await transport('/registrations/institution-filters');
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as InstitutionFilterOptions;
 }
 
 export interface InstitutionMapResponse {

@@ -355,8 +355,9 @@ export const FormConfigurationSchema = Type.Object({
   version: Type.Integer({ minimum: 1, description: 'Immutable version number' }),
   publishedAt: Type.String({ description: 'Publish timestamp (ISO 8601)' }),
   fields: Type.Array(FormFieldDefinitionSchema, { description: 'Configurable form fields' }),
+  /** Display name of the institution (public form-config response, PRC-M056). */
+  institutionName: Type.Optional(Type.String()),
 });
-
 export type FormConfiguration = Static<typeof FormConfigurationSchema>;
 
 // --- Response Schemas ---

@@ -98,6 +98,38 @@ export interface TenantFormConfiguration extends FormConfiguration {
   tenantId: string;
 }
 
+/** PRC-M051/M056: distinct filter options across a tenant's active institutions. */
+export interface InstitutionFilterOptions {
+  types: Array<{ id: string; name: string }>;
+  areas: Array<{ id: string; name: string }>;
+  grades: string[];
+}
+
+/** Derive filter options from active institutions (sorted, de-duplicated). */
+export function institutionFilterOptionsFrom(
+  rows: Array<
+    Pick<RegistrationInstitution, 'typeId' | 'typeName' | 'areaId' | 'areaName' | 'availableGrades'> & {
+      status: string;
+    }
+  >,
+): InstitutionFilterOptions {
+  const types = new Map<string, string>();
+  const areas = new Map<string, string>();
+  const grades = new Set<string>();
+  for (const row of rows) {
+    if (row.status !== 'ACTIVE') continue;
+    if (row.typeId && row.typeName) types.set(row.typeId, row.typeName);
+    if (row.areaId && row.areaName) areas.set(row.areaId, row.areaName);
+    for (const grade of row.availableGrades ?? []) grades.add(grade);
+  }
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  return {
+    types: [...types].map(([id, name]) => ({ id, name })).sort(byName),
+    areas: [...areas].map(([id, name]) => ({ id, name })).sort(byName),
+    grades: [...grades].sort(),
+  };
+}
+
 export interface InstitutionLocationFilter {
   areaId?: string;
   typeId?: string;
@@ -171,6 +203,8 @@ export interface RegistrationRepository {
 
   /** Tenant-scoped authoritative institution lookup (active or inactive). */
   findInstitution(tenantId: string, institutionId: string): Promise<RegistrationInstitution | null>;
+  /** PRC-M051/M056: type / area / grade options for the public directory. */
+  getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions>;
 
   getInstitutionLocations(
     tenantId: string,

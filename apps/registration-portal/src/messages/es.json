@@ -53,7 +53,9 @@
     "primary": "Primaria",
     "secondary": "Secundaria",
     "tvet": "Técnica",
-    "preschool": "Preescolar"
+    "preschool": "Preescolar",
+    "typesUnavailable": "No se pudieron cargar los tipos de escuela.",
+    "browseAll": "Ver todas las escuelas"
   },
   "registration": {
     "title": "Inscripción de estudiante",
@@ -128,7 +130,11 @@
     "resultsCount": "{count} escuelas encontradas",
     "serviceUnavailableTitle": "Servicio no disponible temporalmente",
     "serviceUnavailableMessage": "No pudimos cargar las escuelas en este momento. Vuelve a intentarlo en unos instantes.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "invalidFilterTitle": "Ese tipo de escuela no está disponible",
+    "invalidFilterMessage": "El enlace usa un tipo de escuela que no reconocemos. Elija un tipo válido.",
+    "showAll": "Ver todas las escuelas",
+    "loadMore": "Cargar más escuelas"
   },
   "tracking": {
     "title": "Consulte su solicitud",

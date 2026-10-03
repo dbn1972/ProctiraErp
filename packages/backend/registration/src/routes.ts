@@ -587,6 +587,26 @@ export async function registerRegistrationRoutes(
    * GET /registrations/form-config/:institutionId
    * Get the latest published configuration for a tenant-owned institution UUID.
    */
+  /**
+   * GET /registrations/institution-filters
+   * PRC-M051/M056: real type / area / grade options for the public directory.
+   */
+  fastify.get(`${prefix}/institution-filters`, async function filterOptionsHandler(request, reply) {
+    try {
+      const options = await registrationService.getInstitutionFilterOptions(publicTenantId(request));
+      return reply.status(200).send(options);
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      return reply.status(503).send({
+        code: 'INSTITUTION_FILTERS_UNAVAILABLE',
+        message: 'School directory is temporarily unavailable',
+        statusCode: 503,
+      });
+    }
+  });
+
   fastify.get(
     `${prefix}/form-config/:institutionId`,
     async function formConfigHandler(

@@ -53,7 +53,9 @@
     "primary": "Primaire",
     "secondary": "Secondaire",
     "tvet": "EFTP",
-    "preschool": "Maternelle"
+    "preschool": "Maternelle",
+    "typesUnavailable": "Les types d'école n'ont pas pu être chargés.",
+    "browseAll": "Voir toutes les écoles"
   },
   "registration": {
     "title": "Inscription de l'élève",
@@ -128,7 +130,11 @@
     "resultsCount": "{count} écoles trouvées",
     "serviceUnavailableTitle": "Service temporairement indisponible",
     "serviceUnavailableMessage": "Nous n'avons pas pu charger les écoles pour le moment. Veuillez réessayer dans un instant.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "invalidFilterTitle": "Ce type d'école n'est pas disponible",
+    "invalidFilterMessage": "Le lien utilise un type d'école inconnu. Choisissez un type valide.",
+    "showAll": "Voir toutes les écoles",
+    "loadMore": "Charger plus d'écoles"
   },
   "tracking": {
     "title": "Suivre votre demande",

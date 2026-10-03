@@ -53,7 +53,9 @@
     "primary": "ابتدائي",
     "secondary": "ثانوي",
     "tvet": "تقني ومهني",
-    "preschool": "تمهيدي"
+    "preschool": "تمهيدي",
+    "typesUnavailable": "تعذر تحميل أنواع المدارس الآن.",
+    "browseAll": "تصفح كل المدارس"
   },
   "registration": {
     "title": "تسجيل الطالب",
@@ -128,7 +130,11 @@
     "resultsCount": "{count} مدرسة",
     "serviceUnavailableTitle": "الخدمة غير متاحة مؤقتًا",
     "serviceUnavailableMessage": "تعذّر تحميل المدارس الآن. يُرجى المحاولة مرة أخرى بعد قليل.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "invalidFilterTitle": "نوع المدرسة هذا غير متاح",
+    "invalidFilterMessage": "الرابط يستخدم نوع مدرسة غير معروف. اختر نوعًا صالحًا.",
+    "showAll": "عرض كل المدارس",
+    "loadMore": "تحميل المزيد من المدارس"
   },
   "tracking": {
     "title": "تتبع طلبك",

@@ -4,18 +4,20 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  IdempotentRegistrationCreateResult,
-  InstitutionLocationFilter,
-  LegacyRegistrationCreate,
-  NewRegistrationEntity,
-  RegistrationEntity,
-  RegistrationInstitution,
-  RegistrationRepository,
-  RegistrationStatus,
-  SchoolFinderFilter,
-  SchoolFinderResultRow,
-  TenantFormConfiguration,
+import {
+  institutionFilterOptionsFrom,
+  type InstitutionFilterOptions,
+  type IdempotentRegistrationCreateResult,
+  type InstitutionLocationFilter,
+  type LegacyRegistrationCreate,
+  type NewRegistrationEntity,
+  type RegistrationEntity,
+  type RegistrationInstitution,
+  type RegistrationRepository,
+  type RegistrationStatus,
+  type SchoolFinderFilter,
+  type SchoolFinderResultRow,
+  type TenantFormConfiguration,
 } from './registration-repository.js';
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 import { sliceForPage, type ListPage } from './pagination.js';
@@ -184,6 +186,12 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     if (!configuration) return null;
     const { tenantId: _tenantId, ...publicConfiguration } = configuration;
     return structuredClone(publicConfiguration);
+  }
+
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return institutionFilterOptionsFrom(
+      this.institutions.filter((row) => row.tenantId === tenantId),
+    );
   }
 
   async findInstitution(
