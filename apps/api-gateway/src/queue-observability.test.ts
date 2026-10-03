@@ -76,4 +76,34 @@ describe('registerQueueObservability (PRC-H086)', () => {
       /queue_delivery_failures_total\{disposition="dead-letter",type="report-card.generate",service="api-gateway"\} 1/,
     );
   });
+
+  it('records adapter queue depth on slo_queue_lag_messages (PRC-L493)', async () => {
+    const registry = new MetricsRegistry('api-gateway');
+    const app = Fastify();
+    await app.register(observabilityPlugin, { serviceName: 'api-gateway', registry });
+    registerQueueObservability(app);
+    await app.ready();
+    const adapter = new InMemoryDurableQueueAdapter({ pollIntervalMs: 5 });
+    adapters.push(adapter);
+    await adapter.connect();
+    for (const id of ['a', 'b']) {
+      await adapter.dispatch({
+        id,
+        tenantId: '11111111-1111-4111-8111-111111111111',
+        type: 'privacy.anonymize',
+        payload: {},
+        timestamp: new Date().toISOString(),
+      });
+    }
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    await adapter.consume({ topic: 'tenant.*.privacy.anonymize' }, async () => gate);
+    await waitFor(() => adapter.getQueueStore().inFlightCount === 1);
+    const text = await registry.metrics();
+    expect(text).toMatch(
+      /slo_queue_lag_messages\{service="api-gateway",topic="tenant\.\*\.privacy\.anonymize"\} 2/,
+    );
+    release();
+    await app.close();
+  });
 });

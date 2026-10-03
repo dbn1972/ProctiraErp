@@ -30,6 +30,7 @@ import {
   type DeliveryFailureEvent,
   type QueueConsumerLogger,
 } from './delivery-failure';
+import { DEFAULT_DEPTH_SAMPLE_INTERVAL_MS, reportQueueDepth } from './queue-depth';
 
 const DEFAULT_CONFIG: Partial<RabbitMQAdapterConfig> = {
   exchangeType: 'topic',
@@ -46,6 +47,8 @@ export interface RabbitMQAdapterRuntimeOptions {
   logger?: QueueConsumerLogger;
   /** Metric hook invoked once per failed delivery. */
   onDeliveryFailure?: (event: DeliveryFailureEvent) => void;
+  /** PRC-L493: queue-depth sample interval in ms (default 15000; 0 disables). */
+  depthSampleIntervalMs?: number;
 }
 
 /** Name of the queue bound (`#`) to the dead-letter exchange (PRC-H086). */
@@ -103,6 +106,8 @@ export class RabbitMQAdapter implements QueueAdapter {
   private channel: ConfirmChannel | null = null;
   private connected = false;
   private delayExchangeAsserted = false;
+  private depthTimers: ReturnType<typeof setInterval>[] = [];
+  private readonly depthSampleIntervalMs: number;
   private readonly defaultMaxRetries: number;
   private readonly logger: QueueConsumerLogger | undefined;
   private readonly onDeliveryFailure: ((event: DeliveryFailureEvent) => void) | undefined;
@@ -116,6 +121,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     this.defaultMaxRetries = runtime.defaultMaxRetries ?? DEFAULT_MAX_RETRIES;
     this.logger = runtime.logger;
     this.onDeliveryFailure = runtime.onDeliveryFailure;
+    this.depthSampleIntervalMs = runtime.depthSampleIntervalMs ?? DEFAULT_DEPTH_SAMPLE_INTERVAL_MS;
   }
 
   async connect(): Promise<void> {
@@ -171,7 +177,29 @@ export class RabbitMQAdapter implements QueueAdapter {
     this.connected = true;
   }
 
+  /**
+   * PRC-L493: periodically sample the consumed queue's ready-message count
+   * (checkQueue) and report it as consumer lag. Timers are unref'd and
+   * cleared on disconnect.
+   */
+  private startDepthSampler(queueName: string, topic: string): void {
+    const intervalMs = this.depthSampleIntervalMs;
+    if (intervalMs <= 0) return;
+    const timer = setInterval(() => {
+      const channel = this.channel;
+      if (!channel) return;
+      channel
+        .checkQueue(queueName)
+        .then((info) => reportQueueDepth({ topic, depth: info.messageCount }))
+        .catch(() => undefined);
+    }, intervalMs);
+    timer.unref?.();
+    this.depthTimers.push(timer);
+  }
+
   async disconnect(): Promise<void> {
+    for (const timer of this.depthTimers) clearInterval(timer);
+    this.depthTimers = [];
     if (!this.connected && !this.channel && !this.connection) return;
 
     if (this.channel) {
@@ -364,6 +392,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     // Bind queue to exchange with the topic as routing key pattern
     await channel.bindQueue(queueName, this.config.exchange, options.topic);
 
+    this.startDepthSampler(queueName, options.topic);
     const autoAck = options.autoAck ?? false;
 
     await channel.consume(

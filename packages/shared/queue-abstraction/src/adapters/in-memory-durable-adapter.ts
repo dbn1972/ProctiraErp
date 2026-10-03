@@ -31,6 +31,7 @@ import {
   type DeliveryFailureEvent,
   type QueueConsumerLogger,
 } from './delivery-failure';
+import { reportQueueDepth } from './queue-depth';
 
 export interface DurableQueuedMessage {
   deliveryTag: string;
@@ -66,6 +67,16 @@ export class InMemoryDurableQueueStore {
     if (!next) return undefined;
     this.inFlight.set(next.deliveryTag, next);
     return next;
+  }
+
+  /** PRC-L493: pending (ready) messages whose routing key matches `pattern`. */
+  countMatching(pattern: string): number {
+    const now = Date.now();
+    return this.pending.filter(
+      (entry) =>
+        (entry.availableAt === undefined || entry.availableAt <= now) &&
+        matchRoutingKey(pattern, entry.routingKey),
+    ).length;
   }
 
   /** Lease the first pending message whose routing key matches `pattern`. */
@@ -261,6 +272,8 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     this.draining = true;
     try {
       const topic = this.consumeTopic;
+      // PRC-L493: consumer lag sample for slo_queue_lag_messages.
+      reportQueueDepth({ topic, depth: this.store.countMatching(topic) });
       // Drain currently matching pending messages.
       for (;;) {
         const entry = this.store.leaseMatching(topic);

@@ -59,7 +59,7 @@ import {
 } from '@proctira/backend-tenant';
 import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { loggingPlugin } from '@proctira/logging';
-import { observabilityPlugin } from '@proctira/observability';
+import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
@@ -242,6 +242,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
   // PRC-H086: failed queue deliveries → queue_delivery_failures_total on /metrics.
   registerQueueObservability(app);
+  // PRC-L493: register the gateway's catalog SLO (/slo, metrics-access protected).
+  registerServiceSLO(app, SLO_CATALOG['api-gateway']!);
 
   // 3. Register CORS
   await app.register(cors, {
