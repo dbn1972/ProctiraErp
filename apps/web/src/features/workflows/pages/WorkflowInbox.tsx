@@ -14,7 +14,7 @@
  */
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
 import { resolveEntityLabel } from '@/lib/entity-label';
@@ -47,7 +47,8 @@ interface InboxListResponse {
   meta: {
     page: number;
     pageSize: number;
-    total: number;
+    totalItems?: number;
+    total?: number;
     totalPages: number;
   };
 }
@@ -176,6 +177,11 @@ export default function WorkflowInbox() {
     try {
       const params = new URLSearchParams();
       params.set('status', 'ACTIVE');
+      // PRC-M491: the inbox is "assigned to me"; priority/SLA filter server-side so the
+      // totals and pagination reflect the filtered set.
+      params.set('mine', 'true');
+      if (filters.priority) params.set('priority', filters.priority);
+      if (filters.slaStatus) params.set('slaStatus', filters.slaStatus);
       params.set('page', String(filters.page));
       params.set('pageSize', String(filters.pageSize));
       if (filters.entityType) {
@@ -187,7 +193,7 @@ export default function WorkflowInbox() {
       );
       setItems(result.data);
       setTotalPages(result.meta.totalPages);
-      setTotal(result.meta.total);
+      setTotal(result.meta.totalItems ?? result.meta.total ?? 0);
     } catch (err) {
       if (err instanceof BrowserGatewayError) {
         setError(err.message);
@@ -197,26 +203,14 @@ export default function WorkflowInbox() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters.entityType, filters.page, filters.pageSize]);
+  }, [filters.entityType, filters.page, filters.pageSize, filters.priority, filters.slaStatus]);
 
   useEffect(() => {
     fetchInbox();
   }, [fetchInbox]);
 
-  // Client-side filtering for priority and SLA (backend doesn't support these filters directly)
-  const filteredItems = useMemo(() => {
-    let result = items;
-
-    if (filters.priority) {
-      result = result.filter((item) => derivePriority(item) === filters.priority);
-    }
-
-    if (filters.slaStatus) {
-      result = result.filter((item) => deriveSlaStatus(item) === filters.slaStatus);
-    }
-
-    return result;
-  }, [items, filters.priority, filters.slaStatus]);
+  // PRC-M491: priority/SLA are filtered by the server; rows are rendered as returned.
+  const filteredItems = items;
 
   // Page stays numeric: string pages turned "Next" into "21" (PRC-L077).
   const goToPage = (page: number) => {

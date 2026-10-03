@@ -69,7 +69,7 @@ export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
 }
 
 export async function getWorkflowDefinition(id: string): Promise<WorkflowDefinition | null> {
-  const result = await gatewayFetch<WorkflowDefinition>(`/workflows/definitions/${id}`, {
+  const result = await gatewayFetch<WorkflowDefinition>(`/workflows/definitions/${encodeURIComponent(id)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -133,7 +133,7 @@ export async function decideWorkflowApproval(
     id: string;
     instanceId: string;
     status: string;
-  }>(`/workflows/approvals/${approvalId}/${decision}`, {
+  }>(`/workflows/approvals/${encodeURIComponent(approvalId)}/${encodeURIComponent(decision)}`, {
     method: 'POST',
     json: {},
   });

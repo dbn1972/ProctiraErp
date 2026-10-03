@@ -198,7 +198,7 @@ export async function listStudentVaccinationsResult(
 }
 
 export async function getHealthRecord(studentId: string): Promise<HealthRecord | null> {
-  const result = await gatewayFetch<HealthRecord>(`/health/records/${studentId}`, {
+  const result = await gatewayFetch<HealthRecord>(`/health/records/${encodeURIComponent(studentId)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -337,7 +337,7 @@ export interface CreateNurseIncidentInput {
 
 export async function listStudentAllergies(studentId: string): Promise<AllergyRecord[]> {
   const result = await gatewayFetch<{ data: AllergyRecord[] }>(
-    `/health/allergies/student/${studentId}`,
+    `/health/allergies/student/${encodeURIComponent(studentId)}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -360,7 +360,7 @@ export async function createAllergy(input: CreateAllergyInput): Promise<AllergyR
 
 export async function listStudentVaccinations(studentId: string): Promise<VaccinationRecord[]> {
   const result = await gatewayFetch<{ data: VaccinationRecord[] }>(
-    `/health/vaccinations/student/${studentId}`,
+    `/health/vaccinations/student/${encodeURIComponent(studentId)}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];

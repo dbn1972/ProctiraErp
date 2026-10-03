@@ -18,7 +18,15 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { WorkflowService } from './workflow-service.js';
+import {
+  DEFAULT_RESTRICTED_ENTITY_TYPES,
+  canSeeEntityType,
+  maskInstance,
+  type InstancePriority,
+  type InstanceSlaStatus,
+  type RestrictedEntityTypes,
+} from './instance-visibility.js';
+import type { TransitionActor, WorkflowService } from './workflow-service.js';
 import {
   CreateWorkflowDefinitionSchema,
   UpdateWorkflowDefinitionSchema,
@@ -48,6 +56,8 @@ export interface WorkflowRoutesOptions {
   workflowService: WorkflowService;
   /** Route prefix (default: '/workflows') */
   prefix?: string;
+  /** PRC-M491: entity type -> roles allowed to see it (default: disciplinary/counselling). */
+  restrictedEntityTypes?: RestrictedEntityTypes;
 }
 
 /**
@@ -114,6 +124,15 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
+/** PRC-M490: authenticated actor (JWT subject + roles) from the auth plugin. */
+function getActor(request: FastifyRequest): TransitionActor | null {
+  const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;
+  if (!user || typeof user.sub !== 'string' || user.sub.length === 0) return null;
+  const roles = Array.isArray(user.roles)
+    ? user.roles.filter((r): r is string => typeof r === 'string')
+    : [];
+  return { id: user.sub, roles };
+}
 /**
  * Register workflow routes on a Fastify instance.
  */
@@ -121,7 +140,11 @@ export async function registerWorkflowRoutes(
   fastify: FastifyInstance,
   options: WorkflowRoutesOptions,
 ): Promise<void> {
-  const { workflowService, prefix = '/workflows' } = options;
+  const {
+    workflowService,
+    prefix = '/workflows',
+    restrictedEntityTypes = DEFAULT_RESTRICTED_ENTITY_TYPES,
+  } = options;
 
   // ─── Workflow Definition Routes ────────────────────────────────────────
 
@@ -404,11 +427,25 @@ export async function registerWorkflowRoutes(
         });
       }
 
+      // PRC-M491: lists are scoped to the authenticated caller.
+      const actor = getActor(request);
+      if (!actor) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to list workflow instances',
+          statusCode: 401,
+        });
+      }
       const query = request.query;
       const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-
-      const result = await workflowService.listInstances(
+      const pageSize = Math.min(Number(query.pageSize) || 20, 100);
+      const priority = ['high', 'normal', 'low'].includes(String(query.priority))
+        ? (query.priority as InstancePriority)
+        : undefined;
+      const slaStatus = ['on_track', 'at_risk', 'overdue'].includes(String(query.slaStatus))
+        ? (query.slaStatus as InstanceSlaStatus)
+        : undefined;
+      const result = await workflowService.listInstancesForActor(
         tenantId,
         {
           entityType: query.entityType,
@@ -416,8 +453,14 @@ export async function registerWorkflowRoutes(
           status: query.status,
         },
         { page, pageSize },
+        actor,
+        {
+          mine: String(query.mine) === 'true',
+          ...(priority ? { priority } : {}),
+          ...(slaStatus ? { slaStatus } : {}),
+          restricted: restrictedEntityTypes,
+        },
       );
-
       return reply.status(200).send({
         data: result.data.map(formatInstanceResponse),
         meta: result.meta,
@@ -456,7 +499,18 @@ export async function registerWorkflowRoutes(
 
       try {
         const instance = await workflowService.getInstance(tenantId, paramsResult.data.instanceId);
-        return reply.status(200).send(formatInstanceResponse(instance));
+        // PRC-M491: restricted entity types are invisible (404) to unauthorised callers.
+        const viewer = getActor(request);
+        if (!viewer || !canSeeEntityType(instance.entityType, viewer, restrictedEntityTypes)) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Workflow instance not found',
+            statusCode: 404,
+          });
+        }
+        return reply
+          .status(200)
+          .send(formatInstanceResponse(maskInstance(instance, restrictedEntityTypes)));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -505,11 +559,21 @@ export async function registerWorkflowRoutes(
         });
       }
 
+      // PRC-M490: the actor is the authenticated JWT subject; a body actorId is ignored.
+      const actor = getActor(request);
+      if (!actor) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to transition a workflow',
+          statusCode: 401,
+        });
+      }
       try {
         const instance = await workflowService.transition(
           tenantId,
           paramsResult.data.instanceId,
-          bodyResult.data,
+          { action: bodyResult.data.action, comments: bodyResult.data.comments },
+          actor,
         );
         return reply.status(200).send(formatInstanceResponse(instance));
       } catch (error: unknown) {

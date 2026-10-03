@@ -133,7 +133,7 @@ export async function getClassRoster(
 }
 
 export async function getAttendanceConfig(institutionId: string): Promise<AttendanceConfig | null> {
-  const result = await gatewayFetch<AttendanceConfig>(`/attendance/config/${institutionId}`, {
+  const result = await gatewayFetch<AttendanceConfig>(`/attendance/config/${encodeURIComponent(institutionId)}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 60 },
@@ -236,7 +236,7 @@ export async function decideRegularisation(
   decisionNote?: string,
 ): Promise<RegularisationRequest> {
   const result = await gatewayFetch<RegularisationRequest>(
-    `/attendance/regularisation/${encodeURIComponent(id)}/${decision}`,
+    `/attendance/regularisation/${encodeURIComponent(id)}/${encodeURIComponent(decision)}`,
     { method: 'POST', json: { decisionNote } },
   );
   if (!result.data) throw new Error('Empty regularisation decision');
@@ -274,7 +274,7 @@ export async function decideLeaveRequest(
   decisionNote?: string,
 ): Promise<LeaveRequest> {
   const result = await gatewayFetch<LeaveRequest>(
-    `/attendance/leave-requests/${encodeURIComponent(id)}/${decision}`,
+    `/attendance/leave-requests/${encodeURIComponent(id)}/${encodeURIComponent(decision)}`,
     { method: 'POST', json: { decisionNote } },
   );
   if (!result.data) throw new Error('Empty leave decision');

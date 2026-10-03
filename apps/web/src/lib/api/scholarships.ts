@@ -229,7 +229,7 @@ export async function listScholarshipPrograms(
 }
 
 export async function getScholarshipProgram(id: string): Promise<ScholarshipProgram | null> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/programs/${id}`, {
+  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/programs/${encodeURIComponent(id)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -275,7 +275,7 @@ export async function updateScholarshipProgram(
   id: string,
   input: UpdateScholarshipProgramInput,
 ): Promise<ScholarshipProgram> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/programs/${id}`, {
+  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/programs/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });
@@ -302,7 +302,7 @@ export async function listScholarshipApplications(
 export async function getScholarshipApplication(
   id: string,
 ): Promise<ScholarshipApplication | null> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/applications/${id}`, {
+  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/applications/${encodeURIComponent(id)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -316,7 +316,7 @@ async function decideApplication(
   input: ApplicationDecisionInput,
 ): Promise<ScholarshipApplication> {
   const result = await gatewayFetch<Record<string, unknown>>(
-    `/scholarships/applications/${encodeURIComponent(id)}/${decision}`,
+    `/scholarships/applications/${encodeURIComponent(id)}/${encodeURIComponent(decision)}`,
     { method: 'POST', json: input, throwOnError: false },
   );
   if (!result.ok || !result.data) {
@@ -353,7 +353,7 @@ export async function updateDisbursement(
   id: string,
   input: UpdateDisbursementInput,
 ): Promise<ScholarshipDisbursement> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/disbursements/${id}`, {
+  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/disbursements/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });

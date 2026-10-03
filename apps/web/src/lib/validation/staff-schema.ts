@@ -4,23 +4,16 @@
  * Mirrors the Typebox schemas in `@proctira/backend-staff`.
  */
 import { z } from 'zod';
+import { isoDate, isoDateOptional, pastIsoDate } from './zod-helpers';
 
-const isoDate = z
-  .string()
-  .min(1, 'Date is required')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
 
-const isoDateOptional = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format')
-  .or(z.literal(''));
 
 const uuid = z.string().uuid('Must be a valid UUID');
 
 export const staffFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(100),
   lastName: z.string().min(1, 'Last name is required').max(100),
-  dateOfBirth: isoDate,
+  dateOfBirth: pastIsoDate,
   identityNumber: z
     .string()
     .min(1, 'Identity number is required')

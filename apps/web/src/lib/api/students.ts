@@ -257,7 +257,7 @@ export async function listStudents(filters: StudentListFilters = {}): Promise<St
  * offline. Auth and 5xx responses still throw.
  */
 export async function getStudent(id: string): Promise<Student | null> {
-  const result = await gatewayFetch<Student>(`/students/${id}`, {
+  const result = await gatewayFetch<Student>(`/students/${encodeURIComponent(id)}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -284,7 +284,7 @@ export async function createStudent(input: CreateStudentInput): Promise<Student>
 }
 
 export async function updateStudent(id: string, input: UpdateStudentInput): Promise<Student> {
-  const result = await gatewayFetch<Student>(`/students/${id}`, {
+  const result = await gatewayFetch<Student>(`/students/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });
@@ -295,7 +295,7 @@ export async function updateStudent(id: string, input: UpdateStudentInput): Prom
 }
 
 export async function deleteStudent(id: string): Promise<void> {
-  await gatewayFetch<void>(`/students/${id}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/students/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /* --------------------------------------------------------- Enrollments */
@@ -568,7 +568,7 @@ export async function uploadStudentPhoto(
   studentId: string,
   input: { contentBase64: string; mimeType: string },
 ): Promise<StudentPhotoMeta> {
-  const result = await gatewayFetch<StudentPhotoMeta>(`/students/${studentId}/photo`, {
+  const result = await gatewayFetch<StudentPhotoMeta>(`/students/${encodeURIComponent(studentId)}/photo`, {
     method: 'POST',
     json: input,
   });
@@ -607,7 +607,7 @@ export async function studentHasPhoto(studentId: string): Promise<boolean> {
 }
 
 export async function listStudentSiblings(studentId: string): Promise<StudentSibling[]> {
-  const result = await gatewayFetch<{ data: StudentSibling[] }>(`/students/${studentId}/siblings`, {
+  const result = await gatewayFetch<{ data: StudentSibling[] }>(`/students/${encodeURIComponent(studentId)}/siblings`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -619,7 +619,7 @@ export async function addStudentSibling(
   studentId: string,
   siblingId: string,
 ): Promise<StudentSibling> {
-  const result = await gatewayFetch<StudentSibling>(`/students/${studentId}/siblings`, {
+  const result = await gatewayFetch<StudentSibling>(`/students/${encodeURIComponent(studentId)}/siblings`, {
     method: 'POST',
     json: { siblingId },
   });
@@ -628,11 +628,11 @@ export async function addStudentSibling(
 }
 
 export async function removeStudentSibling(studentId: string, siblingId: string): Promise<void> {
-  await gatewayFetch<void>(`/students/${studentId}/siblings/${siblingId}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/students/${encodeURIComponent(studentId)}/siblings/${encodeURIComponent(siblingId)}`, { method: 'DELETE' });
 }
 
 export async function listStudentConsents(studentId: string): Promise<StudentConsent[]> {
-  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${encodeURIComponent(studentId)}/consents`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -644,7 +644,7 @@ export async function setStudentConsent(
   studentId: string,
   input: { kind: ConsentKind; granted: boolean },
 ): Promise<StudentConsent> {
-  const result = await gatewayFetch<StudentConsent>(`/students/${studentId}/consents`, {
+  const result = await gatewayFetch<StudentConsent>(`/students/${encodeURIComponent(studentId)}/consents`, {
     method: 'PUT',
     json: input,
   });
@@ -678,7 +678,7 @@ export async function readStudentDiscipline(
 
 export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {
   const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
-    `/students/${studentId}/discipline`,
+    `/students/${encodeURIComponent(studentId)}/discipline`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok && result.data ? result.data.data : [];
@@ -695,7 +695,7 @@ export async function addStudentDiscipline(
     visibleToParent?: boolean;
   },
 ): Promise<DisciplineIncident> {
-  const result = await gatewayFetch<DisciplineIncident>(`/students/${studentId}/discipline`, {
+  const result = await gatewayFetch<DisciplineIncident>(`/students/${encodeURIComponent(studentId)}/discipline`, {
     method: 'POST',
     json: input,
   });
@@ -707,7 +707,7 @@ export async function removeStudentDiscipline(
   studentId: string,
   incidentId: string,
 ): Promise<void> {
-  await gatewayFetch<void>(`/students/${studentId}/discipline/${incidentId}`, {
+  await gatewayFetch<void>(`/students/${encodeURIComponent(studentId)}/discipline/${encodeURIComponent(incidentId)}`, {
     method: 'DELETE',
   });
 }
@@ -721,7 +721,7 @@ export async function getStudentAttendanceHeatmap(
   if (range?.to) params.set('to', range.to);
   const qs = params.toString();
   const result = await gatewayFetch<AttendanceHeatmap>(
-    `/students/${studentId}/attendance-heatmap${qs ? `?${qs}` : ''}`,
+    `/students/${encodeURIComponent(studentId)}/attendance-heatmap${qs ? `?${qs}` : ''}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok ? result.data : null;

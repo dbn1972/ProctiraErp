@@ -179,13 +179,14 @@ export async function listInvoicesResult(
   scope: 'parent' | 'staff' = 'staff',
   filters: { studentId?: string } = {},
 ): Promise<ListResult<FeeInvoice>> {
-  const qs = scope === 'parent' ? '?scope=parent' : '';
-  const result = await fetchList<FeeInvoice>(`/fees/invoices${qs}`, { next: { revalidate: 0 } });
-  if (!result.ok || !filters.studentId) return result;
-  return {
-    ...result,
-    items: result.items.filter((inv) => inv.studentId === filters.studentId),
-  };
+  // PRC-M487: studentId is filtered server-side; no client filtering over a tenant-wide list.
+  const params = new URLSearchParams();
+  if (scope === 'parent') params.set('scope', 'parent');
+  if (filters.studentId) params.set('studentId', filters.studentId);
+  const qs = params.toString();
+  return fetchList<FeeInvoice>(`/fees/invoices${qs ? `?${qs}` : ''}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function listInvoices(
@@ -283,14 +284,14 @@ export async function generateInstalments(
   partCount: number,
 ): Promise<FeeInstalment[]> {
   const result = await gatewayFetch<{ data: FeeInstalment[] }>(
-    `/fees/structures/${structureId}/instalments`,
+    `/fees/structures/${encodeURIComponent(structureId)}/instalments`,
     { method: 'POST', json: { partCount } },
   );
   return throwIfMissing(result, 'Failed to generate instalments').data;
 }
 
 export function listInstalmentsResult(structureId: string): Promise<ListResult<FeeInstalment>> {
-  return fetchList<FeeInstalment>(`/fees/structures/${structureId}/instalments`, {
+  return fetchList<FeeInstalment>(`/fees/structures/${encodeURIComponent(structureId)}/instalments`, {
     next: { revalidate: 0 },
   });
 }
@@ -312,7 +313,7 @@ export async function bulkInvoiceStructure(
   input: { classId?: string; gradeId?: string; studentIds?: string[]; dueAt?: string },
 ): Promise<{ created: FeeInvoice[]; skipped: string[] }> {
   const result = await gatewayFetch<{ created: FeeInvoice[]; skipped: string[] }>(
-    `/fees/structures/${structureId}/bulk-invoice`,
+    `/fees/structures/${encodeURIComponent(structureId)}/bulk-invoice`,
     { method: 'POST', json: input },
   );
   return throwIfMissing(result, 'Failed to bulk invoice');
@@ -359,7 +360,7 @@ export async function refundInvoice(
   input: { amountCents: number; reason: string },
 ): Promise<{ id: string; amountCents: number }> {
   const result = await gatewayFetch<{ id: string; amountCents: number }>(
-    `/fees/invoices/${invoiceId}/refund`,
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/refund`,
     { method: 'POST', json: input },
   );
   return throwIfMissing(result, 'Failed to record refund');
@@ -456,7 +457,7 @@ export async function listReconciliationBatches(): Promise<FeeReconciliationBatc
 
 export async function listReconciliationRows(batchId: string): Promise<FeeReconciliationRow[]> {
   const result = await gatewayFetch<{ data: FeeReconciliationRow[] }>(
-    `/fees/reconciliation/batches/${batchId}/rows`,
+    `/fees/reconciliation/batches/${encodeURIComponent(batchId)}/rows`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -467,7 +468,7 @@ export async function resolveReconciliationException(
   input: { status: 'resolved' | 'ignored'; resolutionNote: string },
 ): Promise<FeeReconciliationRow> {
   const result = await gatewayFetch<FeeReconciliationRow>(
-    `/fees/reconciliation/rows/${rowId}/resolve`,
+    `/fees/reconciliation/rows/${encodeURIComponent(rowId)}/resolve`,
     { method: 'POST', json: input },
   );
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
@@ -486,10 +487,13 @@ export async function recordInvoicePayment(
     reference?: string;
   },
 ): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 
@@ -648,7 +652,7 @@ export async function addReminderSuppression(input: {
 }
 
 export async function removeReminderSuppression(id: string): Promise<void> {
-  const result = await gatewayFetch<null>(`/fees/reminders/suppressions/${id}`, {
+  const result = await gatewayFetch<null>(`/fees/reminders/suppressions/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     throwOnError: false,
   });

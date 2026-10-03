@@ -310,7 +310,7 @@ async function fetchAcademic<T>(path: string): Promise<AcademicFetchResult<T>> {
 }
 
 export function childAcademicPath(studentId: string, view: AcademicView): string {
-  return `/parent-portal/children/${studentId}/${view}`;
+  return `/parent-portal/children/${encodeURIComponent(studentId)}/${encodeURIComponent(view)}`;
 }
 
 export async function getChildAttendance(studentId: string) {
@@ -459,7 +459,7 @@ export async function createThread(
 }
 
 export function listMessagesResult(threadId: string): Promise<ListResult<Message>> {
-  return fetchList<Message>(`/parent-portal/messages/threads/${threadId}/messages`, {
+  return fetchList<Message>(`/parent-portal/messages/threads/${encodeURIComponent(threadId)}/messages`, {
     next: { revalidate: 0 },
   });
 }
@@ -478,7 +478,7 @@ export async function listMessages(threadId: string): Promise<Message[]> {
 
 export async function replyToThread(threadId: string, body: string): Promise<Message> {
   const result = await gatewayFetch<Message>(
-    `/parent-portal/messages/threads/${threadId}/messages`,
+    `/parent-portal/messages/threads/${encodeURIComponent(threadId)}/messages`,
     {
       method: 'POST',
       json: { body },
@@ -514,7 +514,7 @@ export async function decideConsent(
   id: string,
   status: 'approved' | 'denied',
 ): Promise<ConsentRequest> {
-  const result = await gatewayFetch<ConsentRequest>(`/parent-portal/consents/${id}/decide`, {
+  const result = await gatewayFetch<ConsentRequest>(`/parent-portal/consents/${encodeURIComponent(id)}/decide`, {
     method: 'POST',
     json: { status },
   });
@@ -603,7 +603,7 @@ export async function payInvoice(
     invoice: FeeInvoice;
     payment: FeePayment;
     receipt: FeeReceipt;
-  }>(`/parent-portal/fees/invoices/${id}/pay`, {
+  }>(`/parent-portal/fees/invoices/${encodeURIComponent(id)}/pay`, {
     method: 'POST',
     json: { method },
   });
@@ -651,7 +651,7 @@ export async function acceptGuardianOffer(
   id: string,
   input: { paymentRef: string; offerFeeInvoiceId?: string },
 ): Promise<ParentAdmissionOffer> {
-  const result = await gatewayFetch<ParentAdmissionOffer>(`/parent-portal/offers/${id}/accept`, {
+  const result = await gatewayFetch<ParentAdmissionOffer>(`/parent-portal/offers/${encodeURIComponent(id)}/accept`, {
     method: 'POST',
     json: input,
   });

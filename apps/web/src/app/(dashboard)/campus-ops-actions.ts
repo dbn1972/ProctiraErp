@@ -1,5 +1,6 @@
 'use server';
 
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -128,11 +129,16 @@ export async function checkoutBarcodeAction(input: {
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Barcode is required.' };
   try {
-    // PRC-M104: the clerk's due date is sent (it was silently dropped before).
+    // PRC-M104 / PRC-M573: the clerk's due date is sent and validated.
     const dueAt = await toTenantUtcIso(parsed.data.dueAt);
     const dueError = dueAt ? libraryDueAtError(dueAt) : null;
     if (dueError) return { status: 'error', message: dueError };
-    const loan = await checkoutLibraryByBarcode({ ...parsed.data, dueAt });
+    const loan = await checkoutLibraryByBarcode({
+      barcode: parsed.data.barcode,
+      ...(parsed.data.patronUserId ? { patronUserId: parsed.data.patronUserId } : {}),
+      ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
+      ...(dueAt ? { dueAt } : {}),
+    });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', id: loan.id, message: 'Checked out by barcode.' };
