@@ -203,6 +203,33 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
     });
   }
 
+  async setBalancesAtomic(
+    tenantId: string,
+    rows: readonly { staffId: string; leaveType: StaffLeaveType; balanceDays: number }[],
+  ): Promise<StaffLeaveBalanceEntity[]> {
+    if (rows.some((r) => r.balanceDays < 0)) {
+      throw new Error('balanceDays must be >= 0');
+    }
+    await this.ensureSchema();
+    // withPgTenant wraps fn in BEGIN/COMMIT, so any failing row rolls back the batch.
+    return this.withTenant(tenantId, async (client) => {
+      const out: StaffLeaveBalanceEntity[] = [];
+      for (const row of rows) {
+        const result = await client.query(
+          `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+           VALUES ($1, $2, $3, $4, now())
+           ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+             balance_days = EXCLUDED.balance_days,
+             updated_at = now()
+           RETURNING *`,
+          [tenantId, row.staffId, row.leaveType, row.balanceDays],
+        );
+        out.push(mapBalance(result.rows[0] as Record<string, unknown>));
+      }
+      return out;
+    });
+  }
+
   async adjustBalance(
     tenantId: string,
     staffId: string,

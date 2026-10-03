@@ -60,6 +60,7 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   // PRC-H091 (#499): per-staff leave balances are HR data; reads are gated like writes.
   'GET /staff/:id/leave-balances': 'staff.hr.write',
   'PUT /staff/:id/leave-balances': 'staff.hr.write',
+  'POST /staff/leave-balances/import': 'staff.hr.write',
   // hr-routes.ts
   'POST /staff/contracts': 'staff.hr.write',
   'PATCH /staff/contracts/:id': 'staff.hr.write',
