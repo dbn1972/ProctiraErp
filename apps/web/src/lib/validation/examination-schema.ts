@@ -37,13 +37,102 @@ export const gradeThresholdFormSchema = z.object({
   descriptor: z.string().max(255).optional().or(z.literal('')),
 });
 
-export const examinationGradingSchemeFormSchema = z.object({
-  name: z.string().trim().min(1, 'Scheme name is required').max(255),
-  minScore: z.coerce.number().min(0),
-  maxScore: z.coerce.number().min(1),
-  passThreshold: z.coerce.number().min(0),
-  thresholds: z.array(gradeThresholdFormSchema).min(1, 'At least one grade threshold is required'),
-});
+type ThresholdLike = { grade: string; minScore: number; maxScore: number };
+
+/**
+ * PRC-M157: a score belongs to the highest band whose `minScore` it reaches
+ * (half-open intervals `[min, nextMin)`), so fractional scores such as 79.5
+ * between the inclusive integer bands 60–79 and 80–100 are still graded.
+ */
+export function gradeForScore<T extends ThresholdLike>(thresholds: T[], score: number): T | null {
+  const sorted = [...thresholds].sort((a, b) => b.minScore - a.minScore);
+  return sorted.find((t) => score >= t.minScore) ?? null;
+}
+
+/**
+ * PRC-M157: thresholds must cover [scheme.min, scheme.max] without overlap. Adjacent
+ * bands may leave at most a 1-point step (inclusive integer bands, e.g. 60–79 then
+ * 80–100); anything between is graded by {@link gradeForScore}.
+ */
+export function gradingSchemeCoverageIssues(scheme: {
+  minScore: number;
+  maxScore: number;
+  passThreshold: number;
+  thresholds: ThresholdLike[];
+}): Array<{ path: (string | number)[]; message: string }> {
+  const issues: Array<{ path: (string | number)[]; message: string }> = [];
+  if (scheme.maxScore <= scheme.minScore) {
+    issues.push({ path: ['maxScore'], message: 'Maximum score must be greater than minimum score' });
+    return issues;
+  }
+  if (scheme.passThreshold < scheme.minScore || scheme.passThreshold > scheme.maxScore) {
+    issues.push({
+      path: ['passThreshold'],
+      message: `Pass threshold must be within ${scheme.minScore}–${scheme.maxScore}`,
+    });
+  }
+  scheme.thresholds.forEach((t, i) => {
+    if (t.maxScore < t.minScore) {
+      issues.push({ path: ['thresholds', i, 'maxScore'], message: 'Band max must be ≥ band min' });
+    }
+    if (t.minScore < scheme.minScore || t.maxScore > scheme.maxScore) {
+      issues.push({
+        path: ['thresholds', i],
+        message: `Grade ${t.grade} must lie within ${scheme.minScore}–${scheme.maxScore}`,
+      });
+    }
+  });
+  if (issues.length > 0) return issues;
+  const order = scheme.thresholds
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => a.t.minScore - b.t.minScore);
+  const first = order[0]!;
+  const last = order[order.length - 1]!;
+  if (first.t.minScore !== scheme.minScore) {
+    issues.push({
+      path: ['thresholds', first.i, 'minScore'],
+      message: `The lowest band must start at ${scheme.minScore}`,
+    });
+  }
+  if (Math.max(...scheme.thresholds.map((t) => t.maxScore)) !== scheme.maxScore) {
+    issues.push({
+      path: ['thresholds', last.i, 'maxScore'],
+      message: `The highest band must end at ${scheme.maxScore}`,
+    });
+  }
+  for (let k = 1; k < order.length; k += 1) {
+    const prev = order[k - 1]!;
+    const next = order[k]!;
+    if (next.t.minScore <= prev.t.maxScore) {
+      issues.push({
+        path: ['thresholds', next.i, 'minScore'],
+        message: `Grade ${next.t.grade} overlaps grade ${prev.t.grade}`,
+      });
+    } else if (next.t.minScore - prev.t.maxScore > 1) {
+      issues.push({
+        path: ['thresholds', next.i, 'minScore'],
+        message: `Gap between grade ${prev.t.grade} and grade ${next.t.grade}`,
+      });
+    }
+  }
+  return issues;
+}
+
+export const examinationGradingSchemeFormSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Scheme name is required').max(255),
+    minScore: z.coerce.number().min(0),
+    maxScore: z.coerce.number().min(1),
+    passThreshold: z.coerce.number().min(0),
+    thresholds: z
+      .array(gradeThresholdFormSchema)
+      .min(1, 'At least one grade threshold is required'),
+  })
+  .superRefine((scheme, ctx) => {
+    for (const issue of gradingSchemeCoverageIssues(scheme)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: issue.path, message: issue.message });
+    }
+  });
 
 export const createExaminationFormSchema = z
   .object({
