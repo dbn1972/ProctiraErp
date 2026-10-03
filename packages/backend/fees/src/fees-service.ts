@@ -14,6 +14,7 @@ import type {
   FeePlanEntity,
   FeeReceiptEntity,
   FeesMoneyAuditSink,
+  FeesPageRequest,
   FeesRepository,
   LedgerAccount,
   PaymentMethod,
@@ -35,6 +36,15 @@ import {
 } from './reminder-sandbox.js';
 
 export type { ReminderChannel, ReminderSendAuditEntity, ReminderSuppressionEntity };
+
+/** PRC-M248: trim a `limit + 1` fetch into a page. */
+function feesPage<T>(rows: T[], page: FeesPageRequest): { data: T[]; nextCursor: string | null } {
+  const hasMore = rows.length > page.limit;
+  return {
+    data: hasMore ? rows.slice(0, page.limit) : rows,
+    nextCursor: hasMore ? String(page.offset + page.limit) : null,
+  };
+}
 
 /** PRC-M247: unique violation on uq_parent_fee_payments_tenant_idempotency. */
 function isIdempotencyUniqueViolation(err: unknown): boolean {
@@ -449,11 +459,21 @@ export class FeesService {
   async listPayments(tenantId: string) {
     return this.repository.listPaymentsForTenant(tenantId);
   }
+  /** PRC-M248: bounded staff list pages (`limit + 1` fetch -> nextCursor). */
+  async listInvoicesPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listInvoicesPage(tenantId, page), page);
+  }
+  async listPaymentsPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listPaymentsPage(tenantId, page), page);
+  }
+  async listReceiptsPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listReceiptsPage(tenantId, page), page);
+  }
 
   async getNetCollectedCents(tenantId: string, invoiceId: string): Promise<number> {
     await this.getInvoice(tenantId, invoiceId);
-    const payments = (await this.repository.listPaymentsForTenant(tenantId))
-      .filter((payment) => payment.invoiceId === invoiceId && payment.status === 'succeeded')
+    const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoiceId))
+      .filter((payment) => payment.status === 'succeeded')
       .reduce((sum, payment) => sum + payment.amountCents, 0);
     const refunds = (await this.repository.listRefundsForInvoice(tenantId, invoiceId))
       .filter((refund) => refund.status === 'posted')
@@ -544,10 +564,7 @@ export class FeesService {
       throw new BusinessRuleError('Idempotency key already used by a different payer');
     }
     const invoice = await this.getInvoice(tenantId, existing.invoiceId);
-    const receipt =
-      (await this.repository.listReceiptsForTenant(tenantId)).find(
-        (r) => r.paymentId === existing.id,
-      ) ?? null;
+    const receipt = await this.repository.findReceiptByPaymentId(tenantId, existing.id);
     if (!receipt) {
       throw new BusinessRuleError('Idempotent payment is missing its receipt — refuse silent repair');
     }
@@ -1085,8 +1102,8 @@ export class FeesService {
       assertRefundWithinPaid(locked.paidCents, locked.refundedCents, input.amountCents);
       let paymentId = input.paymentId ?? null;
       if (!paymentId) {
-        const first = (await tx.listPaymentsForTenant(tenantId)).find(
-          (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+        const first = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).find(
+          (p) => p.status === 'succeeded',
         );
         paymentId = first?.id ?? null;
       }
@@ -1669,9 +1686,7 @@ export class FeesService {
 
   async listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]) {
     if (invoiceIds.length === 0) return [];
-    const idSet = new Set(invoiceIds);
-    const receipts = await this.repository.listReceiptsForTenant(tenantId);
-    return receipts.filter((receipt) => idSet.has(receipt.invoiceId));
+    return this.repository.listReceiptsForInvoiceIds(tenantId, [...new Set(invoiceIds)]);
   }
 
   /**

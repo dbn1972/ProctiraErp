@@ -21,6 +21,7 @@ import type pg from 'pg';
 import {
   assertJournalBalanced,
   PaymentIdempotencyReplay,
+  type FeesPageRequest,
   type ConcessionKind,
   type ConcessionStatus,
   type FeeConcessionEntity,
@@ -900,6 +901,106 @@ export class PgFeesRepository implements FeesRepository {
       );
       if (!result.rows[0]) return null;
       return mapPayment(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listPaymentsForInvoice(tenantId: string, invoiceId: string): Promise<FeePaymentEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 AND invoice_id = $2
+          ORDER BY paid_at ASC`,
+        [tenantId, invoiceId],
+      );
+      return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
+    });
+  }
+
+  async findReceiptByPaymentId(
+    tenantId: string,
+    paymentId: string,
+  ): Promise<FeeReceiptEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 AND payment_id = $2 LIMIT 1`,
+        [tenantId, paymentId],
+      );
+      return result.rows[0] ? mapReceipt(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listReceiptsForInvoiceIds(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<FeeReceiptEntity[]> {
+    if (invoiceIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])
+          ORDER BY issued_at DESC`,
+        [tenantId, invoiceIds],
+      );
+      return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
+    });
+  }
+
+  async sumSucceededPaymentsByInvoice(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (invoiceIds.length === 0) return out;
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT invoice_id, COALESCE(SUM(amount_cents), 0)::bigint AS paid
+           FROM parent_fee_payments
+          WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[]) AND status = 'succeeded'
+          GROUP BY invoice_id`,
+        [tenantId, invoiceIds],
+      );
+      for (const row of result.rows as Array<{ invoice_id: string; paid: string }>) {
+        out.set(String(row.invoice_id), pgIntegerCents(row.paid));
+      }
+      return out;
+    });
+  }
+
+  async listInvoicesPage(tenantId: string, page: FeesPageRequest): Promise<FeeInvoiceEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1
+          ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
+    });
+  }
+
+  async listPaymentsPage(tenantId: string, page: FeesPageRequest): Promise<FeePaymentEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_payments WHERE tenant_id = $1
+          ORDER BY paid_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
+    });
+  }
+
+  async listReceiptsPage(tenantId: string, page: FeesPageRequest): Promise<FeeReceiptEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1
+          ORDER BY issued_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
     });
   }
 
