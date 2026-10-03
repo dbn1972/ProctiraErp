@@ -249,6 +249,12 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
+      // PRC-H015: role signal from the access token picks staff vs
+      // parent-portal scholarship routes per call (sessions can change).
+      isPortalSession: () =>
+          getIt.isRegistered<AuthBloc>() &&
+          getIt<AuthBloc>().state.isPortalSession,
     ),
   );
   getIt.registerLazySingleton<HealthRepository>(

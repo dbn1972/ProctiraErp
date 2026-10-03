@@ -132,6 +132,30 @@ describe('parent scholarship routes', () => {
     const ids = (list.json().data as Array<{ applicantId: string }>).map((row) => row.applicantId);
     expect(ids).toContain(CHILD);
     expect(ids).not.toContain(OTHER);
+
+    // PRC-H015: the parent wizard syncs draft edits through the parent prefix.
+    const draftId = own.json().id as string;
+    const edited = await app.inject({
+      method: 'PUT',
+      url: `/parent-portal/scholarships/applications/${draftId}`,
+      payload: { personalStatement: 'Updated by parent' },
+    });
+    expect(edited.statusCode).toBe(200);
+    expect((await repository.findApplicationById(draftId, TENANT))?.personalStatement).toBe(
+      'Updated by parent',
+    );
+    // A draft for a child the parent is not linked to cannot be edited.
+    const foreign = await repository.createApplication({
+      ...(await repository.findApplicationById(draftId, TENANT))!,
+      id: '00000000-0000-4000-8000-0000000000f9',
+      applicantId: OTHER,
+    });
+    const blocked = await app.inject({
+      method: 'PUT',
+      url: `/parent-portal/scholarships/applications/${foreign.id}`,
+      payload: { personalStatement: 'nope' },
+    });
+    expect(blocked.statusCode).toBe(403);
   });
 
   it('PRC-L346: link lookup failure returns 503 and v7 UUID child sees own applications', async () => {

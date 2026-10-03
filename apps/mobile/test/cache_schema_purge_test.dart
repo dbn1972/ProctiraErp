@@ -17,17 +17,16 @@ const Set<String> _expectedUserTables = <String>{
   'institutions_cache',
   'enrollments_cache',
   'health_records_cache',
-};
-
-/// Referenced by lib/ but not yet in the local schema (needs a client DB
-/// migration). Kept explicit so the test flips when the migration lands.
-const Set<String> _knownMissing = <String>{
-  'scholarship_programs_cache',
-  'scholarship_applications_cache',
-  'assessment_results_cache',
   'examinations_cache',
   'examination_results_cache',
+  'assessment_results_cache',
+  'scholarship_programs_cache',
+  'scholarship_applications_cache',
 };
+
+/// Referenced by lib/ but not yet in the local schema. Empty since the
+/// v9 client migration (PRC-H015 / PRC-M567) added the scholarship caches.
+const Set<String> _knownMissing = <String>{};
 
 Future<Set<String>> _tables(Database raw) async => (await raw.rawQuery(
   "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -115,9 +114,7 @@ void main() {
       }
       final Set<String> tables = await _tables(await db.database);
       expect(referenced.difference(tables).difference(_knownMissing), isEmpty);
-      // When the scholarship cache migration lands, move these into the
-      // expected set above.
-      expect(tables.intersection(_knownMissing), isEmpty);
+      expect(_knownMissing, isEmpty);
     },
   );
 }

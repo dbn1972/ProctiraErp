@@ -10,7 +10,7 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   AppDatabase({String? overridePath}) : _overridePath = overridePath;
 
-  static const int schemaVersion = 8;
+  static const int schemaVersion = 9;
   static const String _dbFileName = 'openemis_mobile.db';
 
   final String? _overridePath;
@@ -320,6 +320,38 @@ class AppDatabase {
         )
       ''');
     }
+    if (fromVersion < 9 && toVersion >= 9) {
+      // PRC-H015 / PRC-M567: the scholarship repository cached into tables
+      // that were never created, so the offline cache never worked. The
+      // program catalogue is tenant-public; application payloads carry child
+      // data and are sealed with CacheCrypto (v2, row-bound). Both tables are
+      // in [_userDataTables] so logout / tenant switch purges them.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS scholarship_programs_cache (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          is_open INTEGER NOT NULL DEFAULT 0,
+          deadline TEXT,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, id)
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS scholarship_applications_cache (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          student_id TEXT NOT NULL,
+          program_id TEXT,
+          status TEXT,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, student_id, id)
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_scholarship_applications_cache_student '
+        'ON scholarship_applications_cache(tenant_id, student_id)',
+      );
+    }
   }
 
   /// Wipe every offline cache / queue table that may hold prior-user or
@@ -346,6 +378,8 @@ class AppDatabase {
     'examinations_cache',
     'examination_results_cache',
     'assessment_results_cache',
+    'scholarship_programs_cache',
+    'scholarship_applications_cache',
   ];
 
   Future<void> close() async {

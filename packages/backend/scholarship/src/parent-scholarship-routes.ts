@@ -10,6 +10,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { registerApplicationDraftRoutes } from './application-draft-routes.js';
 import { deriveApplicantAttributes, type ApplicantAttributesLookup } from './application-intake.js';
 import { actorFromRequest, assertCanReadDocuments } from './document-access.js';
 import {
@@ -330,6 +331,13 @@ export const parentScholarshipPlugin = fp(
       resolveApplicantAttributes: options.resolveApplicantAttributes,
       downloadReplayGuard: options.downloadReplayGuard,
       recordDownloadAudit: options.recordDownloadAudit,
+    });
+    // PRC-H015: the mobile parent wizard syncs draft edits before submit. The
+    // shared handler only lets an applicant-role caller edit a linked child's draft.
+    await registerApplicationDraftRoutes(fastify, {
+      repository: options.repository,
+      prefix: options.prefix ?? '',
+      resolveLinkedStudentIds: options.resolveLinkedStudentIds,
     });
   },
   { name: '@proctira/backend-scholarship-parent', fastify: '5.x' },

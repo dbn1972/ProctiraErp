@@ -102,6 +102,11 @@ class AuthState extends Equatable {
   /// Staff routes/tiles are shown only with a non-portal role; unknown
   /// roles fail closed.
   bool get canUseStaffFeatures => hasStaffRole(roles);
+
+  /// PRC-H015: every role is a portal role (parent/guardian/student); such
+  /// sessions call the parent-portal APIs instead of staff routes.
+  bool get isPortalSession => isAuthenticated && isPortalOnly(roles);
+
   bool get isResolved =>
       status != AuthStatus.unknown && status != AuthStatus.loading;
 

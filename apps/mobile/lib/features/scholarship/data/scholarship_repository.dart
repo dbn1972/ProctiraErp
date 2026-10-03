@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/errors/offline_fallback.dart';
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import 'scholarship_document_rules.dart';
@@ -280,10 +281,29 @@ class ScholarshipRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
+    CacheCrypto? cacheCrypto,
+    bool Function()? isPortalSession,
   }) : _database = database,
+       _isPortalSession = isPortalSession,
        _tenantProvider = tenantProvider,
-       _dio = dio;
+       _dio = dio,
+       _cacheCrypto = cacheCrypto;
 
+  static const String _applicationsTable = 'scholarship_applications_cache';
+
+  /// PRC-H015: parents/guardians/students hold no `scholarship.*` permission;
+  /// their session uses the parent-portal routes (linked children only).
+  final bool Function()? _isPortalSession;
+
+  bool get _portal => _isPortalSession?.call() ?? false;
+
+  /// API base for the current session's audience.
+  String get _base =>
+      _portal ? '/api/v1/parent-portal/scholarships' : '/api/v1/scholarships';
+
+  /// PRC-H015: seals cached application payloads (child data) bound to
+  /// `tenant|table|id`. Without it (tests) payloads stay plain JSON.
+  final CacheCrypto? _cacheCrypto;
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
@@ -317,8 +337,11 @@ class ScholarshipRepository {
 
     try {
       final Response<dynamic> response = await _dio.get(
-        '/api/v1/scholarships/programs',
-        queryParameters: <String, dynamic>{if (openOnly) 'status': 'open'},
+        '$_base/programs',
+        // The parent route lists open programs only and takes no filter.
+        queryParameters: <String, dynamic>{
+          if (openOnly && !_portal) 'status': 'open',
+        },
       );
 
       final Object? body = response.data;
@@ -350,7 +373,7 @@ class ScholarshipRepository {
   Future<bool> scholarshipDocumentUploadsAvailable() async {
     try {
       final Response<dynamic> response = await _dio.get(
-        '/api/v1/scholarships/document-downloads',
+        '$_base/document-downloads',
       );
       return scholarshipDocumentUploadRoutePresent(response.statusCode);
     } on DioException catch (error) {
@@ -406,7 +429,7 @@ class ScholarshipRepository {
     double? familyIncome,
   }) async {
     final Response<dynamic> response = await _dio.post(
-      '/api/v1/scholarships/applications',
+      '$_base/applications',
       data: <String, dynamic>{
         'programId': programId,
         'applicantId': studentId,
@@ -431,7 +454,7 @@ class ScholarshipRepository {
     double? familyIncome,
   }) async {
     await _dio.put(
-      '/api/v1/scholarships/applications/$applicationId',
+      '$_base/applications/$applicationId',
       data: <String, dynamic>{
         'academicRecords': <Map<String, dynamic>>[academicRecord.toJson()],
         'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
@@ -458,7 +481,7 @@ class ScholarshipRepository {
       ),
     });
     await _dio.post(
-      '/api/v1/scholarships/applications/$applicationId/documents',
+      '$_base/applications/$applicationId/documents',
       data: form,
       onSendProgress: onSendProgress,
     );
@@ -466,7 +489,7 @@ class ScholarshipRepository {
 
   /// Finalize a draft after required documents are on the application.
   Future<void> finalizeApplication(String applicationId) async {
-    await _dio.post('/api/v1/scholarships/applications/$applicationId/submit');
+    await _dio.post('$_base/applications/$applicationId/submit');
   }
 
   /// Submit a scholarship application.
@@ -477,7 +500,7 @@ class ScholarshipRepository {
     List<String>? documentIds,
   }) async {
     final Response<dynamic> response = await _dio.post(
-      '/api/v1/scholarships/applications',
+      '$_base/applications',
       data: <String, dynamic>{
         'programId': programId,
         // Backend CreateApplicationSchema field (PRC-H015).
@@ -506,8 +529,12 @@ class ScholarshipRepository {
       // The staff route filters on `applicantId`; an unknown `studentId`
       // query was ignored and listed the whole tenant (PRC-H015).
       final Response<dynamic> response = await _dio.get(
-        '/api/v1/scholarships/applications',
-        queryParameters: <String, dynamic>{'applicantId': studentId},
+        '$_base/applications',
+        // The parent route is already limited to the caller's linked
+        // children; staff filter by applicant.
+        queryParameters: <String, dynamic>{
+          if (!_portal) 'applicantId': studentId,
+        },
       );
 
       final Object? body = response.data;
@@ -539,9 +566,9 @@ class ScholarshipRepository {
     }
   }
 
-  /// The `scholarship_*_cache` tables are not in the local schema yet
-  /// (needs a client DB migration), so a cache write must never turn a
-  /// successful fetch into an error (PRC-H015).
+  /// The `scholarship_*_cache` tables exist since the v9 client migration
+  /// (PRC-H015); a cache write failure (disk full, locked DB) must still never
+  /// turn a successful fetch into an error.
   Future<void> _bestEffortCache(Future<void> Function() write) async {
     try {
       await write();
@@ -648,21 +675,36 @@ class ScholarshipRepository {
     String studentId,
     List<ScholarshipApplication> applications,
   ) async {
+    // Seal before the transaction (crypto is async and must not hold it).
+    final Map<String, String> sealed = <String, String>{};
+    final CacheCrypto? crypto = _cacheCrypto;
+    if (crypto != null) {
+      for (final ScholarshipApplication app in applications) {
+        sealed[app.id] = await crypto.encrypt(
+          jsonEncode(app.toJson()),
+          context: CacheCrypto.rowContext(
+            tenantId: tenantId,
+            table: _applicationsTable,
+            id: app.id,
+          ),
+        );
+      }
+    }
     final Database db = await _database.database;
     await db.transaction((Transaction txn) async {
       await txn.delete(
-        'scholarship_applications_cache',
+        _applicationsTable,
         where: 'tenant_id = ? AND student_id = ?',
         whereArgs: <Object>[tenantId, studentId],
       );
       for (final ScholarshipApplication app in applications) {
-        await txn.insert('scholarship_applications_cache', <String, Object?>{
+        await txn.insert(_applicationsTable, <String, Object?>{
           'id': app.id,
           'tenant_id': tenantId,
           'student_id': app.applicantId,
           'program_id': app.programId,
           'status': app.status.toWire(),
-          'payload': jsonEncode(app.toJson()),
+          'payload': sealed[app.id] ?? jsonEncode(app.toJson()),
         });
       }
     });
@@ -674,18 +716,40 @@ class ScholarshipRepository {
   ) async {
     final Database db = await _database.database;
     final List<Map<String, Object?>> rows = await db.query(
-      'scholarship_applications_cache',
+      _applicationsTable,
       where: 'tenant_id = ? AND student_id = ?',
       whereArgs: <Object>[tenantId, studentId],
     );
-
-    return rows
-        .map((Map<String, Object?> row) {
-          final Map<String, dynamic> json =
-              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-          return ScholarshipApplication.fromJson(json);
-        })
-        .toList(growable: false);
+    final CacheCrypto? crypto = _cacheCrypto;
+    final List<ScholarshipApplication> out = <ScholarshipApplication>[];
+    for (final Map<String, Object?> row in rows) {
+      String payload = row['payload'] as String;
+      if (crypto != null) {
+        // PRC-H015: only row-bound ciphertext is trusted; plaintext or a row
+        // copied from another tenant/id is skipped, never surfaced.
+        if (!payload.startsWith(CacheCrypto.contextCipherPrefix)) {
+          continue;
+        }
+        try {
+          payload = await crypto.decrypt(
+            payload,
+            context: CacheCrypto.rowContext(
+              tenantId: tenantId,
+              table: _applicationsTable,
+              id: row['id'] as String,
+            ),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+      out.add(
+        ScholarshipApplication.fromJson(
+          jsonDecode(payload) as Map<String, dynamic>,
+        ),
+      );
+    }
+    return List<ScholarshipApplication>.unmodifiable(out);
   }
 
   String _applicationIdFromResponse(Object? data) {
