@@ -23,6 +23,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { isAssessmentAdmin } from './assessment-access.js';
+import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 import {
   CreateReportCardTemplateSchema,
   UpdateReportCardTemplateSchema,
@@ -42,7 +44,6 @@ import {
   type ReportCardJobParams,
 } from './report-card-schemas.js';
 import type { ReportCardService } from './report-card-service.js';
-import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 
 /**
  * Options for registering report card routes.
@@ -56,6 +57,8 @@ export interface ReportCardRoutesOptions {
 /**
  * Extract tenant ID from request.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
@@ -152,14 +155,13 @@ export async function registerReportCardRoutes(
   fastify: FastifyInstance,
   options: ReportCardRoutesOptions,
 ): Promise<void> {
-  
   // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceAssessmentRouteAccess(request, reply)) {
       return reply;
     }
   });
-const { reportCardService, prefix = '/report-cards' } = options;
+  const { reportCardService, prefix = '/report-cards' } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────
 
@@ -398,8 +400,33 @@ const { reportCardService, prefix = '/report-cards' } = options;
         });
       }
 
+      // PRC-M163: the author is the JWT subject; fail closed without a UUID subject.
+      const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;
+      const userId = typeof user?.sub === 'string' ? user.sub : '';
+      if (!UUID_RE.test(userId)) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'An authenticated user is required to author comments',
+          statusCode: 401,
+        });
+      }
       try {
-        const comment = await reportCardService.upsertComment(tenantId, result.data);
+        const comment = await reportCardService.upsertComment(tenantId, result.data, {
+          userId,
+          isAdmin: isAssessmentAdmin(user?.roles),
+        });
+        request.log.info(
+          {
+            audit: 'report_card.comment.upsert',
+            tenantId,
+            actorId: userId,
+            commentId: comment.id,
+            studentId: comment.studentId,
+            subjectId: comment.subjectId,
+            academicPeriodId: comment.academicPeriodId,
+          },
+          'teacher comment saved',
+        );
         return reply.status(201).send(formatCommentResponse(comment));
       } catch (error: unknown) {
         if (error instanceof AppError) {

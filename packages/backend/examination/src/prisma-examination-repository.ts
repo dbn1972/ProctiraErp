@@ -273,11 +273,21 @@ export class PrismaExaminationRepository implements ExaminationRepository {
         orderBy: [{ enrolledAt: 'desc' }, { createdAt: 'desc' }],
       });
       if (!enrollment) return null;
+      // PRC-M240: demographics come from the student / institution records, not the client.
+      const [student, institution] = await Promise.all([
+        tx.student.findFirst({ where: { id: studentId, tenantId }, select: { gender: true } }),
+        tx.institution.findFirst({
+          where: { id: enrollment.institutionId, tenantId },
+          select: { areaId: true },
+        }),
+      ]);
       return {
         studentId,
         status: enrollment.status.toLowerCase() as StudentEnrollment['status'],
         institutionId: enrollment.institutionId,
         completedSubjectCodes: null,
+        gender: student?.gender ?? null,
+        areaId: institution?.areaId ?? null,
       };
     });
   }

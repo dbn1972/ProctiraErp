@@ -404,7 +404,8 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
             SET status = $3,
                 error_message = COALESCE($4, error_message),
                 output_url = COALESCE($5, output_url),
-                completed_at = COALESCE($6, completed_at)
+                completed_at = COALESCE($6, completed_at),
+                updated_at = NOW()
           WHERE id = $1 AND tenant_id = $2
           RETURNING *`,
         [
@@ -415,6 +416,27 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
           details?.outputUrl ?? null,
           details?.completedAt ?? null,
         ],
+      );
+      const row = res.rows[0] as Row | undefined;
+      return row ? mapJob(row) : null;
+    });
+  }
+
+  async claimForProcessing(
+    id: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity | null> {
+    return this.run(tenantId, async (c) => {
+      // PRC-M165: single-statement CAS — two workers can never both win.
+      const res = await c.query(
+        `UPDATE report_card_jobs
+            SET status = 'processing', updated_at = NOW()
+          WHERE id = $1 AND tenant_id = $2
+            AND (status IN ('queued', 'failed')
+                 OR (status = 'processing' AND updated_at < $3))
+          RETURNING *`,
+        [id, tenantId, staleBefore],
       );
       const row = res.rows[0] as Row | undefined;
       return row ? mapJob(row) : null;

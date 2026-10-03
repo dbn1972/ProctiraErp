@@ -145,34 +145,36 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
     const validated = await assertPublicHttpsUrl(currentUrl, resolveHost);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let response: Response;
+    const timer = setTimeout(
+      () => controller.abort(new SsrfError(`Request timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    // PRC-M226: the timeout stays armed until the body is fully read, so a server
+    // that sends headers and then stalls cannot hang the run.
     try {
-      response = await fetchImpl(validated.toString(), {
+      const response = await fetchImpl(validated.toString(), {
         method: options.method ?? 'GET',
         headers: options.headers,
         body: options.body,
         redirect: 'manual',
         signal: controller.signal,
       });
+      // Follow redirects ourselves so each Location is re-validated against the SSRF policy.
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) {
+          return await enforceResponseSize(response, maxResponseBytes, controller.signal);
+        }
+        if (hop === maxRedirects) {
+          throw new SsrfError(`Too many redirects (> ${maxRedirects})`);
+        }
+        currentUrl = new URL(location, validated).toString();
+        continue;
+      }
+      return await enforceResponseSize(response, maxResponseBytes, controller.signal);
     } finally {
       clearTimeout(timer);
     }
-
-    // Follow redirects ourselves so each Location is re-validated against the SSRF policy.
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (!location) {
-        return enforceResponseSize(response, maxResponseBytes);
-      }
-      if (hop === maxRedirects) {
-        throw new SsrfError(`Too many redirects (> ${maxRedirects})`);
-      }
-      currentUrl = new URL(location, validated).toString();
-      continue;
-    }
-
-    return enforceResponseSize(response, maxResponseBytes);
   }
   // Unreachable, but keeps the type checker satisfied.
   throw new SsrfError('Redirect handling exhausted');
@@ -181,7 +183,11 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
 /**
  * Reject a response whose declared or streamed size exceeds the cap.
  */
-async function enforceResponseSize(response: Response, maxBytes: number): Promise<Response> {
+async function enforceResponseSize(
+  response: Response,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<Response> {
   const declared = response.headers.get('content-length');
   if (declared && Number(declared) > maxBytes) {
     throw new SsrfError(`Response body exceeds ${maxBytes} bytes (declared ${declared})`);
@@ -192,8 +198,21 @@ async function enforceResponseSize(response: Response, maxBytes: number): Promis
   const reader = (response.body as ReadableStream<Uint8Array>).getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  // PRC-M226: abort the body read when the request deadline fires.
+  const aborted = new Promise<never>((_, reject) => {
+    if (!signal) return;
+    const onAbort = () => {
+      // Reject first: cancel() settles the pending read with done=true.
+      reject(signal.reason ?? new SsrfError('Request aborted'));
+      void reader.cancel().catch(() => undefined);
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  });
+  aborted.catch(() => undefined);
   for (;;) {
-    const { done, value } = await reader.read();
+    const { done, value } = await Promise.race([reader.read(), aborted]);
+    if (signal?.aborted) throw signal.reason ?? new SsrfError('Request aborted');
     if (done) break;
     if (value) {
       const chunk: Uint8Array = value;

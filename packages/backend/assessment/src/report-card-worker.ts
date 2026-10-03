@@ -18,7 +18,11 @@ export interface ReportCardWorkerLogger {
 }
 
 export interface ReportCardJobProcessor {
-  processReportCardJob(tenantId: string, jobId: string): Promise<unknown>;
+  processReportCardJob(
+    tenantId: string,
+    jobId: string,
+    options?: { rethrowRetryable?: boolean },
+  ): Promise<unknown>;
   /** Re-dispatch orphaned DB rows left by create→publish dual-write crashes. */
   reclaimQueuedJobs?(tenantId: string): Promise<number>;
   /** PRC-H039: cross-tenant boot reclaim. */
@@ -99,7 +103,10 @@ export function createReportCardWorker(options: ReportCardWorkerOptions): Report
             { tenantId: message.tenantId, jobId, messageId: message.id },
             'report-card worker processing job',
           );
-          await options.processor.processReportCardJob(message.tenantId, jobId);
+          // PRC-M165: transient failures throw so the queue retries / dead-letters.
+          await options.processor.processReportCardJob(message.tenantId, jobId, {
+            rethrowRetryable: true,
+          });
           options.logger?.info(
             { tenantId: message.tenantId, jobId },
             'report-card worker completed job',
