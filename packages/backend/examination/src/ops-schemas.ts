@@ -50,6 +50,8 @@ export type AllocateInvigilatorInput = Static<typeof AllocateInvigilatorSchema>;
 export const GenerateSeatingSchema = Type.Object({
   sessionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   seatsPerRoom: Type.Optional(Type.Number({ minimum: 1, maximum: 200 })),
+  /** PRC-M238: regenerate even though admit cards were already issued (audited). */
+  force: Type.Optional(Type.Boolean()),
 });
 export type GenerateSeatingInput = Static<typeof GenerateSeatingSchema>;
 

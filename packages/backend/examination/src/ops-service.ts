@@ -347,10 +347,37 @@ export class ExamOpsService {
     actor: ExamOpsActor,
   ): Promise<ExamSeatingRecord[]> {
     const exam = await this.requireExam(tenantId, examinationId);
-    const registrations = await this.examinations.listCandidateRegistrations(
+    const sessionId = input.sessionId ?? null;
+    let sessionSubjectId: string | null = null;
+    if (sessionId) {
+      const session = await this.store.findSession(tenantId, sessionId);
+      if (!session || session.examinationId !== examinationId) {
+        throw new NotFoundError(`Exam session '${sessionId}' not found`);
+      }
+      sessionSubjectId = session.subjectId;
+    }
+
+    // PRC-M238: once admit cards are issued, seat numbers are printed on them;
+    // regenerating requires an explicit, audited `force`.
+    const admitCardsIssued = this.documents
+      ? (await this.documents.listJobs(examinationId, tenantId)).some(
+          (j) => j.documentType === 'admit_card' && j.status === 'completed',
+        )
+      : false;
+    if (admitCardsIssued && !input.force) {
+      throw new ConflictError(
+        'Admit cards have already been generated for this examination; pass force=true to regenerate seating',
+      );
+    }
+
+    const allRegistrations = await this.examinations.listCandidateRegistrations(
       examinationId,
       tenantId,
     );
+    // PRC-M238: a session-scoped run seats only candidates sitting that session.
+    const registrations = sessionSubjectId
+      ? allRegistrations.filter((r) => r.subjectIds.includes(sessionSubjectId!))
+      : allRegistrations;
     const docs = this.documents
       ? await this.documents.getDocumentCandidates(examinationId, tenantId)
       : [];
@@ -373,14 +400,6 @@ export class ExamOpsService {
 
     const generated = generateSeatingPlan(candidates, input.seatsPerRoom);
     const now = new Date();
-    const sessionId = input.sessionId ?? null;
-    if (sessionId) {
-      const session = await this.store.findSession(tenantId, sessionId);
-      if (!session || session.examinationId !== examinationId) {
-        throw new NotFoundError(`Exam session '${sessionId}' not found`);
-      }
-    }
-
     const seats: ExamSeatingRecord[] = generated.map((seat) => ({
       id: randomUUID(),
       tenantId,
@@ -398,7 +417,12 @@ export class ExamOpsService {
       generatedAt: now,
     }));
 
-    const saved = await this.store.replaceSeatingGuarded(tenantId, examinationId, seats);
+    const saved = await this.store.replaceSeatingGuarded(
+      tenantId,
+      examinationId,
+      seats,
+      sessionId,
+    );
     await this.audit(
       tenantId,
       examinationId,
@@ -406,7 +430,11 @@ export class ExamOpsService {
       'exam_seating',
       examinationId,
       actor.userId,
-      { count: saved.length },
+      {
+        count: saved.length,
+        sessionId,
+        forcedAfterAdmitCards: admitCardsIssued && input.force === true,
+      },
     );
     return saved;
   }
