@@ -3,7 +3,11 @@ export { CompositeCorrectionApplier } from './correction-applier.js';
 export type { CorrectionApplier, CorrectionTarget } from './correction-applier.js';
 export type { PrivacyPluginOptions } from './privacy-plugin.js';
 export { PrivacyExecutorNotConfiguredError, PrivacyService } from './privacy-service.js';
-export type { DestructiveDeleteGuard, PrivacyServiceOptions } from './privacy-service.js';
+export type {
+  DestructiveDeleteGuard,
+  PrivacyRequestContext,
+  PrivacyServiceOptions,
+} from './privacy-service.js';
 export type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,

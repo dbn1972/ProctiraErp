@@ -109,6 +109,18 @@ export class PrivacyExecutorNotConfiguredError extends AppError {
   }
 }
 
+/** PRC-M323: caller context for audit attribution (HTTP routes pass request.ip). */
+export interface PrivacyRequestContext {
+  ipAddress?: string;
+}
+
+/** Address recorded for writes raised outside an HTTP request (workers, internal calls). */
+const NO_REQUEST_IP = '0.0.0.0';
+
+function ipOf(ctx?: PrivacyRequestContext): string {
+  return ctx?.ipAddress?.trim() ? ctx.ipAddress : NO_REQUEST_IP;
+}
+
 export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
@@ -149,7 +161,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.correctionApplier = options.correctionApplier;
   }
 
-  async placeLegalHold(input: PlaceLegalHoldInput): Promise<LegalHoldEntity> {
+  async placeLegalHold(
+    input: PlaceLegalHoldInput,
+    ctx?: PrivacyRequestContext,
+  ): Promise<LegalHoldEntity> {
     if (input.scope === 'subject') {
       if (!input.subjectType?.trim() || !input.subjectId?.trim()) {
         throw new ValidationError('subjectType and subjectId are required for subject-scope holds');
@@ -177,7 +192,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.placedBy,
       userName: input.placedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: {
         scope: hold.scope,
@@ -198,6 +213,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     holdId: string,
     tenantId: string,
     releasedBy: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<LegalHoldEntity> {
     const existing = await this.repository.findLegalHoldById(holdId, tenantId);
     if (!existing) throw new NotFoundError(`Legal hold '${holdId}' not found`);
@@ -214,7 +230,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: releasedBy,
       userName: releasedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: { active: true },
       afterValues: { active: false, releasedBy },
     });
@@ -256,8 +272,11 @@ export class PrivacyService implements DestructiveDeleteGuard {
     );
   }
 
-  async createErasureRequest(input: CreateErasureRequestInput): Promise<ErasureRequestEntity> {
-    return this.repository.createErasureRequest({
+  async createErasureRequest(
+    input: CreateErasureRequestInput,
+    ctx?: PrivacyRequestContext,
+  ): Promise<ErasureRequestEntity> {
+    const row = await this.repository.createErasureRequest({
       id: uuidv4(),
       tenantId: input.tenantId,
       subjectType: input.subjectType,
@@ -270,6 +289,24 @@ export class PrivacyService implements DestructiveDeleteGuard {
       statusReason: null,
       completedAt: null,
     });
+    // PRC-M323: every erasure mutation is audited.
+    await this.audit.record({
+      tenantId: row.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: row.id,
+      operation: 'CREATE',
+      userId: input.requestedBy,
+      userName: input.requestedBy,
+      ipAddress: ipOf(ctx),
+      beforeValues: null,
+      afterValues: {
+        status: row.status,
+        requestType: row.requestType,
+        subjectType: row.subjectType,
+        subjectId: row.subjectId,
+      },
+    });
+    return row;
   }
 
   async transitionErasureRequest(
@@ -278,6 +315,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     toStatus: ErasureStatus,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<ErasureRequestEntity> {
     const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
@@ -304,6 +342,17 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Erasure request '${requestId}' changed concurrently; reload and retry`,
       );
     }
+    await this.audit.record({
+      tenantId: updated.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: updated.status, statusReason: updated.statusReason },
+    });
     return updated;
   }
 
@@ -316,6 +365,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     requestId: string,
     tenantId: string,
     actorId: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<ErasureRequestEntity> {
     const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
@@ -337,6 +387,17 @@ export class PrivacyService implements DestructiveDeleteGuard {
         status: 'blocked_legal_hold',
         reviewedBy: actorId,
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
+      });
+      await this.audit.record({
+        tenantId: existing.tenantId,
+        entityType: 'privacy_erasure',
+        entityId: requestId,
+        operation: 'UPDATE',
+        userId: actorId,
+        userName: actorId,
+        ipAddress: ipOf(ctx),
+        beforeValues: { status: existing.status },
+        afterValues: { status: 'blocked_legal_hold' },
       });
       throw new BusinessRuleError(
         `Erasure blocked: subject under legal hold (request ${requestId})`,
@@ -368,6 +429,18 @@ export class PrivacyService implements DestructiveDeleteGuard {
       throw new ConflictError(`Erasure request '${requestId}' is already being executed`);
     }
     const { job } = startedExecution;
+    await this.audit.record({
+      tenantId: existing.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: 'in_progress', jobId: job.id },
+      metadata: { requestType: existing.requestType, subjectType: existing.subjectType },
+    });
 
     if (this.anonymizationPublisher) {
       try {
@@ -475,7 +548,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
         operation: 'UPDATE',
         userId: job.actorId,
         userName: job.actorId,
-        ipAddress: '0.0.0.0',
+        ipAddress: NO_REQUEST_IP,
         beforeValues: { status: 'in_progress' },
         afterValues: {
           status: hasResidual ? 'approved' : 'completed',
@@ -527,6 +600,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
   async createCorrectionRequest(
     input: CreateCorrectionRequestInput,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
     // PRC-M321: when a domain applier is configured, reject field paths it cannot rectify up front.
     if (this.correctionApplier) {
@@ -554,7 +628,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.requestedBy,
       userName: input.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: {
         subjectType: row.subjectType,
@@ -573,6 +647,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     toStatus: CorrectionStatus,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
     const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
@@ -582,13 +657,25 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
     if (toStatus === 'applied') {
-      return this.applyCorrection(requestId, tenantId, actorId, statusReason);
+      return this.applyCorrection(requestId, tenantId, actorId, statusReason, ctx);
     }
-    return (await this.repository.updateCorrectionRequest(requestId, tenantId, {
+    const updated = (await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: toStatus,
       reviewedBy: actorId,
       statusReason: statusReason ?? null,
     }))!;
+    await this.audit.record({
+      tenantId: existing.tenantId,
+      entityType: 'privacy_correction',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: toStatus, statusReason: updated.statusReason },
+    });
+    return updated;
   }
 
   private assertCorrectableField(subjectType: string, fieldPath: string): void {
@@ -611,6 +698,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     tenantId: string,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
     const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
@@ -652,7 +740,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: actorId,
       userName: actorId,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: {
         fieldPath: existing.fieldPath,
         valueDigest: correctionValueDigest(existing.tenantId, serverBefore),
@@ -689,6 +777,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
   async requestTenantOffboardWipe(
     input: RequestTenantOffboardInput,
+    ctx?: PrivacyRequestContext,
   ): Promise<TenantOffboardJobEntity> {
     if (!this.tenantWipeAvailable) {
       // PRC-H077: no real TenantWipeExecutor -> tenant offboard is disabled.
@@ -722,7 +811,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.requestedBy,
       userName: input.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: { status: 'queued', reason: input.reason },
     });
@@ -804,7 +893,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: job.requestedBy,
       userName: job.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: NO_REQUEST_IP,
       beforeValues: { status: 'in_progress' },
       afterValues: { status: jobStatus, checklist, residualNote },
     });

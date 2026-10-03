@@ -297,7 +297,7 @@ describe('PrivacyService correction path with audit (W1-SEC-06)', () => {
     expect(applied.appliedAt).toBeTruthy();
 
     const applyAudit = audit.events.find(
-      (e) => e.entityType === 'privacy_correction' && e.operation === 'UPDATE',
+      (e) => e.entityType === 'privacy_correction' && e.afterValues?.status === 'applied',
     );
     expect(applyAudit).toBeTruthy();
     expect(applyAudit?.beforeValues).toMatchObject({ fieldPath: 'legalName' });

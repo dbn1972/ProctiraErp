@@ -12,6 +12,7 @@ async function buildApp() {
   const app = Fastify();
   app.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId = TENANT;
+    (request as unknown as { user: { sub: string } }).user = { sub: 'officer-1' };
   });
   await registerPrivacyRoutes(app, { privacyService: service });
   return { app, service };
