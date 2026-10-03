@@ -46,11 +46,7 @@ function allOk() {
   tt.listRooms.mockResolvedValue(ok([]));
   tt.listBellSchedules.mockResolvedValue(ok([]));
   tt.listPeriods.mockResolvedValue(ok([]));
-<<<<<<< HEAD
-  listAllStaffResult.mockResolvedValue({ ok: true, items: [] });
-=======
   listAllStaffResult.mockResolvedValue({ ok: true, items: [], truncated: false, totalItems: 0 });
->>>>>>> origin/fix/web-mediums-3
   listAcademicPeriods.mockResolvedValue([]);
 }
 
@@ -95,11 +91,8 @@ describe('substitutions page (PRC-M100)', () => {
     listAllStaffResult.mockResolvedValue({
       ok: true,
       items: [{ id: 's1', firstName: 'A', lastName: 'B' }],
-<<<<<<< HEAD
-=======
       truncated: false,
       totalItems: 1,
->>>>>>> origin/fix/web-mediums-3
     });
     tt[fn].mockResolvedValue(fail('boom'));
     const { default: Page } = await import('./substitutions/page');
@@ -154,8 +147,6 @@ describe('timetable page (PRC-M100)', () => {
     );
   });
 });
-<<<<<<< HEAD
-=======
 
 describe('staff picker cap (PRC-M102)', () => {
   beforeEach(() => {
@@ -234,4 +225,3 @@ describe('class filter (PRC-M103)', () => {
     expect(tables[1]!.querySelectorAll('tbody tr')).toHaveLength(1);
   });
 });
->>>>>>> origin/fix/web-mediums-3
