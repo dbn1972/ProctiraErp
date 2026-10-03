@@ -692,8 +692,9 @@ class ScholarshipRepository {
     if (data is Map && data['id'] is String) {
       return data['id'] as String;
     }
-    if (data is Map && data['data'] is Map && data['data']['id'] is String) {
-      return data['data']['id'] as String;
+    final Object? inner = data is Map ? data['data'] : null;
+    if (inner is Map && inner['id'] is String) {
+      return inner['id'] as String;
     }
     throw StateError('The draft application did not return an id.');
   }

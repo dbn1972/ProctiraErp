@@ -101,7 +101,8 @@ class AssessmentRepository {
         },
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
+      final List<dynamic> data =
+          (response.data as Map<String, dynamic>)['data'] as List<dynamic>;
       final List<AssessmentResult> results = data
           .map(
             (dynamic e) => AssessmentResult.fromJson(e as Map<String, dynamic>),

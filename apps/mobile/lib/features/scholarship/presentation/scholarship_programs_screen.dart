@@ -157,7 +157,9 @@ class _ProgramCard extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    context.push(withStudentQuery('/scholarships/apply/${program.id}', id));
+    unawaited(
+      context.push(withStudentQuery('/scholarships/apply/${program.id}', id)),
+    );
   }
 
   @override

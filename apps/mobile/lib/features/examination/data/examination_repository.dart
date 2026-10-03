@@ -182,7 +182,8 @@ class ExaminationRepository {
         },
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
+      final List<dynamic> data =
+          (response.data as Map<String, dynamic>)['data'] as List<dynamic>;
       final List<Examination> exams = data
           .map((dynamic e) => Examination.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
@@ -214,7 +215,8 @@ class ExaminationRepository {
         },
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
+      final List<dynamic> data =
+          (response.data as Map<String, dynamic>)['data'] as List<dynamic>;
       final List<ExaminationResult> results = data
           .map(
             (dynamic e) =>

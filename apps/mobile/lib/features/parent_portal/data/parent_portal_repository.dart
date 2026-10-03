@@ -92,7 +92,7 @@ class DioParentPortalRepository implements ParentPortalRepository {
       throw const ParentPortalException('Unexpected parent portal response');
     }
     return data
-        .whereType<Map>()
+        .whereType<Map<dynamic, dynamic>>()
         .map((Map<dynamic, dynamic> row) => Map<String, dynamic>.from(row))
         .toList(growable: false);
   }

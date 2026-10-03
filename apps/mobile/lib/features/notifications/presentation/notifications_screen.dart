@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -59,7 +61,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await _repository.markRead(item.id);
     if (!mounted) return;
     final String route = _router.routeFor(item.payload);
-    context.push(route);
+    unawaited(context.push(route));
   }
 
   @override
