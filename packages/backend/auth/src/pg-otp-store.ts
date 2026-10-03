@@ -23,10 +23,12 @@ import {
   type OtpChallengeStore,
 } from './otp-service.js';
 
+const COLLECTION = 'auth.otp_challenges';
+
 export class PgOtpChallengeStore implements OtpChallengeStore {
   private readonly challenges: PgDocumentCollection<OtpChallengeRecord>;
 
-  constructor(pool: PgPoolWithConnect | PgQueryable) {
+  constructor(private readonly pool: PgPoolWithConnect | PgQueryable) {
     this.challenges = new PgDocumentCollection<OtpChallengeRecord>(pool, COLLECTION);
   }
 
