@@ -14,7 +14,10 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listAllStaffResult } from '@/lib/api/staff';
-import { LoadErrorsAlert } from '@/components/timetable/load-errors-alert';
+import {
+  LoadErrorsAlert,
+  StaffTruncationNotice,
+} from '@/components/timetable/load-errors-alert';
 import { collectFailures } from '@/lib/timetable/load-errors';
 import { classBand, slotTitle, subjectTone } from '@/lib/timetable/subject-label';
 import {
@@ -259,6 +262,12 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   One weekly slot for a section. Teacher double-bookings are blocked.
                 </p>
               </div>
+              {staffResult.ok && staffResult.truncated ? (
+                <StaffTruncationNotice
+                  shown={staffResult.items.length}
+                  total={staffResult.totalItems}
+                />
+              ) : null}
               <MeetingCreateForm
                 key={`${searchParams.day ?? ''}-${searchParams.period ?? ''}`}
                 institutionId={institutionId}

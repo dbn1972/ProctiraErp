@@ -36,3 +36,21 @@ export function LoadErrorsAlert({
     </Card>
   );
 }
+
+/** PRC-M102: visible notice when the staff picker hit its cap. */
+export function StaffTruncationNotice({ shown, total }: { shown: number; total: number }) {
+  return (
+    <p
+      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+      role="status"
+      data-testid="staff-truncation-notice"
+    >
+      Showing the first {shown.toLocaleString('en-IN')} of {total.toLocaleString('en-IN')} staff in
+      the teacher pickers. Assign staff to this institution or refine the list in the{' '}
+      <Link href="/staff" className="font-semibold underline">
+        staff directory
+      </Link>
+      .
+    </p>
+  );
+}

@@ -10,7 +10,10 @@ import { SubstitutionCreateForm } from '@/components/timetable/substitution-crea
 import { TeacherAbsenceForm } from '@/components/timetable/teacher-absence-form';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAllStaffResult } from '@/lib/api/staff';
-import { LoadErrorsAlert } from '@/components/timetable/load-errors-alert';
+import {
+  LoadErrorsAlert,
+  StaffTruncationNotice,
+} from '@/components/timetable/load-errors-alert';
 import { collectFailures } from '@/lib/timetable/load-errors';
 import {
   listAffectedPeriods,
@@ -165,6 +168,12 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
                   Step 1 — record the absence and list the periods that need cover.
                 </p>
               </div>
+              {staffResult.ok && staffResult.truncated ? (
+                <StaffTruncationNotice
+                  shown={staffResult.items.length}
+                  total={staffResult.totalItems}
+                />
+              ) : null}
               <TeacherAbsenceForm institutionId={institutionId} staffOptions={staffOptions} />
             </CardContent>
           </Card>

@@ -46,7 +46,7 @@ function allOk() {
   tt.listRooms.mockResolvedValue(ok([]));
   tt.listBellSchedules.mockResolvedValue(ok([]));
   tt.listPeriods.mockResolvedValue(ok([]));
-  listAllStaffResult.mockResolvedValue({ ok: true, items: [] });
+  listAllStaffResult.mockResolvedValue({ ok: true, items: [], truncated: false, totalItems: 0 });
   listAcademicPeriods.mockResolvedValue([]);
 }
 
@@ -91,6 +91,8 @@ describe('substitutions page (PRC-M100)', () => {
     listAllStaffResult.mockResolvedValue({
       ok: true,
       items: [{ id: 's1', firstName: 'A', lastName: 'B' }],
+      truncated: false,
+      totalItems: 1,
     });
     tt[fn].mockResolvedValue(fail('boom'));
     const { default: Page } = await import('./substitutions/page');
@@ -143,5 +145,30 @@ describe('timetable page (PRC-M100)', () => {
     expect(screen.getByTestId('timetable-load-errors').textContent).toContain(
       'Staff: Your role cannot view this.',
     );
+  });
+});
+
+describe('staff picker cap (PRC-M102)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    allOk();
+  });
+
+  it('shows a visible notice when the staff list was truncated', async () => {
+    const items = Array.from({ length: 400 }, (_, i) => ({
+      id: `s${i}`,
+      firstName: 'T',
+      lastName: String(i),
+    }));
+    listAllStaffResult.mockResolvedValue({ ok: true, items, truncated: true, totalItems: 450 });
+    const { default: Page } = await import('./substitutions/page');
+    render(await Page({ params }));
+    expect(screen.getByTestId('staff-truncation-notice').textContent).toContain('400 of 450');
+  });
+
+  it('passes the institution to the staff loader', async () => {
+    const { default: Page } = await import('./page');
+    render(await Page({ params }));
+    expect(listAllStaffResult).toHaveBeenCalledWith({ institutionId: 'inst-1' });
   });
 });
