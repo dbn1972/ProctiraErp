@@ -1,3 +1,4 @@
+import { ConflictError } from '@proctira/common';
 import type {
   BoardCodeEntity,
   BoardExportCandidate,
@@ -7,6 +8,7 @@ import type {
   GpaSnapshotEntity,
   GradeChangeAuditContext,
   GradeEntryEntity,
+  GradeEntryWriteGuard,
   GradebookRepository,
   GradingScaleEntity,
   InstitutionSummary,
@@ -88,6 +90,15 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   }
 
   async createGradeEntry(row: GradeEntryEntity, _audit?: GradeChangeAuditContext) {
+    // Mirrors grade_entries_upsert_uidx (PRC-M264): duplicate natural key -> 409.
+    const dup = [...this.entries.values()].some(
+      (e) =>
+        e.tenantId === row.tenantId &&
+        e.studentId === row.studentId &&
+        (e.sectionId ?? null) === (row.sectionId ?? null) &&
+        (e.assessmentCode ?? null) === (row.assessmentCode ?? null),
+    );
+    if (dup) throw new ConflictError('Grade entry already exists for this student/assessment');
     this.entries.set(row.id, row);
     return row;
   }
@@ -97,15 +108,27 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     id: string,
     patch: Partial<GradeEntryEntity>,
     _audit?: GradeChangeAuditContext,
+    guard?: GradeEntryWriteGuard,
   ) {
-    const cur = await this.getGradeEntry(tenantId, id);
-    if (!cur) return null;
+    // Synchronous read-check-write (no await between) so guards are race-free.
+    const stored = this.entries.get(id);
+    if (!stored || stored.tenantId !== tenantId) return null;
+    const cur = stored;
+    if (guard) {
+      if (cur.updatedAt !== guard.expectedUpdatedAt) {
+        throw new ConflictError(`Grade entry ${id} changed concurrently; reload and retry`);
+      }
+      if (guard.requireUnlocked && (cur.lockedAt || cur.publishedAt)) {
+        throw new ConflictError(`Grade entry ${id} was locked concurrently`);
+      }
+    }
+    const nowMs = Math.max(Date.now(), Date.parse(cur.updatedAt) + 1);
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(nowMs).toISOString(),
     };
     this.entries.set(id, next);
     return next;

@@ -348,6 +348,8 @@ export class GradebookService {
           updatedAt: now,
         },
         { action: 'grade.upsert', actorId: actorId(user) },
+        // PRC-M264: lost-update / lock-race guard (409 if changed or locked meanwhile).
+        { expectedUpdatedAt: existing.updatedAt, requireUnlocked: true },
       );
       if (!updated) throw new NotFoundError(`Grade entry ${existing.id} not found`);
       this.recordAudit({
@@ -467,6 +469,8 @@ export class GradebookService {
         updatedAt: now,
       },
       { action: `grade.${action}`, actorId: actorId(user) },
+      // PRC-M264: the transition applies to the state it was computed from.
+      { expectedUpdatedAt: entry.updatedAt },
     );
     if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
     this.recordAudit({
