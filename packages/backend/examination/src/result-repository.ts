@@ -15,7 +15,23 @@ import { createHash } from 'node:crypto';
 /**
  * Gender type for candidates.
  */
-export type CandidateGender = 'male' | 'female' | 'other';
+export type CandidateGender = 'male' | 'female' | 'other' | 'unknown';
+
+/**
+ * PRC-M240: examination_candidates.area_id is NOT NULL, so an unresolved area is
+ * stored as this nil-UUID sentinel and reported as the 'unknown' bucket — never
+ * defaulted to the exam centre.
+ */
+export const UNKNOWN_AREA_ID = '00000000-0000-0000-0000-000000000000';
+
+/** PRC-M240: map a student-record gender value onto the analysis buckets. */
+export function normalizeCandidateGender(raw: string | null | undefined): CandidateGender {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (v === 'm' || v === 'male') return 'male';
+  if (v === 'f' || v === 'female') return 'female';
+  if (v === 'o' || v === 'other' || v === 'non-binary' || v === 'nonbinary') return 'other';
+  return 'unknown';
+}
 
 /**
  * A candidate's result for a single subject in an examination.

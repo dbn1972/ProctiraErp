@@ -33,7 +33,15 @@ import type {
   AcademicRecordUpdate,
   CandidateSubjectResult,
 } from './result-repository.js';
-import { fingerprintCandidates } from './result-repository.js';
+import {
+  UNKNOWN_AREA_ID,
+  fingerprintCandidates,
+  normalizeCandidateGender,
+  type CandidateGender,
+} from './result-repository.js';
+
+/** PRC-M240: parallel enrollment lookups per batch. */
+const DEMOGRAPHICS_LOOKUP_CONCURRENCY = 20;
 
 /** Marks entry payload (see RecordMarksSchema). */
 export interface RecordMarksInput {
@@ -370,7 +378,9 @@ export class ResultPublicationService {
       candidateMap,
       (result) => {
         const candidate = candidateMap.get(result.candidateId);
-        return candidate?.areaId ?? 'unknown';
+        // PRC-M240: the nil-UUID sentinel is the explicit 'unknown' area bucket.
+        const areaId = candidate?.areaId;
+        return !areaId || areaId === UNKNOWN_AREA_ID ? 'unknown' : areaId;
       },
       (areaId) => areaId,
       minScore,
@@ -466,6 +476,11 @@ export class ResultPublicationService {
     const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r]));
     const existing = await this.resultRepository.getCandidates(examinationId, tenantId);
     const existingByStudent = new Map(existing.map((c) => [c.studentId, c]));
+    // PRC-M240: resolve gender/area from the student record (client values ignored).
+    const demographics = await this.resolveDemographics(
+      tenantId,
+      input.entries.map((e) => e.studentId).filter((id) => registrationByStudent.has(id)),
+    );
 
     const errors: FieldError[] = [];
     const upserts: ExaminationCandidate[] = [];
@@ -539,8 +554,8 @@ export class ResultPublicationService {
         examinationId,
         studentId: entry.studentId,
         centerId: registration.centerId,
-        gender: current?.gender ?? entry.gender ?? 'other',
-        areaId: current?.areaId ?? entry.areaId ?? registration.centerId,
+        gender: demographics.get(entry.studentId)?.gender ?? current?.gender ?? 'unknown',
+        areaId: demographics.get(entry.studentId)?.areaId ?? current?.areaId ?? UNKNOWN_AREA_ID,
         subjectResults: [...results.values()],
       });
     });
@@ -552,6 +567,32 @@ export class ResultPublicationService {
     // PRC-M239: published-check + per-subject merge happen atomically under a lock.
     await this.resultRepository.mergeCandidateMarks(tenantId, examinationId, upserts);
     return { candidateCount: upserts.length, subjectResultCount };
+  }
+
+  /**
+   * PRC-M240: gender + area per student from the enrollment port (student record
+   * and enrolling institution). Unresolved values become 'unknown' / UNKNOWN_AREA_ID.
+   */
+  private async resolveDemographics(
+    tenantId: string,
+    studentIds: string[],
+  ): Promise<Map<string, { gender: CandidateGender; areaId: string }>> {
+    const unique = [...new Set(studentIds)];
+    const out = new Map<string, { gender: CandidateGender; areaId: string }>();
+    for (let i = 0; i < unique.length; i += DEMOGRAPHICS_LOOKUP_CONCURRENCY) {
+      const slice = unique.slice(i, i + DEMOGRAPHICS_LOOKUP_CONCURRENCY);
+      const rows = await Promise.all(
+        slice.map((id) => this.examinationRepository.getStudentEnrollment(id, tenantId)),
+      );
+      slice.forEach((id, k) => {
+        const e = rows[k];
+        out.set(id, {
+          gender: normalizeCandidateGender(e?.gender),
+          areaId: e?.areaId || UNKNOWN_AREA_ID,
+        });
+      });
+    }
+    return out;
   }
 
   /** Recorded (pre- or post-publication) marks per candidate. */

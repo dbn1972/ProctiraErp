@@ -37,6 +37,7 @@ import type {
   ExamSessionRecord,
 } from './ops-store.js';
 import type { ResultRepository } from './result-repository.js';
+import { UNKNOWN_AREA_ID } from './result-repository.js';
 import { generateSeatingPlan } from './seating-generator.js';
 
 export const DEFAULT_VARIANCE_TOLERANCE = 2;
@@ -478,8 +479,9 @@ export class ExamOpsService {
         examinationId,
         studentId: registration.studentId,
         centerId: current?.centerId ?? registration.centerId,
-        gender: current?.gender ?? 'other',
-        areaId: current?.areaId ?? registration.centerId,
+        // PRC-M240: never invent a gender; 'unknown' is its own analysis bucket.
+        gender: current?.gender ?? 'unknown',
+        areaId: current?.areaId ?? UNKNOWN_AREA_ID,
         subjectResults,
       },
     ]);
