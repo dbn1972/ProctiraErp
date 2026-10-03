@@ -26,6 +26,8 @@ import type { ClassSection } from '@/lib/institutions/types';
 
 import { AttendanceMarkingForm } from './_components/attendance-marking-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { todayInTimeZone } from '@/lib/datetime/tenant-zoned';
+import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +48,8 @@ export default async function AttendancePage(props: PageProps) {
   const institutionId = readStringParam(searchParams, 'institutionId');
   const classId = readStringParam(searchParams, 'classId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
-  const today = new Date().toISOString().slice(0, 10);
+  // PRC-M078: "today" is the tenant-timezone calendar day, not the UTC date.
+  const today = todayInTimeZone(await resolveTenantTimezone());
   const date = readStringParam(searchParams, 'date') || today;
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
@@ -171,6 +174,7 @@ export default async function AttendancePage(props: PageProps) {
               date,
             }}
             roster={roster}
+            today={today}
           />
         </CardContent>
       </Card>

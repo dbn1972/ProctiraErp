@@ -20,6 +20,8 @@ import { listInstitutions } from '@/lib/api/institutions';
 
 import { AttendanceReportFilters } from '../_components/attendance-report-filters';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { todayInTimeZone } from '@/lib/datetime/tenant-zoned';
+import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +68,7 @@ export default async function AttendanceReportsPage() {
         </CardHeader>
         <CardContent>
           <AttendanceReportFilters
+            today={todayInTimeZone(await resolveTenantTimezone())}
             institutions={institutions.map((i) => ({
               id: i.id,
               name: i.name,
