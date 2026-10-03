@@ -17,8 +17,8 @@ export { themePlugin } from './theme-plugin.js';
 export type { ThemePluginOptions } from './theme-plugin.js';
 
 // Service
-export { ThemeService } from './theme-service.js';
-export type { ThemeServiceConfig } from './theme-service.js';
+export { ThemeService, PLATFORM_THEME_TENANT_ID } from './theme-service.js';
+export type { ThemeServiceConfig, ThemeCallerContext } from './theme-service.js';
 
 // Repository
 export type {

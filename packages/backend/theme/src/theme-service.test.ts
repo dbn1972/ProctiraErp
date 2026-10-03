@@ -4,9 +4,9 @@
  * Tests for theme CRUD, publishing, rollback, preview, and accessibility validation.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, ConflictError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 
-import { ThemeService } from './theme-service.js';
+import { ThemeService, PLATFORM_THEME_TENANT_ID } from './theme-service.js';
 import { InMemoryThemeRepository } from './in-memory-repository.js';
 import type { CreateThemeInput, ThemeTokens } from './schemas.js';
 
@@ -73,7 +73,57 @@ describe('ThemeService', () => {
 
   beforeEach(() => {
     repository = new InMemoryThemeRepository();
-    service = new ThemeService(repository, { enforceAccessibility: true });
+    service = new ThemeService(repository, {
+      enforceAccessibility: true,
+      portalExists: async () => true,
+    });
+  });
+
+  describe('platform level (PRC-M395)', () => {
+    it('rejects a tenant user creating a platform-level theme', async () => {
+      await expect(
+        service.create(tenantId, validCreateInput({ level: 'platform' })),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('stores platform themes under the reserved platform owner, not the tenant', async () => {
+      const theme = await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      expect(theme.tenantId).toBe(PLATFORM_THEME_TENANT_ID);
+      await expect(service.getById(tenantId, theme.id)).rejects.toThrow(NotFoundError);
+      await expect(
+        service.getById(tenantId, theme.id, { isPlatformAdmin: true }),
+      ).resolves.toMatchObject({ id: theme.id });
+    });
+
+    it('does not serve a draft platform theme', async () => {
+      await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      await expect(service.getTokens('tenant-xyz')).rejects.toThrow(NotFoundError);
+    });
+
+    it('serves the published platform theme to every tenant', async () => {
+      const theme = await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      await service.publish(tenantId, theme.id, {}, 'root', { isPlatformAdmin: true });
+      const tokens = await service.getTokens('tenant-xyz');
+      expect(tokens.colors.primary).toBe(validTokens().colors.primary);
+    });
+
+    it('rejects portal themes for unknown portals and fails closed without a resolver', async () => {
+      const portalId = '22222222-2222-4222-8222-222222222222';
+      const strict = new ThemeService(repository, { portalExists: async () => false });
+      await expect(
+        strict.create(tenantId, validCreateInput({ level: 'portal', portalId })),
+      ).rejects.toThrow(NotFoundError);
+      const unconfigured = new ThemeService(repository);
+      await expect(
+        unconfigured.create(tenantId, validCreateInput({ level: 'portal', portalId })),
+      ).rejects.toThrow(BusinessRuleError);
+    });
   });
 
   describe('create', () => {

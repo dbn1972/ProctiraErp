@@ -17,7 +17,7 @@
  * All operations are tenant-scoped.
  */
 import { v4 as uuidv4 } from 'uuid';
-import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, ConflictError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 
 import type { ThemeRepository, ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
 import type {
@@ -37,6 +37,23 @@ import { validateAccessibility } from './accessibility.js';
 export interface ThemeServiceConfig {
   /** Whether to enforce accessibility validation on publish (default: true) */
   enforceAccessibility?: boolean;
+  /**
+   * Resolves whether a portal exists for the tenant (PRC-M395). When not
+   * configured, portal-level theme creation is rejected (fail closed).
+   */
+  portalExists?: (tenantId: string, portalId: string) => Promise<boolean>;
+}
+
+/**
+ * Reserved owner for the single, global platform default theme (PRC-M395).
+ * Platform themes are never owned by a customer tenant.
+ */
+export const PLATFORM_THEME_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+
+/** Caller context for operations that may touch the platform theme. */
+export interface ThemeCallerContext {
+  /** True only for platform administrators (derived from the authenticated principal). */
+  isPlatformAdmin?: boolean;
 }
 
 /**
@@ -56,17 +73,34 @@ export class ThemeService {
    * Create a new theme.
    * Validates tokens and checks for conflicts at the same level.
    */
-  async create(tenantId: string, input: CreateThemeInput): Promise<ThemeEntity> {
+  async create(
+    tenantId: string,
+    input: CreateThemeInput,
+    ctx: ThemeCallerContext = {},
+  ): Promise<ThemeEntity> {
     const { name, description, level, portalId, tokens, assets } = input;
+    // PRC-M395: the platform default is global and owned by platform admins only.
+    if (level === 'platform' && !ctx.isPlatformAdmin) {
+      throw new ForbiddenError('Only platform administrators can manage the platform theme');
+    }
+    const ownerTenantId = level === 'platform' ? PLATFORM_THEME_TENANT_ID : tenantId;
 
     // Portal-level themes require a portalId
     if (level === 'portal' && !portalId) {
       throw new BusinessRuleError('Portal-level themes require a portalId');
     }
+    if (level === 'portal' && portalId) {
+      if (!this.config.portalExists) {
+        throw new BusinessRuleError('Portal validation is not configured; portal themes are disabled');
+      }
+      if (!(await this.config.portalExists(tenantId, portalId))) {
+        throw new NotFoundError(`Portal not found: ${portalId}`);
+      }
+    }
 
     // Check for existing theme at the same level for this tenant
     const existing = await this.repository.findThemeByTenantAndLevel(
-      tenantId,
+      ownerTenantId,
       level,
       portalId ?? undefined,
     );
@@ -90,7 +124,7 @@ export class ThemeService {
 
     const theme = await this.repository.createTheme({
       id: themeId,
-      tenantId,
+      tenantId: ownerTenantId,
       name,
       description: description ?? null,
       level,
@@ -110,8 +144,13 @@ export class ThemeService {
    * Published/archived themes are rejected with 409 (PRC-M392): editing them would
    * change live tokens without a revision and break rollback/audit lineage.
    */
-  async update(tenantId: string, themeId: string, input: UpdateThemeInput): Promise<ThemeEntity> {
-    const theme = await this.getThemeForTenant(tenantId, themeId);
+  async update(
+    tenantId: string,
+    themeId: string,
+    input: UpdateThemeInput,
+    ctx: ThemeCallerContext = {},
+  ): Promise<ThemeEntity> {
+    const theme = await this.getThemeForTenant(tenantId, themeId, ctx);
     if (theme.status !== 'draft') {
       throw new ConflictError(
         `Theme ${themeId} is ${theme.status}; only draft themes can be updated`,
@@ -159,8 +198,9 @@ export class ThemeService {
     themeId: string,
     input: PublishThemeInput,
     actor: string,
+    ctx: ThemeCallerContext = {},
   ): Promise<ThemeRevisionEntity> {
-    const theme = await this.getThemeForTenant(tenantId, themeId);
+    const theme = await this.getThemeForTenant(tenantId, themeId, ctx);
 
     // Validate accessibility before publishing
     const accessibilityResult = validateAccessibility(theme.tokens);
@@ -211,8 +251,9 @@ export class ThemeService {
     themeId: string,
     input: RollbackThemeInput,
     actor = 'system',
+    ctx: ThemeCallerContext = {},
   ): Promise<ThemeEntity> {
-    await this.getThemeForTenant(tenantId, themeId);
+    await this.getThemeForTenant(tenantId, themeId, ctx);
     // Find the target revision
     const revision = await this.repository.findRevisionById(input.revisionId);
     if (!revision || revision.themeId !== themeId) {
@@ -256,13 +297,14 @@ export class ThemeService {
   async preview(
     tenantId: string,
     themeId: string,
+    ctx: ThemeCallerContext = {},
   ): Promise<{
     themeId: string;
     tokens: ThemeTokens;
     assets: ThemeAssets | null;
     accessibilityResult: AccessibilityResult;
   }> {
-    const theme = await this.getThemeForTenant(tenantId, themeId);
+    const theme = await this.getThemeForTenant(tenantId, themeId, ctx);
 
     const accessibilityResult = validateAccessibility(theme.tokens);
 
@@ -291,8 +333,13 @@ export class ThemeService {
    */
   async getTokens(tenantId: string, portalId?: string): Promise<ThemeTokens> {
     // Start with platform default
-    const platformTheme = await this.repository.findThemeByTenantAndLevel(tenantId, 'platform');
-    let effectiveTokens: ThemeTokens | null = platformTheme?.tokens ?? null;
+    // PRC-M395: one global platform default; only published tokens are ever served.
+    const platformTheme = await this.repository.findThemeByTenantAndLevel(
+      PLATFORM_THEME_TENANT_ID,
+      'platform',
+    );
+    let effectiveTokens: ThemeTokens | null =
+      platformTheme && platformTheme.status === 'published' ? platformTheme.tokens : null;
 
     // Apply tenant override
     const tenantTheme = await this.repository.findThemeByTenantAndLevel(tenantId, 'tenant');
@@ -326,8 +373,12 @@ export class ThemeService {
   /**
    * Get a theme by ID, ensuring it belongs to the specified tenant.
    */
-  async getById(tenantId: string, themeId: string): Promise<ThemeEntity> {
-    return this.getThemeForTenant(tenantId, themeId);
+  async getById(
+    tenantId: string,
+    themeId: string,
+    ctx: ThemeCallerContext = {},
+  ): Promise<ThemeEntity> {
+    return this.getThemeForTenant(tenantId, themeId, ctx);
   }
 
   /**
@@ -353,8 +404,12 @@ export class ThemeService {
   /**
    * List revisions for a theme.
    */
-  async listRevisions(tenantId: string, themeId: string): Promise<ThemeRevisionEntity[]> {
-    await this.getThemeForTenant(tenantId, themeId);
+  async listRevisions(
+    tenantId: string,
+    themeId: string,
+    ctx: ThemeCallerContext = {},
+  ): Promise<ThemeRevisionEntity[]> {
+    await this.getThemeForTenant(tenantId, themeId, ctx);
     return this.repository.listRevisions(themeId);
   }
 
@@ -363,12 +418,17 @@ export class ThemeService {
   /**
    * Get a theme and verify it belongs to the tenant.
    */
-  private async getThemeForTenant(tenantId: string, themeId: string): Promise<ThemeEntity> {
+  private async getThemeForTenant(
+    tenantId: string,
+    themeId: string,
+    ctx: ThemeCallerContext = {},
+  ): Promise<ThemeEntity> {
     const theme = await this.repository.findThemeById(themeId);
     if (!theme) {
       throw new NotFoundError(`Theme not found: ${themeId}`);
     }
-    if (theme.tenantId !== tenantId) {
+    const platformOwned = theme.tenantId === PLATFORM_THEME_TENANT_ID && ctx.isPlatformAdmin === true;
+    if (theme.tenantId !== tenantId && !platformOwned) {
       throw new NotFoundError(`Theme not found: ${themeId}`);
     }
     return theme;

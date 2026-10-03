@@ -61,6 +61,17 @@ describe('Theme Routes', () => {
     await app.ready();
   });
 
+  describe('POST /themes platform level (PRC-M395)', () => {
+    it('returns 403 when a tenant user creates a platform theme', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Global', level: 'platform', tokens: validTokens() },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
   describe('POST /themes', () => {
     it('should create a theme', async () => {
       const response = await app.inject({
