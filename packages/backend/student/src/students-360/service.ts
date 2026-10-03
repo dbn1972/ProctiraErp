@@ -444,18 +444,25 @@ export class Students360Service {
       mimeType,
       tenantId,
     );
-    return this.deps.store.createDocument({
-      id,
-      tenantId,
-      studentId,
-      category: input.category,
-      fileName,
-      objectKey,
-      mimeType,
-      sizeBytes: bytes.length,
-      uploadedBy,
-      createdAt: new Date(),
-    });
+    try {
+      return await this.deps.store.createDocument({
+        id,
+        tenantId,
+        studentId,
+        category: input.category,
+        fileName,
+        objectKey,
+        mimeType,
+        sizeBytes: bytes.length,
+        uploadedBy,
+        createdAt: new Date(),
+      });
+    } catch (error) {
+      // PRC-M386: the row was not written — do not leave an orphan blob.
+      // (Key is unique per document id, so this never touches another file.)
+      await this.deps.blobs.delete(objectKey).catch(() => undefined);
+      throw error;
+    }
   }
 
   async listDocuments(
@@ -505,7 +512,12 @@ export class Students360Service {
 
   async removeDocument(tenantId: string, studentId: string, documentId: string): Promise<void> {
     await this.requireStudent(tenantId, studentId);
+    const doc = await this.deps.store.findDocument(tenantId, studentId, documentId);
+    if (!doc) throw new NotFoundError(`Document '${documentId}' not found`);
     const removed = await this.deps.store.deleteDocument(tenantId, studentId, documentId);
     if (!removed) throw new NotFoundError(`Document '${documentId}' not found`);
+    // PRC-M386: erase the file after the row is gone. A storage failure here
+    // surfaces (502) rather than silently retaining the child's document.
+    await this.deps.blobs.delete(doc.objectKey);
   }
 }
