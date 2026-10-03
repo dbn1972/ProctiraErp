@@ -450,7 +450,7 @@ export async function sendAdmissionOffer(id: string): Promise<AdmissionOffer> {
 
 export async function acceptAdmissionOffer(
   id: string,
-  input: { paymentRef: string; offerFeeInvoiceId?: string },
+  input: { paymentRef?: string; offerFeeInvoiceId?: string },
 ): Promise<AdmissionOffer> {
   const result = await gatewayFetch<AdmissionOffer>(
     `/admissions/offers/${encodeURIComponent(id)}/accept`,

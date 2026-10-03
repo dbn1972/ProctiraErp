@@ -18,6 +18,7 @@ import {
   type CreateOfferFeeInvoice,
   type EnrolOnAccept,
   type ReconcileOfferResources,
+  type VerifyOfferFeeInvoiceOwnership,
 } from './pipeline/pipeline-service.js';
 import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
@@ -56,6 +57,8 @@ export interface RegistrationPluginOptions {
   assertOfferFeePaid?: AssertOfferFeePaid;
   /** Reconcile provisional student/invoice state when an offer ends without enrollment. */
   reconcileOfferResources?: ReconcileOfferResources;
+  /** PRC-H079: validate a staff-supplied offerFeeInvoiceId belongs to the application. */
+  verifyOfferFeeInvoiceOwnership?: VerifyOfferFeeInvoiceOwnership;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
   /** Staff admissions CRM prefix (default: '/admissions') */
@@ -93,6 +96,7 @@ export const registrationPlugin = fp(
       createOfferFeeInvoice,
       assertOfferFeePaid,
       reconcileOfferResources,
+      verifyOfferFeeInvoiceOwnership,
       prefix = '/registrations',
       admissionsPrefix = '/admissions',
       publicTenantResolver,
@@ -124,6 +128,7 @@ export const registrationPlugin = fp(
       // Prefer the same store RegistrationService uses (including its default in-memory).
       (registrationService as unknown as { crm: AdmissionsCrmStore }).crm,
       reconcileOfferResources,
+      verifyOfferFeeInvoiceOwnership,
     );
     await registerAdmissionsPipelineRoutes(fastify, {
       service: pipelineService,

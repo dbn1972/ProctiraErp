@@ -350,14 +350,50 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
   );
 }
 
-function assertOfferFeePaidHook() {
+type OfferFeeInvoiceReader = Pick<FeesService, 'getInvoice'>;
+
+const defaultOfferFeeInvoiceReader = (): OfferFeeInvoiceReader =>
+  new FeesService(createFeesRepository());
+
+export function assertOfferFeePaidHook(
+  createReader: () => OfferFeeInvoiceReader = defaultOfferFeeInvoiceReader,
+) {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
-  // PSP webhook / callback path; a client paymentRef is never payment proof.
+  // PSP webhook / callback path; a client paymentRef is never payment proof. The reader is
+  // read-only by type (getInvoice only), so this hook cannot record a payment.
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
-    const fees = new FeesService(createFeesRepository());
-    const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    const invoice = await createReader().getInvoice(input.tenantId, input.invoiceId);
     assertOfferFeeInvoicePaid(invoice.status);
+  };
+}
+
+/**
+ * PRC-H079: a staff-supplied offerFeeInvoiceId at offer creation must be this application's
+ * own admissions offer-fee invoice (same identity markers as createOfferFeeInvoiceHook) and
+ * not void/written off. Unknown or foreign invoices (getInvoice 404 under tenant RLS) -> false.
+ */
+export function verifyOfferFeeInvoiceOwnershipHook(
+  createReader: () => OfferFeeInvoiceReader = defaultOfferFeeInvoiceReader,
+) {
+  return async (input: {
+    tenantId: string;
+    applicationId: string;
+    invoiceId: string;
+  }): Promise<boolean> => {
+    let invoice: Awaited<ReturnType<OfferFeeInvoiceReader['getInvoice']>>;
+    try {
+      invoice = await createReader().getInvoice(input.tenantId, input.invoiceId);
+    } catch {
+      return false;
+    }
+    return (
+      invoice.tenantId === input.tenantId &&
+      invoice.createdBy === 'admissions-offer' &&
+      invoice.description === `Admission application ${input.applicationId}` &&
+      invoice.status !== 'void' &&
+      invoice.status !== 'written_off'
+    );
   };
 }
 
@@ -1292,6 +1328,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assertOfferFeePaidHook(),
         undefined,
         reconcileAdmissionsOfferResourcesHook(),
+        verifyOfferFeeInvoiceOwnershipHook(),
       );
       await scope.register(parentPortalPlugin, {
         repository,
@@ -1329,6 +1366,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         createOfferFeeInvoice: createOfferFeeInvoiceHook(),
         assertOfferFeePaid: assertOfferFeePaidHook(),
         reconcileOfferResources: reconcileAdmissionsOfferResourcesHook(),
+        verifyOfferFeeInvoiceOwnership: verifyOfferFeeInvoiceOwnershipHook(),
         enrolOnAccept: createAdmissionsEnrolOnAccept(),
       });
     },
