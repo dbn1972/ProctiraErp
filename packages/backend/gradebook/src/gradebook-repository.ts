@@ -108,6 +108,8 @@ export type SectionSummary = {
 export type ListGradeEntriesFilter = {
   sectionId?: string;
   studentId?: string;
+  /** PRC-M269: batch-load many students in one query. */
+  studentIds?: string[];
 };
 
 export type ListTranscriptsFilter = {

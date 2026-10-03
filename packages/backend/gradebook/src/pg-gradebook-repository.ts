@@ -319,6 +319,10 @@ export class PgGradebookRepository implements GradebookRepository {
         params.push(filter.studentId);
         clauses.push(`student_id = $${params.length}`);
       }
+      if (filter?.studentIds) {
+        params.push(filter.studentIds);
+        clauses.push(`student_id = ANY($${params.length}::uuid[])`);
+      }
       const res = await this.query(
         tenantId,
         `SELECT * FROM grade_entries WHERE ${clauses.join(' AND ')} ORDER BY entered_at DESC`,

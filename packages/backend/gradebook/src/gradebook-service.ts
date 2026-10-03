@@ -626,23 +626,33 @@ export class GradebookService {
       throw new ValidationError('No grade entries in section; enter grades before ranking');
     }
     const studentIds = [...new Set(entries.map((e) => e.studentId))];
+    // PRC-M269: one batched entries query + one context load; pure calculation,
+    // no gpa_snapshots written by ranking.
+    const ctx = await this.loadGpaContext(tenantId, { studentId: '', boardId: input.boardId ?? null });
+    const allEntries = await this.repo.listGradeEntries(tenantId, { studentIds });
+    const byStudent = new Map<string, GradeEntryEntity[]>();
+    for (const e of allEntries) {
+      const list = byStudent.get(e.studentId) ?? [];
+      list.push(e);
+      byStudent.set(e.studentId, list);
+    }
     const rankInputs = [];
     for (const studentId of studentIds) {
-      const { snapshot: term } = await this.computeGpa(tenantId, {
-        studentId,
-        academicPeriodId: input.academicPeriodId ?? null,
-        boardId: input.boardId ?? null,
-      });
-      const { snapshot: cumulative } = await this.computeGpa(tenantId, {
-        studentId,
-        boardId: input.boardId ?? null,
-      });
+      const studentEntries = byStudent.get(studentId) ?? [];
+      // Term and cumulative use the same entry set today (entries are not period-filtered),
+      // matching the previous two computeGpa calls without the duplicate work.
+      const { detail } = await this.calculateGpa(
+        tenantId,
+        { studentId, boardId: input.boardId ?? null },
+        studentEntries,
+        ctx,
+      );
       rankInputs.push({
         studentId,
-        weightedGpa: term.weightedGpa,
-        unweightedGpa: term.unweightedGpa,
-        cgpa: cumulative.weightedGpa,
-        creditsEarned: cumulative.creditsEarned,
+        weightedGpa: detail.weightedGpa,
+        unweightedGpa: detail.unweightedGpa,
+        cgpa: detail.weightedGpa,
+        creditsEarned: detail.creditsEarned,
       });
     }
     const ranked = computeClassRanks(rankInputs);
@@ -676,17 +686,8 @@ export class GradebookService {
     return this.extras.listLatestRanks(tenantId, sectionId);
   }
 
-  async computeGpa(
-    tenantId: string,
-    input: ComputeGpaInput,
-  ): Promise<{ snapshot: GpaSnapshotEntity; detail: ReturnType<typeof computeGpaSnapshot> }> {
-    const entries = await this.repo.listGradeEntries(tenantId, {
-      studentId: input.studentId,
-    });
-    if (entries.length === 0) {
-      throw new ValidationError('No grade entries for student; enter grades before computing GPA');
-    }
-
+  /** PRC-M269: grading context (scale + credit rules) loaded once per computation batch. */
+  private async loadGpaContext(tenantId: string, input: ComputeGpaInput) {
     let scale = input.gradingScaleId
       ? await this.repo.getGradingScale(tenantId, input.gradingScaleId)
       : null;
@@ -702,20 +703,36 @@ export class GradebookService {
         'No grading scale bands available; seed board scales (003_sis_timetable_board_scales.sql)',
       );
     }
-
     const creditRules = await this.repo.listCreditRules(tenantId, input.boardId ?? undefined);
-    const defaultCredits = 1;
+    // Cache of out-of-board rule lookups so a batch does at most one query per code.
+    const ruleCache = new Map<string, CreditRuleEntity | null>();
+    return { scale, creditRules, ruleCache };
+  }
 
+  /** PRC-M269: pure GPA calculation (no persistence) from preloaded entries + context. */
+  private async calculateGpa(
+    tenantId: string,
+    input: ComputeGpaInput,
+    entries: GradeEntryEntity[],
+    ctx: Awaited<ReturnType<GradebookService['loadGpaContext']>>,
+  ) {
+    const { scale, creditRules, ruleCache } = ctx;
+    const lookupRule = async (code: string) => {
+      const inBoard = creditRules.find((r) => r.code === code);
+      if (inBoard) return inBoard;
+      if (!ruleCache.has(code)) {
+        ruleCache.set(code, await this.repo.getCreditRuleByCode(tenantId, code));
+      }
+      return ruleCache.get(code) ?? null;
+    };
+    const defaultCredits = 1;
     const courses: CourseGradeInput[] = [];
     for (const entry of entries) {
       const ruleCode =
         typeof entry.metadata.creditRuleCode === 'string'
           ? entry.metadata.creditRuleCode
           : entry.assessmentCode;
-      const rule = ruleCode
-        ? (creditRules.find((r) => r.code === ruleCode) ??
-          (await this.repo.getCreditRuleByCode(tenantId, ruleCode)))
-        : null;
+      const rule = ruleCode ? await lookupRule(ruleCode) : null;
       courses.push({
         courseCode: entry.assessmentCode ?? entry.id.slice(0, 8),
         numericScore: entry.numericScore,
@@ -724,14 +741,27 @@ export class GradebookService {
         includeInGpa: entry.metadata.includeInGpa !== false,
       });
     }
-
     const policy: GpaPolicy = {
       passingPercent: input.passingPercent ?? 33,
       weightMode: input.weightMode ?? 'CREDITS',
       maxGradePoints: 10,
       roundTo: 3,
     };
-    const detail = computeGpaSnapshot(courses, scale.bands, policy);
+    return { detail: computeGpaSnapshot(courses, scale.bands, policy), policy, scale };
+  }
+
+  async computeGpa(
+    tenantId: string,
+    input: ComputeGpaInput,
+  ): Promise<{ snapshot: GpaSnapshotEntity; detail: ReturnType<typeof computeGpaSnapshot> }> {
+    const entries = await this.repo.listGradeEntries(tenantId, {
+      studentId: input.studentId,
+    });
+    if (entries.length === 0) {
+      throw new ValidationError('No grade entries for student; enter grades before computing GPA');
+    }
+    const ctx = await this.loadGpaContext(tenantId, input);
+    const { detail, policy, scale } = await this.calculateGpa(tenantId, input, entries, ctx);
     const now = nowIso();
     const snapshot = await this.repo.createGpaSnapshot({
       id: randomUUID(),

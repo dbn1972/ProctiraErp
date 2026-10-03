@@ -58,11 +58,16 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     this.candidates.set(candidate.studentId, candidate);
   }
 
+  /** Test probe (PRC-M269): number of listGradeEntries calls. */
+  gradeEntryQueries = 0;
+
   async listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
+    this.gradeEntryQueries += 1;
     return [...this.entries.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.sectionId && row.sectionId !== filter.sectionId) return false;
       if (filter?.studentId && row.studentId !== filter.studentId) return false;
+      if (filter?.studentIds && !filter.studentIds.includes(row.studentId)) return false;
       return true;
     });
   }
