@@ -22,6 +22,7 @@ import '../notifications/notification_router.dart';
 import '../router/app_router.dart';
 import '../storage/cache_crypto.dart';
 import '../storage/captured_document_store.dart';
+import '../../features/reports/data/report_file_store.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -306,7 +307,10 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
     tenantProvider: tenantProvider,
-    purgeLocalFiles: capturedDocuments.purgeAll,
+    purgeLocalFiles: () async {
+      await capturedDocuments.purgeAll();
+      await purgeSavedReports();
+    },
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 
