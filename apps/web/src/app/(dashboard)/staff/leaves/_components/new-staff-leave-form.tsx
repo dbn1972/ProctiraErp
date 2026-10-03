@@ -21,7 +21,13 @@ import { createStaffLeaveAction } from '../../../staff-leave-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewStaffLeaveForm({ staffOptions = [] }: { staffOptions?: EntityLabelOption[] }) {
+export function NewStaffLeaveForm({
+  staffOptions = [],
+  defaultStaffId = '',
+}: {
+  staffOptions?: EntityLabelOption[];
+  defaultStaffId?: string;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -91,6 +97,7 @@ export function NewStaffLeaveForm({ staffOptions = [] }: { staffOptions?: Entity
             name="staffId"
             label="Staff"
             options={staffOptions}
+            defaultValue={defaultStaffId}
             required
           />
           <FormField id="leave-type" label="Leave type">
