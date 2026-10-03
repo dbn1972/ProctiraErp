@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { AdmissionsCrmStore } from '../admissions-crm-store.js';
 import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
+import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
 import { buildOfferDocument } from './offer-letter.js';
@@ -172,9 +173,10 @@ export class AdmissionsPipelineService {
     return formatEnquiry(await this.store.createEnquiry(record));
   }
 
-  async listEnquiries(tenantId: string) {
-    const rows = await this.store.listEnquiries(tenantId);
-    return rows.map(formatEnquiry);
+  async listEnquiries(tenantId: string, page: ListPage = { limit: MAX_LIST_PAGE_SIZE, offset: 0 }) {
+    const rows = await this.store.listEnquiries(tenantId, page);
+    const result = toPageResult(rows, page);
+    return { ...result, data: result.data.map(formatEnquiry) };
   }
 
   async updateEnquiry(tenantId: string, id: string, input: UpdateEnquiryDto) {
@@ -611,7 +613,10 @@ export class AdmissionsPipelineService {
     }
     const next: OfferRecord = { ...offer, status: 'declined', updatedAt: new Date() };
     const declined = formatOffer(await this.store.updateOffer(next));
-    const promotedOffer = await this.promoteNextWaitlisted(tenantId, offer);
+    // PRC-M337: only an issued (sent) offer holds a seat claim; declining a
+    // draft releases nothing, so the waitlist is left untouched.
+    const promotedOffer =
+      offer.status === 'sent' ? await this.promoteNextWaitlisted(tenantId, offer) : null;
     return { ...declined, promotedOffer };
   }
 
@@ -683,12 +688,12 @@ export class AdmissionsPipelineService {
 
   async getApplicationBundle(tenantId: string, applicationId: string) {
     const application = await this.requireApplication(tenantId, applicationId);
-    const [placement, offers, enquiries] = await Promise.all([
+    // PRC-M337: targeted enquiry lookup instead of loading every enquiry.
+    const [placement, offers, enquiry] = await Promise.all([
       this.store.getPlacement(tenantId, applicationId),
       this.store.listOffers(tenantId, applicationId),
-      this.store.listEnquiries(tenantId),
+      this.store.findEnquiryByApplication(tenantId, applicationId),
     ]);
-    const enquiry = enquiries.find((row) => row.applicationId === applicationId) ?? null;
     const resolvedOffers = await Promise.all(offers.map((row) => this.expireIfNeeded(row)));
     return {
       application: this.formatApplication(application),
@@ -698,9 +703,17 @@ export class AdmissionsPipelineService {
     };
   }
 
-  async listOffers(tenantId: string, applicationId?: string) {
-    const offers = await this.store.listOffers(tenantId, applicationId);
-    return Promise.all(offers.map(async (row) => formatOffer(await this.expireIfNeeded(row))));
+  async listOffers(
+    tenantId: string,
+    applicationId?: string,
+    page: ListPage = { limit: MAX_LIST_PAGE_SIZE, offset: 0 },
+  ) {
+    const offers = await this.store.listOffers(tenantId, applicationId, page);
+    const result = toPageResult(offers, page);
+    const data = await Promise.all(
+      result.data.map(async (row) => formatOffer(await this.expireIfNeeded(row))),
+    );
+    return { ...result, data };
   }
 
   /**

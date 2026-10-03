@@ -15,6 +15,7 @@ import { Value } from '@sinclair/typebox/value';
 import type pg from 'pg';
 
 import { haversineKm } from './in-memory-repository.js';
+import type { ListPage } from './pagination.js';
 import type {
   IdempotentRegistrationCreateResult,
   InstitutionLocationFilter,
@@ -341,14 +342,15 @@ export class PgRegistrationRepository implements RegistrationRepository {
     return result.rows[0] ? mapApplication(result.rows[0] as Record<string, unknown>) : null;
   }
 
-  async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
+  async listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM admission_applications
           WHERE tenant_id = $1::uuid
-          ORDER BY submitted_at DESC`,
-        [tenantId],
+          ORDER BY submitted_at DESC, id DESC
+          LIMIT $2 OFFSET $3`,
+        [tenantId, page ? page.limit + 1 : null, page?.offset ?? 0],
       );
       return result.rows.map((row) => mapApplication(row as Record<string, unknown>));
     });

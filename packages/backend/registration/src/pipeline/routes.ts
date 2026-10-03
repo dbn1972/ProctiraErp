@@ -3,6 +3,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
+import { parseListPage } from '../pagination.js';
 
 import type { AdmissionsPipelineService } from './pipeline-service.js';
 import {
@@ -99,7 +100,8 @@ export async function registerAdmissionsPipelineRoutes(
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
     try {
-      return reply.status(200).send({ data: await service.listEnquiries(tenantId) });
+      // PRC-M337: bounded page (limit <= 200).
+      return reply.status(200).send(await service.listEnquiries(tenantId, parseListPage(request.query)));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -368,7 +370,9 @@ export async function registerAdmissionsPipelineRoutes(
     if (!tenantId) return;
     const applicationId = (request.query as { applicationId?: string }).applicationId;
     try {
-      return reply.status(200).send({ data: await service.listOffers(tenantId, applicationId) });
+      return reply
+        .status(200)
+        .send(await service.listOffers(tenantId, applicationId, parseListPage(request.query)));
     } catch (error) {
       return sendError(reply, error);
     }

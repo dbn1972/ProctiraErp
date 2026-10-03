@@ -22,6 +22,7 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+import type { ListPage } from './pagination.js';
 
 import {
   InMemoryAdmissionsCrmStore,
@@ -595,8 +596,8 @@ export class RegistrationService {
   }
 
   /** Staff CRM: list applications for a tenant. */
-  async listApplications(tenantId: string) {
-    return this.repository.listByTenant(tenantId);
+  async listApplications(tenantId: string, page?: ListPage) {
+    return this.repository.listByTenant(tenantId, page);
   }
 
   /**

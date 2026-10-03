@@ -5,6 +5,7 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
+import type { ListPage } from '../pagination.js';
 import { ensureRegistrationSchema, type PgPoolLike } from '../pg-registration-repository.js';
 
 import {
@@ -274,13 +275,32 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     });
   }
 
-  async listEnquiries(tenantId: string): Promise<EnquiryRecord[]> {
+  async listEnquiries(tenantId: string, page?: ListPage): Promise<EnquiryRecord[]> {
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        `SELECT * FROM admission_enquiries WHERE tenant_id = $1 ORDER BY created_at DESC`,
-        [tenantId],
+        `SELECT * FROM admission_enquiries WHERE tenant_id = $1
+          ORDER BY created_at DESC, id DESC
+          LIMIT $2 OFFSET $3`,
+        [tenantId, page ? page.limit + 1 : null, page?.offset ?? 0],
       );
       return (result.rows as Record<string, unknown>[]).map(mapEnquiry);
+    });
+  }
+
+  async findEnquiryByApplication(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<EnquiryRecord | null> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM admission_enquiries
+          WHERE tenant_id = $1 AND application_id = $2
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [tenantId, applicationId],
+      );
+      const row = (result.rows as Record<string, unknown>[])[0];
+      return row ? mapEnquiry(row) : null;
     });
   }
 
@@ -618,13 +638,18 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     });
   }
 
-  async listOffers(tenantId: string, applicationId?: string): Promise<OfferRecord[]> {
+  async listOffers(
+    tenantId: string,
+    applicationId?: string,
+    page?: ListPage,
+  ): Promise<OfferRecord[]> {
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM admission_offers
           WHERE tenant_id = $1 AND ($2::uuid IS NULL OR application_id = $2)
-          ORDER BY created_at DESC`,
-        [tenantId, applicationId ?? null],
+          ORDER BY created_at DESC, id DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, applicationId ?? null, page ? page.limit + 1 : null, page?.offset ?? 0],
       );
       return (result.rows as Record<string, unknown>[]).map(mapOffer);
     });

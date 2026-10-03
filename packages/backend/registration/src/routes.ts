@@ -16,6 +16,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { parseListPage, toPageResult } from './pagination.js';
 import { isPublicRegistrationPath } from './registration-access.js';
 import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
 import type { RegistrationService } from './registration-service.js';
@@ -587,9 +588,12 @@ export async function registerRegistrationRoutes(
     `${prefix}/applications`,
     async function listApplicationsHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = authenticatedTenantId(request);
-      const applications = await registrationService.listApplications(tenantId);
+      // PRC-M337: bounded page (limit <= 200).
+      const page = parseListPage(request.query);
+      const result = toPageResult(await registrationService.listApplications(tenantId, page), page);
       return reply.status(200).send({
-        data: applications.map((row) => ({
+        pagination: result.pagination,
+        data: result.data.map((row) => ({
           id: row.id,
           tenantId: row.tenantId,
           trackingNumber: row.trackingNumber,

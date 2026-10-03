@@ -18,6 +18,7 @@ import type {
   TenantFormConfiguration,
 } from './registration-repository.js';
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
+import { sliceForPage, type ListPage } from './pagination.js';
 
 export interface InMemoryInstitution {
   id: string;
@@ -141,11 +142,11 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     return row ? structuredClone(row) : null;
   }
 
-  async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
-    return this.registrations
+  async listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]> {
+    const rows = this.registrations
       .filter((registration) => registration.tenantId === tenantId)
-      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
-      .map((registration) => structuredClone(registration));
+      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+    return sliceForPage(rows, page).map((registration) => structuredClone(registration));
   }
 
   async updateStatus(

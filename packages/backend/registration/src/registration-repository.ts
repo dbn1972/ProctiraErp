@@ -7,6 +7,7 @@
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
+import type { ListPage } from './pagination.js';
 
 export type RegistrationStatus =
   | 'pending'
@@ -145,7 +146,8 @@ export interface RegistrationRepository {
 
   findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;
 
-  listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
+  /** With `page`, returns up to `page.limit + 1` rows (PRC-M337). */
+  listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]>;
 
   /**
    * Update status. When `expectedStatus` is given the write only applies if the
