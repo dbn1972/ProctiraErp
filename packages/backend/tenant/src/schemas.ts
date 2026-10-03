@@ -19,6 +19,8 @@ import { Type, type Static } from '@sinclair/typebox';
  */
 export const TenantStatusEnum = Type.Union([
   Type.Literal('provisioning'),
+  // PRC-H099: provisioning rolled back but the record could not be removed (db/sql/114).
+  Type.Literal('provisioning_failed'),
   Type.Literal('active'),
   Type.Literal('suspended'),
   Type.Literal('decommissioned'),

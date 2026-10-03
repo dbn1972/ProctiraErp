@@ -212,10 +212,20 @@ export class TenantService {
           await this.repository.deleteTenant(tenant.id);
         }
       } catch (cleanupError) {
+        // PRC-H099: never leave a half tenant looking in-flight — mark it provisioning_failed
+        // (allowed by the tenants_status_check from db/sql/114) so it can never be activated.
         logger.error(
           { tenantId: tenant.id, err: cleanupError },
-          'Failed to remove tenant record after provisioning failure; it remains in provisioning status',
+          'Failed to remove tenant record after provisioning failure; marking provisioning_failed',
         );
+        await this.repository
+          .updateTenant(tenant.id, { status: 'provisioning_failed' })
+          .catch((markError: unknown) => {
+            logger.error(
+              { tenantId: tenant.id, err: markError },
+              'Failed to mark tenant provisioning_failed; it remains in provisioning status',
+            );
+          });
       }
       throw new BusinessRuleError('Tenant admin provisioning failed; tenant was not activated');
     }
