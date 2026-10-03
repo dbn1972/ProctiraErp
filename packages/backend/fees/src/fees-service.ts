@@ -37,6 +37,11 @@ import {
 
 export type { ReminderChannel, ReminderSendAuditEntity, ReminderSuppressionEntity };
 
+/** PRC-M249: statuses that still carry collectible AR. */
+function isCollectible(status: string): boolean {
+  return status === 'open' || status === 'overdue';
+}
+
 /** PRC-M248: trim a `limit + 1` fetch into a page. */
 function feesPage<T>(rows: T[], page: FeesPageRequest): { data: T[]; nextCursor: string | null } {
   const hasMore = rows.length > page.limit;
@@ -1307,15 +1312,27 @@ export class FeesService {
       this.repository.listInvoicesForTenant(tenantId),
       this.repository.listReminderSuppressions(tenantId),
     ]);
-    const openOverdue = invoices.filter(
-      (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
+    const candidates = invoices.filter(
+      (invoice) => isCollectible(invoice.status) && invoice.dueAt != null && invoice.dueAt < asOf,
     );
-    return openOverdue.map((invoice) => ({
+    // PRC-M249: remind for the outstanding balance (face − succeeded payments, SQL SUM).
+    const paid = await this.repository.sumSucceededPaymentsByInvoice(
+      tenantId,
+      candidates.map((i) => i.id),
+    );
+    const openOverdue = candidates
+      .map((invoice) => ({
+        invoice,
+        outstanding: Math.max(0, invoice.amountCents - (paid.get(invoice.id) ?? 0)),
+      }))
+      .filter((row) => row.outstanding > 0);
+    return openOverdue.map(({ invoice, outstanding }) => ({
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       studentId: invoice.studentId,
       classId: invoice.classId,
-      amountCents: invoice.amountCents,
+      amountCents: outstanding,
+      invoiceAmountCents: invoice.amountCents,
       currency: invoice.currency,
       dueAt: invoice.dueAt!.toISOString(),
       overdueDays: Math.max(
@@ -1508,6 +1525,11 @@ export class FeesService {
       overdueDays: number;
     }> = [];
 
+    // PRC-M249: outstanding = face − succeeded payments (SQL aggregate), open + overdue alike.
+    const paid = await this.repository.sumSucceededPaymentsByInvoice(
+      tenantId,
+      invoices.filter((i) => isCollectible(i.status)).map((i) => i.id),
+    );
     for (const invoice of invoices) {
       const statusRow = byStatus.get(invoice.status) ?? {
         status: invoice.status,
@@ -1518,7 +1540,9 @@ export class FeesService {
       statusRow.amountCents += invoice.amountCents;
       byStatus.set(invoice.status, statusRow);
 
-      if (invoice.status !== 'open') continue;
+      if (!isCollectible(invoice.status)) continue;
+      const outstanding = Math.max(0, invoice.amountCents - (paid.get(invoice.id) ?? 0));
+      if (outstanding === 0) continue;
       const classKey = invoice.classId ?? 'unassigned';
       const classRow = byClass.get(classKey) ?? {
         classId: classKey,
@@ -1528,20 +1552,20 @@ export class FeesService {
         overdueCents: 0,
       };
       classRow.openCount += 1;
-      classRow.openCents += invoice.amountCents;
+      classRow.openCents += outstanding;
       if (invoice.dueAt && invoice.dueAt < asOf) {
         const overdueDays = Math.max(
           1,
           Math.floor((asOf.getTime() - invoice.dueAt.getTime()) / 86_400_000),
         );
         classRow.overdueCount += 1;
-        classRow.overdueCents += invoice.amountCents;
+        classRow.overdueCents += outstanding;
         overdue.push({
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
           studentId: invoice.studentId,
           classId: invoice.classId,
-          amountCents: invoice.amountCents,
+          amountCents: outstanding,
           overdueDays,
         });
       }
