@@ -28,6 +28,11 @@ class HomeScreen extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
 
     final SelectedStudentStore selected = getIt<SelectedStudentStore>();
+    // Staff-only tiles are hidden for portal (parent/student) sessions and
+    // when roles are unknown (PRC-M040); the router also blocks the routes.
+    final bool staff = context.select<AuthBloc, bool>(
+      (AuthBloc bloc) => bloc.state.canUseStaffFeatures,
+    );
 
     return ListenableBuilder(
       listenable: selected,
@@ -82,12 +87,14 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
-                  _QuickAction(
-                    icon: Icons.fact_check_outlined,
-                    label: 'Attendance',
-                    onTap: () => context.push('/attendance'),
-                  ),
-                  const SizedBox(width: 12),
+                  if (staff) ...<Widget>[
+                    _QuickAction(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Attendance',
+                      onTap: () => context.push('/attendance'),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   _QuickAction(
                     icon: Icons.assignment_outlined,
                     label: 'Results',
@@ -157,27 +164,30 @@ class HomeScreen extends StatelessWidget {
                     subtitle: 'Screenings & immunization',
                     route: withStudentQuery('/health', studentId),
                   ),
-                  _ServiceTile(
-                    icon: Icons.people_outline,
-                    color: const Color(0xFF0EA5E9),
-                    title: 'Students',
-                    subtitle: 'Profiles & enrollment',
-                    route: '/students',
-                  ),
-                  _ServiceTile(
-                    icon: Icons.account_balance_outlined,
-                    color: const Color(0xFF14B8A6),
-                    title: 'Institutions',
-                    subtitle: 'School profile & cluster info',
-                    route: '/institutions',
-                  ),
-                  _ServiceTile(
-                    icon: Icons.bar_chart_outlined,
-                    color: const Color(0xFF10B981),
-                    title: 'Reports',
-                    subtitle: 'Attendance & exam PDFs',
-                    route: '/reports',
-                  ),
+                  if (staff)
+                    _ServiceTile(
+                      icon: Icons.people_outline,
+                      color: const Color(0xFF0EA5E9),
+                      title: 'Students',
+                      subtitle: 'Profiles & enrollment',
+                      route: '/students',
+                    ),
+                  if (staff)
+                    _ServiceTile(
+                      icon: Icons.account_balance_outlined,
+                      color: const Color(0xFF14B8A6),
+                      title: 'Institutions',
+                      subtitle: 'School profile & cluster info',
+                      route: '/institutions',
+                    ),
+                  if (staff)
+                    _ServiceTile(
+                      icon: Icons.bar_chart_outlined,
+                      color: const Color(0xFF10B981),
+                      title: 'Reports',
+                      subtitle: 'Attendance & exam PDFs',
+                      route: '/reports',
+                    ),
                   _ServiceTile(
                     icon: Icons.notifications_outlined,
                     color: const Color(0xFF64748B),

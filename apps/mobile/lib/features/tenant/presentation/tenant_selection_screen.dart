@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -38,12 +39,34 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-    await getIt<TenantProvider>().setTenant(
-      tenantId: _tenantIdCtrl.text.trim(),
-      displayName: _tenantNameCtrl.text.trim().isEmpty
-          ? null
-          : _tenantNameCtrl.text.trim(),
-    );
+    final String tenantId = _tenantIdCtrl.text.trim();
+    final String? displayName = _tenantNameCtrl.text.trim().isEmpty
+        ? null
+        : _tenantNameCtrl.text.trim();
+    final TenantProvider tenant = getIt<TenantProvider>();
+    final AuthBloc? auth = getIt.isRegistered<AuthBloc>()
+        ? getIt<AuthBloc>()
+        : null;
+    if (auth != null &&
+        auth.state.isAuthenticated &&
+        tenant.tenantId != tenantId) {
+      // Signed-in switch to another workspace: the previous tenant's
+      // tokens, selected student and caches must not carry over
+      // (PRC-M034). The bloc signs out, purges, then activates the new id.
+      auth.add(
+        AuthWorkspaceSwitchRequested(
+          tenantId: tenantId,
+          displayName: displayName,
+        ),
+      );
+      await auth.stream.firstWhere((AuthState s) => !s.isAuthenticated);
+      if (!mounted) {
+        return;
+      }
+      context.go('/login');
+      return;
+    }
+    await tenant.setTenant(tenantId: tenantId, displayName: displayName);
     if (!mounted) {
       return;
     }
@@ -151,8 +174,9 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9)
-                                  .withValues(alpha: 0.12),
+                              color: const Color(
+                                0xFF0EA5E9,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(

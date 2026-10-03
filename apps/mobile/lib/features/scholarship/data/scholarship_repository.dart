@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/errors/offline_fallback.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import 'scholarship_document_rules.dart';
@@ -257,6 +258,22 @@ class ScholarshipApplication {
   };
 }
 
+/// Applicant's current academic record, as entered on the form (PRC-M044).
+class ScholarshipAcademicRecord {
+  const ScholarshipAcademicRecord({
+    required this.institutionName,
+    required this.educationLevel,
+  });
+
+  final String institutionName;
+  final String educationLevel;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'institutionName': institutionName,
+    'educationLevel': educationLevel,
+  };
+}
+
 /// Repository for scholarship programs and applications.
 class ScholarshipRepository {
   ScholarshipRepository({
@@ -270,6 +287,12 @@ class ScholarshipRepository {
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+
+  bool _lastServedFromCache = false;
+
+  /// True when the last [getPrograms] / [getApplications] call served saved
+  /// rows because the server was unreachable (PRC-M043).
+  bool get lastServedFromCache => _lastServedFromCache;
 
   /// One program, including closed rows, or null when it is not in the catalog.
   Future<ScholarshipProgram?> findProgram(String programId) async {
@@ -310,10 +333,15 @@ class ScholarshipRepository {
 
       await _bestEffortCache(() => _cachePrograms(tenantId, programs));
       return programs;
-    } on DioException {
-      return _cachedOrRethrow(
+    } on DioException catch (error) {
+      // Only an unreachable server may fall back to cache; 401/403/4xx/5xx
+      // are real answers and must surface (PRC-M043).
+      if (!isOfflineError(error)) rethrow;
+      final List<ScholarshipProgram> cached = await _cachedOrRethrow(
         () => _getCachedPrograms(tenantId, openOnly: openOnly),
       );
+      _lastServedFromCache = true;
+      return cached;
     }
   }
 
@@ -328,6 +356,23 @@ class ScholarshipRepository {
     } on DioException catch (error) {
       return scholarshipDocumentUploadRoutePresent(error.response?.statusCode);
     }
+  }
+
+  /// Name of the student's cached school, for prefilling the academic
+  /// record (PRC-M044). Null when either cache lacks it.
+  Future<String?> institutionNameForStudent(String studentId) async {
+    final String? institutionId = await institutionIdForStudent(studentId);
+    if (institutionId == null) return null;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.query(
+      'institutions_cache',
+      columns: <String>['name'],
+      where: 'tenant_id = ? AND id = ?',
+      whereArgs: <Object>[_requireTenantId(), institutionId],
+      limit: 1,
+    );
+    final Object? name = rows.isEmpty ? null : rows.first['name'];
+    return name is String && name.trim().isNotEmpty ? name.trim() : null;
   }
 
   /// School id cached for this student, when the student list has been synced.
@@ -356,6 +401,7 @@ class ScholarshipRepository {
     required String programId,
     required String studentId,
     required String institutionId,
+    required ScholarshipAcademicRecord academicRecord,
     String? personalStatement,
     double? familyIncome,
   }) async {
@@ -365,12 +411,8 @@ class ScholarshipRepository {
         'programId': programId,
         'applicantId': studentId,
         'institutionId': institutionId,
-        'academicRecords': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'institutionName': 'Current school',
-            'educationLevel': 'secondary',
-          },
-        ],
+        // Real values from the form; never a placeholder (PRC-M044).
+        'academicRecords': <Map<String, dynamic>>[academicRecord.toJson()],
         'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
         'documents': <Map<String, dynamic>>[],
         'asDraft': true,
@@ -378,6 +420,24 @@ class ScholarshipRepository {
       },
     );
     return _applicationIdFromResponse(response.data);
+  }
+
+  /// Sync the latest form values into a draft before finalize (PRC-M044):
+  /// `PUT /scholarships/applications/:id` (PRC-H031 on the backend).
+  Future<void> updateDraftApplication({
+    required String applicationId,
+    required ScholarshipAcademicRecord academicRecord,
+    String? personalStatement,
+    double? familyIncome,
+  }) async {
+    await _dio.put(
+      '/api/v1/scholarships/applications/$applicationId',
+      data: <String, dynamic>{
+        'academicRecords': <Map<String, dynamic>>[academicRecord.toJson()],
+        'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
+        'personalStatement': ?personalStatement,
+      },
+    );
   }
 
   /// Multipart upload of one supporting document. [onSendProgress] is byte counts.
@@ -469,10 +529,13 @@ class ScholarshipRepository {
         () => _cacheApplications(tenantId, studentId, applications),
       );
       return applications;
-    } on DioException {
-      return _cachedOrRethrow(
+    } on DioException catch (error) {
+      if (!isOfflineError(error)) rethrow;
+      final List<ScholarshipApplication> cached = await _cachedOrRethrow(
         () => _getCachedApplications(tenantId, studentId),
       );
+      _lastServedFromCache = true;
+      return cached;
     }
   }
 
@@ -629,8 +692,9 @@ class ScholarshipRepository {
     if (data is Map && data['id'] is String) {
       return data['id'] as String;
     }
-    if (data is Map && data['data'] is Map && data['data']['id'] is String) {
-      return data['data']['id'] as String;
+    final Object? inner = data is Map ? data['data'] : null;
+    if (inner is Map && inner['id'] is String) {
+      return inner['id'] as String;
     }
     throw StateError('The draft application did not return an id.');
   }

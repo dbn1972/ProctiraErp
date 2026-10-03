@@ -125,9 +125,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     if (store == null) {
       return;
     }
-    unawaited(
-      store.select(id: child.studentId, displayName: child.nameLabel),
-    );
+    unawaited(store.select(id: child.studentId, displayName: child.nameLabel));
   }
 
   void _select(LinkedChild child) {
@@ -150,20 +148,18 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Parent portal'),
-      ),
+      appBar: AppBar(title: const Text('Parent portal')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          Text(
-            'Your school connection',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('Your school connection', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'Message the school, respond to consent requests, and pay fees. '
-            'Staff attendance and roster tools stay on the main home screen.',
+            // Copy matches what the screens do today: read-only views
+            // (PRC-M039). Reply, consent response and payment are not
+            // available in the app yet.
+            'View messages from the school, consent requests and fee '
+            'invoices for your child.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
@@ -175,19 +171,19 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             _ParentTile(
               icon: Icons.chat_bubble_outline,
               title: 'Messages',
-              subtitle: 'Two-way threads with the school',
+              subtitle: 'Read messages from the school',
               onTap: () => _open('/parent/messages'),
             ),
             _ParentTile(
               icon: Icons.verified_user_outlined,
               title: 'Consents',
-              subtitle: 'Photo, medical, trip approvals',
+              subtitle: 'View photo, medical and trip requests',
               onTap: () => _open('/parent/consents'),
             ),
             _ParentTile(
               icon: Icons.payments_outlined,
               title: 'Fees',
-              subtitle: 'Invoices and sandbox pay',
+              subtitle: 'View invoices and balances',
               onTap: () => _open('/parent/fees'),
             ),
           ],
@@ -218,9 +214,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             button: true,
             label: 'Retry loading children',
             child: FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(44, 44),
-              ),
+              style: FilledButton.styleFrom(minimumSize: const Size(44, 44)),
               onPressed: _load,
               child: const Text('Retry'),
             ),
@@ -286,7 +280,10 @@ class _ChildCard extends StatelessWidget {
         margin: EdgeInsets.zero,
         child: ListTile(
           minTileHeight: 48,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
           leading: const Icon(Icons.child_care_outlined),
           title: Text(child.nameLabel),
           subtitle: Text(child.classLabel),
@@ -322,7 +319,10 @@ class _ParentTile extends StatelessWidget {
         button: true,
         label: title,
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
           minTileHeight: 48,
           leading: Icon(icon),
           title: Text(title),
