@@ -359,6 +359,7 @@ export class PgRegistrationRepository implements RegistrationRepository {
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null> {
     const scopedTenantId = this.requireTenant(tenantId, 'updateStatus');
     await this.ensureSchema();
@@ -369,8 +370,9 @@ export class PgRegistrationRepository implements RegistrationRepository {
                 remarks = COALESCE($4, remarks),
                 updated_at = now()
           WHERE tenant_id = $1::uuid AND id = $2::uuid
+            AND ($5::text IS NULL OR status = $5::text)
           RETURNING *`,
-        [scopedTenantId, id, status, remarks ?? null],
+        [scopedTenantId, id, status, remarks ?? null, expectedStatus ?? null],
       ),
     );
     return result.rows[0] ? mapApplication(result.rows[0] as Record<string, unknown>) : null;

@@ -153,11 +153,13 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null> {
     const registration = this.registrations.find(
       (row) => row.id === id && (!tenantId || row.tenantId === tenantId),
     );
     if (!registration) return null;
+    if (expectedStatus !== undefined && registration.status !== expectedStatus) return null;
     registration.status = status;
     registration.updatedAt = new Date();
     if (remarks !== undefined) registration.remarks = remarks;

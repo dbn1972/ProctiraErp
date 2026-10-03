@@ -615,14 +615,24 @@ export class RegistrationService {
     }
 
     if (!isAllowedApplicationTransition(application.status, status)) {
-      throw new BusinessRuleError(
+      // PRC-M334: invalid transition is a state conflict (409).
+      throw new ConflictError(
         `Application status cannot change from '${application.status}' to '${status}'`,
       );
     }
-
-    const updated = await this.repository.updateStatus(applicationId, status, remarks, tenantId);
+    // PRC-M334: optimistic write — only applies if nobody changed the status
+    // since we validated the transition.
+    const updated = await this.repository.updateStatus(
+      applicationId,
+      status,
+      remarks,
+      tenantId,
+      application.status,
+    );
     if (!updated) {
-      throw new NotFoundError(`Application with id '${applicationId}' not found`);
+      throw new ConflictError(
+        `Application '${applicationId}' status changed concurrently; reload and retry`,
+      );
     }
 
     // PRC-M329: leaving `waitlisted` (approved/rejected/under_review) removes the
@@ -678,18 +688,8 @@ export class RegistrationService {
       throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
     }
 
-    const booked = await this.crm.listBookingsForSlot(tenantId, slot.id);
-    if (booked.length >= slot.capacity) {
-      throw new BusinessRuleError('Interview slot is at capacity');
-    }
-
-    const existing = (
-      await this.crm.listBookingsForApplication(tenantId, input.applicationId)
-    ).find((row) => row.slotId === slot.id && row.status === 'booked');
-    if (existing) {
-      return existing;
-    }
-
+    // PRC-M334: existing-booking check and capacity check happen atomically in
+    // the store (slot row locked FOR UPDATE), not check-then-act here.
     return this.crm.bookSlot({
       tenantId,
       slotId: slot.id,

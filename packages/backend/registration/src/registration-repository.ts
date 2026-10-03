@@ -147,11 +147,17 @@ export interface RegistrationRepository {
 
   listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
 
+  /**
+   * Update status. When `expectedStatus` is given the write only applies if the
+   * current status still equals it (PRC-M334 optimistic concurrency); otherwise
+   * null is returned.
+   */
   updateStatus(
     id: string,
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null>;
 
   /** Latest or explicitly selected published configuration for this institution. */
