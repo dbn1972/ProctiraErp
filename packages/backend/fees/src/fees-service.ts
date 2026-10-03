@@ -103,6 +103,8 @@ export interface CreateFeeStructureInput {
   classId?: string;
   validFrom?: string;
   validTo?: string | null;
+  /** PRC-M091: equal instalments created atomically with the structure (1..24). */
+  partCount?: number;
 }
 
 export interface GenerateInstalmentScheduleInput {
@@ -648,7 +650,14 @@ export class FeesService {
       throw new BusinessRuleError('validTo must be on or after validFrom');
     }
     if (input.classId) await this.assertClassExists(tenantId, input.classId);
-    return this.repository.createFeeStructure({
+    const partCount = input.partCount ?? 1;
+    if (!Number.isInteger(partCount) || partCount < 1 || partCount > 24) {
+      throw new BusinessRuleError('partCount must be an integer between 1 and 24');
+    }
+    // PRC-M091: structure + instalment schedule commit together, so a failed
+    // schedule never leaves a structure without instalments.
+    return this.repository.runInTransaction(tenantId, async (tx) => {
+      const structure = await tx.createFeeStructure({
       id: uuidv4(),
       tenantId,
       institutionId: input.institutionId ?? null,
@@ -667,6 +676,24 @@ export class FeesService {
       version: 1,
       supersedesId: null,
       createdBy: actorId,
+      });
+      if (partCount > 1) {
+        const amounts = allocateInstalments(structure.amountCents, partCount);
+        await tx.replaceStructureInstalments(
+          tenantId,
+          structure.id,
+          amounts.map((amountCents, index) => ({
+            id: uuidv4(),
+            tenantId,
+            structureId: structure.id,
+            sequence: index + 1,
+            amountCents,
+            dueOffsetDays: index * 30,
+            label: `Instalment ${index + 1}`,
+          })),
+        );
+      }
+      return structure;
     });
   }
 

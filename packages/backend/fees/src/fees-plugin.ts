@@ -170,6 +170,8 @@ const CreateFeeStructureSchema = Type.Object({
   validTo: Type.Optional(
     Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
   ),
+  /** PRC-M091: instalments created in the same transaction as the structure. */
+  partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
 });
 
 const GenerateInstalmentsSchema = Type.Object({

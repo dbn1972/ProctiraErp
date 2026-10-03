@@ -79,6 +79,8 @@ export class InMemoryFeesRepository implements FeesRepository {
       refunds: this.refunds.map((r) => ({ ...r })),
       creditNotes: this.creditNotes.map((r) => ({ ...r })),
       writeOffs: this.writeOffs.map((r) => ({ ...r })),
+      structures: this.structures.map((r) => ({ ...r })),
+      instalments: this.instalments.map((r) => ({ ...r })),
     };
     try {
       return await fn();
@@ -91,6 +93,8 @@ export class InMemoryFeesRepository implements FeesRepository {
       this.refunds = snapshot.refunds;
       this.creditNotes = snapshot.creditNotes;
       this.writeOffs = snapshot.writeOffs;
+      this.structures = snapshot.structures;
+      this.instalments = snapshot.instalments;
       throw error;
     }
   }

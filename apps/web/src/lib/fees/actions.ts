@@ -12,7 +12,6 @@ import {
   previewBulkInvoiceStructure,
   type BulkInvoicePreview,
   createFeeStructure,
-  generateInstalments,
   importReconciliation,
   recordInvoicePayment,
   refundInvoice,
@@ -100,10 +99,12 @@ export async function createFeeStructureAction(
       amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
+      // PRC-M091: one request, one transaction — no orphan structure if the
+      // schedule fails.
+      ...(parsed.data.partCount && parsed.data.partCount > 1
+        ? { partCount: parsed.data.partCount }
+        : {}),
     });
-    if (parsed.data.partCount && parsed.data.partCount > 1) {
-      await generateInstalments(structure.id, parsed.data.partCount);
-    }
     refreshFees();
     return { success: true, data: { id: structure.id } };
   } catch (error) {

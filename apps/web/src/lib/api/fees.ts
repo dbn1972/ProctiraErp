@@ -136,6 +136,8 @@ export interface CreateFeeStructureInput {
   academicPeriodId?: string;
   gradeId?: string;
   classId?: string;
+  /** PRC-M091: instalments created atomically with the structure. */
+  partCount?: number;
 }
 
 function throwIfMissing<T>(
