@@ -38,6 +38,7 @@ import {
   writeWindowDirty,
 } from '@/components/institutions/institution-unsaved-guard';
 import { InstitutionLeaveConfirmHost } from '@/components/institutions/institution-leave-confirm-host';
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 
 interface SelectOption {
   id: string;
@@ -52,6 +53,8 @@ export interface InstitutionFormProps {
   types: SelectOption[];
   sectors: SelectOption[];
   ownerships: SelectOption[];
+  /** PRC-M155: lookups that failed to load; shows an alert and disables submit. */
+  lookupErrors?: readonly string[];
 }
 
 const PLACEHOLDER_UUID = '';
@@ -76,7 +79,9 @@ export function InstitutionForm({
   types,
   sectors,
   ownerships,
+  lookupErrors = [],
 }: InstitutionFormProps) {
+  const lookupsUnavailable = lookupErrors.length > 0;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -252,6 +257,7 @@ export function InstitutionForm({
         data-testid="institution-profile-form"
         data-dirty={formIsDirty ? 'true' : 'false'}
       >
+        <LookupLoadError failed={lookupErrors} testId="institution-lookup-error" />
         {serverError && (
           <div
             role="alert"
@@ -534,7 +540,7 @@ export function InstitutionForm({
           <Button type="button" variant="outline" onClick={cancel} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending || lookupsUnavailable}>
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {initialValue ? 'Save changes' : 'Create institution'}
           </Button>
