@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '106_institution_repair_requests.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '108_scholarship_on_approval_disbursement_uidx.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
