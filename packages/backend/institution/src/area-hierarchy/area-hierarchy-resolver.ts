@@ -8,6 +8,11 @@
 import type { AreaHierarchyResolver, AreaNode } from '@proctira/auth';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 
+import {
+  getAreaHierarchyVersionStore,
+  type AreaHierarchyVersionStore,
+} from './area-hierarchy-version.js';
+
 /** Minimal shape for registering areas from seeds or API writes. */
 export interface RegisterableArea {
   id: string;
@@ -47,6 +52,13 @@ export interface TenantScopedAreaHierarchyResolverOptions {
   loader?: AreaHierarchyLoader;
   /** Clock override for tests. */
   now?: () => number;
+  /**
+   * PRC-L119: shared per-tenant version stamp. Defaults to the store installed with
+   * `configureAreaHierarchyVersionStore` (Redis at gateway boot). `null` disables it.
+   */
+  versionStore?: AreaHierarchyVersionStore | null;
+  /** How often a cached tree's stamp is re-read (ms). Default 1000. */
+  versionCheckMs?: number;
 }
 
 /** Live resolvers in this process, notified when an area write changes a tenant tree. */
@@ -54,11 +66,31 @@ const liveResolvers = new Set<TenantScopedAreaHierarchyResolver>();
 
 /**
  * Invalidate every in-process resolver's cached tree for a tenant (PRC-L119).
- * Called by AreaHierarchyService after create/update/move so RBAC ancestry
- * reflects writes without a restart. Other replicas converge within the TTL.
+ * Synchronous, local only; prefer {@link publishAreaHierarchyChanged}, which also bumps the
+ * shared version stamp so other replicas reload too.
  */
 export function notifyAreaHierarchyChanged(tenantId: string): void {
   for (const resolver of liveResolvers) resolver.invalidateTenant(tenantId);
+}
+
+/**
+ * PRC-L119: called by AreaHierarchyService after create/update/move. Invalidates this process's
+ * resolvers and bumps the shared version stamp so every replica reloads the tenant tree on its
+ * next stamp check. Returns false when the shared bump failed (replicas then converge within
+ * the TTL); the committed area write is never failed for it.
+ */
+export async function publishAreaHierarchyChanged(
+  tenantId: string,
+  store: AreaHierarchyVersionStore | undefined = getAreaHierarchyVersionStore(),
+): Promise<boolean> {
+  notifyAreaHierarchyChanged(tenantId);
+  if (!store) return true;
+  try {
+    await store.bump(tenantId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -74,12 +106,23 @@ export class TenantScopedAreaHierarchyResolver implements AreaHierarchyResolver 
   private readonly ttlMs: number;
   private readonly loader: AreaHierarchyLoader;
   private readonly now: () => number;
-
+  private readonly versionStoreOption: AreaHierarchyVersionStore | null | undefined;
+  private readonly versionCheckMs: number;
+  /** Stamp observed when each store-loaded tenant tree was loaded, and when it was last read. */
+  private readonly loadedVersion = new Map<string, string | null>();
+  private readonly versionCheckedAt = new Map<string, number>();
   constructor(options: TenantScopedAreaHierarchyResolverOptions = {}) {
     this.ttlMs = options.ttlMs ?? DEFAULT_AREA_HIERARCHY_TTL_MS;
     this.loader = options.loader ?? loadTenantAreasFromPostgres;
     this.now = options.now ?? Date.now;
+    this.versionStoreOption = options.versionStore;
+    this.versionCheckMs = options.versionCheckMs ?? 1000;
     liveResolvers.add(this);
+  }
+
+  private get versionStore(): AreaHierarchyVersionStore | undefined {
+    if (this.versionStoreOption === null) return undefined;
+    return this.versionStoreOption ?? getAreaHierarchyVersionStore();
   }
 
   /** Register or replace a tenant's hierarchy (in-memory / test / write-through). */
@@ -178,13 +221,45 @@ export class TenantScopedAreaHierarchyResolver implements AreaHierarchyResolver 
   private async tenantIndex(tenantId: string): Promise<Map<string, AreaNode>> {
     const loadedAt = this.storeLoadedAt.get(tenantId);
     const expired = loadedAt !== undefined && this.now() - loadedAt >= this.ttlMs;
-    if (!this.loadedTenants.has(tenantId) || expired) {
+    if (
+      !this.loadedTenants.has(tenantId) ||
+      expired ||
+      (loadedAt !== undefined && (await this.sharedVersionChanged(tenantId)))
+    ) {
       await this.loadTenantFromStore(tenantId);
     }
     return this.byTenant.get(tenantId) ?? new Map();
   }
 
+  /**
+   * PRC-L119: true when another replica bumped the tenant's stamp since this tree was loaded.
+   * Read at most every `versionCheckMs`; an unreadable stamp counts as changed (reload from the
+   * database rather than keep a possibly stale RBAC tree).
+   */
+  private async sharedVersionChanged(tenantId: string): Promise<boolean> {
+    const store = this.versionStore;
+    if (!store) return false;
+    const checkedAt = this.versionCheckedAt.get(tenantId);
+    if (checkedAt !== undefined && this.now() - checkedAt < this.versionCheckMs) return false;
+    this.versionCheckedAt.set(tenantId, this.now());
+    try {
+      return (await store.current(tenantId)) !== (this.loadedVersion.get(tenantId) ?? null);
+    } catch {
+      return true;
+    }
+  }
+
   private async loadTenantFromStore(tenantId: string): Promise<void> {
+    // Read the stamp before the tree so a bump racing the load triggers the next reload.
+    let version: string | null = null;
+    const store = this.versionStore;
+    if (store) {
+      try {
+        version = await store.current(tenantId);
+      } catch {
+        version = null;
+      }
+    }
     const areas = await this.loader(tenantId);
     if (!areas) {
       if (!this.byTenant.has(tenantId)) this.byTenant.set(tenantId, new Map());
@@ -193,6 +268,8 @@ export class TenantScopedAreaHierarchyResolver implements AreaHierarchyResolver 
     }
     this.replaceTenant(tenantId, areas);
     this.storeLoadedAt.set(tenantId, this.now());
+    this.loadedVersion.set(tenantId, version);
+    this.versionCheckedAt.set(tenantId, this.now());
   }
 }
 

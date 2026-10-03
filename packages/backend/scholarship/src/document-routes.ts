@@ -27,8 +27,10 @@ import {
   type ScholarshipActor,
 } from './document-access.js';
 import {
-  DownloadTokenReplayGuard,
+  createDownloadTokenReplayGuard,
+  type DownloadTokenReplayStore,
   parseMultipartForm,
+  type ScholarshipDocumentDownloadAuditRecorder,
   verifyDocumentDownloadToken,
 } from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
@@ -59,8 +61,17 @@ export interface ScholarshipDocumentRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
-  /** Single-use download token guard (PRC-L344). Defaults to a process-local guard. */
-  downloadReplayGuard?: DownloadTokenReplayGuard;
+  /**
+   * Single-use download token store (PRC-L344). Production must inject the shared Redis guard
+   * ({@link createDownloadTokenReplayGuard}); the default is process-local and refused in
+   * production.
+   */
+  downloadReplayGuard?: DownloadTokenReplayStore;
+  /**
+   * Durable audit sink for every served download (PRC-L344). Required in production; when it
+   * fails the download is refused (503) rather than served unaudited.
+   */
+  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 function tenantIdOf(request: FastifyRequest): string | null {
@@ -93,7 +104,15 @@ export async function registerScholarshipDocumentRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/scholarships';
   const { scholarshipService, documentService } = options;
-  const replayGuard = options.downloadReplayGuard ?? new DownloadTokenReplayGuard();
+  const replayGuard =
+    options.downloadReplayGuard ??
+    createDownloadTokenReplayGuard({ NODE_ENV: process.env['NODE_ENV'] });
+  const recordDownloadAudit = options.recordDownloadAudit;
+  if (!recordDownloadAudit && (process.env['NODE_ENV'] ?? '').trim() === 'production') {
+    throw new Error(
+      'Scholarship document downloads require a durable audit sink in production (PRC-L344).',
+    );
+  }
 
   if (!fastify.hasContentTypeParser('multipart/form-data')) {
     fastify.addContentTypeParser(
@@ -434,7 +453,7 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 403,
           });
         }
-        if (!replayGuard.consume(claims.jti, claims.exp)) {
+        if (!(await replayGuard.consume(claims.jti, claims.exp))) {
           return reply.status(401).send({
             code: 'UNAUTHORIZED',
             message: 'Download link has already been used',
@@ -442,6 +461,31 @@ export async function registerScholarshipDocumentRoutes(
           });
         }
         const file = await documentService.readBytes(claims.tenantId, claims.documentId);
+        if (recordDownloadAudit) {
+          try {
+            await recordDownloadAudit({
+              tenantId: claims.tenantId,
+              documentId: claims.documentId,
+              userId: claims.sub || null,
+              sessionUserId: sessionUser || null,
+              jti: claims.jti,
+              ipAddress: request.ip,
+              userAgent: request.headers['user-agent'] ?? null,
+              requestId: String(request.id),
+            });
+          } catch (auditError) {
+            // PRC-L344: never serve an applicant document without a durable access record.
+            request.log.error(
+              { err: auditError, documentId: claims.documentId, tenantId: claims.tenantId },
+              'scholarship document download audit failed',
+            );
+            return reply.status(503).send({
+              code: 'AUDIT_UNAVAILABLE',
+              message: 'Download is temporarily unavailable',
+              statusCode: 503,
+            });
+          }
+        }
         request.log.info(
           {
             event: 'scholarship.document.downloaded',

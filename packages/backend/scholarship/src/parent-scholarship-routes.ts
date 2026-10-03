@@ -10,11 +10,16 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { deriveApplicantAttributes, type ApplicantAttributesLookup } from './application-intake.js';
 import { actorFromRequest, assertCanReadDocuments } from './document-access.js';
 import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
+import type {
+  DownloadTokenReplayStore,
+  ScholarshipDocumentDownloadAuditRecorder,
+} from './document-bytes.js';
 import {
   authorizeApplicationCreate,
   registerScholarshipDocumentRoutes,
@@ -24,7 +29,11 @@ import {
   InMemoryScholarshipDocumentStore,
   type ScholarshipDocumentStore,
 } from './document-store.js';
-import { institutionIdForStudent, linkLookupUnavailable } from './parent-links.js';
+import {
+  applicantAttributesForStudent,
+  institutionIdForStudent,
+  linkLookupUnavailable,
+} from './parent-links.js';
 import { CreateApplicationSchema } from './schemas.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
 import { ScholarshipService } from './scholarship-service.js';
@@ -36,6 +45,12 @@ export interface ParentScholarshipRouteOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
   /** Server-side institution of record for a student (PRC-L345). */
   resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
+  /** PRC-L345: student-record lookup for areaId/gender (defaults to Postgres). */
+  resolveApplicantAttributes?: ApplicantAttributesLookup;
+  /** PRC-L344: shared single-use store for document download links. */
+  downloadReplayGuard?: DownloadTokenReplayStore;
+  /** PRC-L344: durable audit sink for every served document download. */
+  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 async function actorFor(
@@ -88,6 +103,8 @@ export async function registerParentScholarshipRoutes(
   const { scholarshipService, documentService, resolveLinkedStudentIds } = options;
   const resolveStudentInstitutionId =
     options.resolveStudentInstitutionId ?? institutionIdForStudent;
+  const resolveApplicantAttributes =
+    options.resolveApplicantAttributes ?? applicantAttributesForStudent;
   const prefix = options.prefix ?? '';
 
   fastify.get(`${prefix}/programs`, async (request, reply) => {
@@ -235,9 +252,25 @@ export async function registerParentScholarshipRoutes(
     ) {
       return;
     }
+    let attributes: { areaId?: string; gender?: 'male' | 'female' | 'other' };
+    try {
+      // PRC-L345: areaId/gender from the student record; contradictions are a 422.
+      attributes = await deriveApplicantAttributes({
+        tenantId,
+        applicantId: parsed.data.applicantId,
+        claimed: { areaId: parsed.data.areaId, gender: parsed.data.gender },
+        lookup: resolveApplicantAttributes,
+      });
+    } catch (error) {
+      return sendAppError(reply, error);
+    }
+    const { areaId: _claimedArea, gender: _claimedGender, ...claimedRest } = parsed.data;
+    void _claimedArea;
+    void _claimedGender;
     try {
       const application = await scholarshipService.submitApplication(tenantId, {
-        ...parsed.data,
+        ...claimedRest,
+        ...attributes,
         asDraft: true,
       });
       return reply.status(201).send({
@@ -256,6 +289,8 @@ export async function registerParentScholarshipRoutes(
     documentService,
     prefix,
     resolveLinkedStudentIds,
+    downloadReplayGuard: options.downloadReplayGuard,
+    recordDownloadAudit: options.recordDownloadAudit,
   });
 }
 
@@ -267,6 +302,12 @@ export interface ParentScholarshipPluginOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
   /** Server-side institution of record for a student (PRC-L345). */
   resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
+  /** PRC-L345: student-record lookup for areaId/gender (defaults to Postgres). */
+  resolveApplicantAttributes?: ApplicantAttributesLookup;
+  /** PRC-L344: shared single-use store for document download links. */
+  downloadReplayGuard?: DownloadTokenReplayStore;
+  /** PRC-L344: durable audit sink for every served document download. */
+  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 export const parentScholarshipPlugin = fp(
@@ -286,6 +327,9 @@ export const parentScholarshipPlugin = fp(
       prefix: options.prefix ?? '',
       resolveLinkedStudentIds: options.resolveLinkedStudentIds,
       resolveStudentInstitutionId: options.resolveStudentInstitutionId,
+      resolveApplicantAttributes: options.resolveApplicantAttributes,
+      downloadReplayGuard: options.downloadReplayGuard,
+      recordDownloadAudit: options.recordDownloadAudit,
     });
   },
   { name: '@proctira/backend-scholarship-parent', fastify: '5.x' },

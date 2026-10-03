@@ -128,6 +128,7 @@ import {
   linkedStudentIdsForParent,
   scholarshipPlugin,
   parentScholarshipPlugin,
+  type RedisLikeForDownloadReplay,
   type ScholarshipRepository,
 } from '@proctira/backend-scholarship';
 import {
@@ -159,6 +160,7 @@ import type { FastifyInstance } from 'fastify';
 
 import {
   formatAdmissionNumber,
+  loadAdmissionsTimeZone,
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
@@ -172,7 +174,13 @@ import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
+import {
+  createScholarshipDownloadAuditRecorder,
+  createScholarshipDownloadReplayGuard,
+  type DownloadAuditService,
+} from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 
@@ -512,11 +520,7 @@ async function createAdmissionsEnrollment(
       );
       const seq = Number((counter.rows[0] as { last_value: number }).last_value);
       // PRC-L002: admission-number year and enrolment date follow the tenant's local calendar.
-      const tenantTz = await client.query(
-        `SELECT config->'locale'->>'timezone' AS tz FROM tenants WHERE id = $1::uuid`,
-        [input.tenantId],
-      );
-      const timeZone = (tenantTz.rows[0] as { tz?: string | null } | undefined)?.tz;
+      const timeZone = await loadAdmissionsTimeZone(client, input.tenantId);
       const acceptedAt = new Date();
       const admissionNo = formatAdmissionNumber(acceptedAt, timeZone, seq);
       await client.query(
@@ -827,6 +831,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         outboxStore: documentOutboxHandle?.outboxStore,
         examOpsStore,
         prefix: '/examinations',
+        // PRC-L104: exam calendar-date rules run in the tenant's configured timezone.
+        timeZone: createTenantTimeZoneResolver({ sources: pgTenantTimeZoneSources() }),
       });
     },
   },
@@ -943,7 +949,31 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const resolveLinkedStudentIds = isPgScholarshipEnabled()
         ? linkedStudentIdsForParent
         : undefined;
+      // PRC-L344: single-use download links are enforced through shared Redis (REDIS_URL) so
+      // they hold across replicas; every served download writes a durable audit_log row.
+      let downloadReplayRedis: RedisLikeForDownloadReplay | undefined;
+      const scholarshipRedisUrl = process.env['REDIS_URL']?.trim();
+      if (scholarshipRedisUrl) {
+        const { default: Redis } = await import('ioredis');
+        const redis = new Redis(scholarshipRedisUrl, {
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
+        downloadReplayRedis = redis;
+        scope.addHook('onClose', async () => {
+          await redis.quit();
+        });
+      }
+      const downloadReplayGuard = createScholarshipDownloadReplayGuard({
+        redis: downloadReplayRedis,
+        NODE_ENV: process.env['NODE_ENV'],
+      });
+      const recordDownloadAudit = createScholarshipDownloadAuditRecorder(
+        () => (scope as unknown as { auditService?: DownloadAuditService }).auditService,
+      );
       await scope.register(scholarshipPlugin, {
+        downloadReplayGuard,
+        recordDownloadAudit,
         repository,
         prefix: '/scholarships',
         documentStore,
@@ -983,6 +1013,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/parent-portal/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        downloadReplayGuard,
+        recordDownloadAudit,
       });
     },
   },
