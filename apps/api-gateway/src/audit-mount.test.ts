@@ -5,34 +5,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
+import { signTestToken } from './__tests__/gateway-test-kit.js';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 
 delete process.env['DATABASE_URL'];
 
 const TENANT_ID = '550e8400-e29b-41d4-a716-446655440000';
-
-function createTestJwtPayload(overrides?: Record<string, unknown>) {
-  return {
-    sub: 'user-123',
-    tenantId: TENANT_ID,
-    email: 'test@example.com',
-    displayName: 'Test User',
-    roles: [
-      {
-        roleId: 'admin',
-        roleName: 'Administrator',
-        areaId: 'root',
-      },
-    ],
-    areas: [],
-    institutions: [],
-    jti: 'test-jti-audit',
-    sessionId: 'test-session-audit',
-    ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
-}
 
 function createTestConfig(): GatewayConfig {
   return {
@@ -96,46 +75,65 @@ describe('G-105 audit mount', () => {
     expect(app.tenantService).toBeDefined();
   });
 
-  it('records an audit row on a successful mutating API call', async () => {
-    const before = await app.auditService.queryAuditLogs({
-      tenantId: TENANT_ID,
-      page: 1,
-      pageSize: 100,
-    });
-    const beforeCount = before.data.length;
-
-    const token = app.jwt.sign(createTestJwtPayload());
-
+  it('records an audit row on a successful mutating API call (resolved entity id, PRC-M013)', async () => {
+    const token = signTestToken(app, { sub: 'user-123', tenantId: TENANT_ID, roles: ['admin'] });
+    const headers = {
+      authorization: `Bearer ${token}`,
+      'x-tenant-id': TENANT_ID,
+      'content-type': 'application/json',
+    };
     const response = await app.inject({
       method: 'POST',
-      url: '/api/v1/students',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'x-tenant-id': TENANT_ID,
-        'content-type': 'application/json',
-      },
+      url: '/api/v1/workflows/definitions',
+      headers,
       payload: {
-        firstName: 'Ada',
-        lastName: 'Lovelace',
-        dateOfBirth: '2000-01-01',
+        name: 'Audit mount chain',
+        module: 'fees',
+        steps: [{ name: 'Review', approverRole: 'PRINCIPAL' }],
       },
     });
-
-    expect(response.statusCode).not.toBe(401);
-    expect(response.statusCode).not.toBe(403);
-    // Domain validation may return 400; RBAC/auth must have passed.
-    expect(response.statusCode).toBeLessThan(500);
-
+    expect(response.statusCode, response.body).toBe(201);
+    const createdId = (response.json() as { id: string }).id;
     const after = await app.auditService.queryAuditLogs({
       tenantId: TENANT_ID,
       page: 1,
       pageSize: 100,
     });
+    const row = after.data.find((r) => r.entityId === createdId);
+    expect(row, JSON.stringify(after.data.map((r) => r.entityId))).toBeDefined();
+    expect(row!.operation).toBe('CREATE');
+    expect(row!.userId).toBe('user-123');
+    expect(row!.metadata).toMatchObject({ outcome: 'success', statusCode: 201 });
+    expect((row!.afterValues as { changedFields?: string[] }).changedFields).toEqual([
+      'module',
+      'name',
+      'steps',
+    ]);
+  });
 
-    expect(after.data.length).toBeGreaterThan(beforeCount);
-    const latest = after.data[0]!;
-    expect(latest.operation).toBe('CREATE');
-    expect(latest.userId).toBe('user-123');
-    expect(latest.entityType).toBe('student');
+  it('a 400 response does not create a CREATE audit row (PRC-M013)', async () => {
+    const token = signTestToken(app, { sub: 'user-123', tenantId: TENANT_ID, roles: ['admin'] });
+    const before = await app.auditService.queryAuditLogs({
+      tenantId: TENANT_ID,
+      page: 1,
+      pageSize: 100,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/workflows/definitions',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-tenant-id': TENANT_ID,
+        'content-type': 'application/json',
+      },
+      payload: { name: '' },
+    });
+    expect(response.statusCode).toBe(400);
+    const after = await app.auditService.queryAuditLogs({
+      tenantId: TENANT_ID,
+      page: 1,
+      pageSize: 100,
+    });
+    expect(after.data.length).toBe(before.data.length);
   });
 });

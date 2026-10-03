@@ -53,6 +53,8 @@ export interface UserRecord {
   /** Role IDs currently assigned to this user. */
   roleIds: string[];
   status: 'ACTIVE' | 'SUSPENDED' | 'INVITED';
+  /** IdP-side identifier pushed by SCIM provisioning (PRC-M025). */
+  externalId?: string;
 }
 
 /** Filter options for listing users. */
@@ -91,4 +93,14 @@ export interface RolesRepository {
   /** Create or replace a user record (G-910 invite / directory sync). */
   upsertUser(user: UserRecord): Promise<UserRecord>;
   setUserRoles(tenantId: string, userId: string, roleIds: string[]): Promise<UserRecord | null>;
+  /**
+   * PRC-M026: read-modify-write of one user's role list as a single atomic step
+   * (row lock / no interleaving), so concurrent membership changes for the same
+   * user cannot overwrite each other. Returns null when the user is absent.
+   */
+  updateUserRolesAtomic?(
+    tenantId: string,
+    userId: string,
+    mutate: (current: string[]) => string[],
+  ): Promise<{ before: string[]; user: UserRecord } | null>;
 }

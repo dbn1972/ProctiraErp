@@ -97,8 +97,36 @@ function mapApproval(row: Record<string, unknown>): UiWorkflowApproval {
   };
 }
 
+/** PRC-M021: who may decide a pending approval. */
+export interface WorkflowApprovalContext {
+  /** Role id the current step is assigned to (engine state assigneeId / UI approverRole). */
+  approverRole: string | null;
+  /** Principal that initiated the request (self-approval check). */
+  initiatedBy: string | null;
+}
+
+/** PRC-M022: one page of a UI list with totals. */
+export interface WorkflowUiPage<T> {
+  data: T[];
+  meta: { page: number; pageSize: number; totalItems: number; totalPages: number };
+}
+
 export interface WorkflowUiStore {
   readonly persistence: 'postgres' | 'memory';
+  /** Optional efficient lookup; the plugin derives it from list methods otherwise. */
+  getApprovalContext?(
+    tenantId: string,
+    approvalId: string,
+  ): Promise<WorkflowApprovalContext | null>;
+  /** Optional SQL-paged variants (PRC-M022). */
+  listInstancesPage?(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowInstance>>;
+  listPendingApprovalsPage?(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowApproval>>;
   listDefinitions(tenantId: string): Promise<UiWorkflowDefinition[]>;
   getDefinition(tenantId: string, id: string): Promise<UiWorkflowDefinition | null>;
   createDefinition(definition: UiWorkflowDefinition): Promise<UiWorkflowDefinition>;

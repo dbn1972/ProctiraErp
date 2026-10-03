@@ -219,6 +219,7 @@ export {
   OtpAuthError,
 } from './otp-service.js';
 export type {
+  OtpAttemptOutcome,
   OtpChallengeRecord,
   OtpChallengeStore,
   OtpServiceOptions,
