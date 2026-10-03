@@ -25,6 +25,7 @@ import type { StaffHrStore } from './hr-store.js';
 import type { StaffLeaveRepository } from './leave-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
+import { resolvePayrollProrationPolicy, type PayrollProrationPolicy } from './payroll-compute.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
 import type { StaffRepository } from './staff-repository.js';
@@ -52,6 +53,11 @@ export interface StaffPluginOptions {
   appraisalWorkflowIntegration?: WorkflowIntegration;
   /** Optional notification integration for certification expiry alerts */
   trainingNotificationIntegration?: NotificationIntegration;
+  /**
+   * PRC-H089: mid-month offboard pay policy. Defaults to `process.env.PAYROLL_PRORATION`
+   * ('calendar_days' when unset). An unknown value fails plugin registration.
+   */
+  payrollProration?: PayrollProrationPolicy;
   /** Route prefix for staff (default: '/staff') */
   prefix?: string;
 }
@@ -116,7 +122,10 @@ export const staffPlugin = fp(
     });
 
     const hrStore = options.hrStore ?? createStaffHrStore();
-    const hrService = new StaffHrService(hrStore, staffService);
+    const hrService = new StaffHrService(hrStore, staffService, {
+      payrollProration:
+        options.payrollProration ?? resolvePayrollProrationPolicy(process.env.PAYROLL_PRORATION),
+    });
     fastify.decorate('staffHrService', hrService);
     await fastify.register(async (scope) => {
       await registerStaffHrRoutes(scope, { hrService, prefix });

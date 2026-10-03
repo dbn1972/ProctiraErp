@@ -129,6 +129,35 @@ async function selectCurrentPayrollExport(
   return row ? mapPayrollExport(row, month) : null;
 }
 
+async function insertContract(
+  client: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+  record: StaffContractRecord,
+): Promise<StaffContractRecord> {
+  const { rows } = await client.query(
+    `INSERT INTO staff_contracts (
+       id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band,
+       monthly_gross_cents, status, notes, created_at, updated_at
+     ) VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5::date,$6::date,$7,$8::bigint,$9,$10,
+               $11::timestamptz,$12::timestamptz)
+     RETURNING *`,
+    [
+      record.id,
+      record.tenantId,
+      record.staffId,
+      record.contractType,
+      record.startDate,
+      record.endDate,
+      record.salaryBand,
+      record.monthlyGrossCents,
+      record.status,
+      record.notes,
+      record.createdAt,
+      record.updatedAt,
+    ],
+  );
+  return mapContract(rows[0] as Record<string, unknown>);
+}
+
 export class PgStaffHrStore implements StaffHrStore {
   constructor(private readonly pool: PgHrOpsPool) {}
 
@@ -138,30 +167,15 @@ export class PgStaffHrStore implements StaffHrStore {
 
   async createContract(record: StaffContractRecord): Promise<StaffContractRecord> {
     await ensureStaffHrSchema(this.pool);
-    return this.run(record.tenantId, async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO staff_contracts (
-           id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band,
-           monthly_gross_cents, status, notes, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11,$12)
-         RETURNING *`,
-        [
-          record.id,
-          record.tenantId,
-          record.staffId,
-          record.contractType,
-          record.startDate,
-          record.endDate,
-          record.salaryBand,
-          record.monthlyGrossCents,
-          record.status,
-          record.notes,
-          record.createdAt,
-          record.updatedAt,
-        ],
-      );
-      return mapContract(rows[0] as Record<string, unknown>);
-    });
+    return this.run(record.tenantId, (client) => insertContract(client, record));
+  }
+
+  async createContractOn(
+    executor: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+    record: StaffContractRecord,
+  ): Promise<StaffContractRecord> {
+    await ensureStaffHrSchema(this.pool);
+    return insertContract(executor, record);
   }
 
   async listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]> {

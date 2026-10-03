@@ -37,6 +37,18 @@ export interface StaffFilter {
 }
 
 /**
+ * PRC-L153/L246: write scope bound to ONE database transaction. `executor` runs raw SQL on
+ * the same connection/transaction (pg-style `query(text, values)`), so dependent rows in
+ * other stores (e.g. staff_contracts) commit or roll back with the staff row.
+ */
+export interface StaffTransactionScope {
+  create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity>;
+  executor: {
+    query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+  };
+}
+
+/**
  * Repository interface for staff data access.
  */
 export interface StaffRepository {
@@ -76,4 +88,17 @@ export interface StaffRepository {
    * dependent write in another store fails). Never use for user-initiated deletes.
    */
   purgeCreated?(id: string, tenantId: string): Promise<void>;
+  /**
+   * PRC-H089: keyset page of non-deleted staff ordered by id ascending, strictly after
+   * `afterId` (null = from the start). Used to iterate an entire tenant (payroll).
+   */
+  listAfterId?(tenantId: string, afterId: string | null, limit: number): Promise<StaffEntity[]>;
+  /**
+   * PRC-L153/L246: run `fn` inside one tenant-bound transaction. Any throw rolls back every
+   * write made through the scope (staff rows and `executor` SQL).
+   */
+  withTransaction?<T>(
+    tenantId: string,
+    fn: (scope: StaffTransactionScope) => Promise<T>,
+  ): Promise<T>;
 }

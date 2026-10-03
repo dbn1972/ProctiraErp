@@ -11,6 +11,11 @@ export interface TimetablePluginOptions {
   repository: TimetableRepository;
   opsStore?: TimetableOpsStore;
   prefix?: string;
+  /**
+   * PRC-L320: pre-built service instance shared with other in-process callers
+   * (e.g. institution rollover) so they use the mounted instance, not a copy.
+   */
+  service?: TimetableService;
 }
 
 declare module 'fastify' {
@@ -21,10 +26,9 @@ declare module 'fastify' {
 
 export const timetablePlugin = fp(
   async function timetablePluginImpl(fastify: FastifyInstance, options: TimetablePluginOptions) {
-    const service = new TimetableService(
-      options.repository,
-      options.opsStore ?? createTimetableOpsStore(),
-    );
+    const service =
+      options.service ??
+      new TimetableService(options.repository, options.opsStore ?? createTimetableOpsStore());
     fastify.decorate('timetableService', service);
     await registerTimetableRoutes(fastify, {
       service,
