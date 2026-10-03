@@ -44,3 +44,36 @@ export function toPersistedDraft<T extends PersistedRegistrationDraft>(draft: T)
     documents: stripDocumentContent(draft.documents),
   };
 }
+
+/** sessionStorage key prefix for in-progress drafts (one per institution type). */
+export const DRAFT_STORAGE_PREFIX = 'registration-draft:';
+/** sessionStorage key holding the tracking number for the success page. */
+export const LAST_TRACKING_NUMBER_KEY = 'registration:lastTrackingNumber';
+
+/**
+ * PRC-M054: true once the applicant has typed anything. Pristine drafts are
+ * never persisted, so a reset after submit leaves no `registration-draft:*` key.
+ */
+export function hasApplicantData(draft: PersistedRegistrationDraft): boolean {
+  return Boolean(
+    draft.firstName ||
+      draft.lastName ||
+      draft.dateOfBirth ||
+      draft.gender ||
+      draft.guardianName ||
+      draft.guardianPhone ||
+      draft.guardianEmail ||
+      Object.keys(draft.customFields).length > 0 ||
+      draft.documents.length > 0,
+  );
+}
+
+/** PRC-M054: remove every registration draft (child + guardian PII) from storage. */
+export function clearRegistrationDrafts(storage: Storage): void {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key?.startsWith(DRAFT_STORAGE_PREFIX)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+}
