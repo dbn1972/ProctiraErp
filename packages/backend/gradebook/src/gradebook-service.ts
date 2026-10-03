@@ -93,15 +93,29 @@ export function toPublicBoardExportJob(job: ExportJobEntity): ExportJobEntity {
   return { ...job, metadata };
 }
 
+/**
+ * PRC-M266: durable writer for gradebook audit events (transcript issue,
+ * board export create/download, report cards, grade workflow). Wired by the
+ * gateway to the shared hash-chained audit log; awaited so a failed write
+ * surfaces as an error instead of being silently dropped.
+ */
+export type GradebookAuditSink = (entry: GradebookAuditEntry) => Promise<void>;
+
+/** In-process mirror cap (listAudits) — the durable sink is the system of record. */
+export const GRADEBOOK_AUDIT_MEMORY_CAP = 1000;
+
 export class GradebookService {
-  private readonly auditLog: GradebookAuditEntry[] = [];
+  private auditLog: GradebookAuditEntry[] = [];
   private readonly extras: GradebookExtrasStore;
+  private readonly auditSink: GradebookAuditSink | null;
 
   constructor(
     private readonly repo: GradebookRepository,
     extras?: GradebookExtrasStore,
+    options: { auditSink?: GradebookAuditSink | null } = {},
   ) {
     this.extras = extras ?? new InMemoryGradebookExtrasStore();
+    this.auditSink = options.auditSink ?? null;
   }
 
   listAudits(tenantId: string): GradebookAuditEntry[] {
@@ -112,12 +126,13 @@ export class GradebookService {
     return this.extras.listAudits(tenantId, gradeEntryId);
   }
 
-  private recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): void {
-    this.auditLog.push({
-      id: randomUUID(),
-      at: nowIso(),
-      ...entry,
-    });
+  private async recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): Promise<void> {
+    const row: GradebookAuditEntry = { id: randomUUID(), at: nowIso(), ...entry };
+    this.auditLog.push(row);
+    if (this.auditLog.length > GRADEBOOK_AUDIT_MEMORY_CAP) {
+      this.auditLog = this.auditLog.slice(-GRADEBOOK_AUDIT_MEMORY_CAP);
+    }
+    if (this.auditSink) await this.auditSink(row);
   }
 
   private persistGradeChange(entry: {
@@ -239,6 +254,7 @@ export class GradebookService {
     tenantId: string,
     id: string,
     format: 'pdf' | 'html' | 'json' = 'pdf',
+    opts?: { actorId?: string | null },
   ): Promise<{ filename: string; contentType: string; body: Buffer; checksumSha256: string }> {
     const row = await this.repo.getTranscript(tenantId, id);
     if (!row) throw new NotFoundError(`Transcript ${id} not found`);
@@ -265,6 +281,15 @@ export class GradebookService {
     } catch {
       throw new NotFoundError(`Transcript ${format} artifact missing on disk`);
     }
+    // PRC-M266: every transcript download is audited with actor + format.
+    await this.recordAudit({
+      tenantId,
+      action: 'transcript.download',
+      entityType: 'transcript_issuance',
+      entityId: row.id,
+      actorId: opts?.actorId ?? null,
+      details: { studentId: row.studentId, version: row.version, format },
+    });
     return {
       filename: `transcript-${row.studentId}-v${row.version}.${target.ext}`,
       contentType: target.contentType,
@@ -390,7 +415,7 @@ export class GradebookService {
         { expectedUpdatedAt: existing.updatedAt, requireUnlocked: true },
       );
       if (!updated) throw new NotFoundError(`Grade entry ${existing.id} not found`);
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'grade.upsert',
         entityType: 'grade_entry',
@@ -433,7 +458,7 @@ export class GradebookService {
       },
       { action: 'grade.upsert', actorId: actorId(user) },
     );
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'grade.upsert',
       entityType: 'grade_entry',
@@ -511,7 +536,7 @@ export class GradebookService {
       { expectedUpdatedAt: entry.updatedAt },
     );
     if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: `grade.${action}`,
       entityType: 'grade_entry',
@@ -925,7 +950,7 @@ export class GradebookService {
       updatedAt: now,
     });
     persistTranscriptArtifacts(artifacts, built);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'transcript.issue',
       entityType: 'transcript_issuance',
@@ -1042,7 +1067,7 @@ export class GradebookService {
       updatedAt: now,
     });
 
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'board_export.create',
       entityType: 'board_export_job',
@@ -1139,7 +1164,7 @@ export class GradebookService {
           },
           updatedAt: finished,
         })) ?? running;
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'board_export.succeeded',
         entityType: 'board_export_job',
@@ -1162,7 +1187,7 @@ export class GradebookService {
         metadata: failedMeta,
         updatedAt: finished,
       });
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'board_export.failed',
         entityType: 'board_export_job',
@@ -1257,7 +1282,7 @@ export class GradebookService {
       throw new BusinessRuleError('Artifact path rejected');
     }
     const body = readFileSync(resolved.path);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'board_export.download',
       entityType: 'board_export_job',

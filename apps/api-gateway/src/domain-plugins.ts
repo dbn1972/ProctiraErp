@@ -82,7 +82,12 @@ import {
   feesPlugin,
   majorUnitsToCents,
 } from '@proctira/backend-fees';
-import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
+import {
+  createGradebookRepository,
+  gradebookPlugin,
+  type GradebookAuditEntry,
+} from '@proctira/backend-gradebook';
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   assertPhiEnvelopeConfigured,
   createHealthRepository,
@@ -332,6 +337,35 @@ function createOfferFeeInvoiceHook() {
         .catch(() => undefined);
       lockClient.release();
     }
+  };
+}
+
+/** PRC-M266: persist gradebook audit events to audit_log_entries when Postgres is configured. */
+function gradebookAuditSink() {
+  const pool = getSharedPgPool();
+  if (!pool) return null;
+  return async (entry: GradebookAuditEntry) => {
+    await withPgTenant(pool, entry.tenantId, async (client) => {
+      await appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId: entry.tenantId,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+          operation: 'CREATE',
+          userId: entry.actorId ?? 'unknown',
+          userName: entry.actorId ?? 'unknown',
+          ipAddress: 'unknown',
+          afterValues: entry.details,
+          metadata: {
+            regulated: `gradebook.${entry.action}`,
+            action: entry.action,
+            gradebookAuditId: entry.id,
+          },
+          timestamp: new Date(entry.at),
+        }),
+      );
+    });
   };
 }
 
@@ -878,6 +912,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+        // PRC-M266: transcript / board-export / report-card audit events go to the shared,
+        // hash-chained audit log (durable across restarts). No pool -> in-process only (dev).
+        auditSink: gradebookAuditSink(),
         studentBinding: {
           listReadableStudentIds: async (tenantId, actorUserId) => {
             const links = await gradebookParentRepo.listChildLinksForParent(tenantId, actorUserId);

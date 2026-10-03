@@ -724,7 +724,9 @@ export async function registerGradebookRoutes(
       const query = request.query as { format?: string };
       const raw = (query.format ?? 'pdf').toLowerCase();
       const format = raw === 'html' || raw === 'json' ? raw : 'pdf';
-      const file = await service.downloadTranscript(tenantId, id, format);
+      const file = await service.downloadTranscript(tenantId, id, format, {
+        actorId: requestUser(request)?.sub ?? requestUser(request)?.id ?? null,
+      });
       return reply
         .header('Content-Type', file.contentType)
         .header('Content-Disposition', `attachment; filename="${file.filename}"`)
