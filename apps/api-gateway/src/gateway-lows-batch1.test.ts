@@ -192,38 +192,43 @@ describe('gateway lows batch 1', () => {
       }
     });
 
-    it('sink failure is logged with the request id and the request still succeeds', async () => {
-      const lines: string[] = [];
-      const bare = Fastify({
-        logger: { level: 'error', stream: { write: (line: string) => lines.push(line) } },
+    // PRC-M466 supersedes the L205 "still succeeds" behaviour: a high-risk
+    // role/user audit failure now fails the request closed (503) by default.
+    for (const mode of ['default (fail closed)', 'failOnAuditError=false'] as const) {
+      it(`sink failure is logged with the request id — ${mode}`, async () => {
+        const lines: string[] = [];
+        const bare = Fastify({
+          logger: { level: 'error', stream: { write: (line: string) => lines.push(line) } },
+        });
+        bare.addHook('onRequest', (request, _reply, done) => {
+          (request as unknown as { user: unknown }).user = { sub: 'admin-9', tenantId: TENANT_C };
+          (request as unknown as { tenantId: string }).tenantId = TENANT_C;
+          done();
+        });
+        await bare.register(tenantAdminPlugin, {
+          prefix: '/tenant',
+          scimPrefix: false,
+          ...(mode === 'failOnAuditError=false' ? { failOnAuditError: false } : {}),
+          onAudit: () => {
+            throw new Error('audit sink down');
+          },
+        });
+        await bare.ready();
+        const res = await bare.inject({
+          method: 'POST',
+          url: '/tenant/users',
+          payload: { email: 'sink.fail@school.test', displayName: 'Sink Fail', roleIds: [] },
+        });
+        expect(res.statusCode, res.body).toBe(mode === 'failOnAuditError=false' ? 201 : 503);
+        const failure = lines
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+          .find((entry) => entry['msg'] === 'tenant admin audit write failed');
+        expect(failure).toBeDefined();
+        expect(typeof failure!['requestId']).toBe('string');
+        expect(failure!['riskLevel']).toBe('high');
+        await bare.close();
       });
-      bare.addHook('onRequest', (request, _reply, done) => {
-        (request as unknown as { user: unknown }).user = { sub: 'admin-9', tenantId: TENANT_C };
-        (request as unknown as { tenantId: string }).tenantId = TENANT_C;
-        done();
-      });
-      await bare.register(tenantAdminPlugin, {
-        prefix: '/tenant',
-        scimPrefix: false,
-        onAudit: () => {
-          throw new Error('audit sink down');
-        },
-      });
-      await bare.ready();
-      const res = await bare.inject({
-        method: 'POST',
-        url: '/tenant/users',
-        payload: { email: 'sink.fail@school.test', displayName: 'Sink Fail', roleIds: [] },
-      });
-      expect(res.statusCode, res.body).toBe(201);
-      const failure = lines
-        .map((line) => JSON.parse(line) as Record<string, unknown>)
-        .find((entry) => entry['msg'] === 'tenant admin audit write failed');
-      expect(failure).toBeDefined();
-      expect(typeof failure!['requestId']).toBe('string');
-      expect(failure!['riskLevel']).toBe('high');
-      await bare.close();
-    });
+    }
   });
   describe('PRC-L208 branding asset staging validates and persists URLs', () => {
     const url = '/api/v1/tenant/branding/assets';

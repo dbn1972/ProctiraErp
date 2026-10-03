@@ -119,6 +119,22 @@ export interface TenantAdminPluginOptions {
   scimPrefix?: string | false;
   /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
   tenantService?: TenantService;
+  /**
+   * PRC-M466: when the audit sink rejects a high-risk role/user event, fail the
+   * request with 503 instead of logging and returning success. Default `true`
+   * (fail closed); set `false` only where an outbox guarantees delivery.
+   */
+  failOnAuditError?: boolean;
+}
+
+/** PRC-M466: surfaced (as 503) when a high-risk role/user audit write fails. */
+export class TenantAdminAuditError extends Error {
+  readonly statusCode = 503;
+  readonly code = 'AUDIT_WRITE_FAILED';
+  constructor(cause: unknown) {
+    super('Audit trail write failed; the change was not acknowledged', { cause });
+    this.name = 'TenantAdminAuditError';
+  }
 }
 
 export const tenantAdminPlugin = fp(
@@ -174,9 +190,8 @@ export const tenantAdminPlugin = fp(
           requestId: actor?.requestId ?? null,
         });
       } catch (error) {
-        // Policy: the role/user mutation has already committed, and the gateway onSend mutation
-        // audit records the same request with the real actor, so the request is not failed.
-        // The lost before/after record must be visible to operators, never silently dropped.
+        // PRC-M466: never silently drop a high-risk before/after record. Log for alerting and,
+        // by default, fail the request so the caller does not see an unaudited success.
         fastify.log.error(
           {
             err: error,
@@ -189,6 +204,9 @@ export const tenantAdminPlugin = fp(
           },
           'tenant admin audit write failed',
         );
+        if (options.failOnAuditError !== false && event.metadata.riskLevel === 'high') {
+          throw new TenantAdminAuditError(error);
+        }
       }
     });
 

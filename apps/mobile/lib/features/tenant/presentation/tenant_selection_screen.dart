@@ -3,7 +3,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/storage/secure_storage.dart';
+import '../../../core/student/selected_student_store.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../../core/tenant/tenant_switch.dart';
 
 /// Stub tenant selection screen. The full tenant directory + onboarding flow
 /// is built later; this scaffold lets a developer or QA configure a tenant id
@@ -66,7 +70,19 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
       context.go('/login');
       return;
     }
-    await tenant.setTenant(tenantId: tenantId, displayName: displayName);
+    // PRC-M565: not signed in (or same tenant) — a different tenant still
+    // wipes any prior tenant's stored session + caches before activation.
+    final bool purged = await TenantSwitcher(
+      tenantProvider: tenant,
+      storage: getIt<SecureStorage>(),
+      database: getIt<AppDatabase>(),
+      selectedStudent: getIt<SelectedStudentStore>(),
+    ).switchTo(tenantId: tenantId, displayName: displayName);
+    if (purged && auth != null) {
+      // Tokens are gone: re-resolve auth so the router sends the user to
+      // sign in for the new workspace.
+      auth.add(const AuthBootstrapRequested());
+    }
     if (!mounted) {
       return;
     }

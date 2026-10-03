@@ -1,7 +1,23 @@
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 
-import { registerKeycloakAuthRoutes } from './routes.js';
+import { MemoryWebTicketStore, registerKeycloakAuthRoutes, webReturnTo } from './routes.js';
+
+/** PRC-M500: start a login and return the cookie + state the callback must present. */
+async function beginLogin(app: ReturnType<typeof Fastify>, appState?: string) {
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/v1/auth/login${appState ? `?state=${encodeURIComponent(appState)}` : ''}`,
+  });
+  const cookie = String(res.headers['set-cookie']).split(';')[0]!;
+  const location = new URL(String(res.headers.location));
+  const state = location.searchParams.get('state')!;
+  const txn = JSON.parse(Buffer.from(cookie.split('=')[1]!, 'base64url').toString()) as {
+    n: string;
+    v: string;
+  };
+  return { cookie, state, location, txn };
+}
 
 describe('Keycloak auth routes', () => {
   it('redirects login to the Keycloak authorization endpoint', async () => {
@@ -22,7 +38,13 @@ describe('Keycloak auth routes', () => {
     expect(response.statusCode).toBe(302);
     expect(response.headers.location).toContain('/protocol/openid-connect/auth');
     expect(response.headers.location).toContain('client_id=proctira-gateway');
-    expect(response.headers.location).toContain('state=abc');
+    // PRC-M500: caller state is not echoed; a server state + PKCE + nonce are sent.
+    const location = new URL(String(response.headers.location));
+    expect(location.searchParams.get('state')).not.toBe('abc');
+    expect(location.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(location.searchParams.get('code_challenge')).toBeTruthy();
+    expect(location.searchParams.get('nonce')).toBeTruthy();
+    expect(String(response.headers['set-cookie'])).toMatch(/kc_oidc_txn=.+HttpOnly; SameSite=Lax/);
     await app.close();
   });
 
@@ -94,9 +116,11 @@ describe('Keycloak auth routes', () => {
       identityStore,
     });
 
+    const { cookie, state } = await beginLogin(app);
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/auth/callback?code=abc',
+      url: `/api/v1/auth/callback?code=abc&state=${state}`,
+      headers: { cookie },
     });
 
     expect(response.statusCode).toBe(200);
@@ -185,10 +209,15 @@ describe('Keycloak auth routes', () => {
       webOrigin: 'http://localhost:3201',
     });
 
+    const { cookie, state } = await beginLogin(app, 'web:/students');
     const callback = await app.inject({
       method: 'GET',
-      url: '/api/v1/auth/callback?code=abc&state=web:/students',
+      url: `/api/v1/auth/callback?code=abc&state=${state}`,
+      headers: { cookie },
     });
+    // PRC-M500: PKCE verifier is sent on the code exchange.
+    const tokenCall = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/token'));
+    expect(String((tokenCall![1] as RequestInit).body)).toContain('code_verifier=');
     expect(callback.statusCode).toBe(302);
     const location = new URL(String(callback.headers.location));
     expect(location.origin).toBe('http://localhost:3201');
@@ -212,5 +241,133 @@ describe('Keycloak auth routes', () => {
 
     fetchMock.mockRestore();
     await app.close();
+  });
+
+  describe('PRC-M500 state/PKCE/nonce binding, returnTo, shared tickets', () => {
+    const base = {
+      issuer: 'http://localhost:8180/realms/proctira',
+      clientId: 'proctira-gateway',
+      realm: 'proctira',
+      jwksUri: 'http://localhost:8180/realms/proctira/protocol/openid-connect/certs',
+      redirectUri: 'http://localhost:3200/api/v1/auth/callback',
+      webOrigin: 'http://localhost:3201',
+    };
+    const jwt = (payload: Record<string, unknown>) =>
+      [
+        Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url'),
+        Buffer.from(JSON.stringify(payload)).toString('base64url'),
+        'sig',
+      ].join('.');
+    function mockToken(extra: Record<string, unknown> = {}) {
+      return vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              access_token: jwt({ sub: 'kc-1' }),
+              token_type: 'Bearer',
+              ...extra,
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      );
+    }
+
+    it('rejects a callback with unknown state or no cookie (login CSRF / code injection)', async () => {
+      const fetchMock = mockToken();
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, base);
+      const noCookie = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/callback?code=attacker&state=x',
+      });
+      expect(noCookie.statusCode).toBe(400);
+      expect(noCookie.json().code).toBe('KEYCLOAK_STATE_MISMATCH');
+      const { cookie } = await beginLogin(app);
+      const wrong = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/callback?code=attacker&state=forged',
+        headers: { cookie },
+      });
+      expect(wrong.statusCode).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+      fetchMock.mockRestore();
+      await app.close();
+    });
+
+    it('rejects an ID token whose nonce does not match the browser transaction', async () => {
+      const fetchMock = mockToken({ id_token: jwt({ nonce: 'other' }) });
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, base);
+      const { cookie, state } = await beginLogin(app);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().code).toBe('KEYCLOAK_NONCE_MISMATCH');
+      fetchMock.mockRestore();
+      await app.close();
+    });
+
+    it('accepts a matching nonce', async () => {
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, base);
+      const { cookie, state, txn } = await beginLogin(app);
+      const fetchMock = mockToken({ id_token: jwt({ nonce: txn.n }) });
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      fetchMock.mockRestore();
+      await app.close();
+    });
+
+    it('rejects unsafe returnTo values', () => {
+      expect(webReturnTo('web://evil.com')).toBeNull();
+      expect(webReturnTo('web:/\\evil.com')).toBeNull();
+      expect(webReturnTo('web:https://evil.com')).toBeNull();
+      expect(webReturnTo('web:/students?x=1')).toBe('/students?x=1');
+    });
+
+    it('returnTo=//evil.com does not produce a web redirect', async () => {
+      const fetchMock = mockToken();
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, base);
+      const { cookie, state } = await beginLogin(app, 'web://evil.com');
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers.location).toBeUndefined();
+      fetchMock.mockRestore();
+      await app.close();
+    });
+
+    it('a ticket issued on replica A is redeemable once on replica B (shared store)', async () => {
+      const shared = new MemoryWebTicketStore();
+      const a = Fastify();
+      const b = Fastify();
+      await registerKeycloakAuthRoutes(a, { ...base, webTicketStore: shared });
+      await registerKeycloakAuthRoutes(b, { ...base, webTicketStore: shared });
+      const fetchMock = mockToken();
+      const { cookie, state } = await beginLogin(a, 'web:/home');
+      const cb = await a.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie },
+      });
+      const ticket = new URL(String(cb.headers.location)).searchParams.get('ticket');
+      const r1 = await b.inject({ method: 'GET', url: `/api/v1/auth/ticket?ticket=${ticket}` });
+      expect(r1.statusCode).toBe(200);
+      const r2 = await a.inject({ method: 'GET', url: `/api/v1/auth/ticket?ticket=${ticket}` });
+      expect(r2.statusCode).toBe(401);
+      fetchMock.mockRestore();
+      await Promise.all([a.close(), b.close()]);
+    });
   });
 });

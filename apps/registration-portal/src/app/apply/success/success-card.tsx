@@ -14,7 +14,8 @@ export function SuccessCard() {
   const tCommon = useTranslations('common');
   const tLanding = useTranslations('landing');
   const [trackingNumber, setTrackingNumber] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  // PRC-L020: copy outcome announced through a polite live region.
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -22,11 +23,19 @@ export function SuccessCard() {
   }, []);
 
   function handleCopy() {
-    if (!trackingNumber || typeof navigator === 'undefined') return;
-    void navigator.clipboard.writeText(trackingNumber).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    if (!trackingNumber) return;
+    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+    if (!clipboard?.writeText) {
+      setCopyStatus('failed');
+      return;
+    }
+    clipboard.writeText(trackingNumber).then(
+      () => {
+        setCopyStatus('copied');
+        setTimeout(() => setCopyStatus('idle'), 2000);
+      },
+      () => setCopyStatus('failed'),
+    );
   }
 
   return (
@@ -56,11 +65,14 @@ export function SuccessCard() {
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-            aria-label="Copy tracking number"
+            aria-label={t('copyTrackingNumber')}
           >
             <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
-            {copied ? '✓' : ''}
+            {copyStatus === 'copied' ? <span aria-hidden="true">✓</span> : null}
           </button>
+          <span className="sr-only" role="status" aria-live="polite">
+            {copyStatus === 'copied' ? t('trackingNumberCopied') : ''}
+          </span>
         </div>
       ) : (
         <div className="mx-auto mt-6 max-w-md rounded-md border border-amber-200 bg-amber-50 p-4 text-start text-sm text-amber-950">
@@ -69,6 +81,11 @@ export function SuccessCard() {
         </div>
       )}
 
+      {copyStatus === 'failed' ? (
+        <p className="mt-3 text-sm text-red-700" role="alert">
+          {t('copyFailed')}
+        </p>
+      ) : null}
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Link href="/track" className="btn-primary h-11 px-6 text-base">
           {tLanding('trackCta')}

@@ -29,10 +29,17 @@ export interface SessionStore {
 /**
  * Session Service manages user sessions across the platform.
  */
+/** PRC-M584: token revocation hooks used when sessions are bulk-invalidated. */
+export interface SessionTokenRevoker {
+  revokeAllSessionTokens(sessionId: string, reason: string): Promise<void>;
+  revokeAllUserTokens(userId: string, tenantId: string, reason: string): Promise<void>;
+}
+
 export class SessionService {
   constructor(
     private readonly config: AuthConfig,
     private readonly sessionStore: SessionStore,
+    private readonly tokenRevoker?: SessionTokenRevoker,
   ) {}
 
   /**
@@ -115,7 +122,17 @@ export class SessionService {
    * Invalidate all sessions for a user in a tenant.
    */
   async invalidateAllUserSessions(userId: string, tenantId: string): Promise<void> {
+    // PRC-M584: also revoke refresh tokens and denylist each session's sid so
+    // outstanding refresh/access tokens die with the sessions.
+    const sessions = this.tokenRevoker
+      ? await this.sessionStore.findActiveByUser(userId, tenantId)
+      : [];
     await this.sessionStore.invalidateAllForUser(userId, tenantId);
+    if (!this.tokenRevoker) return;
+    for (const session of sessions) {
+      await this.tokenRevoker.revokeAllSessionTokens(session.id, 'All sessions invalidated');
+    }
+    await this.tokenRevoker.revokeAllUserTokens(userId, tenantId, 'All sessions invalidated');
   }
 
   /**

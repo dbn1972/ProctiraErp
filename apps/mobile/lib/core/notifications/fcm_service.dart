@@ -59,7 +59,13 @@ class FcmService implements PushDeviceLifecycle {
     Future<LocalNotificationPreferences> Function()? preferencesLoader,
     Future<String> Function()? installationId,
     Duration registrationRetryBase = const Duration(seconds: 2),
+    Stream<RemoteMessage>? onMessage,
+    Stream<RemoteMessage>? onMessageOpenedApp,
+    void Function(BackgroundMessageHandler handler)? registerBackgroundHandler,
   }) : _deviceApi = deviceApi,
+       _onMessageOverride = onMessage,
+       _onMessageOpenedAppOverride = onMessageOpenedApp,
+       _registerBackgroundHandler = registerBackgroundHandler,
        _preferencesLoader = preferencesLoader,
        _repository = repository,
        _router = router,
@@ -84,6 +90,12 @@ class FcmService implements PushDeviceLifecycle {
   final Future<String> Function()? _installationId;
   final Duration _retryBase;
 
+  // PRC-M564: injectable message streams so push routing is testable without
+  // the Firebase platform channels.
+  final Stream<RemoteMessage>? _onMessageOverride;
+  final Stream<RemoteMessage>? _onMessageOpenedAppOverride;
+  final void Function(BackgroundMessageHandler handler)?
+  _registerBackgroundHandler;
   bool _started = false;
   String? _token;
 
@@ -151,9 +163,14 @@ class FcmService implements PushDeviceLifecycle {
       debugPrint('FCM token registration skipped: $error');
     }
 
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
-    FirebaseMessaging.onBackgroundMessage(openemisFcmBackgroundHandler);
+    (_onMessageOverride ?? FirebaseMessaging.onMessage).listen(
+      _onForegroundMessage,
+    );
+    (_onMessageOpenedAppOverride ?? FirebaseMessaging.onMessageOpenedApp)
+        .listen(_onMessageOpenedApp);
+    (_registerBackgroundHandler ?? FirebaseMessaging.onBackgroundMessage)(
+      openemisFcmBackgroundHandler,
+    );
 
     // If the app was launched by tapping a notification, surface that as a
     // deep-link event so the router can navigate after first frame.
@@ -326,4 +343,14 @@ class FcmService implements PushDeviceLifecycle {
     }
     return null;
   }
+}
+
+/// PRC-M564: the single place push deep links are applied to navigation
+/// (used by `main.dart` and by tests). The router's auth guard decides where
+/// an unauthenticated user actually lands.
+StreamSubscription<FcmDeepLink> bindPushDeepLinks(
+  Stream<FcmDeepLink> links,
+  void Function(String route) go,
+) {
+  return links.listen((FcmDeepLink link) => go(link.route));
 }

@@ -4,7 +4,10 @@
  * Provides a generic OAuth2 authentication flow that can be used
  * for Google, Microsoft, and other OAuth2-compatible providers.
  */
+import { createHash, randomBytes } from 'node:crypto';
+
 import { v4 as uuidv4 } from 'uuid';
+
 import type {
   ExternalAuthProvider,
   OAuth2ProviderConfig,
@@ -32,6 +35,8 @@ export interface HttpClient {
 /**
  * Simple fetch-based HTTP client implementation.
  */
+const FETCH_TIMEOUT_MS = 10_000;
+
 export class FetchHttpClient implements HttpClient {
   async post(
     url: string,
@@ -45,6 +50,8 @@ export class FetchHttpClient implements HttpClient {
         ...headers,
       },
       body: new URLSearchParams(body).toString(),
+      // PRC-M588: never hang the login path on a slow IdP.
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
@@ -57,6 +64,7 @@ export class FetchHttpClient implements HttpClient {
     const response = await fetch(url, {
       method: 'GET',
       headers: { ...headers },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
@@ -83,7 +91,10 @@ export class OAuth2Provider implements ExternalAuthProvider {
   private readonly extractUserInfo: UserInfoExtractor;
 
   // Store state tokens for CSRF validation (in production, use Redis/DB)
-  private readonly pendingStates = new Map<string, { tenantId: string; createdAt: number }>();
+  private readonly pendingStates = new Map<
+    string,
+    { tenantId: string; codeVerifier: string; createdAt: number }
+  >();
 
   constructor(
     config: OAuth2ProviderConfig,
@@ -103,9 +114,9 @@ export class OAuth2Provider implements ExternalAuthProvider {
    */
   async initiateAuth(tenantId: string): Promise<AuthInitiationResult> {
     const state = uuidv4();
-
-    // Store state for CSRF validation
-    this.pendingStates.set(state, { tenantId, createdAt: Date.now() });
+    // PRC-M589: PKCE (S256) binds the code to this login attempt.
+    const codeVerifier = randomBytes(48).toString('base64url');
+    this.pendingStates.set(state, { tenantId, codeVerifier, createdAt: Date.now() });
 
     // Clean up old states (older than 10 minutes)
     this.cleanupStates();
@@ -116,6 +127,8 @@ export class OAuth2Provider implements ExternalAuthProvider {
       response_type: 'code',
       scope: this.config.scopes.join(' '),
       state,
+      code_challenge: createHash('sha256').update(codeVerifier).digest('base64url'),
+      code_challenge_method: 'S256',
       access_type: 'offline',
       prompt: 'consent',
     });
@@ -179,7 +192,7 @@ export class OAuth2Provider implements ExternalAuthProvider {
     }
 
     // Exchange authorization code for tokens
-    const tokenResponse = await this.exchangeCode(params.code);
+    const tokenResponse = await this.exchangeCode(params.code, storedState.codeVerifier);
     const accessToken = tokenResponse['access_token'] as string;
 
     if (!accessToken) {
@@ -199,10 +212,11 @@ export class OAuth2Provider implements ExternalAuthProvider {
   /**
    * Exchange authorization code for access token.
    */
-  private async exchangeCode(code: string): Promise<Record<string, unknown>> {
+  private async exchangeCode(code: string, codeVerifier: string): Promise<Record<string, unknown>> {
     const response = await this.httpClient.post(this.config.tokenUrl, {
       grant_type: 'authorization_code',
       code,
+      code_verifier: codeVerifier,
       redirect_uri: this.config.callbackUrl,
       client_id: this.config.clientId,
       client_secret: this.config.clientSecret,

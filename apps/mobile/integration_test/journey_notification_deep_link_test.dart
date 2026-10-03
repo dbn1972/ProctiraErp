@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:proctira_mobile/core/di/injector.dart';
-import 'package:proctira_mobile/core/router/app_router.dart';
+import 'package:proctira_mobile/core/notifications/fcm_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'helpers/test_setup.dart';
@@ -21,81 +21,116 @@ import 'helpers/test_setup.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('notification tap deep-links to type-mapped route', (
+    WidgetTester tester,
+  ) async {
+    final JourneyHarness harness = await bootstrapTestApp(
+      tenantId: 'tenant-a',
+      tenantDisplayName: 'Tenant A',
+    );
+    addTearDown(harness.dispose);
+
+    await harness.markAuthenticated();
+
+    // Seed one REPORT_READY notification with an entityId. When tapped
+    // the router should send the user to /reports/<id>.
+    final Database raw = await harness.database.database;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'type': 'REPORT_READY',
+      'entityId': 'enrollment-summary',
+    };
+    await raw.insert('notifications_cache', <String, Object?>{
+      'id': 'notif-1',
+      'tenant_id': 'tenant-a',
+      'type': 'REPORT_READY',
+      'title': 'Your report is ready',
+      'body': 'The enrollment summary report has finished generating.',
+      'payload': jsonEncode(payload),
+      'received_at': DateTime.now().millisecondsSinceEpoch,
+      'read': 0,
+    });
+
+    await pumpJourneyApp(tester);
+    goJourney('/notifications');
+    await tester.pumpAndSettle();
+
+    // The seeded notification renders.
+    expect(find.text('Your report is ready'), findsOneWidget);
+
+    // Tap the notification card InkWell wrapping the title (not AppBar icons).
+    final Finder cardInk = find.ancestor(
+      of: find.text('Your report is ready'),
+      matching: find.byType(InkWell),
+    );
+    expect(cardInk, findsOneWidget);
+    await tester.tap(cardInk);
+    await tester.pumpAndSettle(const Duration(milliseconds: 500));
+
+    // The notification row was marked as read in the cache (proves onTap ran).
+    final List<Map<String, Object?>> rows = await raw.query(
+      'notifications_cache',
+      where: 'id = ?',
+      whereArgs: <Object>['notif-1'],
+    );
+    expect(rows, hasLength(1));
+    expect(rows.first['read'], 1);
+
+    // PRC-M564: no self-healing fallback — the tap itself must have routed.
+    // markRead runs on real sqflite IO; let the push that follows it settle.
+    await tester.pumpAndSettle(const Duration(milliseconds: 500));
+    expect(currentJourneyPath(), '/reports/enrollment-summary');
+    expect(find.text('Enrollment summary'), findsWidgets);
+  });
+
   testWidgets(
-    'notification tap deep-links to type-mapped route',
+    'push deep link while signed out is held behind the login guard',
     (WidgetTester tester) async {
       final JourneyHarness harness = await bootstrapTestApp(
         tenantId: 'tenant-a',
         tenantDisplayName: 'Tenant A',
       );
       addTearDown(harness.dispose);
-
-      await harness.markAuthenticated();
-
-      // Seed one REPORT_READY notification with an entityId. When tapped
-      // the router should send the user to /reports/<id>.
-      final Database raw = await harness.database.database;
-      final Map<String, dynamic> payload = <String, dynamic>{
-        'type': 'REPORT_READY',
-        'entityId': 'enrollment-summary',
-      };
-      await raw.insert('notifications_cache', <String, Object?>{
-        'id': 'notif-1',
-        'tenant_id': 'tenant-a',
-        'type': 'REPORT_READY',
-        'title': 'Your report is ready',
-        'body': 'The enrollment summary report has finished generating.',
-        'payload': jsonEncode(payload),
-        'received_at': DateTime.now().millisecondsSinceEpoch,
-        'read': 0,
-      });
-
+      await harness.bootstrapAuth();
       await pumpJourneyApp(tester);
-      goJourney('/notifications');
+
+      final StreamController<FcmDeepLink> links =
+          StreamController<FcmDeepLink>();
+      addTearDown(links.close);
+      bindPushDeepLinks(links.stream, goJourney);
+      links.add(
+        const FcmDeepLink(
+          route: '/reports/enrollment-summary',
+          source: FcmDeepLinkSource.messageOpened,
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // The seeded notification renders.
-      expect(find.text('Your report is ready'), findsOneWidget);
-
-      // Tap the notification card InkWell wrapping the title (not AppBar icons).
-      final Finder cardInk = find.ancestor(
-        of: find.text('Your report is ready'),
-        matching: find.byType(InkWell),
-      );
-      expect(cardInk, findsOneWidget);
-      await tester.tap(cardInk);
-      await tester.pumpAndSettle(const Duration(milliseconds: 500));
-
-      // The notification row was marked as read in the cache (proves onTap ran).
-      final List<Map<String, Object?>> rows = await raw.query(
-        'notifications_cache',
-        where: 'id = ?',
-        whereArgs: <Object>['notif-1'],
-      );
-      expect(rows, hasLength(1));
-      expect(rows.first['read'], 1);
-
-      // Deep-link landed on the report detail for enrollment-summary.
-      // Prefer UI evidence: predefined report title is visible.
-      final bool landedOnReport = find
-              .text('Enrollment summary')
-              .evaluate()
-              .isNotEmpty ||
-          getIt<AppRouter>()
-                  .config
-                  .routerDelegate
-                  .currentConfiguration
-                  .uri
-                  .path ==
-              '/reports/enrollment-summary';
-      if (!landedOnReport) {
-        // Fallback: drive the same router helper the screen uses, then assert
-        // the destination paints (guards against LiveTest push timing).
-        goJourney('/reports/enrollment-summary');
-        await tester.pumpAndSettle();
-      }
-      expect(find.text('Enrollment summary'), findsWidgets);
+      expect(currentJourneyPath(), '/login');
     },
   );
-}
 
+  testWidgets('push deep link while signed in lands on the mapped route', (
+    WidgetTester tester,
+  ) async {
+    final JourneyHarness harness = await bootstrapTestApp(
+      tenantId: 'tenant-a',
+      tenantDisplayName: 'Tenant A',
+    );
+    addTearDown(harness.dispose);
+    await harness.markAuthenticated();
+    await pumpJourneyApp(tester);
+
+    final StreamController<FcmDeepLink> links = StreamController<FcmDeepLink>();
+    addTearDown(links.close);
+    bindPushDeepLinks(links.stream, goJourney);
+    links.add(
+      const FcmDeepLink(
+        route: '/reports/enrollment-summary',
+        source: FcmDeepLinkSource.initialMessage,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(currentJourneyPath(), '/reports/enrollment-summary');
+  });
+}

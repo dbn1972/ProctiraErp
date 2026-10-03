@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 #
-# Regenerate the OpenEMIS Dart API client from the backend OpenAPI document.
+# PRC-M254: Dart API client code generation is NOT implemented.
 #
-# TODO(29.2): wire this up properly. The production toolchain should:
-#   1. Boot the API gateway in a temp container and dump the aggregated
-#      OpenAPI 3.0 schema (or read it from the build artifact).
-#   2. Run `openapi-generator-cli generate -g dart-dio -i schema.json -o lib`.
-#   3. Apply a custom mustache template that adds `If-Match` plumbing to
-#      mutation operations (matches the conflict resolution contract).
+# The clients under lib/src/api and models under lib/src/models are
+# hand-written. Drift is caught instead by:
+#   - test/api_contract_test.dart   (client calls == contract/client_routes.json)
+#   - apps/api-gateway/src/dart-client-contract.test.ts
+#                                   (contract routes are mounted on the gateway)
 #
-# For now the models and clients under lib/ are hand-written so the mobile app
-# can compile without the generator toolchain installed.
+# This script fails loudly so no pipeline can mistake it for a successful
+# regeneration step.
 set -euo pipefail
-
-echo "make_clients.sh: TODO — code generation not wired yet."
-echo "Hand-written clients live under lib/src/api and lib/src/models."
-echo "Skipping (success)."
+echo "make_clients.sh: code generation is not implemented; clients are hand-written." >&2
+echo "Update lib/src/api + contract/client_routes.json by hand and run 'dart test'." >&2
+exit 1

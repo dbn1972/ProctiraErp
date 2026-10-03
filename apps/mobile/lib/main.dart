@@ -52,8 +52,7 @@ Future<void> main() async {
 Future<void> _initialisePushNotifications() async {
   final FcmService fcm = getIt<FcmService>();
   await fcm.start();
-  fcm.deepLinks.listen((FcmDeepLink link) {
-    final AppRouter router = getIt<AppRouter>();
-    router.config.go(link.route);
+  bindPushDeepLinks(fcm.deepLinks, (String route) {
+    getIt<AppRouter>().config.go(route);
   });
 }

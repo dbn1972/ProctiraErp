@@ -234,8 +234,19 @@ describe('Google Provider', () => {
     });
 
     it('should use email as displayName when name is missing', () => {
-      const profile = extractGoogleUserInfo({ sub: '123', email: 'user@gmail.com' });
+      const profile = extractGoogleUserInfo({
+        sub: '123',
+        email: 'user@gmail.com',
+        email_verified: true,
+      });
       expect(profile.displayName).toBe('user@gmail.com');
+      expect(profile.emailVerified).toBe(true);
+    });
+
+    it('PRC-M589: refuses an unverified Google email', () => {
+      expect(() => extractGoogleUserInfo({ sub: '123', email: 'user@gmail.com' })).toThrow(
+        'not verified',
+      );
     });
   });
 
@@ -306,6 +317,7 @@ describe('Microsoft Provider', () => {
           clientId: 'ms-client-id',
           clientSecret: 'ms-secret',
           callbackUrl: 'https://app.example.com/auth/microsoft/callback',
+          tenantId: 'contoso-tenant-guid',
         },
         httpClient,
       );
@@ -328,6 +340,40 @@ describe('Microsoft Provider', () => {
       );
 
       expect(provider.providerId).toBe('microsoft');
+    });
+
+    it.each(['common', 'organizations', 'consumers', ''])(
+      'PRC-M589: refuses multi-tenant authority %j',
+      (tenantId) => {
+        expect(() =>
+          createMicrosoftProvider({
+            clientId: 'c',
+            clientSecret: 's',
+            callbackUrl: 'https://app.example.com/cb',
+            tenantId,
+          }),
+        ).toThrow(/specific Azure AD tenant/);
+      },
+    );
+
+    it('PRC-M589: identity is tid:oid and email is not treated as verified', async () => {
+      const httpClient = new MockHttpClient();
+      const provider = createMicrosoftProvider(
+        { clientId: 'c', clientSecret: 's', callbackUrl: 'https://app/cb', tenantId: 'tid-1' },
+        httpClient,
+      );
+      const init = await provider.initiateAuth('t1');
+      const url = new URL(init.redirectUrl);
+      expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+      httpClient.postResponses.push({ data: { access_token: 'a' }, status: 200 });
+      httpClient.getResponses.push({
+        data: { id: 'oid-9', mail: 'victim@school.edu' },
+        status: 200,
+      });
+      const profile = await provider.handleCallback({ code: 'c', state: init.state }, 't1');
+      expect(profile.externalId).toBe('tid-1:oid-9');
+      expect(profile.emailVerified).toBe(false);
+      expect(httpClient.postCalls[0]!.body['code_verifier']).toBeTruthy();
     });
   });
 });
