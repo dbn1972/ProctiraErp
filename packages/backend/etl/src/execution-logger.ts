@@ -49,7 +49,7 @@ export interface ExecutionSummary {
   executionId: string;
   pipelineId: string;
   tenantId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'completed_with_errors' | 'failed';
   startedAt: Date;
   completedAt: Date;
   totalDurationMs: number;

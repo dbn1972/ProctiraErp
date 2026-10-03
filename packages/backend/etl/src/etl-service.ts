@@ -674,7 +674,8 @@ export class ETLService {
       });
 
       execution.errorCount = execution.errors.length;
-      execution.status = 'completed';
+      // PRC-M227: partial failure is visible in the run status.
+      execution.status = execution.errorCount > 0 ? 'completed_with_errors' : 'completed';
       execution.completedAt = new Date();
 
       // Log execution summary
@@ -683,7 +684,7 @@ export class ETLService {
         executionId,
         pipelineId: pipeline.id,
         tenantId,
-        status: 'completed',
+        status: execution.status,
         startedAt,
         completedAt: execution.completedAt,
         totalDurationMs: totalDuration,
