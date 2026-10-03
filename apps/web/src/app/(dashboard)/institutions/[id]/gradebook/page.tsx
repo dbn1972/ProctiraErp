@@ -18,6 +18,7 @@ import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/li
 import { getStudent, listStudents, type Student } from '@/lib/api/students';
 import {
   listClassRanks,
+  listCreditRules,
   listCommentsBank,
   listGradeEntries,
   listGradebookSections,
@@ -51,8 +52,16 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const canSubmit = canSubmitGrades(roles);
   const canModerate = canModerateGrades(roles);
 
-  const [sectionsResult, scalesResult, jobsResult, studentsResult, commentsResult, periods, today] =
-    await Promise.all([
+  const [
+    sectionsResult,
+    scalesResult,
+    jobsResult,
+    studentsResult,
+    commentsResult,
+    periods,
+    today,
+    creditRulesResult,
+  ] = await Promise.all([
       listGradebookSections({ institutionId }),
       listGradingScales(),
       listReportCardJobs(),
@@ -60,7 +69,11 @@ export default async function InstitutionGradebookPage(props: PageProps) {
       listCommentsBank({ institutionId }),
       listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
       getTenantToday(),
+      listCreditRules(),
     ]);
+  const creditRuleOptions = creditRulesResult.ok
+    ? creditRulesResult.data.map((rule) => ({ code: rule.code, name: rule.name }))
+    : [];
 
   const apiError = !sectionsResult.ok
     ? sectionsResult.error
@@ -184,6 +197,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 defaultStudentId={defaultStudentId}
                 studentOptions={studentOptions}
                 comments={comments}
+                creditRuleOptions={creditRuleOptions}
               />
             </CardContent>
           </Card>
