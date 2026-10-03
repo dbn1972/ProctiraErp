@@ -85,7 +85,7 @@ export default async function FeesInvoicesPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (
-                      <PayInvoiceStaffButton invoiceId={invoice.id} />
+                      <PayInvoiceStaffButton invoiceId={invoice.id} currency={invoice.currency} />
                     ) : null}
                     {invoice.status === 'open' && invoice.structureId ? (
                       <ConcessionDialog

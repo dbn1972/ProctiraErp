@@ -74,7 +74,7 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
     await expect(page.getByTestId('report-builder-live-submit')).toBeVisible({ timeout: 15_000 });
   });
 
-  test('warehouse import queues a live CSV job', async ({ page }) => {
+  test('warehouse import states CSV upload is not available (PRC-M072)', async ({ page }) => {
     await page.goto('/data-warehouse/import', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/import data/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
@@ -94,5 +94,6 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
       .nth(1)
       .click();
     await expect(page.getByTestId('csv-live-submit')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('csv-live-submit')).toContainText(/not available yet/i);
   });
 });
