@@ -131,12 +131,10 @@ export async function getAttendanceReportAction(
 }
 
 export async function createRegularisationAction(input: {
-  attendanceId: string;
   studentId: string;
   institutionId: string;
   classId: string;
   attendanceDate: string;
-  fromStatus: string;
   toStatus: StudentAttendanceStatus;
   reason?: string;
 }): Promise<ActionState<{ id: string }>> {

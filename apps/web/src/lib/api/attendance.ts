@@ -173,6 +173,7 @@ export interface RegularisationRequest {
   id: string;
   attendanceId: string;
   studentId: string;
+  classId?: string;
   toStatus: string;
   fromStatus: string;
   status: string;
@@ -183,6 +184,7 @@ export interface RegularisationRequest {
 export interface LeaveRequest {
   id: string;
   studentId: string;
+  classId?: string;
   fromDate: string;
   toDate: string;
   status: string;
@@ -198,12 +200,11 @@ export async function listRegularisations(): Promise<RegularisationRequest[]> {
 }
 
 export async function createRegularisation(input: {
-  attendanceId: string;
+  /** PRC-M081: resolved server-side from student + class + date. */
   studentId: string;
   institutionId: string;
   classId: string;
   attendanceDate: string;
-  fromStatus: string;
   toStatus: StudentAttendanceStatus;
   reason?: string;
 }): Promise<RegularisationRequest> {

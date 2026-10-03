@@ -87,15 +87,37 @@ export class AttendanceOpsService {
     actor: OpsActor,
   ): Promise<RegularisationRecord> {
     const now = nowIso();
+    // PRC-M081: resolve the attendance record server-side (tenant-scoped) so
+    // the requester never pastes a record id and fromStatus is always the
+    // stored status, not a client-typed value.
+    const record = await this.attendance.findStudentAttendance(
+      tenantId,
+      input.studentId,
+      input.classId,
+      input.attendanceDate,
+      null,
+      null,
+    );
+    if (!record) {
+      throw new NotFoundError(
+        'No attendance record exists for this student, class and date; mark attendance first',
+      );
+    }
+    if (input.attendanceId && input.attendanceId !== record.id) {
+      throw new BusinessRuleError('attendanceId does not match the record for this student and date');
+    }
+    if (record.status === input.toStatus) {
+      throw new BusinessRuleError(`Attendance is already ${record.status}`);
+    }
     return this.store.createRegularisation({
       id: uuidv4(),
       tenantId,
-      attendanceId: input.attendanceId,
+      attendanceId: record.id,
       studentId: input.studentId,
       institutionId: input.institutionId,
       classId: input.classId,
       attendanceDate: input.attendanceDate,
-      fromStatus: input.fromStatus,
+      fromStatus: record.status,
       toStatus: input.toStatus,
       reason: input.reason ?? null,
       requesterId: actor.userId,
