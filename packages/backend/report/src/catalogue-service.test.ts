@@ -84,8 +84,32 @@ describe('G-909 scheduler next_run_at', () => {
     expect(tick.completed).toBe(1);
     const runs = await service.listRuns(TENANT_A, { scheduleId: schedule.id });
     expect(runs.some((r) => r.source === 'schedule' && r.status === 'completed')).toBe(true);
-    const dueAlias = await service.runDue(new Date());
+    const dueAlias = await service.runDue(TENANT_A, new Date());
     expect(dueAlias.due).toBe(0);
+  });
+  it('PRC-M340 runDue(tenant A) never claims tenant B schedules', async () => {
+    const { service } = makeService();
+    const store = (service as unknown as { store: InMemoryReportStore }).store;
+    const past = new Date(Date.now() - 60_000);
+    const a = await service.createSchedule(TENANT_A, 'a', {
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      recipients: [],
+    });
+    const b = await service.createSchedule(TENANT_B, 'b', {
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      recipients: [],
+    });
+    await store.updateSchedule(TENANT_A, a.id, { nextRunAt: past });
+    await store.updateSchedule(TENANT_B, b.id, { nextRunAt: past });
+    const result = await service.runDue(TENANT_A, new Date());
+    expect(result.due).toBe(1);
+    expect(await service.listRuns(TENANT_B, { scheduleId: b.id })).toHaveLength(0);
+    const claimedB = await store.claimDueSchedules(new Date(), 60_000, TENANT_B);
+    expect(claimedB.map((s) => s.id)).toEqual([b.id]);
   });
 
   it('createReportScheduler.runOnce is idempotent while in flight', async () => {

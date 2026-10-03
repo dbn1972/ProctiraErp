@@ -350,7 +350,7 @@ export function registerCatalogueRoutes(
     if (!tenantId) return tenantMissing(reply);
     if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
     try {
-      const result = await service.runDue(new Date());
+      const result = await service.runDue(tenantId, new Date()); // PRC-M340
       return reply.send(result);
     } catch (error: unknown) {
       return sendError(reply, error);

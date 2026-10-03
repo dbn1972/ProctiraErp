@@ -73,7 +73,15 @@ export interface ReportStore {
    * W2-JOB-08: atomically claim due schedules by pushing nextRunAt into a lease
    * window so concurrent replicas cannot double-run the same schedule.
    */
-  claimDueSchedules(now: Date, leaseMs: number): Promise<ReportScheduleRecord[]>;
+  /**
+   * Claim due schedules. When `tenantId` is provided only that tenant's
+   * schedules are claimed (PRC-M340: HTTP-triggered run-due is tenant-scoped).
+   */
+  claimDueSchedules(
+    now: Date,
+    leaseMs: number,
+    tenantId?: string,
+  ): Promise<ReportScheduleRecord[]>;
 
   insertRun(record: ReportRunRecord): Promise<ReportRunRecord>;
   updateRun(
@@ -163,11 +171,16 @@ export class InMemoryReportStore implements ReportStore {
       .map((s) => ({ ...s, recipients: [...s.recipients] }));
   }
 
-  async claimDueSchedules(now: Date, leaseMs: number): Promise<ReportScheduleRecord[]> {
+  async claimDueSchedules(
+    now: Date,
+    leaseMs: number,
+    tenantId?: string,
+  ): Promise<ReportScheduleRecord[]> {
     const leaseUntil = new Date(now.getTime() + Math.max(1_000, leaseMs));
     const claimed: ReportScheduleRecord[] = [];
     for (const s of this.schedules) {
       if (!s.enabled || s.nextRunAt.getTime() > now.getTime()) continue;
+      if (tenantId !== undefined && s.tenantId !== tenantId) continue;
       s.nextRunAt = leaseUntil;
       s.updatedAt = new Date(now.getTime());
       claimed.push({ ...s, recipients: [...s.recipients] });

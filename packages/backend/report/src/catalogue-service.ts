@@ -299,16 +299,25 @@ export class CatalogueService {
     return buildRoleDashboard(role, valuesForRole(role, agg));
   }
 
-  /** Job-runner entry: execute every enabled schedule whose next_run_at <= now. */
-  async runDue(now = new Date()): Promise<{ due: number; completed: number; failed: number }> {
-    return this.tickDueSchedules(now);
+  /**
+   * HTTP entry: execute the caller tenant's enabled schedules whose
+   * next_run_at <= now. PRC-M340: never claims other tenants' schedules; the
+   * cross-tenant sweep is reserved for the in-process scheduler tick.
+   */
+  async runDue(
+    tenantId: string,
+    now = new Date(),
+  ): Promise<{ due: number; completed: number; failed: number }> {
+    if (!tenantId) throw new ValidationError('tenantId is required', []);
+    return this.tickDueSchedules(now, tenantId);
   }
 
   async tickDueSchedules(
     now = new Date(),
+    tenantId?: string,
   ): Promise<{ due: number; completed: number; failed: number; delivered: number }> {
     // W2-JOB-08: claim (lease) before work so concurrent replicas do not double-run.
-    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS);
+    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS, tenantId);
     let completed = 0;
     let failed = 0;
     let delivered = 0;
