@@ -8,7 +8,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listDeliveryLogs } from '@/lib/api/communication';
-import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffLabelMap, loadStudentLabelMap, withPersonLabels } from '@/lib/load-entity-labels';
 
 import { DeliveryLogTable } from '../_components/delivery-log-table';
 
@@ -39,7 +39,13 @@ export default async function DeliveryLogPage(props: PageProps) {
     loadStudentLabelMap(),
     loadStaffLabelMap(),
   ]);
-  const recipientLabels = Object.fromEntries([...studentLabels, ...staffLabels]);
+  // PRC-M083: recipients beyond the first directory page are looked up by id.
+  const recipientLabels = Object.fromEntries(
+    await withPersonLabels(
+      new Map([...studentLabels, ...staffLabels]),
+      rows.map((row) => row.recipientId),
+    ),
+  );
 
   return (
     <div className="space-y-6 p-6">

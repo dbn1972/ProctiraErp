@@ -1,7 +1,7 @@
 import { requireSession } from '@/lib/auth/server';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listTenantRoles } from '@/lib/api/admin.server';
-import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
+import { loadStaffDirectory, loadStudentDirectory } from '@/lib/load-entity-labels';
 import { listClassesByInstitution } from '@/lib/institutions/api';
 import { formatCodeNameLabel, type EntityLabelOption } from '@/lib/entity-label';
 import { toNamedOptions } from '@/lib/communication/named-options';
@@ -13,8 +13,8 @@ export const dynamic = 'force-dynamic';
 export default async function NewCircularPage() {
   const session = await requireSession();
   const [students, staff, institutions, rolesResult] = await Promise.all([
-    loadStudentOptions(),
-    loadStaffOptions(),
+    loadStudentDirectory(),
+    loadStaffDirectory(),
     listInstitutions({ pageSize: 20 }).catch(() => []),
     listTenantRoles().catch(() => ({ roles: [], source: 'scaffold' as const })),
   ]);
@@ -28,7 +28,8 @@ export default async function NewCircularPage() {
     }),
   );
 
-  const people: EntityLabelOption[] = [...students, ...staff];
+  const people: EntityLabelOption[] = [...students.options, ...staff.options];
+  const peopleTotal = students.total + staff.total;
   const institutionOptions = toNamedOptions(institutions);
   const classOptions = toNamedOptions(
     classGroups.flat().map((row) => ({ id: row.id, name: row.name })),
@@ -50,6 +51,7 @@ export default async function NewCircularPage() {
       <NewCircularForm
         createdBy={session.user.sub}
         people={people}
+        peopleTotal={peopleTotal}
         roleOptions={roleOptions}
         classOptions={classOptions}
         institutionOptions={institutionOptions}
