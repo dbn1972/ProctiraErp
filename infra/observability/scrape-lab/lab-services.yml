@@ -55,4 +55,3 @@ scrape_configs:
     static_configs:
       - targets: ['report-service:3028']
         labels: { service: report, team: engineering }
-

@@ -21,6 +21,14 @@ import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/c
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
+  CreateSurveyInput,
+  UpdateSurveyInput,
+  DistributeSurveyInput,
+  SubmitSurveyInput,
+  QuestionInput,
+  CompletionStatus,
+} from './schemas.js';
+import type {
   SurveyEntity,
   QuestionEntity,
   SurveyFilter,
@@ -31,14 +39,6 @@ import type {
   SubmissionRepository,
   InstitutionLookup,
 } from './survey-repository.js';
-import type {
-  CreateSurveyInput,
-  UpdateSurveyInput,
-  DistributeSurveyInput,
-  SubmitSurveyInput,
-  QuestionInput,
-  CompletionStatus,
-} from './schemas.js';
 
 /**
  * Authenticated submitter scope (PRC-M387): institutions the caller may act for.
@@ -176,7 +176,9 @@ export class SurveyService {
       const nextQuestions = input.questions.map((q) => ({ ...q, id: resolveId(q) }));
       const distributions = await this.distributionRepo.findBySurvey(tenantId, id);
       if (distributions.length > 0 && !sameQuestionSet(existing.questions, nextQuestions)) {
-        throw new BusinessRuleError('Cannot change questions after the survey has been distributed');
+        throw new BusinessRuleError(
+          'Cannot change questions after the survey has been distributed',
+        );
       }
       updateData.questions = nextQuestions.map((q) => ({
         id: q.id,
@@ -274,8 +276,8 @@ export class SurveyService {
       (institutionId) => !alreadyDistributed.has(institutionId),
     );
     // Create distribution records
-    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] = newInstitutionIds.map(
-      (institutionId) => ({
+    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] =
+      newInstitutionIds.map((institutionId) => ({
         id: uuidv4(),
         tenantId,
         surveyId: input.surveyId,
@@ -285,8 +287,7 @@ export class SurveyService {
         submittedAt: null,
         remindersSent: 0,
         reminderDays: input.reminderDays ?? [],
-      }),
-    );
+      }));
 
     const created = records.length > 0 ? await this.distributionRepo.createMany(records) : [];
     const targeted = new Set(institutionIds);

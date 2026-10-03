@@ -111,7 +111,9 @@ if (isMain) {
     process.stdout.write(`${detectAffected({ manifest, workflow, base, head }).join(',')}\n`);
   } else if (cmd === 'docker-config') {
     const { dockerfile, buildArgs } = dockerConfig(manifest, argValue(rest, 'service') ?? '');
-    process.stdout.write(`dockerfile=${dockerfile}\nbuild-args<<EOF\n${buildArgs.join('\n')}\nEOF\n`);
+    process.stdout.write(
+      `dockerfile=${dockerfile}\nbuild-args<<EOF\n${buildArgs.join('\n')}\nEOF\n`,
+    );
   } else {
     console.error('usage: detect-affected-services.mjs affected|docker-config …');
     process.exit(2);

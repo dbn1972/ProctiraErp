@@ -23,6 +23,9 @@ on:
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/check-action-pins.mjs'
       - 'tools/scripts/check-action-pins.test.mjs'
+      - 'tools/scripts/detect-affected-services.mjs'
+      - 'tools/scripts/detect-affected-services.test.mjs'
+      - 'tools/scripts/services.json'
   push:
     branches: [main, develop]
     paths:
@@ -34,6 +37,9 @@ on:
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/check-action-pins.mjs'
       - 'tools/scripts/check-action-pins.test.mjs'
+      - 'tools/scripts/detect-affected-services.mjs'
+      - 'tools/scripts/detect-affected-services.test.mjs'
+      - 'tools/scripts/services.json'
 
 permissions:
   contents: read
@@ -63,6 +69,9 @@ jobs:
         run: node tools/scripts/check-action-pins.mjs
       - name: Unit-test action pin gate
         run: node --test tools/scripts/check-action-pins.test.mjs
+      # PRC-M259: shared deploy/release service manifest + diff-base detection.
+      - name: Unit-test affected-service detection
+        run: node --test tools/scripts/detect-affected-services.test.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

@@ -164,8 +164,7 @@ export class OutboxRelay {
       },
     };
 
-    const priority =
-      typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
+    const priority = typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
 
     if (row.dispatchMode === 'publish') {
       await this.queue.publish(message);

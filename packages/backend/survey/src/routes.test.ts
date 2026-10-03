@@ -48,9 +48,9 @@ describe('Survey Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { user: unknown }).user = {
         sub: 'user-1',
-        institutions: (request.headers['x-test-institutions'] as string | undefined)?.split(',') ?? [
-          '22222222-2222-4222-8222-222222222222',
-        ],
+        institutions: (request.headers['x-test-institutions'] as string | undefined)?.split(
+          ',',
+        ) ?? ['22222222-2222-4222-8222-222222222222'],
       };
     });
 

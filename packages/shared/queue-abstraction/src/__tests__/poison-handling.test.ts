@@ -73,7 +73,10 @@ describe('Kafka poison messages (PRC-M364)', () => {
     expect(headers['x-dlq-source-offset']).toBe('7');
     expect(handler).toHaveBeenCalledTimes(1);
     expect((handler.mock.calls[0]![0] as QueueMessage).id).toBe('m-2');
-    expect(error).toHaveBeenCalledWith(expect.objectContaining({ reason: 'parse-error' }), 'kafka message dead-lettered');
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'parse-error' }),
+      'kafka message dead-lettered',
+    );
     await adapter.disconnect();
   });
 

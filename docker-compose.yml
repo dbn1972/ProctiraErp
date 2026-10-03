@@ -48,7 +48,13 @@ services:
     restart: unless-stopped
     # PRC-M311: authenticated Redis; REDIS_URL must carry the same password.
     command:
-      ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}']
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}',
+      ]
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}
     ports:

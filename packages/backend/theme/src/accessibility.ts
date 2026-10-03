@@ -251,7 +251,9 @@ export function validateAccessibility(tokens: ThemeTokens): AccessibilityResult 
 
     // Large-text threshold only applies at >= 24px body size (PRC-M393)
     const threshold =
-      tokens.typography.baseFontSize >= LARGE_TEXT_MIN_PX ? WCAG_AA_LARGE_TEXT : WCAG_AA_NORMAL_TEXT;
+      tokens.typography.baseFontSize >= LARGE_TEXT_MIN_PX
+        ? WCAG_AA_LARGE_TEXT
+        : WCAG_AA_NORMAL_TEXT;
 
     if (ratio < threshold) {
       issues.push({

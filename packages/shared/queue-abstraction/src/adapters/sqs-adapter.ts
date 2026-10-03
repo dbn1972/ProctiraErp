@@ -35,6 +35,7 @@ import {
   requestedDelayMs,
   SQS_MAX_DELAY_MS,
 } from '../types';
+
 import { errorMessage, type QueueConsumerLogger } from './delivery-failure';
 
 export interface SQSAdapterRuntimeOptions {
@@ -325,7 +326,9 @@ export class SQSAdapter implements QueueAdapter {
       const dlq = await this.client.send(
         new CreateQueueCommand({
           QueueName: dlqName,
-          Attributes: isFifo ? { FifoQueue: 'true', MessageRetentionPeriod: '1209600' } : { MessageRetentionPeriod: '1209600' },
+          Attributes: isFifo
+            ? { FifoQueue: 'true', MessageRetentionPeriod: '1209600' }
+            : { MessageRetentionPeriod: '1209600' },
         }),
       );
       const dlqAttrs = await this.client.send(

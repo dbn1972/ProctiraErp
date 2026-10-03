@@ -38,11 +38,7 @@ function repoWithCommits(commits) {
 }
 
 test('3-commit push where the first commit changes apps/web deploys web', () => {
-  const { dir, base, head } = repoWithCommits([
-    'apps/web/src/page.tsx',
-    'docs/a.md',
-    'docs/b.md',
-  ]);
+  const { dir, base, head } = repoWithCommits(['apps/web/src/page.tsx', 'docs/a.md', 'docs/b.md']);
   const services = detectAffected({ manifest, workflow: 'deploy', base, head, cwd: dir });
   assert.deepEqual(services, ['web']);
 });
@@ -61,7 +57,9 @@ test('unknown base fails safe to every service in scope', () => {
 
 test('packages/ui maps to web and portals; infrastructure/docker fans out', () => {
   const ui = affectedFromFiles(manifest, 'release', ['packages/ui/components/src/x.tsx']);
-  assert.ok(ui.includes('web') && ui.includes('admin-console') && ui.includes('registration-portal'));
+  assert.ok(
+    ui.includes('web') && ui.includes('admin-console') && ui.includes('registration-portal'),
+  );
   assert.ok(!ui.includes('api-gateway'));
   assert.deepEqual(
     affectedFromFiles(manifest, 'release', ['infrastructure/docker/Dockerfile.web']),

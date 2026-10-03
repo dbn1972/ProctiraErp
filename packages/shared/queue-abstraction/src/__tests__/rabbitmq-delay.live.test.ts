@@ -13,7 +13,11 @@ const url = process.env['RABBITMQ_LIVE_URL'];
 describe.skipIf(!url)('RabbitMQAdapter live delayed delivery (PRC-M360)', () => {
   it('a 1500ms-delayed message is not delivered early, then arrives exactly once', async () => {
     const exchange = `m360.${Date.now()}`;
-    const adapter = new RabbitMQAdapter({ url: url!, exchange, deadLetterExchange: `${exchange}.dlx` });
+    const adapter = new RabbitMQAdapter({
+      url: url!,
+      exchange,
+      deadLetterExchange: `${exchange}.dlx`,
+    });
     await adapter.connect();
     const tenantId = randomUUID();
     const type = 'workflow.escalation';

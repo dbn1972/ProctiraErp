@@ -108,7 +108,9 @@ export async function run() {
   });
   results.push({
     name: 'PRC-M408: declared-but-unused tenantId is flagged',
-    ok: unused.length === 1 && /declares a tenant parameter but never uses it/.test(unused[0].message),
+    ok:
+      unused.length === 1 &&
+      /declares a tenant parameter but never uses it/.test(unused[0].message),
     message: JSON.stringify(unused.map((f) => f.message)),
   });
 
@@ -140,7 +142,9 @@ declare function withPgTenant(p: any, t: string, f: (c: any) => unknown): unknow
         backendDir,
         sqlDir: resolve(backendDir, '../../db/sql'),
       });
-      return report.findings.filter((f) => f.severity === 'error' && /SQL on tenant/.test(f.message));
+      return report.findings.filter(
+        (f) => f.severity === 'error' && /SQL on tenant/.test(f.message),
+      );
     },
   );
   results.push({

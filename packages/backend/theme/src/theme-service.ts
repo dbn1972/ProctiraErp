@@ -16,10 +16,10 @@
  *
  * All operations are tenant-scoped.
  */
-import { v4 as uuidv4 } from 'uuid';
 import { NotFoundError, ConflictError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { v4 as uuidv4 } from 'uuid';
 
-import type { ThemeRepository, ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
+import { validateAccessibility } from './accessibility.js';
 import type {
   CreateThemeInput,
   UpdateThemeInput,
@@ -29,7 +29,7 @@ import type {
   ThemeAssets,
   AccessibilityResult,
 } from './schemas.js';
-import { validateAccessibility } from './accessibility.js';
+import type { ThemeRepository, ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
 
 /**
  * Configuration for the theme service.
@@ -91,7 +91,9 @@ export class ThemeService {
     }
     if (level === 'portal' && portalId) {
       if (!this.config.portalExists) {
-        throw new BusinessRuleError('Portal validation is not configured; portal themes are disabled');
+        throw new BusinessRuleError(
+          'Portal validation is not configured; portal themes are disabled',
+        );
       }
       if (!(await this.config.portalExists(tenantId, portalId))) {
         throw new NotFoundError(`Portal not found: ${portalId}`);
@@ -427,7 +429,8 @@ export class ThemeService {
     if (!theme) {
       throw new NotFoundError(`Theme not found: ${themeId}`);
     }
-    const platformOwned = theme.tenantId === PLATFORM_THEME_TENANT_ID && ctx.isPlatformAdmin === true;
+    const platformOwned =
+      theme.tenantId === PLATFORM_THEME_TENANT_ID && ctx.isPlatformAdmin === true;
     if (theme.tenantId !== tenantId && !platformOwned) {
       throw new NotFoundError(`Theme not found: ${themeId}`);
     }

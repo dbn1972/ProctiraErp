@@ -173,7 +173,8 @@ export async function loadTenantTables(sqlDir = DEFAULT_SQL_DIR) {
 const TENANT_SCOPED_CALL_RE =
   /\b(with\w*Tenant\w*|withPlatformScope|bindTenantGuc\w*|set_app_tenant_id|runInTenant\w*|tenantQuery)\s*[(<]|app\.tenant_id/;
 
-const SQL_TABLE_REF_RE = /\b(?:FROM|UPDATE|JOIN|DELETE\s+FROM)\s+(?:"?\w+"?\.)?"?([a-z_][a-z0-9_]*)"?/gi;
+const SQL_TABLE_REF_RE =
+  /\b(?:FROM|UPDATE|JOIN|DELETE\s+FROM)\s+(?:"?\w+"?\.)?"?([a-z_][a-z0-9_]*)"?/gi;
 
 /** Tenant tables referenced by a SELECT/UPDATE/DELETE statement text. */
 export function tenantTablesInSql(sqlText, tenantTables) {
@@ -194,7 +195,10 @@ export function tenantTablesInSql(sqlText, tenantTables) {
  */
 async function checkSqlPredicates(backendDir, tenantTables, report) {
   if (tenantTables.size === 0) return 0;
-  const files = await findFiles(backendDir, (name) => isProductionTsFile(name) && !name.includes('in-memory'));
+  const files = await findFiles(
+    backendDir,
+    (name) => isProductionTsFile(name) && !name.includes('in-memory'),
+  );
   let scanned = 0;
   for (const file of files) {
     const text = await safeReadFile(file);
@@ -212,14 +216,16 @@ async function checkSqlPredicates(backendDir, tenantTables, report) {
         for (const node of sf.getDescendantsOfKind(kind)) {
           // Outermost enclosing function: the tenant-bound helper usually wraps
           // an inner callback that receives the bound client.
-          const fns = node.getAncestors().filter((a) =>
-            [
-              SyntaxKind.FunctionDeclaration,
-              SyntaxKind.MethodDeclaration,
-              SyntaxKind.ArrowFunction,
-              SyntaxKind.FunctionExpression,
-            ].includes(a.getKind()),
-          );
+          const fns = node
+            .getAncestors()
+            .filter((a) =>
+              [
+                SyntaxKind.FunctionDeclaration,
+                SyntaxKind.MethodDeclaration,
+                SyntaxKind.ArrowFunction,
+                SyntaxKind.FunctionExpression,
+              ].includes(a.getKind()),
+            );
           // Tenant-bound call site, e.g. this.query(tenantId, sql) / runTenant(ctx.tenantId, sql).
           const call = node.getParentIfKind(SyntaxKind.CallExpression);
           const tenantArg = call
@@ -268,7 +274,10 @@ async function checkSqlPredicates(backendDir, tenantTables, report) {
  * @param {{ backendDir?: string, sqlDir?: string }} [opts] backendDir/sqlDir
  *   override the scanned packages/backend and db/sql roots (fixture tests).
  */
-export async function runTenantIdCheck({ backendDir = BACKEND_DIR, sqlDir = DEFAULT_SQL_DIR } = {}) {
+export async function runTenantIdCheck({
+  backendDir = BACKEND_DIR,
+  sqlDir = DEFAULT_SQL_DIR,
+} = {}) {
   const report = new Report(CHECK_IDS.TENANT_ID, TITLE);
   const serviceFiles = await findFiles(backendDir, (name) => {
     if (!isProductionTsFile(name)) return false;

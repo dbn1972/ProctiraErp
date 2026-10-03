@@ -8,6 +8,7 @@
  * to offload traffic from the primary database.
  */
 import type { PrismaClient } from '@prisma/client';
+
 import { createPrismaClient, disconnectPrismaFor } from './client.js';
 
 function replicaUrl(): string | undefined {

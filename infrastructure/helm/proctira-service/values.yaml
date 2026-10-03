@@ -210,8 +210,15 @@ externalSecret:
     public-website: []
     dr-tools: [DATABASE_URL, S3_ACCESS_KEY, S3_SECRET_KEY]
     # W1-OPS-16 lab split-domain services: backend runtime keys, no PHI key.
-    institution: &labKeys
-      [DATABASE_URL, REDIS_URL, KAFKA_BROKERS, RABBITMQ_URL, JWT_SECRET, JWT_SECRET_PREVIOUS]
+    institution:
+      &labKeys [
+        DATABASE_URL,
+        REDIS_URL,
+        KAFKA_BROKERS,
+        RABBITMQ_URL,
+        JWT_SECRET,
+        JWT_SECRET_PREVIOUS,
+      ]
     student: *labKeys
     staff: *labKeys
     assessment: *labKeys

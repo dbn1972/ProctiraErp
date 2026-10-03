@@ -330,7 +330,9 @@ describe('ThemeService', () => {
         publishedAt: new Date(),
       });
       await expect(
-        service.rollback(tenantId, theme.id, { revisionId: '11111111-1111-4111-8111-111111111111' }),
+        service.rollback(tenantId, theme.id, {
+          revisionId: '11111111-1111-4111-8111-111111111111',
+        }),
       ).rejects.toThrow(BusinessRuleError);
       expect(await repository.getLatestRevisionNumber(theme.id)).toBe(1);
     });

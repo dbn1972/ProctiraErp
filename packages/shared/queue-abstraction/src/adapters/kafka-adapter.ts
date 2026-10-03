@@ -22,6 +22,7 @@ import type {
   KafkaAdapterConfig,
 } from '../types';
 import { buildTenantName, QueueUnsupportedOperationError, requestedDelayMs } from '../types';
+
 import { DEFAULT_MAX_RETRIES, errorMessage, type QueueConsumerLogger } from './delivery-failure';
 
 export interface KafkaAdapterRuntimeOptions {
@@ -183,7 +184,12 @@ export class KafkaAdapter implements QueueAdapter {
           return;
         }
         this.logger?.warn?.(
-          { topic: payload.topic, messageId: message.id, attempt: attempt + 1, err: errorMessage(err) },
+          {
+            topic: payload.topic,
+            messageId: message.id,
+            attempt: attempt + 1,
+            err: errorMessage(err),
+          },
           'kafka handler failed; retrying',
         );
         await new Promise((r) => setTimeout(r, base * 2 ** attempt));
@@ -196,7 +202,11 @@ export class KafkaAdapter implements QueueAdapter {
     return `${topic}${this.config.deadLetterSuffix ?? '.dlq'}`;
   }
 
-  private async deadLetter(payload: EachMessagePayload, reason: string, err: unknown): Promise<void> {
+  private async deadLetter(
+    payload: EachMessagePayload,
+    reason: string,
+    err: unknown,
+  ): Promise<void> {
     if (!this.producer) {
       // Cannot park it: throw so the offset is NOT committed (kafkajs retries).
       throw new Error(`KafkaAdapter: cannot dead-letter (${reason}); producer not connected`);

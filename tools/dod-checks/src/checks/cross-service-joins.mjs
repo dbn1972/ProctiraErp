@@ -122,7 +122,8 @@ function collectRawSqlNodesViaRegex(text) {
   /** @type {Array<{ text: string, line: number, source: string }>} */
   const results = [];
   // Crude but bounded: find $queryRaw`…` / sql`…` segments.
-  const re = /(?:\.(\$queryRaw|\$queryRawUnsafe|\$executeRaw|\$executeRawUnsafe)|(?:\b|Prisma\.)sql)\s*[`(]/g;
+  const re =
+    /(?:\.(\$queryRaw|\$queryRawUnsafe|\$executeRaw|\$executeRawUnsafe)|(?:\b|Prisma\.)sql)\s*[`(]/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     const start = m.index + m[0].length;
@@ -195,7 +196,8 @@ export async function runCrossServiceJoinsCheck({ backendDir = BACKEND_DIR } = {
         `Imports from @proctira/backend-${otherSvc}; verify only public APIs/types are used.`,
         {
           line,
-          suggestion: 'Cross-service composition should go through HTTP/event APIs, not direct package imports.',
+          suggestion:
+            'Cross-service composition should go through HTTP/event APIs, not direct package imports.',
           ruleRef: 'Charter §5',
         },
       );

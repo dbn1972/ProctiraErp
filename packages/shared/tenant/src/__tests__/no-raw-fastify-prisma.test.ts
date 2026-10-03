@@ -53,6 +53,9 @@ describe('PRC-M367: no queries via decorated fastify.prisma', () => {
       }
     }
     expect(scanned).toBeGreaterThan(100);
-    expect(offenders, `route DB access through withTenantTransaction: ${offenders.join(', ')}`).toEqual([]);
+    expect(
+      offenders,
+      `route DB access through withTenantTransaction: ${offenders.join(', ')}`,
+    ).toEqual([]);
   });
 });

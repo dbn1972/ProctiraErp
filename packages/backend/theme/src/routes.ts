@@ -15,15 +15,12 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ThemeService, ThemeCallerContext } from './theme-service.js';
-import type { ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
 import {
   CreateThemeSchema,
   UpdateThemeSchema,
   PublishThemeSchema,
   RollbackThemeSchema,
   ThemeParamsSchema,
-  ThemeListQuerySchema,
   type CreateThemeInput,
   type UpdateThemeInput,
   type PublishThemeInput,
@@ -31,6 +28,8 @@ import {
   type ThemeParams,
   type ThemeListQuery,
 } from './schemas.js';
+import type { ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
+import type { ThemeService, ThemeCallerContext } from './theme-service.js';
 
 /**
  * Options for registering theme routes.
@@ -189,7 +188,7 @@ export async function registerThemeRoutes(
         });
       }
 
-      const query = request.query as ThemeListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

@@ -79,7 +79,11 @@ export const TypographyConfigSchema = Type.Object({
     description: 'Primary font family',
   }),
   fontFamilyHeading: Type.Optional(
-    Type.String({ maxLength: 255, pattern: FONT_FAMILY_PATTERN, description: 'Heading font family' }),
+    Type.String({
+      maxLength: 255,
+      pattern: FONT_FAMILY_PATTERN,
+      description: 'Heading font family',
+    }),
   ),
   baseFontSize: Type.Number({
     minimum: 12,
@@ -116,7 +120,7 @@ export const ThemeTokensSchema = Type.Object({
   colors: Type.Record(TokenKey(), ColorValueSchema, {
     description:
       'Color tokens (e.g., primary, secondary, background, surface, error, warning, success)',
-      additionalProperties: false,
+    additionalProperties: false,
   }),
   typography: TypographyConfigSchema,
   spacing: SpacingConfigSchema,
@@ -145,7 +149,11 @@ export const ThemeAssetsSchema = Type.Object({
   ),
   logoAlt: Type.Optional(Type.String({ maxLength: 255, description: 'Logo alt text' })),
   faviconUrl: Type.Optional(
-    Type.String({ maxLength: 2048, pattern: HTTPS_URL_PATTERN, description: 'Favicon URL (https)' }),
+    Type.String({
+      maxLength: 2048,
+      pattern: HTTPS_URL_PATTERN,
+      description: 'Favicon URL (https)',
+    }),
   ),
 });
 

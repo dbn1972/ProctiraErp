@@ -218,7 +218,8 @@ describe('validateAccessibility', () => {
     expect(validateAccessibility(tokens).valid).toBe(false);
     tokens.typography.baseFontSize = 24;
     const atLarge = validateAccessibility(tokens);
-    expect(atLarge.issues.some((i) => i.message.startsWith('Primary text on background'))).toBe(false);
+    expect(atLarge.issues.some((i) => i.message.startsWith('Primary text on background'))).toBe(
+      false,
+    );
   });
-
 });

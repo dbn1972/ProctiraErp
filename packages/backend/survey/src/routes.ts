@@ -25,6 +25,19 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  CreateSurveySchema,
+  UpdateSurveySchema,
+  SurveyParamsSchema,
+  DistributeSurveySchema,
+  SubmitSurveySchema,
+  type CreateSurveyInput,
+  type UpdateSurveyInput,
+  type SurveyParams,
+  type SurveyListQuery,
+  type DistributeSurveyInput,
+  type SubmitSurveyInput,
+} from './schemas.js';
 import type { SurveyService } from './survey-service.js';
 
 /**
@@ -36,22 +49,6 @@ function getUserInstitutionIds(request: FastifyRequest): string[] {
   const raw = user?.institutions;
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
 }
-import {
-  CreateSurveySchema,
-  UpdateSurveySchema,
-  SurveyParamsSchema,
-  SurveyListQuerySchema,
-  DistributeSurveySchema,
-  SubmitSurveySchema,
-  SendReminderSchema,
-  AggregateResponsesQuerySchema,
-  type CreateSurveyInput,
-  type UpdateSurveyInput,
-  type SurveyParams,
-  type SurveyListQuery,
-  type DistributeSurveyInput,
-  type SubmitSurveyInput,
-} from './schemas.js';
 
 /**
  * Options for registering survey routes.

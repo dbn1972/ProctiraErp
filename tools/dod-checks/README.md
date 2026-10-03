@@ -5,15 +5,15 @@ Each check runs independently, can be invoked from the command line, and is wire
 
 ## Charter Mapping
 
-| Check ID              | Charter Reference | What it Enforces                                                                     |
-| --------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `table-naming`        | §4 + §32          | Every Prisma `model` / `view` maps to a `<service>_<name>` table.                    |
-| `cross-service-joins` | §5 + §32          | No raw SQL JOINs span service boundaries.                                            |
+| Check ID              | Charter Reference | What it Enforces                                                                                                                                                                                                                                                                                                       |
+| --------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table-naming`        | §4 + §32          | Every Prisma `model` / `view` maps to a `<service>_<name>` table.                                                                                                                                                                                                                                                      |
+| `cross-service-joins` | §5 + §32          | No raw SQL JOINs span service boundaries.                                                                                                                                                                                                                                                                              |
 | `tenant-id`           | §3 + §32          | Tenant-id **signature lint (heuristic, not isolation proof)**: persistence methods take and use `tenantId` (exempt only via `@tenantExempt <reason>`), and SQL on `db/sql` tenant tables carries a `tenant_id` predicate or runs in a tenant-bound helper. Isolation evidence = RLS / cross-tenant integration suites. |
-| `audit-events`        | §28 + §32         | Services with write routes integrate with the audit trail (audit service or events). |
-| `api-schema`          | §6 + §32          | Every backend service that defines routes ships Typebox schemas (file or inline).    |
-| `error-envelope`      | §6 + §32          | 4xx/5xx responses include `{ code, message, statusCode }`.                           |
-| `i18n-readiness`      | §17 + §32         | Route handlers don't ship hardcoded English strings in `message` fields.             |
+| `audit-events`        | §28 + §32         | Services with write routes integrate with the audit trail (audit service or events).                                                                                                                                                                                                                                   |
+| `api-schema`          | §6 + §32          | Every backend service that defines routes ships Typebox schemas (file or inline).                                                                                                                                                                                                                                      |
+| `error-envelope`      | §6 + §32          | 4xx/5xx responses include `{ code, message, statusCode }`.                                                                                                                                                                                                                                                             |
+| `i18n-readiness`      | §17 + §32         | Route handlers don't ship hardcoded English strings in `message` fields.                                                                                                                                                                                                                                               |
 
 ## Running the Checks
 

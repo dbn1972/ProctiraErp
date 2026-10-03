@@ -49,10 +49,7 @@ export function serviceCatalog(backendDir) {
  * Tables that are explicitly shared across services or are framework-owned
  * (Prisma migrations) and therefore exempt from the service-prefix rule.
  */
-export const SHARED_TABLES = new Set([
-  'tenants',
-  '_prisma_migrations',
-]);
+export const SHARED_TABLES = new Set(['tenants', '_prisma_migrations']);
 
 /** All check identifiers used in the structured report. */
 export const CHECK_IDS = Object.freeze({
