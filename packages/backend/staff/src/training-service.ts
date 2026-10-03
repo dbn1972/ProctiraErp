@@ -46,6 +46,49 @@ export interface NotificationIntegration {
   ): Promise<void>;
 }
 
+/**
+ * PRC-M380: fallback when the expiry job has not run yet — an ACTIVE
+ * certification whose expiry date has been reached reads as EXPIRED
+ * (same `expiryDate <= today` rule as processExpiredCertifications).
+ */
+export function withEffectiveStatus(
+  cert: CertificationEntity,
+  today: string = new Date().toISOString().slice(0, 10),
+): CertificationEntity {
+  if (cert.status === CertificationStatus.ACTIVE && cert.expiryDate && cert.expiryDate <= today) {
+    return { ...cert, status: CertificationStatus.EXPIRED };
+  }
+  return cert;
+}
+
+/**
+ * PRC-M380: per-tenant daily expiry run for a scheduler. Idempotent (only
+ * ACTIVE certs are selected) and isolated: one tenant failing does not stop
+ * the others. Returns per-tenant counts and errors for the job log.
+ */
+export async function runCertificationExpiryJob(
+  service: Pick<TrainingService, 'processExpiredCertifications'>,
+  tenantIds: readonly string[],
+): Promise<{
+  expired: Record<string, number>;
+  failures: Array<{ tenantId: string; certificationId?: string; error: unknown }>;
+}> {
+  const expired: Record<string, number> = {};
+  const failures: Array<{ tenantId: string; certificationId?: string; error: unknown }> = [];
+  for (const tenantId of tenantIds) {
+    try {
+      const certs = await service.processExpiredCertifications(tenantId, undefined, {
+        onNotificationError: (certificationId, error) =>
+          failures.push({ tenantId, certificationId, error }),
+      });
+      expired[tenantId] = certs.length;
+    } catch (error) {
+      failures.push({ tenantId, error });
+    }
+  }
+  return { expired, failures };
+}
+
 /** PRC-L154: defense in depth — never let non-positive/unbounded paging reach SQL. */
 export const TRAINING_MAX_PAGE_SIZE = 100;
 
@@ -432,7 +475,7 @@ export class TrainingService {
     if (!cert) {
       throw new NotFoundError(`Certification with id '${certificationId}' not found`);
     }
-    return cert;
+    return withEffectiveStatus(cert);
   }
 
   /**
@@ -466,7 +509,12 @@ export class TrainingService {
     filter: CertificationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CertificationEntity>> {
-    return this.certificationRepository.list(tenantId, filter, clampTrainingPagination(pagination));
+    const result = await this.certificationRepository.list(
+      tenantId,
+      filter,
+      clampTrainingPagination(pagination),
+    );
+    return { ...result, data: result.data.map((cert) => withEffectiveStatus(cert)) };
   }
 
   /**
@@ -483,7 +531,11 @@ export class TrainingService {
   async processExpiredCertifications(
     tenantId: string,
     asOfDate?: string,
-    options: { dryRun?: boolean } = {},
+    options: {
+      dryRun?: boolean;
+      /** PRC-M380: a notifier failure no longer aborts the batch; it is reported here. */
+      onNotificationError?: (certificationId: string, error: unknown) => void;
+    } = {},
   ): Promise<CertificationEntity[]> {
     assertCalendarDates({ asOfDate });
     const today = new Date().toISOString().split('T')[0]!;
@@ -512,14 +564,19 @@ export class TrainingService {
       if (updated) {
         updatedCerts.push(updated);
 
-        // Trigger notification
+        // Trigger notification. PRC-M380: the status change is already durable;
+        // one failing notification must not abort expiry for the rest.
         if (this.notificationIntegration) {
-          await this.notificationIntegration.sendCertificationExpiryNotification(
-            tenantId,
-            cert.staffId,
-            cert.certificationName,
-            cert.expiryDate!,
-          );
+          try {
+            await this.notificationIntegration.sendCertificationExpiryNotification(
+              tenantId,
+              cert.staffId,
+              cert.certificationName,
+              cert.expiryDate!,
+            );
+          } catch (error) {
+            options.onNotificationError?.(cert.id, error);
+          }
         }
       }
     }

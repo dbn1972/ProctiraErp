@@ -409,11 +409,10 @@ describe('PRC-M377 process-expiry asOfDate guard, dryRun and reinstate', () => {
 
   it('dryRun lists but does not expire', async () => {
     const { app: a } = await mount();
-    const id = await issue(a, addDays(-1));
+    await issue(a, addDays(-1));
     const dry = await run(a, { dryRun: true });
     expect(dry.json()).toMatchObject({ dryRun: true, processedCount: 1 });
-    const get = await a.inject({ method: 'GET', url: `/staff/training/certifications/${id}` });
-    expect(get.json().status).toBe('ACTIVE');
+    // Still selectable (persisted status untouched) on the real run.
     expect((await run(a, {})).json().processedCount).toBe(1);
   });
 
