@@ -44,7 +44,15 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   maxRevocationTtlSeconds?: number;
   /** JWKS client used to verify tokens presented at logout (tests/DI). */
   jwksClient?: KeycloakJwksClient;
+  /**
+   * PRC-M499: realm "SSO Session Max" in seconds. A logged-out session's sid
+   * (and refresh jti) stays denylisted this long so a refresh token cannot be
+   * replayed after the access-token lifetime. Default 36000 (Keycloak default).
+   */
+  ssoSessionMaxSeconds?: number;
 };
+
+const DEFAULT_SSO_SESSION_MAX_SECONDS = 36_000;
 
 const DEFAULT_MAX_REVOCATION_TTL_SECONDS = 3600;
 const MAX_REVOCATION_ID_LENGTH = 256;
@@ -161,6 +169,7 @@ async function revokePresentedTokensBeforeIdpLogout(
   tokens: { accessToken?: string; refreshToken?: string },
   verify: (token: string) => Promise<{ jti?: unknown; sid?: unknown; exp?: unknown } | null>,
   maxTtlSeconds: number,
+  sessionTtlSeconds: number,
 ): Promise<void> {
   if (!store || !tokens.accessToken) return;
 
@@ -172,7 +181,10 @@ async function revokePresentedTokensBeforeIdpLogout(
   const ttl = defaultAccessTokenRevocationTtlSeconds(
     Math.min(access.ttlSeconds ?? maxTtlSeconds, maxTtlSeconds),
   );
-  await revokeAccessTokenIdentifiers(store, { jti: access.jti, sessionId: access.sessionId }, ttl);
+  await revokeAccessTokenIdentifiers(store, { jti: access.jti }, ttl);
+  // PRC-M499: the sid outlives the access token — keep it denylisted for the
+  // whole SSO session so /refresh can reject the session's refresh tokens.
+  if (access.sessionId) await store.revoke('sid', access.sessionId, sessionTtlSeconds);
 
   if (tokens.refreshToken && access.sessionId) {
     let refresh: RevocationClaims | null = null;
@@ -182,8 +194,34 @@ async function revokePresentedTokensBeforeIdpLogout(
       refresh = null;
     }
     if (refresh?.jti && refresh.sessionId === access.sessionId) {
-      await revokeAccessTokenIdentifiers(store, { jti: refresh.jti }, ttl);
+      await revokeAccessTokenIdentifiers(store, { jti: refresh.jti }, sessionTtlSeconds);
     }
+  }
+}
+
+/**
+ * PRC-M499: true when the refresh token's sid or jti is denylisted. The token
+ * is decoded (not verified) — it only ever *narrows* access here; Keycloak
+ * still verifies it on the token endpoint. Store failures count as revoked.
+ */
+async function isRefreshTokenRevoked(
+  store: AccessTokenRevocationStore | undefined,
+  refreshToken: string,
+): Promise<boolean> {
+  if (!store) return false;
+  let claims: RevocationClaims | null = null;
+  try {
+    claims = revocationClaimsFromPayload(decodeJwt(refreshToken).payload);
+  } catch {
+    return false; // opaque token: Keycloak decides
+  }
+  if (!claims) return false;
+  try {
+    if (claims.sessionId && (await store.isRevoked('sid', claims.sessionId))) return true;
+    if (claims.jti && (await store.isRevoked('jti', claims.jti))) return true;
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -197,6 +235,57 @@ export async function registerKeycloakAuthRoutes(
     config.maxRevocationTtlSeconds && config.maxRevocationTtlSeconds > 0
       ? config.maxRevocationTtlSeconds
       : DEFAULT_MAX_REVOCATION_TTL_SECONDS;
+  const sessionRevocationTtlSeconds =
+    config.ssoSessionMaxSeconds && config.ssoSessionMaxSeconds > 0
+      ? config.ssoSessionMaxSeconds
+      : DEFAULT_SSO_SESSION_MAX_SECONDS;
+  const revocationStoreFor = (): AccessTokenRevocationStore | undefined =>
+    config.revocationStore ??
+    (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
+      .accessTokenRevocationStore;
+
+  /**
+   * PRC-M499: end the IdP session server-side with the refresh token so the
+   * refresh token is dead at Keycloak too (not just in our denylist).
+   * Best-effort: our denylist already blocks /refresh if the IdP is down.
+   */
+  const backchannelLogout = async (refreshToken: string | undefined): Promise<void> => {
+    if (!refreshToken) return;
+    const body = new URLSearchParams({ client_id: config.clientId, refresh_token: refreshToken });
+    if (config.clientSecret) body.set('client_secret', config.clientSecret);
+    try {
+      const res = await fetch(
+        `${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body,
+        },
+      );
+      if (!res.ok) fastify.log.warn({ status: res.status }, 'keycloak backchannel logout failed');
+    } catch (err) {
+      fastify.log.warn({ err }, 'keycloak backchannel logout failed');
+    }
+  };
+
+  const revokeForLogout = async (request: FastifyRequest): Promise<string | undefined> => {
+    const accessToken = readBearer(request);
+    const refreshToken =
+      readHeaderOrQuery(
+        request as FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+        'x-refresh-token',
+        'refresh_token',
+      ) ?? (request.body as { refreshToken?: unknown } | undefined)?.refreshToken?.toString();
+    await revokePresentedTokensBeforeIdpLogout(
+      revocationStoreFor(),
+      { accessToken, refreshToken },
+      verifyForLogout,
+      maxRevocationTtlSeconds,
+      sessionRevocationTtlSeconds,
+    );
+    await backchannelLogout(refreshToken);
+    return refreshToken;
+  };
   const verifyForLogout = async (token: string) => {
     try {
       await verifyKeycloakAccessToken(token, config, logoutJwks);
@@ -464,6 +553,15 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 400,
         });
       }
+      // PRC-M499: a logged-out session's refresh token is rejected here even
+      // though only Keycloak can verify its signature. Store errors fail closed.
+      if (await isRefreshTokenRevoked(revocationStoreFor(), refreshToken)) {
+        return reply.status(401).send({
+          code: 'KEYCLOAK_SESSION_REVOKED',
+          message: 'Session has been signed out',
+          statusCode: 401,
+        });
+      }
       const body = new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
@@ -517,30 +615,26 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      const accessToken = readBearer(request);
-      const refreshToken = readHeaderOrQuery(request, 'x-refresh-token', 'refresh_token');
+      await revokeForLogout(request);
       const idTokenHint =
         readHeaderOrQuery(request, 'x-id-token', 'id_token_hint') ??
         readHeaderOrQuery(request, 'x-id-token', 'id_token');
-
-      const store =
-        config.revocationStore ??
-        (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
-          .accessTokenRevocationStore;
-
-      await revokePresentedTokensBeforeIdpLogout(
-        store,
-        { accessToken, refreshToken },
-        verifyForLogout,
-        maxRevocationTtlSeconds,
-      );
-
       return reply.redirect(
         logoutUrl(config, request.query.redirect ?? config.webOrigin, idTokenHint),
         302,
       );
     },
   );
+
+  /**
+   * POST /auth/logout (PRC-M499): API logout for web/mobile. Same denylist +
+   * IdP backchannel revocation as GET, without the browser redirect, so it is
+   * not triggerable by a cross-site link.
+   */
+  fastify.post(`${prefix}/logout`, async (request: FastifyRequest, reply: FastifyReply) => {
+    await revokeForLogout(request);
+    return reply.status(200).send({ success: true });
+  });
 
   fastify.get(`${prefix}/me`, async (request: FastifyRequest, reply: FastifyReply) => {
     await fastify.authenticate(request, reply);
