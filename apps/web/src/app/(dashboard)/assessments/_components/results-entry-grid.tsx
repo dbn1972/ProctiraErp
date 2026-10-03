@@ -51,6 +51,7 @@ import {
 } from '../actions';
 import type { BulkResultEntryResponse } from '@/lib/api/assessments';
 import { itemScoreError } from '@/lib/assessments/score-range';
+import { parseResultsImport, RESULTS_IMPORT_MAX_ROWS } from '@/lib/assessments/results-import';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 
 interface ItemMeta {
@@ -369,134 +370,65 @@ export function ResultsEntryGrid({
     URL.revokeObjectURL(url);
   }
 
-  /** Validate uploaded CSV/XLSX rows by treating them as text/CSV first. */
+  /**
+   * PRC-M475: validate every row of the uploaded CSV with the same parser the
+   * confirm step uses. File-level problems (Excel upload, >5,000 rows, missing
+   * studentId column) throw so the import UI shows them and nothing is submitted.
+   */
   async function validateImportFile(file: File): Promise<ImportValidationResult> {
-    const text = await file.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    if (lines.length === 0) {
-      return {
-        totalRows: 0,
-        validRows: 0,
-        errorRows: 0,
-        warningRows: 0,
-        errors: [],
-        preview: [],
-        columnMappings: [],
-      };
+    const parsed = parseResultsImport(file.name, await file.text(), items);
+    if (parsed.fileErrors.length > 0) {
+      throw new Error(parsed.fileErrors.join(' '));
     }
-    const headers = (lines[0] ?? '').split(',').map((s) => s.trim());
-    const dataRows = lines.slice(1);
-
     const itemNameSet = new Set(items.map((i) => i.name));
-    const columnMappings: ImportColumnMapping[] = headers.map((h) => ({
+    const columnMappings: ImportColumnMapping[] = parsed.headers.map((h) => ({
       sourceColumn: h,
       targetField: h === 'studentId' ? 'studentId' : itemNameSet.has(h) ? h : '',
       required: h === 'studentId',
       valid: h === 'studentId' || itemNameSet.has(h),
     }));
-
-    const errors: ImportValidationResult['errors'] = [];
-    const preview: ImportValidationResult['preview'] = [];
-    let validRows = 0;
-    let errorRows = 0;
-
-    dataRows.slice(0, 200).forEach((line, idx) => {
-      const row = idx + 2;
-      const cells = line.split(',').map((s) => s.trim());
-      const data: Record<string, unknown> = {};
-      headers.forEach((h, i) => {
-        data[h] = cells[i] ?? '';
-      });
-      let rowHasErrors = false;
-      const studentId = String(data['studentId'] ?? '');
-      if (!UUID_REGEX.test(studentId)) {
-        errors.push({
-          row,
-          field: 'studentId',
-          message: 'Student id is not a recognised directory id',
-          value: studentId,
-          severity: 'error',
-        });
-        rowHasErrors = true;
-      }
-      for (const item of items) {
-        const v = data[item.name];
-        if (v === undefined || v === '') continue;
-        if (itemScoreError(item, String(v))) {
-          errors.push({
-            row,
-            field: item.name,
-            message: `Score must be in [${item.minScore}, ${item.maxScore}]`,
-            value: String(v),
-            severity: 'error',
-          });
-          rowHasErrors = true;
-        }
-      }
-      preview.push({ rowNumber: row, data, hasErrors: rowHasErrors, errors: [] });
-      if (rowHasErrors) errorRows += 1;
-      else validRows += 1;
-    });
-
+    const errors: ImportValidationResult['errors'] = parsed.rows.flatMap((row) =>
+      row.errors.map((e) => ({ ...e, severity: 'error' as const })),
+    );
+    const errorRows = parsed.rows.filter((row) => row.errors.length > 0).length;
     return {
-      totalRows: dataRows.length,
-      validRows,
+      totalRows: parsed.rows.length,
+      validRows: parsed.rows.length - errorRows,
       errorRows,
       warningRows: 0,
       errors,
-      preview,
+      // Preview is a display aid only; validation above covered every row.
+      preview: parsed.rows.slice(0, 200).map((row) => ({
+        rowNumber: row.rowNumber,
+        data: row.data,
+        hasErrors: row.errors.length > 0,
+        errors: [],
+      })),
       columnMappings,
     };
   }
-
   async function confirmImport(file: File): Promise<{ success: number; failed: number }> {
     if (!subjectId || !academicPeriodId) {
       throw new Error('Choose a subject and an academic period.');
     }
-    const text = await file.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    if (lines.length <= 1) {
-      return { success: 0, failed: 0 };
+    const parsed = parseResultsImport(file.name, await file.text(), items);
+    if (parsed.fileErrors.length > 0) {
+      throw new Error(parsed.fileErrors.join(' '));
     }
-    const headers = (lines[0] ?? '').split(',').map((s) => s.trim());
-    const studentIdIdx = headers.indexOf('studentId');
-    const itemColumns = items
-      .map((it) => ({ item: it, id: it.id, idx: headers.indexOf(it.name) }))
-      .filter((c) => c.idx >= 0);
-
-    const rowsToImport: {
-      studentId: string;
-      assessmentItemId: string;
-      score: number;
-    }[] = [];
-
-    for (const line of lines.slice(1)) {
-      const cells = line.split(',').map((s) => s.trim());
-      const studentId = studentIdIdx >= 0 ? (cells[studentIdIdx] ?? '') : '';
-      if (!UUID_REGEX.test(studentId)) continue;
-      for (const col of itemColumns) {
-        const raw = cells[col.idx];
-        if (raw === undefined || raw === '') continue;
-        if (itemScoreError(col.item, raw)) continue;
-        const num = Number(raw);
-        rowsToImport.push({
-          studentId,
-          assessmentItemId: col.id,
-          score: num,
-        });
-      }
-    }
-
+    // PRC-M475: a row with any invalid cell is rejected as a whole and counted as failed.
+    const rejectedRows = parsed.rows.filter((row) => row.errors.length > 0).length;
+    const rowsToImport = parsed.rows
+      .filter((row) => row.errors.length === 0)
+      .flatMap((row) =>
+        row.scores.map((s) => ({
+          studentId: row.studentId,
+          assessmentItemId: s.assessmentItemId,
+          score: s.score,
+        })),
+      );
     if (rowsToImport.length === 0) {
-      return { success: 0, failed: 0 };
+      return { success: 0, failed: rejectedRows };
     }
-
     const result = await importResultsFromExcelAction({
       subjectId,
       academicPeriodId,
@@ -506,12 +438,11 @@ export function ResultsEntryGrid({
     if (result.status === 'success' && result.data) {
       return {
         success: result.data.successCount,
-        failed: result.data.errorCount,
+        failed: result.data.errorCount + rejectedRows,
       };
     }
-    return { success: 0, failed: rowsToImport.length };
+    return { success: 0, failed: rowsToImport.length + rejectedRows };
   }
-
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
@@ -709,8 +640,9 @@ export function ResultsEntryGrid({
             title="Import results"
             description={`Upload a CSV with columns: studentId, ${items
               .map((i) => i.name)
-              .join(', ')}. Up to 5,000 rows per file.`}
-            acceptedFileTypes={['.csv', '.xlsx']}
+              .join(', ')}. CSV only (save Excel sheets as CSV). Up to ${RESULTS_IMPORT_MAX_ROWS.toLocaleString()} rows per file.`}
+            // PRC-M475: CSV only — Excel files are binary and cannot be read as text.
+            acceptedFileTypes={['.csv']}
             maxFileSize={10 * 1024 * 1024}
             targetFields={[
               { name: 'studentId', label: 'Student', required: true },
