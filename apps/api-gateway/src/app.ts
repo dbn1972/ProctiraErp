@@ -87,6 +87,7 @@ import {
   shouldAuditMutation,
   wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
+import { registerAuthAudit } from './auth-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
@@ -917,6 +918,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return Promise.resolve();
     });
   }
+
+  // PRC-M501: auth-domain audit (login/logout/refresh/ticket/MFA), which the
+  // generic mutation audit below intentionally skips.
+  registerAuthAudit(app);
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
   // Post-hoc onSend remains for unwired paths; production never degrades.
