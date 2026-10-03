@@ -853,21 +853,21 @@ export class FeesService {
 
     const created: FeeInvoiceEntity[] = [];
     const skipped: string[] = [];
+    // PRC-M250: set-based lookups instead of two queries per student.
+    const [alreadyInvoiced, concessions] = await Promise.all([
+      this.repository.listInvoicedStudentIdsForStructure(tenantId, structure.id, unique),
+      this.repository.listActiveConcessionsForStructure(tenantId, structure.id, unique),
+    ]);
+    const concessionByStudent = new Map<string, FeeConcessionEntity>();
+    for (const c of concessions) {
+      if (!concessionByStudent.has(c.studentId)) concessionByStudent.set(c.studentId, c);
+    }
     for (const studentId of unique) {
-      const existing = await this.repository.findInvoiceForStructureStudent(
-        tenantId,
-        structure.id,
-        studentId,
-      );
-      if (existing) {
+      if (alreadyInvoiced.has(studentId)) {
         skipped.push(studentId);
         continue;
       }
-      const concession = await this.repository.findConcessionForStudentStructure(
-        tenantId,
-        studentId,
-        structure.id,
-      );
+      const concession = concessionByStudent.get(studentId) ?? null;
       const discount =
         concession && concession.status === 'approved'
           ? concessionDiscountCents(structure.amountCents, concession)

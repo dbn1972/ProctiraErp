@@ -635,6 +635,43 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
+  async listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT DISTINCT student_id FROM parent_fee_invoices
+          WHERE tenant_id = $1 AND structure_id = $2 AND status <> 'void'
+            AND student_id = ANY($3::uuid[])`,
+        [tenantId, structureId, studentIds],
+      );
+      return new Set(result.rows.map((r) => String((r as { student_id: string }).student_id)));
+    });
+  }
+
+  async listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]> {
+    if (studentIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_concessions
+          WHERE tenant_id = $1 AND structure_id = $2 AND status <> 'rejected'
+            AND student_id = ANY($3::uuid[])
+          ORDER BY created_at ASC`,
+        [tenantId, structureId, studentIds],
+      );
+      return result.rows.map((r) => mapConcession(r as Record<string, unknown>));
+    });
+  }
+
   async findInvoiceForStructureStudent(
     tenantId: string,
     structureId: string,
@@ -683,19 +720,16 @@ export class PgFeesRepository implements FeesRepository {
   ): Promise<string[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
-      try {
-        const result = await client.query(
-          `SELECT student_id FROM enrollments
-           WHERE tenant_id = $1
-             AND status::text IN ('ENROLLED', 'enrolled')
-             AND ($2::uuid IS NULL OR class_id = $2)
-             AND ($3::uuid IS NULL OR grade_id = $3)`,
-          [tenantId, scope.classId ?? null, scope.gradeId ?? null],
-        );
-        return result.rows.map((row) => String((row as { student_id: string }).student_id));
-      } catch {
-        return [];
-      }
+      // PRC-M250: a roster query error is a server error, never "no students".
+      const result = await client.query(
+        `SELECT student_id FROM enrollments
+         WHERE tenant_id = $1
+           AND status::text IN ('ENROLLED', 'enrolled')
+           AND ($2::uuid IS NULL OR class_id = $2)
+           AND ($3::uuid IS NULL OR grade_id = $3)`,
+        [tenantId, scope.classId ?? null, scope.gradeId ?? null],
+      );
+      return result.rows.map((row) => String((row as { student_id: string }).student_id));
     });
   }
 

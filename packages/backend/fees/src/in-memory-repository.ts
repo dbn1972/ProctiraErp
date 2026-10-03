@@ -422,6 +422,40 @@ export class InMemoryFeesRepository implements FeesRepository {
     );
   }
 
+  async listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>> {
+    const wanted = new Set(studentIds);
+    return new Set(
+      this.invoices
+        .filter(
+          (i) =>
+            i.tenantId === tenantId &&
+            i.structureId === structureId &&
+            i.status !== 'void' &&
+            wanted.has(i.studentId),
+        )
+        .map((i) => i.studentId),
+    );
+  }
+
+  async listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]> {
+    const wanted = new Set(studentIds);
+    return this.concessions.filter(
+      (c) =>
+        c.tenantId === tenantId &&
+        c.structureId === structureId &&
+        c.status !== 'rejected' &&
+        wanted.has(c.studentId),
+    );
+  }
+
   async listConcessions(tenantId: string): Promise<FeeConcessionEntity[]> {
     return this.concessions.filter((row) => row.tenantId === tenantId);
   }

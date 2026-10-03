@@ -402,6 +402,17 @@ export interface FeesRepository {
     structureId: string,
   ): Promise<FeeConcessionEntity | null>;
   listConcessions(tenantId: string): Promise<FeeConcessionEntity[]>;
+  /** PRC-M250: set-based bulk-invoice lookups (one query each, not per student). */
+  listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>>;
+  listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]>;
   updateConcession(
     id: string,
     tenantId: string,
