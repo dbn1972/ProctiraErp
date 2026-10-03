@@ -84,6 +84,11 @@ jobs:
           printf 'ci-placeholder-not-a-real-token' \
             | sudo tee /etc/prometheus/secrets/proctira-metrics/token >/dev/null
           /tmp/promtool check config infra/observability/prometheus.yml
+          # PRC-M313: the lab scrape jobs must also be valid when loaded.
+          mkdir -p /tmp/prom-lab/scrape.d
+          cp -r infra/observability/prometheus.yml infra/observability/alerts /tmp/prom-lab/
+          cp infra/observability/scrape-lab/*.yml /tmp/prom-lab/scrape.d/
+          /tmp/promtool check config /tmp/prom-lab/prometheus.yml
           /tmp/promtool check rules infra/observability/alerts/*.yml
 
       - name: Scrape targets must be real /metrics services
@@ -98,7 +103,12 @@ jobs:
               echo "::error::phantom scrape target: $t"
               bad=1
             fi
-          done < <(grep -oE "'[a-z-]+:[0-9]+'" infra/observability/prometheus.yml | tr -d "'")
+          done < <(grep -ohE "'[a-z-]+:[0-9]+'" infra/observability/prometheus.yml infra/observability/scrape-lab/*.yml | tr -d "'")
+          # PRC-M313: the canonical config must not scrape the lab split services.
+          if grep -qE "'[a-z]+-service:[0-9]+'" infra/observability/prometheus.yml; then
+            echo "::error::lab *-service targets belong in infra/observability/scrape-lab/"
+            bad=1
+          fi
           exit $bad
 
       - name: Render Alertmanager — no optional receivers (email fallback)
