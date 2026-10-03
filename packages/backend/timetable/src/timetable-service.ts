@@ -20,6 +20,7 @@ import {
   type GeneratorPeriod,
   type GeneratorRoom,
 } from './generation.js';
+import { isValidIsoDate } from './schemas.js';
 import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
 import { isTimetableClashError, TimetableClashError } from './timetable-errors.js';
 import type {
@@ -735,8 +736,34 @@ export class TimetableService {
       throw new NotFoundError(`Section meeting ${input.sectionMeetingId} not found`);
     }
 
-    const originalStaffId = input.originalStaffId ?? meeting.staffId;
-    const institutionId = input.institutionId ?? meeting.institutionId;
+    // PRC-M402: provenance comes from the meeting, never from the client.
+    if (input.originalStaffId !== undefined && input.originalStaffId !== meeting.staffId) {
+      throw new ValidationError('originalStaffId does not match the meeting teacher');
+    }
+    if (input.institutionId !== undefined && input.institutionId !== meeting.institutionId) {
+      throw new ValidationError('institutionId does not match the meeting institution');
+    }
+    const originalStaffId = meeting.staffId;
+    const institutionId = meeting.institutionId;
+    if (!isValidIsoDate(input.substitutionDate)) {
+      throw new ValidationError('substitutionDate must be a real YYYY-MM-DD date');
+    }
+    if (isoWeekday(input.substitutionDate) !== meeting.dayOfWeek) {
+      throw new ValidationError(
+        `substitutionDate ${input.substitutionDate} is not on the meeting weekday (${meeting.dayOfWeek})`,
+      );
+    }
+    if (meeting.status !== 'active') {
+      throw new ValidationError('Cannot substitute an inactive or cancelled meeting');
+    }
+    const substituteAbsences = await this.ops.listAbsences(tenantId, {
+      institutionId,
+      staffId: input.substituteStaffId,
+      date: input.substitutionDate,
+    });
+    if (substituteAbsences.length > 0) {
+      throw new ValidationError('Substitute teacher is marked absent on that date');
+    }
 
     if (originalStaffId === input.substituteStaffId) {
       throw new ValidationError('Substitute staff must differ from the original teacher');
