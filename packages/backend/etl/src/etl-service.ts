@@ -9,7 +9,7 @@
 import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
+import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
 import { ExecutionLogger, type LogSink } from './execution-logger.js';
 import { buildExecutionLineage } from './lineage.js';
 import {
@@ -48,6 +48,8 @@ export interface ETLServiceConfig {
   schedulerConfig?: Partial<SchedulerConfig>;
   /** Use testable retry executor (no actual sleep) - for testing */
   testMode?: boolean;
+  /** PRC-M222: connector construction (defaults to the fail-closed production factory). */
+  connectorFactory?: ConnectorFactory;
 }
 
 export class ETLService {
@@ -66,10 +68,12 @@ export class ETLService {
   /** Promises for in-flight pipeline executions (API + scheduled). */
   private readonly inFlight = new Set<Promise<unknown>>();
 
+  private readonly connectors: ConnectorFactory;
   constructor(
     private readonly repository: PipelineRepository,
     private readonly config: ETLServiceConfig,
   ) {
+    this.connectors = config.connectorFactory ?? defaultConnectorFactory;
     this.adminNotifier = config.adminNotifier ?? new InMemoryAdminNotifier();
     this.logger = new ExecutionLogger(config.logSink);
     this.retryExecutor = config.testMode
@@ -186,7 +190,7 @@ export class ETLService {
     source: CreatePipelineInput['source'];
     destination: CreatePipelineInput['destination'];
   }): Promise<void> {
-    const source = await createSourceConnector(input.source).validate();
+    const source = await this.connectors.createSource(input.source).validate();
     if (!source.valid) {
       throw new AppError(
         source.error ?? 'Invalid source configuration',
@@ -194,7 +198,7 @@ export class ETLService {
         400,
       );
     }
-    const destination = await createDestinationConnector(input.destination).validate();
+    const destination = await this.connectors.createDestination(input.destination).validate();
     if (!destination.valid) {
       throw new AppError(
         destination.error ?? 'Invalid destination configuration',
@@ -555,9 +559,31 @@ export class ETLService {
     await this.repository.createExecution(execution);
 
     try {
+      // PRC-M222: build + validate both connectors before touching any data, so an
+      // invalid / unimplemented config fails the run instead of "succeeding".
+      const sourceConnector = this.connectors.createSource(pipeline.source);
+      const destConnector = this.connectors.createDestination(pipeline.destination);
+      const [sourceCheck, destCheck] = await Promise.all([
+        sourceConnector.validate(),
+        destConnector.validate(),
+      ]);
+      if (!sourceCheck.valid) {
+        throw new AppError(
+          sourceCheck.error ?? 'Invalid source configuration',
+          'INVALID_SOURCE_CONFIG',
+          400,
+        );
+      }
+      if (!destCheck.valid) {
+        throw new AppError(
+          destCheck.error ?? 'Invalid destination configuration',
+          'INVALID_DESTINATION_CONFIG',
+          400,
+        );
+      }
+
       // 1. Extract
       const extractStart = Date.now();
-      const sourceConnector = createSourceConnector(pipeline.source);
       const extractionResult = await sourceConnector.extract();
       const extractDuration = Date.now() - extractStart;
       execution.extractedCount = extractionResult.totalCount;
@@ -601,7 +627,6 @@ export class ETLService {
 
       // 3. Load
       const loadStart = Date.now();
-      const destConnector = createDestinationConnector(pipeline.destination);
       const loadResult = await destConnector.load(transformResult.rows);
       const loadDuration = Date.now() - loadStart;
       execution.loadedCount = loadResult.loadedCount;

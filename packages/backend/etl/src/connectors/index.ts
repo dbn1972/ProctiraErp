@@ -11,7 +11,13 @@ export type {
   LoadResult,
   LoadError,
 } from './types.js';
-export { createSourceConnector, createDestinationConnector } from './connector-factory.js';
+export { ConnectorNotImplementedError } from './types.js';
+export {
+  createSourceConnector,
+  createDestinationConnector,
+  defaultConnectorFactory,
+  type ConnectorFactory,
+} from './connector-factory.js';
 export { PostgresSourceConnector } from './postgresql-source.js';
 export { RestApiSourceConnector } from './rest-api-source.js';
 export { CsvSourceConnector } from './csv-source.js';
