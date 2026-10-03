@@ -31,6 +31,9 @@ DECLARE
   v_destination TEXT;
   v_cutoff      TIMESTAMPTZ;
   v_count       INTEGER;
+  -- tenant_id is uuid after 100_tenant_id_uuid_fks (APPLY_STRICT_FKS=1) and text before it;
+  -- compare in the column's own type so the (tenant_id, …) indexes are used.
+  v_cast        TEXT;
 BEGIN
   IF p_tenant_id IS NULL OR p_tenant_id = ''
      OR p_tenant_id IS DISTINCT FROM NULLIF(current_setting('app.tenant_id', true), '') THEN
@@ -38,12 +41,21 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  SELECT c.retention_months, c.archival_enabled, c.archival_destination
-    INTO v_months, v_enabled, v_destination
-    FROM audit_retention_configs c
-   WHERE c.tenant_id = p_tenant_id;
+  SELECT CASE WHEN data_type = 'uuid' THEN '::uuid' ELSE '' END
+    INTO v_cast
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'audit_log_entries' AND column_name = 'tenant_id';
 
-  IF NOT FOUND OR NOT v_enabled OR v_months IS NULL OR v_months < 1 THEN
+  EXECUTE format(
+    'SELECT retention_months, archival_enabled, archival_destination
+       FROM audit_retention_configs WHERE tenant_id = $1%s',
+    (SELECT CASE WHEN data_type = 'uuid' THEN '::uuid' ELSE '' END
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'audit_retention_configs'
+        AND column_name = 'tenant_id')
+  ) INTO v_months, v_enabled, v_destination USING p_tenant_id;
+
+  IF NOT COALESCE(v_enabled, FALSE) OR v_months IS NULL OR v_months < 1 THEN
     RETURN QUERY SELECT 0, NULL::TIMESTAMPTZ, v_destination;
     RETURN;
   END IF;
@@ -53,30 +65,32 @@ BEGIN
   -- The append-only trigger (022) only lets the archival routine delete.
   PERFORM set_config('app.audit_archival', '1', true);
 
-  WITH moved AS (
-    DELETE FROM audit_log_entries e
-     WHERE e.tenant_id = p_tenant_id
-       AND e.occurred_at < v_cutoff
-    RETURNING e.*
-  ), archived AS (
-    INSERT INTO audit_log_archive (
-      id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-      ip_address, occurred_at, before_values, after_values, metadata, created_at,
-      chain_seq, prev_hash, entry_hash, archived_at, destination
-    )
-    SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-           ip_address, occurred_at, before_values, after_values, metadata, created_at,
-           chain_seq, prev_hash, entry_hash, now(), v_destination
-      FROM moved
-    RETURNING 1
-  )
-  SELECT count(*)::INTEGER INTO v_count FROM archived;
+  EXECUTE format(
+    'WITH moved AS (
+       DELETE FROM audit_log_entries
+        WHERE tenant_id = $1%s AND occurred_at < $2
+       RETURNING *
+     ), archived AS (
+       INSERT INTO audit_log_archive (
+         id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+         ip_address, occurred_at, before_values, after_values, metadata, created_at,
+         chain_seq, prev_hash, entry_hash, archived_at, destination
+       )
+       SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+              ip_address, occurred_at, before_values, after_values, metadata, created_at,
+              chain_seq, prev_hash, entry_hash, now(), $3
+         FROM moved
+       RETURNING 1
+     )
+     SELECT count(*)::INTEGER FROM archived',
+    COALESCE(v_cast, '')
+  ) INTO v_count USING p_tenant_id, v_cutoff, v_destination;
 
   PERFORM set_config('app.audit_archival', '', true);
 
   UPDATE audit_retention_configs
      SET last_archival_at = now(), updated_at = now()
-   WHERE tenant_id = p_tenant_id;
+   WHERE tenant_id::text = p_tenant_id;
 
   RETURN QUERY SELECT v_count, v_cutoff, v_destination;
 END;
