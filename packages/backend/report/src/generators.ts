@@ -26,9 +26,15 @@ function cell(value: unknown): string {
   return String(value);
 }
 
-function escapeCsv(field: string): string {
-  if (/[",\n\r]/.test(field)) return `"${field.replace(/"/g, '""')}"`;
-  return field;
+/**
+ * PRC-M341: neutralise spreadsheet formula injection. Cells starting with
+ * `=`, `+`, `-`, `@`, TAB or CR are prefixed with a single quote so Excel /
+ * Sheets treat them as text, then RFC 4180 quoting is applied.
+ */
+export function escapeCsv(field: string): string {
+  const safe = /^[=+\-@\t\r]/.test(field) ? `'${field}` : field;
+  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  return safe;
 }
 
 export function generateCsv(table: ReportTable): Buffer {

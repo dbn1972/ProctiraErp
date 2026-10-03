@@ -18,6 +18,7 @@
  */
 import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+import { escapeCsv } from './generators.js';
 
 import type {
   ReportRepository,
@@ -552,10 +553,8 @@ export class ReportService {
   }
 
   private escapeCsvField(field: string): string {
-    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
-      return `"${field.replace(/"/g, '""')}"`;
-    }
-    return field;
+    // PRC-M341: shared formula-injection-safe escaper.
+    return escapeCsv(field);
   }
 
   // ─── Job Status ────────────────────────────────────────────────────────
