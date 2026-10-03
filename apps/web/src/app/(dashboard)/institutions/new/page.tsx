@@ -69,6 +69,7 @@ export default async function NewInstitutionPage() {
             types={lookups.types}
             sectors={lookups.sectors}
             ownerships={lookups.ownerships}
+            lookupErrors={lookups.lookupErrors}
           />
         </CardContent>
       </Card>

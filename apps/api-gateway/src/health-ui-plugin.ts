@@ -126,7 +126,8 @@ function mapDomainCounselling(
     scheduled: 'SCHEDULED',
     completed: 'COMPLETED',
     cancelled: 'CANCELLED',
-    'no-show': 'CANCELLED',
+    // PRC-M476: a no-show is not a cancellation; keep the domain meaning.
+    'no-show': 'NO_SHOW',
   };
   return {
     id: entity.id,
@@ -137,7 +138,7 @@ function mapDomainCounselling(
     sessionDate: entity.sessionDate,
     // Schedule metadata only for nurses/health officers; the reason is counselling PHI.
     topic: showTopic ? entity.reason : '',
-    status: statusMap[entity.status] ?? 'SCHEDULED',
+    status: statusMap[entity.status] ?? String(entity.status).toUpperCase(),
   };
 }
 

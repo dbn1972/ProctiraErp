@@ -11,10 +11,16 @@ export const dynamic = 'force-dynamic';
 
 export default async function FeesReportsPage() {
   await requireSession();
-  const [reportResult, classLabels] = await Promise.all([
-    fetchDuesReportResult(),
-    loadFeeClassLabels(),
-  ]);
+  const reportResult = await fetchDuesReportResult();
+  // PRC-M477: resolve only the classes that appear in this report.
+  const classLabels = await loadFeeClassLabels(
+    reportResult.ok
+      ? [
+          ...reportResult.report.byClass.map((row) => row.classId),
+          ...reportResult.report.overdue.flatMap((row) => (row.classId ? [row.classId] : [])),
+        ]
+      : [],
+  );
   const report = reportResult.ok
     ? reportResult.report
     : {

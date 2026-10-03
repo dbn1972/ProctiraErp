@@ -342,6 +342,49 @@ describe('Hostel Routes', () => {
   });
 
   describe('G-921 gate pass + attendance', () => {
+    it('PRC-M478: rejects naive times (400) and a return before departure', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Gate Hall TZ', code: 'GH-TZ' },
+      });
+      const hostelId = hostel.json().id as string;
+      const naive = await app.inject({
+        method: 'POST',
+        url: '/hostel/gate-passes',
+        payload: {
+          hostelId,
+          studentId: STUDENT_ID,
+          expectedOutAt: '2026-09-10T18:00',
+          expectedInAt: '2026-09-10T20:00',
+        },
+      });
+      expect(naive.statusCode).toBe(400);
+      const backwards = await app.inject({
+        method: 'POST',
+        url: '/hostel/gate-passes',
+        payload: {
+          hostelId,
+          studentId: STUDENT_ID,
+          expectedOutAt: '2026-09-10T18:00:00+05:30',
+          expectedInAt: '2026-09-10T12:30:00Z',
+        },
+      });
+      expect(backwards.statusCode).toBeGreaterThanOrEqual(400);
+      expect(backwards.statusCode).toBeLessThan(500);
+      const ok = await app.inject({
+        method: 'POST',
+        url: '/hostel/gate-passes',
+        payload: {
+          hostelId,
+          studentId: STUDENT_ID,
+          expectedOutAt: '2026-09-10T18:00:00+05:30',
+          expectedInAt: '2026-09-10T21:00:00+05:30',
+        },
+      });
+      expect(ok.statusCode).toBe(201);
+      expect(ok.json().expectedOutAt).toBe('2026-09-10T12:30:00.000Z');
+    });
     it('runs request → approve → out → in and upserts attendance', async () => {
       const hostel = await app.inject({
         method: 'POST',

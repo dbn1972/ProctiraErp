@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { listSeatMatrix } from '@/lib/api/admissions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
@@ -6,7 +7,7 @@ import { SeatMatrixPanel } from '../_components/seat-matrix-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsSeatMatrixPage() {
-  const { institutions, periods, grades } = await loadAdmissionsLookups();
+  const { institutions, periods, grades, errors } = await loadAdmissionsLookups();
   const rows = await listSeatMatrix(
     institutions[0]?.id ? { institutionId: institutions[0].id } : undefined,
   );
@@ -20,6 +21,7 @@ export default async function AdmissionsSeatMatrixPage() {
           come from accepted offers on the same category key.
         </p>
       </div>
+      <LookupLoadError failed={errors} />
       <AdmissionsChrome current="/admissions/seat-matrix">
         <SeatMatrixPanel
           institutions={institutions}

@@ -133,14 +133,19 @@ export const CreateMessSubscriptionSchema = Type.Object({
 
 export type CreateMessSubscriptionInput = Static<typeof CreateMessSubscriptionSchema>;
 
+/** PRC-M478: ISO-8601 date-time with `Z` or `+HH:MM` / `-HH:MM` offset. */
+export const ISO_INSTANT_WITH_OFFSET =
+  '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:\\d{2})$';
 export const CreateGatePassSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
   requestedBy: Type.Optional(Type.Union([Type.Literal('resident'), Type.Literal('parent')])),
   requesterUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   reason: Type.Optional(Type.String({ maxLength: 1000 })),
-  expectedOutAt: Type.String({ minLength: 1 }),
-  expectedInAt: Type.String({ minLength: 1 }),
+  // PRC-M478: instants must carry an explicit offset so they are never parsed in
+  // the server's timezone.
+  expectedOutAt: Type.String({ pattern: ISO_INSTANT_WITH_OFFSET }),
+  expectedInAt: Type.String({ pattern: ISO_INSTANT_WITH_OFFSET }),
 });
 
 export type CreateGatePassInput = Static<typeof CreateGatePassSchema>;

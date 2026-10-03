@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { getMeritList, listApplications } from '@/lib/api/admissions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
@@ -6,7 +7,7 @@ import { MeritPanel } from '../_components/merit-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsMeritPage() {
-  const [{ institutions, periods, grades }, applications] = await Promise.all([
+  const [{ institutions, periods, grades, errors }, applications] = await Promise.all([
     loadAdmissionsLookups(),
     listApplications(),
   ]);
@@ -32,6 +33,7 @@ export default async function AdmissionsMeritPage() {
           weights.
         </p>
       </div>
+      <LookupLoadError failed={errors} />
       <AdmissionsChrome current="/admissions/merit">
         <MeritPanel
           institutions={institutions}

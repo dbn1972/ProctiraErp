@@ -649,6 +649,30 @@ export async function setStudentConsent(
   return result.data;
 }
 
+/**
+ * PRC-M483: like {@link listStudentConsents} / {@link listStudentDiscipline} but
+ * `null` when the read failed, so a checklist never shows "clear" for a record it
+ * could not load.
+ */
+export async function readStudentConsents(studentId: string): Promise<StudentConsent[] | null> {
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : null;
+}
+
+export async function readStudentDiscipline(
+  studentId: string,
+): Promise<DisciplineIncident[] | null> {
+  const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
+    `/students/${studentId}/discipline`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? result.data.data : null;
+}
+
 export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {
   const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
     `/students/${studentId}/discipline`,
