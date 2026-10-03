@@ -36,6 +36,8 @@ export interface DurableQueuedMessage {
   deliveryTag: string;
   routingKey: string;
   message: QueueMessage;
+  /** Epoch ms before which the message is not delivered (PRC-H110 delay). */
+  availableAt?: number;
 }
 
 /**
@@ -48,11 +50,12 @@ export class InMemoryDurableQueueStore {
   /** Dead-letter queue (PRC-H086): exhausted deliveries keep the original payload. */
   readonly deadLetters: DurableQueuedMessage[] = [];
 
-  enqueue(routingKey: string, message: QueueMessage): DurableQueuedMessage {
+  enqueue(routingKey: string, message: QueueMessage, delayMs?: number): DurableQueuedMessage {
     const entry: DurableQueuedMessage = {
       deliveryTag: randomUUID(),
       routingKey,
       message,
+      ...(delayMs !== undefined && delayMs > 0 ? { availableAt: Date.now() + delayMs } : {}),
     };
     this.pending.push(entry);
     return entry;
@@ -67,7 +70,12 @@ export class InMemoryDurableQueueStore {
 
   /** Lease the first pending message whose routing key matches `pattern`. */
   leaseMatching(pattern: string): DurableQueuedMessage | undefined {
-    const idx = this.pending.findIndex((entry) => matchRoutingKey(pattern, entry.routingKey));
+    const now = Date.now();
+    const idx = this.pending.findIndex(
+      (entry) =>
+        (entry.availableAt === undefined || entry.availableAt <= now) &&
+        matchRoutingKey(pattern, entry.routingKey),
+    );
     if (idx < 0) return undefined;
     const [next] = this.pending.splice(idx, 1);
     if (!next) return undefined;
@@ -217,7 +225,8 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     const routingKey = options?.topic
       ? buildTenantName(message.tenantId, options.topic)
       : buildTenantName(message.tenantId, message.type);
-    this.store.enqueue(routingKey, message);
+    // PRC-H110: honour delay like the broker adapters (not delivered before due).
+    this.store.enqueue(routingKey, message, options?.delay ?? message.metadata?.delay);
   }
 
   async subscribe(options: SubscribeOptions, handler: MessageHandler): Promise<void> {

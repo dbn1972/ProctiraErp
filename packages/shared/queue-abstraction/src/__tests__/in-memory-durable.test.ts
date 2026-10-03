@@ -151,3 +151,31 @@ describe('InMemoryDurableQueueAdapter receive-side guard (PRC-L355)', () => {
     await adapter.disconnect();
   });
 });
+
+describe('InMemoryDurableQueueAdapter delay (PRC-H110)', () => {
+  it('does not deliver a delayed message before it is due', async () => {
+    const { InMemoryDurableQueueAdapter } = await import('../adapters/in-memory-durable-adapter');
+    const adapter = new InMemoryDurableQueueAdapter({ pollIntervalMs: 5 });
+    await adapter.connect();
+    const seen: string[] = [];
+    await adapter.consume({ topic: 'tenant.*.workflow.escalation' }, async (m) => {
+      seen.push(m.id);
+    });
+    const base = {
+      tenantId: 'tenant-a',
+      type: 'workflow.escalation',
+      payload: {},
+      timestamp: new Date().toISOString(),
+    };
+    await adapter.dispatch({ ...base, id: 'late' }, { delay: 150 });
+    await adapter.dispatch({ ...base, id: 'now' });
+    await new Promise((r) => setTimeout(r, 60));
+    expect(seen).toEqual(['now']);
+    const started = Date.now();
+    while (!seen.includes('late') && Date.now() - started < 2000) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(seen).toEqual(['now', 'late']);
+    await adapter.disconnect();
+  });
+});

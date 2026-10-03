@@ -68,6 +68,30 @@ export function effectiveRoutingKey(msg: Pick<ConsumeMessage, 'fields' | 'proper
   return msg.fields.routingKey;
 }
 
+/** Header used to route a delayed publish to its TTL bucket queue (PRC-H110). */
+export const DELAY_BUCKET_HEADER = 'x-delay-bucket';
+
+/** Idle expiry added to a bucket's TTL before RabbitMQ deletes an unused bucket. */
+const DELAY_BUCKET_IDLE_EXPIRY_MS = 10 * 60 * 1000;
+
+/** Longest supported delay (RabbitMQ TTL upper bound is 2^32-1 ms; keep 7 days). */
+export const MAX_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Headers exchange that fans delayed publishes into per-delay TTL queues. */
+export function delayExchangeName(exchange: string): string {
+  return `${exchange}.delay`;
+}
+
+/** TTL bucket queue for one delay value; dead-letters back to `exchange`. */
+export function delayBucketQueueName(exchange: string, delayMs: number): string {
+  return `${exchange}.delay.${delayMs}ms`;
+}
+
+function normaliseDelay(raw: number | undefined): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(Math.floor(raw), MAX_DELAY_MS);
+}
+
 interface PendingPublish {
   reject: (err: Error) => void;
   returned: boolean;
@@ -78,6 +102,7 @@ export class RabbitMQAdapter implements QueueAdapter {
   private connection: ChannelModel | null = null;
   private channel: ConfirmChannel | null = null;
   private connected = false;
+  private delayExchangeAsserted = false;
   private readonly defaultMaxRetries: number;
   private readonly logger: QueueConsumerLogger | undefined;
   private readonly onDeliveryFailure: ((event: DeliveryFailureEvent) => void) | undefined;
@@ -158,6 +183,7 @@ export class RabbitMQAdapter implements QueueAdapter {
       this.connection = null;
     }
 
+    this.delayExchangeAsserted = false;
     this.connected = false;
   }
 
@@ -193,21 +219,57 @@ export class RabbitMQAdapter implements QueueAdapter {
       timestamp: Date.now(),
     };
 
-    if (options?.delay ?? message.metadata?.delay) {
-      const delay = options?.delay ?? message.metadata?.delay ?? 0;
-      (publishOptions.headers as Record<string, unknown>)['x-delay'] = delay;
-      publishOptions.expiration = String(delay);
+    // PRC-H110 (PRO-S19-03): a per-message `expiration` on the work exchange
+    // does not delay anything — it dead-letters undelivered messages into the
+    // DLQ. Delayed messages go to a per-delay TTL bucket queue that
+    // dead-letters back to the main exchange with the original routing key.
+    const delay = normaliseDelay(options?.delay ?? message.metadata?.delay);
+    let targetExchange = this.config.exchange;
+    if (delay > 0) {
+      await this.assertDelayBucket(delay);
+      (publishOptions.headers as Record<string, unknown>)[DELAY_BUCKET_HEADER] = String(delay);
+      targetExchange = delayExchangeName(this.config.exchange);
     }
 
     await this.confirmedSend(message.id, (cb) =>
       this.channel!.publish(
-        this.config.exchange,
+        targetExchange,
         routingKey,
         Buffer.from(JSON.stringify(message)),
         publishOptions,
         cb,
       ),
     );
+  }
+
+  /**
+   * PRC-H110: declare (and refresh the idle expiry of) the TTL bucket queue for
+   * `delayMs`, bound on the headers delay exchange by `x-delay-bucket`. Every
+   * message in a bucket has the same TTL, so there is no head-of-line blocking.
+   */
+  private async assertDelayBucket(delayMs: number): Promise<void> {
+    const channel = this.channel!;
+    const durable = this.config.durable ?? true;
+    const delayExchange = delayExchangeName(this.config.exchange);
+    if (!this.delayExchangeAsserted) {
+      await channel.assertExchange(delayExchange, 'headers', { durable });
+      this.delayExchangeAsserted = true;
+    }
+    const bucket = delayBucketQueueName(this.config.exchange, delayMs);
+    await channel.assertQueue(bucket, {
+      durable,
+      arguments: {
+        'x-message-ttl': delayMs,
+        // No x-dead-letter-routing-key: expired messages keep their routing key.
+        'x-dead-letter-exchange': this.config.exchange,
+        // Idle bucket queues are removed; redeclared on every delayed publish.
+        'x-expires': delayMs + DELAY_BUCKET_IDLE_EXPIRY_MS,
+      },
+    });
+    await channel.bindQueue(bucket, delayExchange, '', {
+      'x-match': 'all',
+      [DELAY_BUCKET_HEADER]: String(delayMs),
+    });
   }
 
   /**

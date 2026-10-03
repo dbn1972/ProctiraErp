@@ -120,8 +120,16 @@ export class OutboxRelay {
       },
     };
 
-    const delay =
+    // PRC-H110: only the *remaining* delay goes to the broker. Rows deferred via
+    // availableAt have already waited, so re-applying the full delay would
+    // double it (and a broker delay is not needed once the time has passed).
+    const requestedDelay =
       typeof row.metadata?.delay === 'number' ? row.metadata.delay : undefined;
+    const remainingDelay =
+      requestedDelay !== undefined
+        ? requestedDelay - (Date.now() - row.createdAt.getTime())
+        : undefined;
+    const delay = remainingDelay !== undefined && remainingDelay > 0 ? remainingDelay : undefined;
     const priority =
       typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
 
