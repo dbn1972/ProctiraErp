@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/footer';
  *
  * Matches the Figma design (45-registration-landing.md):
  *   - Hero with primary "Apply" and secondary "Track" CTAs
- *   - Stats bar
+
  *   - "How it works" 4-step section
  *   - Important dates / footer
  *
@@ -22,8 +22,9 @@ export default function HomePage() {
       <Header />
 
       <main className="flex-1">
+        {/* PRC-M052: no hard-coded stats or "admissions open" claim — there is no
+            public, tenant-scoped source for these figures or the admission window. */}
         <Hero />
-        <StatsBar />
         <HowItWorks />
         <InstitutionTypePicker />
       </main>
@@ -44,10 +45,7 @@ function Hero() {
       <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
         <div className="grid items-center gap-12 lg:grid-cols-[1.15fr_.85fr]">
           <div>
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3.5 py-1.5 text-xs font-bold text-primary-700">
-              <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('stats.open')}
-            </span>
+
             <h1 className="text-3xl font-extrabold leading-[1.12] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">
               {t('heroTitle')}
             </h1>
@@ -134,27 +132,7 @@ function FeatureRow({
   );
 }
 
-function StatsBar() {
-  const t = useTranslations('landing.stats');
-  const stats = [
-    { value: '12,847', label: t('schools') },
-    { value: '2.5M', label: t('students') },
-    { value: '98%', label: t('processed') },
-    { value: '✓', label: t('open') },
-  ];
-  return (
-    <section className="bg-white shadow-sm">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-6 sm:grid-cols-4 sm:px-6 lg:px-8">
-        {stats.map((s) => (
-          <div key={s.label} className="text-center">
-            <p className="text-2xl font-bold text-primary-700 sm:text-3xl">{s.value}</p>
-            <p className="mt-1 text-xs text-gray-500 sm:text-sm">{s.label}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+
 
 function HowItWorks() {
   const t = useTranslations('landing');
