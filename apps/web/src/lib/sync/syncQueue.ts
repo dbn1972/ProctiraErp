@@ -359,6 +359,19 @@ export async function persistAttempt(
 // ─── Test seam ───────────────────────────────────────────────────────────────
 
 /**
+ * PRC-M119: drop every queued operation on explicit sign-out or a user/tenant
+ * switch so one user's pending writes never outlive their session on a
+ * shared device. Best-effort; never throws.
+ */
+export async function clearSyncQueue(): Promise<void> {
+  try {
+    await _resetForTests();
+  } catch {
+    // IndexedDB unavailable / blocked — nothing more to do.
+  }
+}
+
+/**
  * Wipe the entire queue. Exported only for tests and the
  * "Discard all queued operations" admin action. Do NOT call from
  * normal product code — Sync_Queue contents are user data.
