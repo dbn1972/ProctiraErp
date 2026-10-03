@@ -92,6 +92,17 @@ export class PgAuditRepository implements AuditRepository {
     });
   }
 
+  async listEntityTypes(tenantId: string, limit: number): Promise<string[]> {
+    return this.scoped(tenantId, async (client) => {
+      const rows = await client.query(
+        `SELECT DISTINCT entity_type FROM audit_log_entries
+          WHERE tenant_id = $1 ORDER BY entity_type LIMIT $2`,
+        [tenantId, limit],
+      );
+      return rows.rows.map((r) => String((r as { entity_type: unknown }).entity_type));
+    });
+  }
+
   async query(query: AuditLogQuery): Promise<AuditLogQueryResult> {
     return this.scoped(query.tenantId, async (client) => {
       const where: string[] = ['tenant_id = $1'];

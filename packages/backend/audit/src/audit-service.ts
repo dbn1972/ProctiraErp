@@ -208,6 +208,11 @@ export class AuditService {
     return this.repository.query(query);
   }
 
+  /** PRC-M576: distinct entity types for the audit viewer filter (max 500). */
+  async listEntityTypes(tenantId: string): Promise<string[]> {
+    return this.repository.listEntityTypes(tenantId, 500);
+  }
+
   /**
    * Get a single audit log entry by ID.
    */

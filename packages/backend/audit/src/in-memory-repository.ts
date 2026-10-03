@@ -72,6 +72,13 @@ export class InMemoryAuditRepository implements AuditRepository {
   /**
    * Query audit log entries with filtering and pagination.
    */
+  async listEntityTypes(tenantId: string, limit: number): Promise<string[]> {
+    const types = new Set(
+      this.entries.filter((e) => e.tenantId === tenantId).map((e) => e.entityType),
+    );
+    return [...types].sort().slice(0, limit);
+  }
+
   async query(query: AuditLogQuery): Promise<AuditLogQueryResult> {
     let filtered = this.entries.filter((e) => e.tenantId === query.tenantId);
 
