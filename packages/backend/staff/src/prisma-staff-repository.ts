@@ -19,7 +19,12 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
-import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+import type {
+  StaffEntity,
+  StaffFilter,
+  StaffRepository,
+  StaffTransactionScope,
+} from './staff-repository.js';
 
 const PROFILE_KEY = '__profile';
 
@@ -133,26 +138,55 @@ function toEntity(row: StaffRow): StaffEntity {
   };
 }
 
+type StaffTx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
+
+async function createStaffRow(
+  tx: StaffTx,
+  data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>,
+): Promise<StaffEntity> {
+  const row = (await tx.staff.create({
+    data: {
+      id: data.id,
+      tenantId: data.tenantId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      dateOfBirth: new Date(data.dateOfBirth),
+      identityNumber: data.identityNumber,
+      customData: buildCustomData(data) as Prisma.InputJsonValue,
+    },
+  })) as StaffRow;
+  return toEntity(row);
+}
+
 export class PrismaStaffRepository implements StaffRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
-    return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
-      const row = (await tx.staff.create({
-        data: {
-          id: data.id,
-          tenantId: data.tenantId,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          dateOfBirth: new Date(data.dateOfBirth),
-          identityNumber: data.identityNumber,
-          customData: buildCustomData(data) as Prisma.InputJsonValue,
+  async withTransaction<T>(
+    tenantId: string,
+    fn: (scope: StaffTransactionScope) => Promise<T>,
+  ): Promise<T> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const scope: StaffTransactionScope = {
+        create: async (data) => {
+          if (data.tenantId !== tenantId) {
+            throw new Error('Staff transaction scope is bound to a different tenant');
+          }
+          return createStaffRow(tx, data);
         },
-      })) as StaffRow;
-      return toEntity(row);
+        executor: {
+          query: async (text, values = []) => ({
+            rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
+          }),
+        },
+      };
+      return fn(scope);
     });
   }
-
+  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
+    return withTenantTransaction(this.prisma, data.tenantId, async (tx) =>
+      createStaffRow(tx, data),
+    );
+  }
   async update(
     id: string,
     tenantId: string,

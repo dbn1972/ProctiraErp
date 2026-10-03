@@ -69,6 +69,14 @@ export interface StaffPayrollExportRecord {
 
 export interface StaffHrStore {
   createContract(record: StaffContractRecord): Promise<StaffContractRecord>;
+  /**
+   * PRC-L153/L246: insert a contract on a caller-supplied transaction executor (same DB
+   * transaction as the staff row). Only SQL-backed stores implement this.
+   */
+  createContractOn?(
+    executor: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+    record: StaffContractRecord,
+  ): Promise<StaffContractRecord>;
   listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]>;
   findContract(tenantId: string, id: string): Promise<StaffContractRecord | null>;
   updateContract(

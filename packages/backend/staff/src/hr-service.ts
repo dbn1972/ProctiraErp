@@ -34,6 +34,7 @@ import {
   resolveMonthlyGrossCents,
   unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
+import type { CreateStaffInput } from './schemas.js';
 import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
 import type { StaffEntity } from './staff-repository.js';
 import type { StaffService } from './staff-service.js';
@@ -170,6 +171,44 @@ function assertDateOrder(start: string, end: string | null | undefined): void {
   }
 }
 
+function buildContractRecord(tenantId: string, input: CreateContractInput): StaffContractRecord {
+  assertDateOrder(input.startDate, input.endDate);
+  const now = new Date();
+  return {
+    id: randomUUID(),
+    tenantId,
+    staffId: input.staffId,
+    contractType: input.contractType,
+    startDate: input.startDate,
+    endDate: input.endDate ?? null,
+    salaryBand: input.salaryBand ?? '',
+    monthlyGrossCents:
+      input.monthlyGrossCents != null
+        ? input.monthlyGrossCents
+        : resolveMonthlyGrossCents({ salaryBand: input.salaryBand ?? '' }),
+    status: (input.status ?? 'active') as StaffContractStatus,
+    notes: input.notes ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+interface ImportRowPlan {
+  line: number;
+  staff: CreateStaffInput;
+  contract: Omit<CreateContractInput, 'staffId'> | null;
+}
+
+function importRowError(line: number, error: unknown): ImportRowError {
+  const message = error instanceof Error ? error.message : 'Failed to create staff';
+  // Prisma unique violations (P2002) / pg 23505 are not ConflictError; attribute them.
+  const code = (error as { code?: unknown } | null)?.code;
+  const isUniqueViolation = error instanceof ConflictError || code === 'P2002' || code === '23505';
+  return isUniqueViolation
+    ? { row: line, field: 'identityNumber', message }
+    : { row: line, message };
+}
+
 export class StaffHrService {
   /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
   private readonly payrollRuns = new Map<string, PayrollExportResult>();
@@ -186,25 +225,7 @@ export class StaffHrService {
 
   async createContract(tenantId: string, input: CreateContractInput): Promise<ContractView> {
     await this.staffService.getById(tenantId, input.staffId);
-    assertDateOrder(input.startDate, input.endDate);
-    const now = new Date();
-    const record = await this.store.createContract({
-      id: randomUUID(),
-      tenantId,
-      staffId: input.staffId,
-      contractType: input.contractType,
-      startDate: input.startDate,
-      endDate: input.endDate ?? null,
-      salaryBand: input.salaryBand ?? '',
-      monthlyGrossCents:
-        input.monthlyGrossCents != null
-          ? input.monthlyGrossCents
-          : resolveMonthlyGrossCents({ salaryBand: input.salaryBand ?? '' }),
-      status: (input.status ?? 'active') as StaffContractStatus,
-      notes: input.notes ?? null,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const record = await this.store.createContract(buildContractRecord(tenantId, input));
     return withRenewalAlert(record);
   }
 
@@ -445,17 +466,15 @@ export class StaffHrService {
     }
     const parsed = parseCsv(input.csv);
     const errorRows = new Set(dry.errors.map((e) => e.row));
-    const staffIds: string[] = [];
-    const commitErrors: ImportRowError[] = [...dry.errors];
+    const plans: ImportRowPlan[] = [];
     for (const row of parsed.rows) {
       if (errorRows.has(row.line)) continue;
       const v = row.values;
-      // PRC-L153: staff + contract are one unit per row. Staff (Prisma) and contracts (pg
-      // pool) live in different stores, so a contract failure is compensated by purging the
-      // just-created staff row; the row is reported only as an error, never as created.
-      let createdId: string | null = null;
-      try {
-        const staff = await this.staffService.create(tenantId, {
+      const contractType = (v['contractType'] ?? '').trim() as StaffContractType;
+      const startDate = (v['startDate'] ?? '').trim();
+      plans.push({
+        line: row.line,
+        staff: {
           firstName: (v['firstName'] ?? '').trim(),
           lastName: (v['lastName'] ?? '').trim(),
           dateOfBirth: (v['dateOfBirth'] ?? '').trim(),
@@ -463,39 +482,24 @@ export class StaffHrService {
           contactPhone: (v['contactPhone'] ?? '').trim(),
           contactEmail: (v['contactEmail'] ?? '').trim() || undefined,
           position: (v['position'] ?? '').trim(),
-        });
-        createdId = staff.id;
-        const contractType = (v['contractType'] ?? '').trim() as StaffContractType;
-        const startDate = (v['startDate'] ?? '').trim();
-        if (contractType && startDate) {
-          await this.createContract(tenantId, {
-            staffId: staff.id,
-            contractType,
-            startDate,
-            endDate: (v['endDate'] ?? '').trim() || undefined,
-            salaryBand: (v['salaryBand'] ?? '').trim() || undefined,
-          });
-        }
-        staffIds.push(staff.id);
-      } catch (error) {
-        let message = error instanceof Error ? error.message : 'Failed to create staff';
-        if (createdId) {
-          try {
-            await this.staffService.purgeCreated(tenantId, createdId);
-          } catch {
-            message = `${message}; staff ${createdId} was created without a contract and could not be rolled back`;
-          }
-        }
-        // Prisma unique violations (P2002) are not ConflictError; attribute them to the field.
-        const isUniqueViolation =
-          error instanceof ConflictError || (error as { code?: unknown } | null)?.code === 'P2002';
-        if (isUniqueViolation) {
-          commitErrors.push({ row: row.line, field: 'identityNumber', message });
-        } else {
-          commitErrors.push({ row: row.line, message });
-        }
-      }
+        },
+        contract:
+          contractType && startDate
+            ? {
+                contractType,
+                startDate,
+                endDate: (v['endDate'] ?? '').trim() || undefined,
+                salaryBand: (v['salaryBand'] ?? '').trim() || undefined,
+              }
+            : null,
+      });
     }
+    const { staffIds, errors: rowErrors } = await this.commitImportRows(
+      tenantId,
+      plans,
+      Boolean(input.allOrNothing),
+    );
+    const commitErrors: ImportRowError[] = [...dry.errors, ...rowErrors];
 
     const result: ImportCommitResult = {
       rows: dry.rows,
@@ -514,6 +518,117 @@ export class StaffHrService {
       }),
     );
     return result;
+  }
+
+  /**
+   * PRC-L153/L246: write staff + contract as one unit per row.
+   * - Transactional stores (Prisma staff + pg contracts on the same database): each row is
+   *   one DB transaction; with `allOrNothing` every row shares ONE transaction, so any
+   *   failure rolls back the whole import.
+   * - Otherwise: a contract failure purges the just-created staff row (compensation); with
+   *   `allOrNothing` every row created so far is purged and the import is rejected.
+   */
+  private async commitImportRows(
+    tenantId: string,
+    plans: ImportRowPlan[],
+    allOrNothing: boolean,
+  ): Promise<{ staffIds: string[]; errors: ImportRowError[] }> {
+    const createContractOn = this.store.createContractOn?.bind(this.store);
+    if (createContractOn && this.staffService.supportsTransactions()) {
+      const writeRow = async (
+        scope: Parameters<Parameters<StaffService['withTransaction']>[1]>[0],
+        plan: ImportRowPlan,
+      ): Promise<string> => {
+        const staff = await scope.createStaff(plan.staff);
+        if (plan.contract) {
+          await createContractOn(
+            scope.executor,
+            buildContractRecord(tenantId, { ...plan.contract, staffId: staff.id }),
+          );
+        }
+        return staff.id;
+      };
+      if (allOrNothing) {
+        let failing: ImportRowPlan | null = null;
+        try {
+          const ids = await this.staffService.withTransaction(tenantId, async (scope) => {
+            const out: string[] = [];
+            for (const plan of plans) {
+              failing = plan;
+              out.push(await writeRow(scope, plan));
+            }
+            failing = null;
+            return out;
+          });
+          return { staffIds: ids, errors: [] };
+        } catch (error) {
+          throw this.allOrNothingRejected(failing, error);
+        }
+      }
+      const staffIds: string[] = [];
+      const errors: ImportRowError[] = [];
+      for (const plan of plans) {
+        try {
+          staffIds.push(
+            await this.staffService.withTransaction(tenantId, (scope) => writeRow(scope, plan)),
+          );
+        } catch (error) {
+          errors.push(importRowError(plan.line, error));
+        }
+      }
+      return { staffIds, errors };
+    }
+
+    const staffIds: string[] = [];
+    const errors: ImportRowError[] = [];
+    for (const plan of plans) {
+      let createdId: string | null = null;
+      try {
+        const staff = await this.staffService.create(tenantId, plan.staff);
+        createdId = staff.id;
+        if (plan.contract) {
+          await this.createContract(tenantId, { ...plan.contract, staffId: staff.id });
+        }
+        staffIds.push(staff.id);
+      } catch (error) {
+        const rowError = importRowError(plan.line, error);
+        if (createdId) {
+          try {
+            await this.staffService.purgeCreated(tenantId, createdId);
+          } catch {
+            rowError.message = `${rowError.message}; staff ${createdId} was created without a contract and could not be rolled back`;
+          }
+        }
+        if (allOrNothing) {
+          for (const id of staffIds) {
+            await this.staffService.purgeCreated(tenantId, id);
+          }
+          throw this.allOrNothingRejected(plan, error, rowError.message);
+        }
+        errors.push(rowError);
+      }
+    }
+    return { staffIds, errors };
+  }
+
+  private allOrNothingRejected(
+    plan: ImportRowPlan | null,
+    error: unknown,
+    message?: string,
+  ): ValidationError {
+    const rowError = plan
+      ? importRowError(plan.line, error)
+      : { row: 0, message: error instanceof Error ? error.message : 'Import failed' };
+    return new ValidationError(
+      'Import rejected: allOrNothing is set and a row failed; nothing was created',
+      [
+        {
+          field: `row${rowError.row}${rowError.field ? `.${rowError.field}` : ''}`,
+          rule: 'commit_failed',
+          message: message ?? rowError.message,
+        },
+      ],
+    );
   }
 
   /**
