@@ -2,7 +2,13 @@
  * G-919 attendance ops: regularisation state machine, student leave,
  * device ingest. Self-contained request/approve (not WorkflowService).
  */
-import { AppError, AttendanceStatus, BusinessRuleError, NotFoundError } from '@proctira/common';
+import {
+  AppError,
+  AttendanceStatus,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AttendanceRepository, AttendanceWriteOp } from './attendance-repository.js';
@@ -71,6 +77,14 @@ function punchHour(iso: string): number {
   return Number.isNaN(t.getTime()) ? 12 : t.getUTCHours();
 }
 
+/** Patch that re-opens a claimed request when its attendance write fails. */
+const REOPEN = {
+  status: 'requested' as const,
+  decidedBy: null,
+  decidedAt: null,
+  decisionNote: null,
+};
+
 export class AttendanceOpsService {
   constructor(
     private readonly store: AttendanceOpsStore,
@@ -122,11 +136,22 @@ export class AttendanceOpsService {
     const row = await this.store.getRegularisation(tenantId, id);
     if (!row) throw new NotFoundError(`Regularisation '${id}' not found`);
     if (row.status !== 'requested') {
-      throw new BusinessRuleError(`Regularisation is already ${row.status}`);
+      throw new ConflictError(`Regularisation is already ${row.status}`);
     }
+    // PRC-M171: claim the request first with a compare-and-set on
+    // status='requested'; a concurrent decision gets 0 rows -> 409.
+    const next = await this.store.updateRegularisation(
+      tenantId,
+      id,
+      { status: decision, decidedBy: actor.userId, decidedAt: nowIso(), decisionNote: note ?? null },
+      'requested',
+    );
+    if (!next) throw new ConflictError(`Regularisation '${id}' was already decided`);
     if (decision === 'approved') {
       // PRC-M168: status change + audit row in one tenant transaction.
-      await this.attendance.applyStudentAttendanceWrites(tenantId, [
+      await this.withClaimRollback(
+        () => this.store.updateRegularisation(tenantId, id, REOPEN, decision),
+        () => this.attendance.applyStudentAttendanceWrites(tenantId, [
         {
           kind: 'update',
           id: row.attendanceId,
@@ -139,16 +164,25 @@ export class AttendanceOpsService {
             changedAt: new Date(),
           },
         },
-      ]);
+      ]),
+      );
     }
-    const next = await this.store.updateRegularisation(tenantId, id, {
-      status: decision,
-      decidedBy: actor.userId,
-      decidedAt: nowIso(),
-      decisionNote: note ?? null,
-    });
-    if (!next) throw new NotFoundError(`Regularisation '${id}' not found`);
     return next;
+  }
+
+  /**
+   * The request store and attendance tables use separate connections, so the
+   * claim cannot share the attendance transaction. If the (atomic) attendance
+   * write fails, re-open the claim (compare-and-set on the claimed status) and
+   * rethrow, leaving the request 'requested' and attendance untouched.
+   */
+  private async withClaimRollback(reopen: () => Promise<unknown>, work: () => Promise<unknown>) {
+    try {
+      await work();
+    } catch (err) {
+      await reopen().catch(() => undefined);
+      throw err;
+    }
   }
 
   listLeaves(tenantId: string, status?: LeaveRequestRecord['status']) {
@@ -199,23 +233,29 @@ export class AttendanceOpsService {
     const row = await this.store.getLeave(tenantId, id);
     if (!row) throw new NotFoundError(`Leave request '${id}' not found`);
     if (row.status !== 'requested') {
-      throw new BusinessRuleError(`Leave request is already ${row.status}`);
+      throw new ConflictError(`Leave request is already ${row.status}`);
     }
+    // PRC-M171: compare-and-set claim before any attendance write.
+    const next = await this.store.updateLeave(
+      tenantId,
+      id,
+      { status: decision, decidedBy: actor.userId, decidedAt: nowIso(), decisionNote: note ?? null },
+      'requested',
+    );
+    if (!next) throw new ConflictError(`Leave request '${id}' was already decided`);
     if (decision === 'approved') {
-      // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.
-      const ops: AttendanceWriteOp[] = [];
-      for (const date of weekdayDates(row.fromDate, row.toDate)) {
-        ops.push(await this.excusedDayOp(tenantId, row, date, actor.userId));
-      }
-      if (ops.length > 0) await this.attendance.applyStudentAttendanceWrites(tenantId, ops);
+      await this.withClaimRollback(
+        () => this.store.updateLeave(tenantId, id, REOPEN, decision),
+        async () => {
+          // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.
+          const ops: AttendanceWriteOp[] = [];
+          for (const date of weekdayDates(row.fromDate, row.toDate)) {
+            ops.push(await this.excusedDayOp(tenantId, row, date, actor.userId));
+          }
+          if (ops.length > 0) await this.attendance.applyStudentAttendanceWrites(tenantId, ops);
+        },
+      );
     }
-    const next = await this.store.updateLeave(tenantId, id, {
-      status: decision,
-      decidedBy: actor.userId,
-      decidedAt: nowIso(),
-      decisionNote: note ?? null,
-    });
-    if (!next) throw new NotFoundError(`Leave request '${id}' not found`);
     return next;
   }
 

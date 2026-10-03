@@ -139,3 +139,86 @@ describe('PRC-M168 attendance write atomicity', () => {
     expect(repo.getAuditEntries()).toHaveLength(5);
   });
 });
+
+describe('PRC-M171 decision compare-and-set', () => {
+  let repo: InMemoryAttendanceRepository;
+  let store: InMemoryAttendanceOpsStore;
+  let ops: AttendanceOpsService;
+
+  beforeEach(() => {
+    repo = new InMemoryAttendanceRepository();
+    store = new InMemoryAttendanceOpsStore();
+    ops = new AttendanceOpsService(store, repo);
+  });
+
+  async function newReg() {
+    const rec = await seedRow(repo, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab1', '2024-06-12');
+    return ops.requestRegularisation(
+      TENANT_ID,
+      {
+        attendanceId: rec.id,
+        studentId: STUDENT_ID,
+        institutionId: INSTITUTION_ID,
+        classId: CLASS_ID,
+        attendanceDate: '2024-06-12',
+        fromStatus: 'ABSENT',
+        toStatus: 'PRESENT',
+      },
+      PARENT,
+    );
+  }
+
+  it('two simultaneous approvals: one audit row and one 409', async () => {
+    const req = await newReg();
+    const results = await Promise.allSettled([
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER),
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', {
+        userId: 'registrar-2',
+        roles: ['registrar'],
+      }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect((rejected.reason as { statusCode?: number }).statusCode).toBe(409);
+    expect(repo.getAuditEntries()).toHaveLength(1);
+  });
+
+  it('concurrent approve + reject: exactly one succeeds, other 409', async () => {
+    const req = await newReg();
+    const results = await Promise.allSettled([
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER),
+      ops.decideRegularisation(TENANT_ID, req.id, 'rejected', {
+        userId: 'registrar-2',
+        roles: ['registrar'],
+      }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      results.filter(
+        (r) =>
+          r.status === 'rejected' && (r.reason as { statusCode?: number }).statusCode === 409,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('concurrent leave approvals apply the leave once', async () => {
+    const leave = await ops.requestLeave(
+      TENANT_ID,
+      {
+        studentId: STUDENT_ID,
+        institutionId: INSTITUTION_ID,
+        classId: CLASS_ID,
+        academicPeriodId: PERIOD_ID,
+        fromDate: '2024-06-10',
+        toDate: '2024-06-11',
+      },
+      PARENT,
+    );
+    const results = await Promise.allSettled([
+      ops.decideLeave(TENANT_ID, leave.id, 'approved', APPROVER),
+      ops.decideLeave(TENANT_ID, leave.id, 'approved', APPROVER),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(repo.getAuditEntries()).toHaveLength(2);
+  });
+});
