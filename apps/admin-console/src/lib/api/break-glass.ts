@@ -8,7 +8,12 @@
  *  - least-privilege mode (scope tags)
  *  - audit trail for every state transition
  */
-import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import {
+  type AdminDataSource,
+  GATEWAY_UNREACHABLE_WRITE_ERROR,
+  gatewayFetch,
+  unreachableFallback,
+} from './gateway';
 import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-constants';
@@ -109,7 +114,7 @@ const STUB_REQUESTS: BreakGlassRequest[] = [
 
 export async function listBreakGlassRequests(): Promise<{
   requests: BreakGlassRequest[];
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const response = await gatewayFetch<{
     items?: BreakGlassRequest[];
@@ -124,7 +129,8 @@ export async function listBreakGlassRequests(): Promise<{
   if (response.status > 0) {
     return { requests: [], source: 'gateway' };
   }
-  return { requests: STUB_REQUESTS, source: 'stub' };
+  const fallback = unreachableFallback(STUB_REQUESTS, []);
+  return { requests: fallback.value, source: fallback.source };
 }
 
 export async function getBreakGlassRequest(id: string): Promise<BreakGlassRequest | null> {
@@ -133,7 +139,7 @@ export async function getBreakGlassRequest(id: string): Promise<BreakGlassReques
   if (response.ok && response.data) return response.data;
   // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
   if (response.status > 0) return null;
-  return STUB_REQUESTS.find((r) => r.id === id) ?? null;
+  return unreachableFallback(STUB_REQUESTS, []).value.find((r) => r.id === id) ?? null;
 }
 
 export interface CreateBreakGlassInput {

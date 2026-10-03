@@ -1,7 +1,12 @@
 /**
  * Theme review API client.
  */
-import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import {
+  type AdminDataSource,
+  GATEWAY_UNREACHABLE_WRITE_ERROR,
+  gatewayFetch,
+  unreachableFallback,
+} from './gateway';
 import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export type ThemeStatus = 'submitted' | 'in_review' | 'approved' | 'rejected';
@@ -59,7 +64,7 @@ const STUB_THEMES: ThemeSubmission[] = [
 
 export async function listThemes(): Promise<{
   themes: ThemeSubmission[];
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const response = await gatewayFetch<{
     items?: ThemeSubmission[];
@@ -71,12 +76,15 @@ export async function listThemes(): Promise<{
       source: 'gateway',
     };
   }
-  return { themes: STUB_THEMES, source: 'stub' };
+  // PRC-H002: a gateway answer is authoritative; fixtures only in stub mode.
+  if (response.status > 0) return { themes: [], source: 'gateway' };
+  const fallback = unreachableFallback(STUB_THEMES, []);
+  return { themes: fallback.value, source: fallback.source };
 }
 
 export async function getTheme(
   id: string,
-): Promise<{ theme: ThemeSubmission | null; source: 'gateway' | 'stub' }> {
+): Promise<{ theme: ThemeSubmission | null; source: AdminDataSource }> {
   if (!RESOURCE_ID_PATTERN.test(id)) return { theme: null, source: 'gateway' };
   const response = await gatewayFetch<ThemeSubmission>(`/themes/${pathSegment(id)}`);
   if (response.ok && response.data) {
@@ -84,9 +92,10 @@ export async function getTheme(
   }
   // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
   if (response.status > 0) return { theme: null, source: 'gateway' };
+  const fallback = unreachableFallback(STUB_THEMES, []);
   return {
-    theme: STUB_THEMES.find((t) => t.id === id) ?? null,
-    source: 'stub',
+    theme: fallback.value.find((t) => t.id === id) ?? null,
+    source: fallback.source,
   };
 }
 

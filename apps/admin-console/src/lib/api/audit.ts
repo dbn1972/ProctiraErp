@@ -1,7 +1,7 @@
 /**
  * Platform audit log query API client.
  */
-import { gatewayFetch } from './gateway';
+import { type AdminDataSource, gatewayFetch, unreachableFallback } from './gateway';
 
 export interface AuditEntry {
   id: string;
@@ -81,7 +81,7 @@ export interface AuditQuery {
 
 export async function listAudit(
   query: AuditQuery = {},
-): Promise<{ entries: AuditEntry[]; source: 'gateway' | 'stub' }> {
+): Promise<{ entries: AuditEntry[]; source: AdminDataSource }> {
   const search = new URLSearchParams();
   if (query.search) search.set('q', query.search);
   if (query.actor) search.set('actor', query.actor);
@@ -103,7 +103,8 @@ export async function listAudit(
     return { entries: [], source: 'gateway' };
   }
 
-  const filtered = STUB_ENTRIES.filter((entry) => {
+  const fallback = unreachableFallback(STUB_ENTRIES, [] as AuditEntry[]);
+  const filtered = fallback.value.filter((entry) => {
     if (query.actor && entry.actor !== query.actor) return false;
     if (query.resourceType && entry.resourceType !== query.resourceType) {
       return false;
@@ -119,5 +120,5 @@ export async function listAudit(
     }
     return true;
   });
-  return { entries: filtered, source: 'stub' };
+  return { entries: filtered, source: fallback.source };
 }

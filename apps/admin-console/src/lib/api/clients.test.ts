@@ -1,11 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const gatewayFetch = vi.fn();
 
-vi.mock('./gateway', () => ({
-  gatewayFetch: (...args: unknown[]) => gatewayFetch(...args),
-  GATEWAY_UNREACHABLE_WRITE_ERROR: 'Gateway unreachable (test)',
-}));
+vi.mock('./gateway', async () => {
+  const actual = await vi.importActual<typeof import('./gateway')>('./gateway');
+  return {
+    gatewayFetch: (...args: unknown[]) => gatewayFetch(...args),
+    GATEWAY_UNREACHABLE_WRITE_ERROR: 'Gateway unreachable (test)',
+    adminStubModeEnabled: actual.adminStubModeEnabled,
+    unreachableFallback: actual.unreachableFallback,
+  };
+});
 
 import { listAudit } from './audit';
 import {
@@ -31,6 +36,9 @@ function httpError(message = 'nope') {
 describe('admin API clients', () => {
   beforeEach(() => {
     gatewayFetch.mockReset();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   // PRC-H002: privileged writes must fail visibly when the gateway is unreachable —
@@ -71,7 +79,43 @@ describe('admin API clients', () => {
     }
   });
 
-  it('uses stub catalogues for reads when the gateway is offline', async () => {
+  // PRC-H002: fixtures are opt-in (ADMIN_CONSOLE_STUB_MODE=1) and refused in production.
+  it('returns empty, unavailable reads when the gateway is offline and stub mode is off', async () => {
+    vi.stubEnv('ADMIN_CONSOLE_STUB_MODE', '');
+    gatewayFetch.mockResolvedValue(offline());
+    const tenants = await listTenants();
+    expect(tenants).toEqual({ tenants: [], source: 'unavailable' });
+    expect(await getTenant('tnt_002')).toEqual({ tenant: null, source: 'unavailable' });
+    expect(await listPlugins()).toEqual({ plugins: [], source: 'unavailable' });
+    expect((await getPlugin('plg_001')).plugin).toBeNull();
+    expect(await listPlans()).toEqual({ plans: [], source: 'unavailable' });
+    expect((await getPlan('plan_pilot')).plan).toBeNull();
+    expect(await listThemes()).toEqual({ themes: [], source: 'unavailable' });
+    expect((await getTheme('thm_001')).theme).toBeNull();
+    const health = await getSystemHealth();
+    expect(health.source).toBe('unavailable');
+    expect(health.health.adapters).toEqual([]);
+    expect(await listAudit()).toEqual({ entries: [], source: 'unavailable' });
+    const requests = await listBreakGlassRequests();
+    expect(requests).toEqual({ requests: [], source: 'unavailable' });
+    expect(await getBreakGlassRequest('bg_001')).toBeNull();
+  });
+  it('ignores ADMIN_CONSOLE_STUB_MODE in production', async () => {
+    vi.stubEnv('ADMIN_CONSOLE_STUB_MODE', '1');
+    vi.stubEnv('NODE_ENV', 'production');
+    gatewayFetch.mockResolvedValue(offline());
+    expect((await listTenants()).source).toBe('unavailable');
+    expect((await listAudit()).entries).toEqual([]);
+  });
+  it('does not use fixtures when the gateway answered with an error', async () => {
+    vi.stubEnv('ADMIN_CONSOLE_STUB_MODE', '1');
+    gatewayFetch.mockResolvedValue(httpError());
+    expect(await listPlans()).toEqual({ plans: [], source: 'gateway' });
+    expect(await listThemes()).toEqual({ themes: [], source: 'gateway' });
+  });
+  it('uses stub catalogues for reads when the gateway is offline in stub mode', async () => {
+    vi.stubEnv('ADMIN_CONSOLE_STUB_MODE', '1');
+    vi.stubEnv('NODE_ENV', 'test');
     gatewayFetch.mockResolvedValue(offline());
 
     const tenants = await listTenants({ status: 'active', search: 'ministry' });

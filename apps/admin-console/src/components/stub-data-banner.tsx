@@ -2,7 +2,9 @@ import { AlertTriangle } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-export type DataSource = 'gateway' | 'stub';
+import type { AdminDataSource } from '@/lib/api/gateway';
+
+export type DataSource = AdminDataSource;
 
 interface StubDataBannerProps {
   /** When true (or when source is stub), render the honesty banner. */
@@ -26,6 +28,25 @@ export function StubDataBanner({
   detail,
   className = 'mb-6',
 }: StubDataBannerProps) {
+  // PRC-H002: outside ADMIN_CONSOLE_STUB_MODE an unreachable gateway shows no
+  // fixtures at all — say so instead of rendering an empty dashboard silently.
+  if (!force && source === 'unavailable') {
+    return (
+      <Alert
+        variant="destructive"
+        className={className}
+        data-testid="stub-data-banner"
+        data-mode="unavailable"
+      >
+        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+        <AlertTitle>Platform gateway unreachable</AlertTitle>
+        <AlertDescription>
+          Live platform data could not be loaded, so nothing is shown here. This is not an empty
+          platform — retry when the gateway is available.
+        </AlertDescription>
+      </Alert>
+    );
+  }
   if (!force && source !== 'stub') return null;
 
   return (

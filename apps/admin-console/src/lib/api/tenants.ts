@@ -5,7 +5,12 @@
  * gateway is unavailable (developer running the admin console standalone)
  * we fall back to deterministic stub data so the screens still render.
  */
-import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import {
+  type AdminDataSource,
+  GATEWAY_UNREACHABLE_WRITE_ERROR,
+  gatewayFetch,
+  unreachableFallback,
+} from './gateway';
 import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
@@ -85,7 +90,7 @@ export interface ListTenantsParams {
 /** List tenants. Falls back to stub data when gateway is unavailable. */
 export async function listTenants(params: ListTenantsParams = {}): Promise<{
   tenants: Tenant[];
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const search = new URLSearchParams();
   if (params.status && params.status !== 'all') {
@@ -104,7 +109,8 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
     return { tenants: [], source: 'gateway' };
   }
 
-  const filtered = STUB_TENANTS.filter((tenant) => {
+  const fallback = unreachableFallback(STUB_TENANTS, [] as Tenant[]);
+  const filtered = fallback.value.filter((tenant) => {
     if (params.status && params.status !== 'all' && tenant.status !== params.status) {
       return false;
     }
@@ -114,13 +120,13 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
     }
     return true;
   });
-  return { tenants: filtered, source: 'stub' };
+  return { tenants: filtered, source: fallback.source };
 }
 
 /** Fetch a single tenant by id. Falls back to stub fixtures. */
 export async function getTenant(
   id: string,
-): Promise<{ tenant: Tenant | null; source: 'gateway' | 'stub' }> {
+): Promise<{ tenant: Tenant | null; source: AdminDataSource }> {
   if (!RESOURCE_ID_PATTERN.test(id)) return { tenant: null, source: 'gateway' };
   const response = await gatewayFetch<Tenant>(`/tenants/${pathSegment(id)}`);
   if (response.ok && response.data) {
@@ -129,9 +135,10 @@ export async function getTenant(
   if (response.status > 0) {
     return { tenant: null, source: 'gateway' };
   }
+  const fallback = unreachableFallback(STUB_TENANTS, [] as Tenant[]);
   return {
-    tenant: STUB_TENANTS.find((t) => t.id === id) ?? null,
-    source: 'stub',
+    tenant: fallback.value.find((t) => t.id === id) ?? null,
+    source: fallback.source,
   };
 }
 

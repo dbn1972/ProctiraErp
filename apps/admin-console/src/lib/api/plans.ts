@@ -1,7 +1,12 @@
 /**
  * Plans + entitlements API client.
  */
-import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import {
+  type AdminDataSource,
+  GATEWAY_UNREACHABLE_WRITE_ERROR,
+  gatewayFetch,
+  unreachableFallback,
+} from './gateway';
 import { RESOURCE_ID_PATTERN, pathSegment } from './path-segment';
 
 export interface Plan {
@@ -70,7 +75,7 @@ const STUB_PLANS: Plan[] = [
 
 export async function listPlans(): Promise<{
   plans: Plan[];
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const response = await gatewayFetch<{ items?: Plan[]; data?: Plan[] }>('/plans');
   if (response.ok && response.data) {
@@ -79,12 +84,13 @@ export async function listPlans(): Promise<{
       source: 'gateway',
     };
   }
-  return { plans: STUB_PLANS, source: 'stub' };
+  // PRC-H002: a gateway answer is authoritative; fixtures only in stub mode.
+  if (response.status > 0) return { plans: [], source: 'gateway' };
+  const fallback = unreachableFallback(STUB_PLANS, []);
+  return { plans: fallback.value, source: fallback.source };
 }
 
-export async function getPlan(
-  id: string,
-): Promise<{ plan: Plan | null; source: 'gateway' | 'stub' }> {
+export async function getPlan(id: string): Promise<{ plan: Plan | null; source: AdminDataSource }> {
   if (!RESOURCE_ID_PATTERN.test(id)) return { plan: null, source: 'gateway' };
   const response = await gatewayFetch<Plan>(`/plans/${pathSegment(id)}`);
   if (response.ok && response.data) {
@@ -92,9 +98,10 @@ export async function getPlan(
   }
   // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
   if (response.status > 0) return { plan: null, source: 'gateway' };
+  const fallback = unreachableFallback(STUB_PLANS, []);
   return {
-    plan: STUB_PLANS.find((p) => p.id === id) ?? null,
-    source: 'stub',
+    plan: fallback.value.find((p) => p.id === id) ?? null,
+    source: fallback.source,
   };
 }
 

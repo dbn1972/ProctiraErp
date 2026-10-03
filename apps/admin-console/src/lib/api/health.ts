@@ -4,7 +4,7 @@
  * Pulls adapter status, queue lag, and error rates from the observability
  * service. Returns deterministic stub data when the gateway is unavailable.
  */
-import { gatewayFetch } from './gateway';
+import { type AdminDataSource, gatewayFetch, unreachableFallback } from './gateway';
 
 export type HealthStatus = 'healthy' | 'degraded' | 'down' | 'unknown';
 
@@ -109,7 +109,7 @@ const STUB_HEALTH: SystemHealth = {
 
 export async function getSystemHealth(): Promise<{
   health: SystemHealth;
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const response = await gatewayFetch<SystemHealth>('/health/system');
   if (response.ok && response.data) {
@@ -126,5 +126,11 @@ export async function getSystemHealth(): Promise<{
       source: 'gateway',
     };
   }
-  return { health: STUB_HEALTH, source: 'stub' };
+  const fallback = unreachableFallback<SystemHealth>(STUB_HEALTH, {
+    generatedAt: new Date().toISOString(),
+    adapters: [],
+    queues: [],
+    errors: [],
+  });
+  return { health: fallback.value, source: fallback.source };
 }

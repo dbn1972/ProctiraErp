@@ -28,6 +28,38 @@ export const GATEWAY_API_PREFIX = '/api/v1';
 export const GATEWAY_UNREACHABLE_WRITE_ERROR =
   'Gateway unreachable: the change was not applied. Try again when the gateway is available.';
 
+/**
+ * PRC-H002: where read data came from. `stub` (deterministic fixtures) is only
+ * possible when {@link adminStubModeEnabled} is true; otherwise an unreachable
+ * gateway yields `unavailable` with empty data so operators never mistake
+ * fixtures for live platform state.
+ */
+export type AdminDataSource = 'gateway' | 'stub' | 'unavailable';
+
+/**
+ * PRC-H002: read fixtures are opt-in for local demos only —
+ * `ADMIN_CONSOLE_STUB_MODE=1` and never when `NODE_ENV=production`
+ * (the flag is ignored there, fail closed).
+ */
+export function adminStubModeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env['NODE_ENV'] === 'production') return false;
+  return env['ADMIN_CONSOLE_STUB_MODE']?.trim() === '1';
+}
+
+/**
+ * PRC-H002: resolve the fallback for an unreachable gateway — the fixture in
+ * stub mode, otherwise the empty value marked `unavailable`.
+ */
+export function unreachableFallback<T>(
+  stub: T,
+  empty: T,
+  env: NodeJS.ProcessEnv = process.env,
+): { value: T; source: AdminDataSource } {
+  return adminStubModeEnabled(env)
+    ? { value: stub, source: 'stub' }
+    : { value: empty, source: 'unavailable' };
+}
+
 export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   /** Optional structured body that will be JSON encoded. */
   json?: unknown;

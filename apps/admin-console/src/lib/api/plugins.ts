@@ -1,7 +1,12 @@
 /**
  * Plugin marketplace management API client.
  */
-import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import {
+  type AdminDataSource,
+  GATEWAY_UNREACHABLE_WRITE_ERROR,
+  gatewayFetch,
+  unreachableFallback,
+} from './gateway';
 import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export type PluginStatus =
@@ -75,7 +80,7 @@ const STUB_PLUGINS: PluginSubmission[] = [
 
 export async function listPlugins(): Promise<{
   plugins: PluginSubmission[];
-  source: 'gateway' | 'stub';
+  source: AdminDataSource;
 }> {
   const response = await gatewayFetch<{
     items?: PluginSubmission[];
@@ -90,12 +95,13 @@ export async function listPlugins(): Promise<{
   if (response.status > 0) {
     return { plugins: [], source: 'gateway' };
   }
-  return { plugins: STUB_PLUGINS, source: 'stub' };
+  const fallback = unreachableFallback(STUB_PLUGINS, []);
+  return { plugins: fallback.value, source: fallback.source };
 }
 
 export async function getPlugin(
   id: string,
-): Promise<{ plugin: PluginSubmission | null; source: 'gateway' | 'stub' }> {
+): Promise<{ plugin: PluginSubmission | null; source: AdminDataSource }> {
   if (!RESOURCE_ID_PATTERN.test(id)) return { plugin: null, source: 'gateway' };
   const response = await gatewayFetch<
     PluginSubmission | { data?: PluginSubmission; item?: PluginSubmission }
@@ -119,9 +125,10 @@ export async function getPlugin(
   if (response.status > 0) {
     return { plugin: null, source: 'gateway' };
   }
+  const fallback = unreachableFallback(STUB_PLUGINS, []);
   return {
-    plugin: STUB_PLUGINS.find((t) => t.id === id) ?? null,
-    source: 'stub',
+    plugin: fallback.value.find((t) => t.id === id) ?? null,
+    source: fallback.source,
   };
 }
 
