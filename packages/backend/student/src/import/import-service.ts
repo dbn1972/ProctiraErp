@@ -26,6 +26,7 @@ import { detectDuplicates } from './duplicate-detector.js';
 import { parseExcelBuffer } from './excel-parser.js';
 import { validateAllRows } from './row-validator.js';
 import type {
+  ImportCreateInput,
   ImportOptions,
   ImportProgress,
   ImportQueue,
@@ -33,6 +34,59 @@ import type {
   ImportStudentRow,
   StudentRepository,
 } from './types.js';
+
+/**
+ * PRC-M384: thrown when a non-transactional import failed AND compensation
+ * could not fully undo it — the batch may be partially applied.
+ */
+export class ImportRollbackError extends Error {
+  constructor(
+    public readonly original: unknown,
+    public readonly rollbackFailures: string[],
+  ) {
+    super(
+      `Import failed (${errorMessage(original)}) and ${rollbackFailures.length} compensation step(s) failed; batch may be partially applied`,
+    );
+    this.name = 'ImportRollbackError';
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createData(row: ImportStudentRow): ImportCreateInput {
+  return {
+    firstName: row.firstName.trim(),
+    lastName: row.lastName.trim(),
+    dateOfBirth: row.dateOfBirth,
+    gender: normalizeGender(row.gender) ?? null,
+    nationalId: row.nationalId?.trim() ?? null,
+    nationality: row.nationality?.trim() ?? null,
+    contactPhone: row.contactPhone?.trim() ?? null,
+    contactEmail: row.contactEmail?.trim() ?? null,
+    guardianName: row.guardianName?.trim() ?? null,
+    guardianPhone: row.guardianPhone?.trim() ?? null,
+    institutionCode: row.institutionCode?.trim() ?? null,
+    customData: row.customData ?? null,
+  };
+}
+
+function updateData(row: ImportStudentRow): Partial<ImportCreateInput> {
+  const data: Partial<ImportCreateInput> = {};
+  if (row.firstName) data.firstName = row.firstName.trim();
+  if (row.lastName) data.lastName = row.lastName.trim();
+  if (row.dateOfBirth) data.dateOfBirth = row.dateOfBirth;
+  if (row.gender) data.gender = normalizeGender(row.gender) ?? null;
+  if (row.nationalId) data.nationalId = row.nationalId.trim();
+  if (row.nationality) data.nationality = row.nationality.trim();
+  if (row.contactPhone) data.contactPhone = row.contactPhone.trim();
+  if (row.contactEmail) data.contactEmail = row.contactEmail.trim();
+  if (row.guardianName) data.guardianName = row.guardianName.trim();
+  if (row.guardianPhone) data.guardianPhone = row.guardianPhone.trim();
+  if (row.institutionCode) data.institutionCode = row.institutionCode.trim();
+  return data;
+}
 
 export interface ImportServiceDependencies {
   studentRepository: StudentRepository;
@@ -172,24 +226,49 @@ export class ImportService {
       }
     }
 
+    // PRC-M384: single DB transaction when the store supports it.
+    if (this.repository.bulkImport) {
+      const { createdIds } = await this.repository.bulkImport(tenantId, {
+        creates: toCreate.map((row) => createData(row)),
+        updates: toUpdate.map((item) => ({ id: item.studentId, data: updateData(item.row) })),
+      });
+      return {
+        totalRows: rows.length,
+        successCount: createdIds.length + toUpdate.length,
+        errorCount: validationErrors.length,
+        duplicateCount: duplicates.length,
+        errors: validationErrors,
+        duplicates,
+        transactional: true,
+      };
+    }
+
+    // Fallback (store without bulkImport): best-effort compensation. Never
+    // claimed as transactional; compensation failures are surfaced.
     const createdIds: string[] = [];
     const updateSnapshots: Array<{
       studentId: string;
       before: Record<string, unknown>;
     }> = [];
-
     try {
       for (const row of toCreate) {
-        const created = await this.createStudent(tenantId, row);
+        const created = await this.repository.create(tenantId, createData(row));
         createdIds.push(created.id);
       }
       for (const item of toUpdate) {
         const snapshot = await this.snapshotStudentForUpdate(tenantId, item.studentId);
         updateSnapshots.push({ studentId: item.studentId, before: snapshot });
-        await this.updateStudent(tenantId, item.studentId, item.row);
+        await this.repository.update(tenantId, item.studentId, updateData(item.row));
       }
     } catch (error) {
-      await this.rollbackImportBatch(tenantId, createdIds, updateSnapshots);
+      const rollbackFailures = await this.rollbackImportBatch(
+        tenantId,
+        createdIds,
+        updateSnapshots,
+      );
+      if (rollbackFailures.length > 0) {
+        throw new ImportRollbackError(error, rollbackFailures);
+      }
       throw error;
     }
 
@@ -200,29 +279,8 @@ export class ImportService {
       duplicateCount: duplicates.length,
       errors: validationErrors,
       duplicates,
-      transactional: true,
+      transactional: false,
     };
-  }
-
-  /**
-   * Create a new student record from an import row.
-   */
-  private async createStudent(tenantId: string, row: ImportStudentRow): Promise<{ id: string }> {
-    const created = await this.repository.create(tenantId, {
-      firstName: row.firstName.trim(),
-      lastName: row.lastName.trim(),
-      dateOfBirth: row.dateOfBirth,
-      gender: normalizeGender(row.gender) ?? null,
-      nationalId: row.nationalId?.trim() ?? null,
-      nationality: row.nationality?.trim() ?? null,
-      contactPhone: row.contactPhone?.trim() ?? null,
-      contactEmail: row.contactEmail?.trim() ?? null,
-      guardianName: row.guardianName?.trim() ?? null,
-      guardianPhone: row.guardianPhone?.trim() ?? null,
-      institutionCode: row.institutionCode?.trim() ?? null,
-      customData: row.customData ?? null,
-    });
-    return { id: created.id };
   }
 
   /** Snapshot mutable fields before an update (W2-JOB-12). */
@@ -252,47 +310,27 @@ export class ImportService {
     tenantId: string,
     createdIds: string[],
     updateSnapshots: Array<{ studentId: string; before: Record<string, unknown> }>,
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const failures: string[] = [];
     for (const snap of [...updateSnapshots].reverse()) {
       if (Object.keys(snap.before).length === 0) continue;
       try {
         await this.repository.update(tenantId, snap.studentId, snap.before);
-      } catch {
-        // Best-effort compensate; original error is rethrown by caller.
+      } catch (error) {
+        failures.push(`restore ${snap.studentId}: ${errorMessage(error)}`);
       }
     }
     for (const id of [...createdIds].reverse()) {
       try {
+        // PRC-M384: delete is a soft delete; release the national ID first so
+        // the rolled-back row does not keep reserving it.
+        await this.repository.update(tenantId, id, { nationalId: null });
         await this.repository.delete(tenantId, id);
-      } catch {
-        // Best-effort compensate.
+      } catch (error) {
+        failures.push(`remove ${id}: ${errorMessage(error)}`);
       }
     }
-  }
-
-  /**
-   * Update an existing student record from an import row.
-   */
-  private async updateStudent(
-    tenantId: string,
-    studentId: string,
-    row: ImportStudentRow,
-  ): Promise<void> {
-    const updateData: Record<string, unknown> = {};
-
-    if (row.firstName) updateData.firstName = row.firstName.trim();
-    if (row.lastName) updateData.lastName = row.lastName.trim();
-    if (row.dateOfBirth) updateData.dateOfBirth = row.dateOfBirth;
-    if (row.gender) updateData.gender = normalizeGender(row.gender);
-    if (row.nationalId) updateData.nationalId = row.nationalId.trim();
-    if (row.nationality) updateData.nationality = row.nationality.trim();
-    if (row.contactPhone) updateData.contactPhone = row.contactPhone.trim();
-    if (row.contactEmail) updateData.contactEmail = row.contactEmail.trim();
-    if (row.guardianName) updateData.guardianName = row.guardianName.trim();
-    if (row.guardianPhone) updateData.guardianPhone = row.guardianPhone.trim();
-    if (row.institutionCode) updateData.institutionCode = row.institutionCode.trim();
-
-    await this.repository.update(tenantId, studentId, updateData);
+    return failures;
   }
 
   /**

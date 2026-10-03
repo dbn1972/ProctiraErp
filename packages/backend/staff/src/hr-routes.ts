@@ -13,7 +13,7 @@
  * GET       /staff/payroll/export
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
@@ -25,10 +25,12 @@ import {
   CreateContractSchema,
   CreateQualificationSchema,
   MarkAttendanceSchema,
+  pageMeta,
   PayrollExportQuerySchema,
   QualificationListQuerySchema,
   QualificationParamsSchema,
   StaffImportSchema,
+  toPageWindow,
   UpdateContractSchema,
   VerifyQualificationSchema,
   type AttendanceListQuery,
@@ -185,10 +187,21 @@ export async function registerStaffHrRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const query = validate(ContractListQuerySchema, request.query ?? {});
-      const staffId = query.success ? query.data.staffId : undefined;
-      const rows = await hrService.listContracts(tenantId, staffId);
-      return reply.status(200).send({ data: rows.map(formatContract) });
+      // PRC-M379: invalid query -> 400 (never "return everything"); bounded pages.
+      const query = validateQuery(ContractListQuerySchema, request.query ?? {});
+      if (!query.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: query.errors,
+        });
+      }
+      const w = toPageWindow(query.data);
+      const { rows, total } = await hrService.listContractsPage(tenantId, query.data.staffId, w);
+      return reply
+        .status(200)
+        .send({ data: rows.map(formatContract), meta: pageMeta(w.page, w.pageSize, total) });
     },
   );
 
@@ -290,10 +303,24 @@ export async function registerStaffHrRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const query = validate(QualificationListQuerySchema, request.query ?? {});
-      const staffId = query.success ? query.data.staffId : undefined;
-      const rows = await hrService.listQualifications(tenantId, staffId);
-      return reply.status(200).send({ data: rows.map(formatQualification) });
+      const query = validateQuery(QualificationListQuerySchema, request.query ?? {});
+      if (!query.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: query.errors,
+        });
+      }
+      const w = toPageWindow(query.data);
+      const { rows, total } = await hrService.listQualificationsPage(
+        tenantId,
+        query.data.staffId,
+        w,
+      );
+      return reply
+        .status(200)
+        .send({ data: rows.map(formatQualification), meta: pageMeta(w.page, w.pageSize, total) });
     },
   );
 
@@ -394,10 +421,22 @@ export async function registerStaffHrRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const result = validate(AttendanceListQuerySchema, request.query ?? {});
-      const filter = result.success ? result.data : {};
-      const rows = await hrService.listAttendance(tenantId, filter);
-      return reply.status(200).send({ data: rows.map(formatAttendance) });
+      const query = validateQuery(AttendanceListQuerySchema, request.query ?? {});
+      if (!query.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: query.errors,
+        });
+      }
+      const { date, staffId, from, to } = query.data;
+      const filter = { date, staffId, from, to };
+      const w = toPageWindow(query.data);
+      const { rows, total } = await hrService.listAttendancePage(tenantId, filter, w);
+      return reply
+        .status(200)
+        .send({ data: rows.map(formatAttendance), meta: pageMeta(w.page, w.pageSize, total) });
     },
   );
 

@@ -2,7 +2,7 @@
  * G-914 — photo blob store: StorageAdapter when a bucket is configured,
  * otherwise a local-disk fallback (and an in-memory impl for unit tests).
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -48,6 +48,11 @@ export interface StudentBlobStore {
   put(key: string, data: Buffer, contentType: string, tenantId: string): Promise<string>;
   get(key: string): Promise<Buffer | null>;
   getSignedUrl?(key: string, expiresIn?: number): Promise<string | null>;
+  /**
+   * PRC-M386: remove a blob (erasure / orphan compensation). Missing objects
+   * are a no-op; backend failures throw {@link StudentBlobStorageError}.
+   */
+  delete(key: string): Promise<void>;
 }
 
 export class InMemoryStudentBlobStore implements StudentBlobStore {
@@ -61,6 +66,9 @@ export class InMemoryStudentBlobStore implements StudentBlobStore {
   async get(key: string): Promise<Buffer | null> {
     const buf = this.blobs.get(key);
     return buf ? Buffer.from(buf) : null;
+  }
+  async delete(key: string): Promise<void> {
+    this.blobs.delete(key);
   }
 }
 
@@ -89,6 +97,14 @@ export class LocalDiskStudentBlobStore implements StudentBlobStore {
       throw new StudentBlobStorageError();
     }
   }
+  async delete(key: string): Promise<void> {
+    try {
+      await rm(this.pathFor(key));
+    } catch (err) {
+      if (isBlobNotFound(err)) return;
+      throw new StudentBlobStorageError();
+    }
+  }
 }
 
 export class StorageAdapterStudentBlobStore implements StudentBlobStore {
@@ -113,6 +129,14 @@ export class StorageAdapterStudentBlobStore implements StudentBlobStore {
     }
   }
 
+  async delete(key: string): Promise<void> {
+    try {
+      await this.adapter.delete(key);
+    } catch (err) {
+      if (isBlobNotFound(err)) return;
+      throw new StudentBlobStorageError();
+    }
+  }
   async getSignedUrl(key: string, expiresIn = SIGNED_URL_TTL_SECONDS): Promise<string | null> {
     try {
       return await this.adapter.getSignedUrl(key, expiresIn);

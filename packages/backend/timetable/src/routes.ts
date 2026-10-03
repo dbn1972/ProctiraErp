@@ -986,8 +986,18 @@ export async function registerTimetableRoutes(
       }
       const tenantId = tenantIdOf(request, reply);
       if (!tenantId) return;
-      const result = await service.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId);
-      return reply.code(201).send(result);
+      const actorId = (request as { user?: { sub?: string } }).user?.sub ?? null;
+      try {
+        const result = await service.cloneForAcademicPeriod(
+          tenantId,
+          sourcePeriodId,
+          targetPeriodId,
+          { actorId },
+        );
+        return reply.code(201).send(result);
+      } catch (error) {
+        return sendDomainError(reply, error);
+      }
     },
   );
 }
