@@ -1,7 +1,7 @@
 /**
  * Library service — catalog, circulation, holds, OPAC, and fines (G-916).
  */
-import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { FeesLedgerPort } from './fees-ledger-port.js';
@@ -41,6 +41,24 @@ export interface LibraryFinesPort {
 
 function copyBarcode(itemId: string, index: number): string {
   return `LIB-${itemId.replace(/-/g, '').slice(0, 8).toUpperCase()}-${String(index).padStart(3, '0')}`;
+}
+
+/** PRC-M104: longest loan a clerk may set at checkout. */
+export const LIBRARY_MAX_LOAN_DAYS = 180;
+
+/** PRC-M104: a requested due date must be a real instant, not past, within policy. */
+export function resolveRequestedDueAt(raw: string, now: Date = new Date()): Date {
+  const dueAt = new Date(raw);
+  if (Number.isNaN(dueAt.getTime())) {
+    throw new ValidationError('Due date is not a valid date');
+  }
+  if (dueAt.getTime() < now.getTime()) {
+    throw new ValidationError('Due date cannot be in the past');
+  }
+  if (dueAt.getTime() > now.getTime() + LIBRARY_MAX_LOAN_DAYS * 24 * 60 * 60 * 1000) {
+    throw new ValidationError(`Due date cannot be more than ${LIBRARY_MAX_LOAN_DAYS} days away`);
+  }
+  return dueAt;
 }
 
 export class LibraryService implements LibraryFinesPort {
@@ -168,7 +186,7 @@ export class LibraryService implements LibraryFinesPort {
     }
 
     const dueAt = input.dueAt
-      ? new Date(input.dueAt)
+      ? resolveRequestedDueAt(input.dueAt)
       : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
     const loan = await this.repository.createLoan({

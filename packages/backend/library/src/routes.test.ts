@@ -13,6 +13,7 @@ const STUDENT_ID = '55555555-5555-4555-8555-555555555555';
 describe('Library Routes', () => {
   let app: FastifyInstance;
 
+  let repository: InMemoryLibraryRepository;
   beforeEach(async () => {
     app = Fastify({ logger: false });
     app.decorateRequest('tenantId', '');
@@ -24,7 +25,8 @@ describe('Library Routes', () => {
       };
     });
 
-    await app.register(libraryPlugin, { repository: new InMemoryLibraryRepository() });
+    repository = new InMemoryLibraryRepository();
+    await app.register(libraryPlugin, { repository });
     await app.ready();
   });
 
@@ -48,6 +50,24 @@ describe('Library Routes', () => {
   });
 
   describe('POST /library/circulation/checkout', () => {
+    it('rejects a past due date with 400 (PRC-M104)', async () => {
+      const itemRes = await app.inject({
+        method: 'POST',
+        url: '/library/items',
+        payload: { title: 'Past due', copies: 1 },
+      });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/library/circulation/checkout',
+        payload: {
+          itemId: itemRes.json().id,
+          studentId: STUDENT_ID,
+          dueAt: '2020-01-01T00:00:00.000Z',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toBe('Due date cannot be in the past');
+    });
     it('should checkout and return a book', async () => {
       const itemRes = await app.inject({
         method: 'POST',
@@ -62,12 +82,13 @@ describe('Library Routes', () => {
         payload: {
           itemId: item.id,
           studentId: STUDENT_ID,
-          dueAt: '2020-01-01T00:00:00.000Z',
+          dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
       });
       expect(checkoutRes.statusCode).toBe(201);
       const loan = checkoutRes.json();
-
+      // PRC-M104: checkout refuses past due dates; backdate the stored loan.
+      await repository.updateLoan(loan.id, TENANT_ID, { dueAt: new Date('2020-01-01T00:00:00Z') });
       const overduesRes = await app.inject({ method: 'GET', url: '/library/overdues' });
       expect(overduesRes.statusCode).toBe(200);
       expect(overduesRes.json().data.length).toBeGreaterThanOrEqual(1);
@@ -95,7 +116,7 @@ describe('Library Routes', () => {
         payload: {
           itemId: itemRes.json().id,
           studentId: STUDENT_ID,
-          dueAt: '2026-01-01T00:00:00.000Z',
+          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         },
       });
       const loan = checkoutRes.json();
