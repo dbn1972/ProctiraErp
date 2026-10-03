@@ -4,6 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import {
@@ -53,26 +54,27 @@ function mapRow(row: Record<string, unknown>): ScholarshipApplicationDocument {
   };
 }
 
+/**
+ * PRC-M354: append through the audit package's hash-chained writer on the same
+ * client/transaction so document audit rows carry chain_seq/prev_hash/entry_hash
+ * and `/audit-logs/chain/verify` sees no break.
+ */
 async function insertAudit(client: PgQueryable, audit: ScholarshipDocumentAudit): Promise<void> {
-  await client.query(
-    `INSERT INTO audit_log_entries (
-       id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-       ip_address, occurred_at, metadata
-     ) VALUES ($1,$2,$9,$3,$4,$5,$6,$7,now(),$8::jsonb)`,
-    [
-      randomUUID(),
-      audit.tenantId,
-      audit.entityId,
-      audit.operation,
-      audit.userId,
-      audit.userName,
-      audit.ipAddress,
-      JSON.stringify(audit.metadata),
-      audit.entityType ?? 'scholarship_application_document',
-    ],
+  await appendAuditEntryOnClient(
+    client,
+    toCreateAuditLogInput({
+      id: randomUUID(),
+      tenantId: audit.tenantId,
+      entityType: audit.entityType ?? 'scholarship_application_document',
+      entityId: audit.entityId,
+      operation: audit.operation,
+      userId: audit.userId,
+      userName: audit.userName,
+      ipAddress: audit.ipAddress,
+      metadata: audit.metadata,
+    }),
   );
 }
-
 export class PgScholarshipDocumentStore implements ScholarshipDocumentStore {
   constructor(private readonly pool: PgPoolLike) {}
 
