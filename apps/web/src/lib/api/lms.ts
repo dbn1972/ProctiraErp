@@ -516,7 +516,8 @@ export async function getDiscussion(id: string): Promise<DiscussionThread | null
 
 export async function listDiscussions(classKey?: string): Promise<DiscussionThread[]> {
   const result = await gatewayFetch<{ data: DiscussionThread[] }>(
-    `/lms/discussions${toQuery({ classKey, pageSize: 50 })}`,
+    // PRC-M108: posts are embedded, so the page needs no per-thread fetch.
+    `/lms/discussions${toQuery({ classKey, pageSize: 50, include: 'posts' })}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -678,10 +679,14 @@ export async function getLesson(id: string): Promise<LmsLesson | null> {
 }
 
 export async function listLessons(): Promise<LmsLesson[]> {
-  const result = await gatewayFetch<{ data: LmsLesson[] }>('/lms/lessons?pageSize=100', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  // PRC-M108: resources are embedded, so the page needs no per-lesson fetch.
+  const result = await gatewayFetch<{ data: LmsLesson[] }>(
+    '/lms/lessons?pageSize=100&include=resources',
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data?.data ?? [];
 }
 

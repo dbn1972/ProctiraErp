@@ -768,14 +768,11 @@ export async function registerLmsRoutes(
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
-    const { page = 1, pageSize = 20, ...filter } = query.data;
+    const { page = 1, pageSize = 20, include, ...filter } = query.data;
     try {
-      const result = await lmsService.listDiscussions(
-        tenantId,
-        filter,
-        { page, pageSize },
-        getLmsActor(request),
-      );
+      const result = await (
+        include === 'posts' ? lmsService.listDiscussionsWithPosts : lmsService.listDiscussions
+      ).call(lmsService, tenantId, filter, { page, pageSize }, getLmsActor(request));
       return reply.send({ data: result.data.map(serialise), meta: result.meta });
     } catch (error) {
       return sendError(reply, error);
@@ -969,14 +966,11 @@ export async function registerLmsRoutes(
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
-    const { page = 1, pageSize = 20, ...filter } = query.data;
+    const { page = 1, pageSize = 20, include, ...filter } = query.data;
     try {
-      const result = await lmsService.listLessons(
-        tenantId,
-        filter,
-        { page, pageSize },
-        getLmsActor(request),
-      );
+      const result = await (
+        include === 'resources' ? lmsService.listLessonsWithResources : lmsService.listLessons
+      ).call(lmsService, tenantId, filter, { page, pageSize }, getLmsActor(request));
       return reply.send({ data: result.data.map(serialise), meta: result.meta });
     } catch (error) {
       return sendError(reply, error);
