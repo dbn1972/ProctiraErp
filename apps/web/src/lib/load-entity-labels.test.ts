@@ -25,10 +25,12 @@ describe('PRC-M156 student picker labels', () => {
   beforeEach(() => {
     listStudents.mockReset();
     const all = Array.from({ length: 250 }, (_, i) => student(i + 1));
-    listStudents.mockImplementation(async ({ page, pageSize }: { page: number; pageSize: number }) => ({
-      data: all.slice((page - 1) * pageSize, page * pageSize),
-      meta: { page, pageSize, totalItems: 250, totalPages: Math.ceil(250 / pageSize) },
-    }));
+    listStudents.mockImplementation(
+      async ({ page, pageSize }: { page: number; pageSize: number }) => ({
+        data: all.slice((page - 1) * pageSize, page * pageSize),
+        meta: { page, pageSize, totalItems: 250, totalPages: Math.ceil(250 / pageSize) },
+      }),
+    );
   });
 
   it('never puts nationalId in label or searchText', async () => {

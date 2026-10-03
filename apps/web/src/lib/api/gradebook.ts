@@ -102,8 +102,7 @@ export interface GradingScale {
 }
 
 export type GradebookLoadResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string; status?: number };
+  { ok: true; data: T } | { ok: false; error: string; code?: string; status?: number };
 
 function mapError(error: unknown): { error: string; code?: string; status?: number } {
   if (error instanceof GatewayError) {

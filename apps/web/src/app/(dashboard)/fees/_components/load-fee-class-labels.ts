@@ -11,13 +11,18 @@ const MAX_INSTITUTION_PAGES = 50;
  * PRC-M477: resolves class names across *all* institutions (not just the first 100),
  * and when `classIds` is given stops as soon as every requested class is labelled.
  */
-export async function loadFeeClassLabels(classIds?: readonly string[]): Promise<Record<string, string>> {
+export async function loadFeeClassLabels(
+  classIds?: readonly string[],
+): Promise<Record<string, string>> {
   const wanted = classIds ? new Set(classIds.filter((id) => id && id !== 'unassigned')) : null;
   const labels: Record<string, string> = {};
   if (wanted && wanted.size === 0) return labels;
   try {
     for (let page = 1; page <= MAX_INSTITUTION_PAGES; page += 1) {
-      const { data: institutions, totalItems } = await listInstitutionsPage({ page, pageSize: 100 });
+      const { data: institutions, totalItems } = await listInstitutionsPage({
+        page,
+        pageSize: 100,
+      });
       const groups = await Promise.all(
         institutions.map((institution) => listClassesByInstitution(institution.id).catch(() => [])),
       );

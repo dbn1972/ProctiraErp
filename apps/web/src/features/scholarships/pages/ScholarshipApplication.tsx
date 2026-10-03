@@ -372,7 +372,9 @@ export default function ScholarshipApplication({
                         <div className="font-medium">
                           {program.name}
                           {selectedProgramId === program.id ? (
-                            <span className="ms-2 text-xs font-normal text-primary">(selected)</span>
+                            <span className="ms-2 text-xs font-normal text-primary">
+                              (selected)
+                            </span>
                           ) : null}
                         </div>
                         {program.description && (
@@ -435,7 +437,10 @@ export default function ScholarshipApplication({
                 <legend className="text-sm font-medium px-1">Record {idx + 1}</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor={`${fieldId}-institutionName-${idx}`} className="block text-xs font-medium mb-1">
+                    <label
+                      htmlFor={`${fieldId}-institutionName-${idx}`}
+                      className="block text-xs font-medium mb-1"
+                    >
                       Institution Name *
                     </label>
                     <input
@@ -453,7 +458,10 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`${fieldId}-educationLevel-${idx}`} className="block text-xs font-medium mb-1">
+                    <label
+                      htmlFor={`${fieldId}-educationLevel-${idx}`}
+                      className="block text-xs font-medium mb-1"
+                    >
                       Education Level *
                     </label>
                     <input
@@ -471,7 +479,10 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`${fieldId}-gpa-${idx}`} className="block text-xs font-medium mb-1">
+                    <label
+                      htmlFor={`${fieldId}-gpa-${idx}`}
+                      className="block text-xs font-medium mb-1"
+                    >
                       GPA
                     </label>
                     <input
@@ -493,7 +504,10 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`${fieldId}-yearCompleted-${idx}`} className="block text-xs font-medium mb-1">
+                    <label
+                      htmlFor={`${fieldId}-yearCompleted-${idx}`}
+                      className="block text-xs font-medium mb-1"
+                    >
                       Year Completed
                     </label>
                     <input
@@ -552,7 +566,10 @@ export default function ScholarshipApplication({
             <h2 className="text-lg font-medium">Financial Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor={`${fieldId}-familyIncome`} className="block text-xs font-medium mb-1">
+                <label
+                  htmlFor={`${fieldId}-familyIncome`}
+                  className="block text-xs font-medium mb-1"
+                >
                   Annual Family Income
                 </label>
                 <input
@@ -570,7 +587,10 @@ export default function ScholarshipApplication({
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-numberOfDependents`} className="block text-xs font-medium mb-1">
+                <label
+                  htmlFor={`${fieldId}-numberOfDependents`}
+                  className="block text-xs font-medium mb-1"
+                >
                   Number of Dependents
                 </label>
                 <input
@@ -589,7 +609,10 @@ export default function ScholarshipApplication({
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-employmentStatus`} className="block text-xs font-medium mb-1">
+                <label
+                  htmlFor={`${fieldId}-employmentStatus`}
+                  className="block text-xs font-medium mb-1"
+                >
                   Employment Status
                 </label>
                 <select

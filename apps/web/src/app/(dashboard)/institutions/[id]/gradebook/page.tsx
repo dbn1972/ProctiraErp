@@ -62,15 +62,15 @@ export default async function InstitutionGradebookPage(props: PageProps) {
     today,
     creditRulesResult,
   ] = await Promise.all([
-      listGradebookSections({ institutionId }),
-      listGradingScales(),
-      listReportCardJobs(),
-      listStudents({ pageSize: 100 }),
-      listCommentsBank({ institutionId }),
-      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-      getTenantToday(),
-      listCreditRules(),
-    ]);
+    listGradebookSections({ institutionId }),
+    listGradingScales(),
+    listReportCardJobs(),
+    listStudents({ pageSize: 100 }),
+    listCommentsBank({ institutionId }),
+    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    getTenantToday(),
+    listCreditRules(),
+  ]);
   const creditRuleOptions = creditRulesResult.ok
     ? creditRulesResult.data.map((rule) => ({ code: rule.code, name: rule.name }))
     : [];

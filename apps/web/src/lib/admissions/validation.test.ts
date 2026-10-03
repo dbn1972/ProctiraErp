@@ -37,7 +37,9 @@ describe('PRC-M149 admissions form schemas', () => {
   });
 
   it('validates guardian phone as E.164 or Indian mobile', () => {
-    expect(createEnquiryFormSchema.safeParse({ ...base, guardianPhone: 'abc' }).success).toBe(false);
+    expect(createEnquiryFormSchema.safeParse({ ...base, guardianPhone: 'abc' }).success).toBe(
+      false,
+    );
     expect(createEnquiryFormSchema.safeParse({ ...base, guardianPhone: '12345' }).success).toBe(
       false,
     );

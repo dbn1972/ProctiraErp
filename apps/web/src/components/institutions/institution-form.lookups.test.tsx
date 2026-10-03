@@ -11,9 +11,17 @@ import { InstitutionForm } from './institution-form';
 describe('InstitutionForm lookup failure (PRC-M155)', () => {
   it('shows an error and disables submit when areas failed to load', () => {
     render(
-      <InstitutionForm areas={[]} types={[]} sectors={[]} ownerships={[]} lookupErrors={['areas']} />,
+      <InstitutionForm
+        areas={[]}
+        types={[]}
+        sectors={[]}
+        ownerships={[]}
+        lookupErrors={['areas']}
+      />,
     );
-    expect(screen.getByTestId('institution-lookup-error')).toHaveTextContent('Could not load areas');
+    expect(screen.getByTestId('institution-lookup-error')).toHaveTextContent(
+      'Could not load areas',
+    );
     expect(screen.getByRole('button', { name: 'Create institution' })).toBeDisabled();
   });
 });

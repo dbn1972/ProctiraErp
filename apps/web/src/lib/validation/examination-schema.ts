@@ -62,7 +62,10 @@ export function gradingSchemeCoverageIssues(scheme: {
 }): Array<{ path: (string | number)[]; message: string }> {
   const issues: Array<{ path: (string | number)[]; message: string }> = [];
   if (scheme.maxScore <= scheme.minScore) {
-    issues.push({ path: ['maxScore'], message: 'Maximum score must be greater than minimum score' });
+    issues.push({
+      path: ['maxScore'],
+      message: 'Maximum score must be greater than minimum score',
+    });
     return issues;
   }
   if (scheme.passThreshold < scheme.minScore || scheme.passThreshold > scheme.maxScore) {

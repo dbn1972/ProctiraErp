@@ -10,7 +10,10 @@ type Loaded<T> = { data: T[]; error: boolean };
  * PRC-M150: a failed lookup is reported (and logged server-side) instead of being
  * collapsed into an empty option list that reads as "nothing configured".
  */
-async function loadList<T>(label: AdmissionsLookupKey, load: () => Promise<T[]>): Promise<Loaded<T>> {
+async function loadList<T>(
+  label: AdmissionsLookupKey,
+  load: () => Promise<T[]>,
+): Promise<Loaded<T>> {
   try {
     return { data: await load(), error: false };
   } catch (error) {

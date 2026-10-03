@@ -194,11 +194,15 @@ export async function retryFailedDisbursementsAction(
       status: 'error',
       message:
         failed[0]?.reason ??
-        (skipped > 0 ? 'None of the selected transfers are failed; nothing was retried.' : 'Retry failed.'),
+        (skipped > 0
+          ? 'None of the selected transfers are failed; nothing was retried.'
+          : 'Retry failed.'),
       results,
     };
   }
-  const parts = [`Queued ${queued} of ${unique.length} transfer${unique.length === 1 ? '' : 's'} for retry.`];
+  const parts = [
+    `Queued ${queued} of ${unique.length} transfer${unique.length === 1 ? '' : 's'} for retry.`,
+  ];
   if (skipped > 0) parts.push(`${skipped} skipped (not failed).`);
   if (failed.length > 0) parts.push(`${failed.length} could not be retried.`);
   return { status: 'success', message: parts.join(' '), results };

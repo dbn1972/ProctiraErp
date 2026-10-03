@@ -392,53 +392,53 @@ export function GradebookWorkflowPanel({
                     </td>
                     <td className="py-2">
                       <div className="flex flex-wrap gap-2">
-                      {next && canRun(next, canSubmit, canModerate) ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          data-testid={`transition-${next}-${row.id}`}
-                          onClick={() => requestTransition([row.id], next)}
-                        >
-                          {next === 'submit'
-                            ? 'Submit'
-                            : next === 'approve'
-                              ? 'Approve'
-                              : next === 'lock'
-                                ? 'Lock'
-                                : 'Publish'}
-                        </Button>
-                      ) : status === 'PUBLISHED' && canModerate ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          data-testid={`transition-reopen-${row.id}`}
-                          onClick={() => requestTransition([row.id], 'reopen')}
-                        >
-                          Unpublish
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                      {status === 'SUBMITTED' && canModerate ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          data-testid={`transition-reject-${row.id}`}
-                          onClick={() => {
-                            setRejectTarget(row.id);
-                            setRejectReason('');
-                            setRejectError(null);
-                          }}
-                        >
-                          Reject
-                        </Button>
-                      ) : null}
+                        {next && canRun(next, canSubmit, canModerate) ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-${next}-${row.id}`}
+                            onClick={() => requestTransition([row.id], next)}
+                          >
+                            {next === 'submit'
+                              ? 'Submit'
+                              : next === 'approve'
+                                ? 'Approve'
+                                : next === 'lock'
+                                  ? 'Lock'
+                                  : 'Publish'}
+                          </Button>
+                        ) : status === 'PUBLISHED' && canModerate ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-reopen-${row.id}`}
+                            onClick={() => requestTransition([row.id], 'reopen')}
+                          >
+                            Unpublish
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        {status === 'SUBMITTED' && canModerate ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-reject-${row.id}`}
+                            onClick={() => {
+                              setRejectTarget(row.id);
+                              setRejectReason('');
+                              setRejectError(null);
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

@@ -23,9 +23,7 @@ export const pastDateOfBirth = z
   .refine((value) => {
     const [y, m, d] = value.split('-').map(Number) as [number, number, number];
     const date = new Date(Date.UTC(y, m - 1, d));
-    return (
-      date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
-    );
+    return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
   }, 'Date of birth is not a valid date')
   .refine((value) => Date.parse(`${value}T00:00:00Z`) <= Date.now(), {
     message: 'Date of birth cannot be in the future',

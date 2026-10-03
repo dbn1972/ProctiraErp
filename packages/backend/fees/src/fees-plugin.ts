@@ -463,14 +463,21 @@ export function pageFeeList<T>(
   items: T[],
   query: unknown,
   match: { status?: (item: T) => string | null | undefined; studentId?: (item: T) => string },
-): { data: T[]; meta?: { page: number; pageSize: number; totalItems: number; totalPages: number } } {
+): {
+  data: T[];
+  meta?: { page: number; pageSize: number; totalItems: number; totalPages: number };
+} {
   const q = (query ?? {}) as Record<string, unknown>;
-  const text = (key: string) => (typeof q[key] === 'string' && q[key] ? (q[key] as string) : undefined);
+  const text = (key: string): string | undefined => {
+    const v = q[key];
+    return typeof v === 'string' && v ? v : undefined;
+  };
   const status = text('status');
   const studentId = text('studentId');
   let filtered = items;
   if (status && match.status) filtered = filtered.filter((i) => match.status!(i) === status);
-  if (studentId && match.studentId) filtered = filtered.filter((i) => match.studentId!(i) === studentId);
+  if (studentId && match.studentId)
+    filtered = filtered.filter((i) => match.studentId!(i) === studentId);
   if (q['page'] === undefined && q['pageSize'] === undefined) return { data: filtered };
   const page = Math.max(1, Math.floor(Number(q['page'] ?? 1)) || 1);
   const pageSize = Math.min(100, Math.max(1, Math.floor(Number(q['pageSize'] ?? 50)) || 50));

@@ -85,14 +85,20 @@ describe('suspended tenant enforcement (PRC-M154)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('redirects an active:false tenant to /tenant-suspended on protected paths', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => okConfig('acme', false)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => okConfig('acme', false)),
+    );
     const response = await middleware(new NextRequest('https://acme.proctira.io/students'));
     expect(response.status).toBe(307);
     expect(new URL(response.headers.get('location')!).pathname).toBe('/tenant-suspended');
   });
 
   it('keeps public paths reachable for a suspended tenant', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => okConfig('acme', false)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => okConfig('acme', false)),
+    );
     const response = await middleware(new NextRequest('https://acme.proctira.io/tenant-suspended'));
     expect(response.headers.get('location')).toBeNull();
   });

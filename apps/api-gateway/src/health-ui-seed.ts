@@ -51,7 +51,7 @@ export interface UiCounsellingSession {
   sessionDate: string;
   topic: string;
   /** PRC-M476: domain status carried through (incl. NO_SHOW); unknown values pass as-is. */
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & {});
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & NonNullable<unknown>);
 }
 
 export interface UiScreeningProgram {

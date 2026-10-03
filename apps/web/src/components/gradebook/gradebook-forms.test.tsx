@@ -35,9 +35,12 @@ describe('GradeEntryForm defaults (PRC-M473)', () => {
 });
 
 describe('upsertGradeEntryAction score validation (PRC-M473)', () => {
-  it.each([101, Number.NaN, -1])('rejects numericScore=%s without a gateway call', async (score) => {
-    const r = await upsertGradeEntryAction({ studentId: ID, numericScore: score });
-    expect(r).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
-    expect(api.upsertGradeEntry).not.toHaveBeenCalled();
-  });
+  it.each([101, Number.NaN, -1])(
+    'rejects numericScore=%s without a gateway call',
+    async (score) => {
+      const r = await upsertGradeEntryAction({ studentId: ID, numericScore: score });
+      expect(r).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+      expect(api.upsertGradeEntry).not.toHaveBeenCalled();
+    },
+  );
 });

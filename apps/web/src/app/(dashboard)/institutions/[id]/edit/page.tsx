@@ -51,7 +51,7 @@ export default async function EditInstitutionPage(props: EditInstitutionPageProp
           types={lookups.types}
           sectors={lookups.sectors}
           ownerships={lookups.ownerships}
-            lookupErrors={lookups.lookupErrors}
+          lookupErrors={lookups.lookupErrors}
         />
       </CardContent>
     </Card>

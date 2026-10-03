@@ -24,9 +24,15 @@ describe('PRC-M477 fee list paging', () => {
   });
 
   it('filters by status and student before paging', () => {
-    const out = pageFeeList(rows, { page: '1', pageSize: '20', status: 'open', studentId: 's-0' }, match);
+    const out = pageFeeList(
+      rows,
+      { page: '1', pageSize: '20', status: 'open', studentId: 's-0' },
+      match,
+    );
     expect(out.data.every((r) => r.status === 'open' && r.studentId === 's-0')).toBe(true);
-    expect(out.meta!.totalItems).toBe(rows.filter((r) => r.status === 'open' && r.studentId === 's-0').length);
+    expect(out.meta!.totalItems).toBe(
+      rows.filter((r) => r.status === 'open' && r.studentId === 's-0').length,
+    );
   });
 
   it('clamps pageSize to 100', () => {

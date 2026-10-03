@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 const createHostelGatePass = vi.fn();
-vi.mock('@/lib/api/hostel', () => ({ createHostelGatePass: (i: unknown) => createHostelGatePass(i) }));
+vi.mock('@/lib/api/hostel', () => ({
+  createHostelGatePass: (i: unknown) => createHostelGatePass(i),
+}));
 vi.mock('@/lib/api/library', () => ({}));
 vi.mock('@/lib/load-entity-labels', () => ({ loadStudentOptions: vi.fn(async () => []) }));
 

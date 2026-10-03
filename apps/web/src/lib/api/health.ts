@@ -46,7 +46,7 @@ export interface CounsellingSession {
   sessionDate: string;
   topic: string;
   /** PRC-M476: domain status carried through (incl. NO_SHOW); unknown values pass as-is. */
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & {});
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & NonNullable<unknown>);
 }
 
 /** Domain create payload for POST /health/counselling/sessions. */

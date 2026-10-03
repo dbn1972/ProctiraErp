@@ -640,7 +640,9 @@ export function ResultsEntryGrid({
             title="Import results"
             description={`Upload a CSV with columns: studentId, ${items
               .map((i) => i.name)
-              .join(', ')}. CSV only (save Excel sheets as CSV). Up to ${RESULTS_IMPORT_MAX_ROWS.toLocaleString()} rows per file.`}
+              .join(
+                ', ',
+              )}. CSV only (save Excel sheets as CSV). Up to ${RESULTS_IMPORT_MAX_ROWS.toLocaleString()} rows per file.`}
             // PRC-M475: CSV only — Excel files are binary and cannot be read as text.
             acceptedFileTypes={['.csv']}
             maxFileSize={10 * 1024 * 1024}

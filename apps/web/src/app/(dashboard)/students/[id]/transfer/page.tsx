@@ -32,7 +32,10 @@ import {
   readStudentDiscipline,
 } from '@/lib/api/students';
 import { listInvoicesResult } from '@/lib/api/fees';
-import { buildTransferChecklist, type TransferChecklistItem } from './_components/transfer-checklist';
+import {
+  buildTransferChecklist,
+  type TransferChecklistItem,
+} from './_components/transfer-checklist';
 
 import { TransferForm } from './_components/transfer-form';
 import { loadPlacementDirectories } from '../../_components/load-student-placement';
@@ -210,8 +213,9 @@ export default async function StudentTransferPage(props: PageProps) {
                   data-testid="transfer-checklist-warning"
                   className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
                 >
-                  {pendingChecks.length} checklist item{pendingChecks.length === 1 ? ' is' : 's are'}{' '}
-                  not complete ({pendingChecks.map((item) => item.label).join('; ')}). Resolve
+                  {pendingChecks.length} checklist item
+                  {pendingChecks.length === 1 ? ' is' : 's are'} not complete (
+                  {pendingChecks.map((item) => item.label).join('; ')}). Resolve
                   {pendingChecks.length === 1 ? ' it' : ' them'} or record why before submitting.
                 </div>
               ) : null}

@@ -13,8 +13,17 @@ describe('PRC-M476 counselling status', () => {
 
   it('excludes past scheduled sessions from Upcoming', () => {
     const today = '2025-06-10';
-    expect(isUpcomingCounsellingSession({ status: 'SCHEDULED', sessionDate: '2025-06-01' }, today)).toBe(false);
-    expect(isUpcomingCounsellingSession({ status: 'SCHEDULED', sessionDate: '2025-06-10T09:00:00Z' }, today)).toBe(true);
-    expect(isUpcomingCounsellingSession({ status: 'COMPLETED', sessionDate: '2025-07-01' }, today)).toBe(false);
+    expect(
+      isUpcomingCounsellingSession({ status: 'SCHEDULED', sessionDate: '2025-06-01' }, today),
+    ).toBe(false);
+    expect(
+      isUpcomingCounsellingSession(
+        { status: 'SCHEDULED', sessionDate: '2025-06-10T09:00:00Z' },
+        today,
+      ),
+    ).toBe(true);
+    expect(
+      isUpcomingCounsellingSession({ status: 'COMPLETED', sessionDate: '2025-07-01' }, today),
+    ).toBe(false);
   });
 });

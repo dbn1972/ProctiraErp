@@ -31,7 +31,11 @@ export default async function HostelGatePassesPage() {
   // PRC-M478: capture and display gate-pass times in the tenant timezone.
   const timeZone = tenant.settings?.timezone ?? null;
   const formatTime = (iso: string) =>
-    formatInTimeZone(iso, timeZone, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' } as Intl.DateTimeFormatOptions);
+    formatInTimeZone(iso, timeZone, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZoneName: 'short',
+    } as Intl.DateTimeFormatOptions);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
@@ -79,8 +83,8 @@ export default async function HostelGatePassesPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {resolveEntityLabel(pass.studentId, studentLabels, 'Student')} · out{' '}
-                    <time dateTime={pass.expectedOutAt}>{formatTime(pass.expectedOutAt)}</time> →
-                    in <time dateTime={pass.expectedInAt}>{formatTime(pass.expectedInAt)}</time>
+                    <time dateTime={pass.expectedOutAt}>{formatTime(pass.expectedOutAt)}</time> → in{' '}
+                    <time dateTime={pass.expectedInAt}>{formatTime(pass.expectedInAt)}</time>
                   </p>
                   <GatePassActions id={pass.id} status={pass.status} />
                 </li>

@@ -36,7 +36,9 @@ function row(id: string, status: 'SCHEDULED' | 'PROCESSED' | 'FAILED') {
 }
 
 beforeEach(() => {
-  vi.mocked(updateDisbursement).mockReset().mockResolvedValue({} as never);
+  vi.mocked(updateDisbursement)
+    .mockReset()
+    .mockResolvedValue({} as never);
   vi.mocked(listScholarshipDisbursements)
     .mockReset()
     .mockResolvedValue([row(FAILED, 'FAILED'), row(PAID, 'PROCESSED')]);
@@ -60,7 +62,10 @@ describe('retryFailedDisbursementsAction (PRC-M481)', () => {
     const result = await retryFailedDisbursementsAction([FAILED, PAID, FAILED]);
     expect(result.status).toBe('success');
     expect(updateDisbursement).toHaveBeenCalledTimes(1);
-    expect(updateDisbursement).toHaveBeenCalledWith(FAILED, expect.objectContaining({ paymentStatus: 'scheduled' }));
+    expect(updateDisbursement).toHaveBeenCalledWith(
+      FAILED,
+      expect.objectContaining({ paymentStatus: 'scheduled' }),
+    );
     expect(result.message).toContain('1 skipped');
   });
 

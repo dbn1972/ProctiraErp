@@ -31,7 +31,7 @@ export const STUDENT_OPTION_MAX_PAGES = 50;
  * search text (it is sensitive child identity data).
  */
 export function studentDisplayCode(student: Pick<StudentRow, 'customData'>): string | null {
-  const data = (student.customData ?? {}) as Record<string, unknown>;
+  const data = student.customData ?? {};
   for (const key of ['admissionNumber', 'admissionNo', 'rollNumber', 'studentCode']) {
     const value = data[key];
     if (typeof value === 'string' && value.trim()) return value.trim();

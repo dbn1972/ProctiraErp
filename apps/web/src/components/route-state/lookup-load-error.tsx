@@ -29,8 +29,8 @@ export function LookupLoadError({
       <AlertTitle>Could not load {failed.join(', ')}</AlertTitle>
       <AlertDescription>
         <p>
-          The options for this form could not be loaded, so the lists below may be incomplete.
-          Retry before submitting.
+          The options for this form could not be loaded, so the lists below may be incomplete. Retry
+          before submitting.
         </p>
         <Button
           type="button"

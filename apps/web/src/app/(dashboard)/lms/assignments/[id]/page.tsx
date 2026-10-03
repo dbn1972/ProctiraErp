@@ -336,19 +336,19 @@ export default async function AssignmentDetailPage({
                       <TableCell className="pe-4">
                         {canManage ? (
                           <>
-                        <GradeSubmissionForm
-                          assignmentId={assignment.id}
-                          submissionId={s.id}
-                          maxScore={assignment.maxScore}
-                          initialScore={s.score}
-                          initialFeedback={s.feedback}
-                        />
-                        <RubricGradeForm
-                          assignmentId={assignment.id}
-                          submissionId={s.id}
-                          questionId={essayQuestion?.id}
-                          rubric={rubric}
-                        />
+                            <GradeSubmissionForm
+                              assignmentId={assignment.id}
+                              submissionId={s.id}
+                              maxScore={assignment.maxScore}
+                              initialScore={s.score}
+                              initialFeedback={s.feedback}
+                            />
+                            <RubricGradeForm
+                              assignmentId={assignment.id}
+                              submissionId={s.id}
+                              questionId={essayQuestion?.id}
+                              rubric={rubric}
+                            />
                           </>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>

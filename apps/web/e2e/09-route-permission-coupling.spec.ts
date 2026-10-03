@@ -67,8 +67,16 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   { id: 'lms', path: '/lms', requiredPermissions: ['lms.read'] },
   // PRC-M480: staff write tools are guarded beyond the session check.
   { id: 'lms-bank', path: '/lms/bank', requiredPermissions: ['lms.create'] },
-  { id: 'library-circulation', path: '/library/circulation', requiredPermissions: ['library.create'] },
-  { id: 'institutions-new', path: '/institutions/new', requiredPermissions: ['institution.create'] },
+  {
+    id: 'library-circulation',
+    path: '/library/circulation',
+    requiredPermissions: ['library.create'],
+  },
+  {
+    id: 'institutions-new',
+    path: '/institutions/new',
+    requiredPermissions: ['institution.create'],
+  },
   { id: 'gradebook-records', path: '/students/records', requiredPermissions: ['gradebook.read'] },
   {
     id: 'examinations-board-exports',
