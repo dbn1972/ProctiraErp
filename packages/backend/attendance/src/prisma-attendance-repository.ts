@@ -17,7 +17,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { AttendanceStatus } from '@proctira/common';
+import { ConflictError, NotFoundError, type AttendanceStatus } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
@@ -27,6 +27,7 @@ import type {
   AttendanceAuditEntry,
   AttendancePercentageQuery,
   AttendanceRepository,
+  AttendanceWriteOp,
   InstitutionAttendanceConfig,
   StaffAttendanceEntity,
   StudentAttendanceEntity,
@@ -218,6 +219,104 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
         where: { tenantId, classId, date: toDateOnly(date) },
       })) as StudentAttendanceRow[];
       return rows.map(toStudentEntity);
+    });
+  }
+
+  async findStudentAttendanceById(
+    tenantId: string,
+    id: string,
+  ): Promise<StudentAttendanceEntity | null> {
+    if (!UUID_RE.test(id)) return null;
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const row = (await tx.studentAttendance.findFirst({
+        where: { id, tenantId },
+      })) as StudentAttendanceRow | null;
+      return row ? toStudentEntity(row) : null;
+    });
+  }
+
+  /**
+   * PRC-M168 / M170: attendance writes + audit rows in ONE tenant transaction.
+   * Update targets are row-locked (SELECT … FOR UPDATE) so the audit
+   * previousStatus and the expectedStatus guard read the committed value.
+   */
+  async applyStudentAttendanceWrites(
+    tenantId: string,
+    ops: AttendanceWriteOp[],
+  ): Promise<StudentAttendanceEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const out: StudentAttendanceEntity[] = [];
+      for (const op of ops) {
+        if (op.kind === 'create') {
+          const row = (await tx.studentAttendance.create({
+            data: {
+              id: op.data.id,
+              tenantId,
+              studentId: op.data.studentId,
+              institutionId: op.data.institutionId,
+              classId: op.data.classId,
+              academicPeriodId: op.data.academicPeriodId,
+              date: toDateOnly(op.data.date),
+              subjectId: op.data.subjectId,
+              periodId: op.data.periodId,
+              status: op.data.status,
+              comment: op.data.comment,
+              recordedBy: actorUuid(op.data.recordedBy),
+            },
+          })) as StudentAttendanceRow;
+          if (op.audit) {
+            await tx.attendanceAudit.create({
+              data: {
+                id: op.audit.id,
+                attendanceId: row.id,
+                previousStatus: null,
+                newStatus: op.audit.newStatus,
+                changedBy: actorUuid(op.audit.changedBy),
+                changedAt: op.audit.changedAt,
+              },
+            });
+          }
+          out.push(toStudentEntity(row));
+          continue;
+        }
+        if (!UUID_RE.test(op.id)) throw new NotFoundError(`Attendance record '${op.id}' not found`);
+        const locked = await tx.$queryRaw<Array<{ status: string }>>`
+          SELECT status FROM student_attendance
+           WHERE id = ${op.id}::uuid AND tenant_id = ${tenantId}::uuid
+           FOR UPDATE`;
+        const current = locked[0];
+        if (!current) throw new NotFoundError(`Attendance record '${op.id}' not found`);
+        if (op.expectedStatus !== undefined && current.status !== op.expectedStatus) {
+          throw new ConflictError(
+            `Attendance record '${op.id}' changed since the request (now ${current.status})`,
+          );
+        }
+        const updateData: Prisma.StudentAttendanceUpdateInput = {};
+        if (op.data.status !== undefined) updateData.status = op.data.status;
+        if (op.data.comment !== undefined) updateData.comment = op.data.comment;
+        if (op.data.subjectId !== undefined) updateData.subjectId = op.data.subjectId;
+        if (op.data.periodId !== undefined) updateData.periodId = op.data.periodId;
+        if (op.data.recordedBy !== undefined) updateData.recordedBy = actorUuid(op.data.recordedBy);
+        const row = (await tx.studentAttendance.update({
+          where: { id: op.id },
+          data: updateData,
+        })) as StudentAttendanceRow;
+        const statusChanged = current.status !== row.status;
+        if (op.audit && (!op.auditOnlyOnStatusChange || statusChanged)) {
+          await tx.attendanceAudit.create({
+            data: {
+              id: op.audit.id,
+              attendanceId: op.id,
+              previousStatus: current.status,
+              newStatus: op.audit.newStatus,
+              changedBy: actorUuid(op.audit.changedBy),
+              changedAt: op.audit.changedAt,
+            },
+          });
+        }
+        out.push(toStudentEntity(row));
+      }
+      return out;
     });
   }
 

@@ -25,6 +25,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type {
   AttendanceRepository,
+  AttendanceWriteOp,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   InstitutionAttendanceConfig,
@@ -99,6 +100,22 @@ export class AttendanceService {
     private readonly eventPublisher?: AttendanceEventPublisher,
   ) {}
 
+  /** Update op whose audit row is written only when the status changes (PRC-M168). */
+  private auditedUpdateOp(
+    id: string,
+    status: AttendanceStatus,
+    comment: string | null | undefined,
+    recordedBy: string,
+  ): AttendanceWriteOp {
+    return {
+      kind: 'update',
+      id,
+      data: { status, comment: comment ?? null, recordedBy },
+      audit: { id: uuidv4(), previousStatus: null, newStatus: status, changedBy: recordedBy, changedAt: new Date() },
+      auditOnlyOnStatusChange: true,
+    };
+  }
+
   /**
    * Record attendance for a single student.
    *
@@ -148,26 +165,10 @@ export class AttendanceService {
     );
 
     if (existing) {
-      // Update existing record and create audit entry
-      const previousStatus = existing.status;
-      const updated = await this.repository.updateStudentAttendance(existing.id, tenantId, {
-        status: input.status as AttendanceStatus,
-        comment: input.comment ?? null,
-        recordedBy,
-      });
-
-      if (updated && previousStatus !== input.status) {
-        await this.repository.createAuditEntry({
-          id: uuidv4(),
-          tenantId,
-          attendanceId: existing.id,
-          previousStatus,
-          newStatus: input.status as AttendanceStatus,
-          changedBy: recordedBy,
-          changedAt: new Date(),
-        });
-      }
-
+      // PRC-M168: update + audit row commit in one tenant transaction.
+      const [updated] = await this.repository.applyStudentAttendanceWrites(tenantId, [
+        this.auditedUpdateOp(existing.id, input.status as AttendanceStatus, input.comment, recordedBy),
+      ]);
       return updated!;
     }
 
@@ -242,25 +243,16 @@ export class AttendanceService {
         );
 
         if (existing) {
-          const previousStatus = existing.status;
-          const updated = await this.repository.updateStudentAttendance(existing.id, tenantId, {
-            status: record.status as AttendanceStatus,
-            comment: record.comment ?? null,
-            recordedBy,
-          });
-
-          if (updated && previousStatus !== record.status) {
-            await this.repository.createAuditEntry({
-              id: uuidv4(),
-              tenantId,
-              attendanceId: existing.id,
-              previousStatus,
-              newStatus: record.status as AttendanceStatus,
-              changedBy: recordedBy,
-              changedAt: new Date(),
-            });
-          }
-
+          // PRC-M168: each record's update + audit row is its own transaction;
+          // a failure is reported per student and leaves that row unchanged.
+          const [updated] = await this.repository.applyStudentAttendanceWrites(tenantId, [
+            this.auditedUpdateOp(
+              existing.id,
+              record.status as AttendanceStatus,
+              record.comment,
+              recordedBy,
+            ),
+          ]);
           if (updated) {
             result.updated.push(updated);
           }

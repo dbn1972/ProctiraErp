@@ -105,6 +105,35 @@ export interface AttendanceAuditEntry {
   changedAt: Date;
 }
 
+/** Audit payload attached to an atomic attendance write (attendanceId is filled by the repo). */
+export type AttendanceWriteAudit = Omit<AttendanceAuditEntry, 'attendanceId' | 'tenantId'>;
+
+/**
+ * One step of an all-or-nothing attendance write (PRC-M168). Every op in a
+ * batch — attendance row change plus its audit row — commits in a single
+ * tenant transaction; any failure rolls the whole batch back.
+ *
+ * `expectedStatus` (update only) fails the batch with a ConflictError when the
+ * row's current status differs (stale regularisation, PRC-M170). The audit
+ * `previousStatus` for updates is always taken from the locked DB row, never
+ * from the caller.
+ */
+export type AttendanceWriteOp =
+  | {
+      kind: 'update';
+      id: string;
+      data: Partial<StudentAttendanceEntity>;
+      expectedStatus?: AttendanceStatus;
+      audit?: AttendanceWriteAudit | null;
+      /** Only write the audit row when the status actually changes. */
+      auditOnlyOnStatusChange?: boolean;
+    }
+  | {
+      kind: 'create';
+      data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>;
+      audit?: AttendanceWriteAudit | null;
+    };
+
 /**
  * Query parameters for attendance percentage calculation.
  */
@@ -217,6 +246,20 @@ export interface AttendanceRepository {
     tenantId: string,
     classId: string,
     date: string,
+  ): Promise<StudentAttendanceEntity[]>;
+
+  /** Tenant-scoped lookup by id (null when absent or in another tenant). */
+  findStudentAttendanceById(tenantId: string, id: string): Promise<StudentAttendanceEntity | null>;
+
+  /**
+   * Apply attendance writes and their audit rows in ONE tenant transaction
+   * (PRC-M168). Returns the resulting rows in op order. Throws NotFoundError
+   * when an update target is missing and ConflictError on expectedStatus
+   * mismatch; nothing is persisted on any failure.
+   */
+  applyStudentAttendanceWrites(
+    tenantId: string,
+    ops: AttendanceWriteOp[],
   ): Promise<StudentAttendanceEntity[]>;
 
   // Attendance records by date range (for percentage calculation)

@@ -5,7 +5,7 @@
 import { AppError, AttendanceStatus, BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { AttendanceRepository, StudentAttendanceEntity } from './attendance-repository.js';
+import type { AttendanceRepository, AttendanceWriteOp } from './attendance-repository.js';
 import type {
   CreateLeaveRequestInput,
   CreateRegularisationInput,
@@ -125,21 +125,21 @@ export class AttendanceOpsService {
       throw new BusinessRuleError(`Regularisation is already ${row.status}`);
     }
     if (decision === 'approved') {
-      const updated = await this.attendance.updateStudentAttendance(row.attendanceId, tenantId, {
-        status: row.toStatus as AttendanceStatus,
-      });
-      if (!updated) {
-        throw new NotFoundError(`Attendance record '${row.attendanceId}' not found`);
-      }
-      await this.attendance.createAuditEntry({
-        id: uuidv4(),
-        tenantId,
-        attendanceId: row.attendanceId,
-        previousStatus: row.fromStatus as AttendanceStatus,
-        newStatus: row.toStatus as AttendanceStatus,
-        changedBy: actor.userId,
-        changedAt: new Date(),
-      });
+      // PRC-M168: status change + audit row in one tenant transaction.
+      await this.attendance.applyStudentAttendanceWrites(tenantId, [
+        {
+          kind: 'update',
+          id: row.attendanceId,
+          data: { status: row.toStatus as AttendanceStatus },
+          audit: {
+            id: uuidv4(),
+            previousStatus: null,
+            newStatus: row.toStatus as AttendanceStatus,
+            changedBy: actor.userId,
+            changedAt: new Date(),
+          },
+        },
+      ]);
     }
     const next = await this.store.updateRegularisation(tenantId, id, {
       status: decision,
@@ -202,9 +202,12 @@ export class AttendanceOpsService {
       throw new BusinessRuleError(`Leave request is already ${row.status}`);
     }
     if (decision === 'approved') {
+      // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.
+      const ops: AttendanceWriteOp[] = [];
       for (const date of weekdayDates(row.fromDate, row.toDate)) {
-        await this.markExcusedDay(tenantId, row, date, actor.userId);
+        ops.push(await this.excusedDayOp(tenantId, row, date, actor.userId));
       }
+      if (ops.length > 0) await this.attendance.applyStudentAttendanceWrites(tenantId, ops);
     }
     const next = await this.store.updateLeave(tenantId, id, {
       status: decision,
@@ -216,12 +219,19 @@ export class AttendanceOpsService {
     return next;
   }
 
-  private async markExcusedDay(
+  private async excusedDayOp(
     tenantId: string,
     row: LeaveRequestRecord,
     date: string,
     actorId: string,
-  ): Promise<void> {
+  ): Promise<AttendanceWriteOp> {
+    const audit = {
+      id: uuidv4(),
+      previousStatus: null,
+      newStatus: AttendanceStatus.EXCUSED,
+      changedBy: actorId,
+      changedAt: new Date(),
+    };
     const existing = await this.attendance.findStudentAttendance(
       tenantId,
       row.studentId,
@@ -231,44 +241,31 @@ export class AttendanceOpsService {
       null,
     );
     if (existing) {
-      await this.attendance.updateStudentAttendance(existing.id, tenantId, {
-        status: AttendanceStatus.EXCUSED,
-        comment: row.reason ?? 'Leave approved',
-      });
-      await this.attendance.createAuditEntry({
+      return {
+        kind: 'update',
+        id: existing.id,
+        data: { status: AttendanceStatus.EXCUSED, comment: row.reason ?? 'Leave approved' },
+        audit,
+      };
+    }
+    return {
+      kind: 'create',
+      data: {
         id: uuidv4(),
         tenantId,
-        attendanceId: existing.id,
-        previousStatus: existing.status,
-        newStatus: AttendanceStatus.EXCUSED,
-        changedBy: actorId,
-        changedAt: new Date(),
-      });
-      return;
-    }
-    const created: StudentAttendanceEntity = await this.attendance.createStudentAttendance({
-      id: uuidv4(),
-      tenantId,
-      studentId: row.studentId,
-      institutionId: row.institutionId,
-      classId: row.classId,
-      academicPeriodId: row.academicPeriodId,
-      date,
-      subjectId: null,
-      periodId: null,
-      status: AttendanceStatus.EXCUSED,
-      comment: row.reason ?? 'Leave approved',
-      recordedBy: actorId,
-    });
-    await this.attendance.createAuditEntry({
-      id: uuidv4(),
-      tenantId,
-      attendanceId: created.id,
-      previousStatus: null,
-      newStatus: AttendanceStatus.EXCUSED,
-      changedBy: actorId,
-      changedAt: new Date(),
-    });
+        studentId: row.studentId,
+        institutionId: row.institutionId,
+        classId: row.classId,
+        academicPeriodId: row.academicPeriodId,
+        date,
+        subjectId: null,
+        periodId: null,
+        status: AttendanceStatus.EXCUSED,
+        comment: row.reason ?? 'Leave approved',
+        recordedBy: actorId,
+      },
+      audit,
+    };
   }
 
   async registerDevice(
