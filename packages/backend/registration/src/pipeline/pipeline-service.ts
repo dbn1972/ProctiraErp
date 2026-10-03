@@ -6,7 +6,14 @@ import type { RegistrationEntity, RegistrationRepository } from '../registration
 import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
-import { buildOfferDocument } from './offer-letter.js';
+import {
+  buildOfferDocument,
+  MAX_OFFER_FEE_AMOUNT,
+  OFFER_FEE_CURRENCIES,
+  OfferSignatureError,
+  verifyOfferDocument,
+  type SignedOfferDocument,
+} from './offer-letter.js';
 import type {
   ApplicationPlacement,
   AdmissionsPipelineStore,
@@ -53,6 +60,61 @@ export type EnrolOnAccept = (
 export interface SeatAvailability extends SeatMatrixRecord {
   filled: number;
   available: number;
+}
+
+/** PRC-M336: fee must be a non-negative amount with at most 2 decimals, bounded, ISO currency. */
+function assertValidOfferFee(amount: number, currency: string): void {
+  const cents = amount * 100;
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > MAX_OFFER_FEE_AMOUNT ||
+    Math.abs(cents - Math.round(cents)) > 1e-6
+  ) {
+    throw new ValidationError('Invalid offer fee amount', [
+      {
+        field: 'feeAmount',
+        rule: 'format',
+        message: `feeAmount must be 0..${MAX_OFFER_FEE_AMOUNT} with at most 2 decimal places`,
+      },
+    ]);
+  }
+  if (!(OFFER_FEE_CURRENCIES as readonly string[]).includes(currency)) {
+    throw new ValidationError('Invalid offer fee currency', [
+      {
+        field: 'feeCurrency',
+        rule: 'enum',
+        message: `feeCurrency must be one of ${OFFER_FEE_CURRENCIES.join(', ')}`,
+      },
+    ]);
+  }
+}
+
+/**
+ * PRC-M336: the stored offer document must carry a valid server signature and
+ * agree with the offer row (fee, seat, applicant) before it can be accepted.
+ */
+function assertOfferDocumentAuthentic(offer: OfferRecord): void {
+  try {
+    verifyOfferDocument(offer.offerDocument);
+  } catch (error) {
+    throw new ConflictError(
+      error instanceof OfferSignatureError ? error.message : 'Offer document cannot be verified',
+    );
+  }
+  const doc = offer.offerDocument as Partial<SignedOfferDocument>;
+  if (doc.signatureAlg !== 'hmac-sha256') return; // explicitly allowed legacy document
+  const matches =
+    doc.offerId === offer.id &&
+    doc.tenantId === offer.tenantId &&
+    doc.applicationId === offer.applicationId &&
+    doc.seat?.institutionId === offer.institutionId &&
+    doc.seat?.academicPeriodId === offer.academicPeriodId &&
+    doc.seat?.gradeId === offer.gradeId &&
+    doc.seat?.quota === offer.quota &&
+    Number(doc.fee?.amount) === Number(offer.feeAmount) &&
+    doc.fee?.currency === offer.feeCurrency;
+  if (!matches) throw new ConflictError('Offer record does not match its signed offer document');
 }
 
 /** Upper bound on stale waitlist entries skipped in one promotion (PRC-M329). */
@@ -406,10 +468,12 @@ export class AdmissionsPipelineService {
         'Application is missing grade / period / quota placement required for an offer',
       );
     }
+    const feeAmount = input.feeAmount ?? 0;
+    const feeCurrency = input.feeCurrency ?? 'INR';
+    assertValidOfferFee(feeAmount, feeCurrency);
     await this.assertSeatAvailable(tenantId, placement);
     const now = new Date();
-    const document = {
-      ...buildOfferDocument({
+    const document = buildOfferDocument({
         offerId: uuidv4(),
         tenantId,
         applicationId: application.id,
@@ -419,15 +483,12 @@ export class AdmissionsPipelineService {
         academicPeriodId: placement.academicPeriodId,
         gradeId: placement.gradeId,
         quota: placement.quota,
-        feeAmount: input.feeAmount ?? 0,
-        feeCurrency: input.feeCurrency ?? 'INR',
+        feeAmount,
+        feeCurrency,
         issuedAt: now.toISOString(),
-      }),
-      classId: input.classId ?? null,
-    };
+        classId: input.classId ?? null,
+    });
     const offerFeeInvoiceId = null;
-    const feeAmount = input.feeAmount ?? 0;
-    const feeCurrency = input.feeCurrency ?? 'INR';
     const record: OfferRecord = {
       id: document.offerId,
       tenantId,
@@ -535,6 +596,7 @@ export class AdmissionsPipelineService {
     effective: OfferRecord,
     input: AcceptOfferDto,
   ) {
+    assertOfferDocumentAuthentic(effective);
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
 
