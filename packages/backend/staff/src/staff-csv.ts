@@ -21,21 +21,45 @@ export function looksLikeXlsx(input: string): boolean {
   return trimmed.startsWith(XLSX_ZIP_MAGIC);
 }
 
-function splitCsvLine(line: string): string[] {
-  const cells: string[] = [];
+/** PRC-M382: input caps (the route schema also caps the body at 1 MB). */
+export const CSV_MAX_BYTES = 1_000_000;
+export const CSV_MAX_ROWS = 5_000;
+
+interface CsvRecord {
+  line: number;
+  cells: string[];
+}
+
+/**
+ * PRC-M382: RFC 4180 state-machine tokenizer over the whole input, so quoted
+ * cells may contain commas, quotes ("") and newlines. Returns an error for an
+ * unterminated quote instead of silently misaligning columns.
+ */
+function tokenizeCsv(text: string): { records: CsvRecord[]; error?: string } {
+  const records: CsvRecord[] = [];
+  let cells: string[] = [];
   let current = '';
   let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+  let line = 1;
+  let recordLine = 1;
+  const endRecord = () => {
+    cells.push(current.trim());
+    if (cells.some((c) => c.length > 0)) records.push({ line: recordLine, cells });
+    cells = [];
+    current = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') {
+        if (text[i + 1] === '"') {
           current += '"';
           i += 1;
         } else {
           inQuotes = false;
         }
       } else {
+        if (ch === '\n') line += 1;
         current += ch;
       }
     } else if (ch === '"') {
@@ -43,12 +67,17 @@ function splitCsvLine(line: string): string[] {
     } else if (ch === ',') {
       cells.push(current.trim());
       current = '';
+    } else if (ch === '\n') {
+      endRecord();
+      line += 1;
+      recordLine = line;
     } else {
       current += ch;
     }
   }
-  cells.push(current.trim());
-  return cells;
+  if (inQuotes) return { records, error: `Unterminated quoted cell starting on line ${recordLine}` };
+  endRecord();
+  return { records };
 }
 
 export function parseCsv(input: string): ParseCsvResult {
@@ -60,37 +89,62 @@ export function parseCsv(input: string): ParseCsvResult {
         'XLSX workbooks are not parsed in this slice (no OOXML library). Export the first sheet as CSV and upload that file.',
     };
   }
-
+  if (Buffer.byteLength(input, 'utf8') > CSV_MAX_BYTES) {
+    return { headers: [], rows: [], error: `CSV exceeds ${CSV_MAX_BYTES} bytes` };
+  }
   const text = input
     .replace(/^\uFEFF/, '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
-  const lines = text.split('\n').filter((line) => line.trim().length > 0);
-  if (lines.length === 0) {
+  const { records, error } = tokenizeCsv(text);
+  if (error) return { headers: [], rows: [], error };
+  if (records.length === 0) {
     return { headers: [], rows: [], error: 'CSV is empty' };
   }
-
-  const headers = splitCsvLine(lines[0]!).map((h) => h.trim());
+  const headers = records[0]!.cells.map((h) => h.trim());
   if (headers.length === 0 || headers.every((h) => h.length === 0)) {
     return { headers: [], rows: [], error: 'CSV header row is empty' };
   }
-
+  const seen = new Set<string>();
+  for (const h of headers) {
+    if (h && seen.has(h)) {
+      return { headers: [], rows: [], error: `Duplicate CSV header '${h}'` };
+    }
+    seen.add(h);
+  }
+  if (records.length - 1 > CSV_MAX_ROWS) {
+    return { headers: [], rows: [], error: `CSV exceeds ${CSV_MAX_ROWS} data rows` };
+  }
   const rows: CsvRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitCsvLine(lines[i]!);
+  for (let i = 1; i < records.length; i++) {
+    const { cells, line } = records[i]!;
     const values: Record<string, string> = {};
     for (let c = 0; c < headers.length; c++) {
       const key = headers[c]!;
       if (!key) continue;
       values[key] = cells[c] ?? '';
     }
-    rows.push({ line: i + 1, values });
+    rows.push({ line, values });
   }
   return { headers, rows };
 }
 
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+
+/**
+ * PRC-M382: OWASP CSV-injection guard. Text cells starting with = + - @ tab or
+ * CR are prefixed with a single quote so spreadsheets treat them as text.
+ * Numbers (and plain numeric strings such as "-12.5") are left untouched.
+ */
+export function csvSafeCell(value: string | number | null | undefined): string {
+  if (value == null) return '';
+  if (typeof value === 'number') return String(value);
+  if (PLAIN_NUMBER.test(value)) return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export function escapeCsvCell(value: string | number | null | undefined): string {
-  const text = value == null ? '' : String(value);
+  const text = csvSafeCell(value);
   if (/[",\n\r]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }
