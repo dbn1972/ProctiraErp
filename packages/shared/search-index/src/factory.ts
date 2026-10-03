@@ -2,6 +2,8 @@
  * Search index factory — selects adapter implementation from config.
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 import { InMemorySearchIndex } from './adapters/in-memory-search-index.js';
 import type { SearchIndexAdapter, SearchIndexConfig } from './types.js';
 
@@ -36,7 +38,7 @@ export function createSearchIndex(
 export function createSearchIndexFromEnv(): SearchIndexAdapter {
   const adapter = process.env.SEARCH_INDEX_ADAPTER?.trim().toLowerCase();
   if (!adapter || adapter === 'memory') {
-    if (process.env.NODE_ENV === 'production') {
+    if (isProductionNodeEnv(process.env.NODE_ENV)) {
       throw new Error(
         'In-memory search index is not allowed when NODE_ENV=production; configure a durable SEARCH_INDEX_ADAPTER',
       );

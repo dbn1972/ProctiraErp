@@ -22,10 +22,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1135.0",
+    "@proctira/common": "workspace:*",
     "@proctira/events": "workspace:*",
-    "kafkajs": "^2.2.4",
     "amqplib": "^0.10.4",
-    "@aws-sdk/client-sqs": "^3.1135.0"
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",

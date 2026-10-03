@@ -3,6 +3,8 @@
  * All durations are in seconds unless otherwise noted.
  */
 
+import { isProductionLike } from '@proctira/common/node-env';
+
 /**
  * Auth configuration interface.
  */
@@ -108,18 +110,11 @@ function resolveJwtSecret(explicit?: string): string {
 /** Minimum JWT signing secret length in bytes outside development/test (PRC-L579). */
 export const MIN_JWT_SECRET_LENGTH = 32;
 
-/** NODE_ENV values that may relax production guards (compared trimmed + lowercased). */
-const NON_PRODUCTION_NODE_ENVS: ReadonlySet<string> = new Set(['development', 'test']);
-
 /**
- * PRC-L579: returns true unless `nodeEnv` (trimmed, lowercased) is exactly
- * `development` or `test`. Unset, empty, `Production`, `staging`, or any unknown
- * value is treated as production-like so guards fail closed.
+ * PRC-L579: closed-by-default NODE_ENV check, shared via @proctira/common so
+ * every service interprets NODE_ENV identically. Re-exported for compatibility.
  */
-export function isProductionLike(nodeEnv: string | undefined): boolean {
-  const normalised = (nodeEnv ?? '').trim().toLowerCase();
-  return !NON_PRODUCTION_NODE_ENVS.has(normalised);
-}
+export { isProductionLike };
 
 /**
  * Creates a default auth configuration.

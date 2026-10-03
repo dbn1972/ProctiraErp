@@ -63,6 +63,9 @@ export {
 } from './provider-mode-policy.js';
 export type { ProviderDeliveryMode, ProviderModeEnv } from './provider-mode-policy.js';
 
+// PRC-L579: shared NODE_ENV interpretation for fail-closed guards
+export { isProductionLike, isProductionNodeEnv, normalizeNodeEnv } from './node-env.js';
+
 // W1-ARCH-07: ordered SIGINT/SIGTERM shutdown (HTTP → resources → exit)
 export {
   DEFAULT_SHUTDOWN_TIMEOUT_MS,

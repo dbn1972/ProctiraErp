@@ -5,6 +5,8 @@
  * (including bare wildcards). Kafka/RabbitMQ pub/sub paths use these builders.
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 export class TenantScopeError extends Error {
   constructor(message: string) {
     super(message);
@@ -13,7 +15,7 @@ export class TenantScopeError extends Error {
 }
 
 export function isProductionEnv(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
-  return (nodeEnv ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(nodeEnv);
 }
 
 export function isUnscopedTenantNamespaceAllowed(env: NodeJS.ProcessEnv = process.env): boolean {

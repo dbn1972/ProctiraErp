@@ -55,6 +55,7 @@ import {
   tenantLifecyclePlugin,
   type TenantAdminProvisioner,
 } from '@proctira/backend-tenant';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -510,7 +511,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // can exercise SMS OTP without Keycloak.
   // G-731: MFA_EXPOSE_OTP is a local-dev convenience only — refuse it in production.
   const exposeOtp = process.env['MFA_EXPOSE_OTP'] === 'true';
-  if (exposeOtp && process.env['NODE_ENV'] === 'production') {
+  if (exposeOtp && isProductionNodeEnv(process.env['NODE_ENV'])) {
     throw new Error('MFA_EXPOSE_OTP=true is not allowed when NODE_ENV=production');
   }
 

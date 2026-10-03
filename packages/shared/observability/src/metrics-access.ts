@@ -8,6 +8,8 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 export interface MetricsAccessEnv {
   NODE_ENV?: string;
   METRICS_BEARER_TOKEN?: string;
@@ -18,8 +20,7 @@ export interface MetricsAccessEnv {
 }
 
 export type MetricsAccessDecision =
-  | { allow: true; reason: string }
-  | { allow: false; statusCode: 401 | 403; reason: string };
+  { allow: true; reason: string } | { allow: false; statusCode: 401 | 403; reason: string };
 
 /** Normalize IPv4-mapped IPv6 (`::ffff:127.0.0.1` → `127.0.0.1`). */
 export function normalizeClientIp(ip: string): string {
@@ -63,7 +64,7 @@ export function tokensMatch(expected: string, provided: string): boolean {
  * decision function also denies this state so direct callers remain fail-safe.
  */
 export function assertMetricsAccessConfiguration(env: MetricsAccessEnv): void {
-  if (env.NODE_ENV === 'production' && env.METRICS_PUBLIC === '1') {
+  if (isProductionNodeEnv(env.NODE_ENV) && env.METRICS_PUBLIC === '1') {
     throw new Error('METRICS_PUBLIC=1 is forbidden when NODE_ENV=production (W1-SEC-07)');
   }
 }
@@ -86,7 +87,7 @@ export function authorizeMetricsAccess(opts: {
   authorizationHeader?: string;
 }): MetricsAccessDecision {
   const { env, clientIp, authorizationHeader } = opts;
-  const isProd = env.NODE_ENV === 'production';
+  const isProd = isProductionNodeEnv(env.NODE_ENV);
   const token = env.METRICS_BEARER_TOKEN?.trim() || '';
   const allowlist = parseAllowlist(env.METRICS_ALLOWLIST);
   const ip = normalizeClientIp(clientIp);

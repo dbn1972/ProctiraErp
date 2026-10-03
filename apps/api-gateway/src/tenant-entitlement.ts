@@ -14,6 +14,8 @@
  * tenants exist only outside the lifecycle store (PRC-H100 split-brain), so blocking unknown ids
  * would take them down.
  */
+
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 export type GateTenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioned';
 
 /** Resolve a tenant's lifecycle status; null when the tenant store does not know the id. */
@@ -30,7 +32,7 @@ const versions = new Map<string, number>();
 
 function bootstrapFromEnv(): void {
   // Env-seeded suspension is a dev/test convenience only; production status comes from the store.
-  if ((process.env['NODE_ENV'] ?? '').toLowerCase() === 'production') return;
+  if (isProductionNodeEnv(process.env['NODE_ENV'])) return;
   const raw = process.env['TENANT_SUSPENDED_IDS'];
   if (!raw) return;
   for (const part of raw.split(',')) {

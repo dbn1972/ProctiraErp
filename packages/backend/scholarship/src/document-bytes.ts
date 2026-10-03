@@ -6,6 +6,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import { AppError, ValidationError } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { createLogger } from '@proctira/logging';
 
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
@@ -234,7 +235,7 @@ export function resetScholarshipDocSigningForTests(): void {
 }
 
 function isProduction(env: NodeJS.ProcessEnv): boolean {
-  return (env.NODE_ENV ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(env.NODE_ENV);
 }
 
 /**

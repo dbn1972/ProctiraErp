@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proctira/common": "workspace:*",
     "ioredis": "^6.0.0"
   },
   "devDependencies": {
