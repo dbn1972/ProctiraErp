@@ -718,14 +718,16 @@ model ExaminationCandidateRegistration {
 /// publication. `subjectResults` is a JSONB array of
 /// {candidateId, subjectId, score, isComplete}.
 model ExaminationCandidate {
-  id             String @id @db.Uuid
-  tenantId       String @map("tenant_id") @db.Uuid
-  examinationId  String @map("examination_id") @db.Uuid
-  studentId      String @map("student_id") @db.Uuid
-  centerId       String @map("center_id") @db.Uuid
-  gender         String @db.VarChar(10)
-  areaId         String @map("area_id") @db.Uuid
-  subjectResults Json   @default("[]") @map("subject_results") @db.JsonB
+  id             String  @id @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  examinationId  String  @map("examination_id") @db.Uuid
+  studentId      String  @map("student_id") @db.Uuid
+  centerId       String  @map("center_id") @db.Uuid
+  /// NULL = unknown (PRC-H057); never synthesise 'other'.
+  gender         String? @db.VarChar(10)
+  /// NULL = unknown (PRC-H057); never synthesise center_id.
+  areaId         String? @map("area_id") @db.Uuid
+  subjectResults Json    @default("[]") @map("subject_results") @db.JsonB
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
