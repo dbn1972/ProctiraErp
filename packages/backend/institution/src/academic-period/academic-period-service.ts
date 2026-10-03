@@ -19,6 +19,15 @@ export interface AcademicPeriodServiceDeps {
   prisma: PrismaClient;
 }
 
+/** PRC-L321: ACADEMIC_PERIOD_SUPERSEDE_CHILDREN = reject (default) | keep. */
+export function readSupersedeChildPolicy(
+  env: Record<string, string | undefined> = process.env,
+): 'reject' | 'keep' {
+  return env['ACADEMIC_PERIOD_SUPERSEDE_CHILDREN']?.trim().toLowerCase() === 'keep'
+    ? 'keep'
+    : 'reject';
+}
+
 export class AcademicPeriodService {
   private readonly prisma: PrismaClient;
 
@@ -247,6 +256,22 @@ export class AcademicPeriodService {
       { startDate, endDate },
     );
 
+    // PRC-L321 defaulted decision: superseding a period that still has child periods
+    // (terms under a year) is refused unless ACADEMIC_PERIOD_SUPERSEDE_CHILDREN=keep, which
+    // leaves the children on the superseded version (option c). Nothing is re-parented or
+    // cloned implicitly.
+    if (readSupersedeChildPolicy() === 'reject') {
+      const children = await this.prisma.academicPeriod.findMany({
+        where: { tenantId, parentId: prior.id, deletedAt: null },
+        take: 1,
+      });
+      if (children.length > 0) {
+        throw new ConflictError(
+          'Academic period has child periods; supersede or archive them first ' +
+            '(or set ACADEMIC_PERIOD_SUPERSEDE_CHILDREN=keep)',
+        );
+      }
+    }
     const priorVersion = (prior as { version?: number }).version ?? 1;
     const next = await this.prisma.academicPeriod.create({
       data: {

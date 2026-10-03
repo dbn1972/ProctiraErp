@@ -108,4 +108,26 @@ describe('PRC-L321 academic period supersede route', () => {
     const res = await supersede(id, { name: '', startDate: 'soon' });
     expect(res.statusCode).toBe(400);
   });
+  it('refuses to supersede a year that still has child terms (default reject) - PRC-L321', async () => {
+    const id = await createYear();
+    const term = await app.inject({
+      method: 'POST',
+      url: '/academic-periods',
+      payload: {
+        name: 'Term 1',
+        code: 'AY26-T1',
+        kind: 'term',
+        parentId: id,
+        startDate: '2026-04-01',
+        endDate: '2026-09-30',
+      },
+    });
+    expect(term.statusCode).toBe(201);
+    const res = await supersede(id, { name: 'AY 26b', startDate: '2027-04-01', endDate: '2028-03-31' });
+    expect(res.statusCode).toBe(409);
+    vi.stubEnv('ACADEMIC_PERIOD_SUPERSEDE_CHILDREN', 'keep');
+    const kept = await supersede(id, { name: 'AY 26b', startDate: '2027-04-01', endDate: '2028-03-31' });
+    expect(kept.statusCode).toBe(201);
+    vi.stubEnv('ACADEMIC_PERIOD_SUPERSEDE_CHILDREN', '');
+  });
 });
