@@ -10,15 +10,21 @@ import { institutionTypeToApplySlug } from '@/lib/validation';
 import { MAX_PUBLIC_PAGE_SIZE } from '@/lib/pagination';
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
-const MapView = dynamic(() => import('./map-view').then((mod) => mod.MapView), {
-  ssr: false,
-  loading: () => (
+/** PRC-L020: localized loading placeholder (rendered as a component, so hooks are allowed). */
+function MapLoading() {
+  const t = useTranslations('institutions');
+  return (
     <div className="flex h-[500px] items-center justify-center rounded-md bg-gray-100">
       <span className="text-sm text-gray-600" role="status" aria-live="polite">
-        Loading map…
+        {t('loadingMap')}
       </span>
     </div>
-  ),
+  );
+}
+
+const MapView = dynamic(() => import('./map-view').then((mod) => mod.MapView), {
+  ssr: false,
+  loading: () => <MapLoading />,
 });
 
 interface FilterOption {

@@ -40,6 +40,7 @@ import {
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
+  RedisWebTicketStore,
   type AccessTokenRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
@@ -60,6 +61,7 @@ import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { registerAuthAudit } from './auth-audit.js';
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -475,6 +477,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // PRC-M500: one-time login tickets must be redeemable on any replica.
+      ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),
     });
   } else {
     await app.register(authPlugin, {
@@ -529,6 +533,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     exposeCodeInResponse: exposeOtp,
     // PRC-L281: shared HMAC pepper so any replica can verify a challenge.
     pepper: process.env['MFA_OTP_PEPPER'] || config.jwt.secret,
+    // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
+    onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
@@ -912,6 +918,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return Promise.resolve();
     });
   }
+
+  // PRC-M501: auth-domain audit (login/logout/refresh/ticket/MFA), which the
+  // generic mutation audit below intentionally skips.
+  registerAuthAudit(app);
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
   // Post-hoc onSend remains for unwired paths; production never degrades.

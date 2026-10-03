@@ -8,6 +8,9 @@ import {
   isValidDateOfBirth,
   isValidEmail,
   isValidPhone,
+  maxDateOfBirth,
+  minDateOfBirth,
+  validateCustomFieldValue,
   validateRequiredFields,
 } from '@/lib/validation';
 import { registrationErrorMessage } from '@/lib/error-messages';
@@ -74,14 +77,15 @@ export function PersonalInfoForm({
       fieldErrors['guardianPhone'] = 'invalid_phone';
     }
 
-    // Required custom fields
+    // Required custom fields + published validation rules (PRC-L019)
     for (const field of customFields) {
-      if (field.required) {
-        const value = draft.customFields[field.id];
-        if (!value || value.trim().length === 0) {
-          fieldErrors[`custom:${field.id}`] = 'required';
-        }
+      const value = draft.customFields[field.id];
+      if (field.required && (!value || value.trim().length === 0)) {
+        fieldErrors[`custom:${field.id}`] = 'required';
+        continue;
       }
+      const ruleError = validateCustomFieldValue(field, value);
+      if (ruleError) fieldErrors[`custom:${field.id}`] = ruleError;
     }
 
     setErrors(fieldErrors);
@@ -137,6 +141,8 @@ export function PersonalInfoForm({
           onChange={(v) => update({ dateOfBirth: v })}
           error={errorMessage('dateOfBirth')}
           autoComplete="bday"
+          min={minDateOfBirth()}
+          max={maxDateOfBirth()}
         />
         <div>
           <label htmlFor="gender" className="input-label">
@@ -225,8 +231,10 @@ interface FieldProps {
   onChange: (value: string) => void;
   error?: string;
   autoComplete?: string;
+  /** PRC-L018: native date bounds (YYYY-MM-DD). */
+  min?: string;
+  max?: string;
 }
-
 function Field({
   id,
   label,
@@ -236,6 +244,8 @@ function Field({
   onChange,
   error,
   autoComplete,
+  min,
+  max,
 }: FieldProps) {
   return (
     <div>
@@ -253,6 +263,8 @@ function Field({
         type={type}
         required={required}
         autoComplete={autoComplete}
+        min={min}
+        max={max}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="input-field"
@@ -331,7 +343,10 @@ function CustomField({ field, value, onChange, error }: CustomFieldProps) {
           aria-required={field.required}
           minLength={field.validation?.minLength}
           maxLength={field.validation?.maxLength}
+          min={field.validation?.min}
+          max={field.validation?.max}
           pattern={field.validation?.pattern}
+          aria-invalid={Boolean(error)}
         />
       )}
       {error && (

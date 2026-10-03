@@ -91,7 +91,15 @@
     "fixFieldErrors": "Please fix the highlighted fields before submitting.",
     "trackingMissingTitle": "This browser does not have your tracking number",
     "trackingMissingBody": "If you saved the number, open Track and enter it with the student's date of birth. If you did not save it, contact the school's admissions office. This page cannot recover the number.",
-    "schoolNameUnavailable": "School name could not be loaded"
+    "schoolNameUnavailable": "School name could not be loaded",
+    "invalidNumber": "Enter a valid number.",
+    "outOfRange": "Value is outside the allowed range.",
+    "tooShort": "Value is too short.",
+    "tooLong": "Value is too long.",
+    "invalidFormat": "Value does not match the required format.",
+    "copyTrackingNumber": "Copy tracking number",
+    "trackingNumberCopied": "Tracking number copied",
+    "copyFailed": "Copy failed, select the number manually."
   },
   "documents": {
     "title": "Upload Documents",
@@ -110,7 +118,8 @@
     "remove": "Remove",
     "reuploadHint": "re-upload required",
     "reuploadRequired": "{fileName} must be re-uploaded before submit",
-    "noneRequired": "No documents are required for this application."
+    "noneRequired": "No documents are required for this application.",
+    "uploadLabel": "Upload {label}"
   },
   "institutions": {
     "title": "Find Schools",
@@ -128,7 +137,8 @@
     "resultsCount": "{count} schools found",
     "serviceUnavailableTitle": "Service temporarily unavailable",
     "serviceUnavailableMessage": "We couldn't load schools right now. Please try again in a moment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "loadingMap": "Loading map…"
   },
   "tracking": {
     "title": "Track Your Application",

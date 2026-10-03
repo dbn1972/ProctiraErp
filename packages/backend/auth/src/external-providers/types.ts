@@ -29,6 +29,11 @@ export interface ExternalUserProfile {
   avatarUrl?: string;
   /** Raw claims/attributes from the provider */
   rawAttributes: Record<string, unknown>;
+  /**
+   * PRC-M589: true only when the IdP asserts the email is verified. Linking an
+   * external identity to an existing account by email requires this.
+   */
+  emailVerified?: boolean;
 }
 
 /**

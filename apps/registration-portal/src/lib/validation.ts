@@ -94,13 +94,115 @@ export function isValidTrackingNumber(trackingNumber: string): boolean {
   return /^REG-[A-Z0-9]{8}$/i.test(trackingNumber.trim());
 }
 
-/** Returns true if the input string is a valid YYYY-MM-DD calendar date. */
-export function isValidDateOfBirth(value: string): boolean {
+/** PRC-L018: oldest accepted applicant date of birth, in years before today. */
+export const MAX_APPLICANT_AGE_YEARS = 100;
+
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Latest selectable date of birth (today, UTC) for the `max` input attribute. */
+export function maxDateOfBirth(today: Date = new Date()): string {
+  return isoDay(today);
+}
+
+/** Earliest selectable date of birth for the `min` input attribute. */
+export function minDateOfBirth(
+  today: Date = new Date(),
+  maxAgeYears: number = MAX_APPLICANT_AGE_YEARS,
+): string {
+  const min = new Date(today.getTime());
+  min.setUTCFullYear(min.getUTCFullYear() - maxAgeYears);
+  return isoDay(min);
+}
+
+/**
+ * Returns true if the input is a valid YYYY-MM-DD calendar date that is not in
+ * the future and not older than `maxAgeYears` (PRC-L018).
+ */
+export function isValidDateOfBirth(
+  value: string,
+  options: { today?: Date; maxAgeYears?: number } = {},
+): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return false;
   // Round-trip check to reject impossible dates like 2024-02-31
-  return date.toISOString().slice(0, 10) === value;
+  if (date.toISOString().slice(0, 10) !== value) return false;
+  const today = options.today ?? new Date();
+  // ISO YYYY-MM-DD strings compare lexicographically in date order.
+  if (value > maxDateOfBirth(today)) return false;
+  if (value < minDateOfBirth(today, options.maxAgeYears ?? MAX_APPLICANT_AGE_YEARS)) return false;
+  return true;
+}
+
+/** PRC-L019: minimal shape of a published configurable field's rules. */
+export interface ConfigurableFieldRules {
+  id: string;
+  type: string;
+  validation?: {
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    pattern?: string;
+  };
+}
+
+export type CustomFieldErrorCode =
+  'invalid_number' | 'out_of_range' | 'too_short' | 'too_long' | 'invalid_format' | 'invalid_date';
+
+/**
+ * PRC-L019: enforce a published field's validation rules client-side.
+ * Empty values are left to the `required` check. Returns null when valid.
+ */
+export function validateCustomFieldValue(
+  field: ConfigurableFieldRules,
+  rawValue: string | undefined,
+): CustomFieldErrorCode | null {
+  const value = (rawValue ?? '').trim();
+  if (!value || field.type === 'checkbox' || field.type === 'file') return null;
+  const rules = field.validation ?? {};
+  if (field.type === 'number') {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 'invalid_number';
+    if (rules.min !== undefined && n < rules.min) return 'out_of_range';
+    if (rules.max !== undefined && n > rules.max) return 'out_of_range';
+    return null;
+  }
+  if (field.type === 'date') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(new Date(value).getTime())) {
+      return 'invalid_date';
+    }
+    return null;
+  }
+  if (rules.minLength !== undefined && value.length < rules.minLength) return 'too_short';
+  if (rules.maxLength !== undefined && value.length > rules.maxLength) return 'too_long';
+  if (rules.pattern) {
+    let re: RegExp | null = null;
+    try {
+      // Same semantics as the HTML `pattern` attribute: whole-value match.
+      re = new RegExp(`^(?:${rules.pattern})$`, 'u');
+    } catch {
+      re = null; // malformed pattern in config: let the server decide
+    }
+    if (re && !re.test(value)) return 'invalid_format';
+  }
+  return null;
+}
+
+/**
+ * PRC-L019: only send answers for fields in the current published form
+ * (stale keys from an older form version are dropped).
+ */
+export function configuredCustomFieldEntries(
+  answers: Record<string, string>,
+  fields: ReadonlyArray<{ id: string; type: string }>,
+): Array<{ fieldId: string; value: string }> {
+  const allowed = new Set(fields.filter((f) => f.type !== 'file').map((f) => f.id));
+  return Object.entries(answers)
+    .filter(([fieldId]) => allowed.has(fieldId))
+    .map(([fieldId, value]) => ({ fieldId, value }));
 }
 
 /** UUID v4 (or any RFC-4122 variant) used as institution identifiers. */

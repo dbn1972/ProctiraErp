@@ -283,6 +283,24 @@ export async function registerAuthRoutes(
         if (!user) {
           throw new InvalidRefreshTokenError('User not found for refresh token');
         }
+        // PRC-M584: a deactivated user or an invalidated/expired session cannot
+        // mint new tokens; kill the whole refresh chain when either is seen.
+        const session = user.isActive
+          ? await sessionService.validateSession(storedToken.sessionId)
+          : null;
+        if (!session || session.userId !== storedToken.userId) {
+          await tokenService.revokeAllSessionTokens(
+            storedToken.sessionId,
+            user.isActive ? 'Session no longer valid' : 'User deactivated',
+          );
+          return reply.status(401).send({
+            code: 'INVALID_REFRESH_TOKEN',
+            message: user.isActive
+              ? 'Session is no longer valid. Please re-authenticate.'
+              : 'Account is inactive',
+            statusCode: 401,
+          });
+        }
 
         const authUser: AuthUser = {
           userId: user.id,
@@ -295,7 +313,10 @@ export async function registerAuthRoutes(
         };
 
         // Perform token rotation (validates, revokes old, issues new)
-        const tokens = await tokenService.refreshTokenPair(refreshToken, authUser, request.ip);
+        // PRC-M584: the rotation chain never outlives the session.
+        const tokens = await tokenService.refreshTokenPair(refreshToken, authUser, request.ip, {
+          notAfter: session.expiresAt,
+        });
 
         return reply.status(200).send({ tokens });
       } catch (error: unknown) {

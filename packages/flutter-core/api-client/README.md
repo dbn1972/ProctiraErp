@@ -5,8 +5,11 @@ Hand-rolled Dart bindings for the ProctiraERP Unified Platform backend.
 The eventual goal is to generate this package directly from the aggregated
 OpenAPI document served by the API Gateway. Until that pipeline lands the types
 here are kept in sync with the Typebox schemas under
-`packages/backend/*/src/schemas.ts`. Run `bash make_clients.sh` to regenerate
-them once code generation is wired up.
+`packages/backend/*/src/schemas.ts`. Code generation is not implemented:
+`make_clients.sh` exits 1 on purpose. Every route the client calls is listed in
+`contract/client_routes.json`; `dart test` fails if the client drifts from that
+file and `apps/api-gateway/src/dart-client-contract.test.ts` fails if a listed
+route is not mounted on the gateway.
 
 ## Layout
 

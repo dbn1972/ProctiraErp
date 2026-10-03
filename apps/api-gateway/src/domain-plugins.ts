@@ -1101,7 +1101,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };
             }
           ).auditService;
-          if (!auditService) return;
+          // PRC-M466: a missing sink is a failed write, not a silent no-op.
+          if (!auditService) throw new Error('auditService is not registered');
           await auditService.recordAudit({
             tenantId: event.tenantId,
             entityType: event.entityType,
