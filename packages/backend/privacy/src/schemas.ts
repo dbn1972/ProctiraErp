@@ -78,7 +78,13 @@ export const CreateCorrectionRequestSchema = Type.Object({
   tenantId: Type.String({ minLength: 1 }),
   subjectType: Type.String({ minLength: 1 }),
   subjectId: Type.String({ minLength: 1 }),
-  fieldPath: Type.String({ minLength: 1, maxLength: 500 }),
+  // PRC-M322: dotted identifier only (e.g. `contact.email`); per-subject allow-list is enforced
+  // by the CorrectionApplier when one is configured.
+  fieldPath: Type.String({
+    minLength: 1,
+    maxLength: 200,
+    pattern: '^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*$',
+  }),
   currentValue: Type.Optional(Type.String({ maxLength: 4000 })),
   requestedValue: Type.String({ minLength: 1, maxLength: 4000 }),
   reason: Type.Optional(Type.String({ maxLength: 2000 })),

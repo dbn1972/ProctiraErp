@@ -11,6 +11,7 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 import type pg from 'pg';
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 
 import type {
   AnonymizationJobEntity,
@@ -509,6 +510,25 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
+  async redactCorrectionValuesForSubject(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<number> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE privacy_correction_requests SET
+           current_value = NULL,
+           requested_value = $4,
+           updated_at = NOW()
+         WHERE tenant_id = $1 AND subject_type = $2 AND subject_id = $3
+           AND (current_value IS NOT NULL OR requested_value <> $4)`,
+        [tenantId, subjectType, subjectId, CORRECTION_VALUE_REDACTED],
+      );
+      return Number(result.rowCount ?? 0);
+    });
+  }
   async findCorrectionRequestById(
     id: string,
     tenantId: string,

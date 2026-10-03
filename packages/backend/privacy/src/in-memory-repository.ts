@@ -1,3 +1,4 @@
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -175,6 +176,27 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     };
     this.corrections[idx] = updated;
     return updated;
+  }
+
+  async redactCorrectionValuesForSubject(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<number> {
+    let touched = 0;
+    this.corrections = this.corrections.map((c) => {
+      if (c.tenantId !== tenantId || c.subjectType !== subjectType || c.subjectId !== subjectId) {
+        return c;
+      }
+      touched += 1;
+      return {
+        ...c,
+        currentValue: null,
+        requestedValue: CORRECTION_VALUE_REDACTED,
+        updatedAt: new Date(),
+      };
+    });
+    return touched;
   }
 
   async findCorrectionRequestById(id: string, tenantId: string) {

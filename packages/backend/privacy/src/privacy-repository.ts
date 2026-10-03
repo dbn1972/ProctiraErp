@@ -96,6 +96,9 @@ export interface TenantOffboardJobEntity {
   updatedAt: Date;
 }
 
+/** PRC-M322: marker stored in place of erased/applied correction values (column is NOT NULL). */
+export const CORRECTION_VALUE_REDACTED = '[REDACTED]';
+
 /**
  * W1-SEC-06: every find/update-by-id takes tenantId and filters by it (IDOR fail-closed).
  */
@@ -160,6 +163,15 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<CorrectionRequestEntity | null>;
+  /**
+   * PRC-M322: erase the subject's correction PII (current value -> NULL, requested value ->
+   * redaction marker) for every correction row of the subject. Returns rows touched.
+   */
+  redactCorrectionValuesForSubject(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<number>;
   findCorrectionRequestById(id: string, tenantId: string): Promise<CorrectionRequestEntity | null>;
   listCorrectionRequests(tenantId: string, page?: ListPage): Promise<CorrectionRequestEntity[]>;
 

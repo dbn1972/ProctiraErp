@@ -14,11 +14,14 @@ import {
   NotFoundError,
   ValidationError,
 } from '@proctira/common';
+import { createHash } from 'node:crypto';
+
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { PrivacyAuditPort } from './privacy-audit.js';
 import { NoopPrivacyAuditPort } from './privacy-audit.js';
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -49,6 +52,15 @@ import {
 } from './subject-anonymizer.js';
 
 const logger = createLogger({ name: 'privacy-service' });
+
+/**
+ * PRC-M322: audit rows are immutable and never erased, so correction values are recorded only
+ * as a tenant-salted SHA-256 digest (proves which value without retaining the PII).
+ */
+function correctionValueDigest(tenantId: string, value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  return `sha256:${createHash('sha256').update(`${tenantId}\u0000${value}`).digest('hex')}`;
+}
 
 const ERASURE_TRANSITIONS: Record<ErasureStatus, readonly ErasureStatus[]> = {
   requested: ['under_review', 'rejected', 'cancelled'],
@@ -438,6 +450,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
         // PRC-M320: never claim completed; return to `approved` so execute can be retried.
         await this.revertErasureForRetry(job.erasureRequestId, tenantId, residualNote);
       } else {
+        // PRC-M322: correction rows hold the subject's PII too; erase them with the subject.
+        await this.repository.redactCorrectionValuesForSubject(
+          job.tenantId,
+          job.subjectType,
+          job.subjectId,
+        );
         await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
           status: 'completed',
           statusReason: 'Anonymization completed via durable worker',
@@ -533,7 +551,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
         subjectType: row.subjectType,
         subjectId: row.subjectId,
         fieldPath: row.fieldPath,
-        requestedValue: row.requestedValue,
+        requestedValueDigest: correctionValueDigest(row.tenantId, row.requestedValue),
         status: row.status,
       },
     });
@@ -582,11 +600,14 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
 
+    // PRC-M322: once applied the raw values are no longer needed; redact them at rest.
     const applied = await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: 'applied',
       reviewedBy: actorId,
       statusReason: statusReason ?? 'Correction applied',
       appliedAt: new Date(),
+      currentValue: null,
+      requestedValue: CORRECTION_VALUE_REDACTED,
     });
 
     await this.audit.record({
@@ -599,12 +620,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
       ipAddress: '0.0.0.0',
       beforeValues: {
         fieldPath: existing.fieldPath,
-        value: existing.currentValue,
+        valueDigest: correctionValueDigest(existing.tenantId, existing.currentValue),
         status: existing.status,
       },
       afterValues: {
         fieldPath: existing.fieldPath,
-        value: existing.requestedValue,
+        valueDigest: correctionValueDigest(existing.tenantId, existing.requestedValue),
         status: 'applied',
       },
       metadata: {

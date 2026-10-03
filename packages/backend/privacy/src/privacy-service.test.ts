@@ -204,8 +204,58 @@ describe('PrivacyService correction path with audit (W1-SEC-06)', () => {
       (e) => e.entityType === 'privacy_correction' && e.operation === 'UPDATE',
     );
     expect(applyAudit).toBeTruthy();
-    expect(applyAudit?.beforeValues).toMatchObject({ fieldPath: 'legalName', value: 'Jon' });
-    expect(applyAudit?.afterValues).toMatchObject({ fieldPath: 'legalName', value: 'John' });
+    expect(applyAudit?.beforeValues).toMatchObject({ fieldPath: 'legalName' });
+    expect(applyAudit?.afterValues).toMatchObject({ fieldPath: 'legalName' });
+    // PRC-M322: audit carries digests, never the raw values.
+    expect(String(applyAudit?.afterValues?.valueDigest)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const allAudit = JSON.stringify(audit.events);
+    expect(allAudit).not.toContain('John');
+    expect(allAudit).not.toContain('"Jon"');
+    // ...and the stored row no longer keeps the values after apply.
+    const stored = await service.getCorrectionRequest(req.id, TENANT_A);
+    expect(stored?.currentValue).toBeNull();
+    expect(stored?.requestedValue).toBe('[REDACTED]');
+  });
+
+  it('erasure of the subject redacts correction values (PRC-M322)', async () => {
+    const repository = new InMemoryPrivacyRepository();
+    const svc = new PrivacyService(repository, {
+      audit,
+      anonymizer: { anonymize: async () => ({ fieldsTouched: ['email'] }) },
+    });
+    const corr = await svc.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-9',
+      fieldPath: 'email',
+      currentValue: 'old@example.com',
+      requestedValue: 'secret-new@example.com',
+      requestedBy: 'parent-1',
+    });
+    const other = await svc.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-other',
+      fieldPath: 'email',
+      requestedValue: 'keep@example.com',
+      requestedBy: 'parent-1',
+    });
+    const er = await svc.createErasureRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-9',
+      requestedBy: 'parent-1',
+    });
+    await svc.transitionErasureRequest(er.id, TENANT_A, 'under_review', 'officer');
+    await svc.transitionErasureRequest(er.id, TENANT_A, 'approved', 'officer');
+    expect((await svc.executeErasure(er.id, TENANT_A, 'officer')).status).toBe('completed');
+    const redacted = await svc.getCorrectionRequest(corr.id, TENANT_A);
+    expect(redacted?.currentValue).toBeNull();
+    expect(redacted?.requestedValue).toBe('[REDACTED]');
+    expect((await svc.getCorrectionRequest(other.id, TENANT_A))?.requestedValue).toBe(
+      'keep@example.com',
+    );
+    expect(JSON.stringify(audit.events)).not.toContain('secret-new@example.com');
   });
 
   it('rejects apply when not approved', async () => {
