@@ -257,8 +257,9 @@ export async function requestGatePassAction(input: {
     .object({
       hostelId: UUID,
       studentId: UUID,
-      expectedOutAt: z.string().min(1),
-      expectedInAt: z.string().min(1),
+      // PRC-M478: explicit offset required; naive local strings are rejected.
+      expectedOutAt: z.string().datetime({ offset: true }),
+      expectedInAt: z.string().datetime({ offset: true }),
       reason: z.string().max(1000).optional(),
       requestedBy: z.enum(['resident', 'parent']).optional(),
     })
