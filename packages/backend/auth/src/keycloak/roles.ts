@@ -43,16 +43,28 @@ export function mapKeycloakRoles(
   return assignments;
 }
 
-export function extractKeycloakRoleNames(payload: {
-  realm_access?: { roles?: string[] };
-  resource_access?: Record<string, { roles?: string[] }>;
-  roles?: string[];
-}): string[] {
+/**
+ * PRC-M178: only trust realm roles (`realm_access.roles`) and client roles issued
+ * for *this* gateway client (`resource_access[clientId].roles`). Roles granted on
+ * other clients in the realm and the unpinned top-level `roles` claim are ignored
+ * so that e.g. `resource_access['other-app'].roles=['super-admin']` grants nothing.
+ */
+export function extractKeycloakRoleNames(
+  payload: {
+    realm_access?: { roles?: string[] };
+    resource_access?: Record<string, { roles?: string[] }>;
+    roles?: string[];
+  },
+  clientId?: string,
+): string[] {
   const names = new Set<string>();
-  for (const role of payload.roles ?? []) names.add(role);
   for (const role of payload.realm_access?.roles ?? []) names.add(role);
-  for (const client of Object.values(payload.resource_access ?? {})) {
-    for (const role of client.roles ?? []) names.add(role);
+  if (clientId) {
+    const access = payload.resource_access ?? {};
+    const client = Object.prototype.hasOwnProperty.call(access, clientId)
+      ? access[clientId]
+      : undefined;
+    for (const role of client?.roles ?? []) names.add(role);
   }
   return [...names];
 }

@@ -147,7 +147,7 @@ export async function verifyKeycloakAccessToken(
   }
 
   const tenantId = firstClaim(claims.tenant_id ?? claims.tenantId) ?? '';
-  const roleNames = extractKeycloakRoleNames(claims);
+  const roleNames = extractKeycloakRoleNames(claims, config.clientId);
   const displayName =
     claims.name ??
     [claims.given_name, claims.family_name].filter(Boolean).join(' ') ??
