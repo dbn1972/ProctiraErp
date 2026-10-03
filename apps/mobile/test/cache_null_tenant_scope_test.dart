@@ -37,23 +37,25 @@ void main() {
     await repo.insert(id: 'n-b', tenantId: 'tenant-b', title: 'B notice');
   }
 
-  test('notifications: null tenant returns nothing and changes nothing',
-      () async {
-    final NotificationRepository repo = NotificationRepository(
-      database: db,
-      tenantProvider: tenant,
-    );
-    await seedTwoTenants(repo);
-    await tenant.clear();
+  test(
+    'notifications: null tenant returns nothing and changes nothing',
+    () async {
+      final NotificationRepository repo = NotificationRepository(
+        database: db,
+        tenantProvider: tenant,
+      );
+      await seedTwoTenants(repo);
+      await tenant.clear();
 
-    expect(await repo.listAll(), isEmpty);
-    expect(await repo.markAllRead(), 0);
-    expect(await repo.deleteAll(), 0);
-    expect(await repo.markRead('n-a'), 0);
+      expect(await repo.listAll(), isEmpty);
+      expect(await repo.markAllRead(), 0);
+      expect(await repo.deleteAll(), 0);
+      expect(await repo.markRead('n-a'), 0);
 
-    final Database raw = await db.database;
-    expect(await raw.query('notifications_cache'), hasLength(2));
-  });
+      final Database raw = await db.database;
+      expect(await raw.query('notifications_cache'), hasLength(2));
+    },
+  );
 
   test('notifications: markRead ignores another tenant\'s id', () async {
     final NotificationRepository repo = NotificationRepository(
@@ -63,10 +65,9 @@ void main() {
     await seedTwoTenants(repo);
     expect(await repo.markRead('n-b'), 0);
     expect(await repo.markRead('n-a'), 1);
-    expect(
-      (await repo.listAll()).map((CachedNotification n) => n.id),
-      <String>['n-a'],
-    );
+    expect((await repo.listAll()).map((CachedNotification n) => n.id), <String>[
+      'n-a',
+    ]);
   });
 
   test('institutions: null tenant returns nothing', () async {

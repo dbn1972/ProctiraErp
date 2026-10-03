@@ -146,8 +146,10 @@ class InstitutionRepository {
   /// Page through the institutions list until exhausted and replace this
   /// tenant's cache with the result (PRC-M037). Throws on API failure so the
   /// screen can show an error with retry instead of an empty state.
-  Future<int> refreshAll({int pageSize = kMaxApiPageSize, int maxPages = 50})
-      async {
+  Future<int> refreshAll({
+    int pageSize = kMaxApiPageSize,
+    int maxPages = 50,
+  }) async {
     final InstitutionApi? api = _api;
     final String? tenantId = _scope(null);
     if (api == null || tenantId == null) return 0;
@@ -189,28 +191,29 @@ class InstitutionRepository {
     );
   }
 
-  Map<String, Object?> _row(String tenantId, Institution i) => <String, Object?>{
-      'id': i.id,
-      'tenant_id': tenantId,
-      'name': i.name,
-      'code': i.code,
-      'area_id': i.areaId,
-      'type': i.type,
-      'sector': i.sector,
-      'ownership': i.ownership,
-      'status': i.status,
-      'payload': jsonEncode(<String, dynamic>{
+  Map<String, Object?> _row(String tenantId, Institution i) =>
+      <String, Object?>{
         'id': i.id,
+        'tenant_id': tenantId,
         'name': i.name,
         'code': i.code,
-        'areaId': i.areaId,
+        'area_id': i.areaId,
         'type': i.type,
         'sector': i.sector,
         'ownership': i.ownership,
         'status': i.status,
-        'createdAt': i.createdAt,
-        'updatedAt': i.updatedAt,
-      }),
-      'updated_at': _now().millisecondsSinceEpoch,
-    };
+        'payload': jsonEncode(<String, dynamic>{
+          'id': i.id,
+          'name': i.name,
+          'code': i.code,
+          'areaId': i.areaId,
+          'type': i.type,
+          'sector': i.sector,
+          'ownership': i.ownership,
+          'status': i.status,
+          'createdAt': i.createdAt,
+          'updatedAt': i.updatedAt,
+        }),
+        'updated_at': _now().millisecondsSinceEpoch,
+      };
 }

@@ -27,16 +27,19 @@ void main() {
     );
   });
 
-  test('seal writes ciphertext, deletes the picker file, open decrypts', () async {
-    final File picked = File('${root.path}/IMG.jpg');
-    final Uint8List bytes = Uint8List.fromList(<int>[0xFF, 0xD8, 1, 2, 3]);
-    await picked.writeAsBytes(bytes);
-    final String path = await store.seal(picked);
-    expect(await picked.exists(), isFalse);
-    final String onDisk = await File(path).readAsString();
-    expect(onDisk, startsWith(CacheCrypto.cipherPrefix));
-    expect(await store.open(path), bytes);
-  });
+  test(
+    'seal writes ciphertext, deletes the picker file, open decrypts',
+    () async {
+      final File picked = File('${root.path}/IMG.jpg');
+      final Uint8List bytes = Uint8List.fromList(<int>[0xFF, 0xD8, 1, 2, 3]);
+      await picked.writeAsBytes(bytes);
+      final String path = await store.seal(picked);
+      expect(await picked.exists(), isFalse);
+      final String onDisk = await File(path).readAsString();
+      expect(onDisk, startsWith(CacheCrypto.cipherPrefix));
+      expect(await store.open(path), bytes);
+    },
+  );
 
   test('after upload success the file is removed', () async {
     final File picked = File('${root.path}/a.jpg')..writeAsBytesSync(<int>[1]);
@@ -57,10 +60,7 @@ void main() {
       (AuthState s) => s.status == AuthStatus.unauthenticated,
     );
     final Directory dir = Directory('${root.path}/pending_documents');
-    expect(
-      !await dir.exists() || dir.listSync().isEmpty,
-      isTrue,
-    );
+    expect(!await dir.exists() || dir.listSync().isEmpty, isTrue);
     await auth.close();
   });
 }

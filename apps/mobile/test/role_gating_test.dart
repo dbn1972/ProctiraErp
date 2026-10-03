@@ -81,7 +81,9 @@ void main() {
       ..registerSingleton<TenantProvider>(TenantProvider(storage))
       ..registerSingleton<SelectedStudentStore>(SelectedStudentStore(storage));
     final AuthBloc bloc = AuthBloc(secureStorage: storage);
-    bloc.emit(_auth(token)); // ignore: invalid_use_of_visible_for_testing_member
+    bloc.emit(
+      _auth(token),
+    ); // ignore: invalid_use_of_visible_for_testing_member
     addTearDown(() async {
       await bloc.close();
       await getIt.reset();

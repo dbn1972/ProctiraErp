@@ -174,8 +174,9 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9)
-                                  .withValues(alpha: 0.12),
+                              color: const Color(
+                                0xFF0EA5E9,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(

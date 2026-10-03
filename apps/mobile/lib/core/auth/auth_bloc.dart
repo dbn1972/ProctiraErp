@@ -44,8 +44,13 @@ class AuthLoggedIn extends AuthEvent {
   final String? displayName;
 
   @override
-  List<Object?> get props =>
-      <Object?>[userId, accessToken, refreshToken, email, displayName];
+  List<Object?> get props => <Object?>[
+    userId,
+    accessToken,
+    refreshToken,
+    email,
+    displayName,
+  ];
 }
 
 /// User explicitly logged out.
@@ -60,7 +65,10 @@ class AuthLogoutRequested extends AuthEvent {
 /// tenant reset) and then activates [tenantId]; the router sends the user
 /// to sign in against the new workspace.
 class AuthWorkspaceSwitchRequested extends AuthEvent {
-  const AuthWorkspaceSwitchRequested({required this.tenantId, this.displayName});
+  const AuthWorkspaceSwitchRequested({
+    required this.tenantId,
+    this.displayName,
+  });
 
   final String tenantId;
   final String? displayName;
@@ -76,11 +84,7 @@ class AuthWorkspaceSwitchRequested extends AuthEvent {
 enum AuthStatus { unknown, loading, authenticated, unauthenticated }
 
 class AuthState extends Equatable {
-  const AuthState({
-    required this.status,
-    this.userId,
-    this.accessToken,
-  });
+  const AuthState({required this.status, this.userId, this.accessToken});
 
   const AuthState.unknown() : this(status: AuthStatus.unknown);
   const AuthState.loading() : this(status: AuthStatus.loading);
@@ -118,14 +122,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     PushDeviceLifecycle? push,
     TenantProvider? tenantProvider,
     Future<void> Function()? purgeLocalFiles,
-  })  : _storage = secureStorage,
-        _purgeLocalFiles = purgeLocalFiles,
-        _tenantProvider = tenantProvider,
-        _push = push,
-        _database = database,
-        _authApi = authApi,
-        _selectedStudent = selectedStudent,
-        super(const AuthState.unknown()) {
+  }) : _storage = secureStorage,
+       _purgeLocalFiles = purgeLocalFiles,
+       _tenantProvider = tenantProvider,
+       _push = push,
+       _database = database,
+       _authApi = authApi,
+       _selectedStudent = selectedStudent,
+       super(const AuthState.unknown()) {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
     on<AuthLogoutRequested>(_onLogout);
@@ -155,11 +159,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         refresh != null &&
         refresh.isNotEmpty) {
       final String? userId = await _storage.readUserId();
-      emit(AuthState(
-        status: AuthStatus.authenticated,
-        userId: userId,
-        accessToken: access,
-      ));
+      emit(
+        AuthState(
+          status: AuthStatus.authenticated,
+          userId: userId,
+          accessToken: access,
+        ),
+      );
       _registerPush();
     } else {
       emit(const AuthState.unauthenticated());
@@ -176,11 +182,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       email: event.email,
       displayName: event.displayName,
     );
-    emit(AuthState(
-      status: AuthStatus.authenticated,
-      userId: event.userId,
-      accessToken: event.accessToken,
-    ));
+    emit(
+      AuthState(
+        status: AuthStatus.authenticated,
+        userId: event.userId,
+        accessToken: event.accessToken,
+      ),
+    );
     _registerPush();
   }
 

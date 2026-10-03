@@ -54,9 +54,9 @@ class InstitutionApi extends BaseApi {
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+      return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
     }
     return const <Map<String, dynamic>>[];
   }
@@ -71,17 +71,15 @@ class InstitutionApi extends BaseApi {
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+      return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
     }
     return const <Map<String, dynamic>>[];
   }
 
   /// Fetch contact information for an institution.
-  Future<Map<String, dynamic>> fetchContactInfo(
-    String institutionId,
-  ) async {
+  Future<Map<String, dynamic>> fetchContactInfo(String institutionId) async {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/$institutionId/contact',
       method: 'GET',

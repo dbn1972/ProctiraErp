@@ -42,8 +42,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _refresh() async {
     if (await _connectivity.isOnline()) {
       try {
-        final List<Map<String, dynamic>> remote =
-            await _deviceApi.listNotifications();
+        final List<Map<String, dynamic>> remote = await _deviceApi
+            .listNotifications();
         if (remote.isNotEmpty) {
           await _repository.replaceWith(remote);
         }
@@ -91,74 +91,78 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         onRefresh: _refresh,
         child: FutureBuilder<List<CachedNotification>>(
           future: _future,
-          builder: (BuildContext context,
-              AsyncSnapshot<List<CachedNotification>> snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final List<CachedNotification> items =
-                snapshot.data ?? const <CachedNotification>[];
-            if (items.isEmpty) {
-              return ListView(
-                children: <Widget>[
-                  const SizedBox(height: 120),
-                  Center(
-                    child: Column(
-                      children: <Widget>[
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary
-                                .withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.notifications_none,
-                            size: 36,
-                            color: theme.colorScheme.primary,
-                          ),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<CachedNotification>> snapshot,
+              ) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final List<CachedNotification> items =
+                    snapshot.data ?? const <CachedNotification>[];
+                if (items.isEmpty) {
+                  return ListView(
+                    children: <Widget>[
+                      const SizedBox(height: 120),
+                      Center(
+                        child: Column(
+                          children: <Widget>[
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.12,
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.notifications_none,
+                                size: 36,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No notifications yet',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Pull down to refresh.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No notifications yet',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Pull down to refresh.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (BuildContext context, int index) {
-                final CachedNotification item = items[index];
-                final DateTime when = DateTime.fromMillisecondsSinceEpoch(
-                  item.receivedAt,
-                );
-                final (Color tint, IconData icon) = _styleFor(item.type);
-                return _NotificationCard(
-                  icon: icon,
-                  tint: tint,
-                  title: item.title ?? 'Notification',
-                  body: item.body ?? '',
-                  time: _relativeTime(when),
-                  unread: !item.read,
-                  onTap: () => _onTap(item),
+                      ),
+                    ],
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (BuildContext context, int index) {
+                    final CachedNotification item = items[index];
+                    final DateTime when = DateTime.fromMillisecondsSinceEpoch(
+                      item.receivedAt,
+                    );
+                    final (Color tint, IconData icon) = _styleFor(item.type);
+                    return _NotificationCard(
+                      icon: icon,
+                      tint: tint,
+                      title: item.title ?? 'Notification',
+                      body: item.body ?? '',
+                      time: _relativeTime(when),
+                      unread: !item.read,
+                      onTap: () => _onTap(item),
+                    );
+                  },
                 );
               },
-            );
-          },
         ),
       ),
     );
@@ -169,10 +173,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'ATTENDANCE_THRESHOLD':
         return (const Color(0xFF10B981), Icons.fact_check_outlined);
       case 'WORKFLOW_APPROVAL':
-        return (
-          const Color(0xFF4F46E5),
-          Icons.assignment_turned_in_outlined
-        );
+        return (const Color(0xFF4F46E5), Icons.assignment_turned_in_outlined);
       case 'REPORT_READY':
         return (const Color(0xFF8B5CF6), Icons.insert_chart_outlined);
       default:
@@ -217,9 +218,7 @@ class _NotificationCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
-      color: unread
-          ? theme.colorScheme.primary.withValues(alpha: 0.06)
-          : null,
+      color: unread ? theme.colorScheme.primary.withValues(alpha: 0.06) : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -244,8 +243,7 @@ class _NotificationCard extends StatelessWidget {
                     Text(
                       title,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight:
-                            unread ? FontWeight.w700 : FontWeight.w600,
+                        fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
                       ),
                     ),
                     if (body.isNotEmpty) ...<Widget>[

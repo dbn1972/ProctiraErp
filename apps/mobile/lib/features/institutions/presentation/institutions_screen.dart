@@ -123,90 +123,98 @@ class _InstitutionsScreenState extends State<InstitutionsScreen> {
         onRefresh: () => _refresh(),
         child: FutureBuilder<List<CachedInstitution>>(
           future: _future,
-          builder: (BuildContext context,
-              AsyncSnapshot<List<CachedInstitution>> snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final List<CachedInstitution> items =
-                snapshot.data ?? const <CachedInstitution>[];
-            if (items.isEmpty && _error != null) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  const SizedBox(height: 80),
-                  _errorBanner(theme),
-                ],
-              );
-            }
-            if (items.isEmpty) {
-              return ListView(
-                children: const <Widget>[
-                  SizedBox(height: 120),
-                  Center(
-                    child: Column(
-                      children: <Widget>[
-                        Icon(Icons.school_outlined, size: 56),
-                        SizedBox(height: 12),
-                        Text('No institutions cached.'),
-                        SizedBox(height: 4),
-                        Text('Pull down to fetch the latest data.'),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-            final String q = _query.trim().toLowerCase();
-            final List<CachedInstitution> filtered = q.isEmpty
-                ? items
-                : items.where((CachedInstitution i) {
-                    return i.name.toLowerCase().contains(q) ||
-                        (i.code?.toLowerCase().contains(q) ?? false);
-                  }).toList(growable: false);
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: <Widget>[
-                if (_error != null) ...<Widget>[
-                  _errorBanner(theme),
-                  const SizedBox(height: 12),
-                ] else if (_offline) ...<Widget>[
-                  const OfflineDataBanner(),
-                  const SizedBox(height: 12),
-                ],
-                TextField(
-                  controller: _searchCtrl,
-                  onChanged: (String value) => setState(() => _query = value),
-                  decoration: const InputDecoration(
-                    hintText: 'Search by name or code',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (filtered.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 80),
-                    child: Center(
-                      child: Text(
-                        'No institutions match "$_query".',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<CachedInstitution>> snapshot,
+              ) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final List<CachedInstitution> items =
+                    snapshot.data ?? const <CachedInstitution>[];
+                if (items.isEmpty && _error != null) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: <Widget>[
+                      const SizedBox(height: 80),
+                      _errorBanner(theme),
+                    ],
+                  );
+                }
+                if (items.isEmpty) {
+                  return ListView(
+                    children: const <Widget>[
+                      SizedBox(height: 120),
+                      Center(
+                        child: Column(
+                          children: <Widget>[
+                            Icon(Icons.school_outlined, size: 56),
+                            SizedBox(height: 12),
+                            Text('No institutions cached.'),
+                            SizedBox(height: 4),
+                            Text('Pull down to fetch the latest data.'),
+                          ],
                         ),
                       ),
+                    ],
+                  );
+                }
+                final String q = _query.trim().toLowerCase();
+                final List<CachedInstitution> filtered = q.isEmpty
+                    ? items
+                    : items
+                          .where((CachedInstitution i) {
+                            return i.name.toLowerCase().contains(q) ||
+                                (i.code?.toLowerCase().contains(q) ?? false);
+                          })
+                          .toList(growable: false);
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: <Widget>[
+                    if (_error != null) ...<Widget>[
+                      _errorBanner(theme),
+                      const SizedBox(height: 12),
+                    ] else if (_offline) ...<Widget>[
+                      const OfflineDataBanner(),
+                      const SizedBox(height: 12),
+                    ],
+                    TextField(
+                      controller: _searchCtrl,
+                      onChanged: (String value) =>
+                          setState(() => _query = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Search by name or code',
+                        prefixIcon: Icon(Icons.search),
+                      ),
                     ),
-                  )
-                else
-                  ...filtered.map((CachedInstitution institution) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _InstitutionCard(
-                          institution: institution,
-                          onTap: () => context
-                              .push('/institutions/${institution.id}'),
+                    const SizedBox(height: 16),
+                    if (filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 80),
+                        child: Center(
+                          child: Text(
+                            'No institutions match "$_query".',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ),
-                      )),
-              ],
-            );
-          },
+                      )
+                    else
+                      ...filtered.map(
+                        (CachedInstitution institution) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _InstitutionCard(
+                            institution: institution,
+                            onTap: () =>
+                                context.push('/institutions/${institution.id}'),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
         ),
       ),
     );

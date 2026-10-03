@@ -38,10 +38,7 @@ class SecureStorage {
       return Uint8List.fromList(base64Decode(existing));
     }
     final Uint8List fresh = generateCacheMasterKey();
-    await _storage.write(
-      key: cacheMasterKeyKey,
-      value: base64Encode(fresh),
-    );
+    await _storage.write(key: cacheMasterKeyKey, value: base64Encode(fresh));
     return fresh;
   }
 
@@ -103,7 +100,10 @@ class SecureStorage {
 
   Future<String?> readTenantName() => _storage.read(key: tenantNameKey);
 
-  Future<void> writeTenant({required String tenantId, String? displayName}) async {
+  Future<void> writeTenant({
+    required String tenantId,
+    String? displayName,
+  }) async {
     await _storage.write(key: tenantIdKey, value: tenantId);
     if (displayName != null) {
       await _storage.write(key: tenantNameKey, value: displayName);
