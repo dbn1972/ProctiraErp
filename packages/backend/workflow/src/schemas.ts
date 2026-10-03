@@ -307,6 +307,10 @@ export const WorkflowInstanceListQuerySchema = Type.Object({
   status: Type.Optional(
     Type.Union([Type.Literal('ACTIVE'), Type.Literal('COMPLETED'), Type.Literal('CANCELLED')]),
   ),
+  // PRC-M491: caller-scoped inbox filters (evaluated server-side).
+  mine: Type.Optional(Type.String({ description: "'true' = only instances assigned to me" })),
+  priority: Type.Optional(Type.String({ description: 'high | normal | low' })),
+  slaStatus: Type.Optional(Type.String({ description: 'on_track | at_risk | overdue' })),
 });
 
 export type WorkflowInstanceListQuery = Static<typeof WorkflowInstanceListQuerySchema>;

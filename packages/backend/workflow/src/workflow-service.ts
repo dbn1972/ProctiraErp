@@ -20,6 +20,14 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  filterVisibleInstances,
+  isAssignee,
+  type TransitionActor,
+  type VisibilityOptions,
+} from './instance-visibility.js';
+
+export { isAssignee, type TransitionActor } from './instance-visibility.js';
 
 import type {
   WorkflowRepository,
@@ -405,6 +413,47 @@ export class WorkflowService {
     return this.repository.listInstances(tenantId, filter, pagination);
   }
 
+  /**
+   * PRC-M491: caller-scoped instance list. Loads the filtered set (bounded), applies
+   * entity-type visibility, `mine` assignee matching and priority/SLA filters, then
+   * paginates so `totalItems` matches the filtered result.
+   */
+  async listInstancesForActor(
+    tenantId: string,
+    filter: WorkflowInstanceFilter,
+    pagination: PaginationOptions,
+    actor: TransitionActor,
+    options: VisibilityOptions = {},
+  ): Promise<PaginatedResult<WorkflowInstanceEntity>> {
+    const MAX_SCAN = 5000;
+    const CHUNK = 500;
+    const all: WorkflowInstanceEntity[] = [];
+    for (let page = 1; all.length < MAX_SCAN; page += 1) {
+      const chunk = await this.repository.listInstances(tenantId, filter, { page, pageSize: CHUNK });
+      all.push(...chunk.data);
+      if (chunk.data.length < CHUNK || page >= chunk.meta.totalPages) break;
+    }
+    const definitions = new Map<string, WorkflowDefinitionEntity>();
+    if (options.mine) {
+      for (const id of new Set(all.map((i) => i.workflowDefinitionId))) {
+        const def = await this.repository.findDefinitionById(id, tenantId);
+        if (def) definitions.set(id, def);
+      }
+    }
+    const visible = filterVisibleInstances(all, definitions, actor, options);
+    const page = Math.max(1, pagination.page);
+    const pageSize = Math.max(1, pagination.pageSize);
+    return {
+      data: visible.slice((page - 1) * pageSize, page * pageSize),
+      meta: {
+        page,
+        pageSize,
+        totalItems: visible.length,
+        totalPages: Math.ceil(visible.length / pageSize),
+      },
+    };
+  }
+
   // ─── Private Helpers ─────────────────────────────────────────────────────
 
   /**
@@ -477,22 +526,4 @@ export class WorkflowService {
       }
     }
   }
-}
-
-/** PRC-M490: authenticated caller performing a transition over HTTP. */
-export interface TransitionActor {
-  id: string;
-  roles: readonly string[];
-}
-/**
- * PRC-M490: does `actor` match the state's assignee rule? `area_role` is matched by role
- * name (fail closed) because area-hierarchy resolution is not available at this layer.
- */
-export function isAssignee(
-  state: { assigneeType: 'role' | 'user' | 'area_role'; assigneeId: string },
-  actor: TransitionActor,
-): boolean {
-  if (state.assigneeType === 'user') return state.assigneeId === actor.id;
-  const wanted = state.assigneeId.toLowerCase();
-  return actor.roles.some((r) => r.toLowerCase() === wanted);
 }
