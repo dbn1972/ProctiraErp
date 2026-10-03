@@ -16,6 +16,7 @@ vi.mock('../../_components/badges', () => ({
   SubmissionPill: () => null,
 }));
 vi.mock('../../_components/assignment-lifecycle', () => ({ AssignmentLifecycle: () => null }));
+vi.mock('@/lib/auth/route-write-guard', () => ({ canWrite: vi.fn(async () => true) }));
 vi.mock('../../_components/depth-grade-forms', () => ({
   AssignmentFileForm: () => null,
   RubricGradeForm: () => null,
