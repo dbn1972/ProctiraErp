@@ -227,14 +227,10 @@ describe('Theme Routes', () => {
       });
       const revision = publishResponse.json();
 
-      // Update and publish again
+      // Change tokens (published themes are not editable via PUT) and publish again
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await app.inject({
-        method: 'PUT',
-        url: `/themes/${created.id}`,
-        payload: { tokens: newTokens },
-      });
+      await repository.updateTheme(created.id, { tokens: newTokens });
       await app.inject({
         method: 'POST',
         url: `/themes/${created.id}/publish`,

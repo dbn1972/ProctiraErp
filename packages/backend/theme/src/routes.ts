@@ -407,6 +407,7 @@ export async function registerThemeRoutes(
           tenantId,
           paramsResult.data.themeId,
           bodyResult.data,
+          getActor(request),
         );
         return reply.status(200).send(formatThemeResponse(theme));
       } catch (error: unknown) {

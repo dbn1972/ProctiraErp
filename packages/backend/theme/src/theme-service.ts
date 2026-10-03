@@ -107,10 +107,16 @@ export class ThemeService {
   /**
    * Update a theme's tokens, assets, or metadata.
    * Only draft themes can be updated directly.
-   * Published themes must be updated then re-published.
+   * Published/archived themes are rejected with 409 (PRC-M392): editing them would
+   * change live tokens without a revision and break rollback/audit lineage.
    */
   async update(tenantId: string, themeId: string, input: UpdateThemeInput): Promise<ThemeEntity> {
     const theme = await this.getThemeForTenant(tenantId, themeId);
+    if (theme.status !== 'draft') {
+      throw new ConflictError(
+        `Theme ${themeId} is ${theme.status}; only draft themes can be updated`,
+      );
+    }
 
     const updates: Partial<Pick<ThemeEntity, 'name' | 'description' | 'tokens' | 'assets'>> = {};
 
@@ -195,31 +201,54 @@ export class ThemeService {
 
   /**
    * Rollback a theme to a previous revision.
-   * Restores the tokens and assets from the specified revision.
+   * Restores the tokens and assets from the specified revision, re-validates
+   * accessibility (rules may be stricter than when the revision was published)
+   * and records the rollback as a NEW revision (N+1) so history, audit and
+   * currentRevision stay consistent (PRC-M392).
    */
   async rollback(
     tenantId: string,
     themeId: string,
     input: RollbackThemeInput,
+    actor = 'system',
   ): Promise<ThemeEntity> {
-    const theme = await this.getThemeForTenant(tenantId, themeId);
-
+    await this.getThemeForTenant(tenantId, themeId);
     // Find the target revision
     const revision = await this.repository.findRevisionById(input.revisionId);
     if (!revision || revision.themeId !== themeId) {
       throw new NotFoundError(`Revision not found: ${input.revisionId}`);
     }
-
+    const accessibilityResult = validateAccessibility(revision.tokens);
+    if (!accessibilityResult.valid) {
+      const errorMessages = accessibilityResult.issues
+        .filter((i) => i.severity === 'error')
+        .map((i) => i.message)
+        .join('; ');
+      throw new BusinessRuleError(
+        `Cannot rollback theme: accessibility validation failed: ${errorMessages}`,
+      );
+    }
+    const nextRevision = (await this.repository.getLatestRevisionNumber(themeId)) + 1;
+    const reason = input.reason ? `: ${input.reason}` : '';
+    await this.repository.createRevision({
+      id: uuidv4(),
+      themeId,
+      revisionNumber: nextRevision,
+      tokens: revision.tokens,
+      assets: revision.assets,
+      commitMessage: `Rollback to revision ${revision.revisionNumber}${reason}`.slice(0, 500),
+      publishedBy: actor,
+      publishedAt: new Date(),
+    });
     // Restore tokens and assets from the revision
     const updated = await this.repository.updateTheme(themeId, {
       tokens: revision.tokens,
       assets: revision.assets,
-      currentRevision: revision.revisionNumber,
+      status: 'published',
+      currentRevision: nextRevision,
     });
-
     return updated;
   }
-
   /**
    * Generate a preview of the theme with accessibility validation.
    * Does not modify the theme state.
