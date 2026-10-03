@@ -5,7 +5,8 @@
 import { isProductionNodeEnv } from '@proctira/common/node-env';
 
 import { InMemorySearchIndex } from './adapters/in-memory-search-index.js';
-import type { SearchIndexAdapter, SearchIndexConfig } from './types.js';
+import { PostgresSearchIndex } from './adapters/postgres-search-index.js';
+import type { SearchIndexAdapter, SearchIndexConfig, SearchPgPoolLike } from './types.js';
 
 /**
  * Create a SearchIndexAdapter from configuration.
@@ -18,9 +19,13 @@ export function createSearchIndex(
     case 'memory':
       return new InMemorySearchIndex();
     case 'postgres':
-      throw new Error(
-        'Postgres search index adapter is not implemented yet — use adapter: "memory" or wire OpenSearch/pg tsvector in a follow-up slice.',
-      );
+      // PRC-L494: tsvector adapter on db/sql/065 under RLS; needs an injected pool.
+      if (!config.pool) {
+        throw new Error(
+          'Postgres search index requires an injected pg pool: createSearchIndex({ adapter: "postgres", pool })',
+        );
+      }
+      return new PostgresSearchIndex(config.pool);
     default: {
       const exhaustive: never = config;
       throw new Error(
@@ -35,7 +40,7 @@ export function createSearchIndex(
  * PRC-L494: refuses the in-memory stub when NODE_ENV=production (fail fast instead
  * of silently serving a per-process, non-durable index).
  */
-export function createSearchIndexFromEnv(): SearchIndexAdapter {
+export function createSearchIndexFromEnv(pool?: SearchPgPoolLike): SearchIndexAdapter {
   const adapter = process.env.SEARCH_INDEX_ADAPTER?.trim().toLowerCase();
   if (!adapter || adapter === 'memory') {
     if (isProductionNodeEnv(process.env.NODE_ENV)) {
@@ -50,7 +55,7 @@ export function createSearchIndexFromEnv(): SearchIndexAdapter {
     if (!connectionUrl) {
       throw new Error('DATABASE_URL is required when SEARCH_INDEX_ADAPTER=postgres');
     }
-    return createSearchIndex({ adapter: 'postgres', connectionUrl });
+    return createSearchIndex({ adapter: 'postgres', connectionUrl, pool });
   }
   throw new Error(`Unknown SEARCH_INDEX_ADAPTER: ${adapter}`);
 }
