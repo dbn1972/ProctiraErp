@@ -9,6 +9,8 @@
  * 5. Import Confirmation (final results)
  *
  * Wired to the student bulk import API: POST /api/v1/students/import
+ * (PRC-H093: responses are mapped through ./import-contract — the server
+ * returns ImportResult / ImportProgress, not the wizard view model).
  *
  * _Requirements: 6.7, 6.8, 19.2, 19.5_
  * _Design: A, F, K_
@@ -23,18 +25,19 @@ import { browserGatewayFetch } from '@/lib/api/browser-gateway';
 import { ColumnMappingStep } from './ColumnMappingStep';
 import { DuplicateResolutionStep } from './DuplicateResolutionStep';
 import { FileUploadStep } from './FileUploadStep';
+import {
+  collapseDuplicateResolution,
+  isServerImportProgress,
+  pollImportJob,
+  toImportResult,
+  toValidationResult,
+  type ServerImportProgress,
+  type ServerImportResult,
+} from './import-contract';
 import { ImportConfirmationStep } from './ImportConfirmationStep';
 import { StepIndicator } from './StepIndicator';
 import { STUDENT_TARGET_FIELDS } from './studentFields';
-import type {
-  ColumnMapping,
-  DuplicateMatch,
-  DuplicateResolution,
-  ImportResult,
-  ImportWizardState,
-  ImportWizardStep,
-  ValidationResult,
-} from './types';
+import type { DuplicateResolution, ImportWizardState, ImportWizardStep } from './types';
 import { ValidationReviewStep } from './ValidationReviewStep';
 
 const ACCEPTED_FILE_TYPES = ['.xlsx', '.xls', '.csv'];
@@ -75,19 +78,17 @@ export function ImportWizard() {
       formData.append('file', file);
       formData.append('mode', 'validate'); // dry-run validation
 
-      const result = await browserGatewayFetch<ValidationResult>('/students/import/validate', {
+      const server = await browserGatewayFetch<ServerImportResult>('/students/import/validate', {
         method: 'POST',
         body: formData,
       });
+      const result = toValidationResult(server);
 
       setState((prev) => ({
         ...prev,
         validationResult: result,
         mappings: result.columnMappings,
-        duplicates: result.duplicates.map((d) => ({
-          ...d,
-          resolution: 'unresolved' as DuplicateResolution,
-        })),
+        duplicates: result.duplicates,
         step: 'mapping',
         isProcessing: false,
       }));
@@ -190,6 +191,13 @@ export function ImportWizard() {
   const handleImport = useCallback(async () => {
     if (!state.file) return;
 
+    // PRC-H093: the API takes one `duplicateResolution` for every duplicate.
+    const collapsed = collapseDuplicateResolution(state.duplicates);
+    if ('error' in collapsed) {
+      setError(collapsed.error);
+      return;
+    }
+
     setState((prev) => ({
       ...prev,
       step: 'confirmation',
@@ -200,26 +208,25 @@ export function ImportWizard() {
     try {
       const formData = new FormData();
       formData.append('file', state.file);
-      formData.append('mappings', JSON.stringify(state.mappings));
-      formData.append(
-        'duplicateResolutions',
-        JSON.stringify(
-          state.duplicates.map((d) => ({
-            importRow: d.importRow,
-            existingRecordId: d.existingRecord.id,
-            resolution: d.resolution,
-          })),
-        ),
-      );
+      formData.append('duplicateResolution', collapsed.resolution);
 
-      const result = await browserGatewayFetch<ImportResult>('/students/import', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await browserGatewayFetch<ServerImportResult | ServerImportProgress>(
+        '/students/import',
+        { method: 'POST', body: formData },
+      );
+      // 202 + jobId for async / >1000-row imports: poll the tenant-scoped job.
+      const server = isServerImportProgress(response)
+        ? await pollImportJob(response.jobId, (jobId) =>
+            browserGatewayFetch<ServerImportProgress>(
+              `/students/import/${encodeURIComponent(jobId)}`,
+              { method: 'GET' },
+            ),
+          )
+        : response;
 
       setState((prev) => ({
         ...prev,
-        importResult: result,
+        importResult: toImportResult(server, collapsed.resolution),
         isProcessing: false,
       }));
     } catch (err) {
