@@ -14,11 +14,15 @@ import type {
   PublicationResult,
   AcademicRecordUpdate,
   ResultAnalysis,
+  PublicationVersion,
+  SavePublicationOptions,
 } from './result-repository.js';
 import {
   MARKS_LOCKED_MESSAGE,
   fingerprintCandidates,
   mergeSubjectResults,
+  nextPublicationVersion,
+  publicationPayloadSha256,
 } from './result-repository.js';
 
 function key(tenantId: string, examinationId: string): string {
@@ -27,6 +31,7 @@ function key(tenantId: string, examinationId: string): string {
 export class InMemoryResultRepository implements ResultRepository {
   private candidates: Map<string, ExaminationCandidate[]> = new Map();
   private publicationResults: Map<string, PublicationResult> = new Map();
+  private publicationVersions: Map<string, PublicationVersion[]> = new Map();
   private academicRecords: Array<AcademicRecordUpdate & { tenantId: string }> = [];
   private resultAnalyses: Map<string, ResultAnalysis> = new Map();
 
@@ -89,7 +94,7 @@ export class InMemoryResultRepository implements ResultRepository {
 
   async savePublicationResult(
     result: PublicationResult,
-    options: { candidatesFingerprint?: string } = {},
+    options: SavePublicationOptions = {},
   ): Promise<void> {
     if (options.candidatesFingerprint !== undefined) {
       const current = this.candidates.get(key(result.tenantId, result.examinationId)) ?? [];
@@ -97,7 +102,29 @@ export class InMemoryResultRepository implements ResultRepository {
         throw new ConflictError('Marks changed while results were being published; retry');
       }
     }
-    this.publicationResults.set(key(result.tenantId, result.examinationId), result);
+    const k = key(result.tenantId, result.examinationId);
+    const history = this.publicationVersions.get(k) ?? [];
+    const next = nextPublicationVersion(history.at(-1)?.version ?? null, options.reason);
+    const payloadJson = JSON.stringify(result);
+    history.push({
+      examinationId: result.examinationId,
+      tenantId: result.tenantId,
+      ...next,
+      publishedAt: result.publishedAt,
+      publishedBy: options.publishedBy ?? null,
+      payloadSha256: publicationPayloadSha256(payloadJson),
+      payload: structuredClone(result),
+    });
+    this.publicationVersions.set(k, history);
+    this.publicationResults.set(k, result);
+  }
+  async listPublicationVersions(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<PublicationVersion[]> {
+    return (this.publicationVersions.get(key(tenantId, examinationId)) ?? []).map((v) =>
+      structuredClone(v),
+    );
   }
 
   async getPublicationResult(
@@ -123,6 +150,7 @@ export class InMemoryResultRepository implements ResultRepository {
   clear(): void {
     this.candidates.clear();
     this.publicationResults.clear();
+    this.publicationVersions.clear();
     this.academicRecords = [];
     this.resultAnalyses.clear();
   }

@@ -95,6 +95,51 @@ export interface PublicationResult {
   durationMs: number;
 }
 
+/** PRC-H057: why a publication version was written (db CHECK on reason). */
+export type PublicationVersionReason =
+  | 'initial'
+  | 'double_entry_resolution'
+  | 're_evaluation'
+  | 'correction';
+/** PRC-H057: one immutable row of examination_publication_versions. */
+export interface PublicationVersion {
+  examinationId: string;
+  tenantId: string;
+  version: number;
+  reason: PublicationVersionReason;
+  supersedesVersion: number | null;
+  publishedAt: Date;
+  publishedBy: string | null;
+  payloadSha256: string;
+  payload: PublicationResult;
+}
+export interface SavePublicationOptions {
+  /** PRC-M239: lock + 409 if marks changed since this snapshot fingerprint. */
+  candidatesFingerprint?: string;
+  /**
+   * PRC-H057: version reason. Defaults to 'initial' for the first version and
+   * 'correction' for any later one.
+   */
+  reason?: PublicationVersionReason;
+  publishedBy?: string | null;
+}
+/** PRC-H057: next version number and reason for an append. */
+export function nextPublicationVersion(
+  latest: number | null,
+  reason: PublicationVersionReason | undefined,
+): { version: number; supersedesVersion: number | null; reason: PublicationVersionReason } {
+  const version = (latest ?? 0) + 1;
+  return {
+    version,
+    supersedesVersion: version === 1 ? null : version - 1,
+    // The first version is always 'initial' (db CHECK pairs version 1 with no supersedes).
+    reason: version === 1 ? 'initial' : reason && reason !== 'initial' ? reason : 'correction',
+  };
+}
+/** PRC-H057: stable sha256 of the stored JSON payload. */
+export function publicationPayloadSha256(payloadJson: string): string {
+  return createHash('sha256').update(payloadJson).digest('hex');
+}
 /**
  * Score distribution bucket for analysis.
  */
@@ -186,11 +231,18 @@ export interface ResultRepository {
    */
   savePublicationResult(
     result: PublicationResult,
-    options?: { candidatesFingerprint?: string },
+    options?: SavePublicationOptions,
   ): Promise<void>;
 
   /** Get publication result for an examination */
   getPublicationResult(examinationId: string, tenantId: string): Promise<PublicationResult | null>;
+
+  /**
+   * PRC-H057: append-only publication history (oldest first). Every
+   * savePublicationResult appends one version in the same transaction as the
+   * current-snapshot upsert, so a republish never loses the previous result.
+   */
+  listPublicationVersions(examinationId: string, tenantId: string): Promise<PublicationVersion[]>;
 
   /** Update student academic records in batch */
   updateAcademicRecords(tenantId: string, updates: AcademicRecordUpdate[]): Promise<void>;

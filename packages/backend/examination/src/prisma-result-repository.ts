@@ -25,14 +25,19 @@ import type {
   CandidateSubjectResult,
   ExaminationCandidate,
   PublicationResult,
+  PublicationVersion,
+  PublicationVersionReason,
   ResultAnalysis,
   ResultRepository,
+  SavePublicationOptions,
 } from './result-repository.js';
 import {
   MARKS_LOCKED_MESSAGE,
   UNKNOWN_AREA_ID,
   fingerprintCandidates,
   mergeSubjectResults,
+  nextPublicationVersion,
+  publicationPayloadSha256,
 } from './result-repository.js';
 
 type Tx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
@@ -79,6 +84,54 @@ function rowToCandidate(row: {
   };
 }
 
+interface PublicationVersionRow {
+  version: number;
+  reason: PublicationVersionReason;
+  supersedes_version: number | null;
+  published_at: Date | string;
+  published_by: string | null;
+  payload: unknown;
+  payload_sha256: string | null;
+}
+
+/**
+ * PRC-H057: append the next immutable publication version on the caller's
+ * transaction. The caller holds the examination row lock, which serialises
+ * concurrent publishes so version numbers never collide; the PK
+ * (tenant, exam, version) is the backstop.
+ */
+async function appendPublicationVersion(
+  tx: Tx,
+  result: PublicationResult,
+  payload: Prisma.InputJsonValue,
+  options: SavePublicationOptions,
+): Promise<void> {
+  const latest = await tx.$queryRawUnsafe<Array<{ version: number | null }>>(
+    `SELECT max(version) AS version FROM examination_publication_versions
+      WHERE tenant_id = $1::uuid AND examination_id = $2::uuid`,
+    result.tenantId,
+    result.examinationId,
+  );
+  const latestVersion = latest[0]?.version == null ? null : Number(latest[0].version);
+  const next = nextPublicationVersion(latestVersion, options.reason);
+  const payloadJson = JSON.stringify(payload);
+  await tx.$executeRawUnsafe(
+    `INSERT INTO examination_publication_versions
+       (tenant_id, examination_id, version, reason, supersedes_version,
+        published_at, published_by, payload, payload_sha256)
+     VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9)`,
+    result.tenantId,
+    result.examinationId,
+    next.version,
+    next.reason,
+    next.supersedesVersion,
+    result.publishedAt,
+    options.publishedBy ?? null,
+    payloadJson,
+    publicationPayloadSha256(payloadJson),
+  );
+}
+
 /** Serialize an aggregate (with Date fields) to a JSON-safe payload. */
 function toJsonPayload(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -92,20 +145,8 @@ export class PrismaResultRepository implements ResultRepository {
       const rows = await tx.examinationCandidate.findMany({
         where: { examinationId, tenantId },
       });
-      return rows.map((row) => ({
-        id: row.id,
-        examinationId: row.examinationId,
-        studentId: row.studentId,
-        centerId: row.centerId,
-        // PRC-H057: the columns are nullable (NULL = unknown). Until the domain
-        // type carries null, read-side keeps the legacy fallbacks so behaviour is
-        // unchanged; writes still store whatever the caller supplies.
-        gender: (row.gender ?? 'other') as ExaminationCandidate['gender'],
-        areaId: row.areaId ?? row.centerId,
-        subjectResults: Array.isArray(row.subjectResults)
-          ? (row.subjectResults as unknown as CandidateSubjectResult[])
-          : [],
-      }));
+      // PRC-H057 / PRC-M240: NULL gender/area_id read back as the 'unknown' bucket.
+      return rows.map(rowToCandidate);
     });
   }
 
@@ -197,12 +238,14 @@ export class PrismaResultRepository implements ResultRepository {
 
   async savePublicationResult(
     result: PublicationResult,
-    options: { candidatesFingerprint?: string } = {},
+    options: SavePublicationOptions = {},
   ): Promise<void> {
     await withTenantTransaction(this.prisma, result.tenantId, async (tx) => {
+      // PRC-M239 / PRC-H057: lock first — serialises marks entry, publish and
+      // version numbering for this examination.
+      await lockExamination(tx, result.tenantId, result.examinationId);
       if (options.candidatesFingerprint !== undefined) {
         // PRC-M239: marks entered after the snapshot would be silently excluded.
-        await lockExamination(tx, result.tenantId, result.examinationId);
         const rows = await tx.examinationCandidate.findMany({
           where: { tenantId: result.tenantId, examinationId: result.examinationId },
         });
@@ -228,6 +271,38 @@ export class PrismaResultRepository implements ResultRepository {
           publishedAt: result.publishedAt,
           payload,
         },
+      });
+      await appendPublicationVersion(tx, result, payload, options);
+    });
+  }
+
+  async listPublicationVersions(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<PublicationVersion[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = await tx.$queryRawUnsafe<PublicationVersionRow[]>(
+        `SELECT version, reason, supersedes_version, published_at, published_by,
+                payload, payload_sha256
+           FROM examination_publication_versions
+          WHERE tenant_id = $1::uuid AND examination_id = $2::uuid
+          ORDER BY version ASC`,
+        tenantId,
+        examinationId,
+      );
+      return rows.map((row) => {
+        const payload = row.payload as unknown as PublicationResult;
+        return {
+          examinationId,
+          tenantId,
+          version: Number(row.version),
+          reason: row.reason,
+          supersedesVersion: row.supersedes_version == null ? null : Number(row.supersedes_version),
+          publishedAt: new Date(row.published_at),
+          publishedBy: row.published_by,
+          payloadSha256: row.payload_sha256 ?? '',
+          payload: { ...payload, publishedAt: new Date(payload.publishedAt) },
+        };
       });
     });
   }

@@ -68,9 +68,9 @@ async function setup(failRepublish: () => boolean = () => false) {
     store,
     examinations: repository,
     results,
-    republish: async (t, e) => {
+    republish: async (t, e, reason) => {
       if (failRepublish()) throw new Error('republish failed');
-      return pub!.publishResults(t, e);
+      return pub!.publishResults(t, e, { reason });
     },
   });
   pub = new ResultPublicationService(repository, results, {
@@ -138,6 +138,22 @@ describe.skipIf(!live)('ops marks write-back (live Postgres, PRC-H057)', () => {
       writtenBack: true,
       republished: true,
     });
+    // examination_publication_versions: v1 initial superseded by v2 re-evaluation.
+    const versions = await results.listPublicationVersions(examId, tenantId);
+    expect(
+      versions.map((v) => [v.version, v.reason, v.supersedesVersion, v.payload.gradeResults[0]?.score]),
+    ).toEqual([
+      [1, 'initial', null, 75],
+      [2, 're_evaluation', 1, 82],
+    ]);
+    // Append-only: the immutability trigger rejects edits even for the app role.
+    await expect(
+      pool!.query(
+        `UPDATE examination_publication_versions SET reason = 'correction'
+          WHERE tenant_id = $1 AND examination_id = $2`,
+        [tenantId, examId],
+      ),
+    ).rejects.toThrow(/append-only|permission denied|row-level security/);
   });
 
   it('republish failure compensates candidate results and the re-evaluation row', async () => {
@@ -170,5 +186,8 @@ describe.skipIf(!live)('ops marks write-back (live Postgres, PRC-H057)', () => {
     expect((await results.getPublicationResult(examId, tenantId))?.gradeResults[0]).toMatchObject({
       score: 75,
     });
+    // The failed republish never appended a version; v1 (75) stays current.
+    const versions = await results.listPublicationVersions(examId, tenantId);
+    expect(versions.map((v) => [v.version, v.reason])).toEqual([[1, 'initial']]);
   });
 });

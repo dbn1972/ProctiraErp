@@ -36,7 +36,7 @@ import type {
   ExamSeatingRecord,
   ExamSessionRecord,
 } from './ops-store.js';
-import type { ResultRepository } from './result-repository.js';
+import type { PublicationVersionReason, ResultRepository } from './result-repository.js';
 import { UNKNOWN_AREA_ID } from './result-repository.js';
 import { generateSeatingPlan } from './seating-generator.js';
 
@@ -81,7 +81,11 @@ export interface ExamOpsServiceDeps {
    * PRC-H057: re-grade and re-publish (academic records appended with a new
    * publishedAt) when marks change after results were already published.
    */
-  republish?: (tenantId: string, examinationId: string) => Promise<unknown>;
+  republish?: (
+    tenantId: string,
+    examinationId: string,
+    reason: PublicationVersionReason,
+  ) => Promise<unknown>;
   /**
    * PRC-H057: regenerate result certificates for candidates (registration ids)
    * whose marks changed after publication. Invoked after the marks unit commits.
@@ -491,6 +495,7 @@ export class ExamOpsService {
     subjectId: string,
     marks: number,
     opsMutation: OpsMutation,
+    reason: Extract<PublicationVersionReason, 'double_entry_resolution' | 're_evaluation'>,
   ): Promise<FinalMarksWriteBack> {
     if (!this.results) {
       await opsMutation();
@@ -539,7 +544,7 @@ export class ExamOpsService {
       candidateWritten = true;
       if (published && this.republish) {
         republishAttempted = true;
-        await this.republish(tenantId, examinationId);
+        await this.republish(tenantId, examinationId, reason);
       }
     } catch (error: unknown) {
       // Compensate in reverse order; keep the original error.
@@ -558,7 +563,8 @@ export class ExamOpsService {
           ])
           .catch(() => undefined);
         if (republishAttempted && this.republish) {
-          await this.republish(tenantId, examinationId).catch(() => undefined);
+          // A new 'correction' version restores the pre-unit marks; history is kept.
+          await this.republish(tenantId, examinationId, 'correction').catch(() => undefined);
         }
       }
       await compensateOps().catch(() => undefined);
@@ -745,6 +751,7 @@ export class ExamOpsService {
             }
           };
         },
+        'double_entry_resolution',
       );
     } catch (error: unknown) {
       await this.auditFailure(
@@ -917,6 +924,7 @@ export class ExamOpsService {
             });
           };
         },
+        're_evaluation',
       );
     } catch (error: unknown) {
       await this.auditFailure(

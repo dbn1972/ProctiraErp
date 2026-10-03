@@ -70,7 +70,7 @@ describe('ops marks write-back (PRC-H057)', () => {
       store: new InMemoryExamOpsStore(),
       examinations: repository,
       results,
-      republish: (t, e) => pub!.publishResults(t, e),
+      republish: (t, e, reason) => pub!.publishResults(t, e, { reason }),
     });
     pub = new ResultPublicationService(repository, results, {
       countUnresolvedVariances: (t, e) => ops.countUnresolvedVariances(t, e),
@@ -170,6 +170,15 @@ describe('ops marks write-back (PRC-H057)', () => {
       republished: true,
     });
     expect(audit?.details['published']).toBeUndefined();
+    // Publication history is append-only: v1 initial (75) superseded by v2 re-evaluation (82).
+    const versions = await results.listPublicationVersions(examId, TENANT);
+    expect(
+      versions.map((v) => [v.version, v.reason, v.supersedesVersion, v.payload.gradeResults[0]?.score]),
+    ).toEqual([
+      [1, 'initial', null, 75],
+      [2, 're_evaluation', 1, 82],
+    ]);
+    expect(versions.every((v) => /^[0-9a-f]{64}$/.test(v.payloadSha256))).toBe(true);
   });
 
   /** Re-wire `ops` with a republish that can be made to fail, plus a certificate spy. */
@@ -181,9 +190,9 @@ describe('ops marks write-back (PRC-H057)', () => {
       store,
       examinations: repository,
       results,
-      republish: async (t, e) => {
+      republish: async (t, e, reason) => {
         if (opts.failRepublish?.()) throw new Error('republish failed');
-        return pub!.publishResults(t, e);
+        return pub!.publishResults(t, e, { reason });
       },
       regenerateCertificates: async (_t, _e, ids) => {
         certificateCalls.push(ids);

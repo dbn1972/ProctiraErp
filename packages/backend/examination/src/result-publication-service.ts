@@ -30,6 +30,7 @@ import {
   type CandidateGradeResult,
   type IncompleteRecord,
   type PublicationResult,
+  type PublicationVersionReason,
   type ResultAnalysis,
   type AnalysisBreakdown,
   type ScoreDistributionBucket,
@@ -81,7 +82,12 @@ export class ResultPublicationService {
    * @throws NotFoundError if examination not found
    * @throws BusinessRuleError if examination is not in a publishable state
    */
-  async publishResults(tenantId: string, examinationId: string): Promise<PublicationResult> {
+  async publishResults(
+    tenantId: string,
+    examinationId: string,
+    // PRC-H057: why this (re)publish happens; recorded on the appended version.
+    options: { reason?: PublicationVersionReason; publishedBy?: string | null } = {},
+  ): Promise<PublicationResult> {
     const startTime = Date.now();
 
     // Fetch examination
@@ -248,6 +254,8 @@ export class ResultPublicationService {
     // PRC-M239: reject the publish (409) if marks changed after the snapshot above.
     await this.resultRepository.savePublicationResult(publicationResult, {
       candidatesFingerprint: fingerprintCandidates(storedCandidates),
+      reason: options.reason,
+      publishedBy: options.publishedBy ?? null,
     });
 
     // Requirement 10.4: Update student academic records

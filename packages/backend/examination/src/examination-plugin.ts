@@ -111,11 +111,13 @@ export const examinationPlugin = fp(
           documents: documentRepository,
           results: resultRepository,
           republish: resultRepository
-            ? async (tenantId, examinationId) => {
+            ? async (tenantId, examinationId, reason) => {
                 if (!resultPublicationService) {
                   throw new Error('Result publication service is not initialised');
                 }
-                return resultPublicationService.publishResults(tenantId, examinationId);
+                return resultPublicationService.publishResults(tenantId, examinationId, {
+                  reason,
+                });
               }
             : undefined,
           // PRC-H057: revised marks after publication -> regenerate that candidate's certificate.
