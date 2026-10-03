@@ -28,7 +28,7 @@
  * pulling in the Next runtime.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
+import { act, fireEvent, render, screen, cleanup, within } from '@testing-library/react';
 import React from 'react';
 
 // ─── Module mocks ────────────────────────────────────────────────────────────
@@ -168,47 +168,70 @@ vi.mock('lucide-react', () => ({
 
 // ─── Subject under test ──────────────────────────────────────────────────────
 
-import { AttendanceMarkingForm } from './attendance-marking-form';
-import { buildDraftKey } from '@/lib/draft/useDraftAutosave';
+import { AttendanceMarkingForm, attendanceDraftFormId } from './attendance-marking-form';
+import { buildDraftKey, purgeAllDrafts } from '@/lib/draft/useDraftAutosave';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const INST_FROM_PROPS = '11111111-1111-4111-8111-111111111111';
-const INST_FROM_DRAFT = '22222222-2222-4222-8222-222222222222';
-const CLASS_FROM_PROPS = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const CLASS_FROM_DRAFT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const INST = '11111111-1111-4111-8111-111111111111';
+const CLASS_10A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const CLASS_10B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const PERIOD = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const SCOPE_A = 'tenant-1:user-a';
+const SCOPE_B = 'tenant-1:user-b';
+const DATE = '2024-01-15';
 
 const ROSTER = [
-  {
-    studentId: 's-1',
-    studentName: 'Alex Doe',
-    enrollmentId: 'e-1',
-    classId: CLASS_FROM_PROPS,
-    gradeId: 'g-1',
-  },
-  {
-    studentId: 's-2',
-    studentName: 'Bea Roe',
-    enrollmentId: 'e-2',
-    classId: CLASS_FROM_PROPS,
-    gradeId: 'g-1',
-  },
+  { studentId: 's-1', studentName: 'Alex Doe', enrollmentId: 'e-1', classId: CLASS_10A, gradeId: 'g-1' },
+  { studentId: 's-2', studentName: 'Bea Roe', enrollmentId: 'e-2', classId: CLASS_10A, gradeId: 'g-1' },
+  // Added to the roster after the draft was saved.
+  { studentId: 's-3', studentName: 'Cy New', enrollmentId: 'e-3', classId: CLASS_10A, gradeId: 'g-1' },
 ];
 
-const PROPS_DEFAULTS = {
-  institutionId: INST_FROM_PROPS,
-  classId: CLASS_FROM_PROPS,
+const defaultsFor = (classId: string) => ({
+  institutionId: INST,
+  classId,
   academicPeriodId: PERIOD,
-  date: '2024-01-15',
-};
+  date: DATE,
+});
+
+function keyFor(classId: string, scope: string) {
+  return buildDraftKey(attendanceDraftFormId(defaultsFor(classId))!, scope);
+}
+
+function stageDraft(classId: string, scope: string, savedAt = new Date().toISOString()) {
+  window.localStorage.setItem(
+    keyFor(classId, scope),
+    JSON.stringify({
+      v: 1,
+      savedAt,
+      values: { rows: [{ studentId: 's-1', status: 'ABSENT' }] },
+    }),
+  );
+}
+
+function renderForm(classId: string, scope?: string) {
+  return render(
+    <AttendanceMarkingForm
+      institutions={[{ id: INST, name: 'Northside HS' }]}
+      defaults={defaultsFor(classId)}
+      roster={ROSTER}
+      draftScope={scope}
+    />,
+  );
+}
+
+function statusOf(name: string): string | null {
+  const group = screen.getByRole('group', { name: `Attendance status for ${name}` });
+  const pressed = within(group)
+    .getAllByRole('button')
+    .find((b) => b.getAttribute('aria-pressed') === 'true');
+  return pressed?.textContent ?? null;
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
   window.localStorage.clear();
-  // The autosave hook keys its slot off the current pathname. Pin
-  // it to the attendance route so the test asserts the same key
-  // the production form would use.
   window.history.replaceState(null, '', '/attendance');
 });
 
@@ -220,97 +243,74 @@ afterEach(() => {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('AttendanceMarkingForm draft hydration', () => {
-  it('rehydrates a persisted draft over the props-supplied defaults', () => {
-    // Stage a previously-saved draft in the slot the autosave hook
-    // owns. The schema version (`v: 1`) and ISO timestamp match the
-    // envelope written by `useDraftAutosave`.
-    const formId = `attendance-marking-${PERIOD}`;
-    const key = buildDraftKey(formId);
-    window.localStorage.setItem(
-      key,
-      JSON.stringify({
-        v: 1,
-        savedAt: '2024-01-15T08:00:00.000Z',
-        values: {
-          institutionId: INST_FROM_DRAFT,
-          classId: CLASS_FROM_DRAFT,
-          academicPeriodId: PERIOD,
-          date: '2024-01-16',
-          rows: [
-            {
-              studentId: 's-1',
-              studentName: 'Alex Doe',
-              status: 'ABSENT',
-              comment: 'sick',
-            },
-            {
-              studentId: 's-2',
-              studentName: 'Bea Roe',
-              status: 'LATE',
-              comment: '',
-            },
-          ],
-        },
-      }),
-    );
+describe('AttendanceMarkingForm draft (PRC-M079 / PRC-M080)', () => {
+  it('offers a found draft via explicit prompt and merges it onto the current roster', () => {
+    stageDraft(CLASS_10A, SCOPE_A);
+    renderForm(CLASS_10A, SCOPE_A);
 
-    render(
-      <AttendanceMarkingForm
-        institutions={[
-          { id: INST_FROM_PROPS, name: 'Northside HS' },
-          { id: INST_FROM_DRAFT, name: 'Eastside HS' },
-        ]}
-        defaults={PROPS_DEFAULTS}
-        roster={ROSTER}
-      />,
-    );
-
-    // The form replaced the prop-supplied class/date with the draft
-    // values. The class picker is the second ui-select (after the
-    // institution picker); the draft-restored id renders through the
-    // fallback "Selected class" option.
-    const selects = screen.getAllByTestId('ui-select');
-    const classSelect = selects[1] as HTMLSelectElement;
-    expect(classSelect.value).toBe(CLASS_FROM_DRAFT);
-
-    const dateInput = screen.getByLabelText(/^Date$/i);
-    expect((dateInput as HTMLInputElement).value).toBe('2024-01-16');
-
-    // The roster grid renders at least one of the persisted students,
-    // proving the row state survived the unmount.
-    expect(screen.getByText('Alex Doe')).toBeTruthy();
-    expect(screen.getByText('Bea Roe')).toBeTruthy();
-  });
-
-  it('writes form edits back through useDraftAutosave', () => {
-    render(
-      <AttendanceMarkingForm
-        institutions={[{ id: INST_FROM_PROPS, name: 'Northside HS' }]}
-        defaults={PROPS_DEFAULTS}
-        roster={ROSTER}
-      />,
-    );
-
-    const dateInput = screen.getByLabelText(/^Date$/i);
+    // Not applied until the user chooses.
+    expect(screen.getByTestId('attendance-draft-prompt')).toBeTruthy();
+    expect(statusOf('Alex Doe')).toBe('Present');
 
     act(() => {
-      fireEvent.change(dateInput, { target: { value: '2024-02-29' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Restore draft' }));
     });
+    expect(statusOf('Alex Doe')).toBe('Absent');
+    // A student added after the draft was saved still shows.
+    expect(screen.getByText('Cy New')).toBeTruthy();
+    expect(screen.getByTestId('attendance-draft-applied')).toBeTruthy();
+  });
 
-    // The hook's internal debounce is the 30 s ceiling. Advance past
-    // it so the pending write flushes to localStorage.
+  it('does not restore a draft written by another user', () => {
+    stageDraft(CLASS_10A, SCOPE_A);
+    renderForm(CLASS_10A, SCOPE_B);
+    expect(screen.queryByTestId('attendance-draft-prompt')).toBeNull();
+  });
+
+  it('a draft for 10A does not affect 10B', () => {
+    stageDraft(CLASS_10A, SCOPE_A);
+    renderForm(CLASS_10B, SCOPE_A);
+    expect(screen.queryByTestId('attendance-draft-prompt')).toBeNull();
+  });
+
+  it('discards drafts older than the TTL', () => {
+    stageDraft(CLASS_10A, SCOPE_A, new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString());
+    renderForm(CLASS_10A, SCOPE_A);
+    expect(screen.queryByTestId('attendance-draft-prompt')).toBeNull();
+    expect(window.localStorage.getItem(keyFor(CLASS_10A, SCOPE_A))).toBeNull();
+  });
+
+  it('persists only studentId/status under the scoped key after an edit', () => {
+    renderForm(CLASS_10A, SCOPE_A);
+    act(() => {
+      const group = screen.getByRole('group', { name: 'Attendance status for Bea Roe' });
+      fireEvent.click(within(group).getByRole('button', { name: 'Late' }));
+    });
     act(() => {
       vi.advanceTimersByTime(30_000);
     });
-
-    const formId = `attendance-marking-${PERIOD}`;
-    const raw = window.localStorage.getItem(buildDraftKey(formId));
+    const raw = window.localStorage.getItem(keyFor(CLASS_10A, SCOPE_A));
     expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!) as {
-      values: { date: string; institutionId: string };
-    };
-    expect(parsed.values.date).toBe('2024-02-29');
-    expect(parsed.values.institutionId).toBe(INST_FROM_PROPS);
+    expect(raw).not.toContain('Bea Roe');
+    const parsed = JSON.parse(raw!) as { values: { rows: Array<Record<string, string>> } };
+    expect(parsed.values.rows).toContainEqual({ studentId: 's-2', status: 'LATE' });
+    expect(Object.keys(parsed.values.rows[0]!).sort()).toEqual(['status', 'studentId']);
+  });
+
+  it('never writes a draft without a user scope', () => {
+    renderForm(CLASS_10A, undefined);
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Mark all present' }));
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('purgeAllDrafts (logout) removes every draft', () => {
+    stageDraft(CLASS_10A, SCOPE_A);
+    window.localStorage.setItem('unrelated', 'keep');
+    purgeAllDrafts();
+    expect(window.localStorage.getItem(keyFor(CLASS_10A, SCOPE_A))).toBeNull();
+    expect(window.localStorage.getItem('unrelated')).toBe('keep');
   });
 });
