@@ -9,6 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { checkQueueEnvelope } from '../envelope';
 import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
@@ -255,6 +256,27 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
       for (;;) {
         const entry = this.store.leaseMatching(topic);
         if (!entry) break;
+        // PRC-L355: zod envelope + body tenant must equal the routed tenant;
+        // otherwise dead-letter without invoking the handler.
+        const envelope = checkQueueEnvelope(entry.message, entry.routingKey);
+        if (!envelope.ok) {
+          this.store.fail(entry.deliveryTag);
+          reportDeliveryFailure(
+            {
+              messageId: typeof entry.message?.id === 'string' ? entry.message.id : undefined,
+              type: typeof entry.message?.type === 'string' ? entry.message.type : undefined,
+              tenantId: undefined,
+              retryCount: 0,
+              maxRetries: 0,
+              disposition: 'dead-letter',
+              error: envelope.reason,
+            },
+            this.failures,
+            this.logger,
+            this.onDeliveryFailure,
+          );
+          continue;
+        }
         try {
           await this.handler(entry.message);
           // Only ack if we still own the delivery (disconnect may have reclaimed).

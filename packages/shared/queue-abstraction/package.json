@@ -26,7 +26,8 @@
     "@proctira/common": "workspace:*",
     "@proctira/events": "workspace:*",
     "amqplib": "^0.10.4",
-    "kafkajs": "^2.2.4"
+    "kafkajs": "^2.2.4",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",

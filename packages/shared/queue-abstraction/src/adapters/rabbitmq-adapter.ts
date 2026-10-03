@@ -7,6 +7,7 @@
 import type { ChannelModel, ConfirmChannel, ConsumeMessage, Message, Options } from 'amqplib';
 import amqplib from 'amqplib';
 
+import { checkQueueEnvelope } from '../envelope';
 import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
@@ -50,6 +51,21 @@ export interface RabbitMQAdapterRuntimeOptions {
 /** Name of the queue bound (`#`) to the dead-letter exchange (PRC-H086). */
 export function deadLetterQueueName(deadLetterExchange: string): string {
   return `${deadLetterExchange}.dlq`;
+}
+
+/**
+ * Header carrying the original tenant routing key on retries republished via
+ * the default exchange (whose routing key is the queue name) — PRC-L355.
+ */
+export const ROUTE_HEADER = 'x-proctira-route';
+
+/** Routing key the tenant check must use for a delivery. */
+export function effectiveRoutingKey(msg: Pick<ConsumeMessage, 'fields' | 'properties'>): string {
+  if (msg.fields.exchange === '') {
+    const header = (msg.properties?.headers as Record<string, unknown> | undefined)?.[ROUTE_HEADER];
+    return typeof header === 'string' ? header : msg.fields.routingKey;
+  }
+  return msg.fields.routingKey;
 }
 
 interface PendingPublish {
@@ -306,8 +322,36 @@ export class RabbitMQAdapter implements QueueAdapter {
     autoAck: boolean,
   ): Promise<void> {
     let message: QueueMessage | undefined;
+    // PRC-L355: zod envelope + body tenant must equal the routed tenant; a
+    // failing delivery is dead-lettered without reaching the handler.
+    let body: unknown;
     try {
-      message = JSON.parse(msg.content.toString()) as QueueMessage;
+      body = JSON.parse(msg.content.toString());
+    } catch {
+      body = undefined;
+    }
+    const route = effectiveRoutingKey(msg);
+    const envelope = checkQueueEnvelope(body, route);
+    if (!envelope.ok) {
+      reportDeliveryFailure(
+        {
+          messageId: msg.properties?.messageId as string | undefined,
+          type: undefined,
+          tenantId: undefined,
+          retryCount: 0,
+          maxRetries: 0,
+          disposition: 'dead-letter',
+          error: envelope.reason,
+        },
+        this.failures,
+        this.logger,
+        this.onDeliveryFailure,
+      );
+      if (!autoAck) channel.nack(msg, false, false);
+      return;
+    }
+    try {
+      message = envelope.message;
       await handler(message);
       if (!autoAck) channel.ack(msg);
       return;
@@ -339,6 +383,7 @@ export class RabbitMQAdapter implements QueueAdapter {
               Buffer.from(JSON.stringify(retry)),
               {
                 ...msg.properties,
+                headers: { ...(msg.properties?.headers ?? {}), [ROUTE_HEADER]: route },
                 persistent: true,
               },
               cb,

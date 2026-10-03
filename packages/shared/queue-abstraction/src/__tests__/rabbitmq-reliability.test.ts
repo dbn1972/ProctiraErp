@@ -25,7 +25,7 @@ class FakeConfirmChannel extends EventEmitter {
     opts: any;
     cb: ConfirmCb;
   }> = [];
-  sentToQueue: Array<{ queue: string; body: QueueMessage; cb: ConfirmCb }> = [];
+  sentToQueue: Array<{ queue: string; body: QueueMessage; opts: any; cb: ConfirmCb }> = [];
   acks: unknown[] = [];
   nacks: Array<{ msg: unknown; allUpTo: boolean; requeue: boolean }> = [];
   consumers = new Map<string, (msg: unknown) => void>();
@@ -68,8 +68,13 @@ class FakeConfirmChannel extends EventEmitter {
     this.confirm(cb);
     return true;
   }
-  sendToQueue(queue: string, content: Buffer, _opts: any, cb: ConfirmCb): boolean {
-    this.sentToQueue.push({ queue, body: JSON.parse(content.toString()) as QueueMessage, cb });
+  sendToQueue(queue: string, content: Buffer, opts: any, cb: ConfirmCb): boolean {
+    this.sentToQueue.push({
+      queue,
+      body: JSON.parse(content.toString()) as QueueMessage,
+      opts,
+      cb,
+    });
     this.confirm(cb);
     return true;
   }
@@ -89,6 +94,23 @@ class FakeConfirmChannel extends EventEmitter {
       content: Buffer.from(JSON.stringify(body)),
       fields: { routingKey: `tenant.${body.tenantId}.${body.type}` },
       properties: { messageId: body.id, headers: {} },
+    };
+    onMessage(msg);
+    return msg;
+  }
+  /** Deliver an arbitrary body with explicit delivery fields (PRC-L355). */
+  deliverRaw(
+    queue: string,
+    content: string,
+    fields: { routingKey: string; exchange?: string },
+    headers: Record<string, unknown> = {},
+  ) {
+    const onMessage = this.consumers.get(queue);
+    if (!onMessage) throw new Error(`no consumer on ${queue}`);
+    const msg = {
+      content: Buffer.from(content),
+      fields,
+      properties: { messageId: 'raw-1', headers },
     };
     onMessage(msg);
     return msg;
@@ -229,5 +251,71 @@ describe('RabbitMQAdapter publisher confirms (PRC-H087)', () => {
     const failed = await store.listFailed();
     expect([...pending, ...failed].map((r) => r.id)).toContain('row-1');
     expect([...pending, ...failed].every((r) => r.status !== 'published')).toBe(true);
+  });
+});
+
+describe('RabbitMQAdapter receive-side envelope + tenant guard (PRC-L355)', () => {
+  beforeEach(() => {
+    channel = new FakeConfirmChannel();
+  });
+  const queue = 'tenant.g.task.tenant.*.report.generate';
+  async function consuming() {
+    const handler = vi.fn(async () => undefined);
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex' });
+    await adapter.connect();
+    await adapter.consume({ topic: 'tenant.*.report.generate', groupId: 'g' }, handler);
+    return { adapter, handler };
+  }
+
+  it('dead-letters a body whose tenantId differs from the routed tenant', async () => {
+    const { adapter, handler } = await consuming();
+    const raw = channel.deliverRaw(queue, JSON.stringify(message({ tenantId: 'tenant-b' })), {
+      routingKey: 'tenant.tenant-a.report.generate',
+      exchange: 'ex',
+    });
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(channel.nacks).toContainEqual({ msg: raw, allUpTo: false, requeue: false });
+    expect(adapter.failures.deadLettered).toBe(1);
+  });
+
+  it('dead-letters malformed JSON and envelopes failing the zod schema', async () => {
+    const { handler } = await consuming();
+    const fields = { routingKey: 'tenant.tenant-a.report.generate', exchange: 'ex' };
+    const a = channel.deliverRaw(queue, '{not json', fields);
+    const b = channel.deliverRaw(
+      queue,
+      JSON.stringify({ id: 'x', tenantId: 'tenant-a', payload: {} }),
+      fields,
+    );
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(channel.nacks.map((n) => n.msg)).toEqual([a, b]);
+  });
+
+  it('retries carry the original route so the tenant check still passes', async () => {
+    const handler = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex' });
+    await adapter.connect();
+    await adapter.consume({ topic: 'tenant.*.report.generate', groupId: 'g' }, handler);
+    channel.deliver(queue, message({ metadata: { maxRetries: 2 } }));
+    await flush();
+    const retry = channel.sentToQueue[0]!;
+    expect(retry.opts.headers['x-proctira-route']).toBe('tenant.tenant-a.report.generate');
+    // Redelivered through the default exchange (routing key = queue name).
+    channel.deliverRaw(
+      queue,
+      JSON.stringify(retry.body),
+      { routingKey: queue, exchange: '' },
+      retry.opts.headers,
+    );
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(2);
+    // A forged default-exchange delivery without the route header is rejected.
+    channel.deliverRaw(queue, JSON.stringify(retry.body), { routingKey: queue, exchange: '' });
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 });
