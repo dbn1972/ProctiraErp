@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   evaluateLiveReport,
+  executedByLiveFile,
   isLiveTestFile,
   summarizeLiveTests,
 } from './assert-live-test-execution.mjs';
@@ -121,5 +122,49 @@ describe('PRC-L378 ALLOW_LIVE_TEST_SKIP cannot silence the integration gate', ()
   it('enforces the executed minimum when required even without DATABASE_URL', () => {
     const result = evaluateLiveReport({ testResults: [] }, { REQUIRE_LIVE_TESTS: '1' }, 10);
     expect(result.errors.join(' ')).toMatch(/executed 0 case\(s\); minimum is 10/);
+  });
+});
+
+describe('PRC-L499 LIVE_TEST_REQUIRED_FILES', () => {
+  const report = {
+    testResults: [
+      {
+        name: '/repo/packages/backend/staff/src/pg-leave-repository.live.test.ts',
+        assertionResults: [{ status: 'passed' }, { status: 'passed' }],
+      },
+      {
+        name: '/repo/packages/backend/staff/src/hr-pg-and-routes.live.test.ts',
+        assertionResults: [{ status: 'skipped' }],
+      },
+    ],
+  };
+
+  it('counts executed cases per live file', () => {
+    const byFile = executedByLiveFile(report);
+    expect(byFile.get('/repo/packages/backend/staff/src/pg-leave-repository.live.test.ts')).toBe(2);
+    expect(byFile.get('/repo/packages/backend/staff/src/hr-pg-and-routes.live.test.ts')).toBe(0);
+  });
+
+  it('passes when every required suite executed', () => {
+    const result = evaluateLiveReport(
+      report,
+      { LIVE_TEST_REQUIRED_FILES: 'packages/backend/staff/src/pg-leave-repository.live.test.ts' },
+      0,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('fails when a required suite is missing or executed zero cases', () => {
+    const result = evaluateLiveReport(
+      report,
+      {
+        LIVE_TEST_REQUIRED_FILES:
+          'packages/backend/staff/src/hr-pg-and-routes.live.test.ts, packages/backend/staff/src/staff-import-transaction.live.test.ts',
+      },
+      0,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/hr-pg-and-routes\.live\.test\.ts' executed 0/);
+    expect(result.errors.join(' ')).toMatch(/staff-import-transaction\.live\.test\.ts' is missing/);
   });
 });

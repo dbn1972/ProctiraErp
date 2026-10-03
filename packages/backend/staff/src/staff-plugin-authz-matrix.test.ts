@@ -31,12 +31,12 @@ const TENANT_B = '660e8400-e29b-41d4-a716-446655440001';
 const ANY_ID = '770e8400-e29b-41d4-a716-446655440002';
 
 /**
- * Read classifications that are NOT domain-gated on this branch (gateway RBAC only):
+ * Read classifications that are NOT domain-gated (gateway RBAC only):
  * - 'gateway-read': list/detail reads gated by the api-gateway resource map.
- * - 'hr-read-H088': kept for compatibility; with PR #499 (PRC-H088) merged, HR reads map to
- *   staff.hr.read and GET /payroll/export (which persists runs) to payroll.export.
+ * PRC-L499: the transitional 'hr-read-H088' bucket is gone — #499 (PRC-H088) is merged, so
+ * every HR GET must name its domain action (staff.hr.read / payroll.export / staff.hr.write).
  */
-type Classification = StaffAction | 'gateway-read' | 'hr-read-H088';
+type Classification = StaffAction | 'gateway-read';
 
 const ROUTE_ACTIONS: Record<string, Classification> = {
   // routes.ts
@@ -162,10 +162,20 @@ afterEach(async () => {
 const concreteUrl = (pattern: string) => pattern.replace(/:[A-Za-z]+/g, ANY_ID);
 
 const gated = Object.entries(ROUTE_ACTIONS).filter(
-  (e): e is [string, StaffAction] => e[1] !== 'gateway-read' && e[1] !== 'hr-read-H088',
+  (e): e is [string, StaffAction] => e[1] !== 'gateway-read',
 );
 
 describe('PRC-L499 staff plugin route -> action mapping is complete', () => {
+  it('HR record reads (contracts, qualifications, attendance, payroll, balances) are domain-gated', () => {
+    const hrReads = Object.entries(ROUTE_ACTIONS).filter(([route]) =>
+      /^GET \/staff\/(contracts|qualifications|attendance|payroll|:id\/leave-balances)/.test(route),
+    );
+    expect(hrReads.length).toBeGreaterThan(0);
+    for (const [route, action] of hrReads) {
+      expect({ route, gated: action !== 'gateway-read' }).toEqual({ route, gated: true });
+    }
+  });
+
   it('every registered route has an explicit classification and no entry is stale', async () => {
     const routes: string[] = [];
     await mountPlugin({ tenantId: TENANT_A, roles: [] }, routes);
