@@ -81,15 +81,31 @@ jobs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
     steps:
+      # PRC-M256: context values reach the shell only through env (never inline in script).
       - name: Resolve commit and branch
         id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PUSH_SHA: ${{ github.sha }}
+          PUSH_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          if [ "${EVENT_NAME}" = "workflow_run" ]; then
+            HEAD_SHA="${RUN_HEAD_SHA}"
+            HEAD_BRANCH="${RUN_HEAD_BRANCH}"
           else
-            HEAD_SHA="${{ github.sha }}"
-            HEAD_BRANCH="${{ github.ref_name }}"
+            HEAD_SHA="${PUSH_SHA}"
+            HEAD_BRANCH="${PUSH_REF_NAME}"
+          fi
+          # PRC-M256: a SHA is hex; a branch name must not smuggle newlines/quotes into outputs.
+          if ! [[ "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Unexpected head SHA format"
+            exit 1
+          fi
+          if ! [[ "${HEAD_BRANCH}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::Unexpected branch name format"
+            exit 1
           fi
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
@@ -163,10 +179,19 @@ jobs:
 
       - name: Determine environment
         id: env
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          HEAD_BRANCH: ${{ needs.ci-gate.outputs.head-branch }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.workflow_run.event }}" = "push" ] && [ "${{ needs.ci-gate.outputs.head-branch }}" = "main" ]; then
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            case "${INPUT_ENVIRONMENT}" in
+              staging|production) ;;
+              *) echo "::error::Unknown environment"; exit 1 ;;
+            esac
+            echo "environment=${INPUT_ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+          elif [ "${RUN_EVENT}" = "push" ] && [ "${HEAD_BRANCH}" = "main" ]; then
             echo "environment=production" >> "$GITHUB_OUTPUT"
           else
             echo "environment=staging" >> "$GITHUB_OUTPUT"
@@ -203,9 +228,25 @@ jobs:
 
       - name: Detect affected services
         id: affected
+        env:
+          INPUT_SERVICES: ${{ inputs.services }}
         run: |
-          if [ -n "${{ inputs.services }}" ]; then
-            echo "services=${{ inputs.services }}" >> "$GITHUB_OUTPUT"
+          # PRC-M256: manual service lists are validated (format + allowlist) before they reach
+          # any output consumed by secret-bearing build/deploy jobs.
+          KNOWN_SERVICES=",api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report,"
+          if [ -n "${INPUT_SERVICES}" ]; then
+            if ! [[ "${INPUT_SERVICES}" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]]; then
+              echo "::error::services must be a comma-separated list of service names ([a-z0-9-])"
+              exit 1
+            fi
+            IFS=',' read -ra REQUESTED <<< "${INPUT_SERVICES}"
+            for SERVICE in "${REQUESTED[@]}"; do
+              case "${KNOWN_SERVICES}" in
+                *",${SERVICE},"*) ;;
+                *) echo "::error::Unknown service '${SERVICE}'"; exit 1 ;;
+              esac
+            done
+            echo "services=${INPUT_SERVICES}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -292,8 +333,9 @@ jobs:
     steps:
       - name: Convert services to matrix JSON
         id: set-matrix
+        env:
+          SERVICES: ${{ needs.prepare.outputs.services }}
         run: |
-          SERVICES="${{ needs.prepare.outputs.services }}"
           # Convert comma-separated to JSON array
           JSON=$(echo "$SERVICES" | jq -R -c 'split(",")')
           echo "matrix={\"service\":${JSON}}" >> "$GITHUB_OUTPUT"
@@ -325,8 +367,9 @@ jobs:
 
       - name: Determine Dockerfile and build args
         id: docker-config
+        env:
+          SERVICE: ${{ matrix.service }}
         run: |
-          SERVICE="${{ matrix.service }}"
 
           case "$SERVICE" in
             api-gateway)
@@ -458,13 +501,14 @@ jobs:
           version: 'v3.14.0'
 
       - name: Deploy services via Helm
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
+          SERVICE_LIST: ${{ needs.prepare.outputs.services }}
         run: |
-          ENVIRONMENT="${{ needs.prepare.outputs.environment }}"
-          IMAGE_TAG="${{ needs.prepare.outputs.image-tag }}"
-          SERVICES="${{ needs.prepare.outputs.services }}"
           NAMESPACE="proctira-${ENVIRONMENT}"
 
-          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
+          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICE_LIST"
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
             echo "Deploying ${SERVICE} to ${ENVIRONMENT}..."
@@ -490,12 +534,13 @@ jobs:
           done
 
       - name: Verify deployment health
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          SERVICE_LIST: ${{ needs.prepare.outputs.services }}
         run: |
-          ENVIRONMENT="${{ needs.prepare.outputs.environment }}"
           NAMESPACE="proctira-${ENVIRONMENT}"
-          SERVICES="${{ needs.prepare.outputs.services }}"
 
-          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
+          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICE_LIST"
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
             echo "Checking rollout status for ${SERVICE}..."

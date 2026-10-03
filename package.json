@@ -46,6 +46,7 @@
     "check:tenant-id-indexes": "node tools/scripts/check-tenant-id-indexes.mjs",
     "check:tenant-id-indexes:test": "node --test tools/scripts/check-tenant-id-indexes.test.mjs",
     "check:migration-tenant-inserts": "node tools/scripts/check-migration-tenant-inserts.mjs",
+    "check:workflow-script-injection": "node tools/scripts/check-workflow-script-injection.mjs",
     "check:migration-timeouts": "node tools/scripts/check-migration-timeouts.mjs",
     "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs",
     "check:migration-lock-recovery": "node tools/scripts/migration-lock-recovery-drill.mjs",
