@@ -35,6 +35,13 @@ export class InMemoryTenantRepository implements TenantRepository {
 
   // ─── Tenant CRUD ─────────────────────────────────────────────────────────
 
+  /** PRC-H099: rollback of a never-active tenant. */
+  async discardProvisioningTenant(id: string): Promise<boolean> {
+    const existing = await this.findTenantById(id);
+    if (!existing || existing.status !== 'provisioning') return false;
+    return this.deleteTenant(id);
+  }
+
   async createTenant(data: Omit<TenantEntity, 'createdAt' | 'updatedAt'>): Promise<TenantEntity> {
     const now = new Date();
     const entity: TenantEntity = {

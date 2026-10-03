@@ -53,7 +53,9 @@ import {
   createPublicTenantResolver,
   createTenantRepository,
   tenantLifecyclePlugin,
+  KeycloakTenantAdminProvisioner,
   type TenantAdminProvisioner,
+  type TenantDefaultsSeeder,
 } from '@proctira/backend-tenant';
 import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { loggingPlugin } from '@proctira/logging';
@@ -113,11 +115,18 @@ import {
   noteTenantStatusChange,
   resolveTenantBlocked,
 } from './tenant-entitlement.js';
+import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
 /** Same factory as domain-plugins — Pg or shared in-memory (W1-SEC-06). */
 const sharedPrivacyRepository = createPrivacyRepository();
+
+/** PRC-H099: configured Keycloak provisioner, or undefined (fail closed upstream). */
+function keycloakAdminProvisionerFromEnv(): TenantAdminProvisioner | undefined {
+  const provisioner = KeycloakTenantAdminProvisioner.fromEnv();
+  return provisioner.configured ? provisioner : undefined;
+}
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -130,6 +139,8 @@ export interface BuildAppOptions {
    * omitted, tenant creation fails closed instead of creating a tenant without its admin.
    */
   tenantAdminProvisioner?: TenantAdminProvisioner;
+  /** PRC-H099: override the roles/settings seeder used during tenant creation. */
+  tenantDefaultsSeeder?: TenantDefaultsSeeder;
 }
 
 /**
@@ -893,8 +904,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
-    // PRC-H099: no default provisioner — POST /tenant-lifecycle fails closed without one.
-    adminProvisioner: options.tenantAdminProvisioner,
+    // PRC-H099: Keycloak admin provisioner when KEYCLOAK_ADMIN_* is configured;
+    // otherwise none, so POST /tenant-lifecycle fails closed (422) without writes.
+    adminProvisioner: options.tenantAdminProvisioner ?? keycloakAdminProvisionerFromEnv(),
+    defaultsSeeder: options.tenantDefaultsSeeder ?? createTenantDefaultsSeederFromEnv(),
   });
   // PRC-H008 / PRC-H098: the suspension gate reads tenant status from the same repository the
   // lifecycle writes, and lifecycle transitions invalidate this process's cache immediately.
