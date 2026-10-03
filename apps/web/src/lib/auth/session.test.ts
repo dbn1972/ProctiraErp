@@ -100,3 +100,26 @@ describe('getOAuthAuthorizeUrl', () => {
     );
   });
 });
+
+// PRC-M493: browser refresh is single-flight within a tab.
+describe('refreshAccessToken single-flight (PRC-M493)', () => {
+  it('parallel callers share one /api/auth/refresh request', async () => {
+    const { refreshAccessToken } = await import('./session');
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      await new Promise((r) => setTimeout(r, 5));
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    try {
+      const results = await Promise.all([refreshAccessToken(), refreshAccessToken(), refreshAccessToken()]);
+      expect(results).toEqual([true, true, true]);
+      expect(calls).toBe(1);
+      await refreshAccessToken();
+      expect(calls).toBe(2);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

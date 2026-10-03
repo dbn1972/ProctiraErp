@@ -408,7 +408,9 @@ export async function middleware(request: NextRequest) {
         return redirectToLogin(request, pathname);
       }
 
-      const refreshed = await tryRefresh(request);
+      // PRC-M493: single-flight per refresh token; parallel navigations share one
+      // /api/auth/refresh call and its rotated cookies instead of racing the rotation.
+      const refreshed = await refreshOnce(request, refreshToken);
       if (!refreshed) {
         const expiredResponse = redirectToLogin(request, pathname);
         // Clear the stale tokens so the user gets a clean state on retry.
@@ -416,12 +418,16 @@ export async function middleware(request: NextRequest) {
         expiredResponse.cookies.delete(REFRESH_TOKEN_COOKIE);
         return expiredResponse;
       }
-
+      if (refreshed.setCookies.length === 0) {
+        // PRC-M493: a 200 without rotated cookies would replay with the same expired token
+        // and loop forever; send the user to sign in instead.
+        return redirectToLogin(request, pathname);
+      }
       // Replay the original navigation now that cookies have been rotated.
       const replay = NextResponse.redirect(request.url);
       // Carry the rotated cookies onto the redirect so the browser sees them
       // before the next request hits the middleware again.
-      forwardSetCookies(refreshed, replay);
+      refreshed.setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
       return replay;
     }
 
@@ -501,6 +507,51 @@ export function ensureCsrfCookie(request: NextRequest, response: NextResponse): 
  * token is placed both in the forwarded cookie jar and in the CSRF header.
  * An attacker cannot do this because they cannot set cookies on our origin.
  */
+/** PRC-M493: outcome of a refresh shared by concurrent requests. */
+interface RefreshOutcome {
+  setCookies: string[];
+}
+/** How long a completed refresh is reused for late parallel requests (ms). */
+const REFRESH_REUSE_MS = 10_000;
+const refreshInFlight = new Map<
+  string,
+  { promise: Promise<RefreshOutcome | null>; expiresAt: number }
+>();
+/**
+ * PRC-M493: single-flight refresh keyed by the refresh-token cookie. The first
+ * request performs the refresh; concurrent (and shortly-after) requests carrying
+ * the same, now-rotated, refresh token reuse its Set-Cookie headers instead of
+ * presenting a revoked token and deleting the session.
+ */
+export async function refreshOnce(
+  request: NextRequest,
+  refreshToken: string,
+): Promise<RefreshOutcome | null> {
+  const now = Date.now();
+  for (const [key, entry] of refreshInFlight) {
+    if (entry.expiresAt <= now) refreshInFlight.delete(key);
+  }
+  const existing = refreshInFlight.get(refreshToken);
+  if (existing) return existing.promise;
+  const promise = tryRefresh(request).then((response) =>
+    response ? { setCookies: readSetCookies(response) } : null,
+  );
+  refreshInFlight.set(refreshToken, { promise, expiresAt: now + REFRESH_REUSE_MS });
+  const outcome = await promise;
+  // Failures are not cached: a later retry may succeed.
+  if (!outcome) refreshInFlight.delete(refreshToken);
+  return outcome;
+}
+/** Test hook: forget all cached refresh outcomes. */
+export function __resetRefreshSingleFlight(): void {
+  refreshInFlight.clear();
+}
+function readSetCookies(source: Response): string[] {
+  const headers = source.headers as Headers & { getSetCookie?: () => string[] };
+  if (headers.getSetCookie) return headers.getSetCookie();
+  const single = source.headers.get('set-cookie');
+  return single ? [single] : [];
+}
 async function tryRefresh(request: NextRequest): Promise<Response | null> {
   try {
     // Same-origin URL: the refresh handler derives the tenant from its Host
@@ -530,23 +581,6 @@ function redirectToLogin(request: NextRequest, returnTo: string): NextResponse {
   const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
   loginUrl.searchParams.set('returnTo', safeReturnTo);
   return NextResponse.redirect(loginUrl);
-}
-
-/**
- * Forward all Set-Cookie headers from one Response onto a NextResponse.
- * Used after a token refresh so the browser receives the rotated cookies
- * on the same response that performs the redirect replay.
- */
-function forwardSetCookies(source: Response, target: NextResponse): void {
-  // Headers#getSetCookie is the canonical way to read multi-valued
-  // Set-Cookie. Falls back to getAll/raw when running on older runtimes.
-  const headers = source.headers as Headers & {
-    getSetCookie?: () => string[];
-  };
-  const cookies = headers.getSetCookie ? headers.getSetCookie() : [];
-  cookies.forEach((cookie) => {
-    target.headers.append('set-cookie', cookie);
-  });
 }
 
 export const config = {
