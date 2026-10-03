@@ -21,7 +21,18 @@ export const CreateCircularSchema = Type.Object({
   audienceType: CircularAudienceTypeSchema,
   audienceIds: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }))),
   requiresAck: Type.Optional(Type.Boolean()),
-  channels: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8 })),
+  channels: Type.Optional(
+    Type.Array(
+      Type.Union([
+        Type.Literal('email'),
+        Type.Literal('sms'),
+        Type.Literal('push'),
+        Type.Literal('in_app'),
+        Type.Literal('whatsapp'),
+      ]),
+      { maxItems: 5, uniqueItems: true },
+    ),
+  ),
   // PRC-M193: bounded fan-out (de-duplicated server-side).
   recipientIds: Type.Optional(
     Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: MAX_CIRCULAR_RECIPIENTS }),
@@ -47,7 +58,15 @@ export const AckCircularSchema = Type.Object({
 export type AckCircularInput = Static<typeof AckCircularSchema>;
 
 export const DeliveryLogQuerySchema = Type.Object({
-  channel: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+  channel: Type.Optional(
+    Type.Union([
+      Type.Literal('email'),
+      Type.Literal('sms'),
+      Type.Literal('push'),
+      Type.Literal('in_app'),
+      Type.Literal('whatsapp'),
+    ]),
+  ),
   status: Type.Optional(
     Type.Union([
       Type.Literal('queued'),

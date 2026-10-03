@@ -336,8 +336,17 @@ export async function registerCircularRoutes(
         string,
         unknown
       >;
+      // PRC-M192: an invalid filter is a 400, never silently widened to "all rows".
       const result = validate(DeliveryLogQuerySchema, filterQuery);
-      const filter = result.success ? result.data : {};
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid delivery-log query',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+      const filter = result.data;
       const rows = await circularsService.listDeliveryLogs(tenantId, filter, page);
       return reply
         .status(200)
