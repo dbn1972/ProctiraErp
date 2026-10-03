@@ -256,6 +256,11 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
  * Access the current authentication state and actions.
  * Must be used within an `<AuthProvider>`.
  */
+/** Like {@link useAuth} but returns null outside an `<AuthProvider>`. */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext) ?? null;
+}
+
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (context === undefined) {
