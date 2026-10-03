@@ -36,7 +36,8 @@ export class OutboxWebhookDeliveryPublisher implements WebhookDeliveryPublisher 
   constructor(private readonly outbox: OutboxStore) {}
 
   async enqueueDelivery(job: WebhookDeliveryJobPayload, delayMs = 0): Promise<void> {
-    const { signingSecret: _secret, ...persisted } = job;
+    // PRC-M211: the job payload carries no signing secret (sealed on the webhook row).
+    const persisted = { ...job };
     await this.outbox.enqueue({
       id: randomUUID(),
       tenantId: job.tenantId,

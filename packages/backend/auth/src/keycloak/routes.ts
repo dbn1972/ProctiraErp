@@ -996,6 +996,7 @@ export async function registerKeycloakAuthRoutes(
         { accessToken: readBearer(request), refreshToken },
         verifyForLogout,
         maxRevocationTtlSeconds,
+        sessionRevocationTtlSeconds,
       );
       await endIdpSession(config, refreshToken);
 

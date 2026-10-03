@@ -1191,8 +1191,6 @@ export async function registerTimetableRoutes(
           statusCode: 400,
         });
       }
-      const tenantId = tenantIdOf(request, reply);
-      if (!tenantId) return;
       const actorId = (request as { user?: { sub?: string } }).user?.sub ?? null;
       try {
         const result = await service.cloneForAcademicPeriod(
