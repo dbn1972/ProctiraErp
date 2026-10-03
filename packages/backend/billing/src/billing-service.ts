@@ -20,7 +20,6 @@ import type {
   PlanEntity,
   SubscriptionEntity,
   EntitlementEntity,
-  UsageEntity,
   PlanFilter,
   BillingRepository,
 } from './billing-repository.js';

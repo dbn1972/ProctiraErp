@@ -8,6 +8,7 @@
  * Charter: Section 10 (Subscription, Entitlements, Feature Control)
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   PlanStatus,
   PricingTier,

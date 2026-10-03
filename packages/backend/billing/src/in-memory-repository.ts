@@ -5,6 +5,7 @@
  * and usage records in memory with full interface compliance.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   PlanEntity,
   SubscriptionEntity,

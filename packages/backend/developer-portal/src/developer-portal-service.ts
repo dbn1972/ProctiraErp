@@ -43,12 +43,12 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import { openWebhookSecret, sealWebhookSecret } from './webhook-secret-crypto.js';
 import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
 import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
-import { openWebhookSecret, sealWebhookSecret } from './webhook-secret-crypto.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,

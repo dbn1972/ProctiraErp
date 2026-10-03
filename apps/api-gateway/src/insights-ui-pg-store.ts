@@ -12,7 +12,6 @@ import {
 import type pg from 'pg';
 
 import { shouldSeedDemoData } from './demo-seed-policy.js';
-
 import {
   seedGeoFeatures,
   seedIndicators,
