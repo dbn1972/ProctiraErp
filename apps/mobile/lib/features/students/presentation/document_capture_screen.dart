@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/errors/user_error_message.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
@@ -58,9 +59,18 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
       setState(() => _picked = file);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Capture failed: $error')));
+      // Never echo picker/platform exception text (PRC-M047).
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userErrorMessage(
+              error,
+              fallback:
+                  "Couldn't capture the photo. Check camera permission and try again.",
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -91,7 +101,11 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.documentSaveFailed}: $error')),
+        SnackBar(
+          content: Text(
+            userErrorMessage(error, fallback: l10n.documentSaveFailed),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
