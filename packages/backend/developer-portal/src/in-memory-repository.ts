@@ -169,7 +169,10 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   async updateWebhook(
     id: string,
     updates: Partial<
-      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+      Pick<
+        WebhookEntity,
+        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
+      >
     >,
   ): Promise<WebhookEntity | null> {
     const webhook = this.webhooks.get(id);

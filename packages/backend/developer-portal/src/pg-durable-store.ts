@@ -96,6 +96,7 @@ function mapWebhook(row: Record<string, unknown>): WebhookEntity {
     url: String(row.url),
     events: parseJsonArray(row.events),
     secretHash: String(row.secret_hash),
+    secretCiphertext: row.secret_ciphertext == null ? null : String(row.secret_ciphertext),
     description: row.description == null ? null : String(row.description),
     active: Boolean(row.active),
     createdAt: toDate(row.created_at),
@@ -215,8 +216,8 @@ export class PgDeveloperPortalDurableStore {
       const result = await client.query(
         `INSERT INTO developer_portal_webhooks (
            id, tenant_id, account_id, url, events, secret_hash, description,
-           active, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)
+           active, created_at, updated_at, secret_ciphertext
+         ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11)
          RETURNING *`,
         [
           webhook.id,
@@ -229,6 +230,7 @@ export class PgDeveloperPortalDurableStore {
           webhook.active,
           webhook.createdAt,
           webhook.updatedAt,
+          webhook.secretCiphertext ?? null,
         ],
       );
       return mapWebhook(result.rows[0] as Record<string, unknown>);
@@ -298,7 +300,10 @@ export class PgDeveloperPortalDurableStore {
   async updateWebhook(
     id: string,
     updates: Partial<
-      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+      Pick<
+        WebhookEntity,
+        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
+      >
     >,
   ): Promise<WebhookEntity | null> {
     const existing = await this.getWebhookById(id);
@@ -308,6 +313,10 @@ export class PgDeveloperPortalDurableStore {
         url: updates.url ?? existing.url,
         events: updates.events ?? existing.events,
         secretHash: updates.secretHash ?? existing.secretHash,
+        secretCiphertext:
+          updates.secretCiphertext !== undefined
+            ? updates.secretCiphertext
+            : (existing.secretCiphertext ?? null),
         description: updates.description !== undefined ? updates.description : existing.description,
         active: updates.active ?? existing.active,
         updatedAt: new Date(),
@@ -315,7 +324,7 @@ export class PgDeveloperPortalDurableStore {
       const result = await client.query(
         `UPDATE developer_portal_webhooks
          SET url = $2, events = $3::jsonb, secret_hash = $4, description = $5,
-             active = $6, updated_at = $7
+             active = $6, updated_at = $7, secret_ciphertext = $8
          WHERE id = $1
          RETURNING *`,
         [
@@ -326,6 +335,7 @@ export class PgDeveloperPortalDurableStore {
           next.description,
           next.active,
           next.updatedAt,
+          next.secretCiphertext,
         ],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;

@@ -34,6 +34,7 @@ describe('insightsUiPlugin (memory)', () => {
 
   async function buildApp(
     user: unknown = { roles: [{ roleId: 'admin', roleName: 'Administrator' }] },
+    demoData = true,
   ) {
     const app = Fastify();
     apps.push(app);
@@ -42,7 +43,7 @@ describe('insightsUiPlugin (memory)', () => {
         (request as { user?: unknown }).user = user;
       });
     }
-    await app.register(insightsUiPlugin, { forceMemory: true });
+    await app.register(insightsUiPlugin, { forceMemory: true, demoData });
     await app.ready();
     return app;
   }
@@ -118,6 +119,38 @@ describe('insightsUiPlugin (memory)', () => {
         'allow',
       );
       expect(decideBoardRollupAccess({ roles: [{ roleId: 'super-admin' }] }, 'any')).toBe('allow');
+    });
+  });
+
+  describe('outside demo mode (PRC-M196)', () => {
+    it('returns an explicit not-connected empty state, never shared demo rows', async () => {
+      const app = await buildApp(undefined, false);
+      for (const url of ['/data-warehouse/indicators', '/data-warehouse/map/features']) {
+        const res = await app.inject({ method: 'GET', url, headers: { 'x-tenant-id': 't-a' } });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({
+          data: [],
+          meta: expect.objectContaining({ source: 'not_connected', connected: false }),
+        });
+      }
+    });
+
+    it('refuses import jobs with 501 instead of leaving them QUEUED forever', async () => {
+      const app = await buildApp(undefined, false);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/data-warehouse/import/jobs',
+        headers: { 'x-tenant-id': 't-a' },
+        payload: { source: 'CSV', filename: 'enrolment.csv', rows: 12 },
+      });
+      expect(res.statusCode).toBe(501);
+      expect(res.json()).toMatchObject({ code: 'DW_IMPORT_NOT_CONNECTED' });
+    });
+
+    it('labels demo payloads as demo', async () => {
+      const app = await buildApp(undefined, true);
+      const res = await app.inject({ method: 'GET', url: '/data-warehouse/indicators' });
+      expect(res.json()).toMatchObject({ meta: { demo: true } });
     });
   });
 
@@ -285,8 +318,9 @@ describe('PgInsightsUiStore restart-safe smoke (G-209)', () => {
 
       const templates = await storeB.listTemplates();
       expect(templates.length).toBeGreaterThan(0);
+      // PRC-M196: demo indicators are not seeded into shared tables with DATABASE_URL set.
       const indicators = await storeB.listIndicators();
-      expect(indicators.length).toBeGreaterThan(0);
+      expect(Array.isArray(indicators)).toBe(true);
     },
   );
 });

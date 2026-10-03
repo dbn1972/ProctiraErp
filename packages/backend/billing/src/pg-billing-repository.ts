@@ -164,6 +164,16 @@ export class PgBillingRepository implements BillingRepository {
     return this.subscriptions.byTenant(tenantId);
   }
 
+  async listSubscriptionsByStatus(
+    statuses: SubscriptionEntity['status'][],
+    planId?: string,
+  ): Promise<SubscriptionEntity[]> {
+    const all = await this.subscriptions.all();
+    return all.filter(
+      (s) => statuses.includes(s.status) && (planId === undefined || s.planId === planId),
+    );
+  }
+
   // ─── Entitlements ────────────────────────────────────────────────────────
 
   private entitlementKey(tenantId: string, featureKey: string): string {
@@ -198,6 +208,13 @@ export class PgBillingRepository implements BillingRepository {
 
   findEntitlement(tenantId: string, featureKey: string): Promise<EntitlementEntity | null> {
     return this.entitlements.get(this.entitlementKey(tenantId, featureKey));
+  }
+
+  async deleteEntitlementsByTenant(tenantId: string): Promise<void> {
+    const rows = await this.entitlements.where({ tenantId } as Partial<EntitlementEntity>);
+    for (const row of rows) {
+      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey));
+    }
   }
 
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {

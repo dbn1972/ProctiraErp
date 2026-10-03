@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { pluginAction, type PluginAction } from '@/lib/api/plugins';
+import { resourceIdSchema } from '@/lib/api/path-segment';
+import { PLUGIN_ACTIONS, pluginAction } from '@/lib/api/plugins';
 import { requireRole } from '@/lib/auth/server';
 
 const decisionSchema = z.object({
-  id: z.string().min(1, 'Plugin id is required.'),
-  action: z.enum(['approve', 'revoke', 'disable', 'reject']),
+  id: resourceIdSchema,
+  action: z.enum(PLUGIN_ACTIONS),
   reason: z.string().min(10, 'Provide at least 10 characters of justification.').max(2000),
 });
 
@@ -38,11 +39,7 @@ export async function pluginDecisionAction(
     return { error: 'Please fix the highlighted fields.', fieldErrors };
   }
 
-  const result = await pluginAction(
-    parsed.data.id,
-    parsed.data.action as PluginAction,
-    parsed.data.reason,
-  );
+  const result = await pluginAction(parsed.data.id, parsed.data.action, parsed.data.reason);
   if (!result.ok) {
     return { error: result.error ?? 'Decision failed.' };
   }

@@ -14,8 +14,10 @@ export interface WebhookDeliveryJobPayload {
   url: string;
   event: string;
   body: Record<string, unknown>;
-  /** Optional plaintext signing secret (only when caller still has it). */
-  signingSecret?: string;
+  /*
+   * PRC-M211: no signing secret here. The worker loads the sealed secret from the webhook row,
+   * so plaintext secrets never sit in the broker.
+   */
   attempt: number;
 }
 

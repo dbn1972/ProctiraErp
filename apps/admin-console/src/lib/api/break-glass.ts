@@ -9,6 +9,7 @@
  *  - audit trail for every state transition
  */
 import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-constants';
 export type { BreakGlassUseCase } from './break-glass-constants';
@@ -127,8 +128,11 @@ export async function listBreakGlassRequests(): Promise<{
 }
 
 export async function getBreakGlassRequest(id: string): Promise<BreakGlassRequest | null> {
-  const response = await gatewayFetch<BreakGlassRequest>(`/break-glass/${id}`);
+  if (!RESOURCE_ID_PATTERN.test(id)) return null;
+  const response = await gatewayFetch<BreakGlassRequest>(`/break-glass/${pathSegment(id)}`);
   if (response.ok && response.data) return response.data;
+  // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
+  if (response.status > 0) return null;
   return STUB_REQUESTS.find((r) => r.id === id) ?? null;
 }
 
@@ -155,15 +159,19 @@ export async function createBreakGlassRequest(
   return { ok: false, error: response.error?.message ?? 'Submission failed.' };
 }
 
+export const BREAK_GLASS_DECISIONS = ['approve', 'deny', 'revoke'] as const;
 export async function decideBreakGlassRequest(
   id: string,
   decision: 'approve' | 'deny' | 'revoke',
   reason: string,
 ): Promise<{ ok: boolean; error?: string; code?: string }> {
-  const response = await gatewayFetch<unknown>(`/break-glass/${id}/${decision}`, {
-    method: 'POST',
-    json: { reason },
-  });
+  const response = await gatewayFetch<unknown>(
+    `/break-glass/${pathSegment(id)}/${verbSegment(decision, BREAK_GLASS_DECISIONS)}`,
+    {
+      method: 'POST',
+      json: { reason },
+    },
+  );
   if (response.ok) return { ok: true };
   // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
   if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
