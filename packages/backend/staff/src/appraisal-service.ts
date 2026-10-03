@@ -7,7 +7,7 @@
  * - 7.3: Staff appraisal workflows with configurable criteria, scoring on a defined
  *         numeric scale, and approval chains routed through the Workflow_Engine
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -221,35 +221,74 @@ export class AppraisalService {
     if (!appraisal) {
       throw new NotFoundError(`Appraisal with id '${id}' not found`);
     }
-
     if (appraisal.status !== AppraisalStatus.DRAFT) {
       throw new BusinessRuleError(
         `Appraisal can only be submitted from DRAFT status, current status is '${appraisal.status}'`,
       );
     }
 
-    let workflowInstanceId: string | null = null;
+    // PRC-M376: claim the DRAFT -> SUBMITTED transition atomically first so a
+    // concurrent double submit gets 409 and never creates a second instance.
+    const claimed = await this.appraisalRepository.update(
+      id,
+      tenantId,
+      { status: AppraisalStatus.SUBMITTED },
+      [AppraisalStatus.DRAFT],
+    );
+    if (!claimed) await this.throwTransitionMiss(tenantId, id);
 
-    // Integrate with workflow engine if available
-    if (this.workflowIntegration) {
+    if (!this.workflowIntegration) return claimed as AppraisalEntity;
+
+    let workflowInstanceId: string;
+    try {
       workflowInstanceId = await this.workflowIntegration.createInstance(
         tenantId,
         'staff_appraisal',
         'appraisal',
         id,
       );
+    } catch (error) {
+      // Compensate: release the claim so the appraisal can be resubmitted.
+      await this.appraisalRepository.update(id, tenantId, { status: AppraisalStatus.DRAFT }, [
+        AppraisalStatus.SUBMITTED,
+      ]);
+      throw error;
     }
-
-    const updated = await this.appraisalRepository.update(id, tenantId, {
-      status: AppraisalStatus.SUBMITTED,
-      workflowInstanceId,
-    });
-
+    const updated = await this.appraisalRepository.update(id, tenantId, { workflowInstanceId });
     if (!updated) {
       throw new NotFoundError(`Appraisal with id '${id}' not found`);
     }
-
     return updated;
+  }
+
+  /**
+   * PRC-M376: approve or reject a submitted appraisal. The reviewer is the
+   * authenticated actor (never a client-supplied id) and the transition is a
+   * compare-and-set from SUBMITTED/IN_REVIEW.
+   */
+  async decideAppraisal(
+    tenantId: string,
+    id: string,
+    decision: 'APPROVED' | 'REJECTED',
+    reviewerId: string,
+  ): Promise<AppraisalEntity> {
+    if (!reviewerId) throw new BusinessRuleError('An authenticated reviewer is required');
+    const updated = await this.appraisalRepository.update(
+      id,
+      tenantId,
+      { status: decision === 'APPROVED' ? AppraisalStatus.APPROVED : AppraisalStatus.REJECTED },
+      [AppraisalStatus.SUBMITTED, AppraisalStatus.IN_REVIEW],
+    );
+    if (!updated) await this.throwTransitionMiss(tenantId, id);
+    return updated as AppraisalEntity;
+  }
+
+  private async throwTransitionMiss(tenantId: string, id: string): Promise<never> {
+    const current = await this.appraisalRepository.findById(id, tenantId);
+    if (!current) throw new NotFoundError(`Appraisal with id '${id}' not found`);
+    throw new ConflictError(
+      `Appraisal status changed concurrently; current status is '${current.status}'`,
+    );
   }
 
   /**

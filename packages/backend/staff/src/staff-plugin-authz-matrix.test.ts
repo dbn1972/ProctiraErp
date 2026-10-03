@@ -79,6 +79,9 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   'POST /staff/appraisals/templates': 'staff.hr.write',
   'POST /staff/appraisals': 'staff.hr.write',
   'POST /staff/appraisals/:id/submit': 'staff.hr.write',
+  // PRC-M376: decisions require staff.appraisal.decide (subset of staff.hr.write).
+  'POST /staff/appraisals/:id/approve': 'staff.appraisal.decide',
+  'POST /staff/appraisals/:id/reject': 'staff.appraisal.decide',
   'GET /staff/appraisals/templates': 'gateway-read',
   'GET /staff/appraisals/templates/:templateId': 'gateway-read',
   'GET /staff/appraisals': 'gateway-read',
