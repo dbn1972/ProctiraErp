@@ -1634,9 +1634,30 @@ export async function registerTransportRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
       const links = await transportService.listFeeLinks(tenantId);
+      // PRC-M439: surface the outbox backlog so unbilled riders are visible.
+      const pendingCount = links.filter((l) => l.status === 'pending').length;
       return reply.status(200).send({
         data: links.map((l) => serializeDates(l as unknown as Record<string, unknown>)),
+        meta: { pendingCount },
       });
+    },
+  );
+
+  // PRC-M439: re-drive pending fee links (transport.write via the method guard).
+  fastify.post(
+    `${prefix}/fee-links/retry`,
+    async function retryFeeLinksHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantMissing(reply);
+      try {
+        const result = await transportService.retryPendingFeeLinks(tenantId, getActorId(request));
+        return reply.status(200).send(result);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 }

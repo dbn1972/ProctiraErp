@@ -53,6 +53,7 @@ import type {
   StudentAssignmentFilter,
   TransportRepository,
   TripDirection,
+  TransportFeeStructureEntity,
 } from './transport-repository.js';
 
 export const GPS_LIVE_HONESTY_NOTE =
@@ -1031,17 +1032,8 @@ export class TransportService {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
       if (!stop) throw new NotFoundError(`Route stop with id '${input.stopId}' not found`);
     }
-    let feesStructureId: string | null = null;
-    if (this.fees) {
-      const fees = await this.fees.createFeeStructure(tenantId, actorId, {
-        name: input.name,
-        category: 'transport',
-        amountCents: input.amountCents,
-        currency: input.currency,
-      });
-      feesStructureId = fees.id;
-    }
-    return this.repository.createTransportFeeStructure({
+    // PRC-M439: local band row first; a Fees failure then leaves no orphan Fees structure.
+    const band = await this.repository.createTransportFeeStructure({
       id: uuidv4(),
       tenantId,
       name: input.name,
@@ -1051,9 +1043,22 @@ export class TransportService {
       maxDistanceKm: input.maxDistanceKm ?? null,
       amountCents: input.amountCents,
       currency: input.currency ?? 'INR',
-      feesStructureId,
+      feesStructureId: null,
       isActive: true,
     });
+    if (!this.fees) return band;
+    const fees = await this.fees.createFeeStructure(tenantId, actorId, {
+      name: input.name,
+      category: 'transport',
+      amountCents: input.amountCents,
+      currency: input.currency,
+    });
+    return (
+      (await this.repository.setTransportFeeStructureFeesId(band.id, tenantId, fees.id)) ?? {
+        ...band,
+        feesStructureId: fees.id,
+      }
+    );
   }
 
   async listTransportFeeStructures(tenantId: string) {
@@ -1128,49 +1133,138 @@ export class TransportService {
         reason: TRANSPORT_FEE_PENDING_NOTE,
       });
     }
-    let invoiceId: string | null = null;
+    // PRC-M439: the local pending row exists before Fees is called, so a crash or Fees
+    // outage always leaves a re-drivable outbox row (retryPendingFeeLinks).
+    const pending = await this.repository.createFeeLink({
+      id: uuidv4(),
+      tenantId,
+      assignmentId: assignment.id,
+      studentId: assignment.studentId,
+      transportFeeStructureId: band.id,
+      feesInvoiceId: null,
+      feesStructureId: band.feesStructureId,
+      status: 'pending',
+      reason: 'Awaiting Fees invoice',
+    });
     try {
-      if (band.feesStructureId && this.fees.bulkInvoiceClass) {
-        const bulk = await this.fees.bulkInvoiceClass(tenantId, actorId, {
-          structureId: band.feesStructureId,
-          studentIds: [assignment.studentId],
-        });
-        invoiceId = bulk.created[0]?.id ?? null;
-      }
-      if (!invoiceId) {
-        const invoice = await this.fees.createInvoice(tenantId, actorId, {
-          studentId: assignment.studentId,
-          title: `Transport — ${band.name}`,
-          description: 'Stop/route transport fee',
-          amountCents: band.amountCents,
-          currency: band.currency,
-        });
-        invoiceId = invoice.id;
-      }
-      return this.repository.createFeeLink({
-        id: uuidv4(),
-        tenantId,
-        assignmentId: assignment.id,
-        studentId: assignment.studentId,
-        transportFeeStructureId: band.id,
-        feesInvoiceId: invoiceId,
-        feesStructureId: band.feesStructureId,
-        status: 'invoiced',
-        reason: null,
-      });
+      const invoiceId = await this.postTransportInvoice(tenantId, actorId, band, assignment.studentId);
+      return (
+        (await this.repository.settleFeeLink(pending.id, tenantId, {
+          status: 'invoiced',
+          feesInvoiceId: invoiceId,
+          reason: null,
+        })) ?? pending
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Fees service rejected the invoice';
-      return this.repository.createFeeLink({
-        id: uuidv4(),
-        tenantId,
-        assignmentId: assignment.id,
-        studentId: assignment.studentId,
-        transportFeeStructureId: band.id,
-        feesInvoiceId: null,
-        feesStructureId: band.feesStructureId,
-        status: 'pending',
-        reason: message,
-      });
+      return (
+        (await this.repository.settleFeeLink(pending.id, tenantId, {
+          status: 'pending',
+          feesInvoiceId: null,
+          reason: message,
+        })) ?? pending
+      );
     }
+  }
+
+  private async postTransportInvoice(
+    tenantId: string,
+    actorId: string,
+    band: TransportFeeStructureEntity,
+    studentId: string,
+  ): Promise<string> {
+    const fees = this.fees;
+    if (!fees) throw new BusinessRuleError(TRANSPORT_FEE_PENDING_NOTE);
+    if (band.feesStructureId && fees.bulkInvoiceClass) {
+      const bulk = await fees.bulkInvoiceClass(tenantId, actorId, {
+        structureId: band.feesStructureId,
+        studentIds: [studentId],
+      });
+      const id = bulk.created[0]?.id;
+      if (id) return id;
+    }
+    const invoice = await fees.createInvoice(tenantId, actorId, {
+      studentId,
+      title: `Transport — ${band.name}`,
+      description: 'Stop/route transport fee',
+      amountCents: band.amountCents,
+      currency: band.currency,
+    });
+    return invoice.id;
+  }
+
+  /**
+   * PRC-M439: outbox re-drive for pending fee links. Each link is leased atomically, so
+   * concurrent runs never invoice the same assignment twice; failures release the lease
+   * with the error recorded in `reason` for the next run.
+   */
+  async retryPendingFeeLinks(
+    tenantId: string,
+    actorId = 'transport',
+    options: { limit?: number; leaseMs?: number } = {},
+  ): Promise<{ claimed: number; invoiced: number; stillPending: number; pendingCount: number }> {
+    if (!this.fees) {
+      return {
+        claimed: 0,
+        invoiced: 0,
+        stillPending: 0,
+        pendingCount: await this.repository.countPendingFeeLinks(tenantId),
+      };
+    }
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const leaseToken = uuidv4();
+    const leaseExpiresAt = new Date(Date.now() + (options.leaseMs ?? 5 * 60 * 1000));
+    const claimed = await this.repository.claimPendingFeeLinks(
+      tenantId,
+      leaseToken,
+      leaseExpiresAt,
+      limit,
+    );
+    const bands = new Map(
+      (await this.repository.listTransportFeeStructures(tenantId)).map((b) => [b.id, b]),
+    );
+    let invoiced = 0;
+    let stillPending = 0;
+    for (const link of claimed) {
+      const band = link.transportFeeStructureId ? bands.get(link.transportFeeStructureId) : undefined;
+      if (!band) {
+        await this.repository.settleFeeLink(
+          link.id,
+          tenantId,
+          { status: 'skipped', feesInvoiceId: null, reason: 'Transport fee band no longer exists' },
+          leaseToken,
+        );
+        continue;
+      }
+      try {
+        const invoiceId = await this.postTransportInvoice(tenantId, actorId, band, link.studentId);
+        const settled = await this.repository.settleFeeLink(
+          link.id,
+          tenantId,
+          { status: 'invoiced', feesInvoiceId: invoiceId, reason: null },
+          leaseToken,
+        );
+        if (settled) invoiced += 1;
+      } catch (err) {
+        stillPending += 1;
+        const message = err instanceof Error ? err.message : 'Fees service rejected the invoice';
+        await this.repository.settleFeeLink(
+          link.id,
+          tenantId,
+          { status: 'pending', feesInvoiceId: null, reason: message },
+          leaseToken,
+        );
+      }
+    }
+    return {
+      claimed: claimed.length,
+      invoiced,
+      stillPending,
+      pendingCount: await this.repository.countPendingFeeLinks(tenantId),
+    };
+  }
+
+  async countPendingFeeLinks(tenantId: string): Promise<number> {
+    return this.repository.countPendingFeeLinks(tenantId);
   }
 }
