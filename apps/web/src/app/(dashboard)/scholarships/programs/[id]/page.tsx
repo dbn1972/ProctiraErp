@@ -145,10 +145,11 @@ export default async function ScholarshipProgramPage(props: PageProps) {
   const params = await props.params;
   const [program, appsResult] = await Promise.all([
     getScholarshipProgram(params.id),
-    listScholarshipApplications({ pageSize: 100 }),
+    // PRC-M114: the program filter is applied by the API.
+    listScholarshipApplications({ programId: params.id, pageSize: 100 }),
   ]);
   if (!program) notFound();
-  const apps = appsResult.ok ? appsResult.items.filter((a) => a.programId === program.id) : [];
+  const apps = appsResult.ok ? appsResult.items : [];
   const approved = apps.filter((a) => a.status === 'APPROVED').length;
   const pending = apps.filter((a) => a.status === 'PENDING' || a.status === 'UNDER_REVIEW').length;
   const rejected = apps.filter((a) => a.status === 'REJECTED').length;

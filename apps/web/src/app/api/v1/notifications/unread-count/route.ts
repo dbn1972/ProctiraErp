@@ -15,8 +15,9 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const result = await listUserNotifications(session.user.sub);
-    const unread = result.ok ? result.items.filter((item) => !item.readAt).length : 0;
+    // PRC-M114: server-side unread filter; the total is the count (not capped at a page).
+    const result = await listUserNotifications(session.user.sub, { unreadOnly: true, pageSize: 1 });
+    const unread = result.ok ? (result.meta?.totalItems ?? result.items.length) : 0;
     return NextResponse.json({ unread }, { headers: { 'cache-control': 'no-store' } });
   } catch {
     return NextResponse.json({ unread: 0 }, { headers: { 'cache-control': 'no-store' } });

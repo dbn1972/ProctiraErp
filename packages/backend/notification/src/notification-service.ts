@@ -469,6 +469,7 @@ export class NotificationService {
       pageSize?: number;
       status?: DeliveryStatus;
       channel?: DeliveryChannel;
+      unread?: 'true' | 'false';
     },
   ): Promise<PaginatedNotifications> {
     return this.repository.getUserNotifications(tenantId, userId, {
@@ -476,6 +477,7 @@ export class NotificationService {
       pageSize: options.pageSize ?? 20,
       status: options.status,
       channel: options.channel,
+      unreadOnly: options.unread === 'true',
     });
   }
 

@@ -31,6 +31,11 @@ vi.mock('../_components/retry-failed-transfers-button', () => ({
 }));
 
 import Page from './page';
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/scholarships/disbursements',
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 describe('disbursements page (PRC-M111)', () => {
   it('PRC-M113: a gateway 500 shows the failure panel, not "No disbursements"', async () => {
@@ -39,14 +44,14 @@ describe('disbursements page (PRC-M111)', () => {
       kind: 'unavailable',
       status: 500,
     });
-    render(await Page());
+    render(await Page({}));
     expect(screen.getByText('This list could not be loaded')).toBeTruthy();
     expect(screen.queryByText('No disbursements scheduled.')).toBeNull();
   });
 
   it('shows a cancelled count, processing status and per-currency totals', async () => {
     listScholarshipDisbursements.mockResolvedValueOnce({ ok: true, items: rows });
-    render(await Page());
+    render(await Page({}));
     // KPI label + the row's status pill.
     expect(screen.getAllByText('Cancelled').length).toBe(2);
     expect(screen.getByText(/₹500 not paid/)).toBeTruthy();
@@ -54,5 +59,17 @@ describe('disbursements page (PRC-M111)', () => {
     expect(screen.getAllByText('Processing').length).toBeGreaterThan(0);
     const disbursed = screen.getByText(/₹1,000 \+ (US\$|\$)10/);
     expect(disbursed).toBeTruthy();
+  });
+
+  it('PRC-M114: requests a page and shows page controls', async () => {
+    listScholarshipDisbursements.mockResolvedValueOnce({
+      ok: true,
+      items: rows,
+      meta: { page: 2, pageSize: 50, totalItems: 500, totalPages: 10 },
+    });
+    render(await Page({ searchParams: Promise.resolve({ page: '2' }) }));
+    expect(listScholarshipDisbursements).toHaveBeenLastCalledWith({ page: 2, pageSize: 50 });
+    expect(screen.getAllByRole('navigation', { name: 'Pagination' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('disbursement-kpi-scope').length).toBeGreaterThan(0);
   });
 });

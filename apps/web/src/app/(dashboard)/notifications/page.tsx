@@ -16,6 +16,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listUserNotifications } from '@/lib/api/notifications-inbox';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { PaginationControls } from '@/components/institutions/pagination-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,10 +30,17 @@ function titleFor(n: { templateId: string; variables: Record<string, string> }):
   );
 }
 
-export default async function NotificationsInboxPage() {
+export default async function NotificationsInboxPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireSession();
+  const sp = (await props.searchParams) ?? {};
+  // PRC-M114: server-side paging and an unread filter.
+  const page = Math.max(1, Number(typeof sp.page === 'string' ? sp.page : 1) || 1);
+  const unreadOnly = sp.filter === 'unread';
+  const PAGE_SIZE = 20;
   const [result, t] = await Promise.all([
-    listUserNotifications(session.user.sub),
+    listUserNotifications(session.user.sub, { page, pageSize: PAGE_SIZE, unreadOnly }),
     getTranslations('notifications'),
   ]);
   const items = result.ok ? result.items : [];
@@ -64,6 +72,22 @@ export default async function NotificationsInboxPage() {
             {t('inbox')}
           </CardTitle>
           <CardDescription>{t('inboxDescription')}</CardDescription>
+          <nav aria-label={t('filterLabel')} className="flex gap-2 pt-2 text-sm">
+            <Link
+              href="/notifications"
+              aria-current={!unreadOnly ? 'page' : undefined}
+              className={`inline-flex min-h-11 items-center rounded-md px-3 ${!unreadOnly ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}
+            >
+              {t('filterAll')}
+            </Link>
+            <Link
+              href="/notifications?filter=unread"
+              aria-current={unreadOnly ? 'page' : undefined}
+              className={`inline-flex min-h-11 items-center rounded-md px-3 ${unreadOnly ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}
+            >
+              {t('filterUnread')}
+            </Link>
+          </nav>
         </CardHeader>
         <CardContent>
           {!result.ok ? (
@@ -96,6 +120,16 @@ export default async function NotificationsInboxPage() {
               ))}
             </ul>
           )}
+          {result.ok && (result.meta?.totalPages ?? 1) > 1 ? (
+            <div className="mt-4 border-t pt-3">
+              <PaginationControls
+                page={result.meta?.page ?? page}
+                pageSize={result.meta?.pageSize ?? PAGE_SIZE}
+                totalItems={result.meta?.totalItems ?? items.length}
+                totalPages={result.meta?.totalPages ?? 1}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

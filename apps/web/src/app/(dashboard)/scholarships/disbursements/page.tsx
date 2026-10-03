@@ -31,6 +31,7 @@ import {
   type ScholarshipDisbursement,
 } from '@/lib/api/scholarships';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { cn } from '@/lib/utils';
 
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
@@ -83,8 +84,14 @@ function formatDate(iso: string): string {
   }
 }
 
-export default async function ScholarshipDisbursementsPage() {
-  const result = await listScholarshipDisbursements({ pageSize: 100 });
+export default async function ScholarshipDisbursementsPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await props.searchParams) ?? {};
+  // PRC-M114: paged server-side; KPI counts come from per-status totals.
+  const page = Math.max(1, Number(typeof sp.page === 'string' ? sp.page : 1) || 1);
+  const PAGE_SIZE = 50;
+  const result = await listScholarshipDisbursements({ page, pageSize: PAGE_SIZE });
   // PRC-M113: a failed read is an error panel, never "No disbursements scheduled."
   if (!result.ok) {
     return (
@@ -107,6 +114,8 @@ export default async function ScholarshipDisbursementsPage() {
   const scheduled = disbursements.filter((d) => d.status === 'SCHEDULED');
   const processing = disbursements.filter((d) => d.status === 'PROCESSING');
   const cancelled = disbursements.filter((d) => d.status === 'CANCELLED');
+  const totalRecords = result.meta?.totalItems ?? disbursements.length;
+  const multiPage = (result.meta?.totalPages ?? 1) > 1;
   const settled = processed.length + failed.length;
   const successRate = settled > 0 ? ((processed.length / settled) * 100).toFixed(1) : null;
 
@@ -136,6 +145,12 @@ export default async function ScholarshipDisbursementsPage() {
         </div>
       </div>
 
+      {multiPage ? (
+        <p className="text-xs text-muted-foreground" data-testid="disbursement-kpi-scope">
+          Figures below cover the {disbursements.length.toLocaleString()} records on this page of{' '}
+          {totalRecords.toLocaleString()}.
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
@@ -272,10 +287,13 @@ export default async function ScholarshipDisbursementsPage() {
                 </TableBody>
               </Table>
             </div>
-            <div className="border-t px-4 py-3 text-sm text-muted-foreground">
-              Showing{' '}
-              <span className="font-semibold text-foreground">1–{disbursements.length}</span> of{' '}
-              <span className="font-semibold text-foreground">{disbursements.length}</span> records
+            <div className="border-t px-4 py-3">
+              <PaginationControls
+                page={page}
+                pageSize={PAGE_SIZE}
+                totalItems={result.meta?.totalItems ?? disbursements.length}
+                totalPages={Math.max(1, result.meta?.totalPages ?? 1)}
+              />
             </div>
           </CardContent>
         </Card>

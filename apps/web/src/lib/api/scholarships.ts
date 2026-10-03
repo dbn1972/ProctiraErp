@@ -17,6 +17,14 @@ export interface ScholarshipListParams {
   paymentStatus?: string;
 }
 
+/** PRC-M114: UI application status tab -> backend status list (server-side filter). */
+export const APPLICATION_STATUS_QUERY: Record<ScholarshipApplication['status'], string> = {
+  PENDING: 'draft,withdrawn',
+  UNDER_REVIEW: 'submitted,under_review',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+};
+
 function listQuery(params: ScholarshipListParams): string {
   const q = new URLSearchParams();
   q.set('page', String(Math.max(1, Math.floor(params.page ?? 1))));

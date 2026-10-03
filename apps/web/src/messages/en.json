@@ -966,6 +966,12 @@
     "inboxDescription": "Alerts for your signed-in account.",
     "empty": "No notifications yet. Use Preferences to choose email, push, or SMS — and register a device when you want mobile alerts.",
     "read": "read",
-    "unread": "unread"
+    "unread": "unread",
+    "filterLabel": "Filter notifications",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read",
+    "markReadFailed": "Could not mark as read. Try again."
   }
 }

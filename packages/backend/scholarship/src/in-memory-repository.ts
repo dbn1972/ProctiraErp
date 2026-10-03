@@ -190,6 +190,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     if (filter.status) {
       items = items.filter((e) => e.status === filter.status);
     }
+    if (filter.statuses && filter.statuses.length > 0) {
+      const wanted = new Set(filter.statuses);
+      items = items.filter((e) => wanted.has(e.status));
+    }
     if (filter.areaId) {
       items = items.filter((e) => e.areaId === filter.areaId);
     }

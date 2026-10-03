@@ -85,6 +85,8 @@ export interface NotificationQueryOptions {
   pageSize: number;
   status?: DeliveryStatus;
   channel?: DeliveryChannel;
+  /** PRC-M114: readAt IS NULL only. */
+  unreadOnly?: boolean;
 }
 
 export interface PaginatedNotifications {
