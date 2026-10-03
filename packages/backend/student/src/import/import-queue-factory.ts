@@ -6,6 +6,7 @@
 import type { QueueAdapter } from '@proctira/queue-abstraction';
 import { createQueueAdapter, createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
 
+import { createImportProgressStoreFromEnv } from './progress-store.js';
 import { QueueImportQueue } from './queue-import-queue.js';
 import type { ImportQueue } from './types.js';
 
@@ -47,7 +48,8 @@ export async function createStudentImportQueueFromEnv(): Promise<StudentImportQu
   const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
   return {
-    importQueue: new QueueImportQueue(adapter),
+    // PRC-H092: Redis-persisted (tenant, job) progress when REDIS_URL is set.
+    importQueue: new QueueImportQueue(adapter, createImportProgressStoreFromEnv()),
     adapter,
     createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: () => adapter.disconnect(),

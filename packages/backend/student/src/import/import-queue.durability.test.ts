@@ -46,7 +46,7 @@ describe('W2-JOB-06 student import queue durability', () => {
     const jobId = 'job-import-1';
     const fileBuffer = Buffer.from('fake-excel-bytes');
 
-    await importQueue.updateProgress(jobId, {
+    await importQueue.updateProgress(TENANT_ID, jobId, {
       jobId,
       status: 'queued',
       totalRows: 1,
@@ -130,7 +130,7 @@ describe('W2-JOB-06 student import queue durability', () => {
       { duplicateResolution: 'skip' },
     );
     expect(result.errorCount).toBeGreaterThan(0);
-    const progress = await importQueue.getProgress(jobId);
+    const progress = await importQueue.getProgress(TENANT_ID, jobId);
     expect(progress?.status).toBe('failed');
   });
 });

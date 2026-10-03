@@ -5,7 +5,8 @@
  * Simulates the queue behavior for async import processing.
  */
 
-import type { ImportOptions, ImportProgress, ImportQueue } from './types.js';
+import { InMemoryImportProgressStore } from './progress-store.js';
+import type { ImportOptions, ImportProgress, ImportProgressStore, ImportQueue } from './types.js';
 
 export type InMemoryImportEnqueueHook = (
   tenantId: string,
@@ -20,11 +21,14 @@ export class InMemoryImportQueue implements ImportQueue {
    * without a durable queue) each enqueued job is handed to it so async /
    * >1000-row imports are processed instead of staying `queued` forever.
    */
-  constructor(private readonly onEnqueue?: InMemoryImportEnqueueHook) {}
+  constructor(
+    private readonly onEnqueue?: InMemoryImportEnqueueHook,
+    /** PRC-H092: shared/persisted progress (defaults to per-process memory). */
+    private readonly progressStore: ImportProgressStore = new InMemoryImportProgressStore(),
+  ) {}
 
   private jobs: Map<string, { tenantId: string; fileBuffer: Buffer; options: ImportOptions }> =
     new Map();
-  private progress: Map<string, ImportProgress> = new Map();
 
   async enqueue(
     tenantId: string,
@@ -36,17 +40,16 @@ export class InMemoryImportQueue implements ImportQueue {
     this.onEnqueue?.(tenantId, jobId, fileBuffer, options);
   }
 
-  async getProgress(jobId: string): Promise<ImportProgress | null> {
-    return this.progress.get(jobId) ?? null;
+  async getProgress(tenantId: string, jobId: string): Promise<ImportProgress | null> {
+    return this.progressStore.get(tenantId, jobId);
   }
 
-  async updateProgress(jobId: string, progress: Partial<ImportProgress>): Promise<void> {
-    const existing = this.progress.get(jobId);
-    if (existing) {
-      this.progress.set(jobId, { ...existing, ...progress });
-    } else {
-      this.progress.set(jobId, progress as ImportProgress);
-    }
+  async updateProgress(
+    tenantId: string,
+    jobId: string,
+    progress: Partial<ImportProgress>,
+  ): Promise<void> {
+    await this.progressStore.update(tenantId, jobId, progress);
   }
 
   /** Helper: get enqueued jobs (for test assertions) */
@@ -57,6 +60,6 @@ export class InMemoryImportQueue implements ImportQueue {
   /** Helper: clear all state */
   clear(): void {
     this.jobs.clear();
-    this.progress.clear();
+    if (this.progressStore instanceof InMemoryImportProgressStore) this.progressStore.clear();
   }
 }
