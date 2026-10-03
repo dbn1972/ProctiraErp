@@ -222,3 +222,82 @@ describe('PRC-M171 decision compare-and-set', () => {
     expect(repo.getAuditEntries()).toHaveLength(2);
   });
 });
+
+describe('PRC-M170 regularisation claims are verified against the stored record', () => {
+  let repo: InMemoryAttendanceRepository;
+  let store: InMemoryAttendanceOpsStore;
+  let ops: AttendanceOpsService;
+  const ROW_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaac1';
+  const base = {
+    attendanceId: ROW_ID,
+    studentId: STUDENT_ID,
+    institutionId: INSTITUTION_ID,
+    classId: CLASS_ID,
+    attendanceDate: '2024-06-13',
+    toStatus: 'PRESENT' as const,
+  };
+
+  beforeEach(async () => {
+    repo = new InMemoryAttendanceRepository();
+    store = new InMemoryAttendanceOpsStore();
+    ops = new AttendanceOpsService(store, repo);
+    await seedRow(repo, ROW_ID, '2024-06-13');
+  });
+
+  it('foreign / nonexistent attendanceId returns 404', async () => {
+    await expect(
+      ops.requestRegularisation(
+        TENANT_ID,
+        { ...base, attendanceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+        PARENT,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(ops.requestRegularisation('tenant-other', base, PARENT)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('mismatched studentId is rejected', async () => {
+    await expect(
+      ops.requestRegularisation(
+        TENANT_ID,
+        { ...base, studentId: '44444444-4444-4444-8444-444444444444' },
+        PARENT,
+      ),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('fromStatus is taken from the record, not the client', async () => {
+    await expect(
+      ops.requestRegularisation(TENANT_ID, { ...base, fromStatus: 'LATE' }, PARENT),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    const req = await ops.requestRegularisation(TENANT_ID, base, PARENT);
+    expect(req.fromStatus).toBe('ABSENT');
+  });
+
+  it('approving after the row changed returns 409 and does not write', async () => {
+    const req = await ops.requestRegularisation(TENANT_ID, base, PARENT);
+    await repo.updateStudentAttendance(ROW_ID, TENANT_ID, { status: AttendanceStatus.LATE });
+    await expect(
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect((await repo.findStudentAttendanceById(TENANT_ID, ROW_ID))?.status).toBe(
+      AttendanceStatus.LATE,
+    );
+    expect(repo.getAuditEntries()).toHaveLength(0);
+    expect((await store.getRegularisation(TENANT_ID, req.id))?.status).toBe('requested');
+  });
+
+  it('requester cannot approve own request', async () => {
+    const req = await ops.requestRegularisation(TENANT_ID, base, APPROVER);
+    await expect(
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('audit previousStatus comes from the DB row', async () => {
+    const req = await ops.requestRegularisation(TENANT_ID, base, PARENT);
+    await ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER);
+    expect(repo.getAuditEntries()[0]?.previousStatus).toBe(AttendanceStatus.ABSENT);
+  });
+});

@@ -100,16 +100,33 @@ export class AttendanceOpsService {
     input: CreateRegularisationInput,
     actor: OpsActor,
   ): Promise<RegularisationRecord> {
+    // PRC-M170: the stored record is the source of truth for the claim.
+    const record = await this.attendance.findStudentAttendanceById(tenantId, input.attendanceId);
+    if (!record) throw new NotFoundError(`Attendance record '${input.attendanceId}' not found`);
+    if (
+      record.studentId !== input.studentId ||
+      record.classId !== input.classId ||
+      record.institutionId !== input.institutionId ||
+      record.date !== input.attendanceDate
+    ) {
+      throw new BusinessRuleError('Regularisation does not match the attendance record');
+    }
+    if (input.fromStatus !== undefined && input.fromStatus !== record.status) {
+      throw new ConflictError('Attendance status changed; reload and retry');
+    }
+    if (record.status === input.toStatus) {
+      throw new BusinessRuleError('Attendance record already has the requested status');
+    }
     const now = nowIso();
     return this.store.createRegularisation({
       id: uuidv4(),
       tenantId,
-      attendanceId: input.attendanceId,
-      studentId: input.studentId,
-      institutionId: input.institutionId,
-      classId: input.classId,
-      attendanceDate: input.attendanceDate,
-      fromStatus: input.fromStatus,
+      attendanceId: record.id,
+      studentId: record.studentId,
+      institutionId: record.institutionId,
+      classId: record.classId,
+      attendanceDate: record.date,
+      fromStatus: record.status,
       toStatus: input.toStatus,
       reason: input.reason ?? null,
       requesterId: actor.userId,
@@ -138,6 +155,9 @@ export class AttendanceOpsService {
     if (row.status !== 'requested') {
       throw new ConflictError(`Regularisation is already ${row.status}`);
     }
+    if (row.requesterId === actor.userId) {
+      throw new AppError('Forbidden: requester cannot decide own regularisation', 'FORBIDDEN', 403);
+    }
     // PRC-M171: claim the request first with a compare-and-set on
     // status='requested'; a concurrent decision gets 0 rows -> 409.
     const next = await this.store.updateRegularisation(
@@ -156,6 +176,8 @@ export class AttendanceOpsService {
           kind: 'update',
           id: row.attendanceId,
           data: { status: row.toStatus as AttendanceStatus },
+          // PRC-M170: stale request (row changed since request) -> 409, no write.
+          expectedStatus: row.fromStatus as AttendanceStatus,
           audit: {
             id: uuidv4(),
             previousStatus: null,
