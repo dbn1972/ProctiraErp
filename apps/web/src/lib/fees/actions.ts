@@ -9,6 +9,8 @@ import {
   applyScholarshipNetting,
   addReminderSuppression,
   bulkInvoiceStructure,
+  previewBulkInvoiceStructure,
+  type BulkInvoicePreview,
   createFeeStructure,
   generateInstalments,
   importReconciliation,
@@ -107,12 +109,40 @@ export async function createFeeStructureAction(
   }
 }
 
+/** PRC-M086: preview how many invoices a bulk run creates before confirming. */
+export async function previewBulkInvoiceAction(
+  values: BulkInvoiceFormValues,
+): Promise<ActionResult<BulkInvoicePreview>> {
+  const parsed = bulkInvoiceFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
+  }
+  const studentIds = parseStudentIdList(parsed.data.studentIds);
+  try {
+    const preview = await previewBulkInvoiceStructure(parsed.data.structureId, {
+      classId: parsed.data.classId || undefined,
+      studentIds: studentIds.length > 0 ? studentIds : undefined,
+    });
+    return { success: true, data: preview };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 export async function bulkInvoiceAction(
   values: BulkInvoiceFormValues,
 ): Promise<ActionResult<{ created: number; skipped: number }>> {
   const parsed = bulkInvoiceFormSchema.safeParse(values);
   if (!parsed.success) {
-    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
   }
   const studentIds = parseStudentIdList(parsed.data.studentIds);
   try {

@@ -289,6 +289,26 @@ export async function bulkInvoiceStructure(
   return throwIfMissing(result, 'Failed to bulk invoice');
 }
 
+/** PRC-M086: dry-run count + total for the bulk-invoice confirm dialog. */
+export interface BulkInvoicePreview {
+  structureId: string;
+  studentCount: number;
+  toCreateCount: number;
+  skippedCount: number;
+  totalAmountCents: number;
+  currency: string;
+}
+export async function previewBulkInvoiceStructure(
+  structureId: string,
+  input: { classId?: string; gradeId?: string; studentIds?: string[] },
+): Promise<BulkInvoicePreview> {
+  const result = await gatewayFetch<BulkInvoicePreview>(
+    `/fees/structures/${structureId}/bulk-invoice/preview`,
+    { method: 'POST', json: input },
+  );
+  return throwIfMissing(result, 'Failed to preview bulk invoice');
+}
+
 export async function applyConcession(input: {
   studentId: string;
   structureId: string;

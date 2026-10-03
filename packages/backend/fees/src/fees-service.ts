@@ -2,7 +2,13 @@
  * Fees service — plans, invoices, sandbox payments, receipts.
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
-import { BusinessRuleError, ConflictError, NotFoundError, pgIntegerCents } from '@proctira/common';
+import {
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  pgIntegerCents,
+} from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -107,6 +113,8 @@ export interface BulkInvoiceInput {
   gradeId?: string;
   studentIds?: string[];
   dueAt?: string;
+  /** PRC-M086: explicit opt-in to invoice every enrolled student. */
+  allStudents?: boolean;
 }
 
 /** PRC-H020: tenant-scoped view of a scholarship disbursement used to verify netting. */
@@ -751,35 +759,57 @@ export class FeesService {
     return this.repository.listStructureInstalments(tenantId, structureId);
   }
 
-  async bulkInvoiceClass(tenantId: string, actorId: string, input: BulkInvoiceInput) {
-    const structure = await this.getFeeStructure(tenantId, input.structureId);
-    if (structure.status !== 'active') {
+  /**
+   * PRC-M086: resolve who a bulk invoice would bill. Refuses an unscoped run
+   * (no class, grade or student list on the request *or* the structure)
+   * unless `allStudents` is explicitly set, so an empty form can never
+   * invoice every enrolled student in the tenant.
+   */
+  private async resolveBulkInvoiceScope(
+    repo: FeesRepository,
+    tenantId: string,
+    input: BulkInvoiceInput,
+  ) {
+    const structure = await repo.findFeeStructureById(input.structureId, tenantId);
+    if (!structure || structure.status !== 'active') {
       throw new NotFoundError(`Fee structure with id '${input.structureId}' not found`);
     }
     const classId = input.classId ?? structure.classId;
     const gradeId = input.gradeId ?? structure.gradeId;
     const fromInput = (input.studentIds ?? []).filter((id) => id.length > 0);
+    if (fromInput.length === 0 && !classId && !gradeId && input.allStudents !== true) {
+      throw new ValidationError('Choose a class, grade or students to invoice', [
+        {
+          field: 'classId',
+          rule: 'required',
+          message: 'Bulk invoicing needs a class, grade or student list',
+        },
+      ]);
+    }
     const roster =
       fromInput.length > 0
         ? fromInput
-        : await this.repository.listStudentIdsForScope(tenantId, { classId, gradeId });
+        : await repo.listStudentIdsForScope(tenantId, { classId, gradeId });
     const unique = [...new Set(roster)];
-    if (unique.length === 0) {
-      throw new BusinessRuleError('No students found to invoice for this class/grade');
-    }
+    return { structure, classId, gradeId, studentIds: unique };
+  }
 
-    const created: FeeInvoiceEntity[] = [];
-    const skipped: string[] = [];
-    for (const studentId of unique) {
+  /** PRC-M086: dry run — how many invoices a bulk run would create, and for how much. */
+  async previewBulkInvoice(tenantId: string, input: BulkInvoiceInput) {
+    const { structure, studentIds } = await this.resolveBulkInvoiceScope(
+      this.repository,
+      tenantId,
+      input,
+    );
+    let toCreate = 0;
+    let totalAmountCents = 0;
+    for (const studentId of studentIds) {
       const existing = await this.repository.findInvoiceForStructureStudent(
         tenantId,
         structure.id,
         studentId,
       );
-      if (existing) {
-        skipped.push(studentId);
-        continue;
-      }
+      if (existing) continue;
       const concession = await this.repository.findConcessionForStudentStructure(
         tenantId,
         studentId,
@@ -789,10 +819,50 @@ export class FeesService {
         concession && concession.status === 'approved'
           ? concessionDiscountCents(structure.amountCents, concession)
           : 0;
-      const amountCents = Math.max(0, structure.amountCents - discount);
-      const invoiceId = uuidv4();
-      // PRC-H058: invoice + issuance journal + concession link commit together.
-      const invoice = await this.repository.runInTransaction(tenantId, async (tx) => {
+      toCreate += 1;
+      totalAmountCents += Math.max(0, structure.amountCents - discount);
+    }
+    return {
+      structureId: structure.id,
+      studentCount: studentIds.length,
+      toCreateCount: toCreate,
+      skippedCount: studentIds.length - toCreate,
+      totalAmountCents,
+      currency: structure.currency,
+    };
+  }
+
+  async bulkInvoiceClass(tenantId: string, actorId: string, input: BulkInvoiceInput) {
+    // PRC-M086: the whole batch (invoices + journals + concession links)
+    // commits in one transaction, so a failure part-way creates nothing.
+    return this.repository.runInTransaction(tenantId, async (tx) => {
+      const { structure, classId, gradeId, studentIds } = await this.resolveBulkInvoiceScope(
+        tx,
+        tenantId,
+        input,
+      );
+      if (studentIds.length === 0) {
+        throw new BusinessRuleError('No students found to invoice for this class/grade');
+      }
+      const created: FeeInvoiceEntity[] = [];
+      const skipped: string[] = [];
+      for (const studentId of studentIds) {
+        const existing = await tx.findInvoiceForStructureStudent(tenantId, structure.id, studentId);
+        if (existing) {
+          skipped.push(studentId);
+          continue;
+        }
+        const concession = await tx.findConcessionForStudentStructure(
+          tenantId,
+          studentId,
+          structure.id,
+        );
+        const discount =
+          concession && concession.status === 'approved'
+            ? concessionDiscountCents(structure.amountCents, concession)
+            : 0;
+        const amountCents = Math.max(0, structure.amountCents - discount);
+        const invoiceId = uuidv4();
         const row = await tx.createInvoice({
           id: invoiceId,
           tenantId,
@@ -826,11 +896,10 @@ export class FeesService {
         if (concession) {
           await tx.updateConcession(concession.id, tenantId, { invoiceId: row.id });
         }
-        return row;
-      });
-      created.push(invoice);
-    }
-    return { created, skipped, structureId: structure.id };
+        created.push(row);
+      }
+      return { created, skipped, structureId: structure.id };
+    });
   }
 
   async applyConcession(tenantId: string, actorId: string, input: ApplyConcessionInput) {

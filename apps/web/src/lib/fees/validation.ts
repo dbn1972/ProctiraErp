@@ -68,7 +68,13 @@ export const bulkInvoiceFormSchema = z.object({
     .string()
     .optional()
     .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
-});
+  /** True when the chosen structure itself is tied to a class or grade. */
+  structureScoped: z.boolean().optional(),
+}).refine(
+  // PRC-M086: never submit an unscoped bulk run (it would bill every student).
+  (d) => Boolean(d.classId) || parseStudentIdList(d.studentIds).length > 0 || d.structureScoped === true,
+  { message: 'Choose a class or add students to invoice', path: ['classId'] },
+);
 
 export const concessionFormSchema = z
   .object({
