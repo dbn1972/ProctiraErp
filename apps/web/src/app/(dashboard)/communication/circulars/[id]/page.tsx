@@ -61,6 +61,14 @@ export default async function CircularDetailPage(props: PageProps) {
             circularId={circular.id}
             status={circular.status}
             ackRate={circular.ackRate}
+            pendingRecipients={circular.acks
+              .filter((ack) => !ack.acknowledgedAt)
+              .map((ack) => ({
+                id: ack.recipientId,
+                label:
+                  ack.recipientLabel ||
+                  resolveEntityLabel(ack.recipientId, recipientLabels, 'Recipient'),
+              }))}
           />
           <ul className="divide-y divide-border" role="list">
             {circular.acks.map((ack) => (

@@ -25,7 +25,12 @@ import {
   type DeliveryLogQuery,
 } from './circular-schemas.js';
 
-import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
+import { hasCommunicationAccess } from './communication-access.js';
+import {
+  communicationActorId,
+  communicationRequestRoles,
+  enforceCommunicationRouteAccess,
+} from './communication-http-guard.js';
 import type { CircularsService } from './circulars-service.js';
 
 export interface CircularRoutesOptions {
@@ -152,7 +157,6 @@ export async function registerCircularRoutes(
     }
   });
 
-
   fastify.get(
     `${prefix}/circulars`,
     async function listCircularsHandler(request: FastifyRequest, reply: FastifyReply) {
@@ -270,6 +274,28 @@ export async function registerCircularRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      // PRC-M071: portal principals may only acknowledge as themselves. Staff
+      // (communication.staff) may record an acknowledgement on behalf of a
+      // recipient; that is logged with the acting subject.
+      const actorId = communicationActorId(request);
+      const isStaff = hasCommunicationAccess(
+        communicationRequestRoles(request),
+        'communication.staff',
+      );
+      const recipientId = bodyResult.data.recipientId;
+      if (!actorId || (!isStaff && recipientId !== actorId)) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'You can only acknowledge a circular as yourself',
+          statusCode: 403,
+        });
+      }
+      if (recipientId !== actorId) {
+        request.log.info(
+          { circularId: paramsResult.data.id, recipientId, ackedBy: actorId, tenantId },
+          'circular acknowledged on behalf of recipient',
+        );
+      }
       try {
         const row = await circularsService.ackCircular(
           tenantId,
