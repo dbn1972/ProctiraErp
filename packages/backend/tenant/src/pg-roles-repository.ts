@@ -11,7 +11,12 @@
  * stable across restarts and match what the JWT carries.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { PgDocumentCollection, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
+import {
+  PgDocumentCollection,
+  withPlatformScope,
+  type PgPoolWithConnect,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type { BuiltInRoleSeed } from './in-memory-roles-repository.js';
 import type {
@@ -49,7 +54,7 @@ export class PgRolesRepository implements RolesRepository {
   private readonly seeded = new Set<string>();
 
   constructor(
-    pool: PgPoolWithConnect | PgQueryable,
+    private readonly pool: PgPoolWithConnect | PgQueryable,
     private readonly seed: BuiltInRoleSeed[] = [],
   ) {
     this.roles = new PgDocumentCollection<RoleDoc>(pool, 'tenant.roles');
@@ -199,5 +204,35 @@ export class PgRolesRepository implements RolesRepository {
     const existing = await this.findUserById(tenantId, userId);
     if (!existing) return null;
     return this.users.put(userId, { ...existing, roleIds: [...roleIds] }, tenantId);
+  }
+
+  /** PRC-M026: `SELECT … FOR UPDATE` serialises concurrent membership changes per user. */
+  async updateUserRolesAtomic(
+    tenantId: string,
+    userId: string,
+    mutate: (current: string[]) => string[],
+  ): Promise<{ before: string[]; user: UserRecord } | null> {
+    return withPlatformScope(
+      this.pool,
+      async (client) => {
+        const res = await client.query(
+          `SELECT data FROM control_plane_documents
+            WHERE collection = 'tenant.users' AND id = $1 AND tenant_id = $2
+            FOR UPDATE`,
+          [userId, tenantId],
+        );
+        const current = (res.rows[0] as { data?: UserRecord } | undefined)?.data;
+        if (!current || current.tenantId !== tenantId) return null;
+        const before = [...(current.roleIds ?? [])];
+        const user: UserRecord = { ...current, roleIds: [...new Set(mutate([...before]))] };
+        await client.query(
+          `UPDATE control_plane_documents SET data = $3::jsonb, updated_at = now()
+            WHERE collection = 'tenant.users' AND id = $1 AND tenant_id = $2`,
+          [userId, tenantId, JSON.stringify(user)],
+        );
+        return { before, user };
+      },
+      tenantId,
+    );
   }
 }
