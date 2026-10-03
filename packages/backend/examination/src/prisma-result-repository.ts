@@ -30,6 +30,7 @@ import type {
 } from './result-repository.js';
 import {
   MARKS_LOCKED_MESSAGE,
+  UNKNOWN_AREA_ID,
   fingerprintCandidates,
   mergeSubjectResults,
 } from './result-repository.js';
@@ -45,13 +46,23 @@ async function lockExamination(tx: Tx, tenantId: string, examinationId: string):
   );
 }
 
+/** PRC-M240: unknown demographics are stored as NULL, never as a synthesised value. */
+export function genderColumn(gender: ExaminationCandidate['gender']): string | null {
+  return gender === 'unknown' ? null : gender;
+}
+
+/** PRC-M240: the nil-UUID domain sentinel is stored as NULL. */
+export function areaColumn(areaId: string): string | null {
+  return !areaId || areaId === UNKNOWN_AREA_ID ? null : areaId;
+}
+
 function rowToCandidate(row: {
   id: string;
   examinationId: string;
   studentId: string;
   centerId: string;
-  gender: string;
-  areaId: string;
+  gender: string | null;
+  areaId: string | null;
   subjectResults: unknown;
 }): ExaminationCandidate {
   return {
@@ -59,8 +70,9 @@ function rowToCandidate(row: {
     examinationId: row.examinationId,
     studentId: row.studentId,
     centerId: row.centerId,
-    gender: row.gender as ExaminationCandidate['gender'],
-    areaId: row.areaId,
+    // PRC-H057 / PRC-M240: NULL columns are the 'unknown' analysis bucket.
+    gender: (row.gender ?? 'unknown') as ExaminationCandidate['gender'],
+    areaId: row.areaId ?? UNKNOWN_AREA_ID,
     subjectResults: Array.isArray(row.subjectResults)
       ? (row.subjectResults as unknown as CandidateSubjectResult[])
       : [],
@@ -116,14 +128,14 @@ export class PrismaResultRepository implements ResultRepository {
             examinationId: candidate.examinationId,
             studentId: candidate.studentId,
             centerId: candidate.centerId,
-            gender: candidate.gender,
-            areaId: candidate.areaId,
+            gender: genderColumn(candidate.gender),
+            areaId: areaColumn(candidate.areaId),
             subjectResults,
           },
           update: {
             centerId: candidate.centerId,
-            gender: candidate.gender,
-            areaId: candidate.areaId,
+            gender: genderColumn(candidate.gender),
+            areaId: areaColumn(candidate.areaId),
             subjectResults,
           },
         });
@@ -168,14 +180,14 @@ export class PrismaResultRepository implements ResultRepository {
             examinationId,
             studentId: candidate.studentId,
             centerId: candidate.centerId,
-            gender: candidate.gender,
-            areaId: candidate.areaId,
+            gender: genderColumn(candidate.gender),
+            areaId: areaColumn(candidate.areaId),
             subjectResults,
           },
           update: {
             centerId: candidate.centerId,
-            gender: candidate.gender,
-            areaId: candidate.areaId,
+            gender: genderColumn(candidate.gender),
+            areaId: areaColumn(candidate.areaId),
             subjectResults,
           },
         });
