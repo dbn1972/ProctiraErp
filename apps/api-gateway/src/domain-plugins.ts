@@ -128,6 +128,7 @@ import {
   linkedStudentIdsForParent,
   scholarshipPlugin,
   parentScholarshipPlugin,
+  type RedisLikeForDownloadReplay,
   type ScholarshipRepository,
 } from '@proctira/backend-scholarship';
 import {
@@ -173,6 +174,11 @@ import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
+import {
+  createScholarshipDownloadAuditRecorder,
+  createScholarshipDownloadReplayGuard,
+  type DownloadAuditService,
+} from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
@@ -927,7 +933,28 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const resolveLinkedStudentIds = isPgScholarshipEnabled()
         ? linkedStudentIdsForParent
         : undefined;
+      // PRC-L344: single-use download links are enforced through shared Redis (REDIS_URL) so
+      // they hold across replicas; every served download writes a durable audit_log row.
+      let downloadReplayRedis: RedisLikeForDownloadReplay | undefined;
+      const scholarshipRedisUrl = process.env['REDIS_URL']?.trim();
+      if (scholarshipRedisUrl) {
+        const { default: Redis } = await import('ioredis');
+        const redis = new Redis(scholarshipRedisUrl, { maxRetriesPerRequest: 3, lazyConnect: true });
+        downloadReplayRedis = redis;
+        scope.addHook('onClose', async () => {
+          await redis.quit();
+        });
+      }
+      const downloadReplayGuard = createScholarshipDownloadReplayGuard({
+        redis: downloadReplayRedis,
+        NODE_ENV: process.env['NODE_ENV'],
+      });
+      const recordDownloadAudit = createScholarshipDownloadAuditRecorder(
+        () => (scope as unknown as { auditService?: DownloadAuditService }).auditService,
+      );
       await scope.register(scholarshipPlugin, {
+        downloadReplayGuard,
+        recordDownloadAudit,
         repository,
         prefix: '/scholarships',
         documentStore,
@@ -967,6 +994,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/parent-portal/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        downloadReplayGuard,
+        recordDownloadAudit,
       });
     },
   },
