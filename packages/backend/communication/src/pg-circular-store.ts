@@ -143,6 +143,56 @@ export class PgCircularStore implements CircularStore {
     });
   }
 
+  async createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord> {
+    await ensureCircularSchema(this.pool);
+    // withPgTenant runs fn inside BEGIN/COMMIT, so the circular and its acks commit together.
+    return this.run(record.tenantId, async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO comms_circulars (
+           id, tenant_id, title, body, audience_type, audience_json, requires_ack, channels, status, created_by, sent_at, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13)
+         RETURNING *`,
+        [
+          record.id,
+          record.tenantId,
+          record.title,
+          record.body,
+          record.audienceType,
+          JSON.stringify(record.audienceJson ?? {}),
+          record.requiresAck,
+          record.channels,
+          record.status,
+          record.createdBy,
+          record.sentAt,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+      if (acks.length > 0) {
+        await client.query(
+          `INSERT INTO comms_circular_acks (
+             id, tenant_id, circular_id, recipient_id, recipient_label, acknowledged_at, created_at
+           )
+           SELECT a.id, $1, $2, a.recipient_id, a.recipient_label, NULL, $3
+             FROM unnest($4::uuid[], $5::text[], $6::text[]) AS a(id, recipient_id, recipient_label)
+           ON CONFLICT (tenant_id, circular_id, recipient_id) DO NOTHING`,
+          [
+            record.tenantId,
+            record.id,
+            record.createdAt,
+            acks.map((a) => a.id),
+            acks.map((a) => a.recipientId),
+            acks.map((a) => a.recipientLabel),
+          ],
+        );
+      }
+      return mapCircular(rows[0] as Record<string, unknown>);
+    });
+  }
+
   async listCirculars(tenantId: string): Promise<CircularRecord[]> {
     await ensureCircularSchema(this.pool);
     return this.run(tenantId, async (client) => {

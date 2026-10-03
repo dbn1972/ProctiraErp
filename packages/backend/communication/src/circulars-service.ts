@@ -43,38 +43,40 @@ export class CircularsService {
       throw new ValidationError('requiresAck circulars need at least one recipientId');
     }
     const now = new Date();
-    const record = await this.store.createCircular({
-      id: randomUUID(),
-      tenantId,
-      title: input.title,
-      body: input.body,
-      audienceType: input.audienceType,
-      audienceJson: {
-        type: input.audienceType,
-        ids: input.audienceIds ?? [],
-        recipientIds: input.recipientIds ?? [],
-      },
-      requiresAck: input.requiresAck ?? false,
-      channels: input.channels && input.channels.length > 0 ? input.channels : ['in_app'],
-      status: 'draft',
-      createdBy: input.createdBy ?? null,
-      sentAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
+    // PRC-M193: de-duplicate recipients; circular + acks commit in one transaction.
+    const recipientIds = [...new Set(input.recipientIds ?? [])];
     const labels = input.recipientLabels ?? {};
-    for (const recipientId of input.recipientIds ?? []) {
-      await this.store.createAck({
+    const circularId = randomUUID();
+    const record = await this.store.createCircularWithAcks(
+      {
+        id: circularId,
+        tenantId,
+        title: input.title,
+        body: input.body,
+        audienceType: input.audienceType,
+        audienceJson: {
+          type: input.audienceType,
+          ids: input.audienceIds ?? [],
+          recipientIds,
+        },
+        requiresAck: input.requiresAck ?? false,
+        channels: input.channels && input.channels.length > 0 ? input.channels : ['in_app'],
+        status: 'draft',
+        createdBy: input.createdBy ?? null,
+        sentAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      recipientIds.map((recipientId) => ({
         id: randomUUID(),
         tenantId,
-        circularId: record.id,
+        circularId,
         recipientId,
         recipientLabel: labels[recipientId] ?? null,
         acknowledgedAt: null,
         createdAt: now,
-      });
-    }
+      })),
+    );
 
     return this.toView(tenantId, record);
   }

@@ -5,6 +5,9 @@ import { Type, type Static } from '@sinclair/typebox';
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
+/** PRC-M193: max recipients per circular. */
+export const MAX_CIRCULAR_RECIPIENTS = 5000;
+
 export const CircularAudienceTypeSchema = Type.Union([
   Type.Literal('all'),
   Type.Literal('roles'),
@@ -19,7 +22,10 @@ export const CreateCircularSchema = Type.Object({
   audienceIds: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }))),
   requiresAck: Type.Optional(Type.Boolean()),
   channels: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8 })),
-  recipientIds: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }))),
+  // PRC-M193: bounded fan-out (de-duplicated server-side).
+  recipientIds: Type.Optional(
+    Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: MAX_CIRCULAR_RECIPIENTS }),
+  ),
   recipientLabels: Type.Optional(Type.Record(Type.String(), Type.String())),
   createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
 });

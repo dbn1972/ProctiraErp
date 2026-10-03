@@ -68,6 +68,15 @@ export interface CircularStore {
     patch: Partial<Pick<CircularRecord, 'status' | 'sentAt'>>,
   ): Promise<CircularRecord | null>;
 
+  /**
+   * PRC-M193: insert the circular and all of its ack rows in ONE transaction
+   * (bulk insert, duplicates ignored). Nothing is persisted on failure.
+   */
+  createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord>;
+
   createAck(record: CircularAckRecord): Promise<CircularAckRecord>;
   listAcks(tenantId: string, circularId: string): Promise<CircularAckRecord[]>;
   findAck(
@@ -138,6 +147,24 @@ export class InMemoryCircularStore implements CircularStore {
     const updated: CircularRecord = { ...row, ...patch, updatedAt: new Date() };
     this.circulars.set(id, updated);
     return clone(updated);
+  }
+
+  /** Test hook: throw while inserting acks (fault injection). */
+  failAckInsert = false;
+
+  async createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord> {
+    if (this.failAckInsert && acks.length > 0) throw new Error('injected ack failure');
+    this.circulars.set(record.id, clone(record));
+    const seen = new Set<string>();
+    for (const ack of acks) {
+      if (seen.has(ack.recipientId)) continue;
+      seen.add(ack.recipientId);
+      this.acks.set(ack.id, clone(ack));
+    }
+    return clone(record);
   }
 
   async createAck(record: CircularAckRecord): Promise<CircularAckRecord> {
