@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { AdmissionsCrmStore } from '../admissions-crm-store.js';
 import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
+import { dateOfBirthErrors, parseTimestamp } from '../input-validation.js';
 import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
@@ -207,6 +208,8 @@ export class AdmissionsPipelineService {
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
+    const dobErrors = dateOfBirthErrors(input.dateOfBirth);
+    if (dobErrors.length > 0) throw new ValidationError('Invalid date of birth', dobErrors);
     const now = new Date();
     const record: EnquiryRecord = {
       id: uuidv4(),
@@ -471,6 +474,16 @@ export class AdmissionsPipelineService {
     const feeAmount = input.feeAmount ?? 0;
     const feeCurrency = input.feeCurrency ?? 'INR';
     assertValidOfferFee(feeAmount, feeCurrency);
+    // PRC-M333: expiresAt must be a real timestamp in the future.
+    let expiresAt: Date | null = null;
+    if (input.expiresAt !== undefined) {
+      expiresAt = parseTimestamp(input.expiresAt);
+      if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+        throw new ValidationError('Invalid offer expiry', [
+          { field: 'expiresAt', rule: 'format', message: 'expiresAt must be a future ISO timestamp' },
+        ]);
+      }
+    }
     await this.assertSeatAvailable(tenantId, placement);
     const now = new Date();
     const document = buildOfferDocument({
@@ -504,7 +517,7 @@ export class AdmissionsPipelineService {
       paymentRef: null,
       offerFeeInvoiceId,
       enrolledStudentId: null,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      expiresAt,
       offerDocument: document as unknown as Record<string, unknown>,
       createdAt: now,
       updatedAt: now,

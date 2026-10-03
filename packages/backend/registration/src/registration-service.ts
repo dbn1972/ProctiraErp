@@ -22,6 +22,7 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+import { dateOfBirthErrors, isRealIsoDate, matchesConfiguredPattern, parseTimestamp } from './input-validation.js';
 import type { ListPage } from './pagination.js';
 
 import {
@@ -178,6 +179,17 @@ export function validateCustomFields(
 
     if (field.value === null || field.value === '') continue;
 
+    // PRC-M333: value type must match the configured field type.
+    const typeError = customFieldTypeError(fieldDef.type, field.value);
+    if (typeError) {
+      errors.push({
+        field: `customFields.${field.fieldId}`,
+        rule: 'type',
+        message: `Field '${fieldDef.label}' ${typeError}`,
+      });
+      continue;
+    }
+
     // Type-specific validation
     if (fieldDef.type === 'select' && fieldDef.options) {
       const validValues = fieldDef.options.map((o) => o.value);
@@ -207,6 +219,17 @@ export function validateCustomFields(
             message: `Field '${fieldDef.label}' must be at most ${fieldDef.validation.maxLength} characters`,
           });
         }
+        // PRC-M333: honour the configured pattern (anchored; invalid regex fails closed).
+        if (
+          fieldDef.validation.pattern &&
+          !matchesConfiguredPattern(val, fieldDef.validation.pattern)
+        ) {
+          errors.push({
+            field: `customFields.${field.fieldId}`,
+            rule: 'pattern',
+            message: `Field '${fieldDef.label}' has an invalid format`,
+          });
+        }
       }
       if (typeof val === 'number') {
         if (fieldDef.validation.min !== undefined && val < fieldDef.validation.min) {
@@ -228,6 +251,29 @@ export function validateCustomFields(
   }
 
   return errors;
+}
+
+/** PRC-M333: returns a message when `value` does not fit the configured field type. */
+function customFieldTypeError(
+  type: string,
+  value: string | number | boolean,
+): string | null {
+  switch (type) {
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value) ? null : 'must be a number';
+    case 'checkbox':
+      return typeof value === 'boolean' ? null : 'must be true or false';
+    case 'date':
+      return typeof value === 'string' && isRealIsoDate(value)
+        ? null
+        : 'must be a real date (YYYY-MM-DD)';
+    case 'text':
+    case 'textarea':
+    case 'select':
+      return typeof value === 'string' ? null : 'must be text';
+    default:
+      return null;
+  }
 }
 
 /** Match configured file fields to submitted documentType values. */
@@ -380,6 +426,7 @@ export class RegistrationService {
 
     const documents = input.documents ?? [];
     const fieldErrors = [
+      ...dateOfBirthErrors(input.dateOfBirth),
       ...validateDocuments(documents),
       ...validateConfiguredDocuments(documents, formConfig),
       ...validateCustomFields(input.customFields ?? [], formConfig),
@@ -668,7 +715,20 @@ export class RegistrationService {
       location?: string | null;
     },
   ) {
-    if (new Date(input.endsAt) <= new Date(input.startsAt)) {
+    // PRC-M333: reject unparseable timestamps (NaN comparisons are always false).
+    const startsAt = parseTimestamp(input.startsAt);
+    const endsAt = parseTimestamp(input.endsAt);
+    if (!startsAt || !endsAt) {
+      throw new ValidationError('Invalid interview slot time', [
+        ...(!startsAt
+          ? [{ field: 'startsAt', rule: 'format', message: 'startsAt must be an ISO timestamp' }]
+          : []),
+        ...(!endsAt
+          ? [{ field: 'endsAt', rule: 'format', message: 'endsAt must be an ISO timestamp' }]
+          : []),
+      ]);
+    }
+    if (endsAt <= startsAt) {
       throw new BusinessRuleError('Interview slot end must be after start');
     }
     return this.crm.createSlot({ tenantId, ...input });
