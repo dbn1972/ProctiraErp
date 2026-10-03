@@ -19,6 +19,7 @@ import {
   listSections,
 } from '@/lib/api/timetable';
 import { formatPersonLabel } from '@/lib/entity-label';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from '@/lib/map-with-concurrency';
 import {
   conflictReasonLabel,
   formatPeriodWhen,
@@ -83,24 +84,33 @@ export default async function InstitutionSchedulePage(props: PageProps) {
     ]),
   );
   const periodLabel = new Map<string, string>();
+  // PRC-M097: periods per bell schedule and missing conflict staff are fetched in
+  // parallel (capped) rather than one sequential round-trip each.
   const schedules = await listBellSchedules({ institutionId });
-  for (const schedule of schedules.ok ? schedules.data : []) {
-    const periods = await listPeriods(schedule.id);
+  const bellSchedules = schedules.ok ? schedules.data : [];
+  const periodsBySchedule = await mapWithConcurrency(bellSchedules, LOOKUP_CONCURRENCY, (schedule) =>
+    listPeriods(schedule.id),
+  );
+  for (const periods of periodsBySchedule) {
     if (!periods.ok) continue;
     for (const period of periods.data) {
       periodLabel.set(period.id, formatPeriodWhen(period.name, period.startTime, period.endTime));
     }
   }
   const sectionLabel = new Map(sections.map((section) => [section.id, section.name]));
-  for (const conflict of conflicts) {
-    if (conflict.staffId && !staffLabel.has(conflict.staffId)) {
-      const person = await getStaff(conflict.staffId).catch(() => null);
-      if (person) {
-        staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
-      }
-    }
+  const missingConflictStaff = [
+    ...new Set(
+      conflicts
+        .map((c) => c.staffId)
+        .filter((id): id is string => Boolean(id) && !staffLabel.has(id as string)),
+    ),
+  ];
+  const conflictStaff = await mapWithConcurrency(missingConflictStaff, LOOKUP_CONCURRENCY, (id) =>
+    getStaff(id).catch(() => null),
+  );
+  for (const person of conflictStaff) {
+    if (person) staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
   }
-
   return (
     <div className="space-y-4" data-testid="institution-schedule">
       <div>
