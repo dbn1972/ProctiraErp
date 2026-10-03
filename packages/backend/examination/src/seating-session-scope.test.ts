@@ -61,7 +61,11 @@ describe('seating generation (PRC-M238)', () => {
     repository = new InMemoryExaminationRepository();
     documents = new InMemoryDocumentRepository();
     const exams = new ExaminationService(repository);
-    ops = new ExamOpsService({ store: new InMemoryExamOpsStore(), examinations: repository, documents });
+    ops = new ExamOpsService({
+      store: new InMemoryExamOpsStore(),
+      examinations: repository,
+      documents,
+    });
     const exam = await exams.create(TENANT, body());
     examId = exam.id;
     const [math, sci] = exam.subjects;
@@ -84,7 +88,14 @@ describe('seating generation (PRC-M238)', () => {
       const res = await ops.createSession(
         TENANT,
         examId,
-        { subjectId, date: futureDate(8), startTime: '09:00', endTime: '11:00', roomId: room, centerId },
+        {
+          subjectId,
+          date: futureDate(8),
+          startTime: '09:00',
+          endTime: '11:00',
+          roomId: room,
+          centerId,
+        },
         ADMIN,
       );
       if (!res.ok) throw new Error('session clash');
@@ -123,7 +134,9 @@ describe('seating generation (PRC-M238)', () => {
     await expect(ops.generateSeating(TENANT, examId, {}, ADMIN)).rejects.toMatchObject({
       statusCode: 409,
     });
-    await expect(ops.generateSeating(TENANT, examId, { force: true }, ADMIN)).resolves.toHaveLength(2);
+    await expect(ops.generateSeating(TENANT, examId, { force: true }, ADMIN)).resolves.toHaveLength(
+      2,
+    );
   });
 });
 

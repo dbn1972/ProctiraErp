@@ -3,12 +3,12 @@
  *
  * In-memory implementation of PipelineRepository for testing and development.
  */
-import type { Pipeline, PipelineExecution } from './schemas.js';
 import type {
   PipelineRepository,
   PipelineListFilter,
   PipelineListResult,
 } from './pipeline-repository.js';
+import type { Pipeline, PipelineExecution } from './schemas.js';
 
 export class InMemoryPipelineRepository implements PipelineRepository {
   private pipelines: Map<string, Pipeline> = new Map();

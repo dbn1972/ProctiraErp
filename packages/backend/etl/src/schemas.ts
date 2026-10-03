@@ -346,11 +346,7 @@ export interface Pipeline {
 
 /** PRC-M227: `completed_with_errors` = run finished but some rows were rejected. */
 export type ExecutionStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'completed_with_errors'
-  | 'failed';
+  'pending' | 'running' | 'completed' | 'completed_with_errors' | 'failed';
 
 /**
  * Thin run lineage (P2-WH) — breadcrumb only, not a governed catalog/graph.

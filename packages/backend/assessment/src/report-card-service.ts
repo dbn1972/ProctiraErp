@@ -708,9 +708,7 @@ export class ReportCardService {
   }
 
   private staleBefore(): Date {
-    return new Date(
-      Date.now() - (this.options.staleProcessingMs ?? DEFAULT_STALE_PROCESSING_MS),
-    );
+    return new Date(Date.now() - (this.options.staleProcessingMs ?? DEFAULT_STALE_PROCESSING_MS));
   }
 
   private logPublishFailure(tenantId: string, jobId: string, error: unknown): void {

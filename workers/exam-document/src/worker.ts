@@ -6,9 +6,9 @@
  * queue backend retains unacked messages (RabbitMQ) or a shared durable store
  * (InMemoryDurableQueueAdapter for proofs).
  */
+import type { ExamDocumentJobPayload } from '@proctira/backend-examination';
 import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
 import { EXAM_DOCUMENT_CONSUME_TOPIC, EXAM_DOCUMENT_JOB_TYPE } from '@proctira/queue-abstraction';
-import type { ExamDocumentJobPayload } from '@proctira/backend-examination';
 
 export interface ExamDocumentWorkerLogger {
   info(obj: Record<string, unknown>, msg: string): void;

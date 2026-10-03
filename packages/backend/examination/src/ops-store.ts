@@ -112,12 +112,10 @@ export interface ExamOpsAuditRecord {
 }
 
 export type GuardedSessionResult =
-  | { ok: true; session: ExamSessionRecord }
-  | { ok: false; conflicts: AllocationConflict[] };
+  { ok: true; session: ExamSessionRecord } | { ok: false; conflicts: AllocationConflict[] };
 
 export type GuardedInvigilatorResult =
-  | { ok: true; allocation: ExamInvigilatorRecord }
-  | { ok: false; conflicts: AllocationConflict[] };
+  { ok: true; allocation: ExamInvigilatorRecord } | { ok: false; conflicts: AllocationConflict[] };
 
 export interface ExamOpsStore {
   createSession(record: ExamSessionRecord): Promise<ExamSessionRecord>;

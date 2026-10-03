@@ -84,7 +84,6 @@ describe('Report Card Routes', () => {
       };
     });
 
-
     await registerReportCardRoutes(app, { reportCardService });
     await app.ready();
   });

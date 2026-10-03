@@ -5,12 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
-import type {
-  DataRow,
-  DestinationConnector,
-  LoadContext,
-  LoadResult,
-} from './connectors/types.js';
+import type { DataRow, DestinationConnector, LoadContext, LoadResult } from './connectors/types.js';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type { CreatePipelineInput } from './schemas.js';

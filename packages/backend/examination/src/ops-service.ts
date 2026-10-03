@@ -377,7 +377,7 @@ export class ExamOpsService {
     );
     // PRC-M238: a session-scoped run seats only candidates sitting that session.
     const registrations = sessionSubjectId
-      ? allRegistrations.filter((r) => r.subjectIds.includes(sessionSubjectId!))
+      ? allRegistrations.filter((r) => r.subjectIds.includes(sessionSubjectId))
       : allRegistrations;
     const docs = this.documents
       ? await this.documents.getDocumentCandidates(examinationId, tenantId)
@@ -418,12 +418,7 @@ export class ExamOpsService {
       generatedAt: now,
     }));
 
-    const saved = await this.store.replaceSeatingGuarded(
-      tenantId,
-      examinationId,
-      seats,
-      sessionId,
-    );
+    const saved = await this.store.replaceSeatingGuarded(tenantId, examinationId, seats, sessionId);
     await this.audit(
       tenantId,
       examinationId,

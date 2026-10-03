@@ -106,7 +106,9 @@ export function parseCronExpression(expression: string): ParsedCron | null {
   const parts = normalized.split(/\s+/);
   let parsed: ParsedCron | null = null;
   if (parts.length === 5) {
-    const sets = parts.map((part, i) => parseCronField(part, FIELD_BOUNDS[i]![0], FIELD_BOUNDS[i]![1]));
+    const sets = parts.map((part, i) =>
+      parseCronField(part, FIELD_BOUNDS[i]![0], FIELD_BOUNDS[i]![1]),
+    );
     if (sets.every((x) => x !== null)) {
       const dow = new Set<number>([...sets[4]!].map((d) => (d === 7 ? 0 : d)));
       parsed = {

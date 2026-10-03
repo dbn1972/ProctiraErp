@@ -260,8 +260,7 @@ export class PgPipelineRepository implements PipelineRepository {
         [id, tenantId],
       );
       const row = found.rows[0] as
-        | { tenant_id: string; document: Record<string, unknown> }
-        | undefined;
+        { tenant_id: string; document: Record<string, unknown> } | undefined;
       if (!row) throw new Error(`Execution not found: ${id}`);
       const existing = reviveExecution(row.document);
       const updated: PipelineExecution = { ...existing, ...updates, id, tenantId };

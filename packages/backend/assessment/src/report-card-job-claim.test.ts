@@ -145,10 +145,14 @@ describe('report-card job processing (PRC-M165)', () => {
       get: async () => null,
     } as never;
     const logger = { warn: vi.fn(), error: vi.fn() };
-    const service = build(async () => Buffer.from('%PDF-1.4 x'), {
-      artifactStore: failingStore,
-      logger,
-    }, new QueueReportCardPublisher(adapter));
+    const service = build(
+      async () => Buffer.from('%PDF-1.4 x'),
+      {
+        artifactStore: failingStore,
+        logger,
+      },
+      new QueueReportCardPublisher(adapter),
+    );
     const job = await service.queueReportCardGeneration(TENANT_ID, {
       studentId: 'stu-1',
       academicPeriodId: 'p-1',
@@ -183,11 +187,15 @@ describe('report-card job processing (PRC-M165)', () => {
 
   it('logs publish failures with the jobId and leaves the job queued', async () => {
     const logger = { warn: vi.fn(), error: vi.fn() };
-    const service = build(async () => Buffer.from('%PDF-1.4 x'), { logger }, {
-      publish: async () => {
-        throw new Error('broker down');
+    const service = build(
+      async () => Buffer.from('%PDF-1.4 x'),
+      { logger },
+      {
+        publish: async () => {
+          throw new Error('broker down');
+        },
       },
-    });
+    );
     const job = await service.queueReportCardGeneration(TENANT_ID, {
       studentId: 'stu-1',
       academicPeriodId: 'p-1',

@@ -243,7 +243,11 @@ export class InMemoryReportCardJobRepository implements ReportCardJobRepository 
       existing.status === 'failed' ||
       (existing.status === 'processing' && existing.updatedAt < staleBefore);
     if (!claimable) return null;
-    const updated: ReportCardJobEntity = { ...existing, status: 'processing', updatedAt: new Date() };
+    const updated: ReportCardJobEntity = {
+      ...existing,
+      status: 'processing',
+      updatedAt: new Date(),
+    };
     this.jobs[index] = updated;
     return updated;
   }

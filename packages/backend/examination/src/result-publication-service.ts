@@ -21,22 +21,20 @@ import {
 } from '@proctira/common';
 
 import type { ExaminationRepository, ExaminationGradingScheme } from './examination-repository.js';
-import type {
-  ResultRepository,
-  ExaminationCandidate,
-  CandidateGradeResult,
-  IncompleteRecord,
-  PublicationResult,
-  ResultAnalysis,
-  AnalysisBreakdown,
-  ScoreDistributionBucket,
-  AcademicRecordUpdate,
-  CandidateSubjectResult,
-} from './result-repository.js';
 import {
   UNKNOWN_AREA_ID,
   fingerprintCandidates,
   normalizeCandidateGender,
+  type ResultRepository,
+  type ExaminationCandidate,
+  type CandidateGradeResult,
+  type IncompleteRecord,
+  type PublicationResult,
+  type ResultAnalysis,
+  type AnalysisBreakdown,
+  type ScoreDistributionBucket,
+  type AcademicRecordUpdate,
+  type CandidateSubjectResult,
   type CandidateGender,
 } from './result-repository.js';
 

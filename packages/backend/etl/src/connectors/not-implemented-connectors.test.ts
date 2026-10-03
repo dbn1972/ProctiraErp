@@ -31,7 +31,8 @@ describe('unimplemented connectors (PRC-M222)', () => {
     for (const make of [
       () => createSourceConnector({ type: 'postgresql', ...pg, query: 'SELECT 1' }),
       () => createSourceConnector({ type: 'excel', fileContent: 'eA==' }),
-      () => createDestinationConnector({ type: 'postgresql', ...pg, table: 't', writeMode: 'insert' }),
+      () =>
+        createDestinationConnector({ type: 'postgresql', ...pg, table: 't', writeMode: 'insert' }),
     ]) {
       expect(make).toThrow(expect.objectContaining({ statusCode: 501 }));
     }

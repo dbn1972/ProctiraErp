@@ -50,7 +50,14 @@ describe('bounded ETL resources (PRC-M226)', () => {
     const select = queries.find((q) => q.sql.includes('LIMIT'))!;
     expect(select.params.slice(2)).toEqual([20, 40]);
     // No query returns the whole table.
-    expect(queries.every((q) => q.sql.includes('COUNT(*)') || q.sql.includes('LIMIT') || !q.sql.includes('etl_pipeline_runs'))).toBe(true);
+    expect(
+      queries.every(
+        (q) =>
+          q.sql.includes('COUNT(*)') ||
+          q.sql.includes('LIMIT') ||
+          !q.sql.includes('etl_pipeline_runs'),
+      ),
+    ).toBe(true);
   });
 
   it('pipeline search is parameterised and escapes LIKE wildcards', async () => {
@@ -68,9 +75,11 @@ describe('bounded ETL resources (PRC-M226)', () => {
       new AesGcmConnectorSecretCipher(randomBytes(32)),
     );
     await repo.list(TENANT, { search: "50%_off'; DROP", enabled: true }, 1, 10);
-    const select = queries.find((q) => q.sql.includes('FROM etl_pipelines') && q.sql.includes('LIMIT'))!;
+    const select = queries.find(
+      (q) => q.sql.includes('FROM etl_pipelines') && q.sql.includes('LIMIT'),
+    )!;
     expect(select.sql).not.toContain('DROP');
-    expect(select.params).toContain('%50\\%\\_off\'; DROP%');
+    expect(select.params).toContain("%50\\%\\_off'; DROP%");
     expect(select.params).toContain(true);
   });
 

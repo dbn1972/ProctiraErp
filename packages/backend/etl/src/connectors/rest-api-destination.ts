@@ -9,13 +9,7 @@ import { lookup } from 'node:dns/promises';
 import type { RestApiDestinationConfig } from '../schemas.js';
 
 import { assertPublicHttpsUrl, safeFetch } from './safe-fetch.js';
-import type {
-  DestinationConnector,
-  DataRow,
-  LoadContext,
-  LoadResult,
-  LoadError,
-} from './types.js';
+import type { DestinationConnector, DataRow, LoadContext, LoadResult, LoadError } from './types.js';
 
 /** PRC-M224: cap on remote error text kept per failed batch. */
 const REMOTE_ERROR_BODY_MAX = 200;

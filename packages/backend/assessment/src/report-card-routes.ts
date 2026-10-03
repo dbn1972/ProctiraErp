@@ -23,6 +23,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { isAssessmentAdmin } from './assessment-access.js';
+import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 import {
   CreateReportCardTemplateSchema,
   UpdateReportCardTemplateSchema,
@@ -42,8 +44,6 @@ import {
   type ReportCardJobParams,
 } from './report-card-schemas.js';
 import type { ReportCardService } from './report-card-service.js';
-import { isAssessmentAdmin } from './assessment-access.js';
-import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 
 /**
  * Options for registering report card routes.
@@ -155,14 +155,13 @@ export async function registerReportCardRoutes(
   fastify: FastifyInstance,
   options: ReportCardRoutesOptions,
 ): Promise<void> {
-  
   // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceAssessmentRouteAccess(request, reply)) {
       return reply;
     }
   });
-const { reportCardService, prefix = '/report-cards' } = options;
+  const { reportCardService, prefix = '/report-cards' } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────
 
@@ -402,8 +401,7 @@ const { reportCardService, prefix = '/report-cards' } = options;
       }
 
       // PRC-M163: the author is the JWT subject; fail closed without a UUID subject.
-      const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } })
-        .user;
+      const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;
       const userId = typeof user?.sub === 'string' ? user.sub : '';
       if (!UUID_RE.test(userId)) {
         return reply.status(401).send({

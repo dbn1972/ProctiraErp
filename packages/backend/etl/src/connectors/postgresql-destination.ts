@@ -8,6 +8,7 @@
  * directly, `validate()` is invalid and `load()` throws.
  */
 import type { PostgresDestinationConfig } from '../schemas.js';
+
 import {
   ConnectorNotImplementedError,
   type DestinationConnector,

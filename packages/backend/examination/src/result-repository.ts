@@ -11,7 +11,6 @@
  */
 import { createHash } from 'node:crypto';
 
-
 /**
  * Gender type for candidates.
  */

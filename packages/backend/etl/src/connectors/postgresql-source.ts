@@ -8,6 +8,7 @@
  * `extract()` throws.
  */
 import type { PostgresSourceConfig } from '../schemas.js';
+
 import {
   ConnectorNotImplementedError,
   type SourceConnector,

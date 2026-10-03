@@ -4,7 +4,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DocumentGenerationService, GENERIC_DOCUMENT_FAILURE } from './document-generation-service.js';
+import {
+  DocumentGenerationService,
+  GENERIC_DOCUMENT_FAILURE,
+} from './document-generation-service.js';
 import type { DocumentCandidate } from './document-repository.js';
 import type { ExaminationEntity } from './examination-repository.js';
 import { InMemoryDocumentRepository } from './in-memory-document-repository.js';
@@ -75,7 +78,9 @@ describe('document job processing (PRC-M235)', () => {
     const pdf = new SimplePdfGenerator();
     const spy = vi.spyOn(pdf, 'generateAdmitCards');
     const service = new DocumentGenerationService(exams, docs, pdf);
-    const job = await service.requestGeneration(TENANT, 'exam-m235', { documentType: 'admit_card' });
+    const job = await service.requestGeneration(TENANT, 'exam-m235', {
+      documentType: 'admit_card',
+    });
     const [a, b] = await Promise.all([
       service.processJob(TENANT, job.id),
       service.processJob(TENANT, job.id),
@@ -93,12 +98,16 @@ describe('document job processing (PRC-M235)', () => {
       generateAdmitCards: vi
         .fn()
         .mockRejectedValueOnce(
-          new Error('relation "exam_docs" does not exist\n    at Parser.parse (pg/lib/parser.js:1:1)'),
+          new Error(
+            'relation "exam_docs" does not exist\n    at Parser.parse (pg/lib/parser.js:1:1)',
+          ),
         )
         .mockResolvedValue(Buffer.from('%PDF-1.4 ok')),
     } as unknown as PdfGenerator;
     const service = new DocumentGenerationService(exams, docs, failing);
-    const job = await service.requestGeneration(TENANT, 'exam-m235', { documentType: 'admit_card' });
+    const job = await service.requestGeneration(TENANT, 'exam-m235', {
+      documentType: 'admit_card',
+    });
 
     const first = await service.processJob(TENANT, job.id);
     expect(first.status).toBe('queued');
@@ -110,9 +119,9 @@ describe('document job processing (PRC-M235)', () => {
       ...new SimplePdfGenerator(),
       generateAdmitCards: vi.fn().mockRejectedValue(new Error('ECONNRESET')),
     } as unknown as PdfGenerator);
-    await expect(
-      workerFail.processJob(TENANT, job.id, { rethrowRetryable: true }),
-    ).rejects.toThrow('ECONNRESET');
+    await expect(workerFail.processJob(TENANT, job.id, { rethrowRetryable: true })).rejects.toThrow(
+      'ECONNRESET',
+    );
     expect((await docs.getJob(job.id, TENANT))!.status).toBe('queued');
 
     const retried = await service.processJob(TENANT, job.id);
@@ -121,7 +130,9 @@ describe('document job processing (PRC-M235)', () => {
 
   it('another tenant cannot process or read the job (404)', async () => {
     const service = new DocumentGenerationService(exams, docs, new SimplePdfGenerator());
-    const job = await service.requestGeneration(TENANT, 'exam-m235', { documentType: 'admit_card' });
+    const job = await service.requestGeneration(TENANT, 'exam-m235', {
+      documentType: 'admit_card',
+    });
     await expect(service.processJob('other-tenant', job.id)).rejects.toMatchObject({
       statusCode: 404,
     });

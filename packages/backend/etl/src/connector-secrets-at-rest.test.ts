@@ -87,9 +87,7 @@ describe('connector secrets at rest (PRC-M224)', () => {
 
     const back = await repo.findById(p.id, TENANT);
     expect((back!.destination as { password: string }).password).toBe('pw-SECRET');
-    expect((back!.source as { authConfig: { token: string } }).authConfig.token).toBe(
-      'tok-SECRET',
-    );
+    expect((back!.source as { authConfig: { token: string } }).authConfig.token).toBe('tok-SECRET');
   });
 
   it('ciphertext is tenant-bound', () => {

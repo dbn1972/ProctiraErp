@@ -4,6 +4,10 @@
  * Creates source and destination connectors based on configuration type.
  */
 import type { DataSourceConfig, DataDestinationConfig } from '../schemas.js';
+
+import { CsvSourceConnector } from './csv-source.js';
+import { RestApiDestinationConnector } from './rest-api-destination.js';
+import { RestApiSourceConnector } from './rest-api-source.js';
 import {
   ConnectorNotImplementedError,
   type SourceConnector,
@@ -15,9 +19,6 @@ export interface ConnectorFactory {
   createSource(config: DataSourceConfig): SourceConnector;
   createDestination(config: DataDestinationConfig): DestinationConnector;
 }
-import { RestApiSourceConnector } from './rest-api-source.js';
-import { CsvSourceConnector } from './csv-source.js';
-import { RestApiDestinationConnector } from './rest-api-destination.js';
 
 /**
  * Create a source connector based on the configuration type.

@@ -126,9 +126,7 @@ export class InMemoryReportCardDirectory implements ReportCardDirectory, ResultS
 }
 
 /** Postgres directory when a shared pool is configured; otherwise null (jobs fail explicitly). */
-export function createReportCardDirectory(
-  databaseUrl?: string,
-): PgReportCardDirectory | null {
+export function createReportCardDirectory(databaseUrl?: string): PgReportCardDirectory | null {
   const pool = getSharedPgPool(databaseUrl);
   return pool ? new PgReportCardDirectory(pool) : null;
 }

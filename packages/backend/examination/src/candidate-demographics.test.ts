@@ -31,9 +31,25 @@ async function setup() {
     endDate: '2025-06-15',
     status: 'IN_PROGRESS',
     subjects: [
-      { id: SUBJECT, examinationId: 'exam-1', name: 'M', code: 'M', maxScore: 100, gradingSchemeId: null },
+      {
+        id: SUBJECT,
+        examinationId: 'exam-1',
+        name: 'M',
+        code: 'M',
+        maxScore: 100,
+        gradingSchemeId: null,
+      },
     ],
-    centers: [{ id: 'center-1', examinationId: 'exam-1', name: 'C', code: 'C', institutionId: 'i', capacity: 10 }],
+    centers: [
+      {
+        id: 'center-1',
+        examinationId: 'exam-1',
+        name: 'C',
+        code: 'C',
+        institutionId: 'i',
+        capacity: 10,
+      },
+    ],
     sessions: [],
     gradingSchemes: [
       {

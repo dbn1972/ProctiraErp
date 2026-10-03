@@ -111,10 +111,7 @@ export async function buildStandaloneAssessmentApp(
     });
   });
 
-  const repositories = createStandaloneRepositories(
-    options.repositoryConfig,
-    options.repositories,
-  );
+  const repositories = createStandaloneRepositories(options.repositoryConfig, options.repositories);
   // assessmentPlugin is fastify-plugin wrapped (no encapsulation), so mount it in
   // a child context: the prefix applies and its RBAC preHandlers cannot reach
   // /health, /ready or /metrics.

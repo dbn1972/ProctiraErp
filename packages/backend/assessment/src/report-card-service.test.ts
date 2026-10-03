@@ -180,12 +180,16 @@ describe('ReportCardService', () => {
     const actor = { userId: teacherId, isAdmin: false };
 
     it('should create a teacher comment', async () => {
-      const comment = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        comment: 'Excellent progress in mathematics this term.',
-      }, actor);
+      const comment = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          comment: 'Excellent progress in mathematics this term.',
+        },
+        actor,
+      );
 
       expect(comment.id).toBeDefined();
       expect(comment.studentId).toBe(studentId);
@@ -194,21 +198,29 @@ describe('ReportCardService', () => {
     });
 
     it('should update an existing comment for the same student+subject+period', async () => {
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: 'First comment',
-      }, actor);
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: 'First comment',
+        },
+        actor,
+      );
 
-      const updated = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: 'Updated comment',
-      }, actor);
+      const updated = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: 'Updated comment',
+        },
+        actor,
+      );
 
       expect(updated.comment).toBe('Updated comment');
 
@@ -221,26 +233,35 @@ describe('ReportCardService', () => {
       const longComment = 'x'.repeat(MAX_COMMENT_LENGTH + 1);
 
       await expect(
-        service.upsertComment(tenantId, {
-          studentId,
-          subjectId,
-          academicPeriodId,
-          teacherId,
-          comment: longComment,
-        }, actor, actor),
+        service.upsertComment(
+          tenantId,
+          {
+            studentId,
+            subjectId,
+            academicPeriodId,
+            teacherId,
+            comment: longComment,
+          },
+          actor,
+          actor,
+        ),
       ).rejects.toThrow(`must not exceed ${MAX_COMMENT_LENGTH} characters`);
     });
 
     it('should accept comments at exactly 500 characters', async () => {
       const exactComment = 'x'.repeat(MAX_COMMENT_LENGTH);
 
-      const comment = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: exactComment,
-      }, actor);
+      const comment = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: exactComment,
+        },
+        actor,
+      );
 
       expect(comment.comment).toHaveLength(MAX_COMMENT_LENGTH);
     });
@@ -274,21 +295,29 @@ describe('ReportCardService', () => {
       const subject1 = uuidv4();
       const subject2 = uuidv4();
 
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId: subject1,
-        academicPeriodId,
-        teacherId,
-        comment: 'Math comment',
-      }, actor);
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId: subject1,
+          academicPeriodId,
+          teacherId,
+          comment: 'Math comment',
+        },
+        actor,
+      );
 
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId: subject2,
-        academicPeriodId,
-        teacherId,
-        comment: 'Science comment',
-      }, actor);
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId: subject2,
+          academicPeriodId,
+          teacherId,
+          comment: 'Science comment',
+        },
+        actor,
+      );
 
       const comments = await service.getComments(tenantId, studentId, academicPeriodId);
       expect(comments).toHaveLength(2);

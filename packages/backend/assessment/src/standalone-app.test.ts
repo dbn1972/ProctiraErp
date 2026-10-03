@@ -12,7 +12,10 @@ const createPrismaClient = vi.fn((opts: { datasourceUrl?: string }) => ({
 
 vi.mock('@proctira/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@proctira/database')>();
-  return { ...actual, createPrismaClient: (o: { datasourceUrl?: string }) => createPrismaClient(o) };
+  return {
+    ...actual,
+    createPrismaClient: (o: { datasourceUrl?: string }) => createPrismaClient(o),
+  };
 });
 
 const {

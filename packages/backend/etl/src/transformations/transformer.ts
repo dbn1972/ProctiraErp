@@ -4,8 +4,8 @@
  * Applies field mapping and transformation rules to extracted data rows.
  * Supports: type_cast, lookup, concatenate, format, custom transformations.
  */
-import type { FieldMapping, TransformationType } from '../schemas.js';
 import type { DataRow } from '../connectors/types.js';
+import type { FieldMapping, TransformationType } from '../schemas.js';
 
 export interface TransformationResult {
   /** Fully transformed rows only — rows with any mapping error are excluded (PRC-M227). */

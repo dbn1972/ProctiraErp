@@ -93,7 +93,7 @@ export async function bulkUpsertInTx(
   const out: AssessmentResultEntity[] = [];
   for (let i = 0; i < rows.length; i += BULK_UPSERT_CHUNK) {
     const chunk = rows.slice(i, i + BULK_UPSERT_CHUNK);
-    const returned = (await tx.$queryRawUnsafe(
+    const returned = await tx.$queryRawUnsafe<AssessmentResultRow[]>(
       `INSERT INTO assessment_results
          (id, tenant_id, student_id, assessment_item_id, subject_id, academic_period_id, score, created_at, updated_at)
        SELECT u.id, $1::uuid, u.student_id, u.assessment_item_id, u.subject_id, u.academic_period_id, u.score, now(), now()
@@ -112,7 +112,7 @@ export async function bulkUpsertInTx(
       chunk.map((r) => r.subjectId),
       chunk.map((r) => r.academicPeriodId),
       chunk.map((r) => r.score),
-    )) as AssessmentResultRow[];
+    );
     out.push(...returned.map((r) => toEntity({ ...r, score: Number(r.score) })));
   }
   return out;
