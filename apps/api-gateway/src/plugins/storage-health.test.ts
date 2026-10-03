@@ -94,7 +94,7 @@ describe('runStorageHealthProbe', () => {
 describe('GET /api/v1/storage/health', () => {
   it('returns 503 when adapter is null (unconfigured)', async () => {
     const app = Fastify();
-    await app.register(storageHealthPlugin, { adapter: null });
+    await app.register(storageHealthPlugin, { adapter: null, authorize: () => 'ok' });
     await app.ready();
     const res = await app.inject({ method: 'GET', url: '/api/v1/storage/health' });
     expect(res.statusCode).toBe(503);
@@ -111,7 +111,7 @@ describe('GET /api/v1/storage/health', () => {
     });
 
     const app = Fastify();
-    await app.register(storageHealthPlugin, { adapter });
+    await app.register(storageHealthPlugin, { adapter, roundTrip: true, authorize: () => 'ok' });
     await app.ready();
     const res = await app.inject({ method: 'GET', url: '/api/v1/storage/health' });
     expect(res.statusCode).toBe(200);
@@ -121,6 +121,74 @@ describe('GET /api/v1/storage/health', () => {
       roundTrip: true,
       message: 'Object storage read/write verified',
     });
+    await app.close();
+  });
+});
+
+describe('GET /api/v1/storage/health exposure (PRC-M023)', () => {
+  it('anonymous → 401 and non-platform user → 403 by default; adapter untouched', async () => {
+    const adapter = mockAdapter();
+    const app = Fastify();
+    app.decorateRequest('user', null);
+    app.addHook('onRequest', async (req) => {
+      const role = req.headers['x-role'] as string | undefined;
+      if (role) (req as unknown as { user: unknown }).user = { roles: [{ roleId: role }] };
+    });
+    await app.register(storageHealthPlugin, { adapter });
+    await app.ready();
+    expect((await app.inject({ method: 'GET', url: '/api/v1/storage/health' })).statusCode).toBe(401);
+    const teacher = await app.inject({
+      method: 'GET',
+      url: '/api/v1/storage/health',
+      headers: { 'x-role': 'teacher' },
+    });
+    expect(teacher.statusCode).toBe(403);
+    expect(adapter.healthCheck).not.toHaveBeenCalled();
+    const admin = await app.inject({
+      method: 'GET',
+      url: '/api/v1/storage/health',
+      headers: { 'x-role': 'super-admin' },
+    });
+    expect(admin.statusCode).toBe(200);
+    // Default is HeadBucket only — no bucket writes.
+    expect(adapter.upload).not.toHaveBeenCalled();
+    expect(admin.json().roundTrip).toBe(false);
+    await app.close();
+  });
+
+  it('failure body contains no endpoint/bucket/SDK text and results are cached', async () => {
+    const adapter = mockAdapter({
+      healthCheck: vi.fn(async () => ({
+        healthy: false,
+        message: 'connect ECONNREFUSED minio.internal:9000 bucket proctira-prod',
+        latencyMs: 1,
+        adapter: 'minio',
+        checkedAt: new Date(),
+      })),
+    });
+    const app = Fastify();
+    await app.register(storageHealthPlugin, { adapter, authorize: () => 'ok' });
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/api/v1/storage/health' });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).not.toMatch(/minio\.internal|proctira-prod|ECONNREFUSED|9000/);
+    await app.inject({ method: 'GET', url: '/api/v1/storage/health' });
+    expect(adapter.healthCheck).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it('round-trip failure detail is not returned', async () => {
+    const adapter = mockAdapter({
+      upload: vi.fn(async () => {
+        throw new Error('AccessDenied: arn:aws:s3:::proctira-secret-bucket');
+      }),
+    });
+    const app = Fastify();
+    await app.register(storageHealthPlugin, { adapter, roundTrip: true, authorize: () => 'ok' });
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/api/v1/storage/health' });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).not.toContain('proctira-secret-bucket');
     await app.close();
   });
 });

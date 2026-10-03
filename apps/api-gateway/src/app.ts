@@ -449,7 +449,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/auth/mfa/otp/resend',
     '/auth/mfa/resend',
     '/auth/mfa/verify',
-    '/api/v1/storage/health',
+    // PRC-M023: /api/v1/storage/health is no longer anonymous (platform admin only).
   ];
   const authMiddlewareExcludePaths = [
     ...authExcludePaths,
