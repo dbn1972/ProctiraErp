@@ -30,6 +30,7 @@ import {
   totalsByCurrency,
   type ScholarshipDisbursement,
 } from '@/lib/api/scholarships';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
@@ -83,7 +84,23 @@ function formatDate(iso: string): string {
 }
 
 export default async function ScholarshipDisbursementsPage() {
-  const disbursements = await listScholarshipDisbursements();
+  const result = await listScholarshipDisbursements({ pageSize: 100 });
+  // PRC-M113: a failed read is an error panel, never "No disbursements scheduled."
+  if (!result.ok) {
+    return (
+      <section aria-labelledby="disbursements-heading" className="space-y-6">
+        <h1 id="disbursements-heading" className="text-3xl font-extrabold tracking-tight">
+          Disbursements
+        </h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/scholarships/disbursements"
+        />
+      </section>
+    );
+  }
+  const disbursements = result.items;
 
   const processed = disbursements.filter((d) => d.status === 'PROCESSED');
   const failed = disbursements.filter((d) => d.status === 'FAILED');

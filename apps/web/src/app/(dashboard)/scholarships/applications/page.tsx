@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { listScholarshipApplications, type ScholarshipApplication } from '@/lib/api/scholarships';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 
 import { ApplicationStatusTabs } from '../_components/application-status-tabs';
@@ -101,7 +102,23 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
   const status = readStringParam(searchParams, 'status', 'ALL');
   const programId = readStringParam(searchParams, 'programId');
 
-  const applications = await listScholarshipApplications();
+  const applicationsResult = await listScholarshipApplications({ pageSize: 100 });
+  // PRC-M113: a failed read is an error panel, never "No applications submitted."
+  if (!applicationsResult.ok) {
+    return (
+      <section aria-labelledby="applications-heading" className="space-y-6">
+        <h1 id="applications-heading" className="text-3xl font-extrabold tracking-tight">
+          Scholarship applications
+        </h1>
+        <ListLoadFailure
+          kind={applicationsResult.kind}
+          status={applicationsResult.status}
+          returnTo="/scholarships/applications"
+        />
+      </section>
+    );
+  }
+  const applications = applicationsResult.items;
   const scoped = programId ? applications.filter((a) => a.programId === programId) : applications;
 
   const counts = {

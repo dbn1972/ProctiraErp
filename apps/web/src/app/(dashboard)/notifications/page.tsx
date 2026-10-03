@@ -15,6 +15,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listUserNotifications } from '@/lib/api/notifications-inbox';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,10 +31,11 @@ function titleFor(n: { templateId: string; variables: Record<string, string> }):
 
 export default async function NotificationsInboxPage() {
   const session = await requireSession();
-  const [items, t] = await Promise.all([
+  const [result, t] = await Promise.all([
     listUserNotifications(session.user.sub),
     getTranslations('notifications'),
   ]);
+  const items = result.ok ? result.items : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -64,7 +66,10 @@ export default async function NotificationsInboxPage() {
           <CardDescription>{t('inboxDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {!result.ok ? (
+            // PRC-M113: failure (incl. 403) is its own panel, never the empty inbox.
+            <ListLoadFailure kind={result.kind} status={result.status} returnTo="/notifications" />
+          ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               {t('empty')}
             </p>

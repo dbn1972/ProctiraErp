@@ -5,6 +5,48 @@
  * approvals, and disbursements.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
+
+/** PRC-M113/M114: server-side filters + paging for scholarship lists. */
+export interface ScholarshipListParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  search?: string;
+  programId?: string;
+  paymentStatus?: string;
+}
+
+function listQuery(params: ScholarshipListParams): string {
+  const q = new URLSearchParams();
+  q.set('page', String(Math.max(1, Math.floor(params.page ?? 1))));
+  q.set('pageSize', String(Math.min(100, Math.max(1, Math.floor(params.pageSize ?? 20)))));
+  for (const key of ['status', 'search', 'programId', 'paymentStatus'] as const) {
+    const value = params[key];
+    if (value) q.set(key, value);
+  }
+  return `?${q.toString()}`;
+}
+
+function mapList<T>(
+  result: ListResult<Record<string, unknown>>,
+  map: (raw: Record<string, unknown>) => T,
+): ListResult<T> {
+  return result.ok ? { ...result, items: result.items.map(map) } : result;
+}
+
+/** PRC-M113: 404 -> null (not found); any other failure is an error, not "missing". */
+function throwUnlessNotFound(
+  result: { status: number; error?: { code?: string; message?: string } | null },
+  what: string,
+): null {
+  if (result.status === 404) return null;
+  throw new GatewayError({
+    status: result.status,
+    code: result.error?.code ?? 'GATEWAY_ERROR',
+    message: result.error?.message ?? `Failed to load ${what} (${result.status})`,
+  });
+}
 
 export interface ScholarshipProgram {
   id: string;
@@ -168,12 +210,14 @@ export function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbur
   };
 }
 
-export async function listScholarshipPrograms(): Promise<ScholarshipProgram[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/scholarships/programs', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return (result.data?.data ?? []).map(mapProgram);
+export async function listScholarshipPrograms(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipProgram>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/programs${listQuery({ pageSize: 100, ...params })}`,
+    { next: { revalidate: 0 } },
+  );
+  return mapList(result, mapProgram);
 }
 
 export async function getScholarshipProgram(id: string): Promise<ScholarshipProgram | null> {
@@ -181,7 +225,8 @@ export async function getScholarshipProgram(id: string): Promise<ScholarshipProg
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data ? mapProgram(result.data) : null;
+  if (result.ok && result.data) return mapProgram(result.data);
+  return throwUnlessNotFound(result, 'scholarship program');
 }
 
 export async function createScholarshipProgram(
@@ -236,12 +281,14 @@ export async function updateScholarshipProgram(
   return mapProgram(result.data);
 }
 
-export async function listScholarshipApplications(): Promise<ScholarshipApplication[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
-    '/scholarships/applications',
-    { throwOnError: false, next: { revalidate: 0 } },
+export async function listScholarshipApplications(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipApplication>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/applications${listQuery(params)}`,
+    { next: { revalidate: 0 } },
   );
-  return (result.data?.data ?? []).map(mapApplication);
+  return mapList(result, mapApplication);
 }
 
 export async function getScholarshipApplication(
@@ -251,7 +298,8 @@ export async function getScholarshipApplication(
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data ? mapApplication(result.data) : null;
+  if (result.ok && result.data) return mapApplication(result.data);
+  return throwUnlessNotFound(result, 'scholarship application');
 }
 
 async function decideApplication(
@@ -283,12 +331,14 @@ export function rejectScholarshipApplication(id: string, input: ApplicationDecis
   return decideApplication(id, 'reject', input);
 }
 
-export async function listScholarshipDisbursements(): Promise<ScholarshipDisbursement[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
-    '/scholarships/disbursements',
-    { throwOnError: false, next: { revalidate: 0 } },
+export async function listScholarshipDisbursements(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipDisbursement>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/disbursements${listQuery(params)}`,
+    { next: { revalidate: 0 } },
   );
-  return (result.data?.data ?? []).map(mapDisbursement);
+  return mapList(result, mapDisbursement);
 }
 
 export async function updateDisbursement(

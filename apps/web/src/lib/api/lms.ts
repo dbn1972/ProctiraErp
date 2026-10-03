@@ -442,11 +442,13 @@ export async function createBankQuestion(input: {
 }
 
 export async function listRubrics(): Promise<LmsRubric[]> {
-  const result = await gatewayFetch<{ data: LmsRubric[] }>('/lms/rubrics?pageSize=100', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listRubricsResult();
+  return result.ok ? result.items : [];
+}
+
+/** PRC-M113: keeps a failed rubric read distinct from "no rubrics". */
+export async function listRubricsResult(): Promise<ListResult<LmsRubric>> {
+  return fetchList<LmsRubric>('/lms/rubrics?pageSize=100', { next: { revalidate: 0 } });
 }
 
 export async function getRubric(id: string): Promise<LmsRubric | null> {

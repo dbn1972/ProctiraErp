@@ -19,6 +19,8 @@ import {
   listScholarshipApplications,
   listScholarshipDisbursements,
   listScholarshipPrograms,
+  getScholarshipApplication,
+  getScholarshipProgram,
   rejectScholarshipApplication,
   updateDisbursement,
 } from './scholarships';
@@ -54,8 +56,9 @@ describe('scholarships client', () => {
         ],
       }),
     );
-    const [program] = await listScholarshipPrograms();
-    expect(gatewayFetch.mock.calls[0]![0]).toBe('/scholarships/programs');
+    const listed = await listScholarshipPrograms();
+    const [program] = listed.ok ? listed.items : [];
+    expect(gatewayFetch.mock.calls[0]![0]).toBe('/scholarships/programs?page=1&pageSize=100');
     expect(program).toMatchObject({
       id: 'p1',
       code: 'MERIT-24',
@@ -77,7 +80,8 @@ describe('scholarships client', () => {
         ],
       }),
     );
-    const apps = await listScholarshipApplications();
+    const listed = await listScholarshipApplications();
+    const apps = listed.ok ? listed.items : [];
     expect(apps.map((a) => a.status)).toEqual(['UNDER_REVIEW', 'APPROVED', 'PENDING']);
     expect(apps[0]).toMatchObject({ applicantId: 's1', applicantName: 'Asha', totalScore: 0 });
     expect(apps[2]).toMatchObject({ totalScore: null, reviewerId: null, reviewNotes: null });
@@ -92,12 +96,25 @@ describe('scholarships client', () => {
         ],
       }),
     );
-    const rows = await listScholarshipDisbursements();
+    const listed = await listScholarshipDisbursements();
+    const rows = listed.ok ? listed.items : [];
     expect(rows.map((r) => r.status)).toEqual(['PROCESSED', 'FAILED']);
     expect(rows[0]!.amount).toBe(250);
     expect(rows[0]!.paymentMethod).toBe('BANK_TRANSFER');
   });
 
+  it('PRC-M113: a 500 is a failed result, not an empty list; 403 stays denied', async () => {
+    gatewayFetch.mockResolvedValue(fail(500, 'BOOM', 'down'));
+    expect(await listScholarshipApplications()).toMatchObject({ ok: false, kind: 'unavailable' });
+    gatewayFetch.mockResolvedValue(fail(403, 'FORBIDDEN', 'no'));
+    expect(await listScholarshipDisbursements()).toMatchObject({ ok: false, kind: 'denied' });
+  });
+  it('PRC-M113: detail getters return null only on 404 and throw otherwise', async () => {
+    gatewayFetch.mockResolvedValue(fail(404, 'NOT_FOUND', 'missing'));
+    expect(await getScholarshipProgram('p1')).toBeNull();
+    gatewayFetch.mockResolvedValue(fail(500, 'BOOM', 'down'));
+    await expect(getScholarshipApplication('a1')).rejects.toBeInstanceOf(GatewayError);
+  });
   it('sends the documented create payload', async () => {
     gatewayFetch.mockResolvedValue(ok({ id: 'p9', name: 'Need Based' }));
     await createScholarshipProgram({

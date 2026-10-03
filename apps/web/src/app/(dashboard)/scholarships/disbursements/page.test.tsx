@@ -21,9 +21,10 @@ const rows = [
   paymentMethod: 'BANK_TRANSFER',
 }));
 
+const listScholarshipDisbursements = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api/scholarships', async (orig) => ({
   ...(await orig<typeof import('@/lib/api/scholarships')>()),
-  listScholarshipDisbursements: vi.fn(async () => rows),
+  listScholarshipDisbursements,
 }));
 vi.mock('../_components/retry-failed-transfers-button', () => ({
   RetryFailedTransfersButton: () => null,
@@ -32,7 +33,19 @@ vi.mock('../_components/retry-failed-transfers-button', () => ({
 import Page from './page';
 
 describe('disbursements page (PRC-M111)', () => {
+  it('PRC-M113: a gateway 500 shows the failure panel, not "No disbursements"', async () => {
+    listScholarshipDisbursements.mockResolvedValueOnce({
+      ok: false,
+      kind: 'unavailable',
+      status: 500,
+    });
+    render(await Page());
+    expect(screen.getByText('This list could not be loaded')).toBeTruthy();
+    expect(screen.queryByText('No disbursements scheduled.')).toBeNull();
+  });
+
   it('shows a cancelled count, processing status and per-currency totals', async () => {
+    listScholarshipDisbursements.mockResolvedValueOnce({ ok: true, items: rows });
     render(await Page());
     // KPI label + the row's status pill.
     expect(screen.getAllByText('Cancelled').length).toBe(2);

@@ -15,8 +15,8 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const items = await listUserNotifications(session.user.sub);
-    const unread = items.filter((item) => !item.readAt).length;
+    const result = await listUserNotifications(session.user.sub);
+    const unread = result.ok ? result.items.filter((item) => !item.readAt).length : 0;
     return NextResponse.json({ unread }, { headers: { 'cache-control': 'no-store' } });
   } catch {
     return NextResponse.json({ unread: 0 }, { headers: { 'cache-control': 'no-store' } });

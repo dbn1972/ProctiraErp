@@ -6,13 +6,18 @@ import Link from 'next/link';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listEtlConnections, listPipelines } from '@/lib/api/etl';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { CreatePipelineForm } from './_components/create-pipeline-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PipelinesPage() {
   await requireSession('/pipelines');
-  const [pipelines, connections] = await Promise.all([listPipelines(), listEtlConnections()]);
+  const [pipelinesResult, connections] = await Promise.all([
+    listPipelines(),
+    listEtlConnections(),
+  ]);
+  const pipelines = pipelinesResult.ok ? pipelinesResult.items : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -37,7 +42,13 @@ export default async function PipelinesPage() {
       )}
       <Card>
         <CardContent className="p-6">
-          {pipelines.length === 0 ? (
+          {!pipelinesResult.ok ? (
+            <ListLoadFailure
+              kind={pipelinesResult.kind}
+              status={pipelinesResult.status}
+              returnTo="/pipelines"
+            />
+          ) : pipelines.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No pipelines yet.
             </p>

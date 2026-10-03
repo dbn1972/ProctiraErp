@@ -2,6 +2,7 @@
  * ETL pipelines client (Wave 10 Option C).
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 export interface EtlPipeline {
   id: string;
@@ -15,12 +16,9 @@ export interface EtlPipeline {
   updatedAt: string;
 }
 
-export async function listPipelines(): Promise<EtlPipeline[]> {
-  const result = await gatewayFetch<{ data: EtlPipeline[] }>('/pipelines', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+/** PRC-M113: failed reads (incl. 403) stay distinct from "No pipelines yet." */
+export async function listPipelines(): Promise<ListResult<EtlPipeline>> {
+  return fetchList<EtlPipeline>('/pipelines?pageSize=100', { next: { revalidate: 0 } });
 }
 
 /** PRC-M109: server-managed destination connection (no host/credentials). */

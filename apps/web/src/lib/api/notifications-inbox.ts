@@ -1,7 +1,7 @@
 /**
  * Server-side notifications inbox client.
  */
-import { gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 export interface InboxNotification {
   id: string;
@@ -16,13 +16,15 @@ export interface InboxNotification {
   createdAt: string;
 }
 
-export async function listUserNotifications(userId: string): Promise<InboxNotification[]> {
-  const result = await gatewayFetch<{ data: InboxNotification[] }>(
-    `/notifications/user/${encodeURIComponent(userId)}?page=1&pageSize=50`,
-    {
-      throwOnError: false,
-      next: { revalidate: 0 },
-    },
+/** PRC-M113: a failed inbox read is a ListResult failure, not an empty inbox. */
+export async function listUserNotifications(
+  userId: string,
+  params: { page?: number; pageSize?: number } = {},
+): Promise<ListResult<InboxNotification>> {
+  const page = Math.max(1, Math.floor(params.page ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize ?? 50)));
+  return fetchList<InboxNotification>(
+    `/notifications/user/${encodeURIComponent(userId)}?page=${page}&pageSize=${pageSize}`,
+    { next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
 }

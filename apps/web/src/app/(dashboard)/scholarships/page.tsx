@@ -30,6 +30,7 @@ import {
   totalsByCurrency,
   type ScholarshipProgram,
 } from '@/lib/api/scholarships';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/page';
 
@@ -79,12 +80,27 @@ function formatWindow(start: string, end: string): string {
 }
 
 export default async function ScholarshipsPage() {
-  const [t, programs, applications, disbursements] = await Promise.all([
+  const [t, programsResult, applicationsResult, disbursementsResult] = await Promise.all([
     getTranslations('scholarships'),
     listScholarshipPrograms(),
-    listScholarshipApplications(),
-    listScholarshipDisbursements(),
+    listScholarshipApplications({ pageSize: 100 }),
+    listScholarshipDisbursements({ pageSize: 100 }),
   ]);
+  // PRC-M113: a failed read renders the failure panel, not zero KPIs / "no programs".
+  const failed = [programsResult, applicationsResult, disbursementsResult].find((r) => !r.ok);
+  if (failed && !failed.ok) {
+    return (
+      <section aria-labelledby="programs-heading" className="space-y-6">
+        <h1 id="programs-heading" className="text-3xl font-extrabold tracking-tight">
+          {t('title')}
+        </h1>
+        <ListLoadFailure kind={failed.kind} status={failed.status} returnTo="/scholarships" />
+      </section>
+    );
+  }
+  const programs = programsResult.ok ? programsResult.items : [];
+  const applications = applicationsResult.ok ? applicationsResult.items : [];
+  const disbursements = disbursementsResult.ok ? disbursementsResult.items : [];
 
   const openCount = programs.filter((p) => p.status === 'OPEN').length;
   const pendingApps = applications.filter(
