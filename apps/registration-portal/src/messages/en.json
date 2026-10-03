@@ -153,7 +153,11 @@
     "statusUnderReview": "Under Review",
     "statusApproved": "Approved",
     "statusRejected": "Rejected",
-    "statusWaitlisted": "Waitlisted"
+    "statusWaitlisted": "Waitlisted",
+    "invalidRequest": "This tracking link is not valid. Check the tracking number and try again.",
+    "serviceUnavailable": "We could not check your application right now. Please try again in a few minutes.",
+    "rateLimited": "Too many attempts for this tracking number. Please wait 15 minutes and try again.",
+    "retry": "Try again"
   },
   "errors": {
     "validation": "Some details need to be corrected before we can continue.",

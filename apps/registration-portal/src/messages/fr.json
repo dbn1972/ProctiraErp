@@ -153,7 +153,11 @@
     "statusUnderReview": "En cours d'examen",
     "statusApproved": "Approuvée",
     "statusRejected": "Refusée",
-    "statusWaitlisted": "Liste d'attente"
+    "statusWaitlisted": "Liste d'attente",
+    "invalidRequest": "Ce lien de suivi n'est pas valide. Vérifiez le numéro de suivi.",
+    "serviceUnavailable": "Impossible de consulter votre demande pour le moment. Réessayez dans quelques minutes.",
+    "rateLimited": "Trop de tentatives pour ce numéro. Patientez 15 minutes puis réessayez.",
+    "retry": "Réessayer"
   },
   "errors": {
     "validation": "Certains renseignements doivent être corrigés avant de continuer.",

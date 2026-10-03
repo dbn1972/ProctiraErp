@@ -153,7 +153,11 @@
     "statusUnderReview": "En revisión",
     "statusApproved": "Aprobada",
     "statusRejected": "Rechazada",
-    "statusWaitlisted": "En lista de espera"
+    "statusWaitlisted": "En lista de espera",
+    "invalidRequest": "Este enlace de seguimiento no es válido. Revise el número de seguimiento.",
+    "serviceUnavailable": "No pudimos consultar su solicitud ahora. Inténtelo de nuevo en unos minutos.",
+    "rateLimited": "Demasiados intentos para este número. Espere 15 minutos e inténtelo de nuevo.",
+    "retry": "Reintentar"
   },
   "errors": {
     "validation": "Hay datos que corregir antes de continuar.",
