@@ -92,8 +92,8 @@ describe('checkApprovalDecider (PRC-M021)', () => {
     expect(
       checkApprovalDecider({ roles: ['principal'] }, 'u-init', ctx, { allowSelfApproval: true }),
     ).toEqual({ ok: true });
-    expect(checkApprovalDecider({ roles: ['admin'] }, 'u1', { ...ctx, approverRole: null })).toEqual(
-      { ok: false, code: 'WORKFLOW_STEP_NOT_ASSIGNED' },
-    );
+    expect(
+      checkApprovalDecider({ roles: ['admin'] }, 'u1', { ...ctx, approverRole: null }),
+    ).toEqual({ ok: false, code: 'WORKFLOW_STEP_NOT_ASSIGNED' });
   });
 });

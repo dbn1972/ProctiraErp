@@ -188,7 +188,9 @@ function applyUserAttribute(
       const v = (value ?? {}) as { formatted?: unknown; givenName?: unknown; familyName?: unknown };
       if (typeof v.formatted === 'string') change.displayName = v.formatted;
       else if (typeof v.givenName === 'string' || typeof v.familyName === 'string') {
-        change.displayName = [v.givenName, v.familyName].filter((x) => typeof x === 'string').join(' ');
+        change.displayName = [v.givenName, v.familyName]
+          .filter((x) => typeof x === 'string')
+          .join(' ');
       }
       return;
     }
@@ -694,7 +696,12 @@ export const scimPlugin = fp(
               });
             }
           } else {
-            return scimError(reply, 400, `Unsupported attribute path '${op.path ?? ''}'`, 'invalidPath');
+            return scimError(
+              reply,
+              400,
+              `Unsupported attribute path '${op.path ?? ''}'`,
+              'invalidPath',
+            );
           }
         }
         if (replaceWith) {

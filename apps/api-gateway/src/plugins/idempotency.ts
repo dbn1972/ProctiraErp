@@ -26,15 +26,12 @@
  * - PRC-M020: only 2xx and deterministic 4xx (400/404/409/410/422) are cached.
  */
 
-import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash } from 'node:crypto';
 
+import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 
-import {
-  assertIdempotencyRedisClient,
-  type IdempotencyStoreMode,
-} from './idempotency-store.js';
+import { assertIdempotencyRedisClient, type IdempotencyStoreMode } from './idempotency-store.js';
 
 /**
  * Options for the idempotency plugin.
@@ -282,8 +279,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     excludePaths = [],
   } = options;
 
-  const storeMode: IdempotencyStoreMode =
-    options.storeMode ?? (options.redis ? 'redis' : 'memory');
+  const storeMode: IdempotencyStoreMode = options.storeMode ?? (options.redis ? 'redis' : 'memory');
 
   // W1-ARCH-03: redis mode must never silently construct an in-memory store.
   if (storeMode === 'redis') {
@@ -291,9 +287,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   }
 
   const redis: RedisClient =
-    storeMode === 'memory'
-      ? (options.redis ?? new InMemoryIdempotencyStore())
-      : options.redis!;
+    storeMode === 'memory' ? (options.redis ?? new InMemoryIdempotencyStore()) : options.redis!;
 
   if (storeMode === 'memory' && !options.redis) {
     fastify.log.warn(
@@ -517,7 +511,10 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
         await redis.del(lockKey);
       } catch (lockErr) {
         if (storeMode === 'redis') {
-          request.log.error({ err: lockErr }, 'idempotency lock release failed after durable cache write');
+          request.log.error(
+            { err: lockErr },
+            'idempotency lock release failed after durable cache write',
+          );
         } else {
           throw lockErr;
         }

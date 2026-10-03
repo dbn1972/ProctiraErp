@@ -958,7 +958,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (isAtomicMutationAuditPath(path)) return;
     if (!shouldFailClosedOnMutationAuditFailure({ path })) return;
     if (await auditGate.isAvailable()) return;
-    request.log.error({ path, method: request.method }, 'audit unavailable; mutation refused before handler');
+    request.log.error(
+      { path, method: request.method },
+      'audit unavailable; mutation refused before handler',
+    );
     reply.header('retry-after', '5');
     return reply.status(503).send(MUTATION_AUDIT_UNAVAILABLE_BODY);
   });

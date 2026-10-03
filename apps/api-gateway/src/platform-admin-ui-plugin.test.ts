@@ -24,12 +24,21 @@ describe('platform-admin console (PRC-M018)', () => {
 
   it('role gate: tenant admin and teacher are denied, platform admin allowed', async () => {
     for (const roles of [['teacher'], ['admin']]) {
-      const res = await app.inject({ method: 'GET', url: '/api/v1/tenants', headers: as('x', roles) });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/tenants',
+        headers: as('x', roles),
+      });
       expect(res.statusCode).toBe(403);
     }
     expect(
-      (await app.inject({ method: 'GET', url: '/api/v1/break-glass', headers: as('t', ['teacher']) }))
-        .statusCode,
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/api/v1/break-glass',
+          headers: as('t', ['teacher']),
+        })
+      ).statusCode,
     ).toBe(403);
     const ok = await app.inject({
       method: 'GET',

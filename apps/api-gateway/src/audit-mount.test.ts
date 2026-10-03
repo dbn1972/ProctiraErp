@@ -13,7 +13,6 @@ delete process.env['DATABASE_URL'];
 
 const TENANT_ID = '550e8400-e29b-41d4-a716-446655440000';
 
-
 function createTestConfig(): GatewayConfig {
   return {
     port: 0,

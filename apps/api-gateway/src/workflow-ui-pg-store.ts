@@ -114,7 +114,10 @@ export interface WorkflowUiPage<T> {
 export interface WorkflowUiStore {
   readonly persistence: 'postgres' | 'memory';
   /** Optional efficient lookup; the plugin derives it from list methods otherwise. */
-  getApprovalContext?(tenantId: string, approvalId: string): Promise<WorkflowApprovalContext | null>;
+  getApprovalContext?(
+    tenantId: string,
+    approvalId: string,
+  ): Promise<WorkflowApprovalContext | null>;
   /** Optional SQL-paged variants (PRC-M022). */
   listInstancesPage?(
     tenantId: string,

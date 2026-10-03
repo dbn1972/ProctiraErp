@@ -32,7 +32,9 @@ describe('insightsUiPlugin (memory)', () => {
     }
   });
 
-  async function buildApp(user: unknown = { roles: [{ roleId: 'admin', roleName: 'Administrator' }] }) {
+  async function buildApp(
+    user: unknown = { roles: [{ roleId: 'admin', roleName: 'Administrator' }] },
+  ) {
     const app = Fastify();
     apps.push(app);
     if (user) {
@@ -92,7 +94,9 @@ describe('insightsUiPlugin (memory)', () => {
       expect(res.statusCode).toBe(403);
     });
     it('board admin scoped to A gets 403 for B and 200 for A', async () => {
-      const user = { roles: [{ roleId: 'board_admin', roleName: 'Board Admin', areaId: 'board-a' }] };
+      const user = {
+        roles: [{ roleId: 'board_admin', roleName: 'Board Admin', areaId: 'board-a' }],
+      };
       expect((await get(user, 'board-b')).statusCode).toBe(403);
       expect((await get(user, 'board-a')).statusCode).toBe(200);
     });
@@ -103,11 +107,16 @@ describe('insightsUiPlugin (memory)', () => {
       );
       expect(res.statusCode).toBe(403);
       expect(
-        decideBoardRollupAccess({ roles: [{ roleId: 'x', roleName: 'Platform board viewer' }] }, 'b'),
+        decideBoardRollupAccess(
+          { roles: [{ roleId: 'x', roleName: 'Platform board viewer' }] },
+          'b',
+        ),
       ).toBe('deny');
     });
     it('JWT area scope is honoured and platform admin may read any board', async () => {
-      expect(decideBoardRollupAccess({ roles: ['teacher'], areas: [{ areaId: 'b1' }] }, 'b1')).toBe('allow');
+      expect(decideBoardRollupAccess({ roles: ['teacher'], areas: [{ areaId: 'b1' }] }, 'b1')).toBe(
+        'allow',
+      );
       expect(decideBoardRollupAccess({ roles: [{ roleId: 'super-admin' }] }, 'any')).toBe('allow');
     });
   });
@@ -115,7 +124,10 @@ describe('insightsUiPlugin (memory)', () => {
   describe('GET /reports/board/:boardId/summary (G-809)', () => {
     it('rejects an unauthenticated caller (PRC-M028)', async () => {
       const anon = await buildApp(null);
-      const denied = await anon.inject({ method: 'GET', url: '/reports/board/board-unauth/summary' });
+      const denied = await anon.inject({
+        method: 'GET',
+        url: '/reports/board/board-unauth/summary',
+      });
       expect(denied.statusCode).toBe(401);
     });
     it('returns zeros for an admin without tenant header in forceMemory mode', async () => {

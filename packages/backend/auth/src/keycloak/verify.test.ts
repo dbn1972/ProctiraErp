@@ -85,7 +85,10 @@ describe('Keycloak token verify', () => {
   const base = { sub: 'kc-user-2', iss: issuer, exp: now + 300, iat: now, jti: 'j2' };
 
   it('rejects a token minted for a different client with default config (PRC-M180)', async () => {
-    const token = signRs256({ ...base, azp: 'other-client', aud: ['account', 'other-client'] }, pem());
+    const token = signRs256(
+      { ...base, azp: 'other-client', aud: ['account', 'other-client'] },
+      pem(),
+    );
     await expect(verifyKeycloakAccessToken(token, config, jwksFor(), now)).rejects.toThrow(
       /audience mismatch/,
     );

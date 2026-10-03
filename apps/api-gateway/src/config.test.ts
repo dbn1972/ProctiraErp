@@ -68,7 +68,9 @@ describe('parseTrustedProxyCidrs (W1-SEC-07)', () => {
 describe('auth boot guards (PRC-M011)', () => {
   const strong = 'b'.repeat(48);
   it('production + JWT_SECRET_PREVIOUS=changeme throws', () => {
-    expect(() => resolvePreviousJwtSecret('production', 'changeme', strong)).toThrow(/placeholder|at least/);
+    expect(() => resolvePreviousJwtSecret('production', 'changeme', strong)).toThrow(
+      /placeholder|at least/,
+    );
     expect(() => resolvePreviousJwtSecret('production', 'short', strong)).toThrow(/at least/);
     expect(() => resolvePreviousJwtSecret('production', strong, strong)).toThrow(/differ/);
     expect(resolvePreviousJwtSecret('production', 'c'.repeat(48), strong)).toBe('c'.repeat(48));

@@ -21,7 +21,10 @@ describe('SCIM profile writes and atomic groups', () => {
   beforeAll(async () => {
     app = await buildApp({ config: createTestConfig() });
     await app.ready();
-    headers = { ...authHeaders(app, { roles: ['admin'] }), 'content-type': 'application/scim+json' };
+    headers = {
+      ...authHeaders(app, { roles: ['admin'] }),
+      'content-type': 'application/scim+json',
+    };
   });
   afterAll(async () => {
     await app.close();
@@ -135,7 +138,11 @@ describe('SCIM profile writes and atomic groups', () => {
     const [a, b] = await Promise.all([add(g1!.id), add(g2!.id)]);
     expect(a.statusCode, a.body).toBe(200);
     expect(b.statusCode, b.body).toBe(200);
-    const got = await app.inject({ method: 'GET', url: `/api/v1/scim/v2/Users/${user.id}`, headers });
+    const got = await app.inject({
+      method: 'GET',
+      url: `/api/v1/scim/v2/Users/${user.id}`,
+      headers,
+    });
     const groupIds = (got.json().groups as Array<{ value: string }>).map((g) => g.value);
     expect(groupIds).toEqual(expect.arrayContaining([g1!.id, g2!.id]));
   });

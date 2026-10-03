@@ -14,6 +14,7 @@ import {
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
+
 import type { ServiceRoute } from '../config.js';
 
 /** Mirrors @proctira/database persistence env without importing Prisma. */

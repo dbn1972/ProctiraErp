@@ -136,7 +136,9 @@ describe('GET /api/v1/storage/health exposure (PRC-M023)', () => {
     });
     await app.register(storageHealthPlugin, { adapter });
     await app.ready();
-    expect((await app.inject({ method: 'GET', url: '/api/v1/storage/health' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/v1/storage/health' })).statusCode).toBe(
+      401,
+    );
     const teacher = await app.inject({
       method: 'GET',
       url: '/api/v1/storage/health',

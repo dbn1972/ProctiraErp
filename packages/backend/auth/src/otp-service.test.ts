@@ -148,7 +148,9 @@ describe('OtpService concurrency (PRC-M177)', () => {
     const ch = await service.sendChallenge({ userId: 'u1', tenantId: 't1', phone: '+15551234567' });
     const wrong = ch.debugCode === '000000' ? '111111' : '000000';
     const results = await Promise.allSettled(
-      Array.from({ length: 50 }, () => service.verifyChallenge({ mfaToken: ch.mfaToken, code: wrong })),
+      Array.from({ length: 50 }, () =>
+        service.verifyChallenge({ mfaToken: ch.mfaToken, code: wrong }),
+      ),
     );
     expect(results.every((r) => r.status === 'rejected')).toBe(true);
     const row = await store.findByToken(ch.mfaToken);

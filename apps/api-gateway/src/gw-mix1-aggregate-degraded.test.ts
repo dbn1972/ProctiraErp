@@ -25,9 +25,8 @@ vi.mock('@proctira/database', async (importOriginal) => {
 
 const { BoardSummaryUnavailableError, getBoardSummary } = await import('./board-summary.js');
 const { insightsUiPlugin } = await import('./insights-ui-plugin.js');
-const { registerInstitutionDirectoryRoutes, loadInstitutionDirectoryContext } = await import(
-  './institution-directory.js'
-);
+const { registerInstitutionDirectoryRoutes, loadInstitutionDirectoryContext } =
+  await import('./institution-directory.js');
 
 describe('aggregate DB failures surface as 503 (PRC-M009)', () => {
   const saved = process.env['DATABASE_URL'];

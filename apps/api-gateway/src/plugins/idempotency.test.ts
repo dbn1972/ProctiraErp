@@ -764,7 +764,10 @@ describe('idempotency scoping, atomic lock and cacheability (PRC-M010/M019/M020)
   it('user B replaying user A key gets a fresh execution, never A body (M010)', async () => {
     await build({ requireScope: true });
     let n = 0;
-    app.post('/things', async (req) => ({ id: ++n, by: (req as unknown as { user: { sub: string } }).user.sub }));
+    app.post('/things', async (req) => ({
+      id: ++n,
+      by: (req as unknown as { user: { sub: string } }).user.sub,
+    }));
     expect((await post('alice', 'k1', { a: 1 })).json()).toEqual({ id: 1, by: 'alice' });
     const b = await post('bob', 'k1', { a: 1 });
     expect(b.json()).toEqual({ id: 2, by: 'bob' });
@@ -816,7 +819,9 @@ describe('idempotency scoping, atomic lock and cacheability (PRC-M010/M019/M020)
       await new Promise((r) => setTimeout(r, 25));
       return { id: n };
     });
-    const results = await Promise.all(Array.from({ length: 20 }, () => post('alice', 'k4', { x: 1 })));
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => post('alice', 'k4', { x: 1 })),
+    );
     expect(n).toBe(1);
     for (const r of results) expect([200, 409]).toContain(r.statusCode);
     expect(results.filter((r) => r.statusCode === 200)).toHaveLength(1);
@@ -871,7 +876,9 @@ describe('idempotency scoping, atomic lock and cacheability (PRC-M010/M019/M020)
     await build({ requireScope: true });
     let granted = false;
     app.post('/things', async (_req, reply) =>
-      granted ? reply.status(201).send({ ok: true }) : reply.status(403).send({ code: 'FORBIDDEN' }),
+      granted
+        ? reply.status(201).send({ ok: true })
+        : reply.status(403).send({ code: 'FORBIDDEN' }),
     );
     expect((await post('alice', 'k7', {})).statusCode).toBe(403);
     granted = true;

@@ -353,7 +353,10 @@ describe('G-924 /workflows and /workflow-engine share one store', () => {
       url: '/api/v1/workflows/approvals/pending?page=1&pageSize=2',
       headers: headers('admin'),
     });
-    const body = first.json() as { data: unknown[]; meta: { totalItems: number; totalPages: number } };
+    const body = first.json() as {
+      data: unknown[];
+      meta: { totalItems: number; totalPages: number };
+    };
     expect(body.data).toHaveLength(2);
     expect(body.meta.totalItems).toBeGreaterThanOrEqual(3);
     const pages = body.meta.totalPages;

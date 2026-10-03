@@ -104,14 +104,13 @@ function assertWorkflowAccess(
 }
 
 /** PRC-M021: may decide any step (still never their own request). */
-const WORKFLOW_PLATFORM_DECIDER_ROLES = new Set([
-  'super_admin',
-  'platform_admin',
-  'system_admin',
-]);
+const WORKFLOW_PLATFORM_DECIDER_ROLES = new Set(['super_admin', 'platform_admin', 'system_admin']);
 
 function normalizeRole(role: string): string {
-  return role.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return role
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 }
 
 /** Every role id AND role name the caller holds, normalised. */
@@ -174,7 +173,10 @@ function parsePagination(query: unknown): { page: number; pageSize: number } {
     const n = Number.parseInt(String(v ?? ''), 10);
     return Number.isFinite(n) && n > 0 ? n : d;
   };
-  return { page: int(q.page, 1), pageSize: Math.min(MAX_PAGE_SIZE, int(q.pageSize, MAX_PAGE_SIZE)) };
+  return {
+    page: int(q.page, 1),
+    pageSize: Math.min(MAX_PAGE_SIZE, int(q.pageSize, MAX_PAGE_SIZE)),
+  };
 }
 
 function pageOf<T>(rows: T[], pagination: { page: number; pageSize: number }): WorkflowUiPage<T> {
@@ -345,9 +347,11 @@ export const workflowUiPlugin = fp(
           },
           'workflow approval decision denied',
         );
-        const auditService = (fastify as unknown as {
-          auditService?: { recordAudit?: (input: Record<string, unknown>) => Promise<unknown> };
-        }).auditService;
+        const auditService = (
+          fastify as unknown as {
+            auditService?: { recordAudit?: (input: Record<string, unknown>) => Promise<unknown> };
+          }
+        ).auditService;
         await auditService
           ?.recordAudit?.({
             tenantId,
