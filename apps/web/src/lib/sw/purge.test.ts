@@ -62,3 +62,14 @@ describe('purgeServiceWorkerCaches', () => {
     await vi.waitFor(() => expect(store.size).toBe(0));
   });
 });
+
+describe('purgeServiceWorkerCaches drafts (PRC-M079)', () => {
+  it('removes persisted form drafts on session end', async () => {
+    window.localStorage.setItem('proctira-draft:t:u:/attendance:attendance-marking-x', '{}');
+    window.localStorage.setItem('other', 'keep');
+    await purgeServiceWorkerCaches();
+    expect(window.localStorage.getItem('proctira-draft:t:u:/attendance:attendance-marking-x')).toBeNull();
+    expect(window.localStorage.getItem('other')).toBe('keep');
+    window.localStorage.clear();
+  });
+});
