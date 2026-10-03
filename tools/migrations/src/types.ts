@@ -10,6 +10,8 @@ export const MIGRATION_UUID_MAP_TABLE = 'migration_uuid_map';
 
 /** Configuration for connecting to the legacy MySQL database. */
 export interface MySQLConfig {
+  /** PRC-L376: TLS to the legacy MySQL source (pgloader useSSL). */
+  ssl?: boolean;
   host: string;
   port: number;
   database: string;

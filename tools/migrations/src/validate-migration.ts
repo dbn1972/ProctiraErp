@@ -23,6 +23,7 @@ import type {
   TableValidation,
   IntegrityError,
 } from './types.js';
+import { quoteIdent } from './sql-safety.js';
 
 type QueryClient = Pick<PoolClient, 'query'>;
 
@@ -61,12 +62,12 @@ async function validateRowCounts(
       const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
       const sourceResult = await client.query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM "${stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
+        `SELECT COUNT(*) as count FROM ${quoteIdent(stagingSchema)}.${quoteIdent(mapping.sourceTable)} ${filterClause}`,
       );
       const sourceCount = parseInt(sourceResult.rows[0]!.count, 10);
 
       const targetResult = await client.query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM "${targetSchema}"."${mapping.targetTable}"`,
+        `SELECT COUNT(*) as count FROM ${quoteIdent(targetSchema)}.${quoteIdent(mapping.targetTable)}`,
       );
       const targetCount = parseInt(targetResult.rows[0]!.count, 10);
 
@@ -116,10 +117,10 @@ async function validateReferentialIntegrity(
         const result = await client.query<{ orphan_count: string; sample_ids: string[] | null }>(`
           SELECT COUNT(*) as orphan_count,
                  ARRAY_AGG(t.id::text) FILTER (WHERE t.id IS NOT NULL) AS sample_ids
-          FROM "${targetSchema}"."${mapping.targetTable}" t
-          LEFT JOIN "${targetSchema}"."${fk.targetReferencesTable}" ref
-            ON t."${fk.column}" = ref.id
-          WHERE t."${fk.column}" IS NOT NULL
+          FROM ${quoteIdent(targetSchema)}.${quoteIdent(mapping.targetTable)} t
+          LEFT JOIN ${quoteIdent(targetSchema)}.${quoteIdent(fk.targetReferencesTable)} ref
+            ON t.${quoteIdent(fk.column)} = ref.id
+          WHERE t.${quoteIdent(fk.column)} IS NOT NULL
             AND ref.id IS NULL
         `);
 
@@ -165,7 +166,7 @@ async function validateUuidFormat(
     try {
       const result = await client.query<{ invalid_count: string }>(`
         SELECT COUNT(*) as invalid_count
-        FROM "${targetSchema}"."${mapping.targetTable}"
+        FROM ${quoteIdent(targetSchema)}.${quoteIdent(mapping.targetTable)}
         WHERE id IS NOT NULL AND id::text !~ '${uuidRegex}'
       `);
 
@@ -198,7 +199,7 @@ async function validateTenantAssignment(
     try {
       const result = await client.query<{ missing_count: string }>(`
         SELECT COUNT(*) as missing_count
-        FROM "${targetSchema}"."${mapping.targetTable}"
+        FROM ${quoteIdent(targetSchema)}.${quoteIdent(mapping.targetTable)}
         WHERE tenant_id IS NULL
       `);
 

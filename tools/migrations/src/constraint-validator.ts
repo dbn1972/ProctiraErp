@@ -20,6 +20,7 @@
 import { Pool, PoolClient } from 'pg';
 import { MigrationConfig, MigrationStepResult } from './types.js';
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import { quoteIdent, quoteLiteral } from './sql-safety.js';
 
 /** A single constraint violation found during validation. */
 export interface ConstraintViolation {
@@ -371,8 +372,8 @@ async function checkNotNull(
   const result = await client.query(`
     SELECT COUNT(*) as count,
            ARRAY_AGG(id::text) FILTER (WHERE id IS NOT NULL) AS sample_ids
-    FROM "${schema}"."${constraint.table}"
-    WHERE "${constraint.column}" IS NULL
+    FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)}
+    WHERE ${quoteIdent(constraint.column)} IS NULL
   `);
 
   const count = parseInt(result.rows[0].count, 10);
@@ -398,10 +399,10 @@ async function checkUnique(
   schema: string,
 ): Promise<ConstraintViolation | null> {
   const result = await client.query(`
-    SELECT "${constraint.column}", COUNT(*) as dup_count
-    FROM "${schema}"."${constraint.table}"
-    WHERE "${constraint.column}" IS NOT NULL
-    GROUP BY "${constraint.column}"
+    SELECT ${quoteIdent(constraint.column)}, COUNT(*) as dup_count
+    FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)}
+    WHERE ${quoteIdent(constraint.column)} IS NOT NULL
+    GROUP BY ${quoteIdent(constraint.column)}
     HAVING COUNT(*) > 1
     LIMIT 5
   `);
@@ -436,10 +437,10 @@ async function checkForeignKey(
 
   const result = await client.query(`
     SELECT COUNT(*) as count,
-           ARRAY_AGG(t."${constraint.column}"::text) FILTER (WHERE t."${constraint.column}" IS NOT NULL) AS sample_values
-    FROM "${schema}"."${constraint.table}" t
-    LEFT JOIN "${schema}"."${refTable}" ref ON t."${constraint.column}" = ref.id
-    WHERE t."${constraint.column}" IS NOT NULL AND ref.id IS NULL
+           ARRAY_AGG(t.${quoteIdent(constraint.column)}::text) FILTER (WHERE t.${quoteIdent(constraint.column)} IS NOT NULL) AS sample_values
+    FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)} t
+    LEFT JOIN ${quoteIdent(schema)}.${quoteIdent(refTable)} ref ON t.${quoteIdent(constraint.column)} = ref.id
+    WHERE t.${quoteIdent(constraint.column)} IS NOT NULL AND ref.id IS NULL
   `);
 
   const count = parseInt(result.rows[0].count, 10);
@@ -468,9 +469,9 @@ async function checkStringLength(
 
   const result = await client.query(`
     SELECT COUNT(*) as count,
-           ARRAY_AGG(LEFT("${constraint.column}"::text, 50)) FILTER (WHERE LENGTH("${constraint.column}"::text) > ${constraint.maxLength}) AS sample_values
-    FROM "${schema}"."${constraint.table}"
-    WHERE LENGTH("${constraint.column}"::text) > ${constraint.maxLength}
+           ARRAY_AGG(LEFT(${quoteIdent(constraint.column)}::text, 50)) FILTER (WHERE LENGTH(${quoteIdent(constraint.column)}::text) > ${constraint.maxLength}) AS sample_values
+    FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)}
+    WHERE LENGTH(${quoteIdent(constraint.column)}::text) > ${constraint.maxLength}
   `);
 
   const count = parseInt(result.rows[0].count, 10);
@@ -500,11 +501,11 @@ async function checkEnumValue(
   const placeholders = constraint.allowedValues.map((_, i) => `$${i + 1}`).join(', ');
 
   const result = await client.query(
-    `SELECT "${constraint.column}", COUNT(*) as count
-     FROM "${schema}"."${constraint.table}"
-     WHERE "${constraint.column}" IS NOT NULL
-       AND "${constraint.column}"::text NOT IN (${placeholders})
-     GROUP BY "${constraint.column}"
+    `SELECT ${quoteIdent(constraint.column)}, COUNT(*) as count
+     FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)}
+     WHERE ${quoteIdent(constraint.column)} IS NOT NULL
+       AND ${quoteIdent(constraint.column)}::text NOT IN (${placeholders})
+     GROUP BY ${quoteIdent(constraint.column)}
      LIMIT 10`,
     constraint.allowedValues,
   );
@@ -535,10 +536,10 @@ async function checkUuidFormat(
 
   const result = await client.query(`
     SELECT COUNT(*) as count,
-           ARRAY_AGG("${constraint.column}"::text) FILTER (WHERE "${constraint.column}" IS NOT NULL) AS sample_values
-    FROM "${schema}"."${constraint.table}"
-    WHERE "${constraint.column}" IS NOT NULL
-      AND "${constraint.column}"::text !~ '${uuidRegex}'
+           ARRAY_AGG(${quoteIdent(constraint.column)}::text) FILTER (WHERE ${quoteIdent(constraint.column)} IS NOT NULL) AS sample_values
+    FROM ${quoteIdent(schema)}.${quoteIdent(constraint.table)}
+    WHERE ${quoteIdent(constraint.column)} IS NOT NULL
+      AND ${quoteIdent(constraint.column)}::text !~ ${quoteLiteral(uuidRegex)}
   `);
 
   const count = parseInt(result.rows[0].count, 10);

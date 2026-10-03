@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MigrationConfig, MigrationStepResult } from './types.js';
 import { MIGRATION_UUID_MAP_TABLE } from './types.js';
+import { quoteIdent } from './sql-safety.js';
 
 /** Tables that require tenant_id assignment. */
 const TENANT_SCOPED_TABLES = [
@@ -43,7 +44,7 @@ export async function ensureDefaultTenant(
 ): Promise<string> {
   // Check if default tenant already exists
   const existing = await client.query<{ id: string }>(
-    `SELECT id FROM "${targetSchema}"."tenants" WHERE slug = $1`,
+    `SELECT id FROM ${quoteIdent(targetSchema)}."tenants" WHERE slug = $1`,
     [tenantSlug],
   );
 
@@ -54,7 +55,7 @@ export async function ensureDefaultTenant(
   // Create the default tenant
   const tenantId = uuidv4();
   await client.query(
-    `INSERT INTO "${targetSchema}"."tenants" (id, name, slug, config, status, created_at, updated_at)
+    `INSERT INTO ${quoteIdent(targetSchema)}."tenants" (id, name, slug, config, status, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
     [
       tenantId,
@@ -80,7 +81,7 @@ async function assignTenantToTable(
 ): Promise<number> {
   // Only update rows that don't already have a tenant_id
   const result = await client.query(
-    `UPDATE "${targetSchema}"."${table}"
+    `UPDATE ${quoteIdent(targetSchema)}.${quoteIdent(table)}
      SET tenant_id = $1
      WHERE tenant_id IS NULL OR tenant_id = ''`,
     [tenantId],
@@ -100,7 +101,7 @@ async function verifyTenantAssignment(
 
   for (const table of TENANT_SCOPED_TABLES) {
     const result = await client.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM "${targetSchema}"."${table}"
+      `SELECT COUNT(*) as count FROM ${quoteIdent(targetSchema)}.${quoteIdent(table)}
        WHERE tenant_id IS NULL OR tenant_id = ''`,
     );
     const count = parseInt(result.rows[0]!.count, 10);

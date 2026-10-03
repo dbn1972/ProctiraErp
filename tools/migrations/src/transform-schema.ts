@@ -20,6 +20,7 @@ import type {
   TableMapping,
   ColumnTransform,
 } from './types.js';
+import { quoteIdent, quoteLiteral, assertSafeTypeName } from './sql-safety.js';
 
 /**
  * Builds the SQL expression for a column transformation.
@@ -29,22 +30,22 @@ export function buildTransformExpression(
   transform: ColumnTransform | undefined,
 ): string {
   if (!transform) {
-    return `s."${sourceColumn}"`;
+    return `s.${quoteIdent(sourceColumn)}`;
   }
 
   switch (transform.type) {
     case 'rename':
-      return `s."${sourceColumn}"`;
+      return `s.${quoteIdent(sourceColumn)}`;
 
     case 'cast':
-      return `CAST(s."${sourceColumn}" AS ${transform.targetType})`;
+      return `CAST(s.${quoteIdent(sourceColumn)} AS ${assertSafeTypeName(transform.targetType)})`;
 
     case 'default':
-      return `COALESCE(s."${sourceColumn}", '${transform.value}')`;
+      return `COALESCE(s.${quoteIdent(sourceColumn)}, ${quoteLiteral(transform.value)})`;
 
     case 'map_enum': {
       const cases = Object.entries(transform.mapping)
-        .map(([from, to]) => `WHEN CAST(s."${sourceColumn}" AS text) = '${from}' THEN '${to}'`)
+        .map(([from, to]) => `WHEN CAST(s.${quoteIdent(sourceColumn)} AS text) = ${quoteLiteral(from)} THEN ${quoteLiteral(to)}`)
         .join(' ');
       // Unknown or NULL legacy codes map to NULL — never to an arbitrary
       // mapped value. The pre-flight (findUnmappedEnumCodes) fails the step
@@ -53,13 +54,13 @@ export function buildTransformExpression(
     }
 
     case 'json_wrap':
-      return `COALESCE(s."${sourceColumn}"::jsonb, '{}'::jsonb)`;
+      return `COALESCE(s.${quoteIdent(sourceColumn)}::jsonb, '{}'::jsonb)`;
 
     case 'coalesce':
-      return `COALESCE(s."${sourceColumn}", '${transform.fallback}')`;
+      return `COALESCE(s.${quoteIdent(sourceColumn)}, ${quoteLiteral(transform.fallback)})`;
 
     default:
-      return `s."${sourceColumn}"`;
+      return `s.${quoteIdent(sourceColumn)}`;
   }
 }
 
@@ -73,17 +74,17 @@ export function buildTransformSQL(
 ): string {
   const selectColumns = mapping.columns.map((col) => {
     const expr = buildTransformExpression(col.source, col.transform);
-    return `${expr} AS "${col.target}"`;
+    return `${expr} AS ${quoteIdent(col.target)}`;
   });
 
-  const targetColumns = mapping.columns.map((col) => `"${col.target}"`);
+  const targetColumns = mapping.columns.map((col) => `${quoteIdent(col.target)}`);
 
   const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
   return `
-    INSERT INTO "${targetSchema}"."${mapping.targetTable}" (${targetColumns.join(', ')})
+    INSERT INTO ${quoteIdent(targetSchema)}.${quoteIdent(mapping.targetTable)} (${targetColumns.join(', ')})
     SELECT ${selectColumns.join(',\n           ')}
-    FROM "${stagingSchema}"."${mapping.sourceTable}" s
+    FROM ${quoteIdent(stagingSchema)}.${quoteIdent(mapping.sourceTable)} s
     ${filterClause}
     ON CONFLICT DO NOTHING;
   `;
@@ -108,15 +109,15 @@ export function buildUnmappedEnumSQL(
 ): string | null {
   if (column.transform?.type !== 'map_enum') return null;
   const known = Object.keys(column.transform.mapping)
-    .map((code) => `'${code.replace(/'/g, "''")}'`)
+    .map((code) => `${quoteLiteral(code.replace(/'/g, "''"))}`)
     .join(', ');
-  const src = `CAST(s."${column.source}" AS text)`;
+  const src = `CAST(s.${quoteIdent(column.source)} AS text)`;
   const filter = mapping.sourceFilter ? `AND (${mapping.sourceFilter})` : '';
   const notIn = known ? `AND ${src} NOT IN (${known})` : '';
   return `
     SELECT ${src} AS code, COUNT(*)::int AS count
-    FROM "${stagingSchema}"."${mapping.sourceTable}" s
-    WHERE s."${column.source}" IS NOT NULL ${notIn} ${filter}
+    FROM ${quoteIdent(stagingSchema)}.${quoteIdent(mapping.sourceTable)} s
+    WHERE s.${quoteIdent(column.source)} IS NOT NULL ${notIn} ${filter}
     GROUP BY 1
     ORDER BY 1;
   `;
@@ -180,7 +181,7 @@ function buildPathUpdateSQL(targetSchema: string): string {
   return `
     WITH RECURSIVE area_path AS (
       SELECT id, name, parent_id, name::text AS path, 1 AS depth
-      FROM "${targetSchema}"."geographic_areas"
+      FROM ${quoteIdent(targetSchema)}."geographic_areas"
       WHERE parent_id IS NULL
 
       UNION ALL
@@ -188,10 +189,10 @@ function buildPathUpdateSQL(targetSchema: string): string {
       SELECT ga.id, ga.name, ga.parent_id,
              ap.path || '/' || ga.name,
              ap.depth + 1
-      FROM "${targetSchema}"."geographic_areas" ga
+      FROM ${quoteIdent(targetSchema)}."geographic_areas" ga
       JOIN area_path ap ON ga.parent_id = ap.id
     )
-    UPDATE "${targetSchema}"."geographic_areas" ga
+    UPDATE ${quoteIdent(targetSchema)}."geographic_areas" ga
     SET path = ap.path
     FROM area_path ap
     WHERE ga.id = ap.id;

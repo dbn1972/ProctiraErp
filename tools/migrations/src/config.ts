@@ -54,8 +54,18 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Migrat
     environment.PGSSLMODE = pgSsl;
   }
 
+  // PRC-L376: legacy MySQL TLS (pgloader `useSSL`). Defaults on in production; disabling it
+  // there needs the same explicit MIGRATION_ALLOW_INSECURE_MYSQL=1 acknowledgement.
+  const mysqlSsl = env('LEGACY_MYSQL_SSL', production ? 'true' : 'false');
+  if (mysqlSsl !== 'true' && mysqlSsl !== 'false') {
+    throw new Error('LEGACY_MYSQL_SSL must be true or false');
+  }
+  if (production && mysqlSsl === 'false' && environment.MIGRATION_ALLOW_INSECURE_MYSQL !== '1') {
+    throw new Error('LEGACY_MYSQL_SSL=false in production requires MIGRATION_ALLOW_INSECURE_MYSQL=1');
+  }
   return {
     mysql: {
+      ssl: mysqlSsl === 'true',
       host: env('LEGACY_MYSQL_HOST', 'localhost'),
       port: parseInt(env('LEGACY_MYSQL_PORT', '3306'), 10),
       database: env('LEGACY_MYSQL_DATABASE', 'proctira_core'),

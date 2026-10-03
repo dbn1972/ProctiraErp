@@ -21,6 +21,7 @@ import { Pool } from 'pg';
 import { TABLE_MAPPINGS } from './table-mappings.js';
 import type { MigrationConfig, MigrationStepResult, TableMapping, ColumnMapping } from './types.js';
 import { MIGRATION_UUID_MAP_TABLE } from './types.js';
+import { quoteIdent } from './sql-safety.js';
 
 /** CDC event types representing data changes. */
 export type CDCOperation = 'INSERT' | 'UPDATE' | 'DELETE';
@@ -194,9 +195,9 @@ export class CDCProducer {
 
       // Query for rows modified since last sync
       const result = await client.query<Record<string, unknown>>(
-        `SELECT * FROM "${mapping.sourceTable}"
+        `SELECT * FROM ${quoteIdent(mapping.sourceTable)}
          WHERE "modified" > $1 ${filterClause}
-         ORDER BY "modified" ASC, "${mapping.legacyPkColumn}" ASC
+         ORDER BY "modified" ASC, ${quoteIdent(mapping.legacyPkColumn)} ASC
          LIMIT $2`,
         [position.lastSyncedAt, this.config.batchSize],
       );
@@ -458,10 +459,10 @@ export class CDCConsumer {
     const columns = Object.keys(event.data);
     const values = Object.values(event.data);
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    const columnList = columns.map((c) => `"${c}"`).join(', ');
+    const columnList = columns.map((c) => `${quoteIdent(c)}`).join(', ');
 
     await client.query(
-      `INSERT INTO "${schema}"."${event.targetTable}" (${columnList})
+      `INSERT INTO ${quoteIdent(schema)}.${quoteIdent(event.targetTable)} (${columnList})
        VALUES (${placeholders})
        ON CONFLICT DO NOTHING`,
       values,
@@ -498,7 +499,7 @@ export class CDCConsumer {
     if (this.config.conflictResolution === 'latest_wins') {
       // Check if target has a more recent modification
       const targetResult = await client.query<{ updated_at: string }>(
-        `SELECT updated_at FROM "${schema}"."${event.targetTable}" WHERE id = $1`,
+        `SELECT updated_at FROM ${quoteIdent(schema)}.${quoteIdent(event.targetTable)} WHERE id = $1`,
         [event.newId],
       );
 
@@ -522,10 +523,10 @@ export class CDCConsumer {
 
     const columns = Object.keys(updateData);
     const values = Object.values(updateData);
-    const setClause = columns.map((col, i) => `"${col}" = $${i + 1}`).join(', ');
+    const setClause = columns.map((col, i) => `${quoteIdent(col)} = $${i + 1}`).join(', ');
 
     await client.query(
-      `UPDATE "${schema}"."${event.targetTable}"
+      `UPDATE ${quoteIdent(schema)}.${quoteIdent(event.targetTable)}
        SET ${setClause}
        WHERE id = $${values.length + 1}`,
       [...values, event.newId],
@@ -557,7 +558,7 @@ export class CDCConsumer {
     }
 
     await client.query(
-      `UPDATE "${schema}"."${event.targetTable}"
+      `UPDATE ${quoteIdent(schema)}.${quoteIdent(event.targetTable)}
        SET deleted_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL`,
       [event.newId],

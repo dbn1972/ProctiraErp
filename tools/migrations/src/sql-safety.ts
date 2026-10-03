@@ -40,3 +40,29 @@ export function assertSafeTableMapping(mapping: TableMapping): void {
     assertSafeIdentifier(fk.referencesColumn, `${mapping.sourceTable} FK referencesColumn`);
   }
 }
+/**
+ * PRC-L376 (PRO-S55-14): quote an SQL identifier the way pg-format's %I / libpq
+ * PQescapeIdentifier do — wrap in double quotes and double any embedded quote — so a
+ * config- or mapping-derived name can never terminate the identifier.
+ */
+export function quoteIdent(name: string): string {
+  if (typeof name !== 'string' || name.length === 0 || name.includes('\u0000')) {
+    throw new Error(`invalid SQL identifier: ${JSON.stringify(name)}`);
+  }
+  return `"${name.replace(/"/g, '""')}"`;
+}
+/** Quote an SQL string literal (pg-format %L): single quotes doubled, NUL rejected. */
+export function quoteLiteral(value: string | number | boolean): string {
+  const text = String(value);
+  if (text.includes('\u0000')) throw new Error('SQL literal contains NUL');
+  if (text.includes('\\')) return `E'${text.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+  return `'${text.replace(/'/g, "''")}'`;
+}
+const TYPE_NAME_RE = /^[a-z][a-z0-9_]*(\s*\(\s*\d+(\s*,\s*\d+)?\s*\))?(\[\])?$/i;
+/** CAST target types are spliced as SQL; only plain type names (optionally sized) pass. */
+export function assertSafeTypeName(typeName: string): string {
+  if (!TYPE_NAME_RE.test(typeName)) {
+    throw new Error(`unsafe SQL type name: ${JSON.stringify(typeName)}`);
+  }
+  return typeName;
+}

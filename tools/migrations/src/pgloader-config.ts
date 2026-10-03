@@ -41,6 +41,8 @@ export function generatePgloaderConfig(config: MigrationConfig): string {
     .replace(/\{\{MYSQL_HOST\}\}/g, config.mysql.host)
     .replace(/\{\{MYSQL_PORT\}\}/g, String(config.mysql.port))
     .replace(/\{\{MYSQL_DATABASE\}\}/g, enc(config.mysql.database))
+    // PRC-L376: TLS to the legacy source; `useSSL` is pgloader's MySQL connection option.
+    .replace(/\{\{MYSQL_PARAMS\}\}/g, config.mysql.ssl ? '?useSSL=true' : '?useSSL=false')
     .replace(/\{\{PG_USER\}\}/g, enc(config.pg.user))
     .replace(/\{\{PG_PASSWORD\}\}/g, enc(config.pg.password))
     .replace(/\{\{PG_HOST\}\}/g, config.pg.host)

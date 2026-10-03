@@ -18,6 +18,7 @@
 import { Pool, PoolClient } from 'pg';
 import { MigrationConfig, MigrationStepResult } from './types.js';
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import { quoteIdent } from './sql-safety.js';
 
 /** System health status. */
 export interface SystemHealth {
@@ -173,12 +174,12 @@ export class ParallelOperationManager {
           const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
           const legacyResult = await client.query(
-            `SELECT COUNT(*) as count FROM "${this.config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
+            `SELECT COUNT(*) as count FROM ${quoteIdent(this.config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} ${filterClause}`,
           );
           const legacyCount = parseInt(legacyResult.rows[0].count, 10);
 
           const newResult = await client.query(
-            `SELECT COUNT(*) as count FROM "${this.config.pg.schema}"."${mapping.targetTable}"`,
+            `SELECT COUNT(*) as count FROM ${quoteIdent(this.config.pg.schema)}.${quoteIdent(mapping.targetTable)}`,
           );
           const newCount = parseInt(newResult.rows[0].count, 10);
 

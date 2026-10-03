@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TABLE_MAPPINGS } from './table-mappings.js';
 import type { MigrationConfig, MigrationStepResult } from './types.js';
 import { MIGRATION_UUID_MAP_TABLE } from './types.js';
+import { quoteIdent } from './sql-safety.js';
 
 /**
  * SQL to create the UUID mapping table.
@@ -50,7 +51,7 @@ export async function generateUuidsForTable(
   // Count total rows to process
   const filterClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
   const countResult = await client.query<{ total: string }>(
-    `SELECT COUNT(*) as total FROM "${stagingSchema}"."${sourceTable}" ${filterClause}`,
+    `SELECT COUNT(*) as total FROM ${quoteIdent(stagingSchema)}.${quoteIdent(sourceTable)} ${filterClause}`,
   );
   const totalRows = parseInt(countResult.rows[0]!.total, 10);
 
@@ -62,10 +63,10 @@ export async function generateUuidsForTable(
   while (offset < totalRows) {
     // Fetch a batch of legacy IDs
     const batchResult = await client.query<{ legacy_id: number }>(
-      `SELECT "${pkColumn}" as legacy_id
-       FROM "${stagingSchema}"."${sourceTable}"
+      `SELECT ${quoteIdent(pkColumn)} as legacy_id
+       FROM ${quoteIdent(stagingSchema)}.${quoteIdent(sourceTable)}
        ${filterClause}
-       ORDER BY "${pkColumn}"
+       ORDER BY ${quoteIdent(pkColumn)}
        LIMIT $1 OFFSET $2`,
       [batchSize, offset],
     );
@@ -109,14 +110,14 @@ async function applyUuidsToTable(
 ): Promise<number> {
   // Add a temporary legacy_id column if not present
   await client.query(`
-    ALTER TABLE "${targetSchema}"."${targetTable}"
+    ALTER TABLE ${quoteIdent(targetSchema)}.${quoteIdent(targetTable)}
     ADD COLUMN IF NOT EXISTS _legacy_id BIGINT;
   `);
 
   // Update the UUID primary key from the mapping table
   const result = await client.query(
     `
-    UPDATE "${targetSchema}"."${targetTable}" t
+    UPDATE ${quoteIdent(targetSchema)}.${quoteIdent(targetTable)} t
     SET id = m.new_uuid::text
     FROM ${MIGRATION_UUID_MAP_TABLE} m
     WHERE m.legacy_table = $1
@@ -140,13 +141,13 @@ export async function remapForeignKeys(
 ): Promise<number> {
   const result = await client.query(
     `
-    UPDATE "${targetSchema}"."${targetTable}" t
-    SET "${fkColumn}" = m.new_uuid::text
+    UPDATE ${quoteIdent(targetSchema)}.${quoteIdent(targetTable)} t
+    SET ${quoteIdent(fkColumn)} = m.new_uuid::text
     FROM ${MIGRATION_UUID_MAP_TABLE} m
     WHERE m.legacy_table = $1
-      AND m.legacy_id = CAST(t."${fkColumn}" AS bigint)
-      AND t."${fkColumn}" IS NOT NULL
-      AND t."${fkColumn}" ~ '^[0-9]+$'
+      AND m.legacy_id = CAST(t.${quoteIdent(fkColumn)} AS bigint)
+      AND t.${quoteIdent(fkColumn)} IS NOT NULL
+      AND t.${quoteIdent(fkColumn)} ~ '^[0-9]+$'
   `,
     [referencedSourceTable],
   );

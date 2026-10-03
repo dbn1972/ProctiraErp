@@ -14,6 +14,7 @@
 import { Pool, PoolClient } from 'pg';
 import { MigrationConfig, MigrationStepResult, TableMapping } from './types.js';
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import { quoteIdent } from './sql-safety.js';
 
 /** Reason why a row could not be migrated. */
 export interface UnmigratedRecord {
@@ -212,7 +213,7 @@ async function collectTableStats(
   let sourceRowCount = 0;
   try {
     const sourceResult = await client.query(
-      `SELECT COUNT(*) as count FROM "${config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
+      `SELECT COUNT(*) as count FROM ${quoteIdent(config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} ${filterClause}`,
     );
     sourceRowCount = parseInt(sourceResult.rows[0].count, 10);
   } catch {
@@ -224,7 +225,7 @@ async function collectTableStats(
   let migratedRowCount = 0;
   try {
     const targetResult = await client.query(
-      `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${mapping.targetTable}"`,
+      `SELECT COUNT(*) as count FROM ${quoteIdent(config.pg.schema)}.${quoteIdent(mapping.targetTable)}`,
     );
     migratedRowCount = parseInt(targetResult.rows[0].count, 10);
   } catch {
@@ -269,10 +270,10 @@ async function identifyUnmigratedRows(
     const filterClause = mapping.sourceFilter ? `AND ${mapping.sourceFilter}` : '';
 
     const result = await client.query(`
-      SELECT s."${mapping.legacyPkColumn}" as legacy_id
-      FROM "${config.stagingSchema}"."${mapping.sourceTable}" s
+      SELECT s.${quoteIdent(mapping.legacyPkColumn)} as legacy_id
+      FROM ${quoteIdent(config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} s
       WHERE NOT EXISTS (
-        SELECT 1 FROM "${config.pg.schema}"."${mapping.targetTable}" t
+        SELECT 1 FROM ${quoteIdent(config.pg.schema)}.${quoteIdent(mapping.targetTable)} t
         WHERE t.id IS NOT NULL
       )
       ${filterClause}
@@ -311,7 +312,7 @@ async function diagnoseUnmigratedRow(
     if (['id', 'name', 'code'].includes(col.target)) {
       try {
         const result = await client.query(
-          `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
+          `SELECT ${quoteIdent(col.source)} FROM ${quoteIdent(config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} WHERE ${quoteIdent(mapping.legacyPkColumn)} = $1`,
           [legacyId],
         );
         if (result.rows.length > 0 && result.rows[0][col.source] === null) {
@@ -332,16 +333,16 @@ async function diagnoseUnmigratedRow(
   for (const fk of mapping.foreignKeys) {
     try {
       const result = await client.query(
-        `SELECT s."${fk.column}" as fk_value
-         FROM "${config.stagingSchema}"."${mapping.sourceTable}" s
-         WHERE s."${mapping.legacyPkColumn}" = $1
-           AND s."${fk.column}" IS NOT NULL`,
+        `SELECT s.${quoteIdent(fk.column)} as fk_value
+         FROM ${quoteIdent(config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} s
+         WHERE s.${quoteIdent(mapping.legacyPkColumn)} = $1
+           AND s.${quoteIdent(fk.column)} IS NOT NULL`,
         [legacyId],
       );
       if (result.rows.length > 0) {
         const fkValue = result.rows[0].fk_value;
         const refResult = await client.query(
-          `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${fk.targetReferencesTable}" WHERE id IS NOT NULL`,
+          `SELECT COUNT(*) as count FROM ${quoteIdent(config.pg.schema)}.${quoteIdent(fk.targetReferencesTable)} WHERE id IS NOT NULL`,
         );
         if (parseInt(refResult.rows[0].count, 10) === 0) {
           return {
@@ -362,7 +363,7 @@ async function diagnoseUnmigratedRow(
     if (col.transform?.type === 'map_enum') {
       try {
         const result = await client.query(
-          `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
+          `SELECT ${quoteIdent(col.source)} FROM ${quoteIdent(config.stagingSchema)}.${quoteIdent(mapping.sourceTable)} WHERE ${quoteIdent(mapping.legacyPkColumn)} = $1`,
           [legacyId],
         );
         if (result.rows.length > 0) {
