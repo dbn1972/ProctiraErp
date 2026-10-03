@@ -68,6 +68,8 @@ import {
   decideInstitutionScope,
   extractInstitutionIds,
   institutionRecordIdFromParams,
+  isUnresolvedScopedWrite,
+  resolveUnresolvedScopedWriteMode,
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
@@ -821,6 +823,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // PRC-H004: the onRequest gate above runs before Fastify parses the body, so a body-carried
   // institutionId (POST/PUT/PATCH writes) was never checked and a school-bound user could write
   // to another school. Re-run the scope decision on the parsed body in preValidation.
+  const unresolvedScopedWriteMode = resolveUnresolvedScopedWriteMode();
   app.addHook('preValidation', async (request, reply) => {
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
@@ -836,6 +839,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         code: 'INSTITUTION_OUT_OF_SCOPE',
         message: 'Institution is outside the caller school scope',
         institutionId: decision.institutionId,
+        statusCode: 403,
+      });
+    }
+    // PRC-H004 (fix step 2): a school-bound write to a school-scoped segment that names no
+    // institution anywhere (query, params, body) cannot be scope-checked here — fail closed.
+    const named = extractInstitutionIds({
+      query: request.query,
+      params: request.params,
+      body: request.body,
+    });
+    if (isUnresolvedScopedWrite(user, url, request.method, named, unresolvedScopedWriteMode)) {
+      return reply.status(403).send({
+        code: 'INSTITUTION_SCOPE_UNRESOLVED',
+        message: 'School-scoped write must name an institutionId within the caller school scope',
         statusCode: 403,
       });
     }

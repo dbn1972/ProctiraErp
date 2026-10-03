@@ -154,3 +154,92 @@ export function decideInstitutionScope(
   const primary = allowed[0];
   return primary ? { action: 'inject', institutionId: primary } : { action: 'allow' };
 }
+
+const SCOPE_MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/**
+ * PRC-H004 (fix step 2): what to do with a school-bound principal's write to a school-scoped
+ * segment that names no institution (e.g. `PUT /students/:id` for a record of another school).
+ * Defaulted: 'deny' (fail closed). Owner may change via GATEWAY_SCHOOL_SCOPE_UNRESOLVED_WRITES=allow
+ * once every scoped domain handler re-checks the loaded record with assertInstitutionInScope().
+ */
+export type UnresolvedScopedWriteMode = 'deny' | 'allow';
+
+export function resolveUnresolvedScopedWriteMode(
+  env: Record<string, string | undefined> = process.env,
+): UnresolvedScopedWriteMode {
+  return env['GATEWAY_SCHOOL_SCOPE_UNRESOLVED_WRITES']?.trim().toLowerCase() === 'allow'
+    ? 'allow'
+    : 'deny';
+}
+
+/** True when the write must be refused because its target institution cannot be resolved. */
+export function isUnresolvedScopedWrite(
+  user: InstitutionScopeUser | null | undefined,
+  urlPath: string,
+  method: string | undefined,
+  namedInstitutionIds: readonly string[],
+  mode: UnresolvedScopedWriteMode,
+): boolean {
+  if (mode === 'allow') return false;
+  if (!isSchoolBound(user)) return false;
+  if (!method || !SCOPE_MUTATING_METHODS.has(method.toUpperCase())) return false;
+  const segment = firstPathSegment(urlPath);
+  if (!segment || !INSTITUTION_SCOPED_SEGMENTS.has(segment)) return false;
+  return namedInstitutionIds.length === 0;
+}
+
+export class InstitutionOutOfScopeError extends Error {
+  readonly statusCode = 403;
+  readonly code = 'INSTITUTION_OUT_OF_SCOPE';
+  constructor(readonly institutionId: string | null) {
+    super('Institution is outside the caller school scope');
+    this.name = 'InstitutionOutOfScopeError';
+  }
+}
+
+/**
+ * PRC-H004: shared per-handler check for keyed writes. Pass the institution of the *loaded*
+ * record; throws for a school-bound principal when it is missing or outside their school set.
+ */
+export function assertInstitutionInScope(
+  user: InstitutionScopeUser | null | undefined,
+  institutionId: string | null | undefined,
+): void {
+  if (!isSchoolBound(user)) return;
+  if (!institutionId || !allowedInstitutions(user).includes(institutionId)) {
+    throw new InstitutionOutOfScopeError(institutionId ?? null);
+  }
+}
+
+/**
+ * PRC-H004 (fix step 6): school-bound callers only see their own schools in the directory
+ * aggregates; tenant totals are recomputed from the visible schools.
+ */
+export function filterDirectoryContextForUser<
+  T extends {
+    studentsEnrolled: number | null;
+    reportingToday: number | null;
+    schools: Record<string, { studentCount: number | null; attendancePercent: number | null }>;
+  },
+>(context: T, user: InstitutionScopeUser | null | undefined): T {
+  if (!isSchoolBound(user)) return context;
+  const allowed = new Set(allowedInstitutions(user));
+  const schools: T['schools'] = {} as T['schools'];
+  for (const [id, school] of Object.entries(context.schools)) {
+    if (allowed.has(id)) (schools as Record<string, unknown>)[id] = school;
+  }
+  const visible = Object.values(schools);
+  return {
+    ...context,
+    schools,
+    studentsEnrolled:
+      context.studentsEnrolled === null
+        ? null
+        : visible.reduce((sum, s) => sum + (s.studentCount ?? 0), 0),
+    reportingToday:
+      context.reportingToday === null
+        ? null
+        : visible.filter((s) => s.attendancePercent !== null).length,
+  };
+}

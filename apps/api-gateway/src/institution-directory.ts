@@ -8,6 +8,7 @@
  */
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { filterDirectoryContextForUser, type InstitutionScopeUser } from './institution-scope.js';
 
 export interface InstitutionDirectorySchool {
   studentCount: number | null;
@@ -237,7 +238,9 @@ export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): vo
         const context = await withPgTenant(pool, tenantId, (client) =>
           loadInstitutionDirectoryContext(tenantId, client),
         );
-        return reply.status(200).send(context);
+        // PRC-H004 (fix step 6): school-bound callers see only their own schools.
+        const user = (request as FastifyRequest & { user?: InstitutionScopeUser }).user;
+        return reply.status(200).send(filterDirectoryContextForUser(context, user));
       } catch (error) {
         // PRC-M009: a DB failure is a 503 with a log line, not an empty 200.
         request.log.error({ err: error, reqId: request.id }, 'directory context unavailable');

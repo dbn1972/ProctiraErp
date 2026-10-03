@@ -164,4 +164,77 @@ describe('PRC-H004 body institutionId school scope', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().code).not.toBe('INSTITUTION_OUT_OF_SCOPE');
   });
+  it('PUT /students/:id naming no institution -> 403 INSTITUTION_SCOPE_UNRESOLVED', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/students/44444444-4444-4444-8444-444444444444',
+      headers: principalOfSchoolA(),
+      payload: { firstName: 'Renamed' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('INSTITUTION_SCOPE_UNRESOLVED');
+  });
+});
+
+describe('PRC-H004 unresolved school-scoped writes and directory filtering', () => {
+  it('fails closed for a keyed write that names no institution (default deny)', async () => {
+    const { isUnresolvedScopedWrite, resolveUnresolvedScopedWriteMode } =
+      await import('./institution-scope.js');
+    const user = { institutions: [SCHOOL_A], roles: ['principal'] };
+    const mode = resolveUnresolvedScopedWriteMode({});
+    expect(mode).toBe('deny');
+    expect(isUnresolvedScopedWrite(user, '/api/v1/students/x', 'PUT', [], mode)).toBe(true);
+    expect(isUnresolvedScopedWrite(user, '/api/v1/students/x', 'PUT', [SCHOOL_A], mode)).toBe(
+      false,
+    );
+    expect(isUnresolvedScopedWrite(user, '/api/v1/students', 'GET', [], mode)).toBe(false);
+    expect(isUnresolvedScopedWrite(user, '/api/v1/notifications', 'POST', [], mode)).toBe(false);
+    expect(
+      isUnresolvedScopedWrite(
+        { institutions: [SCHOOL_A], roles: ['tenant_admin'] },
+        '/api/v1/students/x',
+        'PUT',
+        [],
+        mode,
+      ),
+    ).toBe(false);
+    expect(
+      isUnresolvedScopedWrite(
+        user,
+        '/api/v1/students/x',
+        'PUT',
+        [],
+        resolveUnresolvedScopedWriteMode({ GATEWAY_SCHOOL_SCOPE_UNRESOLVED_WRITES: 'allow' }),
+      ),
+    ).toBe(false);
+  });
+
+  it('assertInstitutionInScope throws 403 for another school or a missing institution', async () => {
+    const { assertInstitutionInScope } = await import('./institution-scope.js');
+    const user = { institutions: [SCHOOL_A], roles: ['teacher'] };
+    expect(() => assertInstitutionInScope(user, SCHOOL_A)).not.toThrow();
+    expect(() => assertInstitutionInScope(user, SCHOOL_B)).toThrow(/outside/);
+    expect(() => assertInstitutionInScope(user, null)).toThrow(/outside/);
+    expect(() => assertInstitutionInScope({ roles: ['tenant_admin'] }, SCHOOL_B)).not.toThrow();
+  });
+
+  it('filters directory-context schools and totals to the caller schools', async () => {
+    const { filterDirectoryContextForUser } = await import('./institution-scope.js');
+    const ctx = {
+      studentsEnrolled: 30,
+      reportingToday: 2,
+      schools: {
+        [SCHOOL_A]: { studentCount: 10, staffCount: 2, attendancePercent: 90 },
+        [SCHOOL_B]: { studentCount: 20, staffCount: 3, attendancePercent: 80 },
+      },
+    };
+    const out = filterDirectoryContextForUser(ctx, {
+      institutions: [SCHOOL_A],
+      roles: ['principal'],
+    });
+    expect(Object.keys(out.schools)).toEqual([SCHOOL_A]);
+    expect(out.studentsEnrolled).toBe(10);
+    expect(out.reportingToday).toBe(1);
+    expect(filterDirectoryContextForUser(ctx, { roles: ['tenant_admin'] })).toBe(ctx);
+  });
 });
