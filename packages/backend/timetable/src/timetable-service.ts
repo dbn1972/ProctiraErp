@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { AppError, NotFoundError, ValidationError } from '@proctira/common';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
 import {
   detectMeetingClashes,
@@ -219,6 +219,7 @@ export class TimetableService {
     patch: Partial<BellScheduleInput>,
     opts?: UpdateConcurrencyOpts,
   ) {
+    await this.assertBellScheduleUnlocked(tenantId, id);
     const row = await this.repo.updateBellSchedule(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
@@ -234,6 +235,7 @@ export class TimetableService {
   }
 
   async deleteBellSchedule(tenantId: string, id: string) {
+    await this.assertBellScheduleUnlocked(tenantId, id);
     const ok = await this.repo.deleteBellSchedule(tenantId, id);
     if (ok) {
       this.recordAudit({
@@ -309,6 +311,7 @@ export class TimetableService {
   ) {
     const existing = await this.repo.getPeriod(tenantId, id);
     if (!existing) return null;
+    await this.assertPeriodsUnlocked(tenantId, existing.bellScheduleId, [id]);
     // PRC-M399: validate the merged row, not just the patch.
     const merged = {
       startTime: (patch.startTime ?? existing.startTime).slice(0, 5),
@@ -335,6 +338,9 @@ export class TimetableService {
   }
 
   async deletePeriod(tenantId: string, id: string) {
+    const existing = await this.repo.getPeriod(tenantId, id);
+    if (!existing) return false;
+    await this.assertPeriodsUnlocked(tenantId, existing.bellScheduleId, [id]);
     const ok = await this.repo.deletePeriod(tenantId, id);
     if (ok) {
       this.recordAudit({
@@ -734,7 +740,11 @@ export class TimetableService {
   ) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return null;
-    await this.assertSectionEditable(tenantId, patch.sectionId ?? existing.sectionId);
+    // PRC-M405: moving a meeting must not touch a locked schedule on either side.
+    await this.assertSectionEditable(tenantId, existing.sectionId);
+    if (patch.sectionId && patch.sectionId !== existing.sectionId) {
+      await this.assertSectionEditable(tenantId, patch.sectionId);
+    }
     const candidate: MeetingInput = {
       institutionId: patch.institutionId ?? existing.institutionId,
       academicPeriodId: patch.academicPeriodId ?? existing.academicPeriodId,
@@ -1166,6 +1176,46 @@ export class TimetableService {
         endTime: p.endTime,
         periodOrder: p.periodOrder,
       }));
+  }
+
+  /**
+   * PRC-M405: periods referenced by meetings of a PUBLISHED section are part of a locked
+   * schedule; editing/deleting them would silently change the published timetable.
+   */
+  private async assertPeriodsUnlocked(
+    tenantId: string,
+    bellScheduleId: string,
+    periodIds: readonly string[],
+  ): Promise<void> {
+    if (periodIds.length === 0) return;
+    const schedule = await this.repo.getBellSchedule(tenantId, bellScheduleId);
+    const ids = new Set(periodIds);
+    const meetings = await this.repo.listMeetings(
+      tenantId,
+      schedule ? { institutionId: schedule.institutionId } : undefined,
+    );
+    const sectionIds = new Set(
+      meetings
+        .filter((m) => ids.has(m.periodId) && m.status !== 'cancelled')
+        .map((m) => m.sectionId),
+    );
+    for (const sectionId of sectionIds) {
+      const section = await this.repo.getSection(tenantId, sectionId);
+      if (section?.status === 'PUBLISHED') {
+        throw new ConflictError(
+          `Period is used by published section ${section.code}; unpublish before editing`,
+        );
+      }
+    }
+  }
+
+  private async assertBellScheduleUnlocked(tenantId: string, bellScheduleId: string) {
+    const periods = await this.repo.listPeriods(tenantId, bellScheduleId);
+    await this.assertPeriodsUnlocked(
+      tenantId,
+      bellScheduleId,
+      periods.map((p) => p.id),
+    );
   }
 
   private async assertSectionEditable(tenantId: string, sectionId: string): Promise<void> {

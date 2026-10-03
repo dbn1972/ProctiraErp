@@ -64,14 +64,19 @@ export const CreateBellScheduleSchema = Type.Object({
 });
 export type CreateBellScheduleInput = Static<typeof CreateBellScheduleSchema>;
 
-export const UpdateBellScheduleSchema = Type.Object({
-  institutionId: Type.Optional(Uuid()),
-  academicPeriodId: Type.Optional(Uuid()),
+/**
+ * PRC-M405: only persisted columns are accepted; institution/academic period are immutable
+ * (re-create the schedule instead), and unknown keys are rejected rather than silently dropped.
+ */
+export const UpdateBellScheduleSchema = Type.Object(
+  {
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
   dayPattern: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   status: Type.Optional(BellScheduleStatusEnum),
-});
+  },
+  { additionalProperties: false },
+);
 export type UpdateBellScheduleInput = Static<typeof UpdateBellScheduleSchema>;
 
 export const CreatePeriodSchema = Type.Object({
@@ -82,7 +87,7 @@ export const CreatePeriodSchema = Type.Object({
 });
 export type CreatePeriodInput = Static<typeof CreatePeriodSchema>;
 
-export const UpdatePeriodSchema = Type.Partial(CreatePeriodSchema);
+export const UpdatePeriodSchema = Type.Partial(CreatePeriodSchema, { additionalProperties: false });
 export type UpdatePeriodInput = Static<typeof UpdatePeriodSchema>;
 
 export const CreateMeetingSchema = Type.Object({
@@ -99,7 +104,11 @@ export const CreateMeetingSchema = Type.Object({
 });
 export type CreateMeetingInput = Static<typeof CreateMeetingSchema>;
 
-export const UpdateMeetingSchema = Type.Partial(CreateMeetingSchema);
+/** PRC-M405: institution / academic period / subject are not updatable on a meeting row. */
+export const UpdateMeetingSchema = Type.Partial(
+  Type.Omit(CreateMeetingSchema, ['institutionId', 'academicPeriodId', 'subjectId']),
+  { additionalProperties: false },
+);
 export type UpdateMeetingInput = Static<typeof UpdateMeetingSchema>;
 
 export const CreateSubstitutionSchema = Type.Object({
