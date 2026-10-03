@@ -192,6 +192,7 @@ export class TimetableService {
     if (input.startTime >= input.endTime) {
       throw new ValidationError('Period startTime must be before endTime');
     }
+    await this.assertNoPeriodOverlap(tenantId, input.bellScheduleId, input);
     const now = nowIso();
     const row = await this.repo.createPeriod({
       id: randomUUID(),
@@ -211,7 +212,41 @@ export class TimetableService {
     return row;
   }
 
+  /** PRC-M399: periods of one bell schedule must not overlap in time. */
+  private async assertNoPeriodOverlap(
+    tenantId: string,
+    bellScheduleId: string,
+    candidate: { startTime: string; endTime: string },
+    excludePeriodId?: string,
+  ): Promise<void> {
+    const siblings = await this.repo.listPeriods(tenantId, bellScheduleId);
+    const clash = siblings.find(
+      (p) =>
+        p.id !== excludePeriodId &&
+        candidate.startTime < p.endTime.slice(0, 5) &&
+        p.startTime.slice(0, 5) < candidate.endTime,
+    );
+    if (clash) {
+      throw new ValidationError(
+        `Period ${candidate.startTime}-${candidate.endTime} overlaps period ${clash.name}`,
+      );
+    }
+  }
+
   async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodInput>) {
+    const existing = await this.repo.getPeriod(tenantId, id);
+    if (!existing) return null;
+    // PRC-M399: validate the merged row, not just the patch.
+    const merged = {
+      startTime: (patch.startTime ?? existing.startTime).slice(0, 5),
+      endTime: (patch.endTime ?? existing.endTime).slice(0, 5),
+    };
+    if (merged.startTime >= merged.endTime) {
+      throw new ValidationError('Period startTime must be before endTime');
+    }
+    if (patch.startTime !== undefined || patch.endTime !== undefined) {
+      await this.assertNoPeriodOverlap(tenantId, existing.bellScheduleId, merged, id);
+    }
     const row = await this.repo.updatePeriod(tenantId, id, patch);
     if (row) {
       this.recordAudit({

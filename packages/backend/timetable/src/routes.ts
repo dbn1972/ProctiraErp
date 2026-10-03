@@ -25,6 +25,8 @@ import {
   CreateRoomSchema,
   CreateGenerationJobSchema,
   CreateTeacherAbsenceSchema,
+  isValidIsoDate,
+  UUID_PATTERN,
 } from './schemas.js';
 import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
 import {
@@ -98,6 +100,81 @@ function setEtag(reply: FastifyReply, updatedAt: string | undefined | null) {
   }
 }
 
+const UUID_RE = new RegExp(UUID_PATTERN);
+/** Query keys that carry entity ids (UUID columns). */
+const UUID_QUERY_KEYS = [
+  'institutionId',
+  'academicPeriodId',
+  'staffId',
+  'sectionId',
+  'bellScheduleId',
+] as const;
+const DATE_QUERY_KEYS = ['fromDate', 'toDate', 'date'] as const;
+const SECTION_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+
+function badRequest(reply: FastifyReply, message: string) {
+  return reply.status(400).send({ code: 'VALIDATION_ERROR', message, statusCode: 400 });
+}
+
+/**
+ * PRC-M399: validate every path param and known query param before handlers run, so a
+ * malformed id/date/enum is a 400 instead of a Postgres cast error surfacing as 500.
+ */
+function paramAndQueryError(request: FastifyRequest): string | null {
+  const params = (request.params ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value !== 'string' || !UUID_RE.test(value)) {
+      return `Path parameter ${key} must be a UUID`;
+    }
+  }
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  for (const key of UUID_QUERY_KEYS) {
+    const value = query[key];
+    if (value !== undefined && (typeof value !== 'string' || !UUID_RE.test(value))) {
+      return `Query parameter ${key} must be a UUID`;
+    }
+  }
+  for (const key of DATE_QUERY_KEYS) {
+    const value = query[key];
+    if (value !== undefined && (typeof value !== 'string' || !isValidIsoDate(value))) {
+      return `Query parameter ${key} must be a YYYY-MM-DD date`;
+    }
+  }
+  if (query.dayOfWeek !== undefined) {
+    const n = Number(query.dayOfWeek);
+    if (!Number.isInteger(n) || n < 1 || n > 7) {
+      return 'Query parameter dayOfWeek must be an integer 1-7';
+    }
+  }
+  if (
+    request.routeOptions?.url?.endsWith('/sections') &&
+    query.status !== undefined &&
+    (typeof query.status !== 'string' || !SECTION_STATUSES.has(query.status))
+  ) {
+    return 'Query parameter status must be DRAFT, PUBLISHED or ARCHIVED';
+  }
+  return null;
+}
+
+/** PRC-M399: map Postgres data/constraint errors to client errors instead of 500. */
+function pgErrorStatus(error: unknown): { status: number; code: string; message: string } | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code !== 'string' || !/^[0-9A-Z]{5}$/.test(code)) return null;
+  if (code === '23505') {
+    return { status: 409, code: 'CONFLICT', message: 'A record with these values already exists' };
+  }
+  if (code === '23503') {
+    return { status: 409, code: 'CONFLICT', message: 'Referenced record does not exist or is in use' };
+  }
+  if (code.startsWith('23')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Request violates a data constraint' };
+  }
+  if (code.startsWith('22')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Invalid value for a field' };
+  }
+  return null;
+}
+
 function sendDomainError(reply: FastifyReply, error: unknown) {
   if (isTimetableClashError(error)) {
     return reply.status(409).send(error.toJSON());
@@ -111,6 +188,12 @@ function sendDomainError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
+  const mapped = pgErrorStatus(error);
+  if (mapped) {
+    return reply
+      .status(mapped.status)
+      .send({ code: mapped.code, message: mapped.message, statusCode: mapped.status });
+  }
   throw error;
 }
 
@@ -120,6 +203,16 @@ export async function registerTimetableRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/timetable';
   const { service } = options;
+
+  fastify.addHook('preValidation', async (request, reply) => {
+    const url = request.routeOptions?.url;
+    if (!url || !url.startsWith(`${prefix}/`)) return;
+    const problem = paramAndQueryError(request);
+    if (problem) {
+      await badRequest(reply, problem);
+      return reply;
+    }
+  });
 
   // ── Bell schedules ────────────────────────────────────────────────────────
 
