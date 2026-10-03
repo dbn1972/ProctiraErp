@@ -5,9 +5,11 @@
  * `featureRegistry.ts`. Implements the full enrolment loop described in
  * design.md §D — MFA Setup flow:
  *
- *   1. POST /api/v1/auth/mfa/setup → { otpauth_uri, secret, backup_codes[10] }
- *      (Today this is mocked client-side via `setupMfa()` until the route
- *      handler is deployed; see `lib/api/auth.ts`.)
+ *   1. POST /api/auth/mfa/setup. With the default Keycloak provider
+ *      (PRC-H019, `MFA_ENROLMENT_PROVIDER=keycloak`) the response is
+ *      `{ provider: 'keycloak', enrolUrl }` and the user continues in the
+ *      identity provider (OTP required action). A native provider would
+ *      return `{ otpauth_uri, secret, backup_codes[10] }`.
  *   2. Render the QR canvas, plain-text fallback secret, and the backup
  *      codes panel exactly once. The codes are never re-fetched after the
  *      initial render — that's the point of "one-time" backup codes
@@ -100,6 +102,7 @@ export function downloadTextFile(text: string, filename: string): void {
 
 type EnrolmentState =
   | { status: 'loading' }
+  | { status: 'idp'; enrolUrl: string }
   | { status: 'ready'; data: MfaSetupSuccess }
   | { status: 'error'; message: string };
 
@@ -148,6 +151,8 @@ export function MFASetupView({ onComplete, renderSignInLink }: MFASetupViewProps
       if (cancelled) return;
       if (result.kind === 'ok') {
         setEnrolment({ status: 'ready', data: result.data });
+      } else if (result.kind === 'redirect') {
+        setEnrolment({ status: 'idp', enrolUrl: result.enrolUrl });
       } else if (result.message !== 'aborted') {
         setEnrolment({ status: 'error', message: result.message });
       }
@@ -168,6 +173,36 @@ export function MFASetupView({ onComplete, renderSignInLink }: MFASetupViewProps
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">{t('auth.mfaSetupLoading')}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ─── Render: identity-provider enrolment (PRC-H019) ──────────────────────
+  if (enrolment.status === 'idp') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+        <DocumentTitle pageTitle={t('auth.mfaSetupTitle')} />
+        <Card className="w-full max-w-md border-none shadow-sm">
+          <CardContent className="space-y-4 p-8">
+            <h1 className="text-xl font-semibold tracking-tight text-primary">
+              {t('auth.mfaSetupTitle')}
+            </h1>
+            <p className="text-sm text-muted-foreground" data-testid="mfa-setup-idp">
+              {t('auth.mfaSetupIdpBody')}
+            </p>
+            <div className="flex justify-between gap-3">
+              <Button variant="outline" asChild>
+                {renderSignInLink(t('auth.backToSignIn'))}
+              </Button>
+              <Button asChild>
+                <a href={enrolment.enrolUrl} data-testid="mfa-setup-idp-continue">
+                  <ShieldCheck className="me-2 h-4 w-4" aria-hidden="true" />
+                  {t('auth.mfaSetupIdpCta')}
+                </a>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -197,6 +232,8 @@ export function MFASetupView({ onComplete, renderSignInLink }: MFASetupViewProps
                   void setupMfa().then((result) => {
                     if (result.kind === 'ok') {
                       setEnrolment({ status: 'ready', data: result.data });
+                    } else if (result.kind === 'redirect') {
+                      setEnrolment({ status: 'idp', enrolUrl: result.enrolUrl });
                     } else {
                       setEnrolment({
                         status: 'error',

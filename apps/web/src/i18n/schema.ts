@@ -154,6 +154,9 @@ export interface MessageSchema {
     mfaSetupSubtitle: string;
     mfaSetupLoading: string;
     mfaSetupFailed: string;
+    /** PRC-H019: enrolment is completed in the identity provider (Keycloak). */
+    mfaSetupIdpBody: string;
+    mfaSetupIdpCta: string;
     tryAgain: string;
     mfaScanHeading: string;
     mfaScanDescription: string;

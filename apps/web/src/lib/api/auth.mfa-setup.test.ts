@@ -54,6 +54,26 @@ describe('setupMfa (PRC-H019)', () => {
     expect(isMfaMockAllowed()).toBe(true);
   });
 
+  it('PRC-H019: maps the Keycloak provider answer to a same-origin redirect', async () => {
+    const ok = await setupMfa({
+      fetcher: fetcherWith(
+        async () =>
+          new Response(JSON.stringify({ provider: 'keycloak', enrolUrl: '/api/auth/mfa/enrol' }), {
+            status: 200,
+          }),
+      ),
+    });
+    expect(ok).toEqual({ kind: 'redirect', enrolUrl: '/api/auth/mfa/enrol' });
+    for (const enrolUrl of ['https://evil.example/x', '//evil.example/x', '']) {
+      const bad = await setupMfa({
+        fetcher: fetcherWith(
+          async () =>
+            new Response(JSON.stringify({ provider: 'keycloak', enrolUrl }), { status: 200 }),
+        ),
+      });
+      expect(bad.kind).toBe('error');
+    }
+  });
   it('passes through a real server-issued payload', async () => {
     const result = await setupMfa({
       fetcher: fetcherWith(

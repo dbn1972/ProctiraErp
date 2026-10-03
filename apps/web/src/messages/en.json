@@ -141,6 +141,8 @@
     "mfaSetupSubtitle": "Add an extra layer of security to your account.",
     "mfaSetupLoading": "Preparing your authenticator...",
     "mfaSetupFailed": "We couldn't start the enrolment process. Please try again.",
+    "mfaSetupIdpBody": "Your authenticator app is set up through your school's secure sign-in. Continue to scan the QR code and save your recovery codes there.",
+    "mfaSetupIdpCta": "Continue to secure sign-in",
     "tryAgain": "Try again",
     "mfaScanHeading": "Scan with your authenticator app",
     "mfaScanDescription": "Open your authenticator (Google Authenticator, Authy, 1Password, ...) and scan this QR code.",

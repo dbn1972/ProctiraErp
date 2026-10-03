@@ -229,7 +229,14 @@ export interface MfaSetupSuccess {
 
 /** Discriminated result union the screen consumes. */
 export type MfaSetupResult =
-  { kind: 'ok'; data: MfaSetupSuccess } | { kind: 'error'; message: string };
+  | { kind: 'ok'; data: MfaSetupSuccess }
+  /**
+   * PRC-H019: enrolment is owned by the identity provider (Keycloak OTP
+   * required action). The browser continues at `enrolUrl`; no TOTP secret or
+   * recovery code ever reaches Proctira.
+   */
+  | { kind: 'redirect'; enrolUrl: string }
+  | { kind: 'error'; message: string };
 
 /**
  * Initiates TOTP enrolment for the currently signed-in user. Posts to
@@ -291,12 +298,22 @@ export async function setupMfa(
 
   try {
     const payload = (await response.json()) as Partial<{
+      provider: string;
+      enrolUrl: string;
       otpauth_uri: string;
       otpauthUri: string;
       secret: string;
       backup_codes: unknown;
       backupCodes: unknown;
     }>;
+    if (payload.provider === 'keycloak') {
+      // Same-origin relative path only (never an absolute/open redirect).
+      const enrolUrl = payload.enrolUrl ?? '';
+      if (!enrolUrl.startsWith('/') || enrolUrl.startsWith('//')) {
+        return { kind: 'error', message: 'Invalid enrolment redirect from server.' };
+      }
+      return { kind: 'redirect', enrolUrl };
+    }
     const otpauthUri = payload.otpauthUri ?? payload.otpauth_uri ?? '';
     const secret = payload.secret ?? '';
     const codesRaw = payload.backupCodes ?? payload.backup_codes;

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 import { resolveTenantForRequest } from '@/lib/api/request-tenant';
+import { mfaEnrolmentProvider } from '@/lib/auth/mfa-provider';
 
 /**
  * POST /api/auth/mfa/setup
@@ -16,6 +17,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const accessToken = request.cookies.get(AUTH_COOKIES.ACCESS_TOKEN)?.value;
   if (!accessToken) {
     return NextResponse.json({ message: 'Authentication required.' }, { status: 401 });
+  }
+  // PRC-H019: Keycloak owns TOTP enrolment by default (OTP required action).
+  // No secret or recovery code is generated or stored by Proctira; the client
+  // continues at the same-origin enrol redirect.
+  if (mfaEnrolmentProvider() === 'keycloak') {
+    return NextResponse.json(
+      { provider: 'keycloak', enrolUrl: '/api/auth/mfa/enrol' },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const headers: Record<string, string> = {

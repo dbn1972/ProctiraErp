@@ -63,6 +63,28 @@ async function findSetupRoute(page: import('@playwright/test').Page): Promise<st
 }
 
 test.describe('auth — MFA setup (QR + backup codes)', () => {
+  test('PRC-H019: Keycloak provider hands off to CONFIGURE_TOTP without any secret', async ({
+    page,
+  }) => {
+    await page.route('**/api/auth/mfa/setup', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ provider: 'keycloak', enrolUrl: '/api/auth/mfa/enrol' }),
+      });
+    });
+    const path = await findSetupRoute(page);
+    test.skip(
+      path === null,
+      'MFA setup route is not available in this build (federated RootRouter only).',
+    );
+    const cta = page.getByTestId('mfa-setup-idp-continue');
+    await expect(cta).toBeVisible();
+    await expect(cta).toHaveAttribute('href', '/api/auth/mfa/enrol');
+    await expect(page.getByTestId('mfa-setup-qr')).toHaveCount(0);
+    await expect(page.getByTestId('mfa-setup-secret')).toHaveCount(0);
+  });
+
   test('renders QR, secret, and 10 backup codes; finish CTA gated on acknowledgement', async ({
     page,
   }) => {

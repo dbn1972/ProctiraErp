@@ -5,7 +5,7 @@
  * session cookie and never invents a secret.
  */
 import { NextRequest } from 'next/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
 
 function req(cookie?: string): NextRequest {
@@ -16,9 +16,29 @@ function req(cookie?: string): NextRequest {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
-describe('POST /api/auth/mfa/setup', () => {
+describe('POST /api/auth/mfa/setup — Keycloak provider (PRC-H019 default)', () => {
+  it('returns the same-origin enrol redirect and never calls upstream or emits a secret', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await POST(req('tok'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual({ provider: 'keycloak', enrolUrl: '/api/auth/mfa/enrol' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('still requires a session', async () => {
+    const res = await POST(req());
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/auth/mfa/setup — auth-service provider', () => {
+  beforeEach(() => {
+    vi.stubEnv('MFA_ENROLMENT_PROVIDER', 'auth-service');
+  });
   it('rejects unauthenticated callers with 401 without calling upstream', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

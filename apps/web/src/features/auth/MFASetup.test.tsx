@@ -278,6 +278,16 @@ describe('<MFASetup>', () => {
     expect(screen.queryByTestId('mfa-setup-qr')).toBeNull();
     expect(screen.queryByTestId('mfa-setup-backup-codes')).toBeNull();
   });
+
+  it('PRC-H019: hands off to the identity provider without rendering any secret', async () => {
+    mockSetupMfa.mockResolvedValueOnce({ kind: 'redirect', enrolUrl: '/api/auth/mfa/enrol' });
+    renderMFASetup();
+    const cta = await screen.findByTestId('mfa-setup-idp-continue');
+    expect(cta.getAttribute('href')).toBe('/api/auth/mfa/enrol');
+    expect(screen.getByTestId('mfa-setup-idp').textContent).toMatch(/secure sign-in/i);
+    expect(screen.queryByTestId('mfa-setup-qr')).toBeNull();
+    expect(screen.queryByTestId('mfa-setup-backup-codes')).toBeNull();
+  });
 });
 
 describe('formatBackupCodesDocument()', () => {
