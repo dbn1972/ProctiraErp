@@ -1631,6 +1631,12 @@ jobs:
         # --update-goldens; integration_test/ is not invoked (no device farm).
         run: flutter test
 
+      - name: api-client tests (PRC-M254 route contract, fail closed)
+        working-directory: packages/flutter-core/api-client
+        run: |
+          dart pub get
+          dart test
+
       - name: Job summary
         if: always()
         run: |
