@@ -460,6 +460,16 @@ export class InMemoryTransportRepository implements TransportRepository {
     return { ping, duplicate: false };
   }
 
+  async ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>> {
+    const out: Array<{ ping: GpsPingEntity; duplicate: boolean }> = [];
+    for (const row of rows) {
+      out.push(await this.ingestGpsPing({ ...row, tenantId }));
+    }
+    return out;
+  }
   async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
     return Array.from(this.gpsPings.values())
       .filter((e) => e.tenantId === tenantId && e.vehicleId === vehicleId)

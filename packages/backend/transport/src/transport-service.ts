@@ -9,7 +9,7 @@
  * - Manage vehicle records and driver assignments
  * - Assign students to transport routes
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -66,6 +66,27 @@ function isForeignKeyViolation(error: unknown): boolean {
 
 export const TRANSPORT_FEE_PENDING_NOTE =
   'FeesService was not injected; a pending transport_fee_links row was recorded instead of an invoice.';
+
+/** PRC-M446: device clocks may run slightly fast; anything beyond this is rejected. */
+export const GPS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+/** PRC-M446: reject pings older than this (stale replays would rewrite history). */
+export const GPS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Parse a client timestamp, failing closed (400) on invalid, future or ancient values. */
+export function parseRecordedAt(value: string | undefined, now: Date): Date {
+  if (value === undefined) return now;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) {
+    throw new ValidationError(`recordedAt '${value}' is not a valid date-time`);
+  }
+  if (at.getTime() > now.getTime() + GPS_MAX_FUTURE_SKEW_MS) {
+    throw new ValidationError('recordedAt is in the future beyond the allowed clock skew');
+  }
+  if (at.getTime() < now.getTime() - GPS_MAX_AGE_MS) {
+    throw new ValidationError('recordedAt is too old to accept');
+  }
+  return at;
+}
 
 /**
  * Service handling transport business logic.
@@ -653,7 +674,7 @@ export class TransportService {
       vehicleId,
       latitude: input.latitude,
       longitude: input.longitude,
-      recordedAt: input.recordedAt ? new Date(input.recordedAt) : undefined,
+      recordedAt: parseRecordedAt(input.recordedAt, new Date()),
       speedKph: input.speedKph,
       headingDeg: input.headingDeg,
     });
@@ -687,7 +708,7 @@ export class TransportService {
       routeId: input.routeId,
       studentId: input.studentId,
       eventType: input.eventType,
-      recordedAt: input.recordedAt ? new Date(input.recordedAt) : undefined,
+      recordedAt: parseRecordedAt(input.recordedAt, new Date()),
     });
     return {
       ...event,
@@ -762,21 +783,23 @@ export class TransportService {
       throw new NotFoundError('Unknown device or invalid device key');
     }
     await this.getVehicleById(tenantId, device.vehicleId);
+    // PRC-M446: validate every timestamp before writing anything (all-or-nothing).
+    const now = new Date();
+    const rows = input.pings.map((ping) => ({
+      id: uuidv4(),
+      tenantId,
+      vehicleId: device.vehicleId,
+      deviceId: device.deviceId,
+      pingId: ping.pingId,
+      latitude: ping.latitude,
+      longitude: ping.longitude,
+      recordedAt: parseRecordedAt(ping.recordedAt, now),
+      speedKph: ping.speedKph ?? null,
+      headingDeg: ping.headingDeg ?? null,
+    }));
+    const storedRows = await this.repository.ingestGpsPings(tenantId, rows);
     const results = [];
-    for (const ping of input.pings) {
-      const recordedAt = ping.recordedAt ? new Date(ping.recordedAt) : new Date();
-      const stored = await this.repository.ingestGpsPing({
-        id: uuidv4(),
-        tenantId,
-        vehicleId: device.vehicleId,
-        deviceId: device.deviceId,
-        pingId: ping.pingId,
-        latitude: ping.latitude,
-        longitude: ping.longitude,
-        recordedAt,
-        speedKph: ping.speedKph ?? null,
-        headingDeg: ping.headingDeg ?? null,
-      });
+    for (const stored of storedRows) {
       // PRC-M444: the durable repository is the only sink for device pings; they are no
       // longer mirrored into the process-local sandbox store.
       results.push({

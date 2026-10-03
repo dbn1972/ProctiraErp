@@ -330,6 +330,11 @@ export interface TransportRepository {
   ingestGpsPing(
     data: Omit<GpsPingEntity, 'createdAt'>,
   ): Promise<{ ping: GpsPingEntity; duplicate: boolean }>;
+  /** PRC-M446: idempotent batch insert in one transaction (all rows share one tenant). */
+  ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>>;
   listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]>;
   listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]>;
 
