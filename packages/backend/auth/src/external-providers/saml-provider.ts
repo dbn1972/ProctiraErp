@@ -12,7 +12,9 @@
  * For production use with full signature validation, integrate @node-saml/node-saml.
  */
 import { deflateRawSync } from 'node:zlib';
+
 import { v4 as uuidv4 } from 'uuid';
+
 import type {
   ExternalAuthProvider,
   SAMLProviderConfig,

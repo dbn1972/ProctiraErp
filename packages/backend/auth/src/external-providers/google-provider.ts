@@ -4,8 +4,8 @@
  * Implements Google OAuth2 authentication using Google's OAuth 2.0 endpoints.
  * Extracts user profile from Google's userinfo endpoint.
  */
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
+import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 
 /** Google OAuth2 authorization endpoint */
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

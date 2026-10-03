@@ -61,6 +61,7 @@ import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { registerAuthAudit } from './auth-audit.js';
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -87,7 +88,6 @@ import {
   shouldAuditMutation,
   wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
-import { registerAuthAudit } from './auth-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';

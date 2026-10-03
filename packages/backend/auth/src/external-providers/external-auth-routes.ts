@@ -9,8 +9,11 @@
  * POST /auth/external/:providerId/callback - SAML callback handler (POST binding)
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
 import { MemoryWebTicketStore, type WebTicketStore } from '../keycloak/routes.js';
+
 import type { ExternalAuthHandler } from './external-auth-handler.js';
 import { ExternalAuthError } from './types.js';
 

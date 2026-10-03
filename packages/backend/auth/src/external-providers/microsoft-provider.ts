@@ -4,14 +4,8 @@
  * Implements Microsoft OAuth2 authentication using Microsoft Identity Platform (v2.0).
  * Supports both personal Microsoft accounts and Azure AD organizational accounts.
  */
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
-
-/** Microsoft OAuth2 authorization endpoint (common tenant for multi-tenant) */
-const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
-
-/** Microsoft OAuth2 token endpoint */
-const MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 
 /** Microsoft Graph userinfo endpoint */
 const MICROSOFT_USERINFO_URL = 'https://graph.microsoft.com/v1.0/me';

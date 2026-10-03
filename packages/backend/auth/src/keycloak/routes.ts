@@ -1,5 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
 import {
   defaultAccessTokenRevocationTtlSeconds,
   revokeAccessTokenIdentifiers,

@@ -6,7 +6,11 @@
  * and performs the authorization code flow with ID token validation.
  */
 import { v4 as uuidv4 } from 'uuid';
+
 import { KeycloakJwksClient, decodeJwt, verifyRs256 } from '../keycloak/verify.js';
+
+import type { HttpClient } from './oauth2-provider.js';
+import { FetchHttpClient } from './oauth2-provider.js';
 import type {
   ExternalAuthProvider,
   OIDCProviderConfig,
@@ -15,8 +19,6 @@ import type {
   ExternalUserProfile,
 } from './types.js';
 import { ExternalAuthError } from './types.js';
-import type { HttpClient } from './oauth2-provider.js';
-import { FetchHttpClient } from './oauth2-provider.js';
 
 /**
  * OIDC Discovery document structure (subset of fields we use).

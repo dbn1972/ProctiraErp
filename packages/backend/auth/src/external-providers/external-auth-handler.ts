@@ -11,11 +11,13 @@
  * internal auth system (TokenService + SessionService).
  */
 import type { AuthUser, TokenPair } from '@proctira/auth';
+
+import type { SessionService } from '../session-service.js';
+import type { TokenService } from '../token-service.js';
+
+import type { ProviderRegistry } from './provider-registry.js';
 import type { ExternalUserProfile, AuthCallbackParams } from './types.js';
 import { ExternalAuthError } from './types.js';
-import type { ProviderRegistry } from './provider-registry.js';
-import type { TokenService } from '../token-service.js';
-import type { SessionService } from '../session-service.js';
 
 /**
  * Represents a linked external identity in the platform.
