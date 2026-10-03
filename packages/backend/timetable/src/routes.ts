@@ -28,7 +28,11 @@ import {
   isValidIsoDate,
   UUID_PATTERN,
 } from './schemas.js';
-import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
+import {
+  assertTimetableAccess,
+  hasTimetableAccess,
+  type TimetableAction,
+} from './timetable-access.js';
 import {
   isTimetableClashError,
   isTimetableSchemaMissingError,
@@ -679,12 +683,14 @@ export async function registerTimetableRoutes(
           statusCode: 404,
         });
       }
+      // PRC-M406: the roster (student ids) is staff-only; other readers get the schedule.
+      const staff = hasTimetableAccess(requestRoles(request), 'schedule.read');
       const [enrollments, meetings] = await Promise.all([
-        service.listEnrollments(tenantId, id),
+        staff ? service.listEnrollments(tenantId, id) : Promise.resolve(undefined),
         service.listMeetings(tenantId, { sectionId: id }),
       ]);
       setEtag(reply, row.updatedAt);
-      return reply.send({ ...row, enrollments, meetings });
+      return reply.send(staff ? { ...row, enrollments, meetings } : { ...row, meetings });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -779,6 +785,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/sections/:id/enrollments`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const { id } = request.params as { id: string };
       const section = await service.getSection(tenantId, id);
@@ -935,6 +942,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/generation-jobs`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const query = request.query as { institutionId?: string; limit?: string; offset?: string };
       const limit = query.limit === undefined ? undefined : Number(query.limit);
@@ -959,6 +967,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/generation-jobs/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const { id } = request.params as { id: string };
       const row = await service.getGenerationJob(tenantId, id);
@@ -1026,6 +1035,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/teacher-absences/affected`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const query = request.query as {
         institutionId?: string;
@@ -1052,17 +1062,24 @@ export async function registerTimetableRoutes(
   fastify.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
     `${prefix}/clone-period`,
     async (request, reply) => {
+      // PRC-M406: clone writes sections/meetings — scheduler roles only, tenant first.
+      const tenantId = tenantIdOf(request, reply);
+      if (!tenantId) return;
+      if (!requireAction(request, reply, 'schedule.write')) return;
       const sourcePeriodId = request.body?.sourcePeriodId;
       const targetPeriodId = request.body?.targetPeriodId;
-      if (!sourcePeriodId || !targetPeriodId) {
+      if (
+        !sourcePeriodId ||
+        !targetPeriodId ||
+        !UUID_RE.test(sourcePeriodId) ||
+        !UUID_RE.test(targetPeriodId)
+      ) {
         return reply.code(400).send({
           code: 'VALIDATION_ERROR',
-          message: 'sourcePeriodId and targetPeriodId are required',
+          message: 'sourcePeriodId and targetPeriodId are required UUIDs',
           statusCode: 400,
         });
       }
-      const tenantId = tenantIdOf(request, reply);
-      if (!tenantId) return;
       const result = await service.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId);
       return reply.code(201).send(result);
     },
