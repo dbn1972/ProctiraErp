@@ -640,6 +640,7 @@ export class FeesService {
     if (validTo && validTo < validFrom) {
       throw new BusinessRuleError('validTo must be on or after validFrom');
     }
+    if (input.classId) await this.assertClassExists(tenantId, input.classId);
     return this.repository.createFeeStructure({
       id: uuidv4(),
       tenantId,
@@ -760,6 +761,18 @@ export class FeesService {
   }
 
   /**
+   * PRC-M087: reject ids that are not classes of this tenant (e.g. timetable
+   * section ids), which would otherwise silently match zero enrolments.
+   */
+  private async assertClassExists(tenantId: string, classId: string, repo = this.repository) {
+    if (!(await repo.classExists(tenantId, classId))) {
+      throw new ValidationError('Class not found for this tenant', [
+        { field: 'classId', rule: 'exists', message: 'Choose a class from the class list' },
+      ]);
+    }
+  }
+
+  /**
    * PRC-M086: resolve who a bulk invoice would bill. Refuses an unscoped run
    * (no class, grade or student list on the request *or* the structure)
    * unless `allStudents` is explicitly set, so an empty form can never
@@ -774,6 +787,7 @@ export class FeesService {
     if (!structure || structure.status !== 'active') {
       throw new NotFoundError(`Fee structure with id '${input.structureId}' not found`);
     }
+    if (input.classId) await this.assertClassExists(tenantId, input.classId, repo);
     const classId = input.classId ?? structure.classId;
     const gradeId = input.gradeId ?? structure.gradeId;
     const fromInput = (input.studentIds ?? []).filter((id) => id.length > 0);

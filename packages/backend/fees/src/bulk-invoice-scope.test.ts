@@ -70,3 +70,51 @@ describe('bulk invoice scope (PRC-M086)', () => {
     expect(await repository.listInvoicesForTenant(TENANT)).toHaveLength(0);
   });
 });
+
+describe('class ids are classes, not sections (PRC-M087)', () => {
+  it('rejects a section/unknown id as classId on structure create and bulk invoice', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    const SECTION_ID = '00000000-0000-4000-8000-0000000000e5';
+    await expect(
+      service.createFeeStructure(TENANT, 'staff', {
+        name: 'T',
+        category: 'tuition',
+        amountCents: 100,
+        classId: SECTION_ID,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    // Another tenant's class is unknown here as well.
+    repository.seedClass(OTHER, CLASS_ID);
+    await expect(
+      service.createFeeStructure(TENANT, 'staff', {
+        name: 'T',
+        category: 'tuition',
+        amountCents: 100,
+        classId: CLASS_ID,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    const s = await service.createFeeStructure(TENANT, 'staff', {
+      name: 'T',
+      category: 'tuition',
+      amountCents: 100,
+    });
+    await expect(
+      service.bulkInvoiceClass(TENANT, 'staff', { structureId: s.id, classId: SECTION_ID }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('bulk invoices exactly the enrolled students of a real class', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    repository.seedClassRoster(TENANT, { classId: CLASS_ID }, [S1, S2]);
+    const s = await service.createFeeStructure(TENANT, 'staff', {
+      name: 'T',
+      category: 'tuition',
+      amountCents: 100,
+      classId: CLASS_ID,
+    });
+    const res = await service.bulkInvoiceClass(TENANT, 'staff', { structureId: s.id });
+    expect(res.created.map((i) => i.studentId).sort()).toEqual([S1, S2]);
+  });
+});
