@@ -15,7 +15,14 @@ import {
   requireFeesStaffRead,
   resolveFeesReadScope,
 } from './fees-http-guard.js';
-import type { FeesMoneyAuditEvent, FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
+import {
+  FEES_DEFAULT_PAGE_LIMIT,
+  FEES_MAX_PAGE_LIMIT,
+  type FeesMoneyAuditEvent,
+  type FeesMoneyAuditSink,
+  type FeesPageRequest,
+  type FeesRepository,
+} from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,
@@ -445,6 +452,32 @@ export function buildSystemMoneyAuditSink(
   };
 }
 
+/** PRC-M248: `?limit=` (1-200, default 50) and opaque `?cursor=`; null when invalid. */
+function parseFeesPage(query: unknown): FeesPageRequest | null {
+  const q = (query ?? {}) as Record<string, unknown>;
+  let limit = FEES_DEFAULT_PAGE_LIMIT;
+  let offset = 0;
+  if (q.limit !== undefined) {
+    const n = Number(q.limit);
+    if (!Number.isInteger(n) || n < 1 || n > FEES_MAX_PAGE_LIMIT) return null;
+    limit = n;
+  }
+  if (q.cursor !== undefined) {
+    const raw = String(q.cursor);
+    if (!/^\d{1,9}$/.test(raw)) return null;
+    offset = Number(raw);
+  }
+  return { limit, offset };
+}
+
+function invalidFeesPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${FEES_MAX_PAGE_LIMIT}; cursor must be a token from nextCursor`,
+    statusCode: 400,
+  });
+}
+
 function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -644,6 +677,7 @@ export const feesPlugin = fp(
           ? (request.query as { institutionId?: string }).institutionId
           : undefined;
       let invoices: Awaited<ReturnType<typeof feesService.listInvoices>>;
+      let nextCursor: string | null = null;
       if (readScope === 'self') {
         // Self-scope callers may only ever see their own linked students' invoices. Fail closed
         // when no binding is configured rather than falling through to a tenant-wide list.
@@ -651,7 +685,12 @@ export const feesPlugin = fp(
         const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
         invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
       } else {
-        invoices = await feesService.listInvoices(tenantId);
+        // PRC-M248: staff tenant-wide list is paginated in SQL.
+        const page = parseFeesPage(request.query);
+        if (!page) return invalidFeesPage(reply);
+        const result = await feesService.listInvoicesPage(tenantId, page);
+        nextCursor = result.nextCursor;
+        invoices = result.data;
       }
       if (institutionId) {
         invoices = invoices.filter((inv) => {
@@ -659,7 +698,7 @@ export const feesPlugin = fp(
           return id == null || id === institutionId;
         });
       }
-      return reply.status(200).send({ data: invoices.map(formatInvoice) });
+      return reply.status(200).send({ data: invoices.map(formatInvoice), nextCursor });
     });
 
     fastify.post(
@@ -789,8 +828,12 @@ export const feesPlugin = fp(
       // history is served by the parent-portal self routes, not this endpoint — so a parent
       // (even with ?scope=parent) is denied here.
       if (!requireFeesStaffRead(request, reply)) return;
-      const payments = await feesService.listPayments(tenantId);
-      return reply.status(200).send({ data: payments.map(formatPayment) });
+      const page = parseFeesPage(request.query);
+      if (!page) return invalidFeesPage(reply);
+      const payments = await feesService.listPaymentsPage(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: payments.data.map(formatPayment), nextCursor: payments.nextCursor });
     });
 
     fastify.post(
@@ -846,8 +889,12 @@ export const feesPlugin = fp(
         );
         return reply.status(200).send({ data: receipts.map(formatReceipt) });
       }
-      const receipts = await feesService.listReceipts(tenantId);
-      return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      const page = parseFeesPage(request.query);
+      if (!page) return invalidFeesPage(reply);
+      const receipts = await feesService.listReceiptsPage(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: receipts.data.map(formatReceipt), nextCursor: receipts.nextCursor });
     });
 
     fastify.get(

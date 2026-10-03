@@ -1,6 +1,8 @@
 /**
  * Circular + delivery-log store (G-922).
  */
+import { DEFAULT_PAGE, sliceForPage, type PageRequest } from './pagination.js';
+
 export type CircularAudienceType = 'all' | 'roles' | 'classes' | 'institution';
 export type CircularStatus = 'draft' | 'sent';
 export type DeliveryStatus = 'queued' | 'sent' | 'delivered' | 'failed';
@@ -60,13 +62,28 @@ export interface DeliveryLogFilter {
 
 export interface CircularStore {
   createCircular(record: CircularRecord): Promise<CircularRecord>;
-  listCirculars(tenantId: string): Promise<CircularRecord[]>;
+  /** Newest first; returns up to `page.limit + 1` rows (PRC-M191). */
+  listCirculars(tenantId: string, page?: PageRequest): Promise<CircularRecord[]>;
+  /** PRC-M191: one GROUP BY for ack totals of many circulars (no N+1). */
+  countAcksByCircular(
+    tenantId: string,
+    circularIds: string[],
+  ): Promise<Map<string, { total: number; acknowledged: number }>>;
   findCircular(tenantId: string, id: string): Promise<CircularRecord | null>;
   updateCircular(
     tenantId: string,
     id: string,
     patch: Partial<Pick<CircularRecord, 'status' | 'sentAt'>>,
   ): Promise<CircularRecord | null>;
+
+  /**
+   * PRC-M193: insert the circular and all of its ack rows in ONE transaction
+   * (bulk insert, duplicates ignored). Nothing is persisted on failure.
+   */
+  createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord>;
 
   createAck(record: CircularAckRecord): Promise<CircularAckRecord>;
   listAcks(tenantId: string, circularId: string): Promise<CircularAckRecord[]>;
@@ -82,7 +99,12 @@ export interface CircularStore {
   ): Promise<CircularAckRecord | null>;
 
   createDeliveryLog(record: DeliveryLogRecord): Promise<DeliveryLogRecord>;
-  listDeliveryLogs(tenantId: string, filter?: DeliveryLogFilter): Promise<DeliveryLogRecord[]>;
+  /** Newest first; returns up to `page.limit + 1` rows (PRC-M191). */
+  listDeliveryLogs(
+    tenantId: string,
+    filter?: DeliveryLogFilter,
+    page?: PageRequest,
+  ): Promise<DeliveryLogRecord[]>;
   findDeliveryLog(tenantId: string, id: string): Promise<DeliveryLogRecord | null>;
   updateDeliveryLog(
     tenantId: string,
@@ -116,11 +138,34 @@ export class InMemoryCircularStore implements CircularStore {
     return clone(record);
   }
 
-  async listCirculars(tenantId: string): Promise<CircularRecord[]> {
-    return [...this.circulars.values()]
+  async listCirculars(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CircularRecord[]> {
+    const rows = [...this.circulars.values()]
       .filter((row) => row.tenantId === tenantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((row) => clone(row));
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page).map((row) => clone(row));
+  }
+
+  /** Test probe: number of countAcksByCircular / listAcks calls. */
+  ackQueries = 0;
+
+  async countAcksByCircular(
+    tenantId: string,
+    circularIds: string[],
+  ): Promise<Map<string, { total: number; acknowledged: number }>> {
+    this.ackQueries += 1;
+    const wanted = new Set(circularIds);
+    const out = new Map<string, { total: number; acknowledged: number }>();
+    for (const ack of this.acks.values()) {
+      if (ack.tenantId !== tenantId || !wanted.has(ack.circularId)) continue;
+      const cur = out.get(ack.circularId) ?? { total: 0, acknowledged: 0 };
+      cur.total += 1;
+      if (ack.acknowledgedAt) cur.acknowledged += 1;
+      out.set(ack.circularId, cur);
+    }
+    return out;
   }
 
   async findCircular(tenantId: string, id: string): Promise<CircularRecord | null> {
@@ -140,12 +185,31 @@ export class InMemoryCircularStore implements CircularStore {
     return clone(updated);
   }
 
+  /** Test hook: throw while inserting acks (fault injection). */
+  failAckInsert = false;
+
+  async createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord> {
+    if (this.failAckInsert && acks.length > 0) throw new Error('injected ack failure');
+    this.circulars.set(record.id, clone(record));
+    const seen = new Set<string>();
+    for (const ack of acks) {
+      if (seen.has(ack.recipientId)) continue;
+      seen.add(ack.recipientId);
+      this.acks.set(ack.id, clone(ack));
+    }
+    return clone(record);
+  }
+
   async createAck(record: CircularAckRecord): Promise<CircularAckRecord> {
     this.acks.set(record.id, clone(record));
     return clone(record);
   }
 
   async listAcks(tenantId: string, circularId: string): Promise<CircularAckRecord[]> {
+    this.ackQueries += 1;
     return [...this.acks.values()]
       .filter((row) => row.tenantId === tenantId && row.circularId === circularId)
       .map((row) => clone(row));
@@ -185,8 +249,9 @@ export class InMemoryCircularStore implements CircularStore {
   async listDeliveryLogs(
     tenantId: string,
     filter: DeliveryLogFilter = {},
+    page: PageRequest = DEFAULT_PAGE,
   ): Promise<DeliveryLogRecord[]> {
-    return [...this.logs.values()]
+    const rows = [...this.logs.values()]
       .filter((row) => {
         if (row.tenantId !== tenantId) return false;
         if (filter.channel && row.channel !== filter.channel) return false;
@@ -194,8 +259,8 @@ export class InMemoryCircularStore implements CircularStore {
         if (filter.sourceType && row.sourceType !== filter.sourceType) return false;
         return true;
       })
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((row) => clone(row));
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page).map((row) => clone(row));
   }
 
   async findDeliveryLog(tenantId: string, id: string): Promise<DeliveryLogRecord | null> {

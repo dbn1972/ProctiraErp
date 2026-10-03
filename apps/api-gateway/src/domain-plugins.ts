@@ -51,6 +51,7 @@ import {
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
 import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   communicationPlugin,
   createCommunicationRepository,
@@ -83,7 +84,11 @@ import {
   feesPlugin,
   majorUnitsToCents,
 } from '@proctira/backend-fees';
-import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
+import {
+  createGradebookRepository,
+  gradebookPlugin,
+  type GradebookAuditEntry,
+} from '@proctira/backend-gradebook';
 import {
   assertPhiEnvelopeConfigured,
   createHealthRepository,
@@ -487,6 +492,35 @@ export function createOfferFeeInvoiceHook() {
         .catch(() => undefined);
       lockClient.release();
     }
+  };
+}
+
+/** PRC-M266: persist gradebook audit events to audit_log_entries when Postgres is configured. */
+function gradebookAuditSink() {
+  const pool = getSharedPgPool();
+  if (!pool) return null;
+  return async (entry: GradebookAuditEntry) => {
+    await withPgTenant(pool, entry.tenantId, async (client) => {
+      await appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId: entry.tenantId,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+          operation: 'CREATE',
+          userId: entry.actorId ?? 'unknown',
+          userName: entry.actorId ?? 'unknown',
+          ipAddress: 'unknown',
+          afterValues: entry.details,
+          metadata: {
+            regulated: `gradebook.${entry.action}`,
+            action: entry.action,
+            gradebookAuditId: entry.id,
+          },
+          timestamp: new Date(entry.at),
+        }),
+      );
+    });
   };
 }
 
@@ -1077,6 +1111,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+        // PRC-M266: transcript / board-export / report-card audit events go to the shared,
+        // hash-chained audit log (durable across restarts). No pool -> in-process only (dev).
+        auditSink: gradebookAuditSink(),
         studentBinding: {
           listReadableStudentIds: async (tenantId, actorUserId) => {
             const links = await gradebookParentRepo.listChildLinksForParent(tenantId, actorUserId);
@@ -1411,10 +1448,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Pg when DATABASE_URL (db/sql/007_communication_schema.sql); else in-memory.
       // G-604: sandbox delivery adapter + local audit trail on send/dispatch.
       const repository = createCommunicationRepository();
+      const commsParentRepo = createParentPortalRepository();
       await scope.register(communicationPlugin, {
         repository,
         deliveryAdapter: createDeliveryAdapterFromEnv(),
         prefix: '/communication',
+        // PRC-M188: guardians may acknowledge circulars only for linked students.
+        recipientBinding: {
+          listLinkedRecipientIds: async (tenantId, actorId) => {
+            const links = await commsParentRepo.listChildLinksForParent(tenantId, actorId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },

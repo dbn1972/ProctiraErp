@@ -23,8 +23,10 @@ import {
 import type { FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { MAX_ATTENDANCE_RANGE_DAYS } from './attendance-repository.js';
 import type {
   AttendanceRepository,
+  AttendanceWriteOp,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   InstitutionAttendanceConfig,
@@ -38,6 +40,29 @@ import type {
   RecordBulkStudentAttendanceInput,
   RecordStaffAttendanceInput,
 } from './schemas.js';
+
+/**
+ * PRC-M174: reject report ranges wider than MAX_ATTENDANCE_RANGE_DAYS (400).
+ */
+function assertRangeWithinCap(startDate: string, endDate: string): void {
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    throw new ValidationError('Invalid date range', [
+      { field: 'startDate', rule: 'format', message: 'startDate/endDate must be YYYY-MM-DD' },
+    ]);
+  }
+  const days = Math.floor((end - start) / 86_400_000) + 1;
+  if (days > MAX_ATTENDANCE_RANGE_DAYS) {
+    throw new ValidationError(`Date range must not exceed ${MAX_ATTENDANCE_RANGE_DAYS} days`, [
+      {
+        field: 'endDate',
+        rule: 'maxRange',
+        message: `Date range must not exceed ${MAX_ATTENDANCE_RANGE_DAYS} days`,
+      },
+    ]);
+  }
+}
 
 /**
  * Result of recording bulk attendance.
@@ -99,6 +124,28 @@ export class AttendanceService {
     private readonly eventPublisher?: AttendanceEventPublisher,
   ) {}
 
+  /** Update op whose audit row is written only when the status changes (PRC-M168). */
+  private auditedUpdateOp(
+    id: string,
+    status: AttendanceStatus,
+    comment: string | null | undefined,
+    recordedBy: string,
+  ): AttendanceWriteOp {
+    return {
+      kind: 'update',
+      id,
+      data: { status, comment: comment ?? null, recordedBy },
+      audit: {
+        id: uuidv4(),
+        previousStatus: null,
+        newStatus: status,
+        changedBy: recordedBy,
+        changedAt: new Date(),
+      },
+      auditOnlyOnStatusChange: true,
+    };
+  }
+
   /**
    * Record attendance for a single student.
    *
@@ -148,26 +195,15 @@ export class AttendanceService {
     );
 
     if (existing) {
-      // Update existing record and create audit entry
-      const previousStatus = existing.status;
-      const updated = await this.repository.updateStudentAttendance(existing.id, tenantId, {
-        status: input.status as AttendanceStatus,
-        comment: input.comment ?? null,
-        recordedBy,
-      });
-
-      if (updated && previousStatus !== input.status) {
-        await this.repository.createAuditEntry({
-          id: uuidv4(),
-          tenantId,
-          attendanceId: existing.id,
-          previousStatus,
-          newStatus: input.status as AttendanceStatus,
-          changedBy: recordedBy,
-          changedAt: new Date(),
-        });
-      }
-
+      // PRC-M168: update + audit row commit in one tenant transaction.
+      const [updated] = await this.repository.applyStudentAttendanceWrites(tenantId, [
+        this.auditedUpdateOp(
+          existing.id,
+          input.status as AttendanceStatus,
+          input.comment,
+          recordedBy,
+        ),
+      ]);
       return updated!;
     }
 
@@ -242,25 +278,16 @@ export class AttendanceService {
         );
 
         if (existing) {
-          const previousStatus = existing.status;
-          const updated = await this.repository.updateStudentAttendance(existing.id, tenantId, {
-            status: record.status as AttendanceStatus,
-            comment: record.comment ?? null,
-            recordedBy,
-          });
-
-          if (updated && previousStatus !== record.status) {
-            await this.repository.createAuditEntry({
-              id: uuidv4(),
-              tenantId,
-              attendanceId: existing.id,
-              previousStatus,
-              newStatus: record.status as AttendanceStatus,
-              changedBy: recordedBy,
-              changedAt: new Date(),
-            });
-          }
-
+          // PRC-M168: each record's update + audit row is its own transaction;
+          // a failure is reported per student and leaves that row unchanged.
+          const [updated] = await this.repository.applyStudentAttendanceWrites(tenantId, [
+            this.auditedUpdateOp(
+              existing.id,
+              record.status as AttendanceStatus,
+              record.comment,
+              recordedBy,
+            ),
+          ]);
           if (updated) {
             result.updated.push(updated);
           }
@@ -397,9 +424,10 @@ export class AttendanceService {
     // Get existing attendance records for the date
     const existingRecords = await this.repository.listStudentAttendance(tenantId, classId, date);
 
-    // Merge roster with existing attendance
+    // Merge roster with existing attendance (indexed by studentId — PRC-M174)
+    const byStudentId = new Map(existingRecords.map((r) => [r.studentId, r] as const));
     return roster.map((entry) => {
-      const attendanceRecord = existingRecords.find((r) => r.studentId === entry.studentId);
+      const attendanceRecord = byStudentId.get(entry.studentId);
       return {
         ...entry,
         attendance: attendanceRecord
@@ -576,9 +604,29 @@ export class AttendanceService {
       ]);
     }
 
-    const records = await this.repository.listStudentAttendanceByDateRange(tenantId, query);
+    assertRangeWithinCap(query.startDate, query.endDate);
 
-    const totalRecords = records.length;
+    // PRC-M174: aggregated in SQL (GROUP BY student, status); no raw rows in memory.
+    const buckets = await this.repository.countStudentAttendanceByStatus(tenantId, query);
+
+    type Tally = { p: number; a: number; e: number; l: number; ed: number; total: number };
+    const empty = (): Tally => ({ p: 0, a: 0, e: 0, l: 0, ed: 0, total: 0 });
+    const overall = empty();
+    const byStudent = new Map<string, Tally>();
+    for (const b of buckets) {
+      const t = byStudent.get(b.studentId) ?? empty();
+      for (const target of [t, overall]) {
+        target.total += b.count;
+        if (b.status === AttendanceStatus.PRESENT) target.p += b.count;
+        else if (b.status === AttendanceStatus.ABSENT) target.a += b.count;
+        else if (b.status === AttendanceStatus.EXCUSED) target.e += b.count;
+        else if (b.status === AttendanceStatus.LATE) target.l += b.count;
+        else if (b.status === AttendanceStatus.EARLY_DEPARTURE) target.ed += b.count;
+      }
+      byStudent.set(b.studentId, t);
+    }
+
+    const totalRecords = overall.total;
 
     if (totalRecords === 0) {
       return {
@@ -595,13 +643,11 @@ export class AttendanceService {
       };
     }
 
-    const presentCount = records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
-    const absentCount = records.filter((r) => r.status === AttendanceStatus.ABSENT).length;
-    const excusedCount = records.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
-    const lateCount = records.filter((r) => r.status === AttendanceStatus.LATE).length;
-    const earlyDepartureCount = records.filter(
-      (r) => r.status === AttendanceStatus.EARLY_DEPARTURE,
-    ).length;
+    const presentCount = overall.p;
+    const absentCount = overall.a;
+    const excusedCount = overall.e;
+    const lateCount = overall.l;
+    const earlyDepartureCount = overall.ed;
 
     // Present-partial: EARLY_DEPARTURE counts as 0.5 in the numerator (G-919).
     const attendancePercentage =
@@ -609,31 +655,17 @@ export class AttendanceService {
       100;
     const absencePercentage = Math.round((absentCount / totalRecords) * 10000) / 100;
 
-    const byStudent = new Map<string, typeof records>();
-    for (const rec of records) {
-      const list = byStudent.get(rec.studentId) ?? [];
-      list.push(rec);
-      byStudent.set(rec.studentId, list);
-    }
-    const studentRows = [...byStudent.entries()].map(([studentId, rows]) => {
-      const p = rows.filter((r) => r.status === AttendanceStatus.PRESENT).length;
-      const a = rows.filter((r) => r.status === AttendanceStatus.ABSENT).length;
-      const e = rows.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
-      const l = rows.filter((r) => r.status === AttendanceStatus.LATE).length;
-      const ed = rows.filter((r) => r.status === AttendanceStatus.EARLY_DEPARTURE).length;
-      const total = rows.length;
-      return {
-        studentId,
-        totalRecords: total,
-        presentCount: p,
-        absentCount: a,
-        lateCount: l,
-        excusedCount: e,
-        earlyDepartureCount: ed,
-        attendancePercentage:
-          total === 0 ? 0 : Math.round(((p + l + 0.5 * ed) / total) * 10000) / 100,
-      };
-    });
+    const studentRows = [...byStudent.entries()].map(([studentId, t]) => ({
+      studentId,
+      totalRecords: t.total,
+      presentCount: t.p,
+      absentCount: t.a,
+      lateCount: t.l,
+      excusedCount: t.e,
+      earlyDepartureCount: t.ed,
+      attendancePercentage:
+        t.total === 0 ? 0 : Math.round(((t.p + t.l + 0.5 * t.ed) / t.total) * 10000) / 100,
+    }));
 
     return {
       scope: query.scope,
@@ -659,6 +691,7 @@ export class AttendanceService {
     startDate: string,
     endDate: string,
   ): Promise<StudentAttendanceEntity[]> {
+    assertRangeWithinCap(startDate, endDate);
     return this.repository.listStudentAttendanceByStudentDateRange(
       tenantId,
       studentId,

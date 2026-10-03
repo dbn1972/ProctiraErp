@@ -11,6 +11,7 @@ import { tenantKey } from '@proctira/cache';
 
 import type {
   AttendanceRepository,
+  AttendanceWriteOp,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   StudentRosterEntry,
@@ -18,6 +19,7 @@ import type {
   InstitutionAttendanceConfig,
   AttendanceAuditEntry,
   AttendancePercentageQuery,
+  AttendanceStatusCount,
   AbsenceThresholdConfig,
 } from './attendance-repository.js';
 
@@ -70,6 +72,27 @@ export class CachedAttendanceRepository implements AttendanceRepository {
     date: string,
   ): Promise<StudentAttendanceEntity[]> {
     return this.delegate.listStudentAttendance(tenantId, classId, date);
+  }
+
+  async findStudentAttendanceById(
+    tenantId: string,
+    id: string,
+  ): Promise<StudentAttendanceEntity | null> {
+    return this.delegate.findStudentAttendanceById(tenantId, id);
+  }
+
+  async applyStudentAttendanceWrites(
+    tenantId: string,
+    ops: AttendanceWriteOp[],
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.delegate.applyStudentAttendanceWrites(tenantId, ops);
+  }
+
+  async countStudentAttendanceByStatus(
+    tenantId: string,
+    query: AttendancePercentageQuery,
+  ): Promise<AttendanceStatusCount[]> {
+    return this.delegate.countStudentAttendanceByStatus(tenantId, query);
   }
 
   async listStudentAttendanceByDateRange(

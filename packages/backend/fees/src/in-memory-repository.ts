@@ -26,6 +26,8 @@ import {
   type LedgerAccount,
   type LedgerTrialBalance,
   type RecordPaymentOnInvoiceSettlement,
+  PaymentIdempotencyReplay,
+  type FeesPageRequest,
 } from './fees-repository.js';
 import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
@@ -420,6 +422,40 @@ export class InMemoryFeesRepository implements FeesRepository {
     );
   }
 
+  async listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>> {
+    const wanted = new Set(studentIds);
+    return new Set(
+      this.invoices
+        .filter(
+          (i) =>
+            i.tenantId === tenantId &&
+            i.structureId === structureId &&
+            i.status !== 'void' &&
+            wanted.has(i.studentId),
+        )
+        .map((i) => i.studentId),
+    );
+  }
+
+  async listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]> {
+    const wanted = new Set(studentIds);
+    return this.concessions.filter(
+      (c) =>
+        c.tenantId === tenantId &&
+        c.structureId === structureId &&
+        c.status !== 'rejected' &&
+        wanted.has(c.studentId),
+    );
+  }
+
   async listConcessions(tenantId: string): Promise<FeeConcessionEntity[]> {
     return this.concessions.filter((row) => row.tenantId === tenantId);
   }
@@ -561,6 +597,7 @@ export class InMemoryFeesRepository implements FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {
@@ -581,6 +618,12 @@ export class InMemoryFeesRepository implements FeesRepository {
       );
       if (!invoice) {
         throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      if (options?.idempotencyKey) {
+        const prior = this.payments.find(
+          (p) => p.tenantId === tenantId && p.idempotencyKey === options.idempotencyKey,
+        );
+        if (prior) throw new PaymentIdempotencyReplay({ ...prior });
       }
       if (invoice.status !== 'open') {
         throw new BusinessRuleError('Invoice is not open for payment');
@@ -634,7 +677,55 @@ export class InMemoryFeesRepository implements FeesRepository {
   }
 
   async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
+    this.tenantScans += 1;
     return this.payments.filter((payment) => payment.tenantId === tenantId);
+  }
+
+  /** Test probe (PRC-M248): count of tenant-wide payment/receipt scans. */
+  tenantScans = 0;
+
+  async listPaymentsForInvoice(tenantId: string, invoiceId: string): Promise<FeePaymentEntity[]> {
+    return this.payments.filter((p) => p.tenantId === tenantId && p.invoiceId === invoiceId);
+  }
+
+  async findReceiptByPaymentId(tenantId: string, paymentId: string) {
+    return this.receipts.find((r) => r.tenantId === tenantId && r.paymentId === paymentId) ?? null;
+  }
+
+  async listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]) {
+    const ids = new Set(invoiceIds);
+    return this.receipts.filter((r) => r.tenantId === tenantId && ids.has(r.invoiceId));
+  }
+
+  async sumSucceededPaymentsByInvoice(tenantId: string, invoiceIds: string[]) {
+    const ids = new Set(invoiceIds);
+    const out = new Map<string, number>();
+    for (const p of this.payments) {
+      if (p.tenantId !== tenantId || p.status !== 'succeeded' || !ids.has(p.invoiceId)) continue;
+      out.set(p.invoiceId, (out.get(p.invoiceId) ?? 0) + p.amountCents);
+    }
+    return out;
+  }
+
+  async listInvoicesPage(tenantId: string, page: FeesPageRequest) {
+    return this.invoices
+      .filter((i) => i.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(page.offset, page.offset + page.limit + 1);
+  }
+
+  async listPaymentsPage(tenantId: string, page: FeesPageRequest) {
+    return this.payments
+      .filter((p) => p.tenantId === tenantId)
+      .sort((a, b) => b.paidAt.getTime() - a.paidAt.getTime())
+      .slice(page.offset, page.offset + page.limit + 1);
+  }
+
+  async listReceiptsPage(tenantId: string, page: FeesPageRequest) {
+    return this.receipts
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())
+      .slice(page.offset, page.offset + page.limit + 1);
   }
 
   async findPaymentById(id: string, tenantId: string): Promise<FeePaymentEntity | null> {
@@ -661,6 +752,7 @@ export class InMemoryFeesRepository implements FeesRepository {
   }
 
   async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
+    this.tenantScans += 1;
     return this.receipts.filter((receipt) => receipt.tenantId === tenantId);
   }
 

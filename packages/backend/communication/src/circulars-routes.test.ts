@@ -41,7 +41,7 @@ describe('Circular routes (G-922)', () => {
         audienceIds: ['teacher'],
         requiresAck: true,
         channels: ['whatsapp'],
-        recipientIds: ['r1'],
+        recipientIds: ['comms-staff'],
       },
     });
     expect(created.statusCode).toBe(201);
@@ -54,7 +54,7 @@ describe('Circular routes (G-922)', () => {
     const acked = await app.inject({
       method: 'POST',
       url: `/communication/circulars/${id}/ack`,
-      payload: { recipientId: 'r1' },
+      payload: {},
     });
     expect(acked.statusCode).toBe(200);
     expect(acked.json().ackRate).toBe(1);

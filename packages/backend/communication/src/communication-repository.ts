@@ -1,6 +1,7 @@
 /**
  * Communication repository interface (in-memory v1).
  */
+import type { PageRequest } from './pagination.js';
 
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type EmergencyStatus = 'pending_confirm' | 'confirmed' | 'sent' | 'cancelled';
@@ -36,7 +37,8 @@ export interface EmergencyBlastEntity {
 
 export interface CommunicationRepository {
   createCampaign(data: Omit<CampaignEntity, 'createdAt' | 'updatedAt'>): Promise<CampaignEntity>;
-  listCampaigns(tenantId: string): Promise<CampaignEntity[]>;
+  /** Newest first; returns up to `page.limit + 1` rows (PRC-M191). */
+  listCampaigns(tenantId: string, page?: PageRequest): Promise<CampaignEntity[]>;
   findCampaignById(id: string, tenantId: string): Promise<CampaignEntity | null>;
   updateCampaign(
     id: string,
@@ -47,7 +49,8 @@ export interface CommunicationRepository {
   createEmergencyBlast(
     data: Omit<EmergencyBlastEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EmergencyBlastEntity>;
-  listEmergencyBlasts(tenantId: string): Promise<EmergencyBlastEntity[]>;
+  /** Newest first; returns up to `page.limit + 1` rows (PRC-M191). */
+  listEmergencyBlasts(tenantId: string, page?: PageRequest): Promise<EmergencyBlastEntity[]>;
   findEmergencyBlastById(id: string, tenantId: string): Promise<EmergencyBlastEntity | null>;
   updateEmergencyBlast(
     id: string,
