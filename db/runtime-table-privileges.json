@@ -211,6 +211,7 @@
     "scholarship_applications": "dml",
     "scholarship_compliance_records": "dml",
     "scholarship_disbursements": "dml",
+    "scholarship_fee_outbox": "dml",
     "scholarship_programs": "dml",
     "search_index_documents": "dml",
     "seat_matrix": "dml",

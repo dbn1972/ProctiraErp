@@ -170,6 +170,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.scholarship_application_documents',
     'public.scholarship_disbursements',
     'public.scholarship_compliance_records',
+    'public.scholarship_fee_outbox',
   ],
   hrAppraisalTraining: [
     'public.hr_appraisal_templates',
