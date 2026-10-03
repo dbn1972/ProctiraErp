@@ -235,6 +235,7 @@
     "student_consents": "dml",
     "student_discipline_incidents": "dml",
     "student_documents": "dml",
+    "student_import_jobs": "dml",
     "student_merges": "dml",
     "student_photos": "dml",
     "student_siblings": "dml",
