@@ -543,6 +543,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     await registerInviteAndTenantDirectoryRoutes(app, {
       inviteService,
       tenantDirectory: getTenantRepository(),
+      // PRC-M017: invites live under /api/v1 so RBAC, the suspended-tenant gate
+      // and mutation audit apply; root paths are 308 redirects only.
+      // GET /tenants/mine stays at root: read-only, JWT-derived, behind the
+      // global auth hook (the /api/v1 `tenants` segment is platform-only).
+      prefix: '/api/v1',
+      legacyRootRedirects: true,
     });
   }
 
