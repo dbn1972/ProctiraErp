@@ -60,7 +60,7 @@ import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
-import type { GatewayConfig } from './config.js';
+import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
@@ -424,6 +424,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // When KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set, verify Keycloak JWKS tokens.
   // Omitting them keeps local HS-JWT as a CI/headless fallback only — not an alternate product IdP.
   const keycloak = loadKeycloakAuthConfig();
+  // PRC-M011: no silent HS fallback / localhost IdP redirects in deployed envs.
+  assertAuthBootPolicy({ configEnv: config.env, keycloakConfigured: Boolean(keycloak) });
   // G-713: the only anonymous surface is health probes, docs (non-prod), and the
   // pre-login auth flows. `/api/v1/services` and `/api/v1/auth/roles` require a JWT.
   const authExcludePaths = [
@@ -547,7 +549,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // G-504 — secrets accepted during rotation (current first, then previous).
   const jwtVerifySecrets = verifySecretCandidates({
     current: config.jwt.secret,
-    previous: config.jwt.previousSecret,
+    // PRC-M011: same strength rules as JWT_SECRET for injected configs too.
+    previous: resolvePreviousJwtSecret(config.env, config.jwt.previousSecret, config.jwt.secret),
     currentKid: 'current',
     previousKid: 'previous',
   });

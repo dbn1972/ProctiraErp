@@ -148,6 +148,79 @@ export function resolveJwtSecret(env: string, raw: string | undefined): string {
 }
 
 /**
+ * PRC-M011: JWT_SECRET_PREVIOUS is still accepted for verification during a
+ * rotation window, so in production it gets the same placeholder / length
+ * checks as JWT_SECRET and must differ from the current secret.
+ */
+export function resolvePreviousJwtSecret(
+  env: string,
+  raw: string | undefined,
+  current: string,
+): string | undefined {
+  const previous = raw?.trim() ?? '';
+  if (previous.length === 0) return undefined;
+  if (env !== 'production') return previous === current ? undefined : previous;
+  if (WEAK_JWT_SECRETS.has(previous)) {
+    throw new Error(
+      'JWT_SECRET_PREVIOUS uses a known placeholder value; refusing to start in production',
+    );
+  }
+  if (previous.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
+    throw new Error(
+      `JWT_SECRET_PREVIOUS must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production`,
+    );
+  }
+  if (previous === current) {
+    throw new Error('JWT_SECRET_PREVIOUS must differ from JWT_SECRET (PRC-M011)');
+  }
+  return previous;
+}
+
+const LOCALHOST_URL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?(\/|$)/i;
+
+/** Deployed (non-dev/test) when NODE_ENV=production or APP_ENV/DEPLOY_ENV names staging/prod. */
+export function isDeployedEnvironment(
+  configEnv: string,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (configEnv === 'production') return true;
+  const stage = (processEnv['APP_ENV'] ?? processEnv['DEPLOY_ENV'] ?? '').trim().toLowerCase();
+  return stage === 'staging' || stage === 'production' || stage === 'prod';
+}
+
+/**
+ * PRC-M011: refuse unsafe auth boot configurations outside development/test.
+ * - No Keycloak config → local HS-JWT fallback only when ALLOW_LOCAL_HS_AUTH=1.
+ * - Keycloak mode → KEYCLOAK_REDIRECT_URI and NEXT_PUBLIC_WEB_URL must be set
+ *   explicitly and must not point at localhost.
+ */
+export function assertAuthBootPolicy(input: {
+  configEnv: string;
+  keycloakConfigured: boolean;
+  processEnv?: NodeJS.ProcessEnv;
+}): void {
+  const env = input.processEnv ?? process.env;
+  if (!isDeployedEnvironment(input.configEnv, env)) return;
+  if (!input.keycloakConfigured) {
+    if (env['ALLOW_LOCAL_HS_AUTH'] !== '1') {
+      throw new Error(
+        'Keycloak is not configured (KEYCLOAK_ISSUER/KEYCLOAK_CLIENT_ID); refusing local HS-JWT auth in a deployed environment. Set ALLOW_LOCAL_HS_AUTH=1 only for an approved headless deployment (PRC-M011).',
+      );
+    }
+    return;
+  }
+  for (const name of ['KEYCLOAK_REDIRECT_URI', 'NEXT_PUBLIC_WEB_URL'] as const) {
+    const value = env[name]?.trim();
+    if (!value) {
+      throw new Error(`${name} must be set in a deployed environment (PRC-M011)`);
+    }
+    if (LOCALHOST_URL.test(value)) {
+      throw new Error(`${name} must not point at localhost in a deployed environment (PRC-M011)`);
+    }
+  }
+}
+
+/**
  * Load gateway configuration from environment variables.
  */
 export function loadConfig(): GatewayConfig {
@@ -209,6 +282,7 @@ export function loadConfig(): GatewayConfig {
     };
   }
 
+  const jwtSecret = resolveJwtSecret(env, process.env['JWT_SECRET']);
   return {
     port: parseInt(process.env['PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
@@ -224,8 +298,8 @@ export function loadConfig(): GatewayConfig {
       credentials: true,
     },
     jwt: {
-      secret: resolveJwtSecret(env, process.env['JWT_SECRET']),
-      previousSecret: process.env['JWT_SECRET_PREVIOUS']?.trim() || undefined,
+      secret: jwtSecret,
+      previousSecret: resolvePreviousJwtSecret(env, process.env['JWT_SECRET_PREVIOUS'], jwtSecret),
       issuer: process.env['JWT_ISSUER'] || 'proctira-platform',
       audience: process.env['JWT_AUDIENCE'] || 'proctira-api',
       accessTokenExpiresIn: resolveAccessTokenExpiresIn(),
