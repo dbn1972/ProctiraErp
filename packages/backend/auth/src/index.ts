@@ -71,6 +71,18 @@ export type {
   AssertAccessTokenNotRevokedOptions,
   RedisLikeForAccessTokenRevocation,
 } from './access-token-revocation.js';
+// PRC-H008 / PRC-H098: tenant-wide session revocation on suspension
+export {
+  DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+  MemoryTenantSessionRevocationStore,
+  RedisTenantSessionRevocationStore,
+  createTenantSessionRevocationStore,
+  isIssuedBeforeTenantRevocation,
+} from './tenant-session-revocation.js';
+export type {
+  RedisLikeForTenantSessionRevocation,
+  TenantSessionRevocationStore,
+} from './tenant-session-revocation.js';
 
 // Session Service
 export { SessionService } from './session-service.js';

@@ -6,6 +6,10 @@ import {
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
+import {
+  isIssuedBeforeTenantRevocation,
+  type TenantSessionRevocationStore,
+} from '../tenant-session-revocation.js';
 
 import {
   KeycloakIdentityError,
@@ -45,6 +49,14 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   maxRevocationTtlSeconds?: number;
   /** JWKS client used to verify tokens presented at logout (tests/DI). */
   jwksClient?: KeycloakJwksClient;
+  /**
+   * PRC-H008 / PRC-H098: true when the tenant is suspended/decommissioned. Throws when the
+   * status cannot be read (login/refresh then fail closed with 503). When set, password login,
+   * the OIDC callback and refresh refuse blocked tenants and end the just-issued IdP session.
+   */
+  tenantAuthGate?: (tenantId: string) => Promise<boolean>;
+  /** PRC-H008: tenant-wide revocation epoch; refresh tokens issued before it are refused. */
+  tenantSessionRevocation?: TenantSessionRevocationStore;
 };
 
 const DEFAULT_MAX_REVOCATION_TTL_SECONDS = 3600;
@@ -205,6 +217,95 @@ function sendIdentityLinkFailure(request: FastifyRequest, reply: FastifyReply, e
   });
 }
 
+function claimTenantId(accessToken: string): string | undefined {
+  try {
+    const claims = decodeJwt(accessToken).payload;
+    const raw = claims.tenant_id ?? claims.tenantId;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function tokenIssuedAt(token: string | undefined): number | undefined {
+  if (!token) return undefined;
+  try {
+    const iat = decodeJwt(token).payload.iat;
+    return typeof iat === 'number' ? iat : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** PRC-H008: end the IdP session behind a refresh token we refuse to hand out (best effort). */
+async function endIdpSession(config: KeycloakRouteConfig, refreshToken?: string): Promise<void> {
+  if (!refreshToken) return;
+  const body = new URLSearchParams({ client_id: config.clientId, refresh_token: refreshToken });
+  if (config.clientSecret) body.set('client_secret', config.clientSecret);
+  try {
+    await fetch(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+  } catch {
+    // The tokens are never returned to the caller; the IdP session expires on its own.
+  }
+}
+
+/**
+ * PRC-H008 / PRC-H098: refuse tokens for a suspended/decommissioned tenant (403) or, on refresh,
+ * a session issued before the tenant-wide revocation (401). Fails closed (503) when the tenant
+ * status cannot be read. Returns true when a refusal was sent.
+ */
+async function refuseBlockedTenant(
+  config: KeycloakRouteConfig,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  input: { tenantId?: string; issuedRefreshToken?: string; presentedRefreshToken?: string },
+): Promise<boolean> {
+  const { tenantId } = input;
+  if (!tenantId || (!config.tenantAuthGate && !config.tenantSessionRevocation)) return false;
+  let blocked = false;
+  let revokedSession = false;
+  try {
+    blocked = (await config.tenantAuthGate?.(tenantId)) ?? false;
+    if (!blocked && input.presentedRefreshToken && config.tenantSessionRevocation) {
+      const revokedAt = await config.tenantSessionRevocation.tenantSessionsRevokedAt(tenantId);
+      revokedSession = isIssuedBeforeTenantRevocation(
+        tokenIssuedAt(input.presentedRefreshToken),
+        revokedAt,
+      );
+    }
+  } catch (error) {
+    request.log.error({ err: error, tenantId }, 'tenant status lookup failed during sign-in');
+    await endIdpSession(config, input.issuedRefreshToken);
+    void reply.status(503).send({
+      code: 'TENANT_STATUS_UNAVAILABLE',
+      message: 'Tenant status could not be verified; try again shortly',
+      statusCode: 503,
+    });
+    return true;
+  }
+  if (!blocked && !revokedSession) return false;
+  await endIdpSession(config, input.issuedRefreshToken);
+  if (blocked) {
+    void reply.status(403).send({
+      code: 'TENANT_SUSPENDED',
+      message: 'This school account is suspended; sign-in is not available',
+      statusCode: 403,
+    });
+  } else {
+    void reply.status(401).send({
+      code: 'SESSION_REVOKED',
+      message: 'This session was ended; sign in again',
+      statusCode: 401,
+    });
+  }
+  return true;
+}
+
 export async function registerKeycloakAuthRoutes(
   fastify: FastifyInstance,
   config: KeycloakRouteConfig,
@@ -311,6 +412,15 @@ export async function registerKeycloakAuthRoutes(
           // not be linked: a mapping rejection is a 401, a store outage a 503.
           return sendIdentityLinkFailure(request, reply, error);
         }
+      }
+
+      if (
+        await refuseBlockedTenant(config, request, reply, {
+          tenantId: user?.tenantId ?? claimTenantId(tokens.access_token),
+          issuedRefreshToken: tokens.refresh_token,
+        })
+      ) {
+        return reply;
       }
 
       const issued: IssuedTokens = {
@@ -440,6 +550,15 @@ export async function registerKeycloakAuthRoutes(
         }
       }
 
+      if (
+        await refuseBlockedTenant(config, request, reply, {
+          tenantId: user?.tenantId ?? claimTenantId(tokens.access_token),
+          issuedRefreshToken: tokens.refresh_token,
+        })
+      ) {
+        return reply;
+      }
+
       return reply.status(200).send({
         provider: 'keycloak',
         realm: config.realm,
@@ -527,6 +646,32 @@ export async function registerKeycloakAuthRoutes(
         refresh_token?: string;
         expires_in?: number;
       };
+      // PRC-H008 / PRC-H098: a suspended tenant cannot extend its sessions, and a session issued
+      // before a tenant-wide revocation stays revoked after reactivation.
+      if (config.tenantAuthGate || config.tenantSessionRevocation) {
+        let tenantId = claimTenantId(tokens.access_token);
+        if (config.identityStore) {
+          try {
+            const linked = await linkKeycloakIdentity(
+              identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
+              config.identityStore,
+            );
+            tenantId = linked.tenantId ?? tenantId;
+          } catch (error) {
+            await endIdpSession(config, tokens.refresh_token);
+            return sendIdentityLinkFailure(request, reply, error);
+          }
+        }
+        if (
+          await refuseBlockedTenant(config, request, reply, {
+            tenantId,
+            issuedRefreshToken: tokens.refresh_token,
+            presentedRefreshToken: refreshToken,
+          })
+        ) {
+          return reply;
+        }
+      }
       return reply.status(200).send({
         provider: 'keycloak',
         accessToken: tokens.access_token,
