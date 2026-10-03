@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateReconciliationCsv } from './reconciliation-csv';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -55,20 +56,49 @@ export const feeStructureFormSchema = z.object({
   partCount: z.coerce.number().int().min(1).max(24).optional(),
 });
 
-export const bulkInvoiceFormSchema = z.object({
-  structureId: z.string().regex(UUID, 'Structure is required'),
-  classId: z.string().regex(UUID).optional().or(z.literal('')),
-  studentIds: z
-    .string()
-    .optional()
-    .refine((raw) => parseStudentIdList(raw).every((id) => UUID.test(id)), {
-      message: 'Each student ID must be a UUID',
-    }),
-  dueAt: z
-    .string()
-    .optional()
-    .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
-});
+export const bulkInvoiceFormSchema = z
+  .object({
+    structureId: z.string().regex(UUID, 'Structure is required'),
+    classId: z.string().regex(UUID).optional().or(z.literal('')),
+    studentIds: z
+      .string()
+      .optional()
+      .refine((raw) => parseStudentIdList(raw).every((id) => UUID.test(id)), {
+        message: 'Each student ID must be a UUID',
+      }),
+    dueAt: z
+      .string()
+      .optional()
+      .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
+    /** True when the chosen structure itself is tied to a class or grade. */
+    structureScoped: z.boolean().optional(),
+  })
+  .refine(
+    // PRC-M086: never submit an unscoped bulk run (it would bill every student).
+    (d) =>
+      Boolean(d.classId) ||
+      parseStudentIdList(d.studentIds).length > 0 ||
+      d.structureScoped === true,
+    { message: 'Choose a class or add students to invoice', path: ['classId'] },
+  );
+
+/**
+ * PRC-M089: staff "Record payment". Real methods need a reference (UPI txn id
+ * or receipt-book number); `sandbox` is only accepted when the server enables it.
+ */
+export const recordPaymentFormSchema = z
+  .object({
+    invoiceId: z.string().regex(UUID, 'Invoice is required'),
+    method: z.enum(['cash', 'upi', 'card', 'sandbox']),
+    amount: positiveAmount('Amount'),
+    reference: z.string().trim().max(100, 'Reference is too long').optional(),
+    idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
+  })
+  .refine((d) => d.method === 'sandbox' || Boolean(d.reference && d.reference.length > 0), {
+    message: 'Reference is required (UPI transaction id or receipt number)',
+    path: ['reference'],
+  });
+export type RecordPaymentFormValues = z.infer<typeof recordPaymentFormSchema>;
 
 export const concessionFormSchema = z
   .object({
@@ -108,34 +138,26 @@ export const refundFormSchema = z.object({
   reason: z.string().min(1, 'Reason is required').max(2000),
 });
 
-/** Payment methods staff can record against an invoice (PRC-M065). */
-export const STAFF_PAYMENT_METHODS = ['cash', 'upi', 'card'] as const;
-
-/**
- * The `sandbox` method is only offered when explicitly enabled for a
- * non-production deployment (`NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS=true`).
- */
-export function isSandboxPaymentEnabled(): boolean {
-  return (
-    process.env['NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS'] === 'true' &&
-    process.env['NODE_ENV'] !== 'production'
-  );
-}
-
-/** Staff "record payment" — POST /fees/invoices/:id/pay (PRC-M065). */
-export const staffPaymentFormSchema = z.object({
-  invoiceId: z.string().regex(UUID, 'Invoice is required'),
-  method: z.enum([...STAFF_PAYMENT_METHODS, 'sandbox'], {
-    message: 'Select a payment method',
-  }),
-  amount: positiveAmount('Amount'),
-  idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
-});
-
-export const reconciliationFormSchema = z.object({
-  csv: z.string().min(1, 'CSV is required'),
-  filename: z.string().max(255).optional(),
-});
+/** PRC-M092: header/row shape, size and unit are checked before any batch is created. */
+export const reconciliationFormSchema = z
+  .object({
+    csv: z.string().min(1, 'CSV is required'),
+    filename: z.string().max(255).optional(),
+    unit: z.enum(['paise', 'rupees']).default('paise'),
+  })
+  .superRefine((d, ctx) => {
+    const result = validateReconciliationCsv(d.csv, d.unit);
+    if (!result.ok) {
+      const first = result.issues[0];
+      ctx.addIssue({
+        code: 'custom',
+        path: ['csv'],
+        message: first
+          ? `${first.line > 0 ? `Line ${first.line}: ` : ''}${first.message}${result.issues.length > 1 ? ` (+${result.issues.length - 1} more)` : ''}`
+          : 'Invalid CSV',
+      });
+    }
+  });
 
 export const resolveReconExceptionFormSchema = z.object({
   rowId: z.string().regex(UUID, 'Row is required'),
@@ -181,8 +203,7 @@ export type FeeStructureFormValues = z.infer<typeof feeStructureFormSchema>;
 export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
-export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
-export type StaffPaymentFormValues = z.input<typeof staffPaymentFormSchema>;
+export type ReconciliationFormValues = z.input<typeof reconciliationFormSchema>;
 export type ResolveReconExceptionFormValues = z.infer<typeof resolveReconExceptionFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
 export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;

@@ -85,72 +85,106 @@ export interface ChainVerification {
  * hash. Legacy rows (no `chainSeq`) are counted but skipped; the chain proper
  * starts at the first hashed row.
  */
-export function verifyEntrySequence(tenantId: string, entries: AuditLogEntry[]): ChainVerification {
-  const hashed = entries
-    .filter((e) => e.chainSeq != null)
-    .sort((a, b) => (a.chainSeq ?? 0) - (b.chainSeq ?? 0));
-  const legacyEntries = entries.length - hashed.length;
+/**
+ * PRC-M085: incremental chain verifier. Feed hashed entries in chain_seq
+ * order with {@link ChainVerifier.push}; it carries prev_hash so callers can
+ * stream pages instead of buffering the whole chain.
+ */
+export class ChainVerifier {
+  private prevHash: string | null = null;
+  private expectedSeq = 1;
+  private hashedCount = 0;
+  private lastHead: { seq: number; hash: string | null } | null = null;
+  brokenAt: ChainBreak | null = null;
 
-  let prevHash: string | null = null;
-  let expectedSeq = 1;
-  let brokenAt: ChainBreak | null = null;
+  constructor(private readonly tenantId: string) {}
 
-  for (const entry of hashed) {
+  /** Returns false once the chain is broken (stop feeding). */
+  push(entry: AuditLogEntry): boolean {
+    if (this.brokenAt) return false;
+    this.hashedCount += 1;
     const seq = entry.chainSeq ?? 0;
-    if (seq !== expectedSeq) {
-      brokenAt = {
+    this.lastHead = { seq, hash: entry.entryHash ?? null };
+    if (seq !== this.expectedSeq) {
+      this.brokenAt = {
         chainSeq: seq,
         entryId: entry.id,
         reason: 'sequence-gap',
-        expected: String(expectedSeq),
+        expected: String(this.expectedSeq),
         actual: String(seq),
       };
-      break;
+      return false;
     }
     if (!entry.entryHash) {
-      brokenAt = {
+      this.brokenAt = {
         chainSeq: seq,
         entryId: entry.id,
         reason: 'missing-hash',
         expected: null,
         actual: null,
       };
-      break;
+      return false;
     }
-    if ((entry.prevHash ?? null) !== prevHash) {
-      brokenAt = {
+    if ((entry.prevHash ?? null) !== this.prevHash) {
+      this.brokenAt = {
         chainSeq: seq,
         entryId: entry.id,
         reason: 'prev-hash-mismatch',
-        expected: prevHash,
+        expected: this.prevHash,
         actual: entry.prevHash ?? null,
       };
-      break;
+      return false;
     }
-    const recomputed = computeEntryHash(entry, prevHash);
+    const recomputed = computeEntryHash(entry, this.prevHash);
     if (recomputed !== entry.entryHash) {
-      brokenAt = {
+      this.brokenAt = {
         chainSeq: seq,
         entryId: entry.id,
         reason: 'hash-mismatch',
         expected: recomputed,
         actual: entry.entryHash,
       };
-      break;
+      return false;
     }
-    prevHash = entry.entryHash;
-    expectedSeq += 1;
+    this.prevHash = entry.entryHash;
+    this.expectedSeq += 1;
+    return true;
   }
 
-  const checkedEntries = brokenAt ? brokenAt.chainSeq - 1 : hashed.length;
-  return {
-    tenantId,
-    valid: brokenAt === null,
-    checkedEntries,
-    legacyEntries,
-    headHash: hashed.length > 0 ? (hashed[hashed.length - 1]!.entryHash ?? null) : null,
-    headSeq: hashed.length > 0 ? (hashed[hashed.length - 1]!.chainSeq ?? 0) : 0,
-    brokenAt,
-    verifiedAt: new Date().toISOString(),
-  };
+  /**
+   * @param legacyEntries pre-chain rows (chain_seq NULL)
+   * @param head the true chain head (highest chain_seq); defaults to the last
+   *        entry pushed, which is the head when the chain was read to the end.
+   */
+  finish(
+    legacyEntries: number,
+    head: { seq: number; hash: string | null } | null = this.lastHead,
+  ): ChainVerification {
+    const checkedEntries = this.brokenAt ? this.brokenAt.chainSeq - 1 : this.hashedCount;
+    return {
+      tenantId: this.tenantId,
+      valid: this.brokenAt === null,
+      checkedEntries,
+      legacyEntries,
+      headHash: head?.hash ?? null,
+      headSeq: head?.seq ?? 0,
+      brokenAt: this.brokenAt,
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+}
+
+export function verifyEntrySequence(tenantId: string, entries: AuditLogEntry[]): ChainVerification {
+  const hashed = entries
+    .filter((e) => e.chainSeq != null)
+    .sort((a, b) => (a.chainSeq ?? 0) - (b.chainSeq ?? 0));
+  const verifier = new ChainVerifier(tenantId);
+  for (const entry of hashed) {
+    if (!verifier.push(entry)) break;
+  }
+  const last = hashed[hashed.length - 1];
+  return verifier.finish(
+    entries.length - hashed.length,
+    last ? { seq: last.chainSeq ?? 0, hash: last.entryHash ?? null } : null,
+  );
 }

@@ -83,3 +83,39 @@ describe('EntitySearchSelect (PRC-M063)', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+
+describe('EntitySearchSelect remote search (PRC-M083)', () => {
+  it('finds entries beyond the seeded page via the directory search route', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string) =>
+        new Response(JSON.stringify({ data: [{ id: 'id-101', label: 'ADM-101 · Zoya' }] }), {
+          status: 200,
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onOptionSelected = vi.fn();
+    render(
+      <EntitySearchSelect
+        id="r"
+        name="studentId"
+        label="Student"
+        options={options}
+        remoteSearch="student"
+        totalAvailable={101}
+        onOptionSelected={onOptionSelected}
+      />,
+    );
+    expect(screen.getByText(/Showing 2 of 101/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Student search'), { target: { value: 'zoya' } });
+    const select = screen.getByLabelText('Student', { selector: 'select' }) as HTMLSelectElement;
+    await vi.waitFor(() =>
+      expect(Array.from(select.options).map((o) => o.value)).toContain('id-101'),
+    );
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      '/api/directory/search?kind=student&q=zoya',
+    );
+    fireEvent.change(select, { target: { value: 'id-101' } });
+    expect(onOptionSelected).toHaveBeenCalledWith({ id: 'id-101', label: 'ADM-101 · Zoya' });
+    vi.unstubAllGlobals();
+  });
+});

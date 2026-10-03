@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Searchable select for entity ids — shows human labels (G-302).
  * Options are `{ id, label }`; filter is client-side on label text.
@@ -8,15 +7,16 @@
  * directory, a required field can never submit an empty id, and the
  * combobox presentation follows the ARIA combobox/listbox keyboard pattern
  * (ArrowUp/ArrowDown move, Enter selects, Escape closes).
+ *
+ * PRC-M083: with `remoteSearch` the picker also searches the full
+ * directory server-side (`/api/directory/search`) so entries beyond the
+ * capped first page can be found, and `totalAvailable` renders a
+ * truncation notice when the seeded list is partial.
  */
-import { useMemo, useState, type KeyboardEvent } from 'react';
-
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { Input, Label } from '@proctira/ui/components';
-
 import type { EntityLabelOption } from '@/lib/entity-label';
-
 const MAX_COMBOBOX_OPTIONS = 8;
-
 export function EntitySearchSelect({
   id,
   name,
@@ -32,6 +32,9 @@ export function EntitySearchSelect({
   className,
   onValueChange,
   presentation = 'select',
+  remoteSearch,
+  totalAvailable,
+  onOptionSelected,
 }: {
   id: string;
   name: string;
@@ -55,41 +58,91 @@ export function EntitySearchSelect({
    * `combobox` is one field: type to filter, choose a match, submit the id.
    */
   presentation?: 'select' | 'combobox';
+  /** Also search the full directory server-side (PRC-M083). */
+  remoteSearch?: 'student' | 'staff' | 'person';
+  /** Directory size when `options` is only a capped first page (PRC-M083). */
+  totalAvailable?: number;
+  /** Fired with the full option (incl. remote results) when one is chosen. */
+  onOptionSelected?: (option: EntityLabelOption | null) => void;
 }) {
   const [query, setQuery] = useState('');
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-
+  const [remoteOptions, setRemoteOptions] = useState<EntityLabelOption[]>([]);
+  const [remoteState, setRemoteState] = useState<'idle' | 'loading' | 'error'>('idle');
+  useEffect(() => {
+    const q = query.trim();
+    if (!remoteSearch || q.length < 2) {
+      setRemoteState('idle');
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setRemoteState('loading');
+      fetch(
+        `/api/directory/search?kind=${encodeURIComponent(remoteSearch)}&q=${encodeURIComponent(q)}`,
+        { signal: controller.signal, credentials: 'same-origin', cache: 'no-store' },
+      )
+        .then(async (res) => {
+          if (!res.ok) throw new Error(String(res.status));
+          const body = (await res.json()) as { data?: EntityLabelOption[] };
+          setRemoteOptions((prev) => {
+            const merged = new Map(prev.map((o) => [o.id, o]));
+            for (const o of body.data ?? []) merged.set(o.id, o);
+            return [...merged.values()];
+          });
+          setRemoteState('idle');
+        })
+        .catch((err: unknown) => {
+          if ((err as { name?: string })?.name === 'AbortError') return;
+          setRemoteState('error');
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, remoteSearch]);
+  const allOptions = useMemo(() => {
+    if (remoteOptions.length === 0) return options;
+    const seen = new Set(options.map((o) => o.id));
+    return [...options, ...remoteOptions.filter((o) => !seen.has(o.id))];
+  }, [options, remoteOptions]);
+  const truncated = totalAvailable !== undefined && totalAvailable > options.length;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matched = !q
-      ? options.slice(0, 50)
-      : options
+      ? allOptions.slice(0, 50)
+      : allOptions
           .filter((o) => {
             const hay = `${o.label} ${o.searchText ?? ''} ${o.id}`.toLowerCase();
             return hay.includes(q);
           })
           .slice(0, 50);
-    const selected = options.find((o) => o.id === value);
+    const selected = allOptions.find((o) => o.id === value);
     if (selected && !matched.some((o) => o.id === selected.id)) {
       return [selected, ...matched].slice(0, 50);
     }
     return matched;
-  }, [options, query, value]);
-
-  const selectedLabel = options.find((o) => o.id === value)?.label;
+  }, [allOptions, query, value]);
+  const selectedLabel = allOptions.find((o) => o.id === value)?.label;
   const comboboxOptions = filtered.slice(0, MAX_COMBOBOX_OPTIONS);
   const listboxId = `${id}-listbox`;
   const optionId = (index: number) => `${id}-option-${index}`;
   const listOpen = open && query.trim().length > 0;
 
+  function setChosen(nextId: string) {
+    setValue(nextId);
+    onValueChange?.(nextId);
+    onOptionSelected?.(allOptions.find((o) => o.id === nextId) ?? null);
+  }
+
   function choose(option: EntityLabelOption) {
-    setValue(option.id);
     setQuery(option.label);
     setOpen(false);
     setActiveIndex(-1);
-    onValueChange?.(option.id);
+    setChosen(option.id);
   }
 
   function onComboboxKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -120,9 +173,25 @@ export function EntitySearchSelect({
     }
   }
 
-  const unavailable = loading || Boolean(error) || options.length === 0;
+  // With remote search an empty seed list is still usable (type to search).
+  const unavailable = loading || Boolean(error) || (options.length === 0 && !remoteSearch);
   const statusId = `${id}-status`;
-
+  const remoteHint = remoteSearch ? (
+    <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+      {remoteState === 'loading'
+        ? 'Searching the full directory…'
+        : remoteState === 'error'
+          ? 'Directory search is unavailable right now. Showing loaded entries only.'
+          : truncated
+            ? `Showing ${options.length.toLocaleString()} of ${(totalAvailable ?? 0).toLocaleString()}. Type at least 2 letters to search everyone.`
+            : null}
+    </p>
+  ) : truncated ? (
+    <p className="text-xs text-muted-foreground" role="status">
+      Showing the first {options.length.toLocaleString()} of{' '}
+      {(totalAvailable ?? 0).toLocaleString()} entries only.
+    </p>
+  ) : null;
   return (
     <div className={className ?? 'space-y-1.5'}>
       <Label htmlFor={id}>{label}</Label>
@@ -174,8 +243,7 @@ export function EntitySearchSelect({
               setQuery(e.target.value);
               setOpen(true);
               setActiveIndex(-1);
-              setValue('');
-              onValueChange?.('');
+              setChosen('');
             }}
             onKeyDown={onComboboxKeyDown}
             onBlur={() => setOpen(false)}
@@ -219,6 +287,7 @@ export function EntitySearchSelect({
               )}
             </ul>
           )}
+          {remoteHint}
         </div>
       ) : (
         <>
@@ -235,10 +304,7 @@ export function EntitySearchSelect({
             name={name}
             required={required}
             value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              onValueChange?.(e.target.value);
-            }}
+            onChange={(e) => setChosen(e.target.value)}
             className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           >
             <option value="">{selectedLabel ? `Selected: ${selectedLabel}` : 'Select…'}</option>
@@ -253,6 +319,7 @@ export function EntitySearchSelect({
               {selectedLabel}
             </p>
           ) : null}
+          {remoteHint}
         </>
       )}
     </div>

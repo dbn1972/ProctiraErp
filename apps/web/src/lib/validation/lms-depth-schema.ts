@@ -114,7 +114,8 @@ export const lmsFileUploadSchema = z.object({
     'text/plain',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ]),
-  contentBase64: z.string().min(1),
+  // PRC-M099: 5 MB of bytes is at most 6,990,508 base64 characters.
+  contentBase64: z.string().min(1).max(6_990_508, 'File exceeds 5 MB.'),
 });
 export type LmsFileUploadValues = z.infer<typeof lmsFileUploadSchema>;
 

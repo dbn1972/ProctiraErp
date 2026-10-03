@@ -1,160 +1,212 @@
 'use client';
-
-import { useId, useState, useTransition } from 'react';
+/**
+ * Staff "Record payment" dialog (PRC-M089).
+ *
+ * Replaces the one-click "Pay (sandbox)" button: staff choose the method
+ * (cash / UPI), enter the amount actually collected (partial allowed) and a
+ * reference (UPI transaction id or receipt-book number). A client-generated
+ * idempotency key is fixed per dialog session so a double submit or retry
+ * records one payment. The sandbox method is offered only when the server
+ * enables it for this environment.
+ */
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-
-import { Button, Input, Label } from '@proctira/ui/components';
-import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormField,
+  Input,
+} from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
-import { payInvoiceStaffAction } from '@/lib/fees/actions';
-import { isSandboxPaymentEnabled, STAFF_PAYMENT_METHODS } from '@/lib/fees/validation';
+import { recordStaffPaymentAction } from '@/lib/fees/actions';
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: 'Cash',
-  upi: 'UPI',
-  card: 'Card',
-  sandbox: 'Sandbox (test only)',
-};
+type Method = 'cash' | 'upi' | 'card' | 'sandbox';
+type FieldKey = 'amount' | 'reference' | 'method';
 
-function newIdempotencyKey(): string {
-  return globalThis.crypto.randomUUID();
+function newKey(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : '00000000-0000-4000-8000-000000000000'.replace(/0/g, () =>
+        Math.floor(Math.random() * 16).toString(16),
+      );
 }
 
-/**
- * Staff "record payment" control (PRC-M065). Records a real cash / UPI / card
- * receipt for a (possibly partial) amount. Each opened dialog carries one
- * idempotency key so a double-submit cannot record the payment twice.
- */
 export function PayInvoiceStaffButton({
   invoiceId,
+  amountCents,
   currency = 'INR',
+  sandboxEnabled = false,
 }: {
   invoiceId: string;
+  /** Invoice face amount; the balance can be lower after partial payments. */
+  amountCents?: number;
   currency?: string;
+  sandboxEnabled?: boolean;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const formId = useId();
-  const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<Method>('cash');
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [method, setMethod] = useState<string>('');
-  const [amount, setAmount] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState('');
-
-  const methods: string[] = [
-    ...STAFF_PAYMENT_METHODS,
-    ...(isSandboxPaymentEnabled() ? ['sandbox'] : []),
-  ];
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const [idempotencyKey, setIdempotencyKey] = useState<string>('');
+  const [pending, startTransition] = useTransition();
 
   function openDialog() {
     setError(null);
     setFieldErrors({});
-    setIdempotencyKey(newIdempotencyKey());
-    setConfirmOpen(true);
+    setMethod('cash');
+    setIdempotencyKey(newKey());
+    setOpen(true);
   }
 
-  function onConfirmPay() {
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    const fd = new FormData(event.currentTarget);
     startTransition(async () => {
       setError(null);
-      setFieldErrors({});
-      const result = await payInvoiceStaffAction({
+      const result = await recordStaffPaymentAction({
         invoiceId,
-        method: method as 'cash',
-        amount,
+        method,
+        amount: Number(String(fd.get('amount') ?? '').trim() || NaN),
+        reference: String(fd.get('reference') ?? '').trim() || undefined,
         idempotencyKey,
       });
       if (!result.success) {
+        const byField: Partial<Record<FieldKey, string>> = {};
+        for (const fe of result.fieldErrors ?? []) {
+          if (fe.field === 'amount' || fe.field === 'reference' || fe.field === 'method') {
+            byField[fe.field] ??= fe.message;
+          }
+        }
+        setFieldErrors(byField);
         setError(result.error);
         setFieldErrors(
           Object.fromEntries((result.fieldErrors ?? []).map((f) => [f.field, f.message])),
         );
         return;
       }
-      setConfirmOpen(false);
-      setMethod('');
-      setAmount('');
+      setOpen(false);
       router.refresh();
     });
   }
 
-  const methodId = `${formId}-method`;
-  const amountId = `${formId}-amount`;
+  const referenceLabel =
+    method === 'upi'
+      ? 'UPI transaction id'
+      : method === 'cash'
+        ? 'Receipt book number'
+        : method === 'card'
+          ? 'Card terminal approval code'
+          : 'Reference';
 
   return (
-    <div>
+    <Dialog open={open} onOpenChange={setOpen}>
       <Button
         type="button"
         size="sm"
-        disabled={!hydrated || pending}
+        disabled={!hydrated}
         data-testid="staff-pay-invoice"
         data-hydrated={hydrated ? 'true' : 'false'}
         onClick={openDialog}
       >
-        {pending ? 'Recording…' : 'Record payment'}
+        Record payment
       </Button>
-      <ConfirmActionDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Record payment received"
-        description="Record money actually received for this invoice. A receipt is issued and the balance reduces by the amount entered."
-        confirmLabel="Record payment"
-        pending={pending}
-        onConfirm={onConfirmPay}
-        testId="staff-pay-confirm"
-      >
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor={methodId}>Payment method</Label>
-            <select
-              id={methodId}
+      <DialogContent>
+        <form onSubmit={onSubmit} data-testid="staff-pay-form" noValidate>
+          <DialogHeader>
+            <DialogTitle>Record payment</DialogTitle>
+            <DialogDescription>
+              Record money already collected from the family. A receipt is issued for the amount
+              entered; the invoice stays open until fully paid.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-3">
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Method</legend>
+              <div className="flex flex-wrap gap-4">
+                {(
+                  [
+                    ['cash', 'Cash'],
+                    ['upi', 'UPI'],
+                    ['card', 'Card'],
+                    ...(sandboxEnabled ? ([['sandbox', 'Sandbox (test)']] as const) : []),
+                  ] as ReadonlyArray<readonly [Method, string]>
+                ).map(([value, label]) => (
+                  <label key={value} className="flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="method"
+                      value={value}
+                      checked={method === value}
+                      onChange={() => setMethod(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cheque payments are not supported yet.
+              </p>
+            </fieldset>
+            <FormField
+              id={`pay-amount-${invoiceId}`}
+              label={`Amount received (${currency})`}
               required
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              aria-invalid={fieldErrors['method'] ? true : undefined}
-              aria-describedby={fieldErrors['method'] ? `${methodId}-error` : undefined}
-              className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-              data-testid="staff-pay-method"
+              error={fieldErrors.amount}
             >
-              <option value="">Select…</option>
-              {methods.map((m) => (
-                <option key={m} value={m}>
-                  {METHOD_LABELS[m] ?? m}
-                </option>
-              ))}
-            </select>
-            {fieldErrors['method'] ? (
-              <p id={`${methodId}-error`} className="text-xs text-destructive">
-                {fieldErrors['method']}
+              <Input
+                id={`pay-amount-${invoiceId}`}
+                name="amount"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                defaultValue={amountCents != null ? (amountCents / 100).toFixed(2) : ''}
+                required
+              />
+            </FormField>
+            <FormField
+              id={`pay-ref-${invoiceId}`}
+              label={referenceLabel}
+              required={method !== 'sandbox'}
+              error={fieldErrors.reference}
+            >
+              <Input
+                id={`pay-ref-${invoiceId}`}
+                name="reference"
+                maxLength={100}
+                autoComplete="off"
+                required={method !== 'sandbox'}
+              />
+            </FormField>
+            {error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
               </p>
             ) : null}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={amountId}>Amount received ({currency})</Label>
-            <Input
-              id={amountId}
-              inputMode="decimal"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              aria-invalid={fieldErrors['amount'] ? true : undefined}
-              aria-describedby={fieldErrors['amount'] ? `${amountId}-error` : undefined}
-              data-testid="staff-pay-amount"
-            />
-            {fieldErrors['amount'] ? (
-              <p id={`${amountId}-error`} className="text-xs text-destructive">
-                {fieldErrors['amount']}
-              </p>
-            ) : null}
-          </div>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      </ConfirmActionDialog>
-    </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!hydrated || pending} data-testid="staff-pay-confirm">
+              {pending ? 'Recording…' : 'Record payment'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

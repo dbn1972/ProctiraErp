@@ -9,11 +9,13 @@
  *   EXCUSED) with optional comments.
  * - Submits via the `markAttendanceAction` Server Action.
  * - Auto-saves the in-progress marking grid to `localStorage` every
- *   30 s (Task 60.5, Requirement 38 AC 8). The draft slot is keyed
- *   `attendance-marking-<academicPeriodId>` so a clerk who loses
- *   power, closes the tab, or drops connectivity can resume the
- *   day's roster on remount. The draft is cleared on a successful
- *   bulk save.
+ *   30 s (Task 60.5, Requirement 38 AC 8). The draft slot is scoped to
+ *   tenant + user (PRC-M079) and keyed by the loaded period + class +
+ *   date (PRC-M080). Only studentId/status pairs are stored (no names or
+ *   notes), drafts expire after 24 h, and they are purged on logout.
+ *   A found draft is only applied after the user explicitly restores it,
+ *   and its statuses are merged onto the current server roster by
+ *   studentId. The draft is cleared on a successful bulk save.
  */
 import { CheckCheck, Save } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -77,6 +79,11 @@ interface AttendanceMarkingFormProps {
   roster: RosterEntry[];
   /** PRC-M078: today in the tenant timezone (server-computed) — the date picker max. */
   today?: string;
+  /**
+   * `<tenantId>:<userId>` of the signed-in user. Drafts are disabled when
+   * absent so they can never leak across users (PRC-M079).
+   */
+  draftScope?: string;
 }
 
 interface RowState {
@@ -173,18 +180,42 @@ function rosterToRows(roster: RosterEntry[]): RowState[] {
   }));
 }
 
+/** Draft lifetime (PRC-M079). */
+export const ATTENDANCE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
 /**
- * The full snapshot persisted by `useDraftAutosave` for this form.
- * Captures both the selection (so the user does not have to retype
- * institution/class/period/date on remount) and the per-row status
- * grid (so partial markings survive a refresh).
+ * The minimal snapshot persisted by `useDraftAutosave` for this form
+ * (PRC-M079): only studentId/status pairs — no names or free-text notes.
+ * The selection itself lives in the draft key (PRC-M080).
  */
 interface AttendanceDraftSnapshot {
-  institutionId: string;
-  classId: string;
+  rows: Array<{ studentId: string; status: AttendanceStatusValue }>;
+}
+
+/** Build the draft slot id for a loaded selection, or null when incomplete. */
+export function attendanceDraftFormId(sel: {
   academicPeriodId: string;
+  classId: string;
   date: string;
-  rows: RowState[];
+}): string | null {
+  if (!sel.academicPeriodId || !sel.classId || !sel.date) return null;
+  return `attendance-marking-${sel.academicPeriodId}-${sel.classId}-${sel.date}`;
+}
+
+/** Merge draft statuses onto the current roster rows by studentId (PRC-M080). */
+export function mergeDraftOntoRows(
+  rows: RowState[],
+  draftRows: AttendanceDraftSnapshot['rows'],
+): RowState[] {
+  const byId = new Map(draftRows.map((r) => [r.studentId, r.status]));
+  return rows.map((r) => {
+    const status = byId.get(r.studentId);
+    return status ? { ...r, status } : r;
+  });
+}
+
+function toDraftSnapshot(rows: RowState[]): AttendanceDraftSnapshot {
+  return { rows: rows.map((r) => ({ studentId: r.studentId, status: r.status })) };
 }
 
 export function AttendanceMarkingForm({
@@ -194,6 +225,7 @@ export function AttendanceMarkingForm({
   defaults,
   roster,
   today,
+  draftScope,
 }: AttendanceMarkingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -212,49 +244,58 @@ export function AttendanceMarkingForm({
     setHydrated(true);
   }, []);
 
-  // Draft autosave (Task 60.5 / Requirement 38.8). The slot key
-  // includes the academic period so two periods open in different
-  // tabs do not clobber each other; an empty period falls back to
-  // `default` so the slot remains stable while the clerk picks a
-  // period for the first time.
-  const draftFormId = `attendance-marking-${academicPeriodId || 'default'}`;
-  const draft = useDraftAutosave<AttendanceDraftSnapshot>(draftFormId);
-
-  // Hydrate from the persisted draft once after the autosave layer
-  // re-reads on mount (it returns `null` during SSR / first render).
-  // We only seed once so subsequent edits are not clobbered if the
-  // hook re-emits.
-  const hasHydratedDraftRef = useRef<boolean>(false);
+  // Draft autosave (Task 60.5 / Requirement 38.8). The slot is keyed by
+  // the *loaded* selection (URL defaults that produced `roster`), not the
+  // pickers' local state, so a draft for 10A can never surface on 10B
+  // (PRC-M080). Disabled without a user scope or a complete selection.
+  const draftFormId = attendanceDraftFormId(defaults);
+  const draft = useDraftAutosave<AttendanceDraftSnapshot>(
+    draftFormId ?? 'attendance-marking',
+    undefined,
+    {
+      scope: draftScope,
+      ttlMs: ATTENDANCE_DRAFT_TTL_MS,
+      disabled: !draftScope || !draftFormId,
+    },
+  );
+  // 'pending' = a stored draft was found and awaits an explicit choice;
+  // 'applied' = the user restored it; 'none' = nothing to offer.
+  const [draftState, setDraftState] = useState<'none' | 'pending' | 'applied'>('none');
+  const draftDecidedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (hasHydratedDraftRef.current) return;
-    if (draft.values === null) return;
-    const snap = draft.values;
-    setInstitutionId(snap.institutionId);
-    setClassId(snap.classId);
-    setAcademicPeriodId(snap.academicPeriodId);
-    setDate(snap.date);
-    if (snap.rows.length > 0) {
-      setRows(snap.rows);
-    }
-    hasHydratedDraftRef.current = true;
-  }, [draft.values]);
+    if (draftDecidedRef.current === draftFormId) return;
+    setDraftState(draft.values && draft.values.rows.length > 0 ? 'pending' : 'none');
+  }, [draft.values, draftFormId]);
 
   // Re-sync rows whenever the roster prop changes (new selection loaded by RSC).
+  // A fresh server roster is not a user edit, so it is never autosaved over
+  // an existing draft.
+  const userTouchedRef = useRef(false);
   useEffect(() => {
+    userTouchedRef.current = false;
     setRows(rosterToRows(roster));
   }, [roster]);
 
-  // Autosave the live snapshot on every change. The hook itself
-  // debounces to 30 s so this is cheap.
+  function restoreDraft() {
+    const snap = draft.values;
+    if (snap) setRows((prev) => mergeDraftOntoRows(prev, snap.rows));
+    draftDecidedRef.current = draftFormId;
+    setDraftState('applied');
+  }
+
+  function discardDraft() {
+    draft.clear();
+    draftDecidedRef.current = draftFormId;
+    setDraftState('none');
+  }
+
+  // Autosave the live snapshot once the user has dealt with any pending
+  // draft (so an un-restored draft is not overwritten by the fresh roster).
+  // The hook itself debounces to 30 s so this is cheap.
   useEffect(() => {
-    draft.save({
-      institutionId,
-      classId,
-      academicPeriodId,
-      date,
-      rows,
-    });
-  }, [draft, institutionId, classId, academicPeriodId, date, rows]);
+    if (draftState === 'pending' || !userTouchedRef.current) return;
+    draft.save(toDraftSnapshot(rows));
+  }, [draft, rows, draftState]);
 
   function pushSelection(selection: {
     institutionId: string;
@@ -294,6 +335,7 @@ export function AttendanceMarkingForm({
   }
 
   function setRowStatus(studentId: string, status: AttendanceStatusValue) {
+    userTouchedRef.current = true;
     setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
   }
 
@@ -302,6 +344,7 @@ export function AttendanceMarkingForm({
   }
 
   function bulkSet(status: AttendanceStatusValue) {
+    userTouchedRef.current = true;
     setRows((prev) => prev.map((r) => ({ ...r, status })));
   }
 
@@ -329,7 +372,7 @@ export function AttendanceMarkingForm({
     setServerState(null);
     // Flush before submission so a crash mid-network leaves the
     // current snapshot recoverable.
-    draft.flush({ institutionId, classId, academicPeriodId, date, rows });
+    draft.flush(toDraftSnapshot(rows));
     try {
       const result = await markAttendanceAction(parsed.data);
       setServerState(result);
@@ -337,6 +380,7 @@ export function AttendanceMarkingForm({
         // Successful bulk save — discard the persisted draft so the
         // next visit starts from the server-supplied roster.
         draft.clear();
+        setDraftState('none');
       }
     } finally {
       setIsSaving(false);
@@ -457,6 +501,36 @@ export function AttendanceMarkingForm({
           Load roster
         </Button>
       </div>
+
+      {draftState === 'pending' && draft.savedAt && (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
+          role="status"
+          aria-live="polite"
+          data-testid="attendance-draft-prompt"
+        >
+          <span className="me-auto">
+            You have unsaved markings for this class and date from{' '}
+            {new Date(draft.savedAt).toLocaleString()}. Restore them?
+          </span>
+          <Button type="button" size="sm" onClick={restoreDraft}>
+            Restore draft
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={discardDraft}>
+            Discard
+          </Button>
+        </div>
+      )}
+      {draftState === 'applied' && (
+        <div
+          className="rounded-md border border-sky-500/40 bg-sky-500/10 px-4 py-3 text-sm"
+          role="status"
+          aria-live="polite"
+          data-testid="attendance-draft-applied"
+        >
+          Draft restored onto the current roster. Review and submit to save.
+        </div>
+      )}
 
       {serverState?.status === 'error' && serverState.message && (
         <div

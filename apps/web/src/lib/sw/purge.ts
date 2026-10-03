@@ -7,12 +7,18 @@
  * the same, so a shared device never keeps the previous user's cached
  * responses after logout, a 401, or a user/tenant switch.
  *
+ * PRC-M079: also removes every persisted form draft (localStorage) so the
+ * previous user's in-progress data (e.g. attendance markings) is never
+ * restored for the next user on a shared device.
+ *
  * Best-effort and never throws: logout must not be blocked by storage errors.
  */
+import { purgeAllDrafts } from '@/lib/draft/useDraftAutosave';
 import { SW_CACHE_PREFIX, SW_PURGE_MESSAGE } from './pickStrategy';
 
 export async function purgeServiceWorkerCaches(): Promise<void> {
   if (typeof window === 'undefined') return;
+  purgeAllDrafts();
   try {
     const controller =
       typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller : undefined;

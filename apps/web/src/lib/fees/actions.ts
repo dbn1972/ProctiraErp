@@ -3,14 +3,16 @@
 import { revalidatePath } from 'next/cache';
 
 import { majorUnitsToCents } from '@proctira/common';
+import { validateReconciliationCsv } from './reconciliation-csv';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
   applyScholarshipNetting,
   addReminderSuppression,
   bulkInvoiceStructure,
+  previewBulkInvoiceStructure,
+  type BulkInvoicePreview,
   createFeeStructure,
-  generateInstalments,
   importReconciliation,
   recordInvoicePayment,
   refundInvoice,
@@ -27,6 +29,7 @@ import {
   feeStructureFormSchema,
   parseStudentIdList,
   reconciliationFormSchema,
+  recordPaymentFormSchema,
   refundFormSchema,
   reminderSendFormSchema,
   reminderSuppressionFormSchema,
@@ -39,6 +42,7 @@ import {
   type ConcessionFormValues,
   type FeeStructureFormValues,
   type ReconciliationFormValues,
+  type RecordPaymentFormValues,
   type RefundFormValues,
   type ReminderSendFormValues,
   type ReminderSuppressionFormValues,
@@ -99,12 +103,38 @@ export async function createFeeStructureAction(
       amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
+      // PRC-M091: one request, one transaction — no orphan structure if the
+      // schedule fails.
+      ...(parsed.data.partCount && parsed.data.partCount > 1
+        ? { partCount: parsed.data.partCount }
+        : {}),
     });
-    if (parsed.data.partCount && parsed.data.partCount > 1) {
-      await generateInstalments(structure.id, parsed.data.partCount);
-    }
     refreshFees();
     return { success: true, data: { id: structure.id } };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** PRC-M086: preview how many invoices a bulk run creates before confirming. */
+export async function previewBulkInvoiceAction(
+  values: BulkInvoiceFormValues,
+): Promise<ActionResult<BulkInvoicePreview>> {
+  const parsed = bulkInvoiceFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
+  }
+  const studentIds = parseStudentIdList(parsed.data.studentIds);
+  try {
+    const preview = await previewBulkInvoiceStructure(parsed.data.structureId, {
+      classId: parsed.data.classId || undefined,
+      studentIds: studentIds.length > 0 ? studentIds : undefined,
+    });
+    return { success: true, data: preview };
   } catch (error) {
     return fail(error);
   }
@@ -115,7 +145,11 @@ export async function bulkInvoiceAction(
 ): Promise<ActionResult<{ created: number; skipped: number }>> {
   const parsed = bulkInvoiceFormSchema.safeParse(values);
   if (!parsed.success) {
-    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
   }
   const studentIds = parseStudentIdList(parsed.data.studentIds);
   try {
@@ -180,27 +214,31 @@ export async function refundInvoiceAction(
   }
 }
 
-export async function payInvoiceStaffAction(
-  values: StaffPaymentFormValues,
+/** PRC-M089: sandbox charges for staff are off unless explicitly enabled. */
+function staffSandboxPaymentsEnabled(): boolean {
+  return process.env['FEES_STAFF_SANDBOX_PAYMENTS']?.trim().toLowerCase() === 'true';
+}
+
+export async function recordStaffPaymentAction(
+  values: RecordPaymentFormValues,
 ): Promise<ActionResult<{ id: string }>> {
-  // PRC-M065: validate invoice id, a real method, a positive amount and an
-  // idempotency key; sandbox is refused unless explicitly enabled (non-prod).
-  const parsed = staffPaymentFormSchema.safeParse(values);
+  const parsed = recordPaymentFormSchema.safeParse(values);
   if (!parsed.success) {
-    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
-  }
-  if (parsed.data.method === 'sandbox' && !isSandboxPaymentEnabled()) {
     return {
       success: false,
-      error: 'Sandbox payments are disabled',
-      fieldErrors: [{ field: 'method', message: 'Select cash, UPI or card' }],
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
     };
+  }
+  if (parsed.data.method === 'sandbox' && !staffSandboxPaymentsEnabled()) {
+    return { success: false, error: 'Sandbox payments are disabled in this environment.' };
   }
   try {
     const invoice = await recordInvoicePayment(parsed.data.invoiceId, {
       method: parsed.data.method,
       amountCents: majorUnitsToCents(parsed.data.amount),
       idempotencyKey: parsed.data.idempotencyKey,
+      ...(parsed.data.reference ? { reference: parsed.data.reference } : {}),
     });
     refreshFees();
     return { success: true, data: { id: invoice.id } };
@@ -214,10 +252,19 @@ export async function importReconciliationAction(
 ): Promise<ActionResult<{ matched: number; unmatched: number; batchId: string }>> {
   const parsed = reconciliationFormSchema.safeParse(values);
   if (!parsed.success) {
-    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
+  }
+  // PRC-M092: send the normalised integer-paise CSV (validated above).
+  const checked = validateReconciliationCsv(parsed.data.csv, parsed.data.unit);
+  if (!checked.ok || !checked.normalized) {
+    return { success: false, error: checked.issues[0]?.message ?? 'Invalid CSV' };
   }
   try {
-    const result = await importReconciliation(parsed.data.csv, parsed.data.filename);
+    const result = await importReconciliation(checked.normalized, parsed.data.filename);
     refreshFees();
     return {
       success: true,

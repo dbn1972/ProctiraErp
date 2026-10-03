@@ -22,11 +22,28 @@ import { AttendanceReportFilters } from '../_components/attendance-report-filter
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { todayInTimeZone } from '@/lib/datetime/tenant-zoned';
 import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
+import { listClassesByInstitution } from '@/lib/institutions/api';
+import { loadStudentDirectory } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AttendanceReportsPage() {
-  const institutions = await listInstitutions({ pageSize: MAX_API_PAGE_SIZE });
+  const [institutions, students] = await Promise.all([
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+    loadStudentDirectory(),
+  ]);
+  // PRC-M082: cascading institution -> class picker instead of free-text ids.
+  const classes = (
+    await Promise.all(
+      institutions.map(async (institution) =>
+        (await listClassesByInstitution(institution.id).catch(() => [])).map((section) => ({
+          id: section.id,
+          name: section.name,
+          institutionId: institution.id,
+        })),
+      ),
+    )
+  ).flat();
 
   return (
     <section aria-labelledby="reports-heading" className="space-y-6">
@@ -73,6 +90,9 @@ export default async function AttendanceReportsPage() {
               id: i.id,
               name: i.name,
             }))}
+            classes={classes}
+            studentOptions={students.options}
+            studentTotal={students.total}
           />
         </CardContent>
       </Card>
