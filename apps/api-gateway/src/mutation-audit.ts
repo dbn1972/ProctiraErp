@@ -107,6 +107,18 @@ export function hashValue(value: unknown): string {
     .digest('hex');
 }
 
+/** Top-level field names a request body touches (never values — may be PII/PHI). */
+export function changedFieldNames(body: unknown): string[] {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Buffer.isBuffer(body)) return [];
+  return Object.keys(body as Record<string, unknown>).sort();
+}
+
+/**
+ * PRC-M013: the post-hoc audit cannot see domain before-state, so it records
+ * no fabricated placeholder (`bodyHash: 'pre-mutation'` was removed) — only the
+ * changed field names and a body hash. Real before/after values come from the
+ * same-transaction domain audit on {@link ATOMIC_MUTATION_AUDIT_PATH_PREFIXES}.
+ */
 export function buildAuditValues(
   operation: AuditOperation,
   request: FastifyRequest,
@@ -116,17 +128,138 @@ export function buildAuditValues(
 } {
   const bodyHash = hashValue(request.body);
   const path = request.url.split('?')[0] ?? request.url;
+  const changedFields = changedFieldNames(request.body);
 
-  if (operation === 'CREATE') {
-    return { beforeValues: null, afterValues: { bodyHash, path } };
-  }
   if (operation === 'DELETE') {
     return { beforeValues: { path }, afterValues: null };
   }
-  return {
-    beforeValues: { bodyHash: 'pre-mutation', path },
-    afterValues: { bodyHash, path },
-  };
+  return { beforeValues: null, afterValues: { bodyHash, path, changedFields } };
+}
+
+/**
+ * PRC-M013: prefer the id the handler actually created/changed (response body
+ * `id`) over a path segment; never the literal 'collection'.
+ */
+export function resolveAuditEntityId(pathname: string, payload: unknown): string {
+  if (typeof payload === 'string' && payload.length > 0 && payload.length < 1_000_000) {
+    try {
+      const parsed = JSON.parse(payload) as { id?: unknown; data?: { id?: unknown } } | null;
+      const id = parsed?.id ?? parsed?.data?.id;
+      if (typeof id === 'string' && id) return id;
+      if (typeof id === 'number') return String(id);
+    } catch {
+      // non-JSON body — fall back to the path
+    }
+  }
+  const segments = (pathname.split('?')[0] ?? pathname).split('/').filter(Boolean);
+  const fromPath = entityIdFromPath(pathname);
+  return fromPath === segments[segments.length - 1] && segments.length <= 3
+    ? 'unresolved'
+    : fromPath;
+}
+
+/**
+ * PRC-M013: only state-changing outcomes become mutation audit rows. A 4xx
+ * response changed nothing, so it must not appear as a CREATE/UPDATE/DELETE.
+ */
+export function isAuditableMutationOutcome(statusCode: number): boolean {
+  return statusCode >= 200 && statusCode < 400;
+}
+
+/**
+ * PRC-M014: cached audit-store availability. Security-sensitive production
+ * mutations are rejected *before* the handler runs when the audit store is
+ * known/probed unavailable, so no unaudited write is committed. A post-commit
+ * audit failure trips the breaker for `ttlMs`.
+ */
+export class AuditAvailabilityGate {
+  private state: { ok: boolean; at: number } | undefined;
+  private inFlight: Promise<boolean> | undefined;
+
+  constructor(
+    private readonly probe: () => Promise<void>,
+    private readonly ttlMs = 5000,
+    private readonly timeoutMs = 1500,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  markUnavailable(): void {
+    this.state = { ok: false, at: this.now() };
+  }
+
+  async isAvailable(): Promise<boolean> {
+    if (this.state && this.now() - this.state.at < this.ttlMs) return this.state.ok;
+    this.inFlight ??= this.runProbe().finally(() => {
+      this.inFlight = undefined;
+    });
+    return this.inFlight;
+  }
+
+  private async runProbe(): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.probe(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('audit probe timed out')), this.timeoutMs);
+        }),
+      ]);
+      this.state = { ok: true, at: this.now() };
+    } catch {
+      this.state = { ok: false, at: this.now() };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    return this.state.ok;
+  }
+}
+
+/**
+ * PRC-M014: bounded in-process retry for an audit row whose write failed
+ * *after* the mutation committed. The client keeps the true 2xx (no ambiguous
+ * 503 that invites a duplicate retry); the row is retried with backoff.
+ */
+export class MutationAuditRetryQueue {
+  private pending = 0;
+  constructor(
+    private readonly recorder: () => MutationAuditRecorder | null | undefined,
+    private readonly onGiveUp: (input: MutationAuditRecordInput, error: unknown) => void,
+    private readonly delaysMs: readonly number[] = [1000, 5000, 30000],
+    private readonly maxPending = 1000,
+  ) {}
+
+  get size(): number {
+    return this.pending;
+  }
+
+  enqueue(input: MutationAuditRecordInput): boolean {
+    if (this.pending >= this.maxPending) {
+      this.onGiveUp(input, new Error('audit retry queue full'));
+      return false;
+    }
+    this.pending += 1;
+    const attempt = (index: number) => {
+      const timer = setTimeout(() => {
+        void (async () => {
+          try {
+            const recorder = this.recorder();
+            if (!recorder) throw new Error('audit service unavailable');
+            await recorder.recordAudit(input);
+            this.pending -= 1;
+          } catch (error) {
+            if (index + 1 < this.delaysMs.length) attempt(index + 1);
+            else {
+              this.pending -= 1;
+              this.onGiveUp(input, error);
+            }
+          }
+        })();
+      }, this.delaysMs[index]);
+      timer.unref?.();
+    };
+    attempt(0);
+    return true;
+  }
 }
 
 /**
