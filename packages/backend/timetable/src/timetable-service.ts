@@ -22,7 +22,11 @@ import {
 } from './generation.js';
 import { isValidIsoDate } from './schemas.js';
 import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
-import { isTimetableClashError, TimetableClashError } from './timetable-errors.js';
+import {
+  isTimetableClashError,
+  TimetableClashError,
+  TimetableVersionConflictError,
+} from './timetable-errors.js';
 import type {
   BellScheduleEntity,
   PeriodEntity,
@@ -209,8 +213,13 @@ export class TimetableService {
     return row;
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleInput>) {
-    const row = await this.repo.updateBellSchedule(tenantId, id, patch);
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
+    const row = await this.repo.updateBellSchedule(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
         tenantId,
@@ -292,7 +301,12 @@ export class TimetableService {
     }
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodInput>) {
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const existing = await this.repo.getPeriod(tenantId, id);
     if (!existing) return null;
     // PRC-M399: validate the merged row, not just the patch.
@@ -306,7 +320,7 @@ export class TimetableService {
     if (patch.startTime !== undefined || patch.endTime !== undefined) {
       await this.assertNoPeriodOverlap(tenantId, existing.bellScheduleId, merged, id);
     }
-    const row = await this.repo.updatePeriod(tenantId, id, patch);
+    const row = await this.repo.updatePeriod(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
         tenantId,
@@ -576,7 +590,11 @@ export class TimetableService {
    * Publish a draft section. Runs institution-wide room∩time and teacher∩time
    * clash detection including this section's meetings → 409 on conflict.
    */
-  async publishSection(tenantId: string, sectionId: string): Promise<SectionEntity> {
+  async publishSection(
+    tenantId: string,
+    sectionId: string,
+    opts?: UpdateConcurrencyOpts,
+  ): Promise<SectionEntity> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
@@ -613,10 +631,17 @@ export class TimetableService {
       }
     }
 
-    const updated = await this.repo.updateSection(tenantId, sectionId, {
-      status: 'PUBLISHED',
-      publishedAt: nowIso(),
-    });
+    if (opts?.expectedUpdatedAt && opts.expectedUpdatedAt !== section.updatedAt) {
+      throw new TimetableVersionConflictError('section', sectionId, section.updatedAt);
+    }
+    // PRC-M404: CAS on the version read before the clash check — a concurrent section edit
+    // between check and write makes this a 409 instead of publishing a stale state.
+    const updated = await this.repo.updateSection(
+      tenantId,
+      sectionId,
+      { status: 'PUBLISHED', publishedAt: nowIso() },
+      { expectedUpdatedAt: section.updatedAt },
+    );
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
@@ -631,7 +656,11 @@ export class TimetableService {
     return updated;
   }
 
-  async unpublishSection(tenantId: string, sectionId: string): Promise<SectionEntity> {
+  async unpublishSection(
+    tenantId: string,
+    sectionId: string,
+    opts?: UpdateConcurrencyOpts,
+  ): Promise<SectionEntity> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
@@ -639,10 +668,15 @@ export class TimetableService {
     if (section.status === 'DRAFT') {
       return section;
     }
-    const updated = await this.repo.updateSection(tenantId, sectionId, {
-      status: 'DRAFT',
-      publishedAt: null,
-    });
+    if (opts?.expectedUpdatedAt && opts.expectedUpdatedAt !== section.updatedAt) {
+      throw new TimetableVersionConflictError('section', sectionId, section.updatedAt);
+    }
+    const updated = await this.repo.updateSection(
+      tenantId,
+      sectionId,
+      { status: 'DRAFT', publishedAt: null },
+      { expectedUpdatedAt: section.updatedAt },
+    );
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }

@@ -212,6 +212,15 @@ export async function registerTimetableRoutes(
       await badRequest(reply, problem);
       return reply;
     }
+    // PRC-M404: optimistic concurrency is mandatory on full-entity updates.
+    if (request.method === 'PUT' && !ifMatchOf(request)) {
+      await reply.status(428).send({
+        code: 'PRECONDITION_REQUIRED',
+        message: 'If-Match header with the entity ETag/updatedAt is required',
+        statusCode: 428,
+      });
+      return reply;
+    }
   });
 
   // ── Bell schedules ────────────────────────────────────────────────────────
@@ -294,12 +303,19 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updateBellSchedule(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updateBellSchedule(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply
           .status(404)
           .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       }
+      setEtag(reply, row.updatedAt);
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -384,7 +400,13 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updatePeriod(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updatePeriod(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply
           .status(404)
@@ -853,7 +875,12 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
-      const row = await service.publishSection(tenantId, id);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.publishSection(
+        tenantId,
+        id,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -866,7 +893,12 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
-      const row = await service.unpublishSection(tenantId, id);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.unpublishSection(
+        tenantId,
+        id,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);

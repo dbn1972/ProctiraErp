@@ -309,16 +309,24 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleEntity>) {
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getBellSchedule(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('bell_schedule', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
       const result = await this.query(
         tenantId,
@@ -329,6 +337,7 @@ export class PgTimetableRepository implements TimetableRepository {
           status = $6,
           updated_at = $7::timestamptz
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+           AND ($8::timestamptz IS NULL OR updated_at = $8::timestamptz)
          RETURNING *`,
         [
           tenantId,
@@ -338,8 +347,14 @@ export class PgTimetableRepository implements TimetableRepository {
           JSON.stringify(dayPatternToJson(next.dayPattern)),
           next.status,
           next.updatedAt,
+          opts?.expectedUpdatedAt ?? null,
         ],
       );
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getBellSchedule(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('bell_schedule', id, again.updatedAt);
+      }
       return mapBellSchedule(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -420,16 +435,24 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodEntity>) {
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getPeriod(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('period', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
       const result = await this.query(
         tenantId,
@@ -440,9 +463,24 @@ export class PgTimetableRepository implements TimetableRepository {
           end_time = $6::time,
           updated_at = $7::timestamptz
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+           AND ($8::timestamptz IS NULL OR updated_at = $8::timestamptz)
          RETURNING *`,
-        [tenantId, id, next.name, next.periodOrder, next.startTime, next.endTime, next.updatedAt],
+        [
+          tenantId,
+          id,
+          next.name,
+          next.periodOrder,
+          next.startTime,
+          next.endTime,
+          next.updatedAt,
+          opts?.expectedUpdatedAt ?? null,
+        ],
       );
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getPeriod(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('period', id, again.updatedAt);
+      }
       return mapPeriod(result.rows[0] as Record<string, unknown>);
     });
   }

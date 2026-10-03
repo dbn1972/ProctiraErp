@@ -59,15 +59,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return this.bellSchedules.get(row.id)!;
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleEntity>) {
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getBellSchedule(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('bell_schedule', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.bellSchedules.set(id, next);
     return next;
@@ -101,15 +109,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodEntity>) {
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getPeriod(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('period', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.periods.set(id, next);
     return next;

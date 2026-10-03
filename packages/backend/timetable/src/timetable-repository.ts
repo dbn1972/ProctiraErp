@@ -178,6 +178,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<BellScheduleEntity | null>;
   deleteBellSchedule(tenantId: string, id: string): Promise<boolean>;
 
@@ -188,6 +189,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<PeriodEntity | null>;
   deletePeriod(tenantId: string, id: string): Promise<boolean>;
 
