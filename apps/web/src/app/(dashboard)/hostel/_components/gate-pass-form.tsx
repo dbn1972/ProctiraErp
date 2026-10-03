@@ -18,15 +18,19 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { Hostel } from '@/lib/api/hostel';
 import type { EntityLabelOption } from '@/lib/entity-label';
+import { zonedLocalToUtcIso } from '@/lib/datetime/zoned';
 
 import { requestGatePassAction } from '../../campus-ops-actions';
 
 export function GatePassRequestForm({
   hostels,
   studentOptions = [],
+  timeZone = null,
 }: {
   hostels: Hostel[];
   studentOptions?: EntityLabelOption[];
+  /** PRC-M478: tenant IANA timezone the datetime-local inputs are interpreted in. */
+  timeZone?: string | null;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -39,10 +43,19 @@ export function GatePassRequestForm({
     const fd = new FormData(event.currentTarget);
     const hostelId = String(fd.get('hostelId') ?? '').trim();
     const studentId = String(fd.get('studentId') ?? '').trim();
-    const expectedOutAt = String(fd.get('expectedOutAt') ?? '').trim();
-    const expectedInAt = String(fd.get('expectedInAt') ?? '').trim();
+    // PRC-M478: send instants with an explicit offset, never naive local strings.
+    const expectedOutAt = zonedLocalToUtcIso(String(fd.get('expectedOutAt') ?? ''), timeZone);
+    const expectedInAt = zonedLocalToUtcIso(String(fd.get('expectedInAt') ?? ''), timeZone);
     const reason = String(fd.get('reason') ?? '').trim();
     const requestedBy = String(fd.get('requestedBy') ?? 'resident') as 'resident' | 'parent';
+    if (!expectedOutAt || !expectedInAt) {
+      setError('Enter both the expected out and expected in date and time.');
+      return;
+    }
+    if (Date.parse(expectedInAt) <= Date.parse(expectedOutAt)) {
+      setError('Expected return must be after expected departure.');
+      return;
+    }
     startTransition(async () => {
       setError(null);
       setMessage(null);
@@ -68,7 +81,10 @@ export function GatePassRequestForm({
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Request gate pass</CardTitle>
-        <CardDescription>Resident or parent request; warden approves next.</CardDescription>
+        <CardDescription>
+          Resident or parent request; warden approves next.
+          {timeZone ? ` Times are in ${timeZone}.` : ''}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form

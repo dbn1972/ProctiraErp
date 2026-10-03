@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { listEnquiries } from '@/lib/api/admissions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
@@ -6,7 +7,7 @@ import { EnquiryPanel } from '../_components/enquiry-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsEnquiriesPage() {
-  const [{ institutions, periods, grades }, enquiries] = await Promise.all([
+  const [{ institutions, periods, grades, errors }, enquiries] = await Promise.all([
     loadAdmissionsLookups(),
     listEnquiries(),
   ]);
@@ -19,6 +20,7 @@ export default async function AdmissionsEnquiriesPage() {
           Capture leads, schedule follow-ups, and convert qualified prospects into applications.
         </p>
       </div>
+      <LookupLoadError failed={errors} />
       <AdmissionsChrome current="/admissions/enquiries">
         <EnquiryPanel
           institutions={institutions}
