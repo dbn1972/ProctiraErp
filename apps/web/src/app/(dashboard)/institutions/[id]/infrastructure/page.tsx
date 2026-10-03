@@ -249,10 +249,18 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
             >
               <thead>
                 <tr>
-                  <th scope="col" className="py-1 pe-3 font-semibold">Facility</th>
-                  <th scope="col" className="py-1 pe-3 font-semibold">Request</th>
-                  <th scope="col" className="py-1 pe-3 font-semibold">Date</th>
-                  <th scope="col" className="py-1 font-semibold">Status</th>
+                  <th scope="col" className="py-1 pe-3 font-semibold">
+                    Facility
+                  </th>
+                  <th scope="col" className="py-1 pe-3 font-semibold">
+                    Request
+                  </th>
+                  <th scope="col" className="py-1 pe-3 font-semibold">
+                    Date
+                  </th>
+                  <th scope="col" className="py-1 font-semibold">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody>

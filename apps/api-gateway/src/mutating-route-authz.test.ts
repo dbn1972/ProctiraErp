@@ -276,12 +276,18 @@ describe('W1-SEC-02 inventory-backed insufficient-permission denial', () => {
       url: '/api/v1/attendance/reports/export',
       isPlatformAdmin: false,
     });
-    expect(exportGate.ok && exportGate.guard).toMatchObject({ resource: 'attendance', action: 'read' });
+    expect(exportGate.ok && exportGate.guard).toMatchObject({
+      resource: 'attendance',
+      action: 'read',
+    });
     const writeGate = evaluateExactMutatingAuthzGate({
       method: 'POST',
       url: '/api/v1/attendance/student',
       isPlatformAdmin: false,
     });
-    expect(writeGate.ok && writeGate.guard).toMatchObject({ resource: 'attendance', action: 'create' });
+    expect(writeGate.ok && writeGate.guard).toMatchObject({
+      resource: 'attendance',
+      action: 'create',
+    });
   });
 });

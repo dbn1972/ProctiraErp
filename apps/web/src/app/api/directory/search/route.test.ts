@@ -16,7 +16,15 @@ describe('GET /api/directory/search (PRC-M083)', () => {
   beforeEach(() => {
     m.getSession.mockResolvedValue({ user: { sub: 'u', tenantId: 't' } });
     m.listStudents.mockResolvedValue({
-      data: [{ id: 's-101', firstName: 'Zoya', lastName: 'Khan', nationalId: 'ADM-101', dateOfBirth: 'x' }],
+      data: [
+        {
+          id: 's-101',
+          firstName: 'Zoya',
+          lastName: 'Khan',
+          nationalId: 'ADM-101',
+          dateOfBirth: 'x',
+        },
+      ],
     });
     m.listStaff.mockResolvedValue({ data: [] });
   });

@@ -106,7 +106,11 @@ export default async function CounsellingPage() {
   ]);
   const sessions = result.items.map((s) => ({
     ...s,
-    studentName: personDisplayName(studentLabels.get(s.studentId), s.studentName, 'Unknown student'),
+    studentName: personDisplayName(
+      studentLabels.get(s.studentId),
+      s.studentName,
+      'Unknown student',
+    ),
     counsellorName: personDisplayName(
       s.counsellorId ? staffLabels.get(s.counsellorId) : undefined,
       s.counsellorName,

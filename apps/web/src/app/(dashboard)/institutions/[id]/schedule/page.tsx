@@ -88,8 +88,10 @@ export default async function InstitutionSchedulePage(props: PageProps) {
   // parallel (capped) rather than one sequential round-trip each.
   const schedules = await listBellSchedules({ institutionId });
   const bellSchedules = schedules.ok ? schedules.data : [];
-  const periodsBySchedule = await mapWithConcurrency(bellSchedules, LOOKUP_CONCURRENCY, (schedule) =>
-    listPeriods(schedule.id),
+  const periodsBySchedule = await mapWithConcurrency(
+    bellSchedules,
+    LOOKUP_CONCURRENCY,
+    (schedule) => listPeriods(schedule.id),
   );
   for (const periods of periodsBySchedule) {
     if (!periods.ok) continue;
@@ -102,7 +104,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
     ...new Set(
       conflicts
         .map((c) => c.staffId)
-        .filter((id): id is string => Boolean(id) && !staffLabel.has(id as string)),
+        .filter((id): id is string => typeof id === 'string' && id !== '' && !staffLabel.has(id)),
     ),
   ];
   const conflictStaff = await mapWithConcurrency(missingConflictStaff, LOOKUP_CONCURRENCY, (id) =>

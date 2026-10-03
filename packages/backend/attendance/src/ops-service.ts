@@ -104,7 +104,9 @@ export class AttendanceOpsService {
       );
     }
     if (input.attendanceId && input.attendanceId !== record.id) {
-      throw new BusinessRuleError('attendanceId does not match the record for this student and date');
+      throw new BusinessRuleError(
+        'attendanceId does not match the record for this student and date',
+      );
     }
     if (record.status === input.toStatus) {
       throw new BusinessRuleError(`Attendance is already ${record.status}`);

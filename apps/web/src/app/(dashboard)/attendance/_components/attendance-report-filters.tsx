@@ -74,7 +74,9 @@ export function AttendanceReportFilters({
   });
 
   // Cascading picker: only classes of the chosen institution.
-  const classChoices = institutionId ? classes.filter((c) => c.institutionId === institutionId) : [];
+  const classChoices = institutionId
+    ? classes.filter((c) => c.institutionId === institutionId)
+    : [];
 
   // Values of the last successful run, so Export always matches what is shown.
   const [lastRun, setLastRun] = useState<{
@@ -181,7 +183,9 @@ export function AttendanceReportFilters({
                 <SelectContent>
                   {classChoices.length === 0 ? (
                     <SelectItem value={ZERO_UUID} disabled>
-                      {institutionId ? 'No classes for this institution' : 'Select institution first'}
+                      {institutionId
+                        ? 'No classes for this institution'
+                        : 'Select institution first'}
                     </SelectItem>
                   ) : (
                     classChoices.map((cls) => (
@@ -251,11 +255,7 @@ export function AttendanceReportFilters({
         </div>
       ) : null}
       {serverState?.status === 'success' && serverState.data && (
-        <ResultPanel
-          result={serverState.data}
-          onExport={onExport}
-          exporting={exportState.busy}
-        />
+        <ResultPanel result={serverState.data} onExport={onExport} exporting={exportState.busy} />
       )}
     </div>
   );
@@ -365,7 +365,7 @@ function ResultPanel({
             <tbody>
               {(result.studentRows ?? []).map((row) => (
                 <tr key={row.studentId} className="border-b border-border/60">
-<td className="px-2 py-2">
+                  <td className="px-2 py-2">
                     {result.studentLabels[row.studentId] ?? 'Unknown student'}
                   </td>
                   <td className="px-2 py-2 tabular-nums">{row.presentCount}</td>

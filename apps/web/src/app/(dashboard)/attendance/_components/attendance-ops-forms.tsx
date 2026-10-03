@@ -185,7 +185,9 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
-                <span className="font-medium">{labelFor(studentLabels, row.studentId, 'Unknown student')}</span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
                 {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.attendanceDate} · {row.fromStatus} → {row.toStatus} · {row.status}
               </span>
@@ -318,7 +320,9 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
-                <span className="font-medium">{labelFor(studentLabels, row.studentId, 'Unknown student')}</span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
                 {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.fromDate}–{row.toDate} · {row.status}
                 {row.reason ? ` · ${row.reason}` : ''}

@@ -32,11 +32,7 @@ import {
   readParam,
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
-import {
-  getAuditRetention,
-  listAuditLogs,
-  type AuditLogEntry,
-} from '@/lib/api/platform.server';
+import { getAuditRetention, listAuditLogs, type AuditLogEntry } from '@/lib/api/platform.server';
 import { RetentionPolicyForm } from '@/components/audit/audit-integrity-panel';
 import { ChainIntegrityCard } from '@/components/audit/chain-integrity-card';
 import { EmptyState } from '@/components/page';

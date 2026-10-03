@@ -129,7 +129,10 @@ export function DsarExportPanel({
         </p>
       ) : null}
       {result?.status === 'invalid' || result?.status === 'error' ? (
-        <p role="alert" className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 p-3 text-sm text-destructive"
+        >
           {result.message}
         </p>
       ) : null}
@@ -208,7 +211,11 @@ export function DsarExportPanel({
                         ) : (
                           <div className="flex max-w-md flex-wrap gap-1">
                             {entry.changedFields.map((field) => (
-                              <Badge key={field} variant="outline" className="font-mono font-normal">
+                              <Badge
+                                key={field}
+                                variant="outline"
+                                className="font-mono font-normal"
+                              >
                                 {field}
                               </Badge>
                             ))}

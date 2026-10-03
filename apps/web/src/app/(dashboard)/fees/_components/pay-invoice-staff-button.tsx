@@ -95,7 +95,11 @@ export function PayInvoiceStaffButton({
   }
 
   const referenceLabel =
-    method === 'upi' ? 'UPI transaction id' : method === 'cash' ? 'Receipt book number' : 'Reference';
+    method === 'upi'
+      ? 'UPI transaction id'
+      : method === 'cash'
+        ? 'Receipt book number'
+        : 'Reference';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -183,7 +187,12 @@ export function PayInvoiceStaffButton({
             ) : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={!hydrated || pending} data-testid="staff-pay-confirm">

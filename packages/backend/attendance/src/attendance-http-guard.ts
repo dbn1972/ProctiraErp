@@ -36,10 +36,7 @@ export function requireAttendanceAction(
  * Map HTTP method + path to a coarse attendance action.
  * Returns null for device ingest (authenticated via device API key, not staff roles).
  */
-export function attendanceActionForRequest(
-  method: string,
-  url: string,
-): AttendanceAction | null {
+export function attendanceActionForRequest(method: string, url: string): AttendanceAction | null {
   const path = url.split('?')[0] ?? url;
   if (path.endsWith('/ingest') || path.includes('/ingest')) {
     return null;

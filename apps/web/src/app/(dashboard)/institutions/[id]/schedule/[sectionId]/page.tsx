@@ -140,7 +140,7 @@ export default async function SectionRosterPage(props: PageProps) {
     ...new Set(
       meetings
         .map((m) => m.staffId)
-        .filter((id): id is string => Boolean(id) && !staffLabel.has(id as string)),
+        .filter((id): id is string => typeof id === 'string' && id !== '' && !staffLabel.has(id)),
     ),
   ];
   const missingStaff = await mapWithConcurrency(missingStaffIds, LOOKUP_CONCURRENCY, (id) =>
@@ -158,8 +158,10 @@ export default async function SectionRosterPage(props: PageProps) {
 
   const periodLabel = new Map<string, string>();
   const bellSchedules = schedulesResult.ok ? schedulesResult.data : [];
-  const periodsBySchedule = await mapWithConcurrency(bellSchedules, LOOKUP_CONCURRENCY, (schedule) =>
-    listPeriods(schedule.id),
+  const periodsBySchedule = await mapWithConcurrency(
+    bellSchedules,
+    LOOKUP_CONCURRENCY,
+    (schedule) => listPeriods(schedule.id),
   );
   bellSchedules.forEach((schedule, index) => {
     const periods = periodsBySchedule[index];

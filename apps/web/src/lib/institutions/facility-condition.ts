@@ -53,7 +53,9 @@ export function allFacilities(
   return items;
 }
 
-export function repairTargets(hierarchy: InfrastructureHierarchy): Array<{ id: string; name: string }> {
+export function repairTargets(
+  hierarchy: InfrastructureHierarchy,
+): Array<{ id: string; name: string }> {
   return allFacilities(hierarchy)
     .filter((item) => normCondition(item.condition) === 'repair')
     .map(({ id, name }) => ({ id, name }));

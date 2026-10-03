@@ -6,7 +6,10 @@ import { reconciliationFormSchema } from './validation';
 describe('validateReconciliationCsv', () => {
   it('accepts a 1,000-row paise file and normalises it', () => {
     const rows = Array.from({ length: 1000 }, (_, i) => `INV-2026-${i},${1000 + i}`);
-    const res = validateReconciliationCsv(`invoiceNumber,amountCents\n${rows.join('\n')}\n`, 'paise');
+    const res = validateReconciliationCsv(
+      `invoiceNumber,amountCents\n${rows.join('\n')}\n`,
+      'paise',
+    );
     expect(res.ok).toBe(true);
     expect(res.rowCount).toBe(1000);
     expect(res.normalized?.split('\n')[1]).toBe('INV-2026-0,1000');

@@ -148,7 +148,7 @@ export function NewHostelAssignmentForm({
               <option value="">No invoice</option>
               {feeStructures.map((row) => (
                 <option key={row.id} value={row.id}>
-{row.roomType} · {row.termLabel} · {formatMoney(row.amountCents, row.currency)}
+                  {row.roomType} · {row.termLabel} · {formatMoney(row.amountCents, row.currency)}
                 </option>
               ))}
             </select>

@@ -67,7 +67,9 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
 
   const periodLabel = new Map<string, string>();
   const bellSchedules = schedulesResult.ok ? schedulesResult.data : [];
-  const periodResults = await Promise.all(bellSchedules.map((schedule) => listPeriods(schedule.id)));
+  const periodResults = await Promise.all(
+    bellSchedules.map((schedule) => listPeriods(schedule.id)),
+  );
   for (const periods of periodResults) {
     if (!periods.ok) continue;
     for (const period of periods.data) {

@@ -10,7 +10,10 @@ const api = vi.hoisted(() => ({
   listStaff: vi.fn(),
   getStaff: vi.fn(),
 }));
-vi.mock('@/lib/api/students', () => ({ listStudents: api.listStudents, getStudent: api.getStudent }));
+vi.mock('@/lib/api/students', () => ({
+  listStudents: api.listStudents,
+  getStudent: api.getStudent,
+}));
 vi.mock('@/lib/api/staff', () => ({ listStaff: api.listStaff, getStaff: api.getStaff }));
 vi.mock('@/lib/api/institutions', () => ({ listInstitutions: vi.fn(async () => []) }));
 
@@ -46,7 +49,12 @@ describe('load-entity-labels (PRC-M083)', () => {
 
   it('person labels fall back from student to staff', async () => {
     api.getStudent.mockResolvedValue(null);
-    api.getStaff.mockResolvedValue({ id: 't-1', firstName: 'Tara', lastName: 'K', position: 'TGT' });
+    api.getStaff.mockResolvedValue({
+      id: 't-1',
+      firstName: 'Tara',
+      lastName: 'K',
+      position: 'TGT',
+    });
     const labels = await withPersonLabels(new Map(), ['t-1']);
     expect(labels.get('t-1')).toBe('TGT · Tara K');
   });

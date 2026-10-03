@@ -61,9 +61,7 @@ export function LogRepairRequestForm({
           </select>
         </label>
         <div className="min-w-[16rem] flex-1 space-y-1">
-          <Label htmlFor="repair-summary">
-            Repair request
-          </Label>
+          <Label htmlFor="repair-summary">Repair request</Label>
           <Textarea id="repair-summary" name="summary" required rows={2} maxLength={500} />
         </div>
         <Button type="submit" size="sm" disabled={pending} data-testid="submit-repair-request">

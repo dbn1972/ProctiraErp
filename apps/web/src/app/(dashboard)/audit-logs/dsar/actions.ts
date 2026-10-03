@@ -6,8 +6,11 @@
  * action), never on page render or refresh. The gateway records an audit row
  * (actor, subject, entry count) for each export before returning the package.
  */
-import { exportDsarPackage, type DsarPackage } from '@/lib/api/platform.server';
-import type { PlatformAccess } from '@/lib/api/platform.server';
+import {
+  exportDsarPackage,
+  type DsarPackage,
+  type PlatformAccess,
+} from '@/lib/api/platform.server';
 import { loadStaffOptions, loadStudentOptions, withPersonLabels } from '@/lib/load-entity-labels';
 
 const SUBJECT = /^[A-Za-z0-9._@-]{1,200}$/;

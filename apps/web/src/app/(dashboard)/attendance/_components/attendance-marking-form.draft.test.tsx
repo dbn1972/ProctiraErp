@@ -182,10 +182,28 @@ const SCOPE_B = 'tenant-1:user-b';
 const DATE = '2024-01-15';
 
 const ROSTER = [
-  { studentId: 's-1', studentName: 'Alex Doe', enrollmentId: 'e-1', classId: CLASS_10A, gradeId: 'g-1' },
-  { studentId: 's-2', studentName: 'Bea Roe', enrollmentId: 'e-2', classId: CLASS_10A, gradeId: 'g-1' },
+  {
+    studentId: 's-1',
+    studentName: 'Alex Doe',
+    enrollmentId: 'e-1',
+    classId: CLASS_10A,
+    gradeId: 'g-1',
+  },
+  {
+    studentId: 's-2',
+    studentName: 'Bea Roe',
+    enrollmentId: 'e-2',
+    classId: CLASS_10A,
+    gradeId: 'g-1',
+  },
   // Added to the roster after the draft was saved.
-  { studentId: 's-3', studentName: 'Cy New', enrollmentId: 'e-3', classId: CLASS_10A, gradeId: 'g-1' },
+  {
+    studentId: 's-3',
+    studentName: 'Cy New',
+    enrollmentId: 'e-3',
+    classId: CLASS_10A,
+    gradeId: 'g-1',
+  },
 ];
 
 const defaultsFor = (classId: string) => ({

@@ -22,6 +22,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { AuditLogEntry, AuditRetentionConfig, ArchivalResult } from './audit-repository.js';
 import type { AuditService } from './audit-service.js';
 import {
   RecordAuditSchema,
@@ -29,13 +30,7 @@ import {
   QueryAuditLogsSchema,
   AuditEntryParamsSchema,
   SetRetentionConfigSchema,
-  type RecordAuditInput,
-  type RecordAuditBatchInput,
-  type QueryAuditLogsInput,
-  type AuditEntryParams,
-  type SetRetentionConfigInput,
 } from './schemas.js';
-import type { AuditLogEntry, AuditRetentionConfig, ArchivalResult } from './audit-repository.js';
 
 /**
  * Options for registering audit routes.

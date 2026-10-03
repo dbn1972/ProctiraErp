@@ -245,11 +245,15 @@ export function AttendanceMarkingForm({
   // pickers' local state, so a draft for 10A can never surface on 10B
   // (PRC-M080). Disabled without a user scope or a complete selection.
   const draftFormId = attendanceDraftFormId(defaults);
-  const draft = useDraftAutosave<AttendanceDraftSnapshot>(draftFormId ?? 'attendance-marking', undefined, {
-    scope: draftScope,
-    ttlMs: ATTENDANCE_DRAFT_TTL_MS,
-    disabled: !draftScope || !draftFormId,
-  });
+  const draft = useDraftAutosave<AttendanceDraftSnapshot>(
+    draftFormId ?? 'attendance-marking',
+    undefined,
+    {
+      scope: draftScope,
+      ttlMs: ATTENDANCE_DRAFT_TTL_MS,
+      disabled: !draftScope || !draftFormId,
+    },
+  );
   // 'pending' = a stored draft was found and awaits an explicit choice;
   // 'applied' = the user restored it; 'none' = nothing to offer.
   const [draftState, setDraftState] = useState<'none' | 'pending' | 'applied'>('none');

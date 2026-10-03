@@ -169,10 +169,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   });
 
   const loadFailures = collectFailures([
-    [
-      'Academic periods',
-      academicPeriodsError ? { ok: false, error: academicPeriodsError } : null,
-    ],
+    ['Academic periods', academicPeriodsError ? { ok: false, error: academicPeriodsError } : null],
     ['Section meetings', meetingsResult],
     ['Bell schedules', schedulesResult],
     ['Sections', sectionsResult],

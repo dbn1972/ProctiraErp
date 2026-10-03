@@ -17,6 +17,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
 import type { AttendanceService } from './attendance-service.js';
 import {
   RecordStudentAttendanceSchema,
@@ -33,7 +34,6 @@ import {
   type AbsenceThresholdCheckQueryInput,
 } from './schemas.js';
 
-import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
 
 /**
  * Options for registering attendance routes.

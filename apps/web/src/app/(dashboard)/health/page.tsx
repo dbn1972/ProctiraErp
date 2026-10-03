@@ -110,7 +110,11 @@ export default async function HealthRecordsPage() {
   const studentLabels = await loadStudentLabelMap(result.items.map((r) => r.studentId));
   const records = result.items.map((r) => ({
     ...r,
-    studentName: personDisplayName(studentLabels.get(r.studentId), r.studentName, t('unknownStudent')),
+    studentName: personDisplayName(
+      studentLabels.get(r.studentId),
+      r.studentName,
+      t('unknownStudent'),
+    ),
   }));
   const total = records.length;
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;

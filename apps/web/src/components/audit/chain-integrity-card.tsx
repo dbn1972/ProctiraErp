@@ -131,8 +131,8 @@ export function ChainIntegrityCard() {
                 >
                   Break at position #{verification.brokenAt.chainSeq} (entry{' '}
                   <span className="font-mono">{verification.brokenAt.entryId}</span>):{' '}
-                  {verification.brokenAt.reason}. Treat every later entry as unverified and
-                  escalate to the platform security owner.
+                  {verification.brokenAt.reason}. Treat every later entry as unverified and escalate
+                  to the platform security owner.
                 </p>
               ) : null}
             </>

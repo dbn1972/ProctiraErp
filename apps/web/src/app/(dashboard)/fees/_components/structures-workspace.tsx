@@ -29,8 +29,7 @@ import {
   createFeeStructureAction,
   previewBulkInvoiceAction,
 } from '@/lib/fees/actions';
-import type { BulkInvoicePreview } from '@/lib/api/fees';
-import type { FeeStructure } from '@/lib/api/fees';
+import type { BulkInvoicePreview, FeeStructure } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { formatAmount } from './format-amount';
 

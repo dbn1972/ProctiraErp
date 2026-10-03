@@ -309,7 +309,6 @@ describe('Attendance Routes', () => {
     });
   });
 
-
   describe('POST /attendance/reports/export (PRC-M082)', () => {
     it('returns the computed report with an export timestamp', async () => {
       const response = await app.inject({

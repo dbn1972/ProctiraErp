@@ -31,7 +31,12 @@ describe('PayInvoiceStaffButton (PRC-M089)', () => {
     fireEvent.submit(screen.getByTestId('staff-pay-form'));
     await waitFor(() => expect(m.recordStaffPaymentAction).toHaveBeenCalledTimes(1));
     const first = m.recordStaffPaymentAction.mock.calls[0]![0];
-    expect(first).toMatchObject({ invoiceId: ID, method: 'upi', amount: 400.5, reference: 'UTR123' });
+    expect(first).toMatchObject({
+      invoiceId: ID,
+      method: 'upi',
+      amount: 400.5,
+      reference: 'UTR123',
+    });
     // Retry reuses the same idempotency key.
     fireEvent.submit(screen.getByTestId('staff-pay-form'));
     await waitFor(() => expect(m.recordStaffPaymentAction).toHaveBeenCalledTimes(2));

@@ -182,10 +182,7 @@ export async function getAttendanceReportAction(
     const labels = await studentLabelsFor(result);
     return { status: 'success', data: { ...result, studentLabels: Object.fromEntries(labels) } };
   } catch (error) {
-    return toErrorState<AttendanceReportView>(
-      error,
-      'Failed to calculate attendance percentage',
-    );
+    return toErrorState<AttendanceReportView>(error, 'Failed to calculate attendance percentage');
   }
 }
 

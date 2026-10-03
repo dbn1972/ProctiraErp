@@ -56,26 +56,31 @@ export const feeStructureFormSchema = z.object({
   partCount: z.coerce.number().int().min(1).max(24).optional(),
 });
 
-export const bulkInvoiceFormSchema = z.object({
-  structureId: z.string().regex(UUID, 'Structure is required'),
-  classId: z.string().regex(UUID).optional().or(z.literal('')),
-  studentIds: z
-    .string()
-    .optional()
-    .refine((raw) => parseStudentIdList(raw).every((id) => UUID.test(id)), {
-      message: 'Each student ID must be a UUID',
-    }),
-  dueAt: z
-    .string()
-    .optional()
-    .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
-  /** True when the chosen structure itself is tied to a class or grade. */
-  structureScoped: z.boolean().optional(),
-}).refine(
-  // PRC-M086: never submit an unscoped bulk run (it would bill every student).
-  (d) => Boolean(d.classId) || parseStudentIdList(d.studentIds).length > 0 || d.structureScoped === true,
-  { message: 'Choose a class or add students to invoice', path: ['classId'] },
-);
+export const bulkInvoiceFormSchema = z
+  .object({
+    structureId: z.string().regex(UUID, 'Structure is required'),
+    classId: z.string().regex(UUID).optional().or(z.literal('')),
+    studentIds: z
+      .string()
+      .optional()
+      .refine((raw) => parseStudentIdList(raw).every((id) => UUID.test(id)), {
+        message: 'Each student ID must be a UUID',
+      }),
+    dueAt: z
+      .string()
+      .optional()
+      .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
+    /** True when the chosen structure itself is tied to a class or grade. */
+    structureScoped: z.boolean().optional(),
+  })
+  .refine(
+    // PRC-M086: never submit an unscoped bulk run (it would bill every student).
+    (d) =>
+      Boolean(d.classId) ||
+      parseStudentIdList(d.studentIds).length > 0 ||
+      d.structureScoped === true,
+    { message: 'Choose a class or add students to invoice', path: ['classId'] },
+  );
 
 /**
  * PRC-M089: staff "Record payment". Real methods need a reference (UPI txn id

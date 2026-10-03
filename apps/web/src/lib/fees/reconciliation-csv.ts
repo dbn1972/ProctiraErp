@@ -72,9 +72,7 @@ export function validateReconciliationCsv(csv: string, unit: ReconAmountUnit): R
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop();
   if (lines.length === 0) return fail([{ line: 0, message: 'The file is empty.' }]);
 
-  const header = lines[0]!
-    .split(',')
-    .map((h) => h.trim().replace(/^"|"$/g, '').toLowerCase());
+  const header = lines[0]!.split(',').map((h) => h.trim().replace(/^"|"$/g, '').toLowerCase());
   const expectedAmount = unit === 'paise' ? 'amountcents' : 'amount';
   if (header.length !== 2 || header[0] !== 'invoicenumber' || header[1] !== expectedAmount) {
     return fail([
@@ -112,7 +110,11 @@ export function validateReconciliationCsv(csv: string, unit: ReconAmountUnit): R
       return;
     }
     const [invoiceNumber, amountRaw] = cells as [string, string];
-    if (!invoiceNumber || invoiceNumber.length > MAX_INVOICE_NUMBER || !/^[\w.\-/]+$/.test(invoiceNumber)) {
+    if (
+      !invoiceNumber ||
+      invoiceNumber.length > MAX_INVOICE_NUMBER ||
+      !/^[\w.\-/]+$/.test(invoiceNumber)
+    ) {
       issues.push({ line, message: 'Invoice number is missing or invalid.' });
       return;
     }
