@@ -210,7 +210,7 @@ export async function listExaminations(): Promise<Examination[]> {
 
 /** Fetch a single examination by ID. */
 export async function getExamination(id: string): Promise<Examination | null> {
-  const result = await gatewayFetch<ExaminationApiRecord>(`/examinations/${id}`, {
+  const result = await gatewayFetch<ExaminationApiRecord>(`/examinations/${encodeURIComponent(id)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -234,7 +234,7 @@ export async function listExaminationCandidates(
   examinationId: string,
 ): Promise<ExaminationCandidate[]> {
   const result = await gatewayFetch<{ data: ExaminationCandidate[] }>(
-    `/examinations/${examinationId}/candidates`,
+    `/examinations/${encodeURIComponent(examinationId)}/candidates`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -252,7 +252,7 @@ export async function registerExaminationCandidate(
   input: RegisterCandidateInput,
 ): Promise<ExaminationCandidate> {
   const result = await gatewayFetch<ExaminationCandidate>(
-    `/examinations/${examinationId}/candidates`,
+    `/examinations/${encodeURIComponent(examinationId)}/candidates`,
     { method: 'POST', json: input },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -288,10 +288,10 @@ export async function getExaminationResultsView(
 ): Promise<ExaminationResultsView> {
   const [marks, publication] = await Promise.all([
     gatewayFetch<{ data: MarksCandidateRecord[] }>(
-      `/examinations/${examination.id}/results/marks`,
+      `/examinations/${encodeURIComponent(examination.id)}/results/marks`,
       { throwOnError: false, next: { revalidate: 0 } },
     ),
-    gatewayFetch<PublicationRecord>(`/examinations/${examination.id}/results`, {
+    gatewayFetch<PublicationRecord>(`/examinations/${encodeURIComponent(examination.id)}/results`, {
       throwOnError: false,
       next: { revalidate: 0 },
     }),
@@ -346,7 +346,7 @@ export async function recordExaminationMarks(
   input: RecordMarksInput,
 ): Promise<{ candidateCount: number; subjectResultCount: number }> {
   const result = await gatewayFetch<{ candidateCount: number; subjectResultCount: number }>(
-    `/examinations/${examinationId}/results/marks`,
+    `/examinations/${encodeURIComponent(examinationId)}/results/marks`,
     { method: 'POST', json: input },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -358,7 +358,7 @@ export async function publishExaminationResults(
   examinationId: string,
 ): Promise<{ processedCount: number; incompleteCount: number }> {
   const result = await gatewayFetch<{ processedCount: number; incompleteCount: number }>(
-    `/examinations/${examinationId}/results/publish`,
+    `/examinations/${encodeURIComponent(examinationId)}/results/publish`,
     { method: 'POST' },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -393,7 +393,7 @@ function toDocument(examinationId: string, job: DocumentJobRecord): ExaminationD
     // forwards the session bearer token to the gateway.
     downloadPath:
       job.status === 'completed'
-        ? `/api/examinations/${examinationId}/documents/${job.id}/download`
+        ? `/api/examinations/${encodeURIComponent(examinationId)}/documents/${encodeURIComponent(job.id)}/download`
         : null,
   };
 }
@@ -403,7 +403,7 @@ export async function listExaminationDocuments(
   examinationId: string,
 ): Promise<ExaminationDocument[]> {
   const result = await gatewayFetch<{ jobs: DocumentJobRecord[] }>(
-    `/examinations/${examinationId}/documents/jobs`,
+    `/examinations/${encodeURIComponent(examinationId)}/documents/jobs`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return (result.data?.jobs ?? [])
@@ -421,12 +421,12 @@ export async function generateExaminationDocuments(
   documentType: ExaminationDocumentType,
 ): Promise<ExaminationDocument> {
   const queued = await gatewayFetch<DocumentJobRecord>(
-    `/examinations/${examinationId}/documents/generate`,
+    `/examinations/${encodeURIComponent(examinationId)}/documents/generate`,
     { method: 'POST', json: { documentType } },
   );
   if (!queued.data) throw new Error('Empty response from examination-service');
   const processed = await gatewayFetch<DocumentJobRecord>(
-    `/examinations/${examinationId}/documents/jobs/${queued.data.id}/process`,
+    `/examinations/${encodeURIComponent(examinationId)}/documents/jobs/${encodeURIComponent(queued.data.id)}/process`,
     { method: 'POST', throwOnError: false },
   );
   return toDocument(examinationId, processed.data ?? queued.data);
@@ -484,7 +484,7 @@ export interface ExamOpsReevaluation {
 
 export async function listExamSessions(examinationId: string): Promise<ExamOpsSession[]> {
   const result = await gatewayFetch<{ data: ExamOpsSession[] }>(
-    `/examinations/${examinationId}/sessions`,
+    `/examinations/${encodeURIComponent(examinationId)}/sessions`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -501,7 +501,7 @@ export async function createExamSession(
     centerId?: string;
   },
 ): Promise<ExamOpsSession> {
-  const result = await gatewayFetch<ExamOpsSession>(`/examinations/${examinationId}/sessions`, {
+  const result = await gatewayFetch<ExamOpsSession>(`/examinations/${encodeURIComponent(examinationId)}/sessions`, {
     method: 'POST',
     json: input,
   });
@@ -515,7 +515,7 @@ export async function allocateExamInvigilator(
   staffId: string,
 ): Promise<ExamOpsInvigilator> {
   const result = await gatewayFetch<ExamOpsInvigilator>(
-    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
+    `/examinations/${encodeURIComponent(examinationId)}/sessions/${encodeURIComponent(sessionId)}/invigilators`,
     { method: 'POST', json: { staffId } },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -527,7 +527,7 @@ export async function listExamInvigilators(
   sessionId: string,
 ): Promise<ExamOpsInvigilator[]> {
   const result = await gatewayFetch<{ data: ExamOpsInvigilator[] }>(
-    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
+    `/examinations/${encodeURIComponent(examinationId)}/sessions/${encodeURIComponent(sessionId)}/invigilators`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -535,7 +535,7 @@ export async function listExamInvigilators(
 
 export async function listExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
   const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
-    `/examinations/${examinationId}/seating`,
+    `/examinations/${encodeURIComponent(examinationId)}/seating`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -543,7 +543,7 @@ export async function listExamSeating(examinationId: string): Promise<ExamOpsSea
 
 export async function generateExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
   const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
-    `/examinations/${examinationId}/seating/generate`,
+    `/examinations/${encodeURIComponent(examinationId)}/seating/generate`,
     { method: 'POST', json: {} },
   );
   return result.data?.data ?? [];
@@ -551,7 +551,7 @@ export async function generateExamSeating(examinationId: string): Promise<ExamOp
 
 export async function listExamMarksPairs(examinationId: string): Promise<ExamOpsMarksPair[]> {
   const result = await gatewayFetch<{ data: ExamOpsMarksPair[] }>(
-    `/examinations/${examinationId}/marks/entries`,
+    `/examinations/${encodeURIComponent(examinationId)}/marks/entries`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -562,7 +562,7 @@ export async function recordExamDoubleEntry(
   input: { candidateId: string; subjectId: string; entryNo: 1 | 2; marks: number },
 ): Promise<{ varianceFlag: boolean }> {
   const result = await gatewayFetch<{ varianceFlag: boolean }>(
-    `/examinations/${examinationId}/marks/entries`,
+    `/examinations/${encodeURIComponent(examinationId)}/marks/entries`,
     { method: 'POST', json: input },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -574,7 +574,7 @@ export async function resolveExamMarks(
   input: { candidateId: string; subjectId: string; finalMarks: number },
 ): Promise<ExamOpsMarksPair> {
   const result = await gatewayFetch<ExamOpsMarksPair>(
-    `/examinations/${examinationId}/marks/resolve`,
+    `/examinations/${encodeURIComponent(examinationId)}/marks/resolve`,
     { method: 'POST', json: input },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -583,7 +583,7 @@ export async function resolveExamMarks(
 
 export async function listExamReevaluations(examinationId: string): Promise<ExamOpsReevaluation[]> {
   const result = await gatewayFetch<{ data: ExamOpsReevaluation[] }>(
-    `/examinations/${examinationId}/reevaluations`,
+    `/examinations/${encodeURIComponent(examinationId)}/reevaluations`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -594,7 +594,7 @@ export async function createExamReevaluation(
   input: { candidateId: string; subjectId: string; originalMarks?: number; notes?: string },
 ): Promise<ExamOpsReevaluation> {
   const result = await gatewayFetch<ExamOpsReevaluation>(
-    `/examinations/${examinationId}/reevaluations`,
+    `/examinations/${encodeURIComponent(examinationId)}/reevaluations`,
     { method: 'POST', json: input },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -607,7 +607,7 @@ export async function assignExamReevaluation(
   evaluatorId: string,
 ): Promise<ExamOpsReevaluation> {
   const result = await gatewayFetch<ExamOpsReevaluation>(
-    `/examinations/${examinationId}/reevaluations/${requestId}/assign`,
+    `/examinations/${encodeURIComponent(examinationId)}/reevaluations/${encodeURIComponent(requestId)}/assign`,
     { method: 'POST', json: { evaluatorId } },
   );
   if (!result.data) throw new Error('Empty response from examination-service');
@@ -621,7 +621,7 @@ export async function completeExamReevaluation(
   notes?: string,
 ): Promise<ExamOpsReevaluation> {
   const result = await gatewayFetch<ExamOpsReevaluation>(
-    `/examinations/${examinationId}/reevaluations/${requestId}/complete`,
+    `/examinations/${encodeURIComponent(examinationId)}/reevaluations/${encodeURIComponent(requestId)}/complete`,
     { method: 'POST', json: { revisedMarks, notes } },
   );
   if (!result.data) throw new Error('Empty response from examination-service');

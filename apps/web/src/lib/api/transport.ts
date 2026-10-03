@@ -76,7 +76,7 @@ export async function listTransportRoutes(): Promise<TransportRoute[]> {
 }
 
 export async function getTransportRoute(id: string): Promise<TransportRoute | null> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/transport/routes/${id}`, {
+  const result = await gatewayFetch<Record<string, unknown>>(`/transport/routes/${encodeURIComponent(id)}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });

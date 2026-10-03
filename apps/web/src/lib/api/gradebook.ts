@@ -380,7 +380,7 @@ export async function createBoardExportJob(input: {
 
 export async function getBoardExportJob(id: string): Promise<GradebookLoadResult<BoardExportJob>> {
   try {
-    const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${id}`, {
+    const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${encodeURIComponent(id)}`, {
       next: { revalidate: 0 },
     });
     if (!result.data) {
@@ -415,7 +415,7 @@ export async function transitionGradeEntry(
   id: string,
   action: GradeWorkflowAction,
 ): Promise<GradeEntry> {
-  const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${id}/transition`, {
+  const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${encodeURIComponent(id)}/transition`, {
     method: 'POST',
     json: { action },
   });
