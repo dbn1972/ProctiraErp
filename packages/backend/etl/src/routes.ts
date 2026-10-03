@@ -30,6 +30,7 @@ import {
   type ExecutionError,
 } from './schemas.js';
 import { redactConnectorSecrets } from './secret-redaction.js';
+import { listDestinationConnections } from './connectors/connection-registry.js';
 
 /**
  * Options for registering ETL routes.
@@ -131,6 +132,20 @@ export async function registerETLRoutes(
     return undefined;
   });
 
+  /**
+   * GET /pipelines/connections
+   * PRC-M109: server-managed destination connections (ids + labels only).
+   */
+  fastify.get(`${prefix}/connections`, async function connectionsHandler(request, reply) {
+    if (!getTenantId(request)) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    return reply.status(200).send({ data: listDestinationConnections() });
+  });
   /**
    * POST /pipelines
    * Create a new pipeline definition.

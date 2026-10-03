@@ -23,32 +23,48 @@ export async function listPipelines(): Promise<EtlPipeline[]> {
   return result.data?.data ?? [];
 }
 
+/** PRC-M109: server-managed destination connection (no host/credentials). */
+export interface EtlConnection {
+  id: string;
+  label: string;
+  type: string;
+}
+
+export async function listEtlConnections(): Promise<EtlConnection[] | null> {
+  const result = await gatewayFetch<{ data: EtlConnection[] }>('/pipelines/connections', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  if (!result.ok) return null;
+  return result.data?.data ?? [];
+}
+
+export type PipelineSourceInput =
+  | { type: 'csv'; fileContent: string; hasHeader: boolean }
+  | { type: 'rest_api'; url: string; method: 'GET' };
+
+/**
+ * PRC-M109: only user-supplied source config and a connection id are sent;
+ * the destination host/credentials are resolved by the ETL service.
+ */
 export async function createPipeline(input: {
   name: string;
   description?: string;
-  sourceType: 'csv' | 'rest_api';
+  source: PipelineSourceInput;
+  connectionId: string;
+  table: string;
+  fieldMappings: Array<{ sourceField: string; destinationField: string }>;
+  enabled: boolean;
 }): Promise<EtlPipeline> {
-  const source =
-    input.sourceType === 'csv'
-      ? { type: 'csv' as const, fileContent: 'id,name\n1,demo', hasHeader: true }
-      : { type: 'rest_api' as const, url: 'https://example.invalid/data', method: 'GET' as const };
   const result = await gatewayFetch<EtlPipeline>('/pipelines', {
     method: 'POST',
     json: {
       name: input.name,
       description: input.description,
-      source,
-      destination: {
-        type: 'postgresql',
-        host: 'localhost',
-        port: 5432,
-        database: 'dw',
-        username: 'etl',
-        password: 'etl',
-        table: 'etl_staging',
-      },
-      fieldMappings: [{ sourceField: 'id', destinationField: 'id' }],
-      enabled: true,
+      source: input.source,
+      destination: { type: 'connection', connectionId: input.connectionId, table: input.table },
+      fieldMappings: input.fieldMappings,
+      enabled: input.enabled,
     },
   });
   if (!result.data) {
