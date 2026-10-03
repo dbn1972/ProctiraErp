@@ -155,6 +155,22 @@ export const TenantConfigSchema = Type.Object({
 
 export type TenantConfig = Static<typeof TenantConfigSchema>;
 
+/**
+ * PRC-M391: config accepted by tenant CRUD. `theme` is owned by the branding
+ * revision pipeline (publish/rollback) and is rejected here, as is any other
+ * unknown top-level key.
+ */
+export const TenantConfigInputSchema = Type.Object(
+  {
+    branding: Type.Optional(BrandingConfigSchema),
+    locale: Type.Optional(LocaleConfigSchema),
+    features: Type.Optional(FeatureConfigSchema),
+    security: Type.Optional(SecurityConfigSchema),
+  },
+  { additionalProperties: false },
+);
+export type TenantConfigInput = Static<typeof TenantConfigInputSchema>;
+
 // ─── Tenant CRUD Schemas ─────────────────────────────────────────────────────
 
 /**
@@ -175,7 +191,7 @@ export const CreateTenantSchema = Type.Object({
       description: 'Deployment region (e.g., "us-east-1", "eu-west-1")',
     }),
   ),
-  config: Type.Optional(TenantConfigSchema),
+  config: Type.Optional(TenantConfigInputSchema),
   admin: Type.Object(
     {
       firstName: Type.String({ minLength: 1, maxLength: 100, description: 'Admin first name' }),
@@ -202,7 +218,7 @@ export const UpdateTenantSchema = Type.Object({
   ),
   plan: Type.Optional(Type.String({ maxLength: 100, description: 'Plan identifier' })),
   region: Type.Optional(Type.String({ maxLength: 50, description: 'Deployment region' })),
-  config: Type.Optional(TenantConfigSchema),
+  config: Type.Optional(TenantConfigInputSchema),
 });
 
 export type UpdateTenantInput = Static<typeof UpdateTenantSchema>;
@@ -280,12 +296,7 @@ export type DecommissionTenantInput = Static<typeof DecommissionTenantSchema>;
 /**
  * Schema for updating tenant configuration.
  */
-export const UpdateConfigSchema = Type.Object({
-  branding: Type.Optional(BrandingConfigSchema),
-  locale: Type.Optional(LocaleConfigSchema),
-  features: Type.Optional(FeatureConfigSchema),
-  security: Type.Optional(SecurityConfigSchema),
-});
+export const UpdateConfigSchema = TenantConfigInputSchema;
 
 export type UpdateConfigInput = Static<typeof UpdateConfigSchema>;
 
