@@ -58,6 +58,15 @@ export interface RegistrationRoutesOptions {
   /** PRC-M331/M332: per-identifier throttles for anonymous endpoints. */
   publicThrottle?: PublicRegistrationThrottle;
   /**
+   * PRC-M332: bot challenge on anonymous submit. When required (option or
+   * `REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1`), the `x-registration-challenge`
+   * header is mandatory; a missing verifier fails closed (503).
+   */
+  submitChallenge?: {
+    required?: boolean;
+    verify?: (input: { token: string; ip: string; tenantId: string }) => Promise<boolean>;
+  };
+  /**
    * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
    * in-memory only when NODE_ENV !== 'production'.
    */
@@ -220,6 +229,11 @@ export async function registerRegistrationRoutes(
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
+  const submitChallenge = {
+    required:
+      options.submitChallenge?.required ?? process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1',
+    verify: options.submitChallenge?.verify,
+  };
   if (process.env.NODE_ENV === 'production' && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
@@ -302,6 +316,33 @@ export async function registerRegistrationRoutes(
       }
 
       const tenantId = publicTenantId(request);
+      // PRC-M332: optional bot challenge (CAPTCHA / proof-of-work) on submit.
+      if (submitChallenge.required) {
+        const token = request.headers['x-registration-challenge'];
+        if (typeof token !== 'string' || token.length === 0 || token.length > 4096) {
+          return reply.status(400).send({
+            code: 'CHALLENGE_REQUIRED',
+            message: 'A bot-challenge token is required to submit an application',
+            statusCode: 400,
+          });
+        }
+        if (!submitChallenge.verify) {
+          // Fail closed: challenge required but no verifier wired.
+          return reply.status(503).send({
+            code: 'CHALLENGE_UNAVAILABLE',
+            message: 'Registration is temporarily unavailable',
+            statusCode: 503,
+          });
+        }
+        const ok = await submitChallenge.verify({ token, ip: request.ip, tenantId }).catch(() => false);
+        if (!ok) {
+          return reply.status(400).send({
+            code: 'CHALLENGE_FAILED',
+            message: 'The bot-challenge token is invalid or expired',
+            statusCode: 400,
+          });
+        }
+      }
       const submissionKey = submissionKeyFromRequest(request);
       if (!submissionKey) {
         return reply.status(400).send({
@@ -361,6 +402,15 @@ export async function registerRegistrationRoutes(
     const locked = throttle.statusFailures.check(trackingKey);
     if (!locked.allowed) {
       return tooManyRequests(reply, locked.retryAfterSeconds);
+    }
+    // PRC-M332: bound total lookups per tracking number (any outcome).
+    const burst = throttle.statusTracking.hit(trackingKey);
+    if (!burst.allowed) {
+      request.log.warn(
+        { event: 'registration.status.burst', trackingNumber: paramsResult.data.trackingNumber },
+        'Registration status lookup burst throttled',
+      );
+      return tooManyRequests(reply, burst.retryAfterSeconds);
     }
     try {
       const status = await registrationService.checkStatus(
