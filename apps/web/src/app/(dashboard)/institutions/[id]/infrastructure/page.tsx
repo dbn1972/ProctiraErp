@@ -17,21 +17,17 @@ import { Card, CardContent } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { ApiClientError, getInfrastructureHierarchy } from '@/lib/institutions/api';
 import type { InfrastructureHierarchy } from '@/lib/institutions/types';
+import {
+  normCondition,
+  repairRequestTargets,
+  repairTargets,
+} from '@/lib/institutions/facility-condition';
 
 interface InfrastructurePageProps {
   params: Promise<{ id: string }>;
 }
 
 /* ──────────────────────────────── condition helpers ── */
-
-function normCondition(condition: string): 'good' | 'fair' | 'repair' | 'unknown' {
-  const c = condition.toUpperCase();
-  if (c.includes('GOOD') || c.includes('AVAILABLE') || c.includes('NEW')) return 'good';
-  if (c.includes('REPAIR') || c.includes('POOR') || c.includes('DAMAGED') || c.includes('BAD'))
-    return 'repair';
-  if (c.includes('FAIR') || c.includes('AVERAGE')) return 'fair';
-  return 'unknown';
-}
 
 const CONDITION_PILL: Record<string, string> = {
   good: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
@@ -122,26 +118,6 @@ function InfraRow({
 }
 
 /* ──────────────────────────────── repair counter ── */
-
-function repairTargets(hierarchy: InfrastructureHierarchy): Array<{ id: string; name: string }> {
-  const items: Array<{ id: string; name: string }> = [];
-  for (const land of hierarchy.lands) {
-    if (normCondition(land.condition) === 'repair') items.push({ id: land.id, name: land.name });
-    for (const building of land.buildings) {
-      if (normCondition(building.condition) === 'repair')
-        items.push({ id: building.id, name: building.name });
-      for (const floor of building.floors) {
-        if (normCondition(floor.condition) === 'repair')
-          items.push({ id: floor.id, name: floor.name });
-        for (const room of floor.rooms) {
-          if (normCondition(room.condition) === 'repair')
-            items.push({ id: room.id, name: room.name });
-        }
-      }
-    }
-  }
-  return items;
-}
 
 function facilityNameMap(hierarchy: InfrastructureHierarchy): Map<string, string> {
   const names = new Map<string, string>();
@@ -249,47 +225,62 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                 </a>
               ))}
             </div>
-            {!result.error ? (
-              <LogRepairRequestForm
-                institutionId={params.id}
-                targets={repairTargets(result.hierarchy as InfrastructureHierarchy)}
-              />
-            ) : null}
-            {repairsList.ok && repairsList.items.length > 0 ? (
-              <table
-                className="mt-3 w-full border-collapse text-start text-sm"
-                data-testid="repair-request-list"
-              >
-                <thead>
-                  <tr className="text-amber-900 dark:text-amber-200">
-                    <th className="py-1 pe-3 font-semibold">Facility</th>
-                    <th className="py-1 pe-3 font-semibold">Request</th>
-                    <th className="py-1 pe-3 font-semibold">Date</th>
-                    <th className="py-1 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {repairsList.items.map((row) => (
-                    <tr key={row.id} className="border-t border-amber-200/80 dark:border-amber-800">
-                      <td className="py-1 pe-3">
-                        {facilityNames.get(row.infrastructureId) ?? 'Unknown facility'}
-                      </td>
-                      <td className="py-1 pe-3">{row.summary}</td>
-                      <td className="py-1 pe-3 tabular-nums">{formatRepairDate(row.createdAt)}</td>
-                      <td className="py-1 capitalize">{row.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : null}
-            {!repairsList.ok ? (
-              <p className="mt-2 text-sm" role="alert" data-testid="repair-request-error">
-                Repair requests could not be loaded.
-              </p>
-            ) : null}
           </div>
         </div>
       )}
+      {/* ── Repair requests (PRC-M098: independent of the repair banner) ── */}
+      {!result.error ? (
+        <section
+          aria-labelledby="repair-requests-heading"
+          className="rounded-lg border border-border bg-card p-4 text-sm"
+          data-testid="repair-requests"
+        >
+          <h3 id="repair-requests-heading" className="text-base font-semibold text-foreground">
+            Repair requests
+          </h3>
+          <LogRepairRequestForm
+            institutionId={params.id}
+            targets={repairRequestTargets(result.hierarchy as InfrastructureHierarchy)}
+          />
+          {repairsList.ok && repairsList.items.length > 0 ? (
+            <table
+              className="mt-3 w-full border-collapse text-start text-sm"
+              data-testid="repair-request-list"
+            >
+              <thead>
+                <tr>
+                  <th scope="col" className="py-1 pe-3 font-semibold">Facility</th>
+                  <th scope="col" className="py-1 pe-3 font-semibold">Request</th>
+                  <th scope="col" className="py-1 pe-3 font-semibold">Date</th>
+                  <th scope="col" className="py-1 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {repairsList.items.map((row) => (
+                  <tr key={row.id} className="border-t border-border">
+                    <td className="py-1 pe-3">
+                      {facilityNames.get(row.infrastructureId) ?? 'Unknown facility'}
+                    </td>
+                    <td className="py-1 pe-3">{row.summary}</td>
+                    <td className="py-1 pe-3 tabular-nums">{formatRepairDate(row.createdAt)}</td>
+                    <td className="py-1 capitalize">{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+          {!repairsList.ok ? (
+            <p className="mt-2 text-sm" role="alert" data-testid="repair-request-error">
+              Repair requests could not be loaded.
+            </p>
+          ) : null}
+          {repairsList.ok && repairsList.items.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground" data-testid="repair-request-empty">
+              No repair requests logged yet.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {!result.error && result.hierarchy.lands.length > 0 ? (
         <FacilityEditor
