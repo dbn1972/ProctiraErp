@@ -101,6 +101,34 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
+  async startErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null> {
+    const idx = this.erasures.findIndex((e) => e.id === requestId && e.tenantId === tenantId);
+    if (idx < 0) return null;
+    const before = this.erasures[idx]!;
+    if (before.status !== 'approved') return null;
+    const erasure: ErasureRequestEntity = {
+      ...before,
+      status: 'in_progress',
+      reviewedBy: patch.reviewedBy,
+      statusReason: patch.statusReason,
+      updatedAt: new Date(),
+    };
+    this.erasures[idx] = erasure;
+    try {
+      const created = await this.createAnonymizationJob(job);
+      return { erasure, job: created };
+    } catch (error) {
+      // Transaction semantics: roll the status flip back.
+      this.erasures[idx] = before;
+      throw error;
+    }
+  }
+
   async findErasureRequestById(id: string, tenantId: string) {
     return this.erasures.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }

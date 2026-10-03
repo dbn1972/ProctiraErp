@@ -80,8 +80,9 @@ describe('PrivacyService legal hold + erasure (W1-SEC-06)', () => {
     await service.transitionErasureRequest(req.id, TENANT_A, 'under_review', 'officer');
     await service.transitionErasureRequest(req.id, TENANT_A, 'approved', 'officer');
     const done = await service.executeErasure(req.id, TENANT_A, 'officer');
-    // Erasure must not claim completed wipe when residuals remain.
-    expect(done.status).toBe('in_progress');
+    // Erasure must not claim completed wipe when residuals remain; PRC-M320: it returns to
+    // `approved` so execution can be retried.
+    expect(done.status).toBe('approved');
     expect(done.statusReason).toMatch(/residual|cascade/i);
     const jobs = await repository.listAnonymizationJobs(TENANT_A);
     expect(jobs).toHaveLength(1);

@@ -133,6 +133,17 @@ export interface PrivacyRepository {
      */
     options?: { expectedStatus?: ErasureRequestEntity['status'] },
   ): Promise<ErasureRequestEntity | null>;
+  /**
+   * PRC-M320: atomically move an erasure `approved` -> `in_progress` AND create its
+   * anonymization job in one transaction. Returns null (nothing written) when the
+   * request is no longer `approved`; if the job insert fails the status flip is rolled back.
+   */
+  startErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
   listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]>;
 
