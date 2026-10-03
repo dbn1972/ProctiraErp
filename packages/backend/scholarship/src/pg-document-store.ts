@@ -58,7 +58,7 @@ async function insertAudit(client: PgQueryable, audit: ScholarshipDocumentAudit)
     `INSERT INTO audit_log_entries (
        id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
        ip_address, occurred_at, metadata
-     ) VALUES ($1,$2,'scholarship_application_document',$3,$4,$5,$6,$7,now(),$8::jsonb)`,
+     ) VALUES ($1,$2,$9,$3,$4,$5,$6,$7,now(),$8::jsonb)`,
     [
       randomUUID(),
       audit.tenantId,
@@ -68,6 +68,7 @@ async function insertAudit(client: PgQueryable, audit: ScholarshipDocumentAudit)
       audit.userName,
       audit.ipAddress,
       JSON.stringify(audit.metadata),
+      audit.entityType ?? 'scholarship_application_document',
     ],
   );
 }
@@ -185,6 +186,12 @@ export class PgScholarshipDocumentStore implements ScholarshipDocumentStore {
       if (!row) return null;
       await insertAudit(client, audit);
       return mapRow(row);
+    });
+  }
+  async recordAccess(audit: ScholarshipDocumentAudit): Promise<void> {
+    await this.ready();
+    await withPgTenant(this.pool, audit.tenantId, async (client) => {
+      await insertAudit(client, audit);
     });
   }
 }

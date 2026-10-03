@@ -12,10 +12,11 @@ import {
   sha256Hex,
   signDocumentDownloadToken,
 } from './document-bytes.js';
-import type {
-  ScholarshipApplicationDocument,
-  ScholarshipDocumentAudit,
-  ScholarshipDocumentStore,
+import {
+  SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY,
+  type ScholarshipApplicationDocument,
+  type ScholarshipDocumentAudit,
+  type ScholarshipDocumentStore,
 } from './document-store.js';
 import type { ScholarshipApplicationEntity } from './scholarship-repository.js';
 import type { ScholarshipService } from './scholarship-service.js';
@@ -242,6 +243,36 @@ export class ScholarshipDocumentService {
     );
     if (!updated) throw new NotFoundError('Document not found');
     return publicDocument(updated);
+  }
+
+  /**
+   * PRC-M353: record who viewed/downloaded applicant documents (minors'
+   * financial/identity data). Fails closed: if the access log cannot be
+   * written the caller must not serve the data.
+   */
+  async recordAccess(input: {
+    tenantId: string;
+    actor: Pick<ScholarshipActor, 'userId' | 'userName' | 'ipAddress'>;
+    action: 'list' | 'download_link' | 'content' | 'token_download';
+    applicationId: string | null;
+    documentId: string | null;
+    purpose?: string;
+  }): Promise<void> {
+    await this.deps.documents.recordAccess({
+      tenantId: input.tenantId,
+      entityId: input.documentId ?? input.applicationId ?? 'unknown',
+      entityType: SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY,
+      operation: 'CREATE',
+      userId: input.actor.userId || 'unknown',
+      userName: input.actor.userName,
+      ipAddress: input.actor.ipAddress,
+      metadata: {
+        action: input.action,
+        applicationId: input.applicationId,
+        documentId: input.documentId,
+        purpose: input.purpose ?? 'scholarship_review',
+      },
+    });
   }
 
   private async requireRow(tenantId: string, documentId: string) {
