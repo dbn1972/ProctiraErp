@@ -10,7 +10,6 @@
  */
 import { useState } from 'react';
 import { Download } from 'lucide-react';
-
 import {
   Button,
   Input,
@@ -21,52 +20,101 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@proctira/ui/components';
-import type { AttendancePercentageResult } from '@/lib/api/attendance';
-
-import { getAttendanceReportAction, type ActionState } from '../actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import {
+  exportAttendanceReportAction,
+  getAttendanceReportAction,
+  type ActionState,
+  type AttendanceReportView,
+} from '../actions';
 
 interface InstitutionOption {
   id: string;
   name: string;
 }
 
+/** Class with its owning institution, for the cascading picker (PRC-M082). */
+export interface ReportClassOption {
+  id: string;
+  name: string;
+  institutionId: string;
+}
+
 interface AttendanceReportFiltersProps {
   institutions: InstitutionOption[];
+  classes?: ReportClassOption[];
+  studentOptions?: EntityLabelOption[];
+  /** Student directory size when `studentOptions` is a capped page. */
+  studentTotal?: number;
 }
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
 
-export function AttendanceReportFilters({ institutions }: AttendanceReportFiltersProps) {
+export function AttendanceReportFilters({
+  institutions,
+  classes = [],
+  studentOptions = [],
+  studentTotal,
+}: AttendanceReportFiltersProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
   const [scope, setScope] = useState<'student' | 'class' | 'institution'>('institution');
   const [institutionId, setInstitutionId] = useState('');
   const [classId, setClassId] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [studentLabel, setStudentLabel] = useState('');
   const [startDate, setStartDate] = useState(monthAgo);
   const [endDate, setEndDate] = useState(today);
-  const [serverState, setServerState] = useState<ActionState<AttendancePercentageResult> | null>(
-    null,
-  );
+  const [serverState, setServerState] = useState<ActionState<AttendanceReportView> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [exportState, setExportState] = useState<{ busy: boolean; error: string | null }>({
+    busy: false,
+    error: null,
+  });
+
+  // Cascading picker: only classes of the chosen institution.
+  const classChoices = institutionId ? classes.filter((c) => c.institutionId === institutionId) : [];
+
+  // Values of the last successful run, so Export always matches what is shown.
+  const [lastRun, setLastRun] = useState<{
+    values: Parameters<typeof getAttendanceReportAction>[0];
+    scopeLabel: string;
+  } | null>(null);
+
+  function currentScopeLabel(): string {
+    if (scope === 'student') return studentLabel || 'Student';
+    if (scope === 'class') return classes.find((c) => c.id === classId)?.name ?? 'Class';
+    return institutions.find((i) => i.id === institutionId)?.name ?? 'Institution';
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsPending(true);
     setServerState(null);
+    const values = { scope, institutionId, classId, studentId, startDate, endDate };
     try {
-      const result = await getAttendanceReportAction({
-        scope,
-        institutionId,
-        classId,
-        studentId,
-        startDate,
-        endDate,
-      });
+      const result = await getAttendanceReportAction(values);
       setServerState(result);
+      if (result.status === 'success') setLastRun({ values, scopeLabel: currentScopeLabel() });
     } finally {
       setIsPending(false);
+    }
+  }
+
+  async function onExport() {
+    if (!lastRun) return;
+    setExportState({ busy: true, error: null });
+    try {
+      const result = await exportAttendanceReportAction(lastRun.values, lastRun.scopeLabel);
+      if (result.status !== 'success' || !result.data) {
+        setExportState({ busy: false, error: result.message ?? 'Export failed' });
+        return;
+      }
+      downloadCsv(result.data.filename, result.data.csv);
+      setExportState({ busy: false, error: null });
+    } catch {
+      setExportState({ busy: false, error: 'Export failed' });
     }
   }
 
@@ -90,12 +138,14 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-1">
             <Label htmlFor="institutionId">Institution</Label>
             <Select
               value={institutionId || undefined}
-              onValueChange={(value) => setInstitutionId(value)}
+              onValueChange={(value) => {
+                setInstitutionId(value);
+                setClassId('');
+              }}
             >
               <SelectTrigger id="institutionId">
                 <SelectValue placeholder="Select institution" />
@@ -115,29 +165,48 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
               </SelectContent>
             </Select>
           </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="classId">Class reference</Label>
-            <Input
-              id="classId"
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              placeholder="Required for class scope"
-              disabled={scope !== 'class'}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="studentId">Student reference</Label>
-            <Input
+          {scope === 'class' ? (
+            <div className="space-y-1">
+              <Label htmlFor="classId">Class</Label>
+              <Select
+                value={classId || undefined}
+                onValueChange={(value) => setClassId(value)}
+                disabled={!institutionId}
+              >
+                <SelectTrigger id="classId">
+                  <SelectValue
+                    placeholder={institutionId ? 'Select class' : 'Select institution first'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {classChoices.length === 0 ? (
+                    <SelectItem value={ZERO_UUID} disabled>
+                      {institutionId ? 'No classes for this institution' : 'Select institution first'}
+                    </SelectItem>
+                  ) : (
+                    classChoices.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {scope === 'student' ? (
+            <EntitySearchSelect
               id="studentId"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              placeholder="Required for student scope"
-              disabled={scope !== 'student'}
+              name="studentId"
+              label="Student"
+              options={studentOptions}
+              remoteSearch="student"
+              totalAvailable={studentTotal}
+              onValueChange={setStudentId}
+              onOptionSelected={(option) => setStudentLabel(option?.label ?? '')}
+              placeholder="Search by name or admission number…"
             />
-          </div>
-
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="startDate">Start date</Label>
             <Input
@@ -147,7 +216,6 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-
           <div className="space-y-1">
             <Label htmlFor="endDate">End date</Label>
             <Input
@@ -159,14 +227,12 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
             />
           </div>
         </div>
-
         <div className="flex justify-end">
           <Button type="submit" disabled={isPending}>
             {isPending ? 'Calculating…' : 'Run report'}
           </Button>
         </div>
       </form>
-
       {serverState?.status === 'error' && serverState.message && (
         <div
           className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"
@@ -175,62 +241,27 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
           {serverState.message}
         </div>
       )}
-
+      {exportState.error ? (
+        <div
+          className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"
+          role="alert"
+          data-testid="export-attendance-error"
+        >
+          {exportState.error}
+        </div>
+      ) : null}
       {serverState?.status === 'success' && serverState.data && (
         <ResultPanel
           result={serverState.data}
-          range={{ startDate, endDate }}
-          scopeId={scope === 'student' ? studentId : scope === 'class' ? classId : institutionId}
+          onExport={onExport}
+          exporting={exportState.busy}
         />
       )}
     </div>
   );
 }
 
-/** G-925 — CSV of the computed report (one row per metric), downloaded client-side. */
-function toReportCsv(
-  result: AttendancePercentageResult,
-  range: { startDate: string; endDate: string },
-  scopeId: string,
-): string {
-  const rows: Array<[string, string | number]> = [
-    ['scope', result.scope],
-    ['scope_id', scopeId],
-    ['start_date', range.startDate],
-    ['end_date', range.endDate],
-    ['total_records', result.totalRecords],
-    ['present', result.presentCount],
-    ['absent', result.absentCount],
-    ['late', result.lateCount],
-    ['early_departure', result.earlyDepartureCount ?? 0],
-    ['excused', result.excusedCount],
-    ['attendance_percentage', result.attendancePercentage.toFixed(2)],
-    ['absence_percentage', result.absencePercentage.toFixed(2)],
-  ];
-  const cell = (v: string | number) => {
-    const str = String(v);
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const metricCsv = `${['metric,value', ...rows.map(([k, v]) => `${k},${cell(v)}`)].join('\n')}\n`;
-  const studentRows = result.studentRows ?? [];
-  if (studentRows.length === 0) return metricCsv;
-  const studentHeader =
-    'student_id,total_records,present,absent,late,excused,early_departure,attendance_percentage';
-  const studentLines = studentRows.map((r) =>
-    [
-      cell(r.studentId),
-      r.totalRecords,
-      r.presentCount,
-      r.absentCount,
-      r.lateCount,
-      r.excusedCount,
-      r.earlyDepartureCount,
-      r.attendancePercentage.toFixed(2),
-    ].join(','),
-  );
-  return `${metricCsv}\n${[studentHeader, ...studentLines].join('\n')}\n`;
-}
-
+/** Save the server-built CSV (the export itself is audited server-side). */
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -243,12 +274,12 @@ function downloadCsv(filename: string, csv: string) {
 
 function ResultPanel({
   result,
-  range,
-  scopeId,
+  onExport,
+  exporting,
 }: {
-  result: AttendancePercentageResult;
-  range: { startDate: string; endDate: string };
-  scopeId: string;
+  result: AttendanceReportView;
+  onExport: () => void;
+  exporting: boolean;
 }) {
   const fmt = (value: number) => `${value.toFixed(2)}%`;
   const pct = result.attendancePercentage;
@@ -277,16 +308,12 @@ function ResultPanel({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() =>
-              downloadCsv(
-                `attendance-${result.scope}-${range.startDate}-${range.endDate}.csv`,
-                toReportCsv(result, range, scopeId),
-              )
-            }
+            onClick={onExport}
+            disabled={exporting}
             data-testid="export-attendance-csv"
           >
             <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export CSV
+            {exporting ? 'Exporting…' : 'Export CSV'}
           </Button>
         </div>
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted">
@@ -338,7 +365,9 @@ function ResultPanel({
             <tbody>
               {(result.studentRows ?? []).map((row) => (
                 <tr key={row.studentId} className="border-b border-border/60">
-                  <td className="px-2 py-2 font-mono text-xs">{row.studentId.slice(0, 8)}…</td>
+<td className="px-2 py-2">
+                    {result.studentLabels[row.studentId] ?? 'Unknown student'}
+                  </td>
                   <td className="px-2 py-2 tabular-nums">{row.presentCount}</td>
                   <td className="px-2 py-2 tabular-nums">{row.absentCount}</td>
                   <td className="px-2 py-2 tabular-nums">{row.lateCount}</td>

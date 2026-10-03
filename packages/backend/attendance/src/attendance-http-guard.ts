@@ -48,6 +48,10 @@ export function attendanceActionForRequest(
   if (upper === 'GET' || upper === 'HEAD' || upper === 'OPTIONS') {
     return 'attendance.read';
   }
+  // PRC-M082: audited report export is a read despite being a POST.
+  if (upper === 'POST' && path.endsWith('/reports/export')) {
+    return 'attendance.read';
+  }
   if (
     path.includes('/approve') ||
     path.includes('/reject') ||

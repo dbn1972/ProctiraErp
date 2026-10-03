@@ -269,4 +269,19 @@ describe('W1-SEC-02 inventory-backed insufficient-permission denial', () => {
     expect(response.statusCode).toBe(403);
     expect(response.json().message).toMatch(/inventory-declared/i);
   });
+
+  it('PRC-M082: attendance report export POST needs attendance read, other attendance POSTs create', () => {
+    const exportGate = evaluateExactMutatingAuthzGate({
+      method: 'POST',
+      url: '/api/v1/attendance/reports/export',
+      isPlatformAdmin: false,
+    });
+    expect(exportGate.ok && exportGate.guard).toMatchObject({ resource: 'attendance', action: 'read' });
+    const writeGate = evaluateExactMutatingAuthzGate({
+      method: 'POST',
+      url: '/api/v1/attendance/student',
+      isPlatformAdmin: false,
+    });
+    expect(writeGate.ok && writeGate.guard).toMatchObject({ resource: 'attendance', action: 'create' });
+  });
 });

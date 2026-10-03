@@ -169,6 +169,20 @@ export async function calculateAttendancePercentage(
   return result.ok ? result.data : null;
 }
 
+/**
+ * PRC-M082: explicit, audited export. POST so the gateway mutation audit
+ * trail records actor + scope + range; returns the computed report.
+ */
+export async function exportAttendanceReport(
+  input: AttendancePercentageInput,
+): Promise<(AttendancePercentageResult & { exportedAt?: string }) | null> {
+  const result = await gatewayFetch<AttendancePercentageResult & { exportedAt?: string }>(
+    '/attendance/reports/export',
+    { method: 'POST', json: input },
+  );
+  return result.data ?? null;
+}
+
 export interface RegularisationRequest {
   id: string;
   attendanceId: string;

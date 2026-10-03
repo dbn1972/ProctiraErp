@@ -309,4 +309,32 @@ describe('Attendance Routes', () => {
     });
   });
 
+
+  describe('POST /attendance/reports/export (PRC-M082)', () => {
+    it('returns the computed report with an export timestamp', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/reports/export',
+        payload: {
+          scope: 'class',
+          classId: CLASS_ID,
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json() as { scope: string; exportedAt: string };
+      expect(body.scope).toBe('class');
+      expect(typeof body.exportedAt).toBe('string');
+    });
+
+    it('validates the body', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/reports/export',
+        payload: { scope: 'nope' },
+      });
+      expect(response.statusCode).toBe(400);
+    });
+  });
 });

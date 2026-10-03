@@ -254,6 +254,16 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: false,
   },
   {
+    // PRC-M082: report export is a POST only so the mutation audit trail
+    // records it; it reads data and needs attendance read, not write.
+    id: 'attendance.report-export',
+    pathPrefix: '/api/v1/attendance/reports/export',
+    resource: 'attendance',
+    action: 'read',
+    methods: ['POST'],
+    deferredDomainGuard: false,
+  },
+  {
     id: 'assessment.staff',
     pathPrefix: '/api/v1/assessments',
     resource: 'assessment',
