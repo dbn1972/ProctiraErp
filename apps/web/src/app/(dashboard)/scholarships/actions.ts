@@ -4,11 +4,13 @@
  * Server Actions for scholarship program updates and disbursement retries.
  */
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
   approveScholarshipApplication,
   createScholarshipProgram,
+  listScholarshipDisbursements,
   rejectScholarshipApplication,
   updateDisbursement,
   updateScholarshipProgram,
@@ -118,42 +120,89 @@ export async function decideApplicationAction(input: {
   }
 }
 
+/** PRC-M481: ids are UUIDs, at most 100 per retry. */
+const retryIdsSchema = z.array(z.string().uuid()).min(1).max(100);
+
+export interface RetryDisbursementResult {
+  id: string;
+  outcome: 'queued' | 'skipped' | 'failed';
+  reason?: string;
+}
+
+/**
+ * PRC-M481: re-queue *failed* transfers only. Client-supplied ids are validated,
+ * then re-checked against the tenant's own disbursements on the server: unknown
+ * ids (including another tenant's) and anything not currently FAILED are skipped
+ * and never PUT, so a paid transfer can't be pushed back to scheduled. The re-check
+ * also makes a double-click idempotent — the second call finds nothing FAILED.
+ */
 export async function retryFailedDisbursementsAction(
   ids: string[],
-): Promise<ScholarshipActionState> {
-  if (ids.length === 0) {
-    return { status: 'error', message: 'No failed transfers to retry.' };
+): Promise<ScholarshipActionState & { results?: RetryDisbursementResult[] }> {
+  const parsed = retryIdsSchema.safeParse(ids);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message:
+        ids.length === 0
+          ? 'No failed transfers to retry.'
+          : 'Select between 1 and 100 valid transfers to retry.',
+    };
   }
-
-  const errors: string[] = [];
-  for (const id of ids) {
+  const unique = [...new Set(parsed.data)];
+  let current: Awaited<ReturnType<typeof listScholarshipDisbursements>>;
+  try {
+    current = await listScholarshipDisbursements();
+  } catch (error) {
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Could not load disbursements.',
+    };
+  }
+  const byId = new Map(current.map((row) => [row.id, row]));
+  const results: RetryDisbursementResult[] = [];
+  for (const id of unique) {
+    const row = byId.get(id);
+    if (!row) {
+      results.push({ id, outcome: 'skipped', reason: 'not found' });
+      continue;
+    }
+    if (row.status !== 'FAILED') {
+      results.push({ id, outcome: 'skipped', reason: `status is ${row.status.toLowerCase()}` });
+      continue;
+    }
     try {
       await updateDisbursement(id, {
         paymentStatus: 'scheduled',
         notes: 'Retry queued from disbursements UI',
       });
+      results.push({ id, outcome: 'queued' });
     } catch (error) {
-      errors.push(error instanceof Error ? error.message : `Failed to retry ${id}`);
+      results.push({
+        id,
+        outcome: 'failed',
+        reason: error instanceof Error ? error.message : 'retry failed',
+      });
     }
   }
-
   revalidatePath('/scholarships/disbursements');
-
-  if (errors.length === ids.length) {
-    return { status: 'error', message: errors[0] ?? 'Retry failed.' };
-  }
-  if (errors.length > 0) {
+  const queued = results.filter((r) => r.outcome === 'queued').length;
+  const skipped = results.filter((r) => r.outcome === 'skipped').length;
+  const failed = results.filter((r) => r.outcome === 'failed');
+  if (queued === 0) {
     return {
-      status: 'success',
-      message: `Retried ${ids.length - errors.length} of ${ids.length} transfers.`,
+      status: 'error',
+      message:
+        failed[0]?.reason ??
+        (skipped > 0 ? 'None of the selected transfers are failed; nothing was retried.' : 'Retry failed.'),
+      results,
     };
   }
-  return {
-    status: 'success',
-    message: `Queued ${ids.length} transfer${ids.length === 1 ? '' : 's'} for retry.`,
-  };
+  const parts = [`Queued ${queued} of ${unique.length} transfer${unique.length === 1 ? '' : 's'} for retry.`];
+  if (skipped > 0) parts.push(`${skipped} skipped (not failed).`);
+  if (failed.length > 0) parts.push(`${failed.length} could not be retried.`);
+  return { status: 'success', message: parts.join(' '), results };
 }
-
 /**
  * Mark a disbursement paid. The backend requires a transaction reference and
  * paid date for the `paid` transition (PRC-H085), so both are validated here.
