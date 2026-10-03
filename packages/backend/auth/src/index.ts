@@ -226,7 +226,7 @@ export type {
   VerifyOtpResult,
 } from './otp-service.js';
 export { registerMfaRoutes } from './mfa-routes.js';
-export type { MfaRoutesOptions } from './mfa-routes.js';
+export type { MfaRoutesOptions, PrimaryAuthContext } from './mfa-routes.js';
 export {
   ConsoleSmsProvider,
   TwilioSmsProvider,
