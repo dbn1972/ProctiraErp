@@ -10,7 +10,7 @@ import 'package:integration_test/integration_test.dart';
 import 'journey_attendance_offline_sync_test.dart' as attendance;
 import 'journey_notification_deep_link_test.dart' as notifications;
 import 'journey_student_enrollment_navigation_test.dart' as students;
-import 'journey_tenant_isolation_test.dart' as tenants;
+import 'journey_tenant_cache_scoping_test.dart' as tenants;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

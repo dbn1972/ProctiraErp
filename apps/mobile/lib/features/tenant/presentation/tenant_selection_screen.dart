@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/storage/secure_storage.dart';
+import '../../../core/student/selected_student_store.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../../core/tenant/tenant_switch.dart';
 
 /// Stub tenant selection screen. The full tenant directory + onboarding flow
 /// is built later; this scaffold lets a developer or QA configure a tenant id
@@ -38,7 +42,13 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-    await getIt<TenantProvider>().setTenant(
+    // PRC-M565: a different tenant wipes the prior tenant's session + caches.
+    await TenantSwitcher(
+      tenantProvider: getIt<TenantProvider>(),
+      storage: getIt<SecureStorage>(),
+      database: getIt<AppDatabase>(),
+      selectedStudent: getIt<SelectedStudentStore>(),
+    ).switchTo(
       tenantId: _tenantIdCtrl.text.trim(),
       displayName: _tenantNameCtrl.text.trim().isEmpty
           ? null
@@ -151,8 +161,9 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9)
-                                  .withValues(alpha: 0.12),
+                              color: const Color(
+                                0xFF0EA5E9,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
