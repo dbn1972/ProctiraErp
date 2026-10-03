@@ -61,7 +61,7 @@ jobs:
     name: promtool + amtool
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install promtool + amtool
         run: |
@@ -145,7 +145,7 @@ jobs:
     name: validate-observability.mjs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node + pnpm
         uses: ./.github/actions/setup-node-pnpm
