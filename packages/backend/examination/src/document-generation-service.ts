@@ -29,6 +29,19 @@ export const MAX_BATCH_SIZE = 500;
 /** Maximum allowed generation duration in milliseconds (60 seconds) */
 export const MAX_GENERATION_DURATION_MS = 60_000;
 
+/** PRC-M236: optional collaborators. */
+export interface DocumentGenerationServiceOptions {
+  /** Receives duration-budget breaches (MAX_GENERATION_DURATION_MS). */
+  logger?: { warn(obj: Record<string, unknown>, msg: string): void };
+}
+
+/** PRC-M236: one requested generation split into ≤ MAX_BATCH_SIZE chunk jobs. */
+export interface DocumentGenerationBatch {
+  jobs: DocumentGenerationJob[];
+  chunkCount: number;
+  totalCandidates: number;
+}
+
 /** PRC-M235: options for one processing attempt. */
 export interface ProcessDocumentJobOptions {
   /** Queue workers set this so transient failures propagate and the broker redelivers. */
@@ -121,6 +134,7 @@ export class DocumentGenerationService {
      * relay publishes — no dual-write createJob→publishDocumentTask.
      */
     private readonly outboxStore?: OutboxStore,
+    private readonly options: DocumentGenerationServiceOptions = {},
   ) {}
 
   /**
@@ -192,6 +206,19 @@ export class DocumentGenerationService {
     examinationId: string,
     input: GenerateDocumentsInput,
   ): Promise<DocumentGenerationJob> {
+    return (await this.requestGenerationBatch(tenantId, examinationId, input)).jobs[0]!;
+  }
+
+  /**
+   * PRC-M236: like {@link requestGeneration} but returns every chunk job. When
+   * "all candidates" resolves to more than MAX_BATCH_SIZE, the work is split into
+   * ceil(n / MAX_BATCH_SIZE) jobs instead of silently dropping the remainder.
+   */
+  async requestGenerationBatch(
+    tenantId: string,
+    examinationId: string,
+    input: GenerateDocumentsInput,
+  ): Promise<DocumentGenerationBatch> {
     const errors: FieldError[] = [];
 
     // Fetch examination
@@ -225,25 +252,42 @@ export class DocumentGenerationService {
       resolvedCandidateIds = candidates.map((c) => c.id);
     }
 
-    // Enforce batch size limit on resolved candidates
-    if (resolvedCandidateIds.length > MAX_BATCH_SIZE) {
-      resolvedCandidateIds = resolvedCandidateIds.slice(0, MAX_BATCH_SIZE);
+    // PRC-M236: split into chunks rather than truncating to MAX_BATCH_SIZE.
+    // Seating plans are exam-wide (not per candidate), so they stay one job.
+    const chunks: string[][] = [];
+    if (input.documentType === 'seating_plan' || resolvedCandidateIds.length <= MAX_BATCH_SIZE) {
+      chunks.push(resolvedCandidateIds);
+    } else {
+      for (let i = 0; i < resolvedCandidateIds.length; i += MAX_BATCH_SIZE) {
+        chunks.push(resolvedCandidateIds.slice(i, i + MAX_BATCH_SIZE));
+      }
     }
 
-    // Create job
+    const jobs: DocumentGenerationJob[] = [];
+    for (const chunk of chunks) {
+      jobs.push(await this.createQueuedJob(tenantId, examinationId, input.documentType, chunk));
+    }
+    return { jobs, chunkCount: jobs.length, totalCandidates: resolvedCandidateIds.length };
+  }
+
+  private async createQueuedJob(
+    tenantId: string,
+    examinationId: string,
+    documentType: DocumentType,
+    candidateIds: string[],
+  ): Promise<DocumentGenerationJob> {
     const job: DocumentGenerationJob = {
       id: uuidv4(),
       tenantId,
       examinationId,
-      documentType: input.documentType,
+      documentType,
       status: 'queued',
-      candidateIds: resolvedCandidateIds,
-      totalCandidates: resolvedCandidateIds.length,
+      candidateIds,
+      totalCandidates: candidateIds.length,
       processedCount: 0,
       failedCount: 0,
       createdAt: new Date(),
     };
-
     const savedJob = this.outboxStore
       ? await this.documentRepository.createJobWithOutbox(
           job,
@@ -365,6 +409,19 @@ export class DocumentGenerationService {
       }
 
       const durationMs = Date.now() - startTime;
+      // PRC-M236: surface breaches of the per-batch generation budget.
+      if (durationMs > MAX_GENERATION_DURATION_MS) {
+        this.options.logger?.warn(
+          {
+            tenantId,
+            jobId,
+            documentType: job.documentType,
+            durationMs,
+            budgetMs: MAX_GENERATION_DURATION_MS,
+          },
+          'exam document generation exceeded its duration budget',
+        );
+      }
 
       // Tenant-prefixed key; the blob store decides where bytes live
       // (in-memory by default, object storage when an adapter is wired).

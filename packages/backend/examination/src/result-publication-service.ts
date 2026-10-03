@@ -59,6 +59,8 @@ export class ResultPublicationService {
     private readonly options: {
       /** PRC-H057: unresolved double-entry variance pairs block publication. */
       countUnresolvedVariances?: (tenantId: string, examinationId: string) => Promise<number>;
+      /** PRC-M236: receives MAX_PUBLICATION_DURATION_MS breaches. */
+      logger?: { warn(obj: Record<string, unknown>, msg: string): void };
     } = {},
   ) {}
 
@@ -214,7 +216,13 @@ export class ResultPublicationService {
     }
 
     const durationMs = Date.now() - startTime;
-
+    // PRC-M236: surface breaches of the publication duration budget.
+    if (durationMs > MAX_PUBLICATION_DURATION_MS) {
+      this.options.logger?.warn(
+        { tenantId, examinationId, durationMs, budgetMs: MAX_PUBLICATION_DURATION_MS },
+        'exam result publication exceeded its duration budget',
+      );
+    }
     // Build publication result
     const publicationResult: PublicationResult = {
       examinationId,
