@@ -176,3 +176,50 @@ describe('POST /api/auth/signup — role allowlist (PRC-M057)', () => {
     expect((init.headers as Record<string, string>)['X-Tenant-ID']).not.toBe('other-tenant');
   });
 });
+
+describe('POST /api/auth/signup — server-owned terms acceptance (PRC-M062)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.useRealTimers();
+  });
+
+  it('rejects a tampered terms version with 409 and makes no upstream call', async () => {
+    const response = await POST(
+      makeRequest({
+        ...VALID_BASE,
+        password: 'Tr0ub4dor&3xQrSt',
+        termsAcceptance: { ...VALID_TERMS, termsVersion: 'tos-1999-01-01' },
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe('TERMS_VERSION_MISMATCH');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('stamps acceptedAt server-side, ignoring the client timestamp', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-04T05:06:07.000Z'));
+    await POST(
+      makeRequest({
+        ...VALID_BASE,
+        password: 'Tr0ub4dor&3xQrSt',
+        termsAcceptance: { ...VALID_TERMS, acceptedAt: '2000-01-01T00:00:00.000Z' },
+      }),
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const sent = JSON.parse(String(init.body)) as {
+      termsAcceptance: { acceptedAt: string; termsVersion: string };
+    };
+    expect(sent.termsAcceptance.acceptedAt).toBe('2026-03-04T05:06:07.000Z');
+    expect(sent.termsAcceptance.termsVersion).toBe(VALID_TERMS.termsVersion);
+  });
+});

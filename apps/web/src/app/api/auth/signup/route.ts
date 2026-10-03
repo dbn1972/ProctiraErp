@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { scorePassword } from '@proctira/auth';
+import { DEFAULT_PRIVACY_VERSION, DEFAULT_TERMS_VERSION } from '@/lib/api/auth';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
 import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
@@ -36,6 +37,18 @@ import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/reque
  * role id is treated as a request that requires tenant-admin approval.
  */
 const SELF_SERVICE_SIGNUP_ROLES: ReadonlySet<string> = new Set(['parent', 'guardian', 'student']);
+
+/**
+ * Terms / privacy versions currently in force. Configured per deployment via
+ * `SIGNUP_TERMS_VERSION` / `SIGNUP_PRIVACY_VERSION`, defaulting to the
+ * versions bundled with the web app.
+ */
+function currentPolicyVersions(): { termsVersion: string; privacyVersion: string } {
+  return {
+    termsVersion: process.env['SIGNUP_TERMS_VERSION']?.trim() || DEFAULT_TERMS_VERSION,
+    privacyVersion: process.env['SIGNUP_PRIVACY_VERSION']?.trim() || DEFAULT_PRIVACY_VERSION,
+  };
+}
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: {
@@ -94,6 +107,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'Terms acceptance is required.' }, { status: 400 });
   }
 
+  // PRC-M062: the versions in force and the acceptance time are owned by the
+  // server. A client that accepted a different (stale or tampered) version is
+  // rejected so it can reload and show the current policy text.
+  const currentTerms = currentPolicyVersions();
+  if (
+    termsAcceptance.termsVersion !== currentTerms.termsVersion ||
+    termsAcceptance.privacyVersion !== currentTerms.privacyVersion
+  ) {
+    return NextResponse.json(
+      {
+        message: 'The terms or privacy policy have changed. Please review and accept them again.',
+        code: 'TERMS_VERSION_MISMATCH',
+        ...currentTerms,
+      },
+      { status: 409 },
+    );
+  }
+  const acceptedAt = new Date().toISOString();
+
   // PRC-H027: tenant comes from the Host, never from a client header.
   const tenantId = resolveTenantForRequest(request);
   if (!tenantId) {
@@ -130,9 +162,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         institutionName,
         ...roleFields,
         termsAcceptance: {
-          acceptedAt: termsAcceptance.acceptedAt,
-          termsVersion: termsAcceptance.termsVersion,
-          privacyVersion: termsAcceptance.privacyVersion,
+          // Server-stamped; the browser clock is never trusted (PRC-M062).
+          acceptedAt,
+          termsVersion: currentTerms.termsVersion,
+          privacyVersion: currentTerms.privacyVersion,
           // Forwarded so the audit row matches the canonical schema
           // documented in design.md §D. The Auth Service is free to
           // overwrite these with values it observes server-side.
