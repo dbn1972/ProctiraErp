@@ -33,9 +33,18 @@ function offerInput(applicationId: string) {
 
 describe('admissions offer-fee hooks (PRC-M018)', () => {
   it('unpaid invoice + arbitrary paymentRef is rejected', async () => {
-    const { invoiceId } = await createOfferFeeInvoiceHook()(offerInput(randomUUID()));
+    const offer = offerInput(randomUUID());
+    const { invoiceId } = await createOfferFeeInvoiceHook()(offer);
     await expect(
-      assertOfferFeePaidHook()({ tenantId: TENANT, invoiceId, paymentRef: 'pay_fake_123' }),
+      assertOfferFeePaidHook()({
+        tenantId: TENANT,
+        invoiceId,
+        applicationId: offer.applicationId,
+        offerId: offer.offerId,
+        expectedAmount: offer.feeAmount,
+        expectedCurrency: offer.feeCurrency,
+        paymentRef: 'pay_fake_123',
+      } as Parameters<ReturnType<typeof assertOfferFeePaidHook>>[0]),
     ).rejects.toThrow(/must be paid/);
   });
 
