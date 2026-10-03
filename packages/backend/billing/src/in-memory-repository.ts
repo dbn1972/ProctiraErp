@@ -181,6 +181,15 @@ export class InMemoryBillingRepository implements BillingRepository {
     return this.subscriptions.filter((s) => s.tenantId === tenantId);
   }
 
+  async listSubscriptionsByStatus(
+    statuses: SubscriptionEntity['status'][],
+    planId?: string,
+  ): Promise<SubscriptionEntity[]> {
+    return this.subscriptions.filter(
+      (s) => statuses.includes(s.status) && (planId === undefined || s.planId === planId),
+    );
+  }
+
   // ─── Entitlements ────────────────────────────────────────────────────────
 
   async upsertEntitlements(
@@ -231,6 +240,10 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
     this.entitlements = this.entitlements.filter((e) => e.subscriptionId !== subscriptionId);
+  }
+
+  async deleteEntitlementsByTenant(tenantId: string): Promise<void> {
+    this.entitlements = this.entitlements.filter((e) => e.tenantId !== tenantId);
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────

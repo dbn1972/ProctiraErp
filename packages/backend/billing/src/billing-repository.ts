@@ -146,6 +146,12 @@ export interface BillingRepository {
   /** Find all subscriptions for a tenant */
   findSubscriptionsByTenant(tenantId: string): Promise<SubscriptionEntity[]>;
 
+  /** PRC-M185/M186: subscriptions in any of the given statuses, optionally for one plan. */
+  listSubscriptionsByStatus(
+    statuses: SubscriptionStatus[],
+    planId?: string,
+  ): Promise<SubscriptionEntity[]>;
+
   // ─── Entitlements ────────────────────────────────────────────────────────
 
   /** Create or update entitlements for a subscription */
@@ -161,6 +167,9 @@ export interface BillingRepository {
 
   /** Delete entitlements for a subscription */
   deleteEntitlementsBySubscription(subscriptionId: string): Promise<void>;
+
+  /** PRC-M186: delete every entitlement row for a tenant (plan replacement). */
+  deleteEntitlementsByTenant(tenantId: string): Promise<void>;
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
