@@ -316,7 +316,7 @@ export async function registerScholarshipDocumentRoutes(
       const application = await loadApplication(tenantId, params.data.id);
       const actor = await actorFor(request, tenantId);
       assertCanDelete(actor, application);
-      await documentService.remove(tenantId, params.data.documentId, actor);
+      await documentService.remove(tenantId, params.data.documentId, actor, application);
       return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
