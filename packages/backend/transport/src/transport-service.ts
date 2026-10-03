@@ -68,6 +68,36 @@ function isForeignKeyViolation(error: unknown): boolean {
 export const TRANSPORT_FEE_PENDING_NOTE =
   'FeesService was not injected; a pending transport_fee_links row was recorded instead of an invoice.';
 
+/** PRC-M450: page size used when a service-internal read must see every row. */
+export const INTERNAL_SCAN_PAGE_SIZE = 200;
+/** PRC-M450: hard stop so a runaway loop cannot spin forever (200 * 1000 rows). */
+const INTERNAL_SCAN_MAX_PAGES = 1000;
+
+/**
+ * PRC-M450: iterate every page instead of silently truncating at the first page.
+ * Returns the same shape as a single page with `data` holding all rows.
+ */
+export async function collectAllPages<T>(
+  fetchPage: (page: PaginationOptions) => Promise<PaginatedResult<T>>,
+): Promise<PaginatedResult<T>> {
+  const all: T[] = [];
+  let last: PaginatedResult<T> | null = null;
+  for (let page = 1; page <= INTERNAL_SCAN_MAX_PAGES; page += 1) {
+    last = await fetchPage({ page, pageSize: INTERNAL_SCAN_PAGE_SIZE });
+    all.push(...last.data);
+    if (last.data.length < INTERNAL_SCAN_PAGE_SIZE || page >= last.meta.totalPages) break;
+  }
+  return {
+    data: all,
+    meta: {
+      ...(last?.meta ?? { totalPages: 1 }),
+      page: 1,
+      pageSize: all.length,
+      totalItems: last?.meta.totalItems ?? all.length,
+    },
+  } as PaginatedResult<T>;
+}
+
 /** PRC-M446: device clocks may run slightly fast; anything beyond this is rejected. */
 export const GPS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 /** PRC-M446: reject pings older than this (stale replays would rewrite history). */
@@ -814,7 +844,7 @@ export class TransportService {
 
   async getLiveMap(tenantId: string) {
     const [vehicles, pings, stops] = await Promise.all([
-      this.repository.listVehicles(tenantId, {}, { page: 1, pageSize: 100 }),
+      collectAllPages((page) => this.repository.listVehicles(tenantId, {}, page)),
       this.repository.listLatestGpsPingPerVehicle(tenantId),
       this.repository.listAllStops(tenantId),
     ]);
@@ -929,17 +959,17 @@ export class TransportService {
       this.repository.listAlertRules(tenantId),
       this.repository.listLatestGpsPingPerVehicle(tenantId),
       this.repository.listAllStops(tenantId),
-      this.repository.listRoutes(tenantId, {}, { page: 1, pageSize: 100 }),
-      this.repository.listStudentAssignments(
-        tenantId,
-        { routeId: input.routeId, isActive: true },
-        { page: 1, pageSize: 500 },
+      collectAllPages((page) => this.repository.listRoutes(tenantId, {}, page)),
+      collectAllPages((page) =>
+        this.repository.listStudentAssignments(
+          tenantId,
+          { routeId: input.routeId, isActive: true },
+          page,
+        ),
       ),
     ]);
-    const driverAssignments = await this.repository.listDriverAssignments(
-      tenantId,
-      { isActive: true },
-      { page: 1, pageSize: 200 },
+    const driverAssignments = await collectAllPages((page) =>
+      this.repository.listDriverAssignments(tenantId, { isActive: true }, page),
     );
     const routeByVehicle = new Map(
       driverAssignments.data
