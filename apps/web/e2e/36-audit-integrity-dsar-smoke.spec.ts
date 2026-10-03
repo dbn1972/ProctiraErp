@@ -141,12 +141,15 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     await expect(page.getByTestId('dsar-package')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('dsar-row')).toHaveCount(1);
 
-    const download = await page.request.get(`/api/audit-logs/dsar/${subject}`);
-    expect(download.status()).toBe(200);
-    expect(download.headers()['content-disposition']).toContain(`dsar-${subject}.json`);
-    const pack = await download.json();
-    expect(pack.subjectId).toBe(subject);
-    expect(pack.entryCount).toBe(1);
+    // PRC-M084: the download saves the package already built (no GET export
+    // route), and the build itself was audited.
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByTestId('dsar-download').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe(`dsar-${subject}.json`);
+    // A reload must not export again: the package is gone until rebuilt.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dsar-package')).toHaveCount(0);
   });
 
   test('retention policy saves from the UI and is readable via API', async ({ page, request }) => {
