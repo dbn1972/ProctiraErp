@@ -9,6 +9,7 @@ import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 import { FeesService } from './fees-service.js';
 import { SandboxPaymentAdapter } from './payment-adapter.js';
+import { withPgTenant } from '@proctira/database';
 import { getSharedFeesPool, PgFeesRepository } from './pg-fees-repository.js';
 
 const DATABASE_URL = requireLiveDatabaseUrl({
@@ -94,4 +95,23 @@ describe('PgFeesRepository adjustment concurrency (live, PRC-H058)', () => {
     repo.withInvoiceLock = originalLock;
     expect(await repo.listRefundsForInvoice(tenantId, invoice.id)).toHaveLength(0);
   });
+  it.skipIf(!live)(
+    'DB guard (migration 150) rejects a raw refund insert above succeeded payments',
+    async () => {
+      const { service, tenantId, invoice } = await setup();
+      await service.recordPayment(tenantId, 'parent-1', { invoiceId: invoice.id });
+      const insert = (amountCents: number) =>
+        withPgTenant(pool!, tenantId, (client) =>
+          client.query(
+            `INSERT INTO fee_refunds (id, tenant_id, invoice_id, amount_cents, reason, status)
+             VALUES ($1, $2, $3, $4, 'raw sql bypass', 'posted')`,
+            [randomUUID(), tenantId, invoice.id, amountCents],
+          ),
+        );
+      await insert(6_000);
+      await expect(insert(5_000)).rejects.toMatchObject({ code: '23514' });
+      await insert(4_000);
+      await expect(insert(1)).rejects.toMatchObject({ code: '23514' });
+    },
+  );
 });

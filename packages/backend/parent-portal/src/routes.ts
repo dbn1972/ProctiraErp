@@ -980,7 +980,12 @@ export async function registerParentPortalRoutes(
 
       if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       try {
-        const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id);
+        // PRC-H058: actor + reason reach the locked fees void and its reversal journal.
+        const body = (request.body ?? {}) as { reason?: unknown };
+        const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id, {
+          actorId: (request as { user?: { sub?: string } }).user?.sub ?? null,
+          reason: typeof body.reason === 'string' ? body.reason.slice(0, 500) : null,
+        });
         return reply.status(200).send(formatInvoice(invoice));
       } catch (error: unknown) {
         if (error instanceof AppError) {

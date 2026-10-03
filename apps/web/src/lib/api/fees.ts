@@ -289,29 +289,42 @@ export async function bulkInvoiceStructure(
   return throwIfMissing(result, 'Failed to bulk invoice');
 }
 
-export async function applyConcession(input: {
-  studentId: string;
-  structureId: string;
-  invoiceId?: string;
-  kind: 'percent' | 'amount';
-  percent?: number;
-  amountCents?: number;
-  reason: string;
-}): Promise<{ discountCents: number; invoice: FeeInvoice | null }> {
+/** PRC-H058: money-moving fee writes carry an Idempotency-Key when the caller has one. */
+function idempotencyHeaders(key: string | undefined): HeadersInit | undefined {
+  return key ? { 'Idempotency-Key': key } : undefined;
+}
+
+export async function applyConcession(
+  input: {
+    studentId: string;
+    structureId: string;
+    invoiceId?: string;
+    kind: 'percent' | 'amount';
+    percent?: number;
+    amountCents?: number;
+    reason: string;
+  },
+  idempotencyKey?: string,
+): Promise<{ discountCents: number; invoice: FeeInvoice | null }> {
   const result = await gatewayFetch<{
     discountCents: number;
     invoice: FeeInvoice | null;
-  }>('/fees/concessions', { method: 'POST', json: input });
+  }>('/fees/concessions', {
+    method: 'POST',
+    json: input,
+    headers: idempotencyHeaders(idempotencyKey),
+  });
   return throwIfMissing(result, 'Failed to apply concession');
 }
 
 export async function refundInvoice(
   invoiceId: string,
   input: { amountCents: number; reason: string },
+  idempotencyKey?: string,
 ): Promise<{ id: string; amountCents: number }> {
   const result = await gatewayFetch<{ id: string; amountCents: number }>(
     `/fees/invoices/${invoiceId}/refund`,
-    { method: 'POST', json: input },
+    { method: 'POST', json: input, headers: idempotencyHeaders(idempotencyKey) },
   );
   return throwIfMissing(result, 'Failed to record refund');
 }

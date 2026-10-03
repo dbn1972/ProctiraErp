@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -16,6 +16,7 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import { applyConcessionAction } from '@/lib/fees/actions';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 
 export function ConcessionDialog({
   studentId,
@@ -33,11 +34,19 @@ export function ConcessionDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
 
+  const submission = useRef<{ signature: string; key: string } | null>(null);
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     // PRC-L238: blank stays blank (undefined) so validation rejects it instead of applying 0%.
     const rawPercent = String(fd.get('percent') ?? '').trim();
+    const reason = String(fd.get('reason') ?? '');
+    // PRC-H058: identical resubmissions reuse one Idempotency-Key (applied once).
+    const signature = `${rawPercent}|${reason}`;
+    if (!submission.current || submission.current.signature !== signature) {
+      submission.current = { signature, key: generateIdempotencyKey() };
+    }
+    const idempotencyKey = submission.current.key;
     startTransition(async () => {
       setError(null);
       setFieldErrors({});
@@ -47,7 +56,8 @@ export function ConcessionDialog({
         invoiceId,
         kind: 'percent',
         percent: rawPercent === '' ? undefined : Number(rawPercent),
-        reason: String(fd.get('reason') ?? ''),
+        reason,
+        idempotencyKey,
       });
       if (!result.success) {
         const byField: Record<string, string> = {};
@@ -56,6 +66,7 @@ export function ConcessionDialog({
         setError(result.fieldErrors?.length ? null : result.error);
         return;
       }
+      submission.current = null;
       setOpen(false);
       router.refresh();
     });

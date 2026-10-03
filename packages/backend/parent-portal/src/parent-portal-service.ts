@@ -52,7 +52,11 @@ export interface FeesLedgerPort {
   listInvoices(tenantId: string): Promise<unknown[]>;
   listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<unknown[]>;
   getInvoice(tenantId: string, invoiceId: string): Promise<{ studentId: string }>;
-  voidInvoice(tenantId: string, invoiceId: string): Promise<unknown>;
+  voidInvoice(
+    tenantId: string,
+    invoiceId: string,
+    options?: { actorId?: string | null; reason?: string | null },
+  ): Promise<unknown>;
   recordPayment(
     tenantId: string,
     actorId: string,
@@ -747,9 +751,18 @@ export class ParentPortalService {
     return this.repository.listInvoicesForTenant(tenantId);
   }
 
-  async voidInvoice(tenantId: string, invoiceId: string) {
+  /**
+   * PRC-H058: voiding always goes through the fees ledger (invoice row lock, cash check,
+   * void update and reversal journal in one transaction). Without a wired ledger there is no
+   * safe path — an unlocked status flip would skip the reversal journal — so it fails closed.
+   */
+  async voidInvoice(
+    tenantId: string,
+    invoiceId: string,
+    options: { actorId?: string | null; reason?: string | null } = {},
+  ) {
     if (this.fees) {
-      return this.fees.voidInvoice(tenantId, invoiceId) as unknown as NonNullable<
+      return this.fees.voidInvoice(tenantId, invoiceId, options) as unknown as NonNullable<
         Awaited<ReturnType<ParentPortalRepository['updateInvoice']>>
       >;
     }
@@ -757,14 +770,12 @@ export class ParentPortalService {
     if (!invoice) {
       throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
     }
-    if (invoice.status === 'paid') {
-      throw new BusinessRuleError('Cannot void a paid invoice');
-    }
     if (invoice.status === 'void') {
       return invoice;
     }
-    const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
-    return updated!;
+    throw new BusinessRuleError(
+      'Invoice void requires the fees ledger (locked void + reversal journal); it is not configured',
+    );
   }
 
   async listPaymentsForStaff(tenantId: string) {

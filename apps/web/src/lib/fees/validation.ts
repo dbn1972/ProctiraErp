@@ -82,6 +82,8 @@ export const concessionFormSchema = z
     ),
     amount: z.preprocess(toNumberOrUndefined, z.number().min(0).max(MAX_FEE_AMOUNT).optional()),
     reason: z.string().trim().min(1, 'Reason is required').max(2000),
+    // PRC-H058: replay-safe concession apply.
+    idempotencyKey: z.string().regex(UUID).optional(),
   })
   // PRC-L025 / PRC-L238: the value matching the chosen kind is required and
   // non-zero, so a blank/0 value never silently applies a 0% (or 0) concession.
@@ -106,6 +108,8 @@ export const refundFormSchema = z.object({
   invoiceId: z.string().regex(UUID, 'Invoice is required'),
   amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
   reason: z.string().min(1, 'Reason is required').max(2000),
+  // PRC-H058: one key per confirmed submission so a retried/double-submitted refund posts once.
+  idempotencyKey: z.string().regex(UUID).optional(),
 });
 
 export const reconciliationFormSchema = z.object({

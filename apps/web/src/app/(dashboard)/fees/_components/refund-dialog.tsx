@@ -17,6 +17,7 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { refundInvoiceAction } from '@/lib/fees/actions';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 
 export function RefundDialog({
   invoiceId,
@@ -33,9 +34,11 @@ export function RefundDialog({
   // PRC-L240: field-level errors (aria-invalid + described-by) instead of one generic alert.
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<'amount' | 'reason', string>>>({});
   const [pending, startTransition] = useTransition();
-  const [pendingValues, setPendingValues] = useState<{ amount: number; reason: string } | null>(
-    null,
-  );
+  const [pendingValues, setPendingValues] = useState<{
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+  } | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,7 +56,12 @@ export function RefundDialog({
       return;
     }
     setError(null);
-    setPendingValues({ amount, reason });
+    // PRC-H058: same values keep the same key, so a retried confirm posts the refund once.
+    setPendingValues((prev) =>
+      prev && prev.amount === amount && prev.reason === reason
+        ? prev
+        : { amount, reason, idempotencyKey: generateIdempotencyKey() },
+    );
     setConfirmOpen(true);
   }
 
@@ -66,6 +74,7 @@ export function RefundDialog({
         invoiceId,
         amount: values.amount,
         reason: values.reason,
+        idempotencyKey: values.idempotencyKey,
       });
       if (!result.success) {
         const byField: typeof fieldErrors = {};

@@ -139,18 +139,21 @@ export async function applyConcessionAction(
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
   try {
-    const result = await applyConcession({
-      studentId: parsed.data.studentId,
-      structureId: parsed.data.structureId,
-      invoiceId: parsed.data.invoiceId || undefined,
-      kind: parsed.data.kind,
-      percent: parsed.data.kind === 'percent' ? parsed.data.percent : undefined,
-      amountCents:
-        parsed.data.kind === 'amount' && parsed.data.amount != null
-          ? majorUnitsToCents(parsed.data.amount)
-          : undefined,
-      reason: parsed.data.reason,
-    });
+    const result = await applyConcession(
+      {
+        studentId: parsed.data.studentId,
+        structureId: parsed.data.structureId,
+        invoiceId: parsed.data.invoiceId || undefined,
+        kind: parsed.data.kind,
+        percent: parsed.data.kind === 'percent' ? parsed.data.percent : undefined,
+        amountCents:
+          parsed.data.kind === 'amount' && parsed.data.amount != null
+            ? majorUnitsToCents(parsed.data.amount)
+            : undefined,
+        reason: parsed.data.reason,
+      },
+      parsed.data.idempotencyKey,
+    );
     refreshFees();
     return { success: true, data: { discountCents: result.discountCents } };
   } catch (error) {
@@ -166,10 +169,14 @@ export async function refundInvoiceAction(
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
   try {
-    const refund = await refundInvoice(parsed.data.invoiceId, {
-      amountCents: majorUnitsToCents(parsed.data.amount),
-      reason: parsed.data.reason,
-    });
+    const refund = await refundInvoice(
+      parsed.data.invoiceId,
+      {
+        amountCents: majorUnitsToCents(parsed.data.amount),
+        reason: parsed.data.reason,
+      },
+      parsed.data.idempotencyKey,
+    );
     refreshFees();
     return { success: true, data: { id: refund.id } };
   } catch (error) {
