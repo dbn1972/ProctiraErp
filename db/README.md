@@ -372,6 +372,16 @@ status CHECK, so requeue is an `UPDATE` inside the existing domain. `101` assert
 remains true, so a future narrowing of the CHECK fails loudly instead of silently making
 redrive impossible again.
 
+## Demo tenants never live in schema migrations (PRC-M205)
+
+`021a` / `071` / `082` / `085` upsert the fixed demo tenant
+`00000000-0000-4000-8000-000000000001` (plus demo student `…099` / staff `…098`) so FK
+VALIDATE succeeds for `*b_*_seed.sql` rows. They are ledgered and stay as-is;
+`120_remove_demo_fk_tenant_without_seeds.sql` deletes those rows again when the run is not
+`APPLY_SEEDS=1` (apply-sql.sh binds `app.apply_seeds`), or suspends + soft-deletes the tenant
+when other rows reference it. New numbered migrations must not `INSERT INTO tenants`:
+`node tools/scripts/check-migration-tenant-inserts.mjs` (CI, tenant-id-indexes job).
+
 ## Seeds (`db/seeds/`) — separate, not auto-applied
 
 Files under `db/seeds/` are **demo / certification data** (large enrollments, board scales, schedule demos). They are **not** applied by `apply-sql.sh` because they can be destructive or environment-specific.

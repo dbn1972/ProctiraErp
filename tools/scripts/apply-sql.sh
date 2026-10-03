@@ -295,6 +295,10 @@ psql_q() {
   {
     printf "SET lock_timeout TO '%s';\n" "${APPLY_SQL_LOCK_TIMEOUT}"
     printf "SET statement_timeout TO '%s';\n" "${APPLY_SQL_STATEMENT_TIMEOUT}"
+    # PRC-M205: lets 120_remove_demo_fk_tenant_without_seeds.sql keep demo rows for seed runs.
+    if [[ "$APPLY_SEEDS" == "1" ]]; then
+      printf "SET app.apply_seeds TO '1';\n"
+    fi
     cat
   } | psql "${PSQL_TARGET[@]}" -q "${PSQL_ARGS[@]}" "$@"
 }
