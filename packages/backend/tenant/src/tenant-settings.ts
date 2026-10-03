@@ -12,6 +12,7 @@ import { PgDocumentCollection, type PgPoolWithConnect, type PgQueryable } from '
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 export const TenantSettingsSchema = Type.Object({
   displayName: Type.String({ minLength: 1, maxLength: 200 }),
@@ -175,6 +176,16 @@ export async function registerTenantSettingsRoutes(
         message: 'Validation failed',
         statusCode: 400,
         errors: body.errors,
+      });
+    }
+    // PRC-L358: an invalid zone would silently resolve to UTC at runtime; reject it on write.
+    const timezoneError = tenantTimezoneFieldError(body.data.timezone);
+    if (timezoneError) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: [timezoneError],
       });
     }
     if (!body.data.supportedLocales.includes(body.data.defaultLocale)) {
