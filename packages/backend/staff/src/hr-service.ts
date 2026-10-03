@@ -28,6 +28,9 @@ import { readOffboardMeta } from './offboard-meta.js';
 import {
   assertPayrollRowBalanced,
   calendarDaysInMonth,
+  DEFAULT_PAYROLL_PRORATION,
+  prorateMonthlyGrossCents,
+  type PayrollProrationPolicy,
   resolveMonthlyGrossCents,
   unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
@@ -92,6 +95,22 @@ export interface PayrollRow {
   grossCents: number;
   netCents: number;
   payableDays: number;
+  /**
+   * PRC-H089: present only when the staff member was offboarded inside the month and the
+   * gross was pro-rated (`PAYROLL_PRORATION`). `fullMonthGrossCents` is the contract gross.
+   */
+  proration?: {
+    policy: PayrollProrationPolicy;
+    lastDay: string;
+    eligibleDays: number;
+    periodDays: number;
+    fullMonthGrossCents: number;
+  };
+}
+
+export interface StaffHrServiceOptions {
+  /** PRC-H089: mid-month offboard pay policy (config `PAYROLL_PRORATION`). */
+  payrollProration?: PayrollProrationPolicy;
 }
 
 export interface PayrollLedgerTrial {
@@ -155,10 +174,15 @@ export class StaffHrService {
   /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
   private readonly payrollRuns = new Map<string, PayrollExportResult>();
 
+  private readonly payrollProration: PayrollProrationPolicy;
+
   constructor(
     private readonly store: StaffHrStore,
     private readonly staffService: StaffService,
-  ) {}
+    options: StaffHrServiceOptions = {},
+  ) {
+    this.payrollProration = options.payrollProration ?? DEFAULT_PAYROLL_PRORATION;
+  }
 
   async createContract(tenantId: string, input: CreateContractInput): Promise<ContractView> {
     await this.staffService.getById(tenantId, input.staffId);
@@ -493,38 +517,17 @@ export class StaffHrService {
   }
 
   /**
-   * PRC-H089: iterate every staff page (repositories clamp pageSize) and fail the
-   * run if the fetched count disagrees with totalItems. Excludes INACTIVE staff
-   * and staff offboarded with an effective date before the month starts; staff
-   * offboarded on/after the month start remain in the run.
+   * PRC-H089: every staff member of the tenant (keyset iteration when the repository
+   * supports it; otherwise paged with a fetched-vs-totalItems guard). Excludes INACTIVE
+   * staff and staff offboarded before the month starts; staff offboarded on/after the
+   * month start remain in the run and are pro-rated by `PAYROLL_PRORATION`.
    */
   private async listPayrollEligibleStaff(
     tenantId: string,
     monthStart: string,
   ): Promise<StaffEntity[]> {
-    const all: StaffEntity[] = [];
-    const pageSize = 100;
-    let page = 1;
-    let totalItems = 0;
-    let totalPages = 1;
-    do {
-      const result = await this.staffService.list(
-        tenantId,
-        {},
-        { page, pageSize, sortBy: 'id', sortOrder: 'asc' },
-      );
-      all.push(...result.data);
-      totalItems = result.meta.totalItems;
-      totalPages = result.meta.totalPages;
-      page += 1;
-    } while (page <= totalPages);
-    const unique = new Map(all.map((s) => [s.id, s]));
-    if (all.length !== totalItems || unique.size !== totalItems) {
-      throw new BusinessRuleError(
-        `Payroll staff fetch incomplete: fetched ${unique.size} of ${totalItems} staff; run aborted`,
-      );
-    }
-    return Array.from(unique.values()).filter((staff) => {
+    const all = await this.staffService.listAll(tenantId);
+    return all.filter((staff) => {
       const offboard = readOffboardMeta(staff.customData);
       if (offboard) return offboard.effectiveDate >= monthStart;
       return staff.status !== 'INACTIVE';
@@ -588,11 +591,24 @@ export class StaffHrService {
         to,
       );
       const absentDays = summary?.absent ?? 0;
-      const grossCents = resolveMonthlyGrossCents({
+      const fullMonthGrossCents = resolveMonthlyGrossCents({
         monthlyGrossCents: contract?.monthlyGrossCents,
         salaryBand: contract?.salaryBand,
       });
-      const deductionsCents = unpaidAbsenceDeductionCents(grossCents, absentDays, daysInMonth);
+      const lastDay = readOffboardMeta(staff.customData)?.effectiveDate ?? null;
+      const prorated = prorateMonthlyGrossCents({
+        monthlyGrossCents: fullMonthGrossCents,
+        policy: this.payrollProration,
+        monthStart: from,
+        monthEnd: to,
+        lastDay,
+      });
+      const grossCents = prorated.grossCents;
+      // Daily rate stays on the full-month gross; clamp so deductions never exceed pay.
+      const deductionsCents = Math.min(
+        grossCents,
+        unpaidAbsenceDeductionCents(fullMonthGrossCents, absentDays, daysInMonth),
+      );
       const netCents = grossCents - deductionsCents;
       const row: PayrollRow = {
         staffId: staff.id,
@@ -607,6 +623,15 @@ export class StaffHrService {
         netCents,
         payableDays: summary?.payableDays ?? 0,
       };
+      if (lastDay && lastDay < to) {
+        row.proration = {
+          policy: prorated.policy,
+          lastDay,
+          eligibleDays: prorated.eligibleDays,
+          periodDays: prorated.periodDays,
+          fullMonthGrossCents,
+        };
+      }
       assertPayrollRowBalanced(row);
       return row;
     });

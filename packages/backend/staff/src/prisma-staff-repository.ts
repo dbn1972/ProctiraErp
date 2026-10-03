@@ -292,6 +292,22 @@ export class PrismaStaffRepository implements StaffRepository {
     });
   }
 
+  async listAfterId(
+    tenantId: string,
+    afterId: string | null,
+    limit: number,
+  ): Promise<StaffEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const where: Record<string, unknown> = { tenantId, deletedAt: null };
+      if (afterId) where.id = { gt: afterId };
+      const rows = (await tx.staff.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        take: Math.max(1, Math.min(limit, 1000)),
+      })) as StaffRow[];
+      return rows.map(toEntity);
+    });
+  }
   async purgeCreated(id: string, tenantId: string): Promise<void> {
     await withTenantTransaction(this.prisma, tenantId, async (tx) => {
       await tx.staff.deleteMany({ where: { id, tenantId } });

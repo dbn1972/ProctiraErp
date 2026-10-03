@@ -9,7 +9,7 @@
  * - 7.6: Support custom fields via JSONB custom_data column
  * - 7.7: Validate required fields (name, DOB, identity number, contact, position); unique identity number
  */
-import { ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -135,6 +135,47 @@ export class StaffService {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StaffEntity>> {
     return this.repository.list(tenantId, filter, pagination);
+  }
+
+  /**
+   * PRC-H089: every staff member of the tenant. Uses keyset iteration when the repository
+   * supports it; otherwise walks offset pages and fails if the fetched count disagrees
+   * with totalItems (repositories clamp pageSize, so a single page is never enough).
+   */
+  async listAll(tenantId: string): Promise<StaffEntity[]> {
+    const batch = 500;
+    if (this.repository.listAfterId) {
+      const out: StaffEntity[] = [];
+      let afterId: string | null = null;
+      for (;;) {
+        const rows = await this.repository.listAfterId(tenantId, afterId, batch);
+        out.push(...rows);
+        if (rows.length < batch) return out;
+        afterId = rows[rows.length - 1]!.id;
+      }
+    }
+    const all: StaffEntity[] = [];
+    let page = 1;
+    let totalItems = 0;
+    let totalPages = 1;
+    do {
+      const result = await this.repository.list(
+        tenantId,
+        {},
+        { page, pageSize: 100, sortBy: 'id', sortOrder: 'asc' },
+      );
+      all.push(...result.data);
+      totalItems = result.meta.totalItems;
+      totalPages = result.meta.totalPages;
+      page += 1;
+    } while (page <= totalPages);
+    const unique = new Map(all.map((s) => [s.id, s]));
+    if (all.length !== totalItems || unique.size !== totalItems) {
+      throw new BusinessRuleError(
+        `Staff fetch incomplete: fetched ${unique.size} of ${totalItems} staff; aborted`,
+      );
+    }
+    return Array.from(unique.values());
   }
 
   /**

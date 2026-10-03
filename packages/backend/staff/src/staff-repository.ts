@@ -76,4 +76,9 @@ export interface StaffRepository {
    * dependent write in another store fails). Never use for user-initiated deletes.
    */
   purgeCreated?(id: string, tenantId: string): Promise<void>;
+  /**
+   * PRC-H089: keyset page of non-deleted staff ordered by id ascending, strictly after
+   * `afterId` (null = from the start). Used to iterate an entire tenant (payroll).
+   */
+  listAfterId?(tenantId: string, afterId: string | null, limit: number): Promise<StaffEntity[]>;
 }
