@@ -17,7 +17,7 @@ import {
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { dayLabel, formatPeriodWhen } from '@/lib/timetable/conflict-label';
 import { getStaff, listStaff } from '@/lib/api/staff';
-import { getStudent, listStudents } from '@/lib/api/students';
+import { listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
 import { LOOKUP_CONCURRENCY, mapWithConcurrency } from '@/lib/map-with-concurrency';
 
@@ -115,9 +115,16 @@ export default async function SectionRosterPage(props: PageProps) {
   const missingStudentIds = [
     ...new Set(enrollments.map((e) => e.studentId).filter((id) => !studentLabel.has(id))),
   ];
-  const missingStudents = await mapWithConcurrency(missingStudentIds, LOOKUP_CONCURRENCY, (id) =>
-    getStudent(id).catch(() => null),
-  );
+  // One batch request per 100 missing ids (GET /students?ids=...) instead of one per row.
+  const idChunks: string[][] = [];
+  for (let i = 0; i < missingStudentIds.length; i += 100) {
+    idChunks.push(missingStudentIds.slice(i, i + 100));
+  }
+  const missingStudents = (
+    await mapWithConcurrency(idChunks, LOOKUP_CONCURRENCY, (ids) =>
+      listStudents({ ids, pageSize: 100 }),
+    )
+  ).flatMap((batch) => batch.data);
   for (const student of missingStudents) {
     if (!student) continue;
     rememberStudent(student);

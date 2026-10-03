@@ -65,6 +65,8 @@ export interface StudentFilter {
   search?: string;
   /** When set, only students enrolled at this institution are returned. */
   institutionId?: string;
+  /** When set, only these student ids are returned (batch label lookup). */
+  ids?: string[];
 }
 
 /**
