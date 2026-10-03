@@ -20,6 +20,8 @@ import type pg from 'pg';
 
 import {
   assertJournalBalanced,
+  PaymentIdempotencyReplay,
+  type FeesPageRequest,
   type ConcessionKind,
   type ConcessionStatus,
   type FeeConcessionEntity,
@@ -633,6 +635,43 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
+  async listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT DISTINCT student_id FROM parent_fee_invoices
+          WHERE tenant_id = $1 AND structure_id = $2 AND status <> 'void'
+            AND student_id = ANY($3::uuid[])`,
+        [tenantId, structureId, studentIds],
+      );
+      return new Set(result.rows.map((r) => String((r as { student_id: string }).student_id)));
+    });
+  }
+
+  async listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]> {
+    if (studentIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_concessions
+          WHERE tenant_id = $1 AND structure_id = $2 AND status <> 'rejected'
+            AND student_id = ANY($3::uuid[])
+          ORDER BY created_at ASC`,
+        [tenantId, structureId, studentIds],
+      );
+      return result.rows.map((r) => mapConcession(r as Record<string, unknown>));
+    });
+  }
+
   async findInvoiceForStructureStudent(
     tenantId: string,
     structureId: string,
@@ -681,19 +720,16 @@ export class PgFeesRepository implements FeesRepository {
   ): Promise<string[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
-      try {
-        const result = await client.query(
-          `SELECT student_id FROM enrollments
-           WHERE tenant_id = $1
-             AND status::text IN ('ENROLLED', 'enrolled')
-             AND ($2::uuid IS NULL OR class_id = $2)
-             AND ($3::uuid IS NULL OR grade_id = $3)`,
-          [tenantId, scope.classId ?? null, scope.gradeId ?? null],
-        );
-        return result.rows.map((row) => String((row as { student_id: string }).student_id));
-      } catch {
-        return [];
-      }
+      // PRC-M250: a roster query error is a server error, never "no students".
+      const result = await client.query(
+        `SELECT student_id FROM enrollments
+         WHERE tenant_id = $1
+           AND status::text IN ('ENROLLED', 'enrolled')
+           AND ($2::uuid IS NULL OR class_id = $2)
+           AND ($3::uuid IS NULL OR grade_id = $3)`,
+        [tenantId, scope.classId ?? null, scope.gradeId ?? null],
+      );
+      return result.rows.map((row) => String((row as { student_id: string }).student_id));
     });
   }
 
@@ -702,6 +738,7 @@ export class PgFeesRepository implements FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {
@@ -727,6 +764,16 @@ export class PgFeesRepository implements FeesRepository {
         throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
       }
       const invoice = mapInvoice(invoiceRow);
+      if (options?.idempotencyKey) {
+        // PRC-M247: a concurrent same-key request that won the lock already committed.
+        const prior = await client.query(
+          `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 AND idempotency_key = $2 LIMIT 1`,
+          [tenantId, options.idempotencyKey],
+        );
+        if (prior.rows[0]) {
+          throw new PaymentIdempotencyReplay(mapPayment(prior.rows[0] as Record<string, unknown>));
+        }
+      }
       if (invoice.status !== 'open') {
         throw new BusinessRuleError('Invoice is not open for payment');
       }
@@ -888,6 +935,106 @@ export class PgFeesRepository implements FeesRepository {
       );
       if (!result.rows[0]) return null;
       return mapPayment(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listPaymentsForInvoice(tenantId: string, invoiceId: string): Promise<FeePaymentEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 AND invoice_id = $2
+          ORDER BY paid_at ASC`,
+        [tenantId, invoiceId],
+      );
+      return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
+    });
+  }
+
+  async findReceiptByPaymentId(
+    tenantId: string,
+    paymentId: string,
+  ): Promise<FeeReceiptEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 AND payment_id = $2 LIMIT 1`,
+        [tenantId, paymentId],
+      );
+      return result.rows[0] ? mapReceipt(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listReceiptsForInvoiceIds(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<FeeReceiptEntity[]> {
+    if (invoiceIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])
+          ORDER BY issued_at DESC`,
+        [tenantId, invoiceIds],
+      );
+      return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
+    });
+  }
+
+  async sumSucceededPaymentsByInvoice(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (invoiceIds.length === 0) return out;
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT invoice_id, COALESCE(SUM(amount_cents), 0)::bigint AS paid
+           FROM parent_fee_payments
+          WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[]) AND status = 'succeeded'
+          GROUP BY invoice_id`,
+        [tenantId, invoiceIds],
+      );
+      for (const row of result.rows as Array<{ invoice_id: string; paid: string }>) {
+        out.set(String(row.invoice_id), pgIntegerCents(row.paid));
+      }
+      return out;
+    });
+  }
+
+  async listInvoicesPage(tenantId: string, page: FeesPageRequest): Promise<FeeInvoiceEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1
+          ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
+    });
+  }
+
+  async listPaymentsPage(tenantId: string, page: FeesPageRequest): Promise<FeePaymentEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_payments WHERE tenant_id = $1
+          ORDER BY paid_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
+    });
+  }
+
+  async listReceiptsPage(tenantId: string, page: FeesPageRequest): Promise<FeeReceiptEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1
+          ORDER BY issued_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
+      );
+      return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
     });
   }
 

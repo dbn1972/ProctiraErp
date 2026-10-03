@@ -24,13 +24,22 @@ import {
   type DeliveryLogParams,
   type DeliveryLogQuery,
 } from './circular-schemas.js';
-
-import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
 import type { CircularsService } from './circulars-service.js';
+import {
+  communicationActorId,
+  enforceCommunicationRouteAccess,
+} from './communication-http-guard.js';
+import { MAX_PAGE_LIMIT, parsePageQuery } from './pagination.js';
+
+/** Resolves identities the caller may acknowledge for besides itself (PRC-M188). */
+export interface CircularRecipientBinding {
+  listLinkedRecipientIds(tenantId: string, actorId: string): Promise<string[]>;
+}
 
 export interface CircularRoutesOptions {
   circularsService: CircularsService;
   prefix?: string;
+  recipientBinding?: CircularRecipientBinding;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -41,6 +50,14 @@ function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
     message: 'Tenant context is required',
+    statusCode: 400,
+  });
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${MAX_PAGE_LIMIT}; cursor must be a token from nextCursor`,
     statusCode: 400,
   });
 }
@@ -143,7 +160,7 @@ export async function registerCircularRoutes(
   fastify: FastifyInstance,
   options: CircularRoutesOptions,
 ): Promise<void> {
-  const { circularsService, prefix = '/communication' } = options;
+  const { circularsService, prefix = '/communication', recipientBinding } = options;
 
   // W1-SEC-02: package RBAC — staff CRM fail-closed; circular ack allowed for authenticated users.
   fastify.addHook('preHandler', async (request, reply) => {
@@ -152,14 +169,17 @@ export async function registerCircularRoutes(
     }
   });
 
-
   fastify.get(
     `${prefix}/circulars`,
     async function listCircularsHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const rows = await circularsService.listCirculars(tenantId);
-      return reply.status(200).send({ data: rows.map(formatCircular) });
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const result = await circularsService.listCirculars(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: result.data.map(formatCircular), nextCursor: result.nextCursor });
     },
   );
 
@@ -270,12 +290,26 @@ export async function registerCircularRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      // PRC-M188: bind the ack to the verified session, never to a body claim.
+      const actorId = communicationActorId(request);
+      if (!actorId) {
+        return reply.status(403).send({ code: 'FORBIDDEN', message: 'Forbidden', statusCode: 403 });
+      }
+      const recipientId = bodyResult.data.recipientId ?? actorId;
+      if (recipientId !== actorId) {
+        const linked = recipientBinding
+          ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
+          : [];
+        if (!linked.includes(recipientId)) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'You can only acknowledge for yourself or a linked student',
+            statusCode: 403,
+          });
+        }
+      }
       try {
-        const row = await circularsService.ackCircular(
-          tenantId,
-          paramsResult.data.id,
-          bodyResult.data.recipientId,
-        );
+        const row = await circularsService.ackCircular(tenantId, paramsResult.data.id, recipientId);
         return reply.status(200).send(formatCircular(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
@@ -292,10 +326,28 @@ export async function registerCircularRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const result = validate(DeliveryLogQuerySchema, request.query ?? {});
-      const filter = result.success ? result.data : {};
-      const rows = await circularsService.listDeliveryLogs(tenantId, filter);
-      return reply.status(200).send({ data: rows.map(formatLog) });
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const {
+        limit: _limit,
+        cursor: _cursor,
+        ...filterQuery
+      } = (request.query ?? {}) as Record<string, unknown>;
+      // PRC-M192: an invalid filter is a 400, never silently widened to "all rows".
+      const result = validate(DeliveryLogQuerySchema, filterQuery);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid delivery-log query',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+      const filter = result.data;
+      const rows = await circularsService.listDeliveryLogs(tenantId, filter, page);
+      return reply
+        .status(200)
+        .send({ data: rows.data.map(formatLog), nextCursor: rows.nextCursor });
     },
   );
 

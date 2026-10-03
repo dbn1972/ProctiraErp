@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { CircularStore } from './circular-store.js';
-import { registerCircularRoutes } from './circulars-routes.js';
+import { registerCircularRoutes, type CircularRecipientBinding } from './circulars-routes.js';
 import { CircularsService } from './circulars-service.js';
 import type { CommunicationRepository } from './communication-repository.js';
 import { CommunicationService, type CommunicationAuditSink } from './communication-service.js';
@@ -18,6 +18,8 @@ export interface CommunicationPluginOptions {
   circularStore?: CircularStore;
   whatsappAdapter?: WhatsAppChannelAdapter;
   prefix?: string;
+  /** PRC-M188: guardian → linked-student ids allowed for circular acks. */
+  recipientBinding?: CircularRecipientBinding;
 }
 
 declare module 'fastify' {
@@ -53,7 +55,11 @@ export const communicationPlugin = fp(
     fastify.decorate('communicationService', communicationService);
     fastify.decorate('circularsService', circularsService);
     await registerCommunicationRoutes(fastify, { communicationService, prefix });
-    await registerCircularRoutes(fastify, { circularsService, prefix });
+    await registerCircularRoutes(fastify, {
+      circularsService,
+      prefix,
+      recipientBinding: options.recipientBinding,
+    });
   },
   {
     name: '@proctira/backend-communication',

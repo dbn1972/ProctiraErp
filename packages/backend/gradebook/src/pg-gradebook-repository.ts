@@ -2,9 +2,9 @@
  * Postgres-backed gradebook store (raw `pg` — no Prisma).
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes).
  */
-import { ValidationError } from '@proctira/common';
+import { ConflictError, ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
 import { GradebookSchemaMissingError } from './gradebook-errors.js';
@@ -17,6 +17,7 @@ import type {
   GpaSnapshotEntity,
   GradeChangeAuditContext,
   GradeEntryEntity,
+  GradeEntryWriteGuard,
   GradebookRepository,
   GradingScaleEntity,
   InstitutionSummary,
@@ -49,6 +50,12 @@ function isUndefinedTable(error: unknown): boolean {
   );
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505'
+  );
+}
+
 function isForeignKeyViolation(
   error: unknown,
 ): error is { code: '23503'; constraint?: string; detail?: string } {
@@ -72,6 +79,10 @@ async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
   } catch (error) {
     if (isUndefinedTable(error)) {
       throw new GradebookSchemaMissingError();
+    }
+    if (isUniqueViolation(error)) {
+      // PRC-M264/M267: concurrent create of the same natural key -> 409, not 500.
+      throw new ConflictError('A record with the same key was created concurrently');
     }
     if (isForeignKeyViolation(error)) {
       // A caller-supplied id (student, section, subject…) does not exist in
@@ -308,6 +319,10 @@ export class PgGradebookRepository implements GradebookRepository {
         params.push(filter.studentId);
         clauses.push(`student_id = $${params.length}`);
       }
+      if (filter?.studentIds) {
+        params.push(filter.studentIds);
+        clauses.push(`student_id = ANY($${params.length}::uuid[])`);
+      }
       const res = await this.query(
         tenantId,
         `SELECT * FROM grade_entries WHERE ${clauses.join(' AND ')} ORDER BY entered_at DESC`,
@@ -392,13 +407,28 @@ export class PgGradebookRepository implements GradebookRepository {
     id: string,
     patch: Partial<GradeEntryEntity>,
     audit?: GradeChangeAuditContext,
+    guard?: GradeEntryWriteGuard,
   ) {
     return withSchemaCheck(async () => {
-      const cur = await this.getGradeEntry(tenantId, id);
-      if (!cur) return null;
-      const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
-      const actor = splitActor(next.enteredBy, next.metadata);
+      // PRC-M264: read + guard + write in ONE transaction under a row lock.
       return withPgTenant(this.pool, tenantId, async (client) => {
+        const locked = await client.query(
+          `SELECT * FROM grade_entries WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+          [tenantId, id],
+        );
+        const curRow = (locked as { rows: Record<string, unknown>[] }).rows[0];
+        if (!curRow) return null;
+        const cur = mapEntry(curRow);
+        if (guard) {
+          if (cur.updatedAt !== guard.expectedUpdatedAt) {
+            throw new ConflictError(`Grade entry ${id} changed concurrently; reload and retry`);
+          }
+          if (guard.requireUnlocked && (cur.lockedAt || cur.publishedAt)) {
+            throw new ConflictError(`Grade entry ${id} was locked concurrently`);
+          }
+        }
+        const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
+        const actor = splitActor(next.enteredBy, next.metadata);
         await this.bindGradeChangeGucs(client, {
           action: audit?.action,
           actorId: audit?.actorId ?? actor.enteredBy,
@@ -671,8 +701,8 @@ export class PgGradebookRepository implements GradebookRepository {
           row.issuedBy,
           row.artifactUri,
           row.checksumSha256,
-          row.signatureHmac
-            ?? (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
+          row.signatureHmac ??
+            (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
           JSON.stringify(row.metadata ?? {}),
           row.createdAt,
           row.updatedAt,

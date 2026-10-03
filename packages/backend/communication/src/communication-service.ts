@@ -2,7 +2,7 @@
  * Communication service — campaigns and dual-confirm emergency blasts.
  * G-604: sandbox delivery adapter + optional audit sink on send/dispatch.
  */
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { estimateAudience } from './audience.js';
@@ -13,7 +13,12 @@ import {
   type DeliveryResult,
 } from './delivery-adapter.js';
 import { fetchLiveAudienceCounts } from './live-audience.js';
-import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
+import { DEFAULT_PAGE, toPage, type PageRequest } from './pagination.js';
+import {
+  MAX_AUDIENCE_JSON_BYTES,
+  type CreateCampaignInput,
+  type CreateEmergencyBlastInput,
+} from './schemas.js';
 
 export interface CommunicationAuditEvent {
   action: 'campaign.send' | 'emergency.dispatch';
@@ -62,6 +67,22 @@ export class CommunicationService {
   }
 
   async createCampaign(tenantId: string, input: CreateCampaignInput, actorId: string | null) {
+    if (
+      input.audienceJson &&
+      Buffer.byteLength(JSON.stringify(input.audienceJson), 'utf8') > MAX_AUDIENCE_JSON_BYTES
+    ) {
+      throw new ValidationError(`audienceJson exceeds ${MAX_AUDIENCE_JSON_BYTES} bytes`);
+    }
+    if (input.scheduledAt !== undefined) {
+      const at = Date.parse(input.scheduledAt);
+      if (Number.isNaN(at)) throw new ValidationError('scheduledAt must be an ISO date-time');
+      if (at <= Date.now()) throw new ValidationError('scheduledAt must be in the future');
+      // PRC-M192: no scheduler transitions 'scheduled' campaigns, so accepting a
+      // schedule would silently never send. Fail closed until one exists.
+      throw new BusinessRuleError(
+        'Scheduled sending is not available; create a draft and send it explicitly',
+      );
+    }
     return this.repository.createCampaign({
       id: uuidv4(),
       tenantId,
@@ -77,8 +98,8 @@ export class CommunicationService {
     });
   }
 
-  async listCampaigns(tenantId: string) {
-    return this.repository.listCampaigns(tenantId);
+  async listCampaigns(tenantId: string, page: PageRequest = DEFAULT_PAGE) {
+    return toPage(await this.repository.listCampaigns(tenantId, page), page);
   }
 
   async getCampaign(tenantId: string, id: string) {
@@ -165,8 +186,8 @@ export class CommunicationService {
     });
   }
 
-  async listEmergencyBlasts(tenantId: string) {
-    return this.repository.listEmergencyBlasts(tenantId);
+  async listEmergencyBlasts(tenantId: string, page: PageRequest = DEFAULT_PAGE) {
+    return toPage(await this.repository.listEmergencyBlasts(tenantId, page), page);
   }
 
   async confirmEmergencyBlast(tenantId: string, id: string, actorId: string) {

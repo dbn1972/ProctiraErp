@@ -66,9 +66,9 @@ describe('createWhatsAppAdapter (W1-ARCH-08)', () => {
   });
 
   it('live without required WHATSAPP_* credentials fails closed (no silent sandbox)', () => {
-    expect(() =>
-      createWhatsAppAdapter({ PROVIDER_MODE: 'live' }),
-    ).toThrow(WHATSAPP_LIVE_MISSING_CREDS_NOTE);
+    expect(() => createWhatsAppAdapter({ PROVIDER_MODE: 'live' })).toThrow(
+      WHATSAPP_LIVE_MISSING_CREDS_NOTE,
+    );
 
     expect(() =>
       createWhatsAppAdapter({
@@ -115,7 +115,7 @@ describe('CircularsService WhatsApp injection (W1-ARCH-08)', () => {
     await service.sendCircular('550e8400-e29b-41d4-a716-446655440001', circular.id);
 
     expect(send).toHaveBeenCalledTimes(1);
-    const logs = await service.listDeliveryLogs('550e8400-e29b-41d4-a716-446655440001', {
+    const { data: logs } = await service.listDeliveryLogs('550e8400-e29b-41d4-a716-446655440001', {
       channel: 'whatsapp',
     });
     expect(logs[0]!.providerRef).toBe('injected-wa:1');

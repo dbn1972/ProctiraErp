@@ -13,6 +13,7 @@ import type {
   DeliveryLogFilter,
   DeliveryLogRecord,
 } from './circular-store.js';
+import { DEFAULT_PAGE, toPage, type Page, type PageRequest } from './pagination.js';
 import { createWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CircularView extends CircularRecord {
@@ -43,49 +44,68 @@ export class CircularsService {
       throw new ValidationError('requiresAck circulars need at least one recipientId');
     }
     const now = new Date();
-    const record = await this.store.createCircular({
-      id: randomUUID(),
-      tenantId,
-      title: input.title,
-      body: input.body,
-      audienceType: input.audienceType,
-      audienceJson: {
-        type: input.audienceType,
-        ids: input.audienceIds ?? [],
-        recipientIds: input.recipientIds ?? [],
-      },
-      requiresAck: input.requiresAck ?? false,
-      channels: input.channels && input.channels.length > 0 ? input.channels : ['in_app'],
-      status: 'draft',
-      createdBy: input.createdBy ?? null,
-      sentAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
+    // PRC-M193: de-duplicate recipients; circular + acks commit in one transaction.
+    const recipientIds = [...new Set(input.recipientIds ?? [])];
     const labels = input.recipientLabels ?? {};
-    for (const recipientId of input.recipientIds ?? []) {
-      await this.store.createAck({
+    const circularId = randomUUID();
+    const record = await this.store.createCircularWithAcks(
+      {
+        id: circularId,
+        tenantId,
+        title: input.title,
+        body: input.body,
+        audienceType: input.audienceType,
+        audienceJson: {
+          type: input.audienceType,
+          ids: input.audienceIds ?? [],
+          recipientIds,
+        },
+        requiresAck: input.requiresAck ?? false,
+        channels: input.channels && input.channels.length > 0 ? input.channels : ['in_app'],
+        status: 'draft',
+        createdBy: input.createdBy ?? null,
+        sentAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      recipientIds.map((recipientId) => ({
         id: randomUUID(),
         tenantId,
-        circularId: record.id,
+        circularId,
         recipientId,
         recipientLabel: labels[recipientId] ?? null,
         acknowledgedAt: null,
         createdAt: now,
-      });
-    }
+      })),
+    );
 
     return this.toView(tenantId, record);
   }
 
-  async listCirculars(tenantId: string): Promise<CircularView[]> {
-    const rows = await this.store.listCirculars(tenantId);
-    const views: CircularView[] = [];
-    for (const row of rows) {
-      views.push(await this.toView(tenantId, row));
-    }
-    return views;
+  /**
+   * PRC-M191: paginated; ack totals come from ONE grouped query and the
+   * per-recipient ack rows are only returned by GET :id.
+   */
+  async listCirculars(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<Page<CircularView>> {
+    const { data: rows, nextCursor } = toPage(await this.store.listCirculars(tenantId, page), page);
+    const counts = await this.store.countAcksByCircular(
+      tenantId,
+      rows.map((r) => r.id),
+    );
+    const data = rows.map((record) => {
+      const c = counts.get(record.id) ?? { total: 0, acknowledged: 0 };
+      return {
+        ...record,
+        acks: [],
+        ackTotal: c.total,
+        ackCount: c.acknowledged,
+        ackRate: ackRate(c.total, c.acknowledged),
+      };
+    });
+    return { data, nextCursor };
   }
 
   async getCircular(tenantId: string, id: string): Promise<CircularView> {
@@ -151,7 +171,8 @@ export class CircularsService {
     }
     const ack = await this.store.findAck(tenantId, circularId, recipientId);
     if (!ack) {
-      throw new NotFoundError(`Recipient '${recipientId}' is not on this circular`);
+      // PRC-M188: uniform message — never echo the probed recipient id.
+      throw new NotFoundError('No acknowledgement is pending for you on this circular');
     }
     if (ack.acknowledgedAt) {
       return circular;
@@ -163,8 +184,9 @@ export class CircularsService {
   async listDeliveryLogs(
     tenantId: string,
     filter: DeliveryLogFilter = {},
-  ): Promise<DeliveryLogRecord[]> {
-    return this.store.listDeliveryLogs(tenantId, filter);
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<Page<DeliveryLogRecord>> {
+    return toPage(await this.store.listDeliveryLogs(tenantId, filter, page), page);
   }
 
   async retryFailed(tenantId: string, logId: string): Promise<DeliveryLogRecord> {

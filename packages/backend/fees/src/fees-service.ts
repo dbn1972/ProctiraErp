@@ -14,10 +14,12 @@ import type {
   FeePlanEntity,
   FeeReceiptEntity,
   FeesMoneyAuditSink,
+  FeesPageRequest,
   FeesRepository,
   LedgerAccount,
   PaymentMethod,
 } from './fees-repository.js';
+import { PaymentIdempotencyReplay } from './fees-repository.js';
 import {
   allocateByShares,
   allocateInstalments,
@@ -34,6 +36,29 @@ import {
 } from './reminder-sandbox.js';
 
 export type { ReminderChannel, ReminderSendAuditEntity, ReminderSuppressionEntity };
+
+/** PRC-M249: statuses that still carry collectible AR. */
+function isCollectible(status: string): boolean {
+  return status === 'open' || status === 'overdue';
+}
+
+/** PRC-M248: trim a `limit + 1` fetch into a page. */
+function feesPage<T>(rows: T[], page: FeesPageRequest): { data: T[]; nextCursor: string | null } {
+  const hasMore = rows.length > page.limit;
+  return {
+    data: hasMore ? rows.slice(0, page.limit) : rows,
+    nextCursor: hasMore ? String(page.offset + page.limit) : null,
+  };
+}
+
+/** PRC-M247: unique violation on uq_parent_fee_payments_tenant_idempotency. */
+function isIdempotencyUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; constraint?: string } | null;
+  return (
+    e?.code === '23505' &&
+    (e.constraint === undefined || String(e.constraint).includes('idempotency'))
+  );
+}
 export { FEES_REMINDER_SANDBOX_HONESTY_NOTE };
 
 export interface AddReminderSuppressionInput {
@@ -439,11 +464,21 @@ export class FeesService {
   async listPayments(tenantId: string) {
     return this.repository.listPaymentsForTenant(tenantId);
   }
+  /** PRC-M248: bounded staff list pages (`limit + 1` fetch -> nextCursor). */
+  async listInvoicesPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listInvoicesPage(tenantId, page), page);
+  }
+  async listPaymentsPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listPaymentsPage(tenantId, page), page);
+  }
+  async listReceiptsPage(tenantId: string, page: FeesPageRequest) {
+    return feesPage(await this.repository.listReceiptsPage(tenantId, page), page);
+  }
 
   async getNetCollectedCents(tenantId: string, invoiceId: string): Promise<number> {
     await this.getInvoice(tenantId, invoiceId);
-    const payments = (await this.repository.listPaymentsForTenant(tenantId))
-      .filter((payment) => payment.invoiceId === invoiceId && payment.status === 'succeeded')
+    const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoiceId))
+      .filter((payment) => payment.status === 'succeeded')
       .reduce((sum, payment) => sum + payment.amountCents, 0);
     const refunds = (await this.repository.listRefundsForInvoice(tenantId, invoiceId))
       .filter((refund) => refund.status === 'posted')
@@ -494,31 +529,75 @@ export class FeesService {
         ? input.idempotencyKey.trim()
         : null;
 
+    const payerUserId = input.payerUserId ?? actorId;
     if (idempotencyKey) {
       const existing = await this.repository.findPaymentByIdempotencyKey(tenantId, idempotencyKey);
-      if (existing) {
-        if (existing.invoiceId !== input.invoiceId) {
-          throw new BusinessRuleError('Idempotency key already used for a different invoice');
-        }
-        if (input.amountCents != null && input.amountCents !== existing.amountCents) {
-          throw new BusinessRuleError(
-            'Idempotency key already used for a different payment amount',
-          );
-        }
-        const invoice = await this.getInvoice(tenantId, existing.invoiceId);
-        const receipt =
-          (await this.repository.listReceiptsForTenant(tenantId)).find(
-            (r) => r.paymentId === existing.id,
-          ) ?? null;
-        if (!receipt) {
-          throw new BusinessRuleError(
-            'Idempotent payment is missing its receipt — refuse silent repair',
-          );
-        }
-        return { invoice, payment: existing, receipt, idempotent: true };
-      }
+      if (existing) return this.replayIdempotentPayment(tenantId, existing, input, payerUserId);
     }
 
+    let settled: {
+      invoice: FeeInvoiceEntity;
+      payment: FeePaymentEntity;
+      receipt: FeeReceiptEntity;
+    };
+    try {
+      settled = await this.settlePayment(tenantId, actorId, input, idempotencyKey, options);
+    } catch (err) {
+      // PRC-M247: a concurrent same-key request committed first — replay it.
+      if (err instanceof PaymentIdempotencyReplay) {
+        return this.replayIdempotentPayment(tenantId, err.payment, input, payerUserId);
+      }
+      if (idempotencyKey && isIdempotencyUniqueViolation(err)) {
+        const winner = await this.repository.findPaymentByIdempotencyKey(tenantId, idempotencyKey);
+        if (winner) return this.replayIdempotentPayment(tenantId, winner, input, payerUserId);
+      }
+      throw err;
+    }
+    return { ...settled, idempotent: false };
+  }
+
+  /** PRC-M247: replay validates invoice, amount and payer before returning the settlement. */
+  private async replayIdempotentPayment(
+    tenantId: string,
+    existing: FeePaymentEntity,
+    input: RecordPaymentInput,
+    payerUserId: string,
+  ) {
+    if (existing.invoiceId !== input.invoiceId) {
+      throw new BusinessRuleError('Idempotency key already used for a different invoice');
+    }
+    if (input.amountCents != null && input.amountCents !== existing.amountCents) {
+      throw new BusinessRuleError('Idempotency key already used for a different payment amount');
+    }
+    if (existing.payerUserId !== payerUserId) {
+      throw new BusinessRuleError('Idempotency key already used by a different payer');
+    }
+    const invoice = await this.getInvoice(tenantId, existing.invoiceId);
+    const receipt = await this.repository.findReceiptByPaymentId(tenantId, existing.id);
+    if (!receipt) {
+      throw new BusinessRuleError(
+        'Idempotent payment is missing its receipt — refuse silent repair',
+      );
+    }
+    return { invoice, payment: existing, receipt, idempotent: true };
+  }
+
+  private async settlePayment(
+    tenantId: string,
+    actorId: string,
+    input: RecordPaymentInput,
+    idempotencyKey: string | null,
+    options?: {
+      appendAuditInTxn?: (
+        client: PgQueryable,
+        settlement: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
+  ) {
     const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
       tenantId,
       input.invoiceId,
@@ -602,16 +681,26 @@ export class FeesService {
             : 'open') as FeeInvoiceEntity['status'],
         };
       },
-      options?.appendAuditInTxn
-        ? {
-            appendAuditInTxn: async (client, settled) => {
-              await options.appendAuditInTxn!(client, settled);
-            },
-          }
-        : undefined,
+      {
+        idempotencyKey,
+        ...(options?.appendAuditInTxn
+          ? {
+              appendAuditInTxn: async (
+                client: PgQueryable,
+                settled: {
+                  invoice: FeeInvoiceEntity;
+                  payment: FeePaymentEntity;
+                  receipt: FeeReceiptEntity;
+                },
+              ) => {
+                await options.appendAuditInTxn!(client, settled);
+              },
+            }
+          : {}),
+      },
     );
 
-    return { invoice, payment, receipt, idempotent: false };
+    return { invoice, payment, receipt };
   }
 
   async createFeeStructure(tenantId: string, actorId: string, input: CreateFeeStructureInput) {
@@ -770,21 +859,21 @@ export class FeesService {
 
     const created: FeeInvoiceEntity[] = [];
     const skipped: string[] = [];
+    // PRC-M250: set-based lookups instead of two queries per student.
+    const [alreadyInvoiced, concessions] = await Promise.all([
+      this.repository.listInvoicedStudentIdsForStructure(tenantId, structure.id, unique),
+      this.repository.listActiveConcessionsForStructure(tenantId, structure.id, unique),
+    ]);
+    const concessionByStudent = new Map<string, FeeConcessionEntity>();
+    for (const c of concessions) {
+      if (!concessionByStudent.has(c.studentId)) concessionByStudent.set(c.studentId, c);
+    }
     for (const studentId of unique) {
-      const existing = await this.repository.findInvoiceForStructureStudent(
-        tenantId,
-        structure.id,
-        studentId,
-      );
-      if (existing) {
+      if (alreadyInvoiced.has(studentId)) {
         skipped.push(studentId);
         continue;
       }
-      const concession = await this.repository.findConcessionForStudentStructure(
-        tenantId,
-        studentId,
-        structure.id,
-      );
+      const concession = concessionByStudent.get(studentId) ?? null;
       const discount =
         concession && concession.status === 'approved'
           ? concessionDiscountCents(structure.amountCents, concession)
@@ -905,11 +994,12 @@ export class FeesService {
       (await this.getFeeStructure(tenantId, concession.structureId)).amountCents,
       concession,
     );
-    const approved = await this.repository.updateConcession(concession.id, tenantId, {
-      status: 'approved',
+    // PRC-M245: the approval is recorded in the same locked transaction that
+    // checks the unpaid balance, so a rejected (over-unpaid) approval leaves
+    // the concession pending.
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount, audit, {
       approverId: actorId,
     });
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount, audit);
   }
 
   async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
@@ -936,6 +1026,7 @@ export class FeesService {
     concession: FeeConcessionEntity,
     discount: number,
     audit?: FeesMoneyAuditSink,
+    approve?: { approverId: string },
   ) {
     const target = concession.invoiceId
       ? await this.getInvoice(tenantId, concession.invoiceId)
@@ -945,6 +1036,13 @@ export class FeesService {
           concession.studentId,
         );
     if (!target) {
+      if (approve) {
+        const approved = await this.repository.updateConcession(concession.id, tenantId, {
+          status: 'approved',
+          approverId: approve.approverId,
+        });
+        return { concession: approved ?? concession, invoice: null, discountCents: discount };
+      }
       return { concession, invoice: null, discountCents: discount };
     }
     // PRC-H058: re-read the invoice under lock; journal + face update + link are atomic.
@@ -955,8 +1053,19 @@ export class FeesService {
       }
       // Never discount below cash already collected (negative AR).
       const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+      // PRC-M245: a manual concession larger than the unpaid balance is rejected;
+      // scholarship netting (sourceDisbursementId) credits at most the unpaid balance.
+      if (discount > unpaid && concession.sourceDisbursementId == null) {
+        throw new BusinessRuleError(`Concession ${discount} exceeds unpaid balance ${unpaid}`);
+      }
       const applied = Math.min(discount, unpaid);
       const nextAmount = invoice.amountCents - applied;
+      if (approve) {
+        await tx.updateConcession(concession.id, tenantId, {
+          status: 'approved',
+          approverId: approve.approverId,
+        });
+      }
       if (applied > 0) {
         await this.postJournal(
           tx,
@@ -970,8 +1079,10 @@ export class FeesService {
           applied,
         );
       }
+      // PRC-M245: nothing left to collect -> settled.
       const updated = await tx.updateInvoice(invoice.id, tenantId, {
         amountCents: nextAmount,
+        ...(nextAmount <= locked.paidCents ? { status: 'paid' as const } : {}),
       });
       await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
       const refreshed = await tx.findConcessionById(concession.id, tenantId);
@@ -1000,8 +1111,8 @@ export class FeesService {
       assertRefundWithinPaid(locked.paidCents, locked.refundedCents, input.amountCents);
       let paymentId = input.paymentId ?? null;
       if (!paymentId) {
-        const first = (await tx.listPaymentsForTenant(tenantId)).find(
-          (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+        const first = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).find(
+          (p) => p.status === 'succeeded',
         );
         paymentId = first?.id ?? null;
       }
@@ -1085,8 +1196,11 @@ export class FeesService {
         createdBy: actorId,
       });
 
+      // PRC-M245: a credit note that clears the unpaid balance settles the invoice.
+      const nextUnpaid = unpaid - input.amountCents;
       const updated = await tx.updateInvoice(invoice.id, tenantId, {
         amountCents: invoice.amountCents - input.amountCents,
+        ...(nextUnpaid === 0 ? { status: 'paid' as const } : {}),
       });
 
       await this.postJournal(
@@ -1202,15 +1316,27 @@ export class FeesService {
       this.repository.listInvoicesForTenant(tenantId),
       this.repository.listReminderSuppressions(tenantId),
     ]);
-    const openOverdue = invoices.filter(
-      (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
+    const candidates = invoices.filter(
+      (invoice) => isCollectible(invoice.status) && invoice.dueAt != null && invoice.dueAt < asOf,
     );
-    return openOverdue.map((invoice) => ({
+    // PRC-M249: remind for the outstanding balance (face − succeeded payments, SQL SUM).
+    const paid = await this.repository.sumSucceededPaymentsByInvoice(
+      tenantId,
+      candidates.map((i) => i.id),
+    );
+    const openOverdue = candidates
+      .map((invoice) => ({
+        invoice,
+        outstanding: Math.max(0, invoice.amountCents - (paid.get(invoice.id) ?? 0)),
+      }))
+      .filter((row) => row.outstanding > 0);
+    return openOverdue.map(({ invoice, outstanding }) => ({
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       studentId: invoice.studentId,
       classId: invoice.classId,
-      amountCents: invoice.amountCents,
+      amountCents: outstanding,
+      invoiceAmountCents: invoice.amountCents,
       currency: invoice.currency,
       dueAt: invoice.dueAt!.toISOString(),
       overdueDays: Math.max(
@@ -1403,6 +1529,11 @@ export class FeesService {
       overdueDays: number;
     }> = [];
 
+    // PRC-M249: outstanding = face − succeeded payments (SQL aggregate), open + overdue alike.
+    const paid = await this.repository.sumSucceededPaymentsByInvoice(
+      tenantId,
+      invoices.filter((i) => isCollectible(i.status)).map((i) => i.id),
+    );
     for (const invoice of invoices) {
       const statusRow = byStatus.get(invoice.status) ?? {
         status: invoice.status,
@@ -1413,7 +1544,9 @@ export class FeesService {
       statusRow.amountCents += invoice.amountCents;
       byStatus.set(invoice.status, statusRow);
 
-      if (invoice.status !== 'open') continue;
+      if (!isCollectible(invoice.status)) continue;
+      const outstanding = Math.max(0, invoice.amountCents - (paid.get(invoice.id) ?? 0));
+      if (outstanding === 0) continue;
       const classKey = invoice.classId ?? 'unassigned';
       const classRow = byClass.get(classKey) ?? {
         classId: classKey,
@@ -1423,20 +1556,20 @@ export class FeesService {
         overdueCents: 0,
       };
       classRow.openCount += 1;
-      classRow.openCents += invoice.amountCents;
+      classRow.openCents += outstanding;
       if (invoice.dueAt && invoice.dueAt < asOf) {
         const overdueDays = Math.max(
           1,
           Math.floor((asOf.getTime() - invoice.dueAt.getTime()) / 86_400_000),
         );
         classRow.overdueCount += 1;
-        classRow.overdueCents += invoice.amountCents;
+        classRow.overdueCents += outstanding;
         overdue.push({
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
           studentId: invoice.studentId,
           classId: invoice.classId,
-          amountCents: invoice.amountCents,
+          amountCents: outstanding,
           overdueDays,
         });
       }
@@ -1581,9 +1714,7 @@ export class FeesService {
 
   async listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]) {
     if (invoiceIds.length === 0) return [];
-    const idSet = new Set(invoiceIds);
-    const receipts = await this.repository.listReceiptsForTenant(tenantId);
-    return receipts.filter((receipt) => idSet.has(receipt.invoiceId));
+    return this.repository.listReceiptsForInvoiceIds(tenantId, [...new Set(invoiceIds)]);
   }
 
   /**

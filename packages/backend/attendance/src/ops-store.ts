@@ -91,19 +91,26 @@ export interface AttendanceOpsStore {
     filter?: { status?: RequestStatus },
   ): Promise<RegularisationRecord[]>;
   getRegularisation(tenantId: string, id: string): Promise<RegularisationRecord | null>;
+  /**
+   * PRC-M171: when `expectedStatus` is given the write is a compare-and-set
+   * (`WHERE status = expectedStatus`); null when no row matched.
+   */
   updateRegularisation(
     tenantId: string,
     id: string,
     patch: Partial<RegularisationRecord>,
+    expectedStatus?: RequestStatus,
   ): Promise<RegularisationRecord | null>;
 
   createLeave(row: LeaveRequestRecord): Promise<LeaveRequestRecord>;
   listLeaves(tenantId: string, filter?: { status?: RequestStatus }): Promise<LeaveRequestRecord[]>;
   getLeave(tenantId: string, id: string): Promise<LeaveRequestRecord | null>;
+  /** PRC-M171: compare-and-set on `expectedStatus`, null when no row matched. */
   updateLeave(
     tenantId: string,
     id: string,
     patch: Partial<LeaveRequestRecord>,
+    expectedStatus?: RequestStatus,
   ): Promise<LeaveRequestRecord | null>;
 
   createDeviceKey(row: DeviceKeyRecord): Promise<DeviceKeyRecord>;
@@ -141,9 +148,17 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
     const row = this.regularisations.get(id);
     return row && row.tenantId === tenantId ? clone(row) : null;
   }
-  async updateRegularisation(tenantId: string, id: string, patch: Partial<RegularisationRecord>) {
-    const cur = await this.getRegularisation(tenantId, id);
-    if (!cur) return null;
+  async updateRegularisation(
+    tenantId: string,
+    id: string,
+    patch: Partial<RegularisationRecord>,
+    expectedStatus?: RequestStatus,
+  ) {
+    // Synchronous read-check-write so concurrent callers cannot both pass (PRC-M171).
+    const stored = this.regularisations.get(id);
+    if (!stored || stored.tenantId !== tenantId) return null;
+    if (expectedStatus && stored.status !== expectedStatus) return null;
+    const cur = clone(stored);
     const next = {
       ...cur,
       ...patch,
@@ -168,9 +183,17 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
     const row = this.leaves.get(id);
     return row && row.tenantId === tenantId ? clone(row) : null;
   }
-  async updateLeave(tenantId: string, id: string, patch: Partial<LeaveRequestRecord>) {
-    const cur = await this.getLeave(tenantId, id);
-    if (!cur) return null;
+  async updateLeave(
+    tenantId: string,
+    id: string,
+    patch: Partial<LeaveRequestRecord>,
+    expectedStatus?: RequestStatus,
+  ) {
+    // Synchronous read-check-write so concurrent callers cannot both pass (PRC-M171).
+    const stored = this.leaves.get(id);
+    if (!stored || stored.tenantId !== tenantId) return null;
+    if (expectedStatus && stored.status !== expectedStatus) return null;
+    const cur = clone(stored);
     const next = {
       ...cur,
       ...patch,
@@ -371,15 +394,26 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
     });
   }
 
-  async updateRegularisation(tenantId: string, id: string, patch: Partial<RegularisationRecord>) {
-    const cur = await this.getRegularisation(tenantId, id);
-    if (!cur) return null;
-    const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
+  async updateRegularisation(
+    tenantId: string,
+    id: string,
+    patch: Partial<RegularisationRecord>,
+    expectedStatus?: RequestStatus,
+  ) {
     return this.run(tenantId, async (c) => {
+      // Compare-and-set under a row lock (PRC-M171).
+      const { rows: curRows } = await c.query(
+        `SELECT * FROM attendance_regularisation_requests WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+        [tenantId, id],
+      );
+      if (!curRows[0]) return null;
+      const cur = toReg(curRows[0] as Record<string, unknown>);
+      if (expectedStatus && cur.status !== expectedStatus) return null;
+      const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
       const { rows } = await c.query(
         `UPDATE attendance_regularisation_requests SET
            status = $3, decided_by = $4, decided_at = $5, decision_note = $6, updated_at = $7
-         WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+         WHERE tenant_id = $1 AND id = $2 AND ($8::text IS NULL OR status = $8) RETURNING *`,
         [
           tenantId,
           id,
@@ -388,6 +422,7 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
           next.decidedAt,
           next.decisionNote,
           next.updatedAt,
+          expectedStatus ?? null,
         ],
       );
       return rows[0] ? toReg(rows[0] as Record<string, unknown>) : null;
@@ -452,15 +487,26 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
     });
   }
 
-  async updateLeave(tenantId: string, id: string, patch: Partial<LeaveRequestRecord>) {
-    const cur = await this.getLeave(tenantId, id);
-    if (!cur) return null;
-    const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
+  async updateLeave(
+    tenantId: string,
+    id: string,
+    patch: Partial<LeaveRequestRecord>,
+    expectedStatus?: RequestStatus,
+  ) {
     return this.run(tenantId, async (c) => {
+      // Compare-and-set under a row lock (PRC-M171).
+      const { rows: curRows } = await c.query(
+        `SELECT * FROM attendance_leave_requests WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+        [tenantId, id],
+      );
+      if (!curRows[0]) return null;
+      const cur = toLeave(curRows[0] as Record<string, unknown>);
+      if (expectedStatus && cur.status !== expectedStatus) return null;
+      const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
       const { rows } = await c.query(
         `UPDATE attendance_leave_requests SET
            status = $3, decided_by = $4, decided_at = $5, decision_note = $6, updated_at = $7
-         WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+         WHERE tenant_id = $1 AND id = $2 AND ($8::text IS NULL OR status = $8) RETURNING *`,
         [
           tenantId,
           id,
@@ -469,6 +515,7 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
           next.decidedAt,
           next.decisionNote,
           next.updatedAt,
+          expectedStatus ?? null,
         ],
       );
       return rows[0] ? toLeave(rows[0] as Record<string, unknown>) : null;
