@@ -182,3 +182,35 @@ describe('W1-SEC-10 mutation audit policy', () => {
     expect(shouldAuditMutation('GET', '/api/v1/health/measurements')).toBe(false);
   });
 });
+
+describe('post-hoc audit values (PRC-M013)', () => {
+  it('uses the response id, never the literal collection', async () => {
+    const { resolveAuditEntityId } = await import('./mutation-audit.js');
+    expect(resolveAuditEntityId('/api/v1/students', JSON.stringify({ id: 'stu-1' }))).toBe('stu-1');
+    expect(
+      resolveAuditEntityId('/api/v1/students', JSON.stringify({ data: { id: 'stu-2' } })),
+    ).toBe('stu-2');
+    expect(resolveAuditEntityId('/api/v1/students', 'not json')).toBe('unresolved');
+    expect(
+      resolveAuditEntityId('/api/v1/students/550e8400-e29b-41d4-a716-446655440000/photo', ''),
+    ).toBe('550e8400-e29b-41d4-a716-446655440000');
+  });
+  it('records changed field names (no values) and no placeholder before-state', async () => {
+    const { buildAuditValues, changedFieldNames } = await import('./mutation-audit.js');
+    expect(changedFieldNames({ b: 1, a: { secret: 'x' } })).toEqual(['a', 'b']);
+    const values = buildAuditValues('UPDATE', {
+      url: '/api/v1/students/1',
+      body: { lastName: 'L' },
+    } as never);
+    expect(values.beforeValues).toBeNull();
+    expect(values.afterValues).toMatchObject({ changedFields: ['lastName'] });
+    expect(JSON.stringify(values)).not.toContain('pre-mutation');
+  });
+  it('only 2xx/3xx outcomes are auditable mutations', async () => {
+    const { isAuditableMutationOutcome } = await import('./mutation-audit.js');
+    expect(isAuditableMutationOutcome(201)).toBe(true);
+    expect(isAuditableMutationOutcome(400)).toBe(false);
+    expect(isAuditableMutationOutcome(403)).toBe(false);
+    expect(isAuditableMutationOutcome(503)).toBe(false);
+  });
+});

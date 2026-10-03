@@ -17,18 +17,21 @@
  *   when the idempotency record was not durably saved.
  *
  * Redis key structure:
- *   idempotency:{tenantId}:{key} → JSON { statusCode, headers, body }
- *     or { status: "completed_without_body", originalStatusCode? }
- *   idempotency:{tenantId}:{key}:lock → "processing" (short TTL for in-flight detection)
+ *   idempotency:{tenantId}:{userSub}:{key} → JSON { statusCode, headers, body, fingerprint }
+ *     or { status: "completed_without_body", originalStatusCode?, fingerprint? }
+ *   idempotency:{tenantId}:{userSub}:{key}:lock → request fingerprint (SET NX EX; refreshed
+ *     while the handler runs)
+ * - PRC-M010: replay happens in preHandler (after auth/RBAC/rate limit); a key
+ *   reused for a different method/path/body returns 422 IDEMPOTENCY_KEY_REUSED.
+ * - PRC-M020: only 2xx and deterministic 4xx (400/404/409/410/422) are cached.
  */
+
+import { createHash } from 'node:crypto';
 
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 
-import {
-  assertIdempotencyRedisClient,
-  type IdempotencyStoreMode,
-} from './idempotency-store.js';
+import { assertIdempotencyRedisClient, type IdempotencyStoreMode } from './idempotency-store.js';
 
 /**
  * Options for the idempotency plugin.
@@ -49,6 +52,12 @@ export interface IdempotencyOptions {
   redis?: RedisClient;
   /** Paths to exclude from idempotency checks */
   excludePaths?: string[];
+  /**
+   * PRC-M010: when true, requests without a resolved tenant AND authenticated
+   * principal bypass idempotency entirely (no replay, no caching) instead of
+   * sharing a `global` / anonymous key space. The gateway sets this.
+   */
+  requireScope?: boolean;
 }
 
 /**
@@ -93,13 +102,22 @@ export class InMemoryIdempotencyStore implements RedisClient {
 
   async set(key: string, value: string, ...args: unknown[]): Promise<unknown> {
     let expiresAt: number | null = null;
+    let onlyIfAbsent = false;
     for (let i = 0; i < args.length; i += 1) {
-      if (String(args[i]).toUpperCase() === 'EX') {
+      const flag = String(args[i]).toUpperCase();
+      if (flag === 'EX') {
         const seconds = Number(args[i + 1]);
         if (Number.isFinite(seconds) && seconds > 0) expiresAt = Date.now() + seconds * 1000;
+      } else if (flag === 'NX') {
+        onlyIfAbsent = true;
       }
     }
     const now = Date.now();
+    // PRC-M019: SET ... NX semantics (Redis returns null when the key exists).
+    if (onlyIfAbsent) {
+      const existing = this.entries.get(key);
+      if (existing && (existing.expiresAt === null || existing.expiresAt > now)) return null;
+    }
     if (this.entries.size >= this.maxEntries) {
       this.purge(now);
       while (this.entries.size >= this.maxEntries) {
@@ -135,6 +153,8 @@ interface CachedResponse {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
+  /** PRC-M010: SHA-256 of method + path + body of the request that produced it. */
+  fingerprint?: string;
 }
 
 /**
@@ -144,6 +164,69 @@ interface CachedResponse {
 interface CompletedWithoutBodyRecord {
   status: 'completed_without_body';
   originalStatusCode?: number;
+  fingerprint?: string;
+}
+
+/**
+ * PRC-M020: only cache outcomes that are deterministic for the same request.
+ * 401/403/408/423/429 (and every 5xx) depend on time, credentials or role
+ * grants; caching them for 24h would poison legitimate retries.
+ */
+const CACHEABLE_CLIENT_ERRORS = new Set([400, 404, 409, 410, 422]);
+export function isCacheableIdempotentStatus(statusCode: number): boolean {
+  return (statusCode >= 200 && statusCode < 300) || CACHEABLE_CLIENT_ERRORS.has(statusCode);
+}
+
+type IdempotencyRequestState = {
+  key: string;
+  cacheKey: string;
+  lockKey: string;
+  fingerprint: string;
+  refreshTimer?: ReturnType<typeof setInterval>;
+};
+
+const STATE = Symbol('proctira.idempotency');
+
+function stateOf(request: FastifyRequest): IdempotencyRequestState | undefined {
+  return (request as unknown as { [STATE]?: IdempotencyRequestState })[STATE];
+}
+
+function stopRefresh(state: IdempotencyRequestState | undefined): void {
+  if (state?.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    delete state.refreshTimer;
+  }
+}
+
+/** Stable JSON (sorted object keys) so semantically equal bodies hash equally. */
+function stableStringify(value: unknown): string {
+  if (value === undefined) return 'null';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Buffer.isBuffer(value)) return JSON.stringify(value.toString('base64'));
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const entries = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k])}`);
+  return `{${entries.join(',')}}`;
+}
+
+export function idempotencyFingerprint(method: string, url: string, body: unknown): string {
+  const [path = '', query = ''] = url.split('?');
+  const normalizedQuery = query ? new URLSearchParams(query) : undefined;
+  normalizedQuery?.sort();
+  return createHash('sha256')
+    .update(`${method.toUpperCase()}\n${path.replace(/\/+$/, '') || '/'}\n`)
+    .update(`${normalizedQuery?.toString() ?? ''}\n`)
+    .update(stableStringify(body))
+    .digest('hex');
+}
+
+function keyReusedReply(reply: FastifyReply) {
+  return reply.status(422).send({
+    code: 'IDEMPOTENCY_KEY_REUSED',
+    message: 'Idempotency-Key was already used for a different request',
+    statusCode: 422,
+  });
 }
 
 /** HTTP methods that support idempotency */
@@ -196,8 +279,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     excludePaths = [],
   } = options;
 
-  const storeMode: IdempotencyStoreMode =
-    options.storeMode ?? (options.redis ? 'redis' : 'memory');
+  const storeMode: IdempotencyStoreMode = options.storeMode ?? (options.redis ? 'redis' : 'memory');
 
   // W1-ARCH-03: redis mode must never silently construct an in-memory store.
   if (storeMode === 'redis') {
@@ -205,9 +287,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   }
 
   const redis: RedisClient =
-    storeMode === 'memory'
-      ? (options.redis ?? new InMemoryIdempotencyStore())
-      : options.redis!;
+    storeMode === 'memory' ? (options.redis ?? new InMemoryIdempotencyStore()) : options.redis!;
 
   if (storeMode === 'memory' && !options.redis) {
     fastify.log.warn(
@@ -215,8 +295,12 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     );
   }
 
-  // Hook: onRequest — check for cached response or acquire lock
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+  // PRC-M010: replay runs in preHandler — after authentication, tenant
+  // resolution, the RBAC / mutating-authz / scope onRequest gates, body parsing
+  // and the preHandler rate limiter — so a cached body is never served to a
+  // caller those gates would have rejected. Keys are partitioned by tenant AND
+  // principal, and each entry carries a request fingerprint.
+  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     // Only apply to write methods
     if (!IDEMPOTENT_METHODS.has(request.method)) return;
 
@@ -234,16 +318,27 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     const idempotencyKey = request.headers[headerName] as string | undefined;
     if (!idempotencyKey) return; // No key provided — proceed normally
 
-    // Build Redis keys scoped to tenant
-    const tenantId = (request as unknown as { tenantId?: string }).tenantId || 'global';
-    const cacheKey = `idempotency:${tenantId}:${idempotencyKey}`;
+    const tenantId = (request as unknown as { tenantId?: string }).tenantId || undefined;
+    const principal = (request as unknown as { user?: { sub?: string } }).user?.sub || undefined;
+    if (options.requireScope && (!tenantId || !principal)) {
+      // Never share a `global` / anonymous replay space between callers.
+      request.log.debug({ url }, 'idempotency skipped: no tenant/principal scope');
+      return;
+    }
+
+    const cacheKey = `idempotency:${tenantId ?? 'global'}:${principal ?? 'anon'}:${idempotencyKey}`;
     const lockKey = `${cacheKey}:lock`;
+    const fingerprint = idempotencyFingerprint(request.method, request.url, request.body);
 
     try {
       // Check if there's already a cached response or durable completion marker
       const cached = await redis.get(cacheKey);
       if (cached) {
         const parsed: unknown = JSON.parse(cached);
+        const storedFingerprint = (parsed as { fingerprint?: unknown } | null)?.fingerprint;
+        if (typeof storedFingerprint === 'string' && storedFingerprint !== fingerprint) {
+          return keyReusedReply(reply);
+        }
         if (isCompletedWithoutBody(parsed)) {
           // Mutation already completed without a durable body — do not re-execute.
           reply.header('x-idempotency-replay', 'pending');
@@ -264,18 +359,19 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
         return reply.status(parsed.statusCode).send(JSON.parse(parsed.body));
       }
 
-      // Check if the request is currently in-flight (concurrent duplicate)
-      const lockExists = await redis.get(lockKey);
-      if (lockExists) {
+      // PRC-M019: atomic SET NX is the sole lock acquisition — no get-then-set race.
+      const acquired = await redis.set(lockKey, fingerprint, 'EX', lockTtlSeconds, 'NX');
+      if (acquired !== 'OK') {
+        const holder = await redis.get(lockKey).catch(() => null);
+        if (holder && holder !== 'processing' && holder !== fingerprint) {
+          return keyReusedReply(reply);
+        }
         return reply.status(409).send({
           code: 'IDEMPOTENCY_CONFLICT',
           message: 'A request with this Idempotency-Key is already being processed',
           statusCode: 409,
         });
       }
-
-      // Acquire the lock
-      await redis.set(lockKey, 'processing', 'EX', lockTtlSeconds);
     } catch (err) {
       if (storeMode === 'redis') {
         request.log.error({ err }, 'idempotency store unavailable (fail-closed)');
@@ -284,30 +380,38 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
       throw err;
     }
 
-    // Store the key info on the request for the onSend hook
-    (request as unknown as { _idempotencyKey: string })._idempotencyKey = idempotencyKey;
-    (request as unknown as { _idempotencyCacheKey: string })._idempotencyCacheKey = cacheKey;
-    (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey = lockKey;
+    const state: IdempotencyRequestState = { key: idempotencyKey, cacheKey, lockKey, fingerprint };
+    // PRC-M019: keep the lock alive while a slow handler is still running so the
+    // TTL can never lapse mid-mutation and admit a second execution.
+    const refreshMs = Math.max(1000, Math.floor((lockTtlSeconds * 1000) / 2));
+    state.refreshTimer = setInterval(() => {
+      redis.set(lockKey, fingerprint, 'EX', lockTtlSeconds).catch((err: unknown) => {
+        request.log.warn({ err }, 'idempotency lock refresh failed');
+      });
+    }, refreshMs);
+    state.refreshTimer.unref?.();
+    (request as unknown as { [STATE]?: IdempotencyRequestState })[STATE] = state;
+  });
+
+  fastify.addHook('onResponse', async (request: FastifyRequest) => {
+    stopRefresh(stateOf(request));
   });
 
   // Hook: onSend — cache the response for future replays
   fastify.addHook(
     'onSend',
     async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
-      const idempotencyKey = (request as unknown as { _idempotencyKey?: string })._idempotencyKey;
-      if (!idempotencyKey) return payload;
-
-      const cacheKey = (request as unknown as { _idempotencyCacheKey: string })
-        ._idempotencyCacheKey;
-      const lockKey = (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey;
+      const state = stateOf(request);
+      if (!state) return payload;
+      stopRefresh(state);
+      const { cacheKey, lockKey, fingerprint } = state;
 
       const statusCode = reply.statusCode;
 
       try {
-        // Only cache successful responses (2xx) and client errors (4xx)
-        // Don't cache 5xx errors as they may be transient
-        if (statusCode >= 500) {
-          // Release the lock without caching
+        // PRC-M020: cache only 2xx and deterministic client errors. 5xx, 401,
+        // 403, 408, 423 and 429 release the lock so a later retry executes.
+        if (!isCacheableIdempotentStatus(statusCode)) {
           await redis.del(lockKey);
           return payload;
         }
@@ -330,6 +434,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
           statusCode,
           headers: headersToCache,
           body: responseBody,
+          fingerprint,
         };
 
         // Store in Redis with TTL — this is the durability gate for 2xx.
@@ -344,8 +449,8 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
           'idempotency store write failed after mutation (fail-closed, no memory fallback)',
         );
 
-        // 5xx: never mark as completed — allow retry after lock TTL.
-        if (statusCode >= 500) {
+        // 5xx / non-cacheable: never mark as completed — allow retry after lock TTL.
+        if (!isCacheableIdempotentStatus(statusCode)) {
           return payload;
         }
 
@@ -369,6 +474,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
           const marker: CompletedWithoutBodyRecord = {
             status: 'completed_without_body',
             originalStatusCode: statusCode,
+            fingerprint,
           };
           await redis.set(cacheKey, JSON.stringify(marker), 'EX', ttlSeconds);
           markerSaved = true;
@@ -387,7 +493,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
           );
           // Best-effort lock refresh so retries hit 409 while Redis recovers.
           try {
-            await redis.set(lockKey, 'processing', 'EX', lockTtlSeconds);
+            await redis.set(lockKey, fingerprint, 'EX', lockTtlSeconds);
           } catch {
             // ignore — Redis may still be down
           }
@@ -405,7 +511,10 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
         await redis.del(lockKey);
       } catch (lockErr) {
         if (storeMode === 'redis') {
-          request.log.error({ err: lockErr }, 'idempotency lock release failed after durable cache write');
+          request.log.error(
+            { err: lockErr },
+            'idempotency lock release failed after durable cache write',
+          );
         } else {
           throw lockErr;
         }
@@ -417,7 +526,9 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
 
   // Hook: onError — release the lock if the handler throws
   fastify.addHook('onError', async (request: FastifyRequest) => {
-    const lockKey = (request as unknown as { _idempotencyLockKey?: string })._idempotencyLockKey;
+    const state = stateOf(request);
+    stopRefresh(state);
+    const lockKey = state?.lockKey;
     if (lockKey) {
       try {
         await redis.del(lockKey);

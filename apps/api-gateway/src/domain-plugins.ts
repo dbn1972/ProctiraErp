@@ -280,7 +280,24 @@ async function ensureAdmissionsStudentProfile(input: AdmissionsStudentProfileInp
   }
 }
 
-function createOfferFeeInvoiceHook() {
+/**
+ * PRC-M018: without Postgres there is no advisory lock, so serialise
+ * create-or-find per (tenant, application) in-process; concurrent offer calls
+ * then observe the first invoice instead of each creating one.
+ */
+const offerInvoiceLocks = new Map<string, Promise<unknown>>();
+async function withOfferInvoiceLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prior = offerInvoiceLocks.get(key) ?? Promise.resolve();
+  const run = prior.catch(() => undefined).then(fn);
+  offerInvoiceLocks.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (offerInvoiceLocks.get(key) === run) offerInvoiceLocks.delete(key);
+  }
+}
+
+export function createOfferFeeInvoiceHook() {
   return async (
     input: AdmissionsStudentProfileInput & {
       offerId: string;
@@ -315,7 +332,12 @@ function createOfferFeeInvoiceHook() {
     };
 
     const pool = getSharedPgPool();
-    if (!pool) return createOrFind();
+    if (!pool) {
+      return withOfferInvoiceLock(
+        `${input.tenantId}:admissions-offer:${input.applicationId}`,
+        createOrFind,
+      );
+    }
     const lockClient = await pool.connect();
     try {
       await lockClient.query(`SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, [
@@ -350,7 +372,7 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
   );
 }
 
-function assertOfferFeePaidHook() {
+export function assertOfferFeePaidHook() {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
   // PSP webhook / callback path; a client paymentRef is never payment proof.
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {

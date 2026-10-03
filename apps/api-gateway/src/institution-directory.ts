@@ -60,14 +60,11 @@ export function boardLabelFromRows(rows: BoardRow[]): string | null {
   return `${labels.slice(0, 3).join(' · ')} …`;
 }
 
+/** PRC-M009: a missing table is a normal state; a thrown query error propagates (→ 503). */
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {
-  try {
-    const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
-    const row = result.rows[0] as { reg?: string | null } | undefined;
-    return Boolean(row?.reg);
-  } catch {
-    return false;
-  }
+  const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
+  const row = result.rows[0] as { reg?: string | null } | undefined;
+  return Boolean(row?.reg);
 }
 
 function asNumber(value: unknown): number | null {
@@ -77,13 +74,9 @@ function asNumber(value: unknown): number | null {
 }
 
 async function scalar(client: PgQueryable, sql: string, params: unknown[]): Promise<number | null> {
-  try {
-    const result = await client.query(sql, params);
-    const row = result.rows[0] as Record<string, unknown> | undefined;
-    return asNumber(row?.['value']);
-  } catch {
-    return null;
-  }
+  const result = await client.query(sql, params);
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  return asNumber(row?.['value']);
 }
 
 export async function loadInstitutionDirectoryContext(
@@ -102,34 +95,26 @@ export async function loadInstitutionDirectoryContext(
   };
 
   if (await relationExists(client, 'tenants')) {
-    try {
-      const result = await client.query(
-        `SELECT name FROM tenants WHERE id = $1::uuid AND deleted_at IS NULL LIMIT 1`,
-        [tenantId],
-      );
-      const row = result.rows[0] as { name?: unknown } | undefined;
-      context.organizationName = typeof row?.name === 'string' ? row.name : null;
-    } catch {
-      context.organizationName = null;
-    }
+    const result = await client.query(
+      `SELECT name FROM tenants WHERE id = $1::uuid AND deleted_at IS NULL LIMIT 1`,
+      [tenantId],
+    );
+    const row = result.rows[0] as { name?: unknown } | undefined;
+    context.organizationName = typeof row?.name === 'string' ? row.name : null;
   }
 
   if (await relationExists(client, 'boards')) {
-    try {
-      const result = await client.query(
-        `SELECT code, name
-           FROM boards
-          WHERE tenant_id = $1::uuid
-            AND deleted_at IS NULL
-          ORDER BY name
-          LIMIT 8`,
-        [tenantId],
-      );
-      const rows = result.rows as BoardRow[];
-      context.boardLabel = boardLabelFromRows(rows);
-    } catch {
-      context.boardLabel = null;
-    }
+    const result = await client.query(
+      `SELECT code, name
+         FROM boards
+        WHERE tenant_id = $1::uuid
+          AND deleted_at IS NULL
+        ORDER BY name
+        LIMIT 8`,
+      [tenantId],
+    );
+    const rows = result.rows as BoardRow[];
+    context.boardLabel = boardLabelFromRows(rows);
   }
 
   const hasEnrollments = await relationExists(client, 'enrollments');
@@ -146,53 +131,45 @@ export async function loadInstitutionDirectoryContext(
       [tenantId],
     );
     context.studentsAvailable = context.studentsEnrolled !== null;
-    try {
-      const result = await client.query(
-        `SELECT institution_id::text AS id, COUNT(*)::int AS student_count
-           FROM enrollments
-          WHERE tenant_id = $1::uuid
-            AND status = 'ENROLLED'
-          GROUP BY institution_id`,
-        [tenantId],
-      );
-      for (const row of result.rows as { id?: unknown; student_count?: unknown }[]) {
-        if (typeof row.id !== 'string') continue;
-        context.schools[row.id] = {
-          studentCount: asNumber(row.student_count),
-          staffCount: null,
-          attendancePercent: null,
-        };
-      }
-    } catch {
-      // Leave per-school student counts unset; KPI already captured the failure as null.
+    const result = await client.query(
+      `SELECT institution_id::text AS id, COUNT(*)::int AS student_count
+         FROM enrollments
+        WHERE tenant_id = $1::uuid
+          AND status = 'ENROLLED'
+        GROUP BY institution_id`,
+      [tenantId],
+    );
+    for (const row of result.rows as { id?: unknown; student_count?: unknown }[]) {
+      if (typeof row.id !== 'string') continue;
+      context.schools[row.id] = {
+        studentCount: asNumber(row.student_count),
+        staffCount: null,
+        attendancePercent: null,
+      };
     }
   }
 
   if (hasStaff) {
-    try {
-      const result = await client.query(
-        `SELECT institution_id::text AS id, COUNT(DISTINCT staff_id)::int AS staff_count
-           FROM staff_assignments
-          WHERE tenant_id = $1::uuid
-            AND status = 'ACTIVE'
-            AND (end_date IS NULL OR end_date >= CURRENT_DATE)
-          GROUP BY institution_id`,
-        [tenantId],
-      );
-      for (const row of result.rows as { id?: unknown; staff_count?: unknown }[]) {
-        if (typeof row.id !== 'string') continue;
-        const existing = context.schools[row.id] ?? {
-          studentCount: null,
-          staffCount: null,
-          attendancePercent: null,
-        };
-        existing.staffCount = asNumber(row.staff_count);
-        context.schools[row.id] = existing;
-      }
-      context.staffAvailable = true;
-    } catch {
-      context.staffAvailable = false;
+    const result = await client.query(
+      `SELECT institution_id::text AS id, COUNT(DISTINCT staff_id)::int AS staff_count
+         FROM staff_assignments
+        WHERE tenant_id = $1::uuid
+          AND status = 'ACTIVE'
+          AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+        GROUP BY institution_id`,
+      [tenantId],
+    );
+    for (const row of result.rows as { id?: unknown; staff_count?: unknown }[]) {
+      if (typeof row.id !== 'string') continue;
+      const existing = context.schools[row.id] ?? {
+        studentCount: null,
+        staffCount: null,
+        attendancePercent: null,
+      };
+      existing.staffCount = asNumber(row.staff_count);
+      context.schools[row.id] = existing;
     }
+    context.staffAvailable = true;
   }
 
   if (hasAttendance) {
@@ -205,34 +182,30 @@ export async function loadInstitutionDirectoryContext(
           AND date = CURRENT_DATE`,
       [tenantId],
     );
-    try {
-      const result = await client.query(
-        `SELECT institution_id::text AS id,
-                CASE
-                  WHEN COUNT(*) = 0 THEN NULL
-                  ELSE ROUND(
-                    100.0 * COUNT(*) FILTER (WHERE UPPER(status) IN ('PRESENT', 'LATE'))
-                    / COUNT(*)
-                  )::int
-                END AS attendance_percent
-           FROM student_attendance
-          WHERE tenant_id = $1::uuid
-            AND date = CURRENT_DATE
-          GROUP BY institution_id`,
-        [tenantId],
-      );
-      for (const row of result.rows as { id?: unknown; attendance_percent?: unknown }[]) {
-        if (typeof row.id !== 'string') continue;
-        const existing = context.schools[row.id] ?? {
-          studentCount: null,
-          staffCount: null,
-          attendancePercent: null,
-        };
-        existing.attendancePercent = asNumber(row.attendance_percent);
-        context.schools[row.id] = existing;
-      }
-    } catch {
-      context.reportingToday = null;
+    const result = await client.query(
+      `SELECT institution_id::text AS id,
+              CASE
+                WHEN COUNT(*) = 0 THEN NULL
+                ELSE ROUND(
+                  100.0 * COUNT(*) FILTER (WHERE UPPER(status) IN ('PRESENT', 'LATE'))
+                  / COUNT(*)
+                )::int
+              END AS attendance_percent
+         FROM student_attendance
+        WHERE tenant_id = $1::uuid
+          AND date = CURRENT_DATE
+        GROUP BY institution_id`,
+      [tenantId],
+    );
+    for (const row of result.rows as { id?: unknown; attendance_percent?: unknown }[]) {
+      if (typeof row.id !== 'string') continue;
+      const existing = context.schools[row.id] ?? {
+        studentCount: null,
+        staffCount: null,
+        attendancePercent: null,
+      };
+      existing.attendancePercent = asNumber(row.attendance_percent);
+      context.schools[row.id] = existing;
     }
   }
 
@@ -254,7 +227,10 @@ export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): vo
 
       const pool = getSharedPgPool();
       if (!pool) {
-        return reply.status(200).send(EMPTY_DIRECTORY_CONTEXT);
+        // No database configured (dev / in-memory): an explicit, logged, non-error
+        // state — every *Available flag is false, so clients do not read zeros.
+        request.log.warn({ reqId: request.id }, 'directory context: no database configured');
+        return reply.status(200).send({ ...EMPTY_DIRECTORY_CONTEXT, degraded: true });
       }
 
       try {
@@ -262,8 +238,14 @@ export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): vo
           loadInstitutionDirectoryContext(tenantId, client),
         );
         return reply.status(200).send(context);
-      } catch {
-        return reply.status(200).send(EMPTY_DIRECTORY_CONTEXT);
+      } catch (error) {
+        // PRC-M009: a DB failure is a 503 with a log line, not an empty 200.
+        request.log.error({ err: error, reqId: request.id }, 'directory context unavailable');
+        return reply.status(503).send({
+          code: 'DIRECTORY_CONTEXT_UNAVAILABLE',
+          message: 'Institution directory is temporarily unavailable.',
+          statusCode: 503,
+        });
       }
     },
   );

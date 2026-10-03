@@ -22,7 +22,11 @@ import type {
 import { WorkflowStateType } from '@proctira/common';
 
 import { shouldSeedDemoData } from './demo-seed-policy.js';
-import type { WorkflowUiStore } from './workflow-ui-pg-store.js';
+import type {
+  WorkflowApprovalContext,
+  WorkflowUiPage,
+  WorkflowUiStore,
+} from './workflow-ui-pg-store.js';
 import {
   createWorkflowUiSeed,
   type UiWorkflowApproval,
@@ -189,6 +193,19 @@ export function toUiApproval(
   };
 }
 
+function pageMeta(
+  meta: { totalItems?: number; totalPages?: number } | undefined,
+  pagination: { page: number; pageSize: number },
+): WorkflowUiPage<unknown>['meta'] {
+  const totalItems = Number(meta?.totalItems ?? 0);
+  return {
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalItems,
+    totalPages: Math.max(1, Math.ceil(totalItems / pagination.pageSize)),
+  };
+}
+
 export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
   private seeded = false;
 
@@ -241,6 +258,54 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
     const defs = await this.definitionsFor(tenantId);
     const result = await this.repository.listInstances(tenantId, { status: 'ACTIVE' }, PAGE);
     return result.data.map((i) => toUiApproval(i, defs.get(i.workflowDefinitionId)));
+  }
+
+  /**
+   * PRC-M021: the current engine state's assignee role and the initiator, so
+   * the plugin can refuse unassigned approvers and self-approval. Cross-tenant
+   * / non-active ids → null (404).
+   */
+  async getApprovalContext(
+    tenantId: string,
+    approvalId: string,
+  ): Promise<WorkflowApprovalContext | null> {
+    await this.ensureSeed();
+    const instance = await this.repository.findInstanceById(approvalId, tenantId);
+    if (!instance || instance.status !== 'ACTIVE') return null;
+    const definition = await this.repository.findDefinitionById(
+      instance.workflowDefinitionId,
+      tenantId,
+    );
+    const state = definition?.states.find((s) => s.id === instance.currentStateId);
+    return {
+      approverRole: state?.assigneeType === 'role' ? state.assigneeId : null,
+      initiatedBy: meta(instance, 'initiatedBy') ?? null,
+    };
+  }
+
+  /** PRC-M022: SQL-paged (repository ORDER BY created_at, id) with totals. */
+  async listInstancesPage(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowInstance>> {
+    const defs = await this.definitionsFor(tenantId);
+    const result = await this.repository.listInstances(tenantId, {}, pagination);
+    return {
+      data: result.data.map((i) => toUiInstance(i, defs.get(i.workflowDefinitionId))),
+      meta: pageMeta(result.meta, pagination),
+    };
+  }
+
+  async listPendingApprovalsPage(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowApproval>> {
+    const defs = await this.definitionsFor(tenantId);
+    const result = await this.repository.listInstances(tenantId, { status: 'ACTIVE' }, pagination);
+    return {
+      data: result.data.map((i) => toUiApproval(i, defs.get(i.workflowDefinitionId))),
+      meta: pageMeta(result.meta, pagination),
+    };
   }
 
   async decideApproval(
