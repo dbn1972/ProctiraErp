@@ -543,6 +543,27 @@ export class PgScholarshipRepository implements ScholarshipRepository {
     command: ApproveApplicationCommand,
   ): Promise<ApproveApplicationOutcome> {
     await this.ensureSchema();
+    try {
+      return await this.approveApplicationInTx(id, tenantId, command);
+    } catch (error) {
+      // PRC-H083: a second on-approval instalment for the application (replay / race past
+      // the row lock) is refused by uq_scholarship_disbursements_on_approval → 409.
+      const pgError = error as { code?: string; constraint?: string };
+      if (
+        pgError.code === '23505' &&
+        pgError.constraint === 'uq_scholarship_disbursements_on_approval'
+      ) {
+        return { kind: 'invalid_status', status: 'approved' } as const;
+      }
+      throw error;
+    }
+  }
+
+  private async approveApplicationInTx(
+    id: string,
+    tenantId: string,
+    command: ApproveApplicationCommand,
+  ): Promise<ApproveApplicationOutcome> {
     return this.withTenant(tenantId, async (client) => {
       const appResult = await client.query(
         `SELECT * FROM scholarship_applications WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
@@ -598,10 +619,13 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       let disbursement: DisbursementEntity | null = null;
       if (command.firstDisbursement) {
         const inserted = await client.query(
+          // PRC-H083: migration 151 makes the on-approval instalment unique per application.
           `INSERT INTO scholarship_disbursements (
              id, tenant_id, application_id, amount, amount_cents, scheduled_date,
-             paid_date, payment_status, payment_method, transaction_reference, notes
-           ) VALUES ($1,$2,$3,$4,$5,$6::date,NULL,'scheduled',NULL,NULL,$7) RETURNING *`,
+             paid_date, payment_status, payment_method, transaction_reference, notes,
+             disbursement_kind
+           ) VALUES ($1,$2,$3,$4,$5,$6::date,NULL,'scheduled',NULL,NULL,$7,'on_approval')
+           RETURNING *`,
           [
             command.firstDisbursement.id,
             tenantId,

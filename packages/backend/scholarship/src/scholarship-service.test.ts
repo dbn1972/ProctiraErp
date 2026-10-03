@@ -332,7 +332,7 @@ describe('ScholarshipService', () => {
       }
     });
 
-    it('should throw BusinessRuleError if application is already approved', async () => {
+    it('should throw ConflictError (409) if application is already approved (PRC-H083)', async () => {
       const program = await service.createProgram(TENANT_ID, makeProgramInput());
       await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
 
@@ -347,7 +347,7 @@ describe('ScholarshipService', () => {
         await service.approveApplication(TENANT_ID, application.id);
 
         await expect(service.approveApplication(TENANT_ID, application.id)).rejects.toThrow(
-          BusinessRuleError,
+          ConflictError,
         );
       } finally {
         vi.useRealTimers();

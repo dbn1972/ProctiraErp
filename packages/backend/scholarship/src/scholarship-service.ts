@@ -611,6 +611,10 @@ export class ScholarshipService {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
     }
 
+    // PRC-H083: an already-approved application is a lost race / replay → 409, not 422.
+    if (application.status === 'approved') {
+      throw new ConflictError('Application was already approved; refresh and retry.');
+    }
     if (application.status !== 'submitted' && application.status !== 'under_review') {
       throw new BusinessRuleError(
         `Cannot approve application in '${application.status}' status. Must be 'submitted' or 'under_review'.`,
