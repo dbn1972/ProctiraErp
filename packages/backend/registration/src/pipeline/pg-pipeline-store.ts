@@ -7,15 +7,17 @@ import {
 
 import { ensureRegistrationSchema, type PgPoolLike } from '../pg-registration-repository.js';
 
-import type {
-  AdmissionsPipelineStore,
-  ApplicationPlacement,
-  EnquiryRecord,
-  FollowupRecord,
-  MeritListEntryRecord,
-  MeritListRecord,
-  OfferRecord,
-  SeatMatrixRecord,
+import {
+  seatLockName,
+  type AdmissionsPipelineStore,
+  type ApplicationPlacement,
+  type EnquiryRecord,
+  type FollowupRecord,
+  type MeritListEntryRecord,
+  type MeritListRecord,
+  type OfferRecord,
+  type SeatKey,
+  type SeatMatrixRecord,
 } from './pipeline-store.js';
 import type { EnquirySource, EnquiryStage, FollowupStatus, OfferStatus } from './schemas.js';
 
@@ -188,22 +190,39 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
   constructor(private readonly pool: PgPoolLike) {}
 
   async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
-    await ensureAdmissionsPipelineSchema(this.pool);
+    return this.withAdvisoryLock(tenantId, `admissions-offer-transition:${offerId}`, work);
+  }
+
+  /**
+   * PRC-M328: serialise seat consumption per seat-matrix key (institution,
+   * period, grade, quota) across offers and replicas, so the count-then-accept
+   * critical section cannot over-fill a quota.
+   */
+  async withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T> {
+    return this.withAdvisoryLock(tenantId, seatLockName(key), work);
+  }
+
+  private async withAdvisoryLock<T>(
+    tenantId: string,
+    lockName: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
     const connectable = this.pool as unknown as PgPoolWithConnect;
-    if (typeof connectable.connect !== 'function') return work();
+    if (typeof connectable.connect !== 'function') {
+      // PRC-M328: fail closed — never run the critical section unlocked.
+      throw new Error('Admissions lock unavailable: database pool does not support connect()');
+    }
+    await ensureAdmissionsPipelineSchema(this.pool);
     const client = await connectable.connect();
     try {
       await client.query(`SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, [
         tenantId,
-        `admissions-offer-transition:${offerId}`,
+        lockName,
       ]);
       return await work();
     } finally {
       await client
-        .query(`SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, [
-          tenantId,
-          `admissions-offer-transition:${offerId}`,
-        ])
+        .query(`SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, [tenantId, lockName])
         .catch(() => undefined);
       client.release();
     }

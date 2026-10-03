@@ -518,6 +518,18 @@ export class AdmissionsPipelineService {
         );
       }
     }
+    // PRC-M328: seat count + enrolment + accepted write run under one lock per
+    // seat-matrix key so concurrent accepts of different offers cannot over-fill.
+    return this.store.withSeatLock(tenantId, effective, () =>
+      this.acceptOfferSeatLocked(tenantId, effective, input),
+    );
+  }
+
+  private async acceptOfferSeatLocked(
+    tenantId: string,
+    effective: OfferRecord,
+    input: AcceptOfferDto,
+  ) {
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
 

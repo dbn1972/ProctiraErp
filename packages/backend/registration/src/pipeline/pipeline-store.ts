@@ -110,8 +110,23 @@ export interface OfferRecord {
   updatedAt: Date;
 }
 
+/** Seat-matrix key: one quota band of one grade in one period at one institution. */
+export interface SeatKey {
+  institutionId: string;
+  academicPeriodId: string;
+  gradeId: string;
+  quota: string;
+}
+
+/** Stable lock name for a seat-matrix key (PRC-M328). */
+export function seatLockName(key: SeatKey): string {
+  return `admissions-seat:${key.institutionId}:${key.academicPeriodId}:${key.gradeId}:${key.quota}`;
+}
+
 export interface AdmissionsPipelineStore {
   withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T>;
+  /** PRC-M328: exclusive lock on one seat-matrix key (institution, period, grade, quota). */
+  withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T>;
   createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
   listEnquiries(tenantId: string): Promise<EnquiryRecord[]>;
   findEnquiry(tenantId: string, id: string): Promise<EnquiryRecord | null>;
@@ -174,7 +189,14 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
   private offerLocks = new Map<string, Promise<void>>();
 
   async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
-    const key = `${tenantId}:${offerId}`;
+    return this.withKeyedLock(`offer:${tenantId}:${offerId}`, work);
+  }
+
+  async withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T> {
+    return this.withKeyedLock(`${tenantId}:${seatLockName(key)}`, work);
+  }
+
+  private async withKeyedLock<T>(key: string, work: () => Promise<T>): Promise<T> {
     const prior = this.offerLocks.get(key) ?? Promise.resolve();
     let release!: () => void;
     const current = new Promise<void>((resolve) => {
