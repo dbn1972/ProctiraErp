@@ -9,7 +9,12 @@ import type { CacheClient } from '@proctira/cache';
 import { reviveDates, tenantKey } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import type {
+  StudentEntity,
+  StudentFilter,
+  StudentRepository,
+  StudentUpdateOptions,
+} from './student-repository.js';
 
 /** TTL for student entity cache (5 minutes) */
 const STUDENT_TTL_SECONDS = 300;
@@ -28,8 +33,9 @@ export class CachedStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
-    const result = await this.delegate.update(id, tenantId, data);
+    const result = await this.delegate.update(id, tenantId, data, options);
     if (result && this.cache) {
       // Invalidate cached entry on update
       const key = tenantKey(tenantId, 'student', id);
