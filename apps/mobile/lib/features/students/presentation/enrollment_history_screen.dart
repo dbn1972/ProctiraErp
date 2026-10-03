@@ -1,13 +1,16 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/errors/offline_data_banner.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/enrollment_repository.dart';
 import '../../../core/errors/user_error_message.dart';
 
-/// Lists every enrollment row known locally for the given student as a
-/// vertical timeline, grouped by academic period. Renders without network.
+/// Lists the student's enrollments as a vertical timeline, grouped by
+/// academic period. Refreshes from the API when reachable (PRC-M041) and
+/// falls back to the cached copy with a stale marker when offline.
 class EnrollmentHistoryScreen extends StatefulWidget {
   const EnrollmentHistoryScreen({super.key, required this.studentId});
 
@@ -22,13 +25,29 @@ class _EnrollmentHistoryScreenState extends State<EnrollmentHistoryScreen> {
   late final EnrollmentRepository _repository = EnrollmentRepository(
     database: getIt<AppDatabase>(),
     tenantProvider: getIt<TenantProvider>(),
+    dio: getIt.isRegistered<Dio>() ? getIt<Dio>() : null,
   );
   late Future<Map<String, List<EnrollmentEntry>>> _future;
+
+  /// Cached rows are shown because the server could not be reached.
+  bool _stale = false;
 
   @override
   void initState() {
     super.initState();
-    _future = _repository.historyByPeriod(widget.studentId);
+    _future = _load();
+  }
+
+  Future<Map<String, List<EnrollmentEntry>>> _load() async {
+    final bool fresh = await _repository.refresh(widget.studentId);
+    if (mounted) setState(() => _stale = !fresh);
+    return _repository.historyByPeriod(widget.studentId);
+  }
+
+  Future<void> _reload() async {
+    final Future<Map<String, List<EnrollmentEntry>>> next = _load();
+    setState(() => _future = next);
+    await next.catchError((Object _) => <String, List<EnrollmentEntry>>{});
   }
 
   @override
@@ -38,86 +57,116 @@ class _EnrollmentHistoryScreenState extends State<EnrollmentHistoryScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Enrollment history')),
       body: SafeArea(
-        child: FutureBuilder<Map<String, List<EnrollmentEntry>>>(
-          future: _future,
-          builder:
-              (
-                BuildContext context,
-                AsyncSnapshot<Map<String, List<EnrollmentEntry>>> snapshot,
-              ) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return _StateMessage(
-                    icon: Icons.error_outline,
-                    title: 'Something went wrong',
-                    message: userErrorMessage(snapshot.error!),
-                  );
-                }
-                final Map<String, List<EnrollmentEntry>> grouped =
-                    snapshot.data ?? const <String, List<EnrollmentEntry>>{};
-                if (grouped.isEmpty) {
-                  return const _StateMessage(
-                    icon: Icons.timeline_outlined,
-                    title: 'No enrollment records',
-                    message:
-                        'No history cached for this student. Connect to the '
-                        'network and refresh to populate the timeline.',
-                  );
-                }
-
-                // Flatten to a single chronological list while keeping period
-                // labels as inline markers.
-                final List<Widget> items = <Widget>[];
-                final List<MapEntry<String, List<EnrollmentEntry>>> periods =
-                    grouped.entries.toList(growable: false);
-                for (int p = 0; p < periods.length; p++) {
-                  final MapEntry<String, List<EnrollmentEntry>> period =
-                      periods[p];
-                  items.add(
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: p == 0 ? 0 : 22,
-                        bottom: 12,
-                      ),
-                      child: Text(
-                        period.key,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                  );
-                  for (int i = 0; i < period.value.length; i++) {
-                    final bool isLastOverall =
-                        p == periods.length - 1 && i == period.value.length - 1;
-                    items.add(
-                      _TimelineTile(
-                        entry: period.value[i],
-                        isLast: isLastOverall,
+        child: RefreshIndicator(
+          onRefresh: _reload,
+          child: FutureBuilder<Map<String, List<EnrollmentEntry>>>(
+            future: _future,
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, List<EnrollmentEntry>>> snapshot,
+                ) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return _scrollable(
+                      _StateMessage(
+                        icon: Icons.error_outline,
+                        title: 'Something went wrong',
+                        message: userErrorMessage(snapshot.error!),
                       ),
                     );
                   }
-                }
-
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                  children: <Widget>[
-                    ...items,
-                    const SizedBox(height: 20),
-                    Text(
-                      'Records reflect the locally cached student registry.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
+                  final Map<String, List<EnrollmentEntry>> grouped =
+                      snapshot.data ?? const <String, List<EnrollmentEntry>>{};
+                  if (grouped.isEmpty) {
+                    return _scrollable(
+                      _StateMessage(
+                        icon: Icons.timeline_outlined,
+                        title: 'No enrollment records',
+                        message: _stale
+                            ? "You're offline and no history is saved for this "
+                                  'student. Connect and pull to refresh.'
+                            : 'No enrollments are recorded for this student.',
                       ),
-                    ),
-                  ],
-                );
-              },
+                    );
+                  }
+
+                  // Flatten to a single chronological list while keeping period
+                  // labels as inline markers.
+                  final List<Widget> items = <Widget>[];
+                  final List<MapEntry<String, List<EnrollmentEntry>>> periods =
+                      grouped.entries.toList(growable: false);
+                  for (int p = 0; p < periods.length; p++) {
+                    final MapEntry<String, List<EnrollmentEntry>> period =
+                        periods[p];
+                    items.add(
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: p == 0 ? 0 : 22,
+                          bottom: 12,
+                        ),
+                        child: Text(
+                          period.key,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    );
+                    for (int i = 0; i < period.value.length; i++) {
+                      final bool isLastOverall =
+                          p == periods.length - 1 &&
+                          i == period.value.length - 1;
+                      items.add(
+                        _TimelineTile(
+                          entry: period.value[i],
+                          isLast: isLastOverall,
+                        ),
+                      );
+                    }
+                  }
+
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                    children: <Widget>[
+                      if (_stale) ...<Widget>[
+                        const OfflineDataBanner(
+                          message: "You're offline. Showing saved history.",
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      ...items,
+                      const SizedBox(height: 20),
+                      Text(
+                        _stale
+                            ? 'Saved history; may be out of date.'
+                            : 'Records from the student registry.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+          ),
         ),
       ),
     );
   }
+
+  /// Keeps pull-to-refresh available on empty/error states.
+  Widget _scrollable(Widget child) => LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) =>
+        SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: child,
+          ),
+        ),
+  );
 }
 
 /// One timeline row: a colored dot + connector line on the left, with the

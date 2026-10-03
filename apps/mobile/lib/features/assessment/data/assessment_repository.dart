@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/errors/offline_fallback.dart';
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -45,16 +47,16 @@ class AssessmentResult {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'studentId': studentId,
-        'subjectName': subjectName,
-        'periodName': periodName,
-        'score': score,
-        'maxScore': maxScore,
-        'grade': grade,
-        'remarks': remarks,
-        'assessedAt': assessedAt,
-      };
+    'id': id,
+    'studentId': studentId,
+    'subjectName': subjectName,
+    'periodName': periodName,
+    'score': score,
+    'maxScore': maxScore,
+    'grade': grade,
+    'remarks': remarks,
+    'assessedAt': assessedAt,
+  };
 
   double get percentage =>
       maxScore != null && maxScore! > 0 ? (score / maxScore!) * 100 : 0;
@@ -66,13 +68,16 @@ class AssessmentRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _dio = dio;
+    required CacheCrypto cacheCrypto,
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _dio = dio,
+       _cacheCrypto = cacheCrypto;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+  final CacheCrypto _cacheCrypto;
 
   static const String _cacheTable = 'assessment_results_cache';
 
@@ -83,6 +88,7 @@ class AssessmentRepository {
     String? periodFilter,
   }) async {
     final String tenantId = _requireTenantId();
+    _lastServedFromCache = false;
 
     // Try API first.
     try {
@@ -95,21 +101,37 @@ class AssessmentRepository {
         },
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
+      final List<dynamic> data =
+          (response.data as Map<String, dynamic>)['data'] as List<dynamic>;
       final List<AssessmentResult> results = data
-          .map((dynamic e) =>
-              AssessmentResult.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) => AssessmentResult.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false);
 
       // Cache results.
       await _cacheResults(tenantId, studentId, results);
       return results;
-    } on DioException {
-      // Fall back to cache.
-      return _getCachedResults(tenantId, studentId,
-          subjectFilter: subjectFilter, periodFilter: periodFilter);
+    } on DioException catch (error) {
+      // Only an unreachable server may fall back to cache; 401/403/404 and
+      // server errors are real answers and must surface (PRC-M562).
+      if (!isOfflineError(error)) rethrow;
+      final List<AssessmentResult> cached = await _getCachedResults(
+        tenantId,
+        studentId,
+        subjectFilter: subjectFilter,
+        periodFilter: periodFilter,
+      );
+      _lastServedFromCache = true;
+      return cached;
     }
   }
+
+  bool _lastServedFromCache = false;
+
+  /// True when the last [getResults] call served cached rows because the
+  /// server was unreachable. Drives the "offline" banner (PRC-M562).
+  bool get lastResultsFromCache => _lastServedFromCache;
 
   /// Get distinct subjects from cached results.
   Future<List<String>> getSubjects({required String studentId}) async {
@@ -156,14 +178,13 @@ class AssessmentRepository {
           'id': result.id,
           'tenant_id': tenantId,
           'student_id': result.studentId,
+          // Subject/period stay plaintext for the filter queries; the
+          // child's scores, grade and remarks live only in the sealed payload.
           'subject_name': result.subjectName,
           'period_name': result.periodName,
-          'score': result.score,
-          'max_score': result.maxScore,
-          'grade': result.grade,
-          'remarks': result.remarks,
           'assessed_at': result.assessedAt,
-          'payload': jsonEncode(result.toJson()),
+          'payload': await _cacheCrypto.encrypt(jsonEncode(result.toJson())),
+          'cached_at': DateTime.now().millisecondsSinceEpoch,
         });
       }
     });
@@ -195,11 +216,14 @@ class AssessmentRepository {
       orderBy: 'subject_name ASC, period_name ASC',
     );
 
-    return rows.map((Map<String, Object?> row) {
+    final List<AssessmentResult> results = <AssessmentResult>[];
+    for (final Map<String, Object?> row in rows) {
       final Map<String, dynamic> json =
-          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-      return AssessmentResult.fromJson(json);
-    }).toList(growable: false);
+          jsonDecode(await _cacheCrypto.decrypt(row['payload'] as String))
+              as Map<String, dynamic>;
+      results.add(AssessmentResult.fromJson(json));
+    }
+    return results;
   }
 
   String _requireTenantId() {

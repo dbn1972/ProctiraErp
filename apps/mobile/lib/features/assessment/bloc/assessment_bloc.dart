@@ -52,7 +52,11 @@ class AssessmentState extends Equatable {
     this.selectedPeriod,
     this.studentId = '',
     this.errorMessage,
+    this.fromCache = false,
   });
+
+  /// Results are saved offline data, not a live server answer (PRC-M562).
+  final bool fromCache;
 
   final AssessmentStatus status;
   final List<AssessmentResult> results;
@@ -72,6 +76,7 @@ class AssessmentState extends Equatable {
     String? selectedPeriod,
     String? studentId,
     String? errorMessage,
+    bool? fromCache,
     bool clearSubject = false,
     bool clearPeriod = false,
   }) {
@@ -88,6 +93,7 @@ class AssessmentState extends Equatable {
           : (selectedPeriod ?? this.selectedPeriod),
       studentId: studentId ?? this.studentId,
       errorMessage: errorMessage,
+      fromCache: fromCache ?? this.fromCache,
     );
   }
 
@@ -101,6 +107,7 @@ class AssessmentState extends Equatable {
     selectedPeriod,
     studentId,
     errorMessage,
+    fromCache,
   ];
 }
 
@@ -160,6 +167,7 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
           results: results,
           subjects: subjects,
           periods: periods,
+          fromCache: _repository.lastResultsFromCache,
         ),
       );
     } catch (error) {
@@ -167,6 +175,7 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
         state.copyWith(
           status: AssessmentStatus.error,
           errorMessage: userErrorMessage(error),
+          fromCache: false,
         ),
       );
     }

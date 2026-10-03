@@ -21,6 +21,8 @@ import '../notifications/local_notifications.dart';
 import '../notifications/notification_router.dart';
 import '../router/app_router.dart';
 import '../storage/cache_crypto.dart';
+import '../storage/captured_document_store.dart';
+import '../../features/reports/data/report_file_store.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -63,6 +65,10 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     secureStorage,
   );
   getIt.registerSingleton<CacheCrypto>(cacheCrypto);
+  final CapturedDocumentStore capturedDocuments = CapturedDocumentStore(
+    crypto: cacheCrypto,
+  );
+  getIt.registerSingleton<CapturedDocumentStore>(capturedDocuments);
 
   final AppDatabase database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
@@ -197,6 +203,8 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
         // PRC-H016: captured student documents upload as bytes.
         SyncEntityType.student: StudentDocumentSyncDispatcher(
           getIt<StudentApi>(),
+          readFile: capturedDocuments.open,
+          deleteFile: capturedDocuments.discard,
         ),
       },
     );
@@ -256,6 +264,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<AssessmentRepository>(
@@ -263,6 +272,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<ParentPortalRepository>(
@@ -285,6 +295,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       preferencesLoader: () async => LocalNotificationPreferences.decode(
         await getIt<SecureStorage>().readNotificationPreferences(),
       ),
+      installationId: () => getIt<SecureStorage>().getOrCreateInstallationId(),
     ),
   );
 
@@ -294,6 +305,12 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     database: database,
     authApi: getIt<AuthApi>(),
     selectedStudent: selectedStudent,
+    push: getIt<FcmService>(),
+    tenantProvider: tenantProvider,
+    purgeLocalFiles: () async {
+      await capturedDocuments.purgeAll();
+      await purgeSavedReports();
+    },
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

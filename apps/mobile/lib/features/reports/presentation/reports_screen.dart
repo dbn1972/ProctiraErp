@@ -25,6 +25,13 @@ class ReportDefinition {
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
+  /// Quick reports render placeholder tables until a backing API exists,
+  /// so they are hidden unless explicitly enabled for internal previews
+  /// with `--dart-define=PROCTIRA_PREVIEW_REPORTS=true` (PRC-M045).
+  static const bool showPreviewReports = bool.fromEnvironment(
+    'PROCTIRA_PREVIEW_REPORTS',
+  );
+
   static const List<ReportDefinition> reports = <ReportDefinition>[
     ReportDefinition(
       id: 'attendance-summary',
@@ -110,22 +117,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Pre-configured reports section.
-            _SectionHeader(title: 'Quick reports'),
-            const SizedBox(height: 8),
-            _ReportCardGroup(
-              children: <Widget>[
-                for (final ReportDefinition report in ReportsScreen.reports)
-                  _ReportTile(
-                    icon: report.icon,
-                    iconColor: theme.colorScheme.primary,
-                    title: report.title,
-                    subtitle: report.description,
-                    onTap: () => context.push('/reports/${report.id}'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 20),
+            if (ReportsScreen.showPreviewReports) ...<Widget>[
+              // Pre-configured reports section (preview builds only).
+              _SectionHeader(title: 'Quick reports'),
+              const SizedBox(height: 8),
+              _ReportCardGroup(
+                children: <Widget>[
+                  for (final ReportDefinition report in ReportsScreen.reports)
+                    _ReportTile(
+                      icon: report.icon,
+                      iconColor: theme.colorScheme.primary,
+                      title: report.title,
+                      subtitle: report.description,
+                      onTap: () => context.push('/reports/${report.id}'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // Server-generated reports section.
             _SectionHeader(title: 'Generated reports'),
@@ -142,52 +151,56 @@ class _ReportsScreenState extends State<ReportsScreen> {
             else
               FutureBuilder<List<ReportSummary>>(
                 future: _serverReportsFuture,
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<ReportSummary>> snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return _ReportCardGroup(
-                      children: <Widget>[
-                        _ReportEmptyTile(
-                          icon: Icons.error_outline,
-                          text: 'Failed to load reports.',
-                          color: theme.colorScheme.error,
-                        ),
-                      ],
-                    );
-                  }
-                  final List<ReportSummary> items =
-                      snapshot.data ?? const <ReportSummary>[];
-                  if (items.isEmpty) {
-                    return _ReportCardGroup(
-                      children: <Widget>[
-                        _ReportEmptyTile(
-                          icon: Icons.inbox_outlined,
-                          text: 'No generated reports available.',
-                        ),
-                      ],
-                    );
-                  }
-                  return _ReportCardGroup(
-                    children: <Widget>[
-                      for (final ReportSummary report in items)
-                        _ReportTile(
-                          icon: _iconForFormat(report.format),
-                          iconColor: _colorForStatus(report.status),
-                          title: report.title,
-                          subtitle:
-                              '${report.format.toUpperCase()} · ${report.status}',
-                          trailing: _StatusPill(status: report.status),
-                          onTap: () => context.push('/reports/${report.id}'),
-                        ),
-                    ],
-                  );
-                },
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<ReportSummary>> snapshot,
+                    ) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return _ReportCardGroup(
+                          children: <Widget>[
+                            _ReportEmptyTile(
+                              icon: Icons.error_outline,
+                              text: 'Failed to load reports.',
+                              color: theme.colorScheme.error,
+                            ),
+                          ],
+                        );
+                      }
+                      final List<ReportSummary> items =
+                          snapshot.data ?? const <ReportSummary>[];
+                      if (items.isEmpty) {
+                        return _ReportCardGroup(
+                          children: <Widget>[
+                            _ReportEmptyTile(
+                              icon: Icons.inbox_outlined,
+                              text: 'No generated reports available.',
+                            ),
+                          ],
+                        );
+                      }
+                      return _ReportCardGroup(
+                        children: <Widget>[
+                          for (final ReportSummary report in items)
+                            _ReportTile(
+                              icon: _iconForFormat(report.format),
+                              iconColor: _colorForStatus(report.status),
+                              title: report.title,
+                              subtitle:
+                                  '${report.format.toUpperCase()} · ${report.status}',
+                              trailing: _StatusPill(status: report.status),
+                              onTap: () =>
+                                  context.push('/reports/${report.id}'),
+                            ),
+                        ],
+                      );
+                    },
               ),
           ],
         ),
@@ -305,8 +318,9 @@ class _ReportTile extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -337,11 +351,7 @@ class _ReportTile extends StatelessWidget {
 
 /// Placeholder/empty row inside a report card group.
 class _ReportEmptyTile extends StatelessWidget {
-  const _ReportEmptyTile({
-    required this.icon,
-    required this.text,
-    this.color,
-  });
+  const _ReportEmptyTile({required this.icon, required this.text, this.color});
 
   final IconData icon;
   final String text;
@@ -396,9 +406,7 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.isEmpty
-            ? status
-            : status[0].toUpperCase() + status.substring(1),
+        status.isEmpty ? status : status[0].toUpperCase() + status.substring(1),
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
