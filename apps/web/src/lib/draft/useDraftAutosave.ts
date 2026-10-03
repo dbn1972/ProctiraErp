@@ -54,6 +54,31 @@ export const DRAFT_AUTOSAVE_MAX_INTERVAL_MS = 30_000;
 /** Default autosave debounce when the caller omits `intervalMs`. */
 export const DRAFT_AUTOSAVE_DEFAULT_INTERVAL_MS = 30_000;
 
+/**
+ * PRC-M119: drafts expire after this long (envelope `savedAt` + TTL). Expired
+ * drafts are removed on read.
+ */
+export const DRAFT_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Owner of a draft. Scoped drafts are only readable by the same user + tenant. */
+export interface DraftScope {
+  userId: string;
+  tenantId: string;
+}
+
+export interface DraftAutosaveOptions<T> {
+  /**
+   * Namespaces the key by user + tenant. When `requireScope` is set and the
+   * scope is not yet known, nothing is read or written (fail closed).
+   */
+  scope?: DraftScope | null;
+  requireScope?: boolean;
+  /** Envelope TTL; defaults to `DRAFT_DEFAULT_TTL_MS`. */
+  ttlMs?: number;
+  /** Strip sensitive fields before anything is persisted. */
+  sanitize?: (values: T) => T;
+}
+
 /** Schema version stamped on every persisted draft. Bump when shape changes. */
 const DRAFT_SCHEMA_VERSION = 1;
 
@@ -148,8 +173,32 @@ function getRoute(): string {
 }
 
 /** Build the localStorage key for a given form id at the current route. */
-export function buildDraftKey(formId: string): string {
-  return `${getBrand()}-draft:${getRoute()}:${formId}`;
+export function buildDraftKey(formId: string, scope?: DraftScope | null): string {
+  const owner = scope ? `t:${scope.tenantId}:u:${scope.userId}:` : '';
+  return `${getBrand()}-draft:${owner}${getRoute()}:${formId}`;
+}
+
+/**
+ * PRC-M119: remove every persisted draft (any brand, user or tenant). Called
+ * on sign-out, session expiry and user/tenant switch so a shared device never
+ * keeps the previous user's form data.
+ */
+export function purgeAllDrafts(options: { ownedOnly?: boolean } = {}): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const storage = window.localStorage;
+    const doomed: string[] = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (!key || !key.includes('-draft:')) continue;
+      // `ownedOnly` keeps anonymous drafts (e.g. a public registration wizard).
+      if (options.ownedOnly && !key.includes('-draft:t:')) continue;
+      doomed.push(key);
+    }
+    for (const key of doomed) storage.removeItem(key);
+  } catch {
+    // Storage unavailable — nothing persisted to purge.
+  }
 }
 
 /**
@@ -157,8 +206,11 @@ export function buildDraftKey(formId: string): string {
  * is unavailable, the slot is empty, or the persisted envelope is
  * malformed / stale.
  */
-function readDraft<T>(key: string): DraftEnvelope<T> | null {
-  if (typeof window === 'undefined') return null;
+function readDraft<T>(
+  key: string | null,
+  ttlMs: number = DRAFT_DEFAULT_TTL_MS,
+): DraftEnvelope<T> | null {
+  if (typeof window === 'undefined' || key === null) return null;
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
@@ -172,6 +224,12 @@ function readDraft<T>(key: string): DraftEnvelope<T> | null {
       window.localStorage.removeItem(key);
       return null;
     }
+    const savedAtMs = Date.parse((parsed as { savedAt?: string }).savedAt ?? '');
+    if (!Number.isFinite(savedAtMs) || Date.now() - savedAtMs > ttlMs) {
+      // PRC-M119: expired (or undated) draft — purge rather than restore.
+      window.localStorage.removeItem(key);
+      return null;
+    }
     return parsed as DraftEnvelope<T>;
   } catch {
     // SecurityError (private mode), QuotaExceededError, or invalid JSON.
@@ -180,8 +238,8 @@ function readDraft<T>(key: string): DraftEnvelope<T> | null {
 }
 
 /** Write a draft envelope, swallowing storage errors silently. */
-function writeDraft<T>(key: string, values: T): void {
-  if (typeof window === 'undefined') return;
+function writeDraft<T>(key: string | null, values: T): void {
+  if (typeof window === 'undefined' || key === null) return;
   const envelope: DraftEnvelope<T> = {
     v: DRAFT_SCHEMA_VERSION,
     savedAt: new Date().toISOString(),
@@ -197,8 +255,8 @@ function writeDraft<T>(key: string, values: T): void {
 }
 
 /** Delete a draft, swallowing storage errors silently. */
-function removeDraft(key: string): void {
-  if (typeof window === 'undefined') return;
+function removeDraft(key: string | null): void {
+  if (typeof window === 'undefined' || key === null) return;
   try {
     window.localStorage.removeItem(key);
   } catch {
@@ -222,7 +280,25 @@ function removeDraft(key: string): void {
 export function useDraftAutosave<T>(
   formId: string,
   intervalMs: number = DRAFT_AUTOSAVE_DEFAULT_INTERVAL_MS,
+  options: DraftAutosaveOptions<T> = {},
 ): DraftAutosave<T> {
+  const { scope, requireScope = false, sanitize } = options;
+  const ttlMs = options.ttlMs ?? DRAFT_DEFAULT_TTL_MS;
+  const scopeUser = scope?.userId ?? '';
+  const scopeTenant = scope?.tenantId ?? '';
+  const resolveKey = (): string | null => {
+    if (requireScope && (!scopeUser || !scopeTenant)) return null;
+    return buildDraftKey(
+      formId,
+      scopeUser && scopeTenant ? { userId: scopeUser, tenantId: scopeTenant } : null,
+    );
+  };
+  const sanitizeRef = useRef(sanitize);
+  sanitizeRef.current = sanitize;
+  const clean = useCallback(
+    (values: T): T => (sanitizeRef.current ? sanitizeRef.current(values) : values),
+    [],
+  );
   // Clamp the interval to the AC ceiling. Negative or NaN values fall
   // through to the default; ergonomics over strict validation.
   const safeInterval =
@@ -235,14 +311,19 @@ export function useDraftAutosave<T>(
   // mid-form. Both `formId` and the route should be stable for a
   // given form mount; if the caller passes a different `formId` we
   // pick it up via the useRef + effect dance below.
-  const keyRef = useRef<string>(buildDraftKey(formId));
-  useEffect(() => {
-    keyRef.current = buildDraftKey(formId);
-  }, [formId]);
-
+  const keyRef = useRef<string | null>(resolveKey());
   const [hydrated, setHydrated] = useState<DraftEnvelope<T> | null>(() =>
-    readDraft<T>(keyRef.current),
+    readDraft<T>(keyRef.current, ttlMs),
   );
+  // Re-key (and re-read) when the form id or the owning user/tenant changes:
+  // a draft saved by user A is never surfaced for user B.
+  useEffect(() => {
+    const next = resolveKey();
+    if (next === keyRef.current) return;
+    keyRef.current = next;
+    setHydrated(readDraft<T>(next, ttlMs));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId, scopeUser, scopeTenant, requireScope]);
 
   // Rehydrate after mount so SSR renders match the server's empty
   // state and the client picks up the stored draft on hydrate. We
@@ -250,7 +331,8 @@ export function useDraftAutosave<T>(
   // on the server during Next's SSR pass, where `window` may be
   // unavailable. The effect only runs in the browser.
   useEffect(() => {
-    setHydrated(readDraft<T>(keyRef.current));
+    setHydrated(readDraft<T>(keyRef.current, ttlMs));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Debounce machinery. We keep both the timer and the most recent
@@ -266,10 +348,10 @@ export function useDraftAutosave<T>(
       timerRef.current = null;
     }
     if (pendingRef.current !== null) {
-      writeDraft<T>(keyRef.current, pendingRef.current);
+      writeDraft<T>(keyRef.current, clean(pendingRef.current));
       pendingRef.current = null;
     }
-  }, []);
+  }, [clean]);
 
   const save = useCallback(
     (next: T) => {
@@ -281,12 +363,12 @@ export function useDraftAutosave<T>(
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         if (pendingRef.current !== null) {
-          writeDraft<T>(keyRef.current, pendingRef.current);
+          writeDraft<T>(keyRef.current, clean(pendingRef.current));
           pendingRef.current = null;
         }
       }, safeInterval);
     },
-    [safeInterval],
+    [safeInterval, clean],
   );
 
   const flush = useCallback(
@@ -308,10 +390,10 @@ export function useDraftAutosave<T>(
   }, []);
 
   const restore = useCallback((): T | null => {
-    const env = readDraft<T>(keyRef.current);
+    const env = readDraft<T>(keyRef.current, ttlMs);
     setHydrated(env);
     return env?.values ?? null;
-  }, []);
+  }, [ttlMs]);
 
   // On unmount, flush any pending debounced write so a navigation
   // away does not lose the user's last keystrokes.

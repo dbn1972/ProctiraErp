@@ -507,6 +507,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       if (filter.applicantIds) add('applicant_id = ANY(?)', filter.applicantIds);
       if (filter.institutionId) add('institution_id = ?', filter.institutionId);
       if (filter.status) add('status = ?', filter.status);
+      if (filter.statuses && filter.statuses.length > 0) add('status = ANY(?)', filter.statuses);
       if (filter.areaId) add('area_id = ?', filter.areaId);
       if (filter.gender) add('gender = ?', filter.gender);
       const where = conditions.join(' AND ');

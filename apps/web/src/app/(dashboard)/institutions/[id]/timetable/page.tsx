@@ -13,8 +13,15 @@ import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
-import { listStaff } from '@/lib/api/staff';
-import { classBand, slotTitle, subjectTone } from '@/lib/timetable/subject-label';
+import { listAllStaffResult } from '@/lib/api/staff';
+import { LoadErrorsAlert, StaffTruncationNotice } from '@/components/timetable/load-errors-alert';
+import { collectFailures } from '@/lib/timetable/load-errors';
+import {
+  classFilterOptions,
+  sectionClassKey,
+  slotTitle,
+  subjectTone,
+} from '@/lib/timetable/subject-label';
 import {
   listBellSchedules,
   listMeetings,
@@ -52,6 +59,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   let academicPeriods: { id: string; label: string }[] = [];
   let academicPeriodId = '';
   let academicPeriodName = '';
+  let academicPeriodsError: string | null = null;
   try {
     const periods = await listAcademicPeriods();
     academicPeriods = periods.map((period) => ({
@@ -63,8 +71,10 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     const chosen = requested ?? active;
     academicPeriodId = chosen?.id ?? '';
     academicPeriodName = chosen?.name ?? '';
-  } catch {
+  } catch (error) {
+    // PRC-M100: a failed read must not render the 'Create an academic period' CTA.
     academicPeriodId = '';
+    academicPeriodsError = error instanceof Error ? error.message : 'Could not be loaded.';
   }
 
   const [meetingsResult, schedulesResult, sectionsResult, roomsResult, staffResult] =
@@ -76,25 +86,9 @@ export default async function InstitutionTimetablePage(props: PageProps) {
         academicPeriodId: academicPeriodId || undefined,
       }),
       listRooms({ institutionId }),
-      (async () => {
-        const rows: Awaited<ReturnType<typeof listStaff>>['data'] = [];
-        for (let page = 1; page <= 4; page += 1) {
-          const batch = await listStaff({ page, pageSize: 100 }).catch(() => ({
-            data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
-            meta: { page, pageSize: 100, totalItems: 0, totalPages: 0 },
-          }));
-          rows.push(...batch.data);
-          if (batch.data.length < 100) break;
-        }
-        return { data: rows };
-      })(),
+      // PRC-M101: only this institution's staff are offered.
+      listAllStaffResult({ institutionId }),
     ]);
-
-  const apiError = !meetingsResult.ok
-    ? meetingsResult.error
-    : !schedulesResult.ok
-      ? schedulesResult.error
-      : null;
 
   const meetings = meetingsResult.ok ? meetingsResult.data : [];
   const schedules = schedulesResult.ok ? schedulesResult.data : [];
@@ -115,7 +109,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   }));
   const roomCode = new Map(rooms.map((r) => [r.id, r.code]));
   const roomLabel = new Map(roomOptions.map((r) => [r.id, r.label]));
-  const staffOptions = (staffResult.data ?? []).map((s) => ({
+  const staffOptions = (staffResult.ok ? staffResult.items : []).map((s) => ({
     id: s.id,
     label: formatPersonLabel(s.firstName, s.lastName),
   }));
@@ -129,8 +123,9 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     isBreak: boolean;
     scheduleName: string;
   }[] = [];
-  for (const schedule of schedules) {
-    const periods = await listPeriods(schedule.id);
+  const periodResults = await Promise.all(schedules.map((schedule) => listPeriods(schedule.id)));
+  for (const [scheduleIndex, schedule] of schedules.entries()) {
+    const periods = periodResults[scheduleIndex]!;
     if (!periods.ok) continue;
     for (const p of periods.data) {
       periodRows.push({
@@ -153,15 +148,22 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   const periodLabel = new Map(periodOptions.map((p) => [p.id, p.label]));
   const periodStart = new Map(periodRows.map((p) => [p.id, p.startTime]));
 
-  const bands = [
-    ...new Set(sections.map((s) => classBand(s.name)).filter((b): b is string => !!b)),
-  ];
-  const classKey = searchParams.class ?? (bands.includes('9-B') ? '9-B' : 'all');
+  // PRC-M103: default to every class; filter by a per-section key so sections
+  // without 'Class N-X' naming remain reachable; the list view honours it too.
+  const classOptions = classFilterOptions(sections);
+  const requestedClass = searchParams.class ?? 'all';
+  const classKey =
+    requestedClass === 'all' || classOptions.some((o) => o.value === requestedClass)
+      ? requestedClass
+      : 'all';
+  const classLabel = classOptions.find((o) => o.value === classKey)?.label;
   const visibleMeetings =
     classKey === 'all'
       ? meetings
-      : meetings.filter((m) => classBand(sectionById.get(m.sectionId)?.name ?? '') === classKey);
-
+      : meetings.filter((m) => {
+          const section = sectionById.get(m.sectionId);
+          return section ? sectionClassKey(section) === classKey : false;
+        });
   const gridMeetings = visibleMeetings.map((m) => {
     const section = sectionById.get(m.sectionId);
     const teacher = resolveEntityLabel(m.staffId, staffLabel, 'Teacher');
@@ -179,6 +181,18 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     };
   });
 
+  const loadFailures = collectFailures([
+    ['Academic periods', academicPeriodsError ? { ok: false, error: academicPeriodsError } : null],
+    ['Section meetings', meetingsResult],
+    ['Bell schedules', schedulesResult],
+    ['Sections', sectionsResult],
+    ['Rooms', roomsResult],
+    ['Staff', staffResult],
+    ...periodResults.map((r, i): [string, typeof r] => [
+      `Periods (${schedules[i]?.name ?? 'schedule'})`,
+      r,
+    ]),
+  ]);
   const query = (next: { view?: string; class?: string }) => {
     const params = new URLSearchParams();
     params.set('view', next.view ?? view);
@@ -225,23 +239,16 @@ export default async function InstitutionTimetablePage(props: PageProps) {
         </div>
       </div>
 
-      {apiError ? (
-        <Card>
-          <CardContent className="space-y-2 p-6">
-            <div className="text-sm" role="alert">
-              <p className="font-semibold">Timetable API unavailable</p>
-              <p className="text-muted-foreground">
-                {apiError}{' '}
-                <Link
-                  href={`/institutions/${institutionId}/timetable`}
-                  className="font-semibold underline"
-                >
-                  Retry
-                </Link>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {loadFailures.length > 0 ? (
+        <LoadErrorsAlert
+          title="Timetable data could not be loaded"
+          failures={loadFailures}
+          retryHref={`/institutions/${institutionId}/timetable${
+            searchParams.academicPeriod
+              ? `?academicPeriod=${encodeURIComponent(searchParams.academicPeriod)}`
+              : ''
+          }`}
+        />
       ) : !academicPeriodId ? (
         <Card>
           <CardContent className="space-y-2 p-6">
@@ -264,6 +271,12 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   One weekly slot for a section. Teacher double-bookings are blocked.
                 </p>
               </div>
+              {staffResult.ok && staffResult.truncated ? (
+                <StaffTruncationNotice
+                  shown={staffResult.items.length}
+                  total={staffResult.totalItems}
+                />
+              ) : null}
               <MeetingCreateForm
                 key={`${searchParams.day ?? ''}-${searchParams.period ?? ''}`}
                 institutionId={institutionId}
@@ -305,7 +318,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                 </div>
                 <ClassBandSelect
                   value={classKey}
-                  bands={bands}
+                  options={classOptions}
                   preserve={{ view, academicPeriod: academicPeriodId || undefined }}
                 />
                 {context ? <span className="text-xs text-muted-foreground">{context}</span> : null}
@@ -314,6 +327,10 @@ export default async function InstitutionTimetablePage(props: PageProps) {
               {view === 'list' ? (
                 meetings.length === 0 ? (
                   <EmptyMeetings institutionId={institutionId} />
+                ) : visibleMeetings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="class-filter-empty">
+                    No meetings for {classLabel ?? 'this class'}.
+                  </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[40rem] text-sm" aria-label="Meetings">
@@ -328,7 +345,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {meetings
+                        {visibleMeetings
                           .slice()
                           .sort(
                             (a, b) =>
@@ -374,7 +391,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   classKey={classKey}
                   academicPeriodId={academicPeriodId}
                   openMeetingId={searchParams.meeting}
-                  caption={`Weekly timetable${classKey === 'all' ? '' : `, Class ${classKey}`}`}
+                  caption={`Weekly timetable${classLabel ? `, ${classLabel}` : ''}`}
                   periods={periodRows.map((p) => ({
                     id: p.id,
                     label: p.isBreak ? 'Break' : p.name.replace(/^Period\s+/i, 'P'),

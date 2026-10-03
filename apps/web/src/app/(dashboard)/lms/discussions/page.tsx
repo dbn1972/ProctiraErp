@@ -3,7 +3,7 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
-import { getDiscussion, listDiscussions } from '@/lib/api/lms';
+import { listDiscussions } from '@/lib/api/lms';
 import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
@@ -13,10 +13,7 @@ import { LmsSubnav } from '../_components/lms-subnav';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsDiscussionsPage() {
-  const [listed, schools] = await Promise.all([listDiscussions(), loadInstitutionOptions()]);
-  const threads = await Promise.all(
-    listed.map(async (thread) => (await getDiscussion(thread.id)) ?? thread),
-  );
+  const [threads, schools] = await Promise.all([listDiscussions(), loadInstitutionOptions()]);
   return (
     <section className="space-y-6" aria-labelledby="lms-discussions-heading">
       <div>

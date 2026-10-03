@@ -637,7 +637,13 @@
     "rubricsNew": "નવી રુબ્રિક",
     "rubricsEmptyTitle": "હજી કોઈ રુબ્રિક નથી",
     "rubricsEmptyBody": "નિબંધોના મૂલ્યાંકન માટે રુબ્રિક બનાવો.",
-    "rubricsAnySubject": "કોઈપણ વિષય"
+    "rubricsAnySubject": "કોઈપણ વિષય",
+    "searchStudents": "વિદ્યાર્થીઓ શોધો",
+    "searchStudentsHint": "નામના ઓછામાં ઓછા 2 અક્ષર લખો, અથવા વિદ્યાર્થી ID પેસ્ટ કરો.",
+    "studentsLoadFailed": "વિદ્યાર્થીઓ લોડ થઈ શક્યા નહીં. ફરી પ્રયાસ કરો.",
+    "noStudentsMatch": "આ શોધ સાથે કોઈ વિદ્યાર્થી મેળ ખાતા નથી.",
+    "searchingStudents": "શોધી રહ્યા છીએ…",
+    "studentResultsCount": "{count, plural, one {# વિદ્યાર્થી મળ્યો} other {# વિદ્યાર્થીઓ મળ્યા}}"
   },
   "health": {
     "title": "આરોગ્ય રેકોર્ડ",
@@ -901,6 +907,12 @@
     "inboxDescription": "તમારા સાઇન-ઇન એકાઉન્ટ માટે એલર્ટ.",
     "empty": "હજી કોઈ સૂચના નથી. ઇમેઇલ, પુશ અથવા SMS પસંદ કરવા માટે પસંદગીઓનો ઉપયોગ કરો — અને મોબાઇલ એલર્ટ માટે ઉપકરણ નોંધાવો.",
     "read": "વાંચેલું",
-    "unread": "ન વાંચેલું"
+    "unread": "ન વાંચેલું",
+    "filterLabel": "સૂચનાઓ ફિલ્ટર કરો",
+    "filterAll": "બધી",
+    "filterUnread": "ન વાંચેલી",
+    "markRead": "વાંચેલ તરીકે ચિહ્નિત કરો",
+    "markAllRead": "બધી વાંચેલ તરીકે ચિહ્નિત કરો",
+    "markReadFailed": "વાંચેલ તરીકે ચિહ્નિત કરી શકાયું નહીં. ફરી પ્રયાસ કરો."
   }
 }

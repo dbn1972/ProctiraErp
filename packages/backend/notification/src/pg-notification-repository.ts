@@ -228,6 +228,7 @@ export class HybridNotificationRepository implements NotificationRepository {
         params.push(options.channel);
         filters.push(`channel = $${params.length}`);
       }
+      if (options.unreadOnly) filters.push('read_at IS NULL');
       const where = filters.join(' AND ');
       const countResult = await client.query(
         `SELECT COUNT(*)::int AS total FROM notifications WHERE ${where}`,

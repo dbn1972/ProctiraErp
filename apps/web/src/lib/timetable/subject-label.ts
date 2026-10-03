@@ -32,3 +32,29 @@ export function subjectTone(sectionName: string): (typeof TONES)[number] {
   if (subject.includes('hindi')) return 'c4';
   return 'c5';
 }
+
+/**
+ * PRC-M103: class filter key for a section. 'Class N-X' names group by band;
+ * sections without that naming get their own key so they stay reachable.
+ */
+export function sectionClassKey(section: { id: string; name: string }): string {
+  return classBand(section.name) ?? `section:${section.id}`;
+}
+
+export function classFilterOptions(
+  sections: ReadonlyArray<{ id: string; name: string }>,
+): Array<{ value: string; label: string }> {
+  const bands = new Map<string, string>();
+  const others: Array<{ value: string; label: string }> = [];
+  for (const section of sections) {
+    const band = classBand(section.name);
+    if (band) bands.set(band, `Class ${band}`);
+    else others.push({ value: `section:${section.id}`, label: section.name });
+  }
+  return [
+    ...[...bands.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+      .map(([value, label]) => ({ value, label })),
+    ...others.sort((a, b) => a.label.localeCompare(b.label)),
+  ];
+}

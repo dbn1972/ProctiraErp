@@ -54,6 +54,8 @@ export interface StaffListFilters {
   sortOrder?: 'asc' | 'desc';
   /** Convenience filter forwarded to backend (currently mapped to search). */
   institutionId?: string;
+  /** PRC-M120: staff type tab (teaching / non-teaching by position, on approved leave today). */
+  type?: 'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
 }
 
 export interface CreateStaffInput {
@@ -169,6 +171,7 @@ function buildQuery(filters: StaffListFilters): string {
   if (filters.sortBy) params.set('sortBy', filters.sortBy);
   if (filters.sortOrder) params.set('sortOrder', filters.sortOrder);
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
+  if (filters.type && filters.type !== 'ALL') params.set('type', filters.type);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
@@ -193,6 +196,42 @@ export async function listStaff(filters: StaffListFilters = {}): Promise<StaffLi
   return result.data;
 }
 
+/**
+ * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
+ * failed read is distinguishable from an institution with no staff.
+ */
+/** PRC-M102: hard cap for staff pickers (pages x 100). */
+export const STAFF_PICKER_CAP = 400;
+
+export type StaffLoadResult =
+  | { ok: true; items: Staff[]; truncated: boolean; totalItems: number }
+  | Extract<ListResult<Staff>, { ok: false }>;
+
+export async function listAllStaffResult(
+  opts: { institutionId?: string; maxPages?: number } = {},
+): Promise<StaffLoadResult> {
+  const maxPages = opts.maxPages ?? STAFF_PICKER_CAP / 100;
+  // PRC-M101: scope to the institution's staff (active assignment there).
+  const scope = opts.institutionId
+    ? `&institutionId=${encodeURIComponent(opts.institutionId)}`
+    : '';
+  const rows: Staff[] = [];
+  let totalItems = 0;
+  let lastPageFull = false;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchList<Staff>(`/staff?page=${page}&pageSize=100${scope}`, {
+      next: { revalidate: 0 },
+    });
+    if (!batch.ok) return batch;
+    rows.push(...batch.items);
+    totalItems = Math.max(totalItems, batch.meta?.totalItems ?? 0);
+    lastPageFull = batch.items.length === 100;
+    if (!lastPageFull) break;
+  }
+  // PRC-M102: say so when the cap cut the list, instead of silently truncating.
+  const truncated = totalItems > rows.length || (lastPageFull && rows.length >= maxPages * 100);
+  return { ok: true, items: rows, truncated, totalItems: Math.max(totalItems, rows.length) };
+}
 export async function getStaff(id: string): Promise<Staff | null> {
   const result = await gatewayFetch<Staff>(`/staff/${id}`, {
     method: 'GET',

@@ -116,7 +116,7 @@ test.describe('LMS — client validation (ungated)', () => {
       await expect(form).toHaveCount(1, { timeout: 2_000 });
       await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
-    const input = form.locator('input');
+    const input = form.locator('input[name="studentId"]');
     if ((await input.count()) > 0) {
       await input.fill('not-a-uuid');
       await page.getByRole('button', { name: /load plan/i }).click();
@@ -315,7 +315,7 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
       await expect(form).toHaveCount(1, { timeout: 2_000 });
       await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
-    const input = form.locator('input');
+    const input = form.locator('input[name="studentId"]');
     if ((await input.count()) > 0) {
       await input.fill(STUDENT_ID);
     } else {

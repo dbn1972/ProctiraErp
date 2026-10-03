@@ -150,6 +150,12 @@ export const StaffListQuerySchema = Type.Object({
   institutionId: Type.Optional(
     Type.String({ description: 'Scope to one institution (school) within the tenant' }),
   ),
+  type: Type.Optional(
+    Type.String({
+      enum: ['ALL', 'TEACHING', 'NON_TEACHING', 'ON_LEAVE'],
+      description: 'PRC-M120: teaching / non-teaching (by position) or on approved leave today',
+    }),
+  ),
 });
 
 export type StaffListQuery = Static<typeof StaffListQuerySchema>;

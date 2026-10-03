@@ -83,6 +83,23 @@ function applicationStatus(value: string | undefined): ApplicationStatus | undef
   return APPLICATION_STATUSES.find((status) => status === value);
 }
 
+/**
+ * PRC-M114: `status` may be one status or a comma list (e.g. `submitted,under_review`);
+ * unknown values are dropped, so an all-unknown list filters nothing out.
+ */
+function applicationStatusFilter(value: string | undefined): {
+  status?: ApplicationStatus;
+  statuses?: ApplicationStatus[];
+} {
+  if (!value) return {};
+  const parts = value
+    .split(',')
+    .map((part) => applicationStatus(part.trim()))
+    .filter((s): s is ApplicationStatus => s !== undefined);
+  if (parts.length === 0) return {};
+  return parts.length === 1 ? { status: parts[0] } : { statuses: [...new Set(parts)] };
+}
+
 function disbursementStatus(value: string | undefined): PaymentStatus | undefined {
   return PAYMENT_STATUSES.find((status) => status === value);
 }
@@ -495,7 +512,7 @@ export async function registerScholarshipRoutes(
           programId: query.programId,
           applicantId: query.applicantId,
           institutionId: query.institutionId,
-          status: applicationStatus(query.status),
+          ...applicationStatusFilter(query.status),
           areaId: query.areaId,
           gender: query.gender,
         },

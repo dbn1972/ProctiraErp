@@ -271,6 +271,57 @@ describe('Scholarship Routes', () => {
       expect(body.status).toBe('under_review');
     });
 
+    it('lists by programId and a comma list of statuses, paged (PRC-M114)', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/scholarships/programs',
+        payload: {
+          name: 'Paged Program',
+          applicationStartDate: '2020-01-01',
+          applicationEndDate: '2030-12-31',
+          totalSlots: 50,
+          amountPerRecipient: 5000,
+          eligibility: {},
+        },
+      });
+      const program = JSON.parse(created.payload);
+      await app.inject({
+        method: 'PUT',
+        url: `/scholarships/programs/${program.id}`,
+        payload: { status: 'open' },
+      });
+      for (let i = 0; i < 3; i++) {
+        const sub = await app.inject({
+          method: 'POST',
+          url: '/scholarships/applications',
+          payload: {
+            programId: program.id,
+            applicantId: `a0eebc99-9c0b-4ef8-bb6d-6bb9bd38${String(i).padStart(4, '0')}`,
+            institutionId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+            academicRecords: [
+              { institutionName: 'Test Uni', educationLevel: 'undergraduate', gpa: 3.5 },
+            ],
+            financialInfo: { familyIncome: 30000 },
+            documents: [],
+            gender: 'female',
+          },
+        });
+        expect(sub.statusCode, sub.payload).toBe(201);
+      }
+      const res = await app.inject({
+        method: 'GET',
+        url: `/scholarships/applications?programId=${program.id}&status=submitted,under_review&page=1&pageSize=2`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.data).toHaveLength(2);
+      expect(body.meta.totalItems).toBe(3);
+      const none = await app.inject({
+        method: 'GET',
+        url: `/scholarships/applications?programId=${program.id}&status=approved`,
+      });
+      expect(JSON.parse(none.payload).meta.totalItems).toBe(0);
+    });
     it('should return 400 for missing required fields', async () => {
       const response = await app.inject({
         method: 'POST',

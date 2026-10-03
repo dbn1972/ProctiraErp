@@ -767,7 +767,13 @@
     "rubricsNew": "New rubric",
     "rubricsEmptyTitle": "No rubrics yet",
     "rubricsEmptyBody": "Create a rubric to grade essays.",
-    "rubricsAnySubject": "Any subject"
+    "rubricsAnySubject": "Any subject",
+    "searchStudents": "Search students",
+    "searchStudentsHint": "Type at least 2 letters of a name, or paste a student ID.",
+    "studentsLoadFailed": "Students could not be loaded. Try again.",
+    "noStudentsMatch": "No students match this search.",
+    "searchingStudents": "Searching…",
+    "studentResultsCount": "{count, plural, one {# student found} other {# students found}}"
   },
   "health": {
     "title": "Health records",
@@ -966,6 +972,12 @@
     "inboxDescription": "Alerts for your signed-in account.",
     "empty": "No notifications yet. Use Preferences to choose email, push, or SMS — and register a device when you want mobile alerts.",
     "read": "read",
-    "unread": "unread"
+    "unread": "unread",
+    "filterLabel": "Filter notifications",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read",
+    "markReadFailed": "Could not mark as read. Try again."
   }
 }

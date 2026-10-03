@@ -231,7 +231,7 @@ describe('AttendanceMarkingForm draft hydration', () => {
       key,
       JSON.stringify({
         v: 1,
-        savedAt: '2024-01-15T08:00:00.000Z',
+        savedAt: new Date().toISOString(), // within the PRC-M119 24h TTL
         values: {
           institutionId: INST_FROM_DRAFT,
           classId: CLASS_FROM_DRAFT,

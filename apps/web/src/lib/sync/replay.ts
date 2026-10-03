@@ -51,6 +51,7 @@
  */
 
 import { dequeue, peekAll, persistAttempt, type SyncQueueOperation } from './syncQueue';
+import { canReplayFor, getSyncIdentity, type SyncIdentity } from './identity';
 
 // ─── Backoff schedule ────────────────────────────────────────────────────────
 
@@ -129,6 +130,11 @@ export interface ReplayOptions {
   buildHeaders?: (op: SyncQueueOperation) => Record<string, string>;
   /** AbortSignal to cut a long-running drain short (e.g. `offline`). */
   signal?: AbortSignal;
+  /**
+   * PRC-M119: only replay operations owned by this identity (defaults to the
+   * signed-in identity registered by AuthProvider).
+   */
+  identity?: SyncIdentity | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -220,6 +226,7 @@ export async function replayAll(
   const now = options.now ?? Date.now;
   const signal = options.signal;
   const buildHeaders = options.buildHeaders ?? defaultReplayHeaders;
+  const identity = 'identity' in options ? options.identity : getSyncIdentity();
 
   const queue = await peekAll();
   const results: ReplayResult[] = [];
@@ -230,6 +237,8 @@ export async function replayAll(
     // Skip already-exhausted operations — they need user attention
     // via the conflict dialog (task 54.5).
     if (initial.attemptCount >= MAX_ATTEMPTS) continue;
+    // PRC-M119: another user's/tenant's queued write is never replayed here.
+    if (!canReplayFor(initial, identity)) continue;
 
     let op = initial;
     let outcome: ReplayOutcome = 'failed_transient';

@@ -155,22 +155,30 @@ function NotificationBell() {
   useEffect(() => {
     if (status !== 'authenticated') return;
     const controller = new AbortController();
-    void fetch('/api/v1/notifications/unread-count', {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return { unread: 0 };
-        return (await response.json()) as { unread?: number };
+    const load = () =>
+      fetch('/api/v1/notifications/unread-count', {
+        cache: 'no-store',
+        signal: controller.signal,
       })
-      .then((body) => {
-        const count = typeof body.unread === 'number' ? body.unread : 0;
-        setUnread(count > 0 ? count : 0);
-      })
-      .catch(() => {
-        setUnread(0);
-      });
-    return () => controller.abort();
+        .then(async (response) => {
+          if (!response.ok) return { unread: 0 };
+          return (await response.json()) as { unread?: number };
+        })
+        .then((body) => {
+          const count = typeof body.unread === 'number' ? body.unread : 0;
+          setUnread(count > 0 ? count : 0);
+        })
+        .catch(() => {
+          setUnread(0);
+        });
+    void load();
+    // PRC-M115: the inbox fires this after mark-read so the bell count updates.
+    const onChanged = () => void load();
+    window.addEventListener('proctira:notifications-changed', onChanged);
+    return () => {
+      window.removeEventListener('proctira:notifications-changed', onChanged);
+      controller.abort();
+    };
   }, [status]);
 
   const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
