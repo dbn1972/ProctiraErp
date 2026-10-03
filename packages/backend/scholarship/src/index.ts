@@ -128,3 +128,14 @@ export {
   InMemoryScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
 export { PLACEHOLDER_PDF, PLACEHOLDER_PDF_SHA256, sha256Hex } from './document-bytes.js';
+export {
+  createDownloadTokenReplayGuard,
+  DownloadTokenReplayGuard,
+  RedisDownloadTokenReplayGuard,
+} from './document-bytes.js';
+export type {
+  DownloadTokenReplayStore,
+  RedisLikeForDownloadReplay,
+  ScholarshipDocumentDownloadAuditEvent,
+  ScholarshipDocumentDownloadAuditRecorder,
+} from './document-bytes.js';

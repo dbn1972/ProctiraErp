@@ -55,8 +55,18 @@ function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
-function dateOnly(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+/**
+ * PRC-L002: node-pg parses a DATE column as *local* midnight, so `toISOString()` shifted the
+ * calendar day back in any process whose TZ is east of UTC (e.g. Asia/Kolkata). Read the local
+ * calendar components instead; strings pass through.
+ */
+export function dateOnly(value: unknown): string {
+  if (value instanceof Date) {
+    const y = String(value.getFullYear()).padStart(4, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   return String(value).slice(0, 10);
 }
 

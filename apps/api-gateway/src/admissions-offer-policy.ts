@@ -27,6 +27,41 @@ export function resolveTenantTimeZone(timeZone: unknown): string {
   }
 }
 
+function validZone(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const zone = value.trim();
+  return resolveTenantTimeZone(zone) === zone ? zone : null;
+}
+
+/**
+ * PRC-L002: the tenant's admissions calendar zone, read on the caller's tenant-bound transaction
+ * (RLS). Priority: admin-console tenant settings (`tenant.settings` document — what the school
+ * edits), then `tenants.config.locale.timezone`, then flat `tenants.config.timezone`; otherwise
+ * {@link DEFAULT_TENANT_TIMEZONE} (the platform default is an open decision, PRC-L358).
+ * Invalid zones are skipped. Never elevates the transaction (no platform scope).
+ */
+export async function loadAdmissionsTimeZone(
+  client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  tenantId: string,
+): Promise<string> {
+  const settings = await client.query(
+    `SELECT data->>'timezone' AS tz
+       FROM control_plane_documents
+      WHERE collection = 'tenant.settings' AND id = $1 AND tenant_id = $1
+      LIMIT 1`,
+    [tenantId],
+  );
+  const fromSettings = validZone((settings.rows[0] as { tz?: unknown } | undefined)?.tz);
+  if (fromSettings) return fromSettings;
+  const tenant = await client.query(
+    `SELECT config->'locale'->>'timezone' AS locale_tz, config->>'timezone' AS flat_tz
+       FROM tenants WHERE id = $1::uuid`,
+    [tenantId],
+  );
+  const row = tenant.rows[0] as { locale_tz?: unknown; flat_tz?: unknown } | undefined;
+  return validZone(row?.locale_tz) ?? validZone(row?.flat_tz) ?? DEFAULT_TENANT_TIMEZONE;
+}
+
 /** Calendar date (YYYY-MM-DD) of `now` in the tenant timezone. */
 export function tenantLocalDate(now: Date, timeZone: unknown): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
