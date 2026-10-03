@@ -37,3 +37,21 @@ gh api -X POST repos/dbn1972/ProctiraErp/environments/staging/deployment-branch-
 From a fork, open a PR whose head branch is named `main`, let CI pass, and confirm the
 Deploy and Release runs show every job skipped/failed at `ci-gate` with no build or
 migrate job started. Record the run URLs in the release evidence.
+
+## Branch protection required checks (PRC-L389)
+
+`tools/scripts/run-e2e-backend-ready.sh` fails closed unless `E2E_ALLOW_SKIP=1`, but a
+failing workflow only blocks merges if its aggregator is a required status check.
+Settings → Branches (or Rulesets) for `main`, `develop` and `integration/*`:
+
+- `CI Aggregate (Required)` (workflow **CI**)
+- `E2E backend-ready live gate (G-401 / G-706)` (workflow **E2E Backend Ready**)
+
+```bash
+gh api -X PATCH repos/dbn1972/ProctiraErp/branches/main/protection/required_status_checks \
+  -f strict=true \
+  -f 'contexts[]=CI Aggregate (Required)' \
+  -f 'contexts[]=E2E backend-ready live gate (G-401 / G-706)'
+```
+
+Verify with `gh api repos/dbn1972/ProctiraErp/branches/main/protection/required_status_checks`.
