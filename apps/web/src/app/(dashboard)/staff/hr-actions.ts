@@ -95,6 +95,10 @@ export async function saveAttendanceAction(input: {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.marks.length === 0) {
     return { status: 'error', message: 'Date and at least one mark are required.' };
   }
+  // PRC-M123: no future-dated marks (latest calendar date anywhere, UTC+14).
+  if (input.date > new Date(Date.now() + 14 * 3_600_000).toISOString().slice(0, 10)) {
+    return { status: 'error', message: 'Attendance cannot be marked for a future date.' };
+  }
   try {
     await markStaffAttendanceBulk(input);
     revalidatePath('/staff/attendance');

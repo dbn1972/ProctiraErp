@@ -10,8 +10,9 @@ vi.mock('@/lib/api/staff', () => ({
   markStaffAttendanceBulk: vi.fn(),
 }));
 
-import { commitStaffImport } from '@/lib/api/staff';
-import { commitImportAction } from './hr-actions';
+import { commitStaffImport, markStaffAttendanceBulk } from '@/lib/api/staff';
+import { commitImportAction, saveAttendanceAction } from './hr-actions';
+import { changedAttendanceMarks } from './_components/staff-attendance-grid';
 
 const CSV = 'firstName,lastName\nA,B\nC,\n';
 
@@ -36,5 +37,26 @@ describe('commitImportAction status (PRC-L246)', () => {
     } as never);
     const result = await commitImportAction(CSV, 'staff.csv');
     expect(result.status).toBe('success');
+  });
+});
+
+describe('staff attendance save (PRC-M123)', () => {
+  it('changing one mark sends one row', () => {
+    const staff = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const initial = { a: 'present', b: 'present' } as const;
+    const draft = { a: 'present', b: 'absent', c: undefined } as never;
+    expect(changedAttendanceMarks(staff, initial, draft)).toEqual([
+      { staffId: 'b', status: 'absent' },
+    ]);
+    expect(changedAttendanceMarks(staff, initial, initial)).toEqual([]);
+  });
+  it('rejects a future date without calling the API', async () => {
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const result = await saveAttendanceAction({
+      date: future,
+      marks: [{ staffId: 'a', status: 'present' }],
+    });
+    expect(result.status).toBe('error');
+    expect(markStaffAttendanceBulk).not.toHaveBeenCalled();
   });
 });

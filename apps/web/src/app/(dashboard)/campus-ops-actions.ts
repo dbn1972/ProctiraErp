@@ -25,7 +25,9 @@ import {
   placeLibraryHold,
   returnLibraryByBarcode,
 } from '@/lib/api/library';
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import { firstIssue, gatePassWindowSchema } from '@/lib/validation/campus-action-schema';
+import { libraryDueAtError } from '@/lib/validation/library-due-date';
 
 export interface OpsActionState {
   status: 'idle' | 'success' | 'error';
@@ -113,17 +115,24 @@ export async function checkoutBarcodeAction(input: {
   barcode: string;
   patronUserId?: string;
   studentId?: string;
+  /** Wall-clock date from the form; resolved to end of day in the tenant timezone. */
+  dueAt?: string;
 }): Promise<OpsActionState> {
   const parsed = z
     .object({
       barcode: z.string().min(1).max(64),
       patronUserId: z.string().min(1).max(128).optional(),
       studentId: z.string().min(1).max(128).optional(),
+      dueAt: z.string().max(40).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Barcode is required.' };
   try {
-    const loan = await checkoutLibraryByBarcode(parsed.data);
+    // PRC-M104: the clerk's due date is sent (it was silently dropped before).
+    const dueAt = await toTenantUtcIso(parsed.data.dueAt);
+    const dueError = dueAt ? libraryDueAtError(dueAt) : null;
+    if (dueError) return { status: 'error', message: dueError };
+    const loan = await checkoutLibraryByBarcode({ ...parsed.data, dueAt });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', id: loan.id, message: 'Checked out by barcode.' };

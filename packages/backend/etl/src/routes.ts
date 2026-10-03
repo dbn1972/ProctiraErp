@@ -15,6 +15,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { listDestinationConnections } from './connectors/connection-registry.js';
 import { hasEtlAccess } from './etl-access.js';
 import type { ETLService } from './etl-service.js';
 import {
@@ -131,6 +132,20 @@ export async function registerETLRoutes(
     return undefined;
   });
 
+  /**
+   * GET /pipelines/connections
+   * PRC-M109: server-managed destination connections (ids + labels only).
+   */
+  fastify.get(`${prefix}/connections`, async function connectionsHandler(request, reply) {
+    if (!getTenantId(request)) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    return reply.status(200).send({ data: listDestinationConnections() });
+  });
   /**
    * POST /pipelines
    * Create a new pipeline definition.

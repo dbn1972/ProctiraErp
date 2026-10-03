@@ -47,12 +47,15 @@ describe('due dates use the tenant timezone (PRC-L047)', () => {
   });
 
   it('library due date resolves to end of the tenant-local day', async () => {
+    // PRC-M104: past due dates are refused, so pin "now" before the due date.
+    vi.useFakeTimers({ now: new Date('2026-01-01T00:00:00Z'), toFake: ['Date'] });
     await checkoutLibraryItemAction({
       // PRC-L033: the action validates ids before the gateway call.
       itemId: '01890a5d-ac96-774b-bcce-b302099a8057',
       dueAt: '2026-01-10',
     });
     expect(checkoutLibraryItem.mock.calls[0]?.[0].dueAt).toBe('2026-01-10T18:29:59.000Z');
+    vi.useRealTimers();
   });
 
   it('rejects an unparseable deadline instead of storing it', async () => {

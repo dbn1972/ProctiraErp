@@ -641,7 +641,13 @@
     "rubricsNew": "नया रूब्रिक",
     "rubricsEmptyTitle": "अभी कोई रूब्रिक नहीं",
     "rubricsEmptyBody": "निबंधों के मूल्यांकन के लिए एक रूब्रिक बनाएँ।",
-    "rubricsAnySubject": "कोई भी विषय"
+    "rubricsAnySubject": "कोई भी विषय",
+    "searchStudents": "विद्यार्थी खोजें",
+    "searchStudentsHint": "नाम के कम से कम 2 अक्षर लिखें, या विद्यार्थी ID चिपकाएँ।",
+    "studentsLoadFailed": "विद्यार्थी लोड नहीं हो सके। फिर से प्रयास करें।",
+    "noStudentsMatch": "इस खोज से कोई विद्यार्थी मेल नहीं खाता।",
+    "searchingStudents": "खोज रहे हैं…",
+    "studentResultsCount": "{count, plural, one {# विद्यार्थी मिला} other {# विद्यार्थी मिले}}"
   },
   "health": {
     "title": "स्वास्थ्य रिकॉर्ड",
@@ -906,6 +912,12 @@
     "inboxDescription": "आपके साइन-इन खाते के अलर्ट।",
     "empty": "अभी कोई सूचना नहीं। ईमेल, पुश या SMS चुनने के लिए प्राथमिकताएँ देखें — और मोबाइल अलर्ट के लिए डिवाइस पंजीकृत करें।",
     "read": "पढ़ा गया",
-    "unread": "अपठित"
+    "unread": "अपठित",
+    "filterLabel": "सूचनाएँ फ़िल्टर करें",
+    "filterAll": "सभी",
+    "filterUnread": "अपठित",
+    "markRead": "पढ़ा हुआ चिह्नित करें",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
+    "markReadFailed": "पढ़ा हुआ चिह्नित नहीं हो सका। फिर से प्रयास करें।"
   }
 }

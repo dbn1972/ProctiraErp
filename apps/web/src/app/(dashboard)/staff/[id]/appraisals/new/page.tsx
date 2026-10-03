@@ -78,8 +78,8 @@ export default async function NewAppraisalPage(props: PageProps) {
         <CardHeader>
           <CardTitle className="text-base">Appraisal details & criteria</CardTitle>
           <CardDescription>
-            Score each criterion defined on the selected template (Requirement 7.3). The total score
-            and rating band are calculated automatically as you fill in scores.
+            Score each criterion defined on the selected template (Requirement 7.3), up to the
+            criterion maximum. The weighted total updates as you fill in scores.
           </CardDescription>
         </CardHeader>
         <CardContent>
