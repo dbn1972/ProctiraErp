@@ -320,7 +320,14 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     function setup(privateKeyPem: string, store: MemoryAccessTokenRevocationStore) {
       const now = Math.floor(Date.now() / 1000);
       const accessToken = signRs256(
-        { sub: 'kc-user', iss: issuer, jti: 'jti-a', sid: 'sid-m499', exp: now + 300 },
+        {
+          sub: 'kc-user',
+          iss: issuer,
+          azp: 'proctira-gateway',
+          jti: 'jti-a',
+          sid: 'sid-m499',
+          exp: now + 300,
+        },
         privateKeyPem,
       );
       const refreshToken = unsigned({

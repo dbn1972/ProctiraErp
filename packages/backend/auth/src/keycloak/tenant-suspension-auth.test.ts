@@ -12,6 +12,7 @@ import {
 } from '../tenant-session-revocation.js';
 
 import { registerKeycloakAuthRoutes, type KeycloakRouteConfig } from './routes.js';
+import { boundCallbackRequest } from './oidc-callback.test-helpers.js';
 
 const TENANT = '7a1f2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const ISSUER = 'http://localhost:8180/realms/proctira';
@@ -103,7 +104,7 @@ describe('Keycloak sign-in for suspended tenants (PRC-H008)', () => {
   it('OIDC callback for a suspended tenant is 403', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(tokenResponse()));
     const app = await buildRoutes({ tenantAuthGate: () => Promise.resolve(true) });
-    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/callback?code=abc' });
+    const res = await app.inject(await boundCallbackRequest(app));
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('TENANT_SUSPENDED');
     await app.close();

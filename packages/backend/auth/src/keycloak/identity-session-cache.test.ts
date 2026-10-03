@@ -14,6 +14,7 @@ import {
   type KeycloakIdentityStore,
 } from './identity.js';
 import { registerKeycloakAuthRoutes } from './routes.js';
+import { boundCallbackRequest } from './oidc-callback.test-helpers.js';
 
 const ROUTE_CONFIG = {
   issuer: 'http://localhost:8180/realms/proctira',
@@ -80,7 +81,11 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
       ...ROUTE_CONFIG,
       identityStore: store({ findIdentity: vi.fn().mockRejectedValue(new Error('db down')) }),
     });
-    const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+    const response = await app.inject(
+      method === 'GET'
+        ? await boundCallbackRequest(app)
+        : { method, url, ...(payload ? { payload } : {}) },
+    );
     expect(response.statusCode).toBe(503);
     expect(response.json()).toMatchObject({ code: 'IDENTITY_UNAVAILABLE' });
     expect(response.body).not.toContain('accessToken');
@@ -99,7 +104,11 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
         ...ROUTE_CONFIG,
         identityStore: store({ findIdentity: vi.fn().mockResolvedValue(null) }),
       });
-      const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+      const response = await app.inject(
+      method === 'GET'
+        ? await boundCallbackRequest(app)
+        : { method, url, ...(payload ? { payload } : {}) },
+    );
       expect(response.statusCode).toBe(401);
       expect(response.json()).toMatchObject({ code: 'IDENTITY_LINK_REJECTED' });
       expect(response.body).not.toContain('accessToken');
