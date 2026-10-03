@@ -15,6 +15,7 @@ import type {
   InstitutionAttendanceConfig,
   AttendanceAuditEntry,
   AttendancePercentageQuery,
+  AttendanceStatusCount,
   AbsenceThresholdConfig,
 } from './attendance-repository.js';
 
@@ -326,6 +327,20 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
           return false;
       }
     });
+  }
+
+  async countStudentAttendanceByStatus(
+    tenantId: string,
+    query: AttendancePercentageQuery,
+  ): Promise<AttendanceStatusCount[]> {
+    const buckets = new Map<string, AttendanceStatusCount>();
+    for (const r of await this.listStudentAttendanceByDateRange(tenantId, query)) {
+      const key = `${r.studentId}\u0000${r.status}`;
+      const b = buckets.get(key) ?? { studentId: r.studentId, status: r.status, count: 0 };
+      b.count += 1;
+      buckets.set(key, b);
+    }
+    return [...buckets.values()];
   }
 
   async listStudentAttendanceByStudentDateRange(

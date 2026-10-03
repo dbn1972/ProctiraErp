@@ -152,6 +152,16 @@ export interface AttendancePercentageQuery {
   endDate: string;
 }
 
+/** One GROUP BY (student, status) bucket (PRC-M174). */
+export interface AttendanceStatusCount {
+  studentId: string;
+  status: AttendanceStatus;
+  count: number;
+}
+
+/** Max inclusive span (days) for range reports (PRC-M174). */
+export const MAX_ATTENDANCE_RANGE_DAYS = 366;
+
 /**
  * Result of attendance percentage calculation.
  */
@@ -267,6 +277,15 @@ export interface AttendanceRepository {
     tenantId: string,
     query: AttendancePercentageQuery,
   ): Promise<StudentAttendanceEntity[]>;
+
+  /**
+   * PRC-M174: per-student, per-status counts aggregated in the database
+   * (GROUP BY student_id, status) so percentage reports never load raw rows.
+   */
+  countStudentAttendanceByStatus(
+    tenantId: string,
+    query: AttendancePercentageQuery,
+  ): Promise<AttendanceStatusCount[]>;
 
   /** All of a student's attendance rows in a date range (heatmap; no class filter). */
   listStudentAttendanceByStudentDateRange(

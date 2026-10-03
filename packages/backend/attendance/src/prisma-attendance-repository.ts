@@ -27,6 +27,7 @@ import type {
   AttendanceAuditEntry,
   AttendancePercentageQuery,
   AttendanceRepository,
+  AttendanceStatusCount,
   AttendanceWriteOp,
   InstitutionAttendanceConfig,
   StaffAttendanceEntity,
@@ -342,6 +343,36 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
         where,
       })) as StudentAttendanceRow[];
       return rows.map(toStudentEntity);
+    });
+  }
+
+  async countStudentAttendanceByStatus(
+    tenantId: string,
+    query: AttendancePercentageQuery,
+  ): Promise<AttendanceStatusCount[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const where: Prisma.StudentAttendanceWhereInput = {
+        tenantId,
+        date: { gte: toDateOnly(query.startDate), lte: toDateOnly(query.endDate) },
+      };
+      if (query.scope === 'student') {
+        where.studentId = query.studentId;
+        where.classId = query.classId;
+      } else if (query.scope === 'class') {
+        where.classId = query.classId;
+      } else {
+        where.institutionId = query.institutionId;
+      }
+      const groups = await tx.studentAttendance.groupBy({
+        by: ['studentId', 'status'],
+        where,
+        _count: { _all: true },
+      });
+      return groups.map((g) => ({
+        studentId: g.studentId,
+        status: g.status as AttendanceStatus,
+        count: g._count._all,
+      }));
     });
   }
 
