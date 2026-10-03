@@ -316,3 +316,48 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
     });
   });
 });
+
+// PRC-M487: studentId filter is server-side so a student is found in a large tenant.
+describe('GET /fees/invoices?studentId (PRC-M487)', () => {
+  let app: FastifyInstance;
+  afterEach(async () => {
+    if (app) await app.close();
+  });
+  it('returns only the requested student invoices from a 150-invoice tenant', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    for (let i = 0; i < 149; i += 1) {
+      await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(),
+        title: `Other ${i}`,
+        amountCents: 100,
+      });
+    }
+    const target = await service.createInvoice(TENANT_ID, 'staff', {
+      studentId: STUDENT_ID,
+      title: 'Invoice #101',
+      amountCents: 101,
+    });
+    app = await buildFeesApp(['bursar'], { repository });
+    const response = await app.inject({
+      method: 'GET',
+      url: `/fees/invoices?studentId=${STUDENT_ID}`,
+    });
+    expect(response.statusCode).toBe(200);
+    const rows = response.json().data as Array<{ id: string; studentId: string }>;
+    expect(rows.map((r) => r.id)).toEqual([target.id]);
+    const paged = await app.inject({ method: 'GET', url: '/fees/invoices?page=2&pageSize=100' });
+    expect(paged.json().data).toHaveLength(50);
+    expect(paged.json().meta).toMatchObject({ page: 2, pageSize: 100, totalItems: 150 });
+  });
+  it('a parent cannot widen scope with a studentId outside their linked students', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    const other = uuid();
+    await service.createInvoice(TENANT_ID, 'staff', { studentId: other, title: 'X', amountCents: 1 });
+    app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+    const response = await app.inject({ method: 'GET', url: `/fees/invoices?studentId=${other}` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toEqual([]);
+  });
+});

@@ -177,13 +177,14 @@ export async function listInvoicesResult(
   scope: 'parent' | 'staff' = 'staff',
   filters: { studentId?: string } = {},
 ): Promise<ListResult<FeeInvoice>> {
-  const qs = scope === 'parent' ? '?scope=parent' : '';
-  const result = await fetchList<FeeInvoice>(`/fees/invoices${qs}`, { next: { revalidate: 0 } });
-  if (!result.ok || !filters.studentId) return result;
-  return {
-    ...result,
-    items: result.items.filter((inv) => inv.studentId === filters.studentId),
-  };
+  // PRC-M487: studentId is filtered server-side; no client filtering over a tenant-wide list.
+  const params = new URLSearchParams();
+  if (scope === 'parent') params.set('scope', 'parent');
+  if (filters.studentId) params.set('studentId', filters.studentId);
+  const qs = params.toString();
+  return fetchList<FeeInvoice>(`/fees/invoices${qs ? `?${qs}` : ''}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function listInvoices(

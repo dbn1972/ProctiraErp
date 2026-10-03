@@ -601,13 +601,23 @@ export const feesPlugin = fp(
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
           : undefined;
+      // PRC-M487: optional studentId filter is applied in the repository (not client-side
+      // over a tenant-wide list) and optional page/pageSize paginate the result.
+      const rawQuery = request.query as { studentId?: unknown; page?: unknown; pageSize?: unknown };
+      const studentIdFilter =
+        typeof rawQuery.studentId === 'string' && rawQuery.studentId.length > 0
+          ? rawQuery.studentId
+          : undefined;
       let invoices: Awaited<ReturnType<typeof feesService.listInvoices>>;
       if (readScope === 'self') {
         // Self-scope callers may only ever see their own linked students' invoices. Fail closed
         // when no binding is configured rather than falling through to a tenant-wide list.
         if (!parentBinding) return reply.status(403).send(forbiddenSelfScope());
-        const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        const linked = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        const studentIds = studentIdFilter ? linked.filter((id) => id === studentIdFilter) : linked;
         invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
+      } else if (studentIdFilter) {
+        invoices = await feesService.listInvoicesForStudentIds(tenantId, [studentIdFilter]);
       } else {
         invoices = await feesService.listInvoices(tenantId);
       }
@@ -615,6 +625,17 @@ export const feesPlugin = fp(
         invoices = invoices.filter((inv) => {
           const id = (inv as { institutionId?: string | null }).institutionId;
           return id == null || id === institutionId;
+        });
+      }
+      const page = Number(rawQuery.page);
+      const pageSize = Number(rawQuery.pageSize);
+      if (Number.isInteger(page) && page >= 1 && Number.isInteger(pageSize) && pageSize >= 1) {
+        const size = Math.min(pageSize, 200);
+        const total = invoices.length;
+        const slice = invoices.slice((page - 1) * size, page * size);
+        return reply.status(200).send({
+          data: slice.map(formatInvoice),
+          meta: { page, pageSize: size, totalItems: total, totalPages: Math.ceil(total / size) },
         });
       }
       return reply.status(200).send({ data: invoices.map(formatInvoice) });
