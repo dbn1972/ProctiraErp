@@ -47,9 +47,9 @@ describe('PRC-L124 repair request close flow', () => {
     const closed = await patch(repairId, { institutionId: INSTITUTION, status: 'closed' });
     expect(closed.statusCode).toBe(200);
     expect(closed.json().status).toBe('closed');
-    expect((await patch(repairId, { institutionId: INSTITUTION, status: 'closed' })).statusCode).toBe(
-      409,
-    );
+    expect(
+      (await patch(repairId, { institutionId: INSTITUTION, status: 'closed' })).statusCode,
+    ).toBe(409);
     const list = await app.inject({
       method: 'GET',
       url: `/infrastructure/repair-requests?institutionId=${INSTITUTION}`,

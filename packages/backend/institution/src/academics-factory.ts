@@ -131,9 +131,7 @@ export class TenantPartitionedInfrastructureStore implements InfrastructureStore
   findRepairRequest(id: string) {
     return this.part().findRepairRequest(id);
   }
-  updateRepairRequestStatus(
-    ...args: Parameters<InfrastructureStore['updateRepairRequestStatus']>
-  ) {
+  updateRepairRequestStatus(...args: Parameters<InfrastructureStore['updateRepairRequestStatus']>) {
     return this.part().updateRepairRequestStatus(...args);
   }
 }

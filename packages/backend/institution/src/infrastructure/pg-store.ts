@@ -11,13 +11,13 @@
  * bypassed for superuser / table-owner roles (the default `POSTGRES_USER` in
  * container images is one), so the policy alone is not a tenancy guarantee.
  */
+import { BusinessRuleError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
   type PgQueryable,
 } from '@proctira/database';
 
-import { BusinessRuleError } from '@proctira/common';
 import { requireTenantId } from '../tenant-context.js';
 
 import type { InfrastructureTypeValue } from './schemas.js';

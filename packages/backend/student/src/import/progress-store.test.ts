@@ -102,26 +102,26 @@ describe('PRC-H092 persisted, tenant-scoped import progress', () => {
     await reader.app.close();
   });
 
-  it("another tenant polling the same job id gets 404", async () => {
+  it('another tenant polling the same job id gets 404', async () => {
     const redis = fakeRedis();
     let tenant = TENANT_A;
     const inst = await gatewayInstance(new CacheImportProgressStore(redis), () => tenant);
     const jobId = randomUUID();
     await inst.queue.updateProgress(TENANT_A, jobId, { jobId, status: 'queued' });
-    expect((await inst.app.inject({ method: 'GET', url: `/students/import/${jobId}` })).statusCode).toBe(
-      200,
-    );
+    expect(
+      (await inst.app.inject({ method: 'GET', url: `/students/import/${jobId}` })).statusCode,
+    ).toBe(200);
     tenant = TENANT_B;
-    expect((await inst.app.inject({ method: 'GET', url: `/students/import/${jobId}` })).statusCode).toBe(
-      404,
-    );
+    expect(
+      (await inst.app.inject({ method: 'GET', url: `/students/import/${jobId}` })).statusCode,
+    ).toBe(404);
     await inst.app.close();
   });
 
   it('env factory: in-memory without REDIS_URL, cache-backed with it', () => {
     expect(createImportProgressStoreFromEnv({})).toBeInstanceOf(InMemoryImportProgressStore);
-    expect(
-      createImportProgressStoreFromEnv({ REDIS_URL: 'redis://127.0.0.1:1' }),
-    ).toBeInstanceOf(CacheImportProgressStore);
+    expect(createImportProgressStoreFromEnv({ REDIS_URL: 'redis://127.0.0.1:1' })).toBeInstanceOf(
+      CacheImportProgressStore,
+    );
   });
 });

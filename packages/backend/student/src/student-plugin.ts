@@ -23,11 +23,11 @@ import { CoreRepositoryImportAdapter } from './import/core-repository-import-ada
 import { registerImportRoutes } from './import/import-routes.js';
 import { ImportService } from './import/import-service.js';
 import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
+import { createImportProgressStoreFromEnv } from './import/progress-store.js';
 import {
   createStudentImportWorker,
   type StudentImportWorker,
 } from './import/student-import-worker.js';
-import { createImportProgressStoreFromEnv } from './import/progress-store.js';
 import type { ImportProgressStore, ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentPortalBinding } from './student-portal-access.js';

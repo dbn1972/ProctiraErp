@@ -84,12 +84,12 @@ describe('PRC-H093 import contract adapter', () => {
 
   it('collapses per-row choices to the single API duplicateResolution', () => {
     expect(collapseDuplicateResolution([])).toEqual({ resolution: 'skip' });
-    expect(collapseDuplicateResolution([{ resolution: 'update' }, { resolution: 'update' }])).toEqual(
-      { resolution: 'update' },
-    );
-    expect(collapseDuplicateResolution([{ resolution: 'skip' }, { resolution: 'create' }])).toHaveProperty(
-      'error',
-    );
+    expect(
+      collapseDuplicateResolution([{ resolution: 'update' }, { resolution: 'update' }]),
+    ).toEqual({ resolution: 'update' });
+    expect(
+      collapseDuplicateResolution([{ resolution: 'skip' }, { resolution: 'create' }]),
+    ).toHaveProperty('error');
     expect(collapseDuplicateResolution([{ resolution: 'unresolved' }])).toHaveProperty('error');
   });
 
@@ -119,7 +119,12 @@ describe('PRC-H093 import contract adapter', () => {
     const fetchProgress = vi
       .fn<(id: string) => Promise<ServerImportProgress>>()
       .mockResolvedValueOnce({ ...queued, status: 'processing', progressPercent: 50 })
-      .mockResolvedValueOnce({ ...queued, status: 'completed', progressPercent: 100, result: dryRun });
+      .mockResolvedValueOnce({
+        ...queued,
+        status: 'completed',
+        progressPercent: 100,
+        result: dryRun,
+      });
     const sleep = vi.fn(async () => undefined);
     await expect(pollImportJob('job-1', fetchProgress, { sleep })).resolves.toBe(dryRun);
     expect(fetchProgress).toHaveBeenCalledTimes(2);

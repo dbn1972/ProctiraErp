@@ -140,6 +140,8 @@ describe('PRC-L365 student update precondition', () => {
     expect(parseIfMatch('*')).toBeUndefined();
     expect(parseIfMatch('"a", "b"')).toBe('invalid');
     expect(parseIfMatch('garbage')).toBe('invalid');
-    expect(parseIfMatch('"2024-01-02T03:04:05.006Z"')).toEqual(new Date('2024-01-02T03:04:05.006Z'));
+    expect(parseIfMatch('"2024-01-02T03:04:05.006Z"')).toEqual(
+      new Date('2024-01-02T03:04:05.006Z'),
+    );
   });
 });

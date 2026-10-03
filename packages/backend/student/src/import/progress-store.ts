@@ -17,10 +17,7 @@ import type { ImportProgress, ImportProgressStore } from './types.js';
 /** Default retention for polled progress/results (24 h). */
 export const IMPORT_PROGRESS_TTL_SECONDS = 24 * 60 * 60;
 
-function merge(
-  existing: ImportProgress | null,
-  progress: Partial<ImportProgress>,
-): ImportProgress {
+function merge(existing: ImportProgress | null, progress: Partial<ImportProgress>): ImportProgress {
   return (existing ? { ...existing, ...progress } : progress) as ImportProgress;
 }
 
