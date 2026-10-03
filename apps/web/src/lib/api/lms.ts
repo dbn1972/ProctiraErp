@@ -5,6 +5,7 @@
  * FR-LMS-001…015, FR-PAL-001…015.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 import { MAX_API_PAGE_SIZE } from './pagination';
 
 export type LmsScope = 'board' | 'school';
@@ -177,9 +178,11 @@ export interface AssignmentListFilter {
   boardId?: string;
   subject?: string;
   search?: string;
+  /** PRC-M107: server-side class filter (assignment grade level). */
+  gradeLevel?: string;
+  page?: number;
   pageSize?: number;
 }
-
 function toQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -206,6 +209,19 @@ export async function listAssignments(filter: AssignmentListFilter = {}): Promis
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
+}
+
+/**
+ * PRC-M107: one page of assignments with its pagination meta, keeping a
+ * failed read distinct from an empty page.
+ */
+export async function listAssignmentsPage(
+  filter: AssignmentListFilter = {},
+): Promise<ListResult<LmsAssignment>> {
+  return fetchList<LmsAssignment>(
+    `/lms/assignments${toQuery({ ...filter, page: filter.page ?? 1, pageSize: filter.pageSize ?? 20 })}`,
+    { next: { revalidate: 0 } },
+  );
 }
 
 export async function getAssignment(id: string): Promise<LmsAssignment | null> {
