@@ -14,7 +14,13 @@ import type { ImportStudentRow } from './types.js';
 const TENANT = '550e8400-e29b-41d4-a716-446655440000';
 
 const rows: ImportStudentRow[] = [
-  { rowNumber: 2, firstName: 'Alice', lastName: 'Smith', dateOfBirth: '2005-01-15', nationalId: 'A' },
+  {
+    rowNumber: 2,
+    firstName: 'Alice',
+    lastName: 'Smith',
+    dateOfBirth: '2005-01-15',
+    nationalId: 'A',
+  },
   { rowNumber: 3, firstName: 'Bob', lastName: 'Jones', dateOfBirth: '2005-02-20', nationalId: 'B' },
   { rowNumber: 4, firstName: 'Carol', lastName: 'Lee', dateOfBirth: '2005-03-10', nationalId: 'C' },
 ];
@@ -68,7 +74,10 @@ describe('student import transactionality (PRC-M384)', () => {
   it('store without bulkImport -> transactional: false', async () => {
     const repo = new InMemoryStudentRepository();
     Object.assign(repo, { bulkImport: undefined });
-    const service = new ImportService({ studentRepository: repo, importQueue: new InMemoryImportQueue() });
+    const service = new ImportService({
+      studentRepository: repo,
+      importQueue: new InMemoryImportQueue(),
+    });
     const result = await service.processRows(TENANT, rows, { duplicateResolution: 'skip' });
     expect(result.transactional).toBe(false);
   });
@@ -92,7 +101,10 @@ describe('student import transactionality (PRC-M384)', () => {
     repo.delete = async () => {
       throw new Error('delete failed');
     };
-    const service = new ImportService({ studentRepository: repo, importQueue: new InMemoryImportQueue() });
+    const service = new ImportService({
+      studentRepository: repo,
+      importQueue: new InMemoryImportQueue(),
+    });
     const err = await service
       .processRows(TENANT, rows, { duplicateResolution: 'skip' })
       .catch((e: unknown) => e);

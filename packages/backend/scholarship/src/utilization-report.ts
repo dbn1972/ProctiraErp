@@ -6,10 +6,7 @@
  * the PG and in-memory implementations stay in parity.
  */
 import { majorUnitsNumberFromCents } from '@proctira/common';
-import type {
-  UtilizationReportData,
-  UtilizationReportFilter,
-} from './scholarship-repository.js';
+import type { UtilizationReportData, UtilizationReportFilter } from './scholarship-repository.js';
 
 export type UtilizationGroupBy = NonNullable<UtilizationReportFilter['groupBy']>;
 
@@ -92,7 +89,11 @@ export function buildUtilizationReport(
     }));
   // Never present a mixed-currency sum as a single currency.
   const currency =
-    currencyTotals.length === 1 ? currencyTotals[0]!.currency : currencyTotals.length === 0 ? 'USD' : 'MIXED';
+    currencyTotals.length === 1
+      ? currencyTotals[0]!.currency
+      : currencyTotals.length === 0
+        ? 'USD'
+        : 'MIXED';
   return {
     totalPrograms,
     totalApplications,

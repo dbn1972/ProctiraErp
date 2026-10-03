@@ -18,9 +18,9 @@
  * self-contained and fully functional in the meantime.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { NotFoundError } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
-import { NotFoundError } from '@proctira/common';
 
 import { admissionNoOf, rethrowUniqueViolation } from './admission-number.js';
 import type {

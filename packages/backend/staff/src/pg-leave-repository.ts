@@ -1,7 +1,6 @@
 /**
  * Postgres-backed staff leave repository (raw `pg` — no Prisma).
  */
-import type { PagedRows, PageWindow } from './hr-store.js';
 import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
@@ -12,6 +11,7 @@ import {
 } from '@proctira/database';
 import type pg from 'pg';
 
+import type { PagedRows, PageWindow } from './hr-store.js';
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import {
   InsufficientLeaveBalanceError,
@@ -114,10 +114,7 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
     });
   }
 
-  async listLeavesPage(
-    tenantId: string,
-    window: PageWindow,
-  ): Promise<PagedRows<StaffLeaveEntity>> {
+  async listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const count = await client.query(

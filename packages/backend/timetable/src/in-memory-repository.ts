@@ -1,3 +1,4 @@
+import { TimetableVersionConflictError } from './timetable-errors.js';
 import type {
   AttendancePeriodSlot,
   BellScheduleEntity,
@@ -15,7 +16,6 @@ import type {
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
 } from './timetable-repository.js';
-import { TimetableVersionConflictError } from './timetable-errors.js';
 
 /** Ensure OCC tokens always advance (same-ms Date.now collisions). */
 function nextUpdatedAt(previous: string): string {

@@ -728,9 +728,13 @@ export async function registerTrainingRoutes(
       }
 
       try {
-        const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate, {
-          dryRun: dryRun === true,
-        });
+        const expiredCerts = await trainingService.processExpiredCertifications(
+          tenantId,
+          asOfDate,
+          {
+            dryRun: dryRun === true,
+          },
+        );
         return reply.status(200).send({
           dryRun: dryRun === true,
           processedCount: expiredCerts.length,

@@ -33,7 +33,12 @@ async function setup() {
     service.uploadDocument(
       TENANT,
       student.id,
-      { category: 'birth_certificate', fileName: 'b.pdf', mimeType: 'application/pdf', contentBase64: PDF },
+      {
+        category: 'birth_certificate',
+        fileName: 'b.pdf',
+        mimeType: 'application/pdf',
+        contentBase64: PDF,
+      },
       'registrar',
     );
   return { service, store, blobs, studentId: student.id, upload };

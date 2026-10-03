@@ -141,7 +141,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/publish',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1', 'x-actor-id': PUBLISHER_ALICE },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_ALICE,
+        },
         payload: { tokens: tokensV1, publishedBy: PUBLISHER_ALICE },
       });
       expect(res.statusCode).toBe(403);
@@ -156,7 +160,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/rollback',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1', 'x-actor-id': PUBLISHER_BOB },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_BOB,
+        },
         payload: { revision: 1, publishedBy: PUBLISHER_BOB },
       });
       expect(res.statusCode).toBe(403);

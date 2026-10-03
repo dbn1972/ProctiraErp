@@ -442,7 +442,11 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       const draftRes = await closedApp.inject({
         method: 'POST',
         url: '/tenant/branding/draft',
-        headers: { 'x-tenant-id': closedTenantId, 'x-test-user': 'admin', 'x-actor-id': EDITOR_BOB },
+        headers: {
+          'x-tenant-id': closedTenantId,
+          'x-test-user': 'admin',
+          'x-actor-id': EDITOR_BOB,
+        },
         payload: { tokens: draftTokens, savedBy: EDITOR_BOB },
       });
       expect(draftRes.statusCode).toBe(403);

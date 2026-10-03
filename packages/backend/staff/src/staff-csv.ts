@@ -75,7 +75,8 @@ function tokenizeCsv(text: string): { records: CsvRecord[]; error?: string } {
       current += ch;
     }
   }
-  if (inQuotes) return { records, error: `Unterminated quoted cell starting on line ${recordLine}` };
+  if (inQuotes)
+    return { records, error: `Unterminated quoted cell starting on line ${recordLine}` };
   endRecord();
   return { records };
 }

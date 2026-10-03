@@ -261,7 +261,11 @@ export class ImportService {
         await this.repository.update(tenantId, item.studentId, updateData(item.row));
       }
     } catch (error) {
-      const rollbackFailures = await this.rollbackImportBatch(tenantId, createdIds, updateSnapshots);
+      const rollbackFailures = await this.rollbackImportBatch(
+        tenantId,
+        createdIds,
+        updateSnapshots,
+      );
       if (rollbackFailures.length > 0) {
         throw new ImportRollbackError(error, rollbackFailures);
       }

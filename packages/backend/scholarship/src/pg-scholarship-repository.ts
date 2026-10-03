@@ -952,5 +952,4 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       );
     });
   }
-
 }

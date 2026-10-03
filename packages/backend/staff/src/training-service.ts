@@ -12,6 +12,7 @@ import { NotFoundError, BusinessRuleError, ConflictError, ValidationError } from
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 import type {
   TrainingProgramEntity,
   TrainingSessionEntity,
@@ -31,7 +32,6 @@ import type {
   RecordTrainingAttendanceInput,
   IssueCertificationInput,
 } from './training-schemas.js';
-import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /**
  * Interface for notification integration.

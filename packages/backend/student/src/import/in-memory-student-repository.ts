@@ -78,7 +78,6 @@ export class InMemoryStudentRepository implements StudentRepository {
     return updated;
   }
 
-
   async delete(tenantId: string, id: string): Promise<boolean> {
     const idx = this.students.findIndex((s) => s.id === id && s.tenantId === tenantId);
     if (idx === -1) return false;

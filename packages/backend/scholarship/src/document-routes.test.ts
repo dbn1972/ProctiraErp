@@ -238,11 +238,9 @@ describe('scholarship document routes', () => {
     expect(access.map((entry) => entry.metadata.action)).toEqual(
       expect.arrayContaining(['download_link', 'token_download']),
     );
-    expect(
-      access.every(
-        (entry) => entry.userId === 'staff-1' && entry.tenantId === TENANT_A,
-      ),
-    ).toBe(true);
+    expect(access.every((entry) => entry.userId === 'staff-1' && entry.tenantId === TENANT_A)).toBe(
+      true,
+    );
     expect(access.filter((entry) => entry.metadata.documentId === docId).length).toBe(2);
     // Fails closed: when the access log cannot be written no bytes are served.
     const original = documents.recordAccess.bind(documents);

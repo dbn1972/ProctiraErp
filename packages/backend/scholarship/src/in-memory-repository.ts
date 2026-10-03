@@ -493,7 +493,6 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     return buildUtilizationReport(groupBy, totalPrograms, [...apps.values()], [...disb.values()]);
   }
 
-
   // ─── Test Helpers ────────────────────────────────────────────────────────
 
   clear(): void {

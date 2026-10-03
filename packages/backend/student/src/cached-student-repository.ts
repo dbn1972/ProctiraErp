@@ -30,7 +30,8 @@ export class CachedStudentRepository implements StudentRepository {
       this.bulkWrite = async (tenantId, ops) => {
         const result = await bulk(tenantId, ops);
         if (this.cache) {
-          for (const { id } of ops.updates) await this.cache.del(tenantKey(tenantId, 'student', id));
+          for (const { id } of ops.updates)
+            await this.cache.del(tenantKey(tenantId, 'student', id));
         }
         return result;
       };

@@ -176,7 +176,10 @@ async function pagedSelect<T>(
   window: PageWindow,
   map: (row: Record<string, unknown>) => T,
 ): Promise<PagedRows<T>> {
-  const count = await client.query(`SELECT COUNT(*)::int AS total FROM ${table} WHERE ${where}`, values);
+  const count = await client.query(
+    `SELECT COUNT(*)::int AS total FROM ${table} WHERE ${where}`,
+    values,
+  );
   const n = values.length;
   const { rows } = await client.query(
     `SELECT * FROM ${table} WHERE ${where} ORDER BY ${orderBy} LIMIT $${n + 1} OFFSET $${n + 2}`,
@@ -241,7 +244,15 @@ export class PgStaffHrStore implements StaffHrStore {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
       const { where, values } = staffFilter(tenantId, staffId);
-      return pagedSelect(client, 'staff_contracts', where, 'start_date DESC, id', values, window, mapContract);
+      return pagedSelect(
+        client,
+        'staff_contracts',
+        where,
+        'start_date DESC, id',
+        values,
+        window,
+        mapContract,
+      );
     });
   }
 
@@ -368,7 +379,15 @@ export class PgStaffHrStore implements StaffHrStore {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
       const { where, values } = staffFilter(tenantId, staffId);
-      return pagedSelect(client, 'staff_qualifications', where, 'year DESC, id', values, window, mapQualification);
+      return pagedSelect(
+        client,
+        'staff_qualifications',
+        where,
+        'year DESC, id',
+        values,
+        window,
+        mapQualification,
+      );
     });
   }
 
@@ -506,7 +525,15 @@ export class PgStaffHrStore implements StaffHrStore {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
       const { where, values } = attendanceFilter(tenantId, filter);
-      return pagedSelect(client, 'staff_hr_attendance', where, 'attendance_date, staff_id', values, window, mapAttendance);
+      return pagedSelect(
+        client,
+        'staff_hr_attendance',
+        where,
+        'attendance_date, staff_id',
+        values,
+        window,
+        mapAttendance,
+      );
     });
   }
 
