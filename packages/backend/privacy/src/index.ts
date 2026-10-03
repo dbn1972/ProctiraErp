@@ -1,4 +1,4 @@
-export { privacyPlugin } from './privacy-plugin.js';
+export { privacyPlugin, readPrivacyJobStuckMinutes } from './privacy-plugin.js';
 export type { PrivacyPluginOptions } from './privacy-plugin.js';
 export { PrivacyExecutorNotConfiguredError, PrivacyService } from './privacy-service.js';
 export type { DestructiveDeleteGuard, PrivacyServiceOptions } from './privacy-service.js';
@@ -10,6 +10,7 @@ export type {
   ListPage,
   OffboardChecklistItem,
   PrivacyRepository,
+  StuckPrivacyJobRef,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
 export { InMemoryPrivacyRepository } from './in-memory-repository.js';

@@ -37,13 +37,27 @@ export interface PrivacyPluginOptions {
    */
   anonymizationWorkerQueue?: QueueAdapter;
   offboardWorkerQueue?: QueueAdapter;
+  /**
+   * PRC-H078: stuck-job sweeper. Enabled by default when a durable worker is
+   * wired; `stuckMinutes` defaults to PRIVACY_JOB_STUCK_MINUTES (15).
+   */
+  sweeper?: { enabled?: boolean; stuckMinutes?: number; intervalMs?: number };
 }
 
 declare module 'fastify' {
   interface FastifyInstance {
     privacyService: PrivacyService;
     privacyWorkers?: PrivacyWorker[];
+    privacyStuckJobSweep?: () => Promise<void>;
   }
+}
+
+/** PRC-H078: PRIVACY_JOB_STUCK_MINUTES (positive integer, default 15). */
+export function readPrivacyJobStuckMinutes(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const n = Number(env['PRIVACY_JOB_STUCK_MINUTES']);
+  return Number.isInteger(n) && n > 0 ? n : 15;
 }
 
 export const privacyPlugin = fp(
@@ -58,6 +72,7 @@ export const privacyPlugin = fp(
       offboardPublisher,
       anonymizationWorkerQueue,
       offboardWorkerQueue,
+      sweeper,
     } = options;
     const effectiveAnonymizationPublisher = anonymizationWorkerQueue
       ? anonymizationPublisher
@@ -111,6 +126,34 @@ export const privacyPlugin = fp(
         for (const worker of workers) await worker.stop();
       });
     }
+    // PRC-H078: stuck-job sweeper (PRIVACY_JOB_STUCK_MINUTES, default 15).
+    const stuckMinutes = sweeper?.stuckMinutes ?? readPrivacyJobStuckMinutes();
+    if (sweeper?.enabled ?? workers.length > 0) {
+      const intervalMs = sweeper?.intervalMs ?? Math.min(stuckMinutes, 5) * 60_000;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      let sweeping = false;
+      const sweep = async () => {
+        if (sweeping) return;
+        sweeping = true;
+        try {
+          const r = await privacyService.sweepStuckJobs(stuckMinutes);
+          if (r.scanned > 0) fastify.log.info(r, 'privacy stuck-job sweep');
+        } catch (err) {
+          fastify.log.error({ err: String(err) }, 'privacy stuck-job sweep failed');
+        } finally {
+          sweeping = false;
+        }
+      };
+      fastify.decorate('privacyStuckJobSweep', sweep);
+      fastify.addHook('onReady', async () => {
+        timer = setInterval(() => void sweep(), intervalMs);
+        timer.unref?.();
+      });
+      fastify.addHook('onClose', async () => {
+        if (timer) clearInterval(timer);
+      });
+    }
+
     await registerPrivacyRoutes(fastify, { privacyService, prefix });
   },
   { name: '@proctira/backend-privacy', fastify: '5.x', dependencies: [] },

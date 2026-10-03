@@ -183,6 +183,18 @@ export interface PrivacyRepository {
   ): Promise<TenantOffboardJobEntity | null>;
   findTenantOffboardJobById(id: string, tenantId: string): Promise<TenantOffboardJobEntity | null>;
   listTenantOffboardJobs(tenantId: string, page?: ListPage): Promise<TenantOffboardJobEntity[]>;
+  /**
+   * PRC-H078: cross-tenant (control-plane) lookup of jobs still `queued` with
+   * `updatedAt` older than `olderThan`. Returns identifiers only.
+   */
+  listStuckQueuedJobs?(olderThan: Date, limit: number): Promise<StuckPrivacyJobRef[]>;
+}
+
+/** PRC-H078: identifier of a privacy job stuck in `queued`. */
+export interface StuckPrivacyJobRef {
+  kind: 'anonymization' | 'offboard';
+  id: string;
+  tenantId: string;
 }
 
 /** Bounded list window for HTTP list endpoints (PRC-L137). */
