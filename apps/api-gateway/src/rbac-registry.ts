@@ -109,6 +109,9 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   'custom-fields': 'institution',
   dashboards: 'report',
   privacy: 'platform',
+  // PRC-M387: parked survey package (G-605) is pre-mapped so that, once mounted,
+  // /surveys is gated by the `survey` resource instead of the unmapped default.
+  surveys: 'survey',
 };
 
 /**

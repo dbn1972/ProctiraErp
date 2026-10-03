@@ -29,10 +29,16 @@ export type {
   SQSAdapterConfig,
 } from './types';
 
-export { buildTenantName } from './types';
+export {
+  buildTenantName,
+  QueueUnsupportedOperationError,
+  requestedDelayMs,
+  SQS_MAX_DELAY_MS,
+} from './types';
 
 // Adapter implementations
 export { KafkaAdapter } from './adapters/kafka-adapter';
+export type { KafkaAdapterRuntimeOptions } from './adapters/kafka-adapter';
 export { RabbitMQAdapter, deadLetterQueueName } from './adapters/rabbitmq-adapter';
 export type { RabbitMQAdapterRuntimeOptions } from './adapters/rabbitmq-adapter';
 export {
@@ -47,6 +53,7 @@ export type {
   QueueConsumerLogger,
 } from './adapters/delivery-failure';
 export { SQSAdapter } from './adapters/sqs-adapter';
+export type { SQSAdapterRuntimeOptions } from './adapters/sqs-adapter';
 export {
   InMemoryDurableQueueAdapter,
   InMemoryDurableQueueStore,

@@ -3,8 +3,8 @@
  * the escalation consumer so a due escalation moves the instance and
  * dispatches the escalation notification.
  *
- * Note: InMemoryDurableQueueAdapter does not honour `delay` (PRO-S19-03), so
- * the 1-minute rule fires as soon as the consumer drains the task.
+ * Note: InMemoryDurableQueueAdapter honours `delay` (PRC-M360); the store clock
+ * is advanced a day after scheduling so the 1-minute rule is due when drained.
  */
 import {
   InMemoryDurableQueueAdapter,
@@ -58,8 +58,12 @@ const definitionInput: CreateWorkflowDefinitionInput = {
   ],
 };
 
+// PRC-M360: the in-memory store honours `delay`; tests advance its clock past
+// the 1-minute rule once the escalation has been scheduled.
+let clockOffsetMs = 0;
 async function buildApp(withWorker: boolean) {
-  const store = new InMemoryDurableQueueStore();
+  clockOffsetMs = 0;
+  const store = new InMemoryDurableQueueStore(() => Date.now() + clockOffsetMs);
   const publisherQueue = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
   await publisherQueue.connect();
   const repository = new InMemoryWorkflowRepository();
@@ -90,6 +94,7 @@ async function startEscalatingInstance(app: FastifyInstance) {
     action: 'submit',
     actorId: 'user-1',
   });
+  clockOffsetMs = 24 * 60 * 60 * 1000;
   return instance.id;
 }
 

@@ -61,6 +61,17 @@ describe('Theme Routes', () => {
     await app.ready();
   });
 
+  describe('POST /themes platform level (PRC-M395)', () => {
+    it('returns 403 when a tenant user creates a platform theme', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Global', level: 'platform', tokens: validTokens() },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
   describe('POST /themes', () => {
     it('should create a theme', async () => {
       const response = await app.inject({
@@ -227,14 +238,10 @@ describe('Theme Routes', () => {
       });
       const revision = publishResponse.json();
 
-      // Update and publish again
+      // Change tokens (published themes are not editable via PUT) and publish again
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await app.inject({
-        method: 'PUT',
-        url: `/themes/${created.id}`,
-        payload: { tokens: newTokens },
-      });
+      await repository.updateTheme(created.id, { tokens: newTokens });
       await app.inject({
         method: 'POST',
         url: `/themes/${created.id}/publish`,

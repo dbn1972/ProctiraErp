@@ -16,9 +16,9 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { CHECK_IDS, KNOWN_SERVICES } from '../lib/constants.mjs';
+import { CHECK_IDS } from '../lib/constants.mjs';
 import { findFiles, isProductionTsFile, safeReadFile } from '../lib/fs-utils.mjs';
-import { BACKEND_DIR } from '../lib/paths.mjs';
+import { BACKEND_DIR, listBackendServices } from '../lib/paths.mjs';
 import { Report, printReport } from '../lib/reporter.mjs';
 
 const TITLE = 'API Schema Presence (Typebox schemas for every route)';
@@ -36,10 +36,9 @@ function usesTypebox(text) {
  * @param {{ backendDir?: string, services?: readonly string[] }} [opts]
  *   overrides for the scanned root and service list (used by fixture tests).
  */
-export async function runApiSchemaCheck({
-  backendDir = BACKEND_DIR,
-  services = KNOWN_SERVICES,
-} = {}) {
+export async function runApiSchemaCheck({ backendDir = BACKEND_DIR, services } = {}) {
+  // PRC-M409: default to every packages/backend/* directory, not a fixed list.
+  services ??= listBackendServices(backendDir);
   const report = new Report(CHECK_IDS.API_SCHEMA, TITLE);
   let scanned = 0;
 

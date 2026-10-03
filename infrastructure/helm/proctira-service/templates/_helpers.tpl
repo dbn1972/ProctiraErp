@@ -93,3 +93,27 @@ render-time validation prevents known-unsafe manifests from being produced.
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+PRC-M279: keys this workload may take from externalSecret.sharedRemoteKey.
+Fails the render when the service has no allowlist entry (fail closed).
+*/}}
+{{- define "proctira-service.externalSecretKeys" -}}
+{{- if .Values.externalSecret.sharedRemoteKey -}}
+{{- $keys := .Values.externalSecret.serviceKeys | default dict -}}
+{{- if not (hasKey $keys .Values.service.name) -}}
+{{- fail (printf "PRC-M279: externalSecret.serviceKeys has no entry for service %q; list the secret keys it needs (or [] for none)" .Values.service.name) -}}
+{{- end -}}
+{{- toJson (index $keys .Values.service.name | default list) -}}
+{{- else -}}
+[]
+{{- end -}}
+{{- end -}}
+
+{{/* PRC-M279: "true" when an ExternalSecret is rendered for this workload. */}}
+{{- define "proctira-service.externalSecretRendered" -}}
+{{- if .Values.externalSecret.enabled -}}
+{{- $keys := include "proctira-service.externalSecretKeys" . | fromJsonArray -}}
+{{- if or .Values.externalSecret.dataFrom .Values.externalSecret.data $keys -}}true{{- end -}}
+{{- end -}}
+{{- end -}}

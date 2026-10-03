@@ -17,23 +17,41 @@ export interface AccessibilityIssue {
 }
 
 /**
- * Parse a hex color string to RGB values.
+ * Parse a hex color string (#rgb, #rrggbb, #rrggbbaa) to RGB values.
+ * Returns null for anything that is not strictly hexadecimal (PRC-M393).
  */
 export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const cleaned = hex.replace('#', '');
+  const cleaned = hex.trim().replace(/^#/, '');
+  if (!/^(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(cleaned)) {
+    return null;
+  }
   if (cleaned.length === 3) {
     const r = parseInt(cleaned.charAt(0) + cleaned.charAt(0), 16);
     const g = parseInt(cleaned.charAt(1) + cleaned.charAt(1), 16);
     const b = parseInt(cleaned.charAt(2) + cleaned.charAt(2), 16);
     return { r, g, b };
   }
-  if (cleaned.length === 6) {
-    const r = parseInt(cleaned.substring(0, 2), 16);
-    const g = parseInt(cleaned.substring(2, 4), 16);
-    const b = parseInt(cleaned.substring(4, 6), 16);
-    return { r, g, b };
-  }
-  return null;
+  const r = parseInt(cleaned.substring(0, 2), 16);
+  const g = parseInt(cleaned.substring(2, 4), 16);
+  const b = parseInt(cleaned.substring(4, 6), 16);
+  return { r, g, b };
+}
+
+/**
+ * Parse an rgb()/rgba() color string to RGB values.
+ */
+export function rgbToRgb(rgbStr: string): { r: number; g: number; b: number } | null {
+  const match = rgbStr.match(
+    /^rgba?\(\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*(?:[,/]\s*(?:0|1|0?\.\d+|\d{1,3}%)\s*)?\)$/i,
+  );
+  if (!match) return null;
+  const [r, g, b] = [match[1], match[2], match[3]].map((v) => parseInt(v!, 10)) as [
+    number,
+    number,
+    number,
+  ];
+  if (r > 255 || g > 255 || b > 255) return null;
+  return { r, g, b };
 }
 
 /**
@@ -41,12 +59,20 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
  * Accepts: hsl(h, s%, l%) or hsl(h s% l%)
  */
 export function hslToRgb(hslStr: string): { r: number; g: number; b: number } | null {
-  const match = hslStr.match(/hsl\(\s*(\d+)\s*[,\s]\s*(\d+)%\s*[,\s]\s*(\d+)%\s*\)/i);
+  const match = hslStr
+    .trim()
+    .match(
+      /^hsla?\(\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})%\s*[,\s]\s*(\d{1,3})%\s*(?:[,/]\s*(?:0|1|0?\.\d+|\d{1,3}%)\s*)?\)$/i,
+    );
   if (!match) return null;
 
-  const h = parseInt(match[1]!, 10) / 360;
-  const s = parseInt(match[2]!, 10) / 100;
-  const l = parseInt(match[3]!, 10) / 100;
+  const hDeg = parseInt(match[1]!, 10);
+  const sPct = parseInt(match[2]!, 10);
+  const lPct = parseInt(match[3]!, 10);
+  if (hDeg > 360 || sPct > 100 || lPct > 100) return null;
+  const h = hDeg / 360;
+  const s = sPct / 100;
+  const l = lPct / 100;
 
   if (s === 0) {
     const val = Math.round(l * 255);
@@ -74,16 +100,23 @@ export function hslToRgb(hslStr: string): { r: number; g: number; b: number } | 
 }
 
 /**
- * Parse a color string (hex or HSL) to RGB.
+ * Parse a color string (hex, HSL or rgb) to RGB. Returns null when unparsable.
  */
 export function parseColor(color: string): { r: number; g: number; b: number } | null {
-  if (color.startsWith('#')) {
-    return hexToRgb(color);
+  const value = color.trim();
+  let rgb: { r: number; g: number; b: number } | null = null;
+  if (value.startsWith('#')) {
+    rgb = hexToRgb(value);
+  } else if (value.toLowerCase().startsWith('hsl')) {
+    rgb = hslToRgb(value);
+  } else if (value.toLowerCase().startsWith('rgb')) {
+    rgb = rgbToRgb(value);
   }
-  if (color.toLowerCase().startsWith('hsl')) {
-    return hslToRgb(color);
+  // PRC-M393: never let NaN through to the contrast maths.
+  if (rgb && [rgb.r, rgb.g, rgb.b].some((c) => !Number.isFinite(c))) {
+    return null;
   }
-  return null;
+  return rgb;
 }
 
 /**
@@ -123,6 +156,11 @@ const WCAG_AA_NORMAL_TEXT = 4.5;
 const WCAG_AA_LARGE_TEXT = 3.0;
 
 /**
+ * Body text counts as WCAG "large text" only at >= 24px (18pt). Bold large text
+ * (>= 18.66px) cannot be inferred from body tokens, so body text keeps 4.5:1.
+ */
+const LARGE_TEXT_MIN_PX = 24;
+/**
  * Minimum font size for accessibility (12px).
  */
 const MIN_FONT_SIZE = 12;
@@ -136,8 +174,13 @@ const MIN_LINE_HEIGHT = 1.2;
  * Color pairs to check for contrast.
  * Each pair defines a foreground and background token name.
  */
-const CONTRAST_PAIRS: Array<{ fg: string; bg: string; label: string }> = [
-  { fg: 'textPrimary', bg: 'background', label: 'Primary text on background' },
+const CONTRAST_PAIRS: Array<{ fg: string; bg: string; label: string; required?: boolean }> = [
+  {
+    fg: 'textPrimary',
+    bg: 'background',
+    label: 'Primary text on background',
+    required: true,
+  },
   { fg: 'textPrimary', bg: 'surface', label: 'Primary text on surface' },
   { fg: 'textSecondary', bg: 'background', label: 'Secondary text on background' },
   { fg: 'onPrimary', bg: 'primary', label: 'Text on primary color' },
@@ -180,7 +223,15 @@ export function validateAccessibility(tokens: ThemeTokens): AccessibilityResult 
     const bgColor = tokens.colors[pair.bg];
 
     if (!fgColor || !bgColor) {
-      // Skip pairs where tokens are not defined
+      // PRC-M393: the core text/background pair is mandatory; optional pairs are
+      // checked whenever either side is defined (half a pair cannot be verified).
+      if (pair.required || fgColor || bgColor) {
+        issues.push({
+          type: 'color-missing',
+          message: `Missing color token for contrast check: ${pair.label} (${!fgColor ? pair.fg : pair.bg})`,
+          severity: 'error',
+        });
+      }
       continue;
     }
 
@@ -191,16 +242,18 @@ export function validateAccessibility(tokens: ThemeTokens): AccessibilityResult 
       issues.push({
         type: 'color-parse',
         message: `Cannot parse color for contrast check: ${pair.label}`,
-        severity: 'warning',
+        severity: 'error',
       });
       continue;
     }
 
     const ratio = contrastRatio(fgRgb, bgRgb);
 
-    // Use large text threshold if font size >= 18px or >= 14px bold
+    // Large-text threshold only applies at >= 24px body size (PRC-M393)
     const threshold =
-      tokens.typography.baseFontSize >= 18 ? WCAG_AA_LARGE_TEXT : WCAG_AA_NORMAL_TEXT;
+      tokens.typography.baseFontSize >= LARGE_TEXT_MIN_PX
+        ? WCAG_AA_LARGE_TEXT
+        : WCAG_AA_NORMAL_TEXT;
 
     if (ratio < threshold) {
       issues.push({

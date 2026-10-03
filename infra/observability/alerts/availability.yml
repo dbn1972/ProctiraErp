@@ -28,6 +28,23 @@ groups:
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-rate-high'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
+      # PRC-M313: ServiceDown only sees jobs that exist; a gateway that vanished
+      # from discovery entirely produces no `up` series, so alert on absence too.
+      - alert: GatewayScrapeAbsent
+        expr: absent(up{job="api-gateway"})
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          slo: availability
+        annotations:
+          summary: 'api-gateway has no scrape target'
+          description: |
+            Prometheus has no `up` series for the api-gateway job for 5 minutes;
+            the gateway is not being scraped at all (discovery or config failure).
+          runbook_url: 'https://runbooks.proctira.org/services/api-gateway.md#service-down'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
+
       - alert: ServiceDown
         expr: up{job!~"prometheus"} == 0
         for: 2m

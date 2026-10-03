@@ -7,7 +7,13 @@
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  ForbiddenError,
+} from '@proctira/common';
 
 import { SurveyService } from './survey-service.js';
 import type { NotificationPublisher } from './survey-service.js';
@@ -311,6 +317,41 @@ describe('SurveyService', () => {
 
       return survey;
     }
+
+    it('PRC-M387: rejects submission for an institution outside the caller scope', async () => {
+      const survey = await setupDistributedSurvey();
+      const questions = survey.questions;
+      await expect(
+        service.submitSurvey(
+          tenantId,
+          {
+            surveyId: survey.id,
+            institutionId: 'inst-001',
+            answers: [
+              { questionId: questions[0]!.id, value: 'Test School' },
+              { questionId: questions[1]!.id, value: 500 },
+              { questionId: questions[2]!.id, value: 'primary' },
+            ],
+          },
+          { institutionIds: ['inst-other'] },
+        ),
+      ).rejects.toThrow(ForbiddenError);
+      // Nothing recorded; the in-scope institution can still submit.
+      const ok = await service.submitSurvey(
+        tenantId,
+        {
+          surveyId: survey.id,
+          institutionId: 'inst-001',
+          answers: [
+            { questionId: questions[0]!.id, value: 'Test School' },
+            { questionId: questions[1]!.id, value: 500 },
+            { questionId: questions[2]!.id, value: 'primary' },
+          ],
+        },
+        { institutionIds: ['inst-001'] },
+      );
+      expect(ok.institutionId).toBe('inst-001');
+    });
 
     it('should accept valid submission', async () => {
       const survey = await setupDistributedSurvey();
@@ -671,6 +712,120 @@ describe('SurveyService', () => {
       expect(summary.min).toBe(100);
       expect(summary.max).toBe(300);
       expect(summary.sum).toBe(400);
+    });
+  });
+
+  describe('lifecycle guards (PRC-M388)', () => {
+    async function publishedDistributed(extra: { startDate?: string; endDate?: string } = {}) {
+      const survey = await service.createSurvey(tenantId, {
+        name: `Lifecycle ${Math.random()}`,
+        questions: [{ label: 'Q1', type: 'text' as const, required: true, order: 0 }],
+        ...extra,
+      });
+      await service.updateSurvey(tenantId, survey.id, { status: 'published' });
+      institutionLookup.addInstitution({
+        id: 'inst-lc',
+        tenantId,
+        areaId: 'area-001',
+        areaName: 'District A',
+        typeId: 'type-001',
+        typeName: 'Primary',
+        classificationId: 'class-001',
+        name: 'School LC',
+      });
+      await service.distributeSurvey(tenantId, { surveyId: survey.id, filters: {} });
+      return (await service.getSurvey(tenantId, survey.id))!;
+    }
+    const answer = (qid: string) => [{ questionId: qid, value: 'x' }];
+
+    it('rejects submissions to a closed survey (422)', async () => {
+      const survey = await publishedDistributed();
+      await service.updateSurvey(tenantId, survey.id, { status: 'closed' });
+      const err = await service
+        .submitSurvey(tenantId, {
+          surveyId: survey.id,
+          institutionId: 'inst-lc',
+          answers: answer(survey.questions[0]!.id),
+        })
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(BusinessRuleError);
+      expect((err as BusinessRuleError).statusCode).toBe(422);
+    });
+
+    it('rejects submissions to a draft survey', async () => {
+      const survey = await service.createSurvey(tenantId, {
+        name: 'Draft only',
+        questions: [{ label: 'Q1', type: 'text' as const, order: 0 }],
+      });
+      await expect(
+        service.submitSurvey(tenantId, {
+          surveyId: survey.id,
+          institutionId: 'inst-lc',
+          answers: answer(survey.questions[0]!.id),
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('rejects submissions outside the start/end window', async () => {
+      const past = await publishedDistributed({ endDate: '2000-01-01' });
+      await expect(
+        service.submitSurvey(tenantId, {
+          surveyId: past.id,
+          institutionId: 'inst-lc',
+          answers: answer(past.questions[0]!.id),
+        }),
+      ).rejects.toThrow(/window has closed/);
+      const future = await publishedDistributed({ startDate: '2999-01-01' });
+      await expect(
+        service.submitSurvey(tenantId, {
+          surveyId: future.id,
+          institutionId: 'inst-lc',
+          answers: answer(future.questions[0]!.id),
+        }),
+      ).rejects.toThrow(/not open/);
+    });
+
+    it('keeps question ids stable on edit after submissions and forbids question changes', async () => {
+      const survey = await publishedDistributed();
+      const qid = survey.questions[0]!.id;
+      await service.submitSurvey(tenantId, {
+        surveyId: survey.id,
+        institutionId: 'inst-lc',
+        answers: answer(qid),
+      });
+      const renamed = await service.updateSurvey(tenantId, survey.id, {
+        name: 'Renamed',
+        questions: [{ label: 'Q1', type: 'text', required: true, order: 0 }],
+      });
+      expect(renamed.questions[0]!.id).toBe(qid);
+      await expect(
+        service.updateSurvey(tenantId, survey.id, {
+          questions: [{ label: 'Changed', type: 'text', required: true, order: 0 }],
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('preserves explicit question ids on a draft edit', async () => {
+      const survey = await service.createSurvey(tenantId, {
+        name: 'Draft ids',
+        questions: [{ label: 'Q1', type: 'text' as const, order: 0 }],
+      });
+      const qid = survey.questions[0]!.id;
+      const updated = await service.updateSurvey(tenantId, survey.id, {
+        questions: [
+          { id: qid, label: 'Q1 reworded', type: 'text', order: 0 },
+          { label: 'Q2', type: 'text', order: 1 },
+        ],
+      });
+      expect(updated.questions[0]!.id).toBe(qid);
+      expect(updated.questions[1]!.id).not.toBe(qid);
+    });
+
+    it('double distribute yields one record per institution', async () => {
+      const survey = await publishedDistributed();
+      await service.distributeSurvey(tenantId, { surveyId: survey.id, filters: {} });
+      const records = await distributionRepo.findBySurvey(tenantId, survey.id);
+      expect(records.filter((r) => r.institutionId === 'inst-lc')).toHaveLength(1);
     });
   });
 });

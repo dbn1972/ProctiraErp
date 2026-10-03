@@ -21,6 +21,7 @@ const root = resolve(here, '../..');
 
 const yamlFiles = [
   'infra/observability/prometheus.yml',
+  'infra/observability/scrape-lab/lab-services.yml',
   'infra/observability/alertmanager.yml.tpl',
   'infra/observability/grafana/provisioning/datasources.yml',
   'infra/observability/grafana/provisioning/dashboards.yml',
@@ -35,7 +36,11 @@ const jsonFiles = [
 ];
 
 const expectedAlertGroups = {
-  'infra/observability/alerts/availability.yml': ['ServiceErrorRateHigh', 'ServiceDown'],
+  'infra/observability/alerts/availability.yml': [
+    'ServiceErrorRateHigh',
+    'ServiceDown',
+    'GatewayScrapeAbsent',
+  ],
   'infra/observability/alerts/latency.yml': ['ServiceP95LatencyHigh'],
   'infra/observability/alerts/error_rate.yml': ['ErrorBudgetBurnFast'],
   'infra/observability/alerts/saturation.yml': ['ProcessCPUHigh', 'ProcessMemoryHigh'],
@@ -52,10 +57,17 @@ async function loadYaml() {
   } catch {
     /* fall through */
   }
-  const candidates = [
-    '../../node_modules/.pnpm/js-yaml@4.1.1/node_modules/js-yaml/dist/js-yaml.mjs',
-    '../../node_modules/js-yaml/dist/js-yaml.mjs',
-  ];
+  // Any installed js-yaml 4.x in the pnpm store (the pinned patch version drifts with the lockfile).
+  let storeCandidates = [];
+  try {
+    const { readdirSync } = await import('node:fs');
+    storeCandidates = readdirSync(new URL('../../node_modules/.pnpm/', import.meta.url))
+      .filter((d) => /^js-yaml@4\./.test(d))
+      .map((d) => `../../node_modules/.pnpm/${d}/node_modules/js-yaml/dist/js-yaml.mjs`);
+  } catch {
+    /* no pnpm store */
+  }
+  const candidates = [...storeCandidates, '../../node_modules/js-yaml/dist/js-yaml.mjs'];
   for (const c of candidates) {
     try {
       return await import(new URL(c, import.meta.url).href);

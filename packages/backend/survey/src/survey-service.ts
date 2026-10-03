@@ -10,10 +10,24 @@
  *
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  ForbiddenError,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type {
+  CreateSurveyInput,
+  UpdateSurveyInput,
+  DistributeSurveyInput,
+  SubmitSurveyInput,
+  QuestionInput,
+  CompletionStatus,
+} from './schemas.js';
 import type {
   SurveyEntity,
   QuestionEntity,
@@ -25,14 +39,13 @@ import type {
   SubmissionRepository,
   InstitutionLookup,
 } from './survey-repository.js';
-import type {
-  CreateSurveyInput,
-  UpdateSurveyInput,
-  DistributeSurveyInput,
-  SubmitSurveyInput,
-  QuestionInput,
-  CompletionStatus,
-} from './schemas.js';
+
+/**
+ * Authenticated submitter scope (PRC-M387): institutions the caller may act for.
+ */
+export interface SubmitterScope {
+  institutionIds: readonly string[];
+}
 
 /**
  * Notification publisher interface for sending reminders.
@@ -148,8 +161,27 @@ export class SurveyService {
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.status !== undefined) updateData.status = input.status;
     if (input.questions !== undefined) {
-      updateData.questions = input.questions.map((q) => ({
-        id: uuidv4(),
+      // PRC-M388: stored answers reference questionIds - keep ids stable and
+      // forbid changing questions once the survey has been distributed.
+      const byId = new Map(existing.questions.map((q) => [q.id, q]));
+      const byOrder = new Map(existing.questions.map((q) => [q.order, q]));
+      const resolveId = (q: (typeof input.questions)[number]): string => {
+        if (q.id && byId.has(q.id)) return q.id;
+        const sameSlot = byOrder.get(q.order);
+        if (!q.id && sameSlot && sameSlot.label === q.label && sameSlot.type === q.type) {
+          return sameSlot.id;
+        }
+        return uuidv4();
+      };
+      const nextQuestions = input.questions.map((q) => ({ ...q, id: resolveId(q) }));
+      const distributions = await this.distributionRepo.findBySurvey(tenantId, id);
+      if (distributions.length > 0 && !sameQuestionSet(existing.questions, nextQuestions)) {
+        throw new BusinessRuleError(
+          'Cannot change questions after the survey has been distributed',
+        );
+      }
+      updateData.questions = nextQuestions.map((q) => ({
+        id: q.id,
         label: q.label,
         type: q.type,
         required: q.required ?? false,
@@ -237,9 +269,15 @@ export class SurveyService {
       throw new BusinessRuleError('No institutions match the specified filters');
     }
 
+    // PRC-M388: idempotent - one distribution record per (survey, institution)
+    const existingRecords = await this.distributionRepo.findBySurvey(tenantId, input.surveyId);
+    const alreadyDistributed = new Set(existingRecords.map((r) => r.institutionId));
+    const newInstitutionIds = [...new Set(institutionIds)].filter(
+      (institutionId) => !alreadyDistributed.has(institutionId),
+    );
     // Create distribution records
-    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] = institutionIds.map(
-      (institutionId) => ({
+    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] =
+      newInstitutionIds.map((institutionId) => ({
         id: uuidv4(),
         tenantId,
         surveyId: input.surveyId,
@@ -249,10 +287,11 @@ export class SurveyService {
         submittedAt: null,
         remindersSent: 0,
         reminderDays: input.reminderDays ?? [],
-      }),
-    );
+      }));
 
-    return this.distributionRepo.createMany(records);
+    const created = records.length > 0 ? await this.distributionRepo.createMany(records) : [];
+    const targeted = new Set(institutionIds);
+    return [...existingRecords.filter((r) => targeted.has(r.institutionId)), ...created];
   }
 
   // ─── Submission Operations ───────────────────────────────────────────────
@@ -265,10 +304,35 @@ export class SurveyService {
    * @throws ValidationError if required fields missing or data types invalid
    * @throws BusinessRuleError if already submitted
    */
-  async submitSurvey(tenantId: string, input: SubmitSurveyInput): Promise<SubmissionEntity> {
+  async submitSurvey(
+    tenantId: string,
+    input: SubmitSurveyInput,
+    scope?: SubmitterScope,
+  ): Promise<SubmissionEntity> {
+    // PRC-M387: institution comes from the body, so it must be inside the
+    // caller's authenticated institution scope (HTTP callers always pass scope).
+    if (scope && !scope.institutionIds.includes(input.institutionId)) {
+      throw new ForbiddenError(
+        `Not authorised to submit surveys for institution '${input.institutionId}'`,
+      );
+    }
     const survey = await this.surveyRepo.findById(input.surveyId, tenantId);
     if (!survey) {
       throw new NotFoundError(`Survey with id '${input.surveyId}' not found`);
+    }
+
+    // PRC-M388: only published surveys inside their start/end window accept answers
+    if (survey.status !== 'published') {
+      throw new BusinessRuleError(`Survey is ${survey.status} and not accepting submissions`);
+    }
+    const now = Date.now();
+    const opensAt = parseBoundary(survey.startDate, false);
+    const closesAt = parseBoundary(survey.endDate, true);
+    if (opensAt !== null && now < opensAt) {
+      throw new BusinessRuleError('Survey is not open for submissions yet');
+    }
+    if (closesAt !== null && now > closesAt) {
+      throw new BusinessRuleError('Survey submission window has closed');
     }
 
     // Check distribution record exists
@@ -283,6 +347,10 @@ export class SurveyService {
 
     if (distribution.status === 'completed') {
       throw new BusinessRuleError('Survey has already been submitted for this institution');
+    }
+    const dueAt = parseBoundary(distribution.dueDate, true);
+    if (dueAt !== null && now > dueAt) {
+      throw new BusinessRuleError('Survey due date has passed for this institution');
     }
 
     // Validate answers against questions
@@ -765,4 +833,35 @@ export interface CrossTabulationEntry {
   totalDistributed: number;
   totalCompleted: number;
   completionRate: number;
+}
+
+/**
+ * Parse an ISO date/date-time boundary. Date-only values are treated as the
+ * start (or end, when `endOfDay`) of that UTC day. Returns null when unset.
+ */
+function parseBoundary(value: string | null | undefined, endOfDay: boolean): number | null {
+  if (!value) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const ms = Date.parse(dateOnly ? `${value}T00:00:00.000Z` : value);
+  if (Number.isNaN(ms)) return null;
+  return dateOnly && endOfDay ? ms + 24 * 60 * 60 * 1000 - 1 : ms;
+}
+
+/** True when two question lists are identical in id, label, type, required and order. */
+function sameQuestionSet(
+  current: QuestionEntity[],
+  next: Array<{ id: string; label: string; type: string; required?: boolean; order: number }>,
+): boolean {
+  if (current.length !== next.length) return false;
+  const byId = new Map(current.map((q) => [q.id, q]));
+  return next.every((q) => {
+    const c = byId.get(q.id);
+    return (
+      !!c &&
+      c.label === q.label &&
+      c.type === q.type &&
+      c.order === q.order &&
+      (c.required ?? false) === (q.required ?? false)
+    );
+  });
 }

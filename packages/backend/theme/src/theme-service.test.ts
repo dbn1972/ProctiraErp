@@ -4,9 +4,9 @@
  * Tests for theme CRUD, publishing, rollback, preview, and accessibility validation.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, ConflictError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 
-import { ThemeService } from './theme-service.js';
+import { ThemeService, PLATFORM_THEME_TENANT_ID } from './theme-service.js';
 import { InMemoryThemeRepository } from './in-memory-repository.js';
 import type { CreateThemeInput, ThemeTokens } from './schemas.js';
 
@@ -73,7 +73,57 @@ describe('ThemeService', () => {
 
   beforeEach(() => {
     repository = new InMemoryThemeRepository();
-    service = new ThemeService(repository, { enforceAccessibility: true });
+    service = new ThemeService(repository, {
+      enforceAccessibility: true,
+      portalExists: async () => true,
+    });
+  });
+
+  describe('platform level (PRC-M395)', () => {
+    it('rejects a tenant user creating a platform-level theme', async () => {
+      await expect(
+        service.create(tenantId, validCreateInput({ level: 'platform' })),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('stores platform themes under the reserved platform owner, not the tenant', async () => {
+      const theme = await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      expect(theme.tenantId).toBe(PLATFORM_THEME_TENANT_ID);
+      await expect(service.getById(tenantId, theme.id)).rejects.toThrow(NotFoundError);
+      await expect(
+        service.getById(tenantId, theme.id, { isPlatformAdmin: true }),
+      ).resolves.toMatchObject({ id: theme.id });
+    });
+
+    it('does not serve a draft platform theme', async () => {
+      await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      await expect(service.getTokens('tenant-xyz')).rejects.toThrow(NotFoundError);
+    });
+
+    it('serves the published platform theme to every tenant', async () => {
+      const theme = await service.create(tenantId, validCreateInput({ level: 'platform' }), {
+        isPlatformAdmin: true,
+      });
+      await service.publish(tenantId, theme.id, {}, 'root', { isPlatformAdmin: true });
+      const tokens = await service.getTokens('tenant-xyz');
+      expect(tokens.colors.primary).toBe(validTokens().colors.primary);
+    });
+
+    it('rejects portal themes for unknown portals and fails closed without a resolver', async () => {
+      const portalId = '22222222-2222-4222-8222-222222222222';
+      const strict = new ThemeService(repository, { portalExists: async () => false });
+      await expect(
+        strict.create(tenantId, validCreateInput({ level: 'portal', portalId })),
+      ).rejects.toThrow(NotFoundError);
+      const unconfigured = new ThemeService(repository);
+      await expect(
+        unconfigured.create(tenantId, validCreateInput({ level: 'portal', portalId })),
+      ).rejects.toThrow(BusinessRuleError);
+    });
   });
 
   describe('create', () => {
@@ -195,7 +245,7 @@ describe('ThemeService', () => {
       // Update tokens and publish again
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await service.update(tenantId, theme.id, { tokens: newTokens });
+      await repository.updateTheme(theme.id, { tokens: newTokens });
 
       const rev2 = await service.publish(
         tenantId,
@@ -237,7 +287,7 @@ describe('ThemeService', () => {
       // Update and publish again
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await service.update(tenantId, theme.id, { tokens: newTokens });
+      await repository.updateTheme(theme.id, { tokens: newTokens });
       await service.publish(tenantId, theme.id, { commitMessage: 'v2' }, 'admin');
 
       // Rollback to revision 1
@@ -247,7 +297,44 @@ describe('ThemeService', () => {
       });
 
       expect(rolledBack.tokens.colors.primary).toBe(validTokens().colors.primary);
-      expect(rolledBack.currentRevision).toBe(1);
+      // PRC-M392: rollback is recorded as a new revision (N+1)
+      expect(rolledBack.currentRevision).toBe(3);
+      expect(rolledBack.status).toBe('published');
+      const revisions = await service.listRevisions(tenantId, theme.id);
+      expect(revisions).toHaveLength(3);
+      const rev3 = revisions.find((r) => r.revisionNumber === 3);
+      expect(rev3?.commitMessage).toBe('Rollback to revision 1: Reverting color change');
+      expect(rev3?.publishedBy).toBe('system');
+    });
+
+    it('PRC-M392: rejects update of a published theme with 409 ConflictError', async () => {
+      const theme = await service.create(tenantId, validCreateInput());
+      await service.publish(tenantId, theme.id, {}, 'admin');
+      await expect(service.update(tenantId, theme.id, { name: 'Live edit' })).rejects.toThrow(
+        ConflictError,
+      );
+    });
+
+    it('PRC-M392: rollback re-validates accessibility of the target revision', async () => {
+      const theme = await service.create(tenantId, validCreateInput());
+      const bad = validTokens();
+      bad.typography.baseFontSize = 10;
+      await repository.createRevision({
+        id: '11111111-1111-4111-8111-111111111111',
+        themeId: theme.id,
+        revisionNumber: 1,
+        tokens: bad,
+        assets: null,
+        commitMessage: 'legacy',
+        publishedBy: 'admin',
+        publishedAt: new Date(),
+      });
+      await expect(
+        service.rollback(tenantId, theme.id, {
+          revisionId: '11111111-1111-4111-8111-111111111111',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+      expect(await repository.getLatestRevisionNumber(theme.id)).toBe(1);
     });
 
     it('should reject rollback to non-existent revision', async () => {
@@ -332,7 +419,7 @@ describe('ThemeService', () => {
 
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await service.update(tenantId, theme.id, { tokens: newTokens });
+      await repository.updateTheme(theme.id, { tokens: newTokens });
       await service.publish(tenantId, theme.id, { commitMessage: 'v2' }, 'admin');
 
       const revisions = await service.listRevisions(tenantId, theme.id);

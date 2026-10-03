@@ -183,6 +183,50 @@ externalSecret:
   #  - secretKey: DATABASE_URL
   #    remoteKey: proctira/production/api-gateway
   #    property: DATABASE_URL
+  # PRC-M279: least privilege per workload. When `sharedRemoteKey` is set,
+  # only the keys listed under `serviceKeys[service.name]` are copied out of
+  # that provider object (one data entry per key, never the whole bundle).
+  # A service missing from the map fails the render (fail closed); an empty
+  # list renders no ExternalSecret and no secret envFrom at all.
+  sharedRemoteKey: ''
+  serviceKeys:
+    api-gateway:
+      - DATABASE_URL
+      - REDIS_URL
+      - KAFKA_BROKERS
+      - RABBITMQ_URL
+      - JWT_SECRET
+      - JWT_SECRET_PREVIOUS
+      - COOKIE_SECRET
+      - PHI_ENCRYPTION_KEY
+      - S3_ACCESS_KEY
+      - S3_SECRET_KEY
+    etl-worker: [DATABASE_URL, KAFKA_BROKERS, REDIS_URL, RABBITMQ_URL]
+    web: []
+    registration-portal: []
+    admin-console: []
+    developer-portal: []
+    install-wizard: []
+    public-website: []
+    dr-tools: [DATABASE_URL, S3_ACCESS_KEY, S3_SECRET_KEY]
+    # W1-OPS-16 lab split-domain services: backend runtime keys, no PHI key.
+    institution:
+      &labKeys [
+        DATABASE_URL,
+        REDIS_URL,
+        KAFKA_BROKERS,
+        RABBITMQ_URL,
+        JWT_SECRET,
+        JWT_SECRET_PREVIOUS,
+      ]
+    student: *labKeys
+    staff: *labKeys
+    assessment: *labKeys
+    attendance: *labKeys
+    examination: *labKeys
+    workflow: *labKeys
+    notification: *labKeys
+    report: *labKeys
 
 extraVolumes: []
 extraVolumeMounts: []
