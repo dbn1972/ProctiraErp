@@ -192,5 +192,15 @@ export async function tenantAction(
   if (response.ok) return { ok: true };
   // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
   if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
+  // PRC-H077: an executor that is not enabled on this deployment is "not available",
+  // not a generic failure — the operator must not assume data was purged.
+  if (response.status === 501) {
+    return {
+      ok: false,
+      error: `Not available on this deployment: ${
+        response.error?.message ?? 'the data purge executor is not enabled'
+      }. No tenant data was deleted.`,
+    };
+  }
   return { ok: false, error: response.error?.message ?? 'Action failed.' };
 }

@@ -89,3 +89,17 @@ export type {
   PrivacyAnonymizationProcessor,
   PrivacyOffboardProcessor,
 } from './privacy-worker.js';
+export {
+  erasureToken,
+  isRetainedOnOffboard,
+  OFFBOARD_RETAINED_TABLE_PATTERNS,
+  PgSubjectAnonymizer,
+  PgTenantWipeExecutor,
+  resolveErasurePolicy,
+} from './pg-domain-erasure.js';
+export type {
+  ErasureFinancialMode,
+  ErasureHealthMode,
+  ErasurePolicy,
+  PgErasureOptions,
+} from './pg-domain-erasure.js';

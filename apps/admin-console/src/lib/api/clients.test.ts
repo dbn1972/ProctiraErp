@@ -224,4 +224,17 @@ describe('admin API clients', () => {
     gatewayFetch.mockResolvedValueOnce({ status: 500, ok: false, data: null });
     expect((await tenantAction('tnt_001', 'decommission', 'end')).error).toBe('Action failed.');
   });
+
+  it('PRC-H077: a 501 offboard says the purge is not available and nothing was deleted', async () => {
+    gatewayFetch.mockResolvedValue({
+      status: 501,
+      ok: false,
+      data: null,
+      error: { code: 'NOT_IMPLEMENTED', message: 'Tenant wipe is not enabled' },
+    });
+    const result = await tenantAction('tnt_001', 'offboard', 'contract ended');
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Not available on this deployment: Tenant wipe is not enabled/);
+    expect(result.error).toMatch(/No tenant data was deleted/);
+  });
 });

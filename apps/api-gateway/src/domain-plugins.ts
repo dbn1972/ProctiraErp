@@ -113,6 +113,8 @@ import { createParentPortalRepository, parentPortalPlugin } from '@proctira/back
 import {
   createPrivacyQueuePublishersFromEnv,
   createPrivacyRepository,
+  PgSubjectAnonymizer,
+  PgTenantWipeExecutor,
   PrivacyService,
   privacyPlugin,
 } from '@proctira/backend-privacy';
@@ -142,6 +144,7 @@ import {
 } from '@proctira/backend-staff';
 import {
   bindAttendanceHeatmapSource,
+  createStudentBlobStore,
   createStudentImportQueueFromEnv,
   createStudentRepository,
   studentPlugin,
@@ -1503,6 +1506,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(privacyPlugin, {
         repository: sharedPrivacyRepository,
         prefix: '/privacy',
+        // PRC-H077: real Postgres domain erasure (students, guardians, staff, health, fees,
+        // files). Tenant wipe stays 501 unless PRIVACY_TENANT_WIPE_ENABLED=true.
+        ...privacyDomainExecutorsFromEnv(),
         // PRC-M323: privacy lifecycle writes land in the platform audit trail.
         audit: {
           record: async (event) => {
@@ -1582,4 +1588,29 @@ export async function registerDomainPlugins(
   }
 
   return handled;
+}
+
+/**
+ * PRC-H077: Postgres-backed erasure executors when a database is configured.
+ * Defaulted: subject erasure ON (explicit, legal-hold-gated requests); tenant wipe OFF
+ * (irreversible bulk purge) — owner may enable via PRIVACY_TENANT_WIPE_ENABLED=true.
+ */
+export function privacyDomainExecutorsFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): {
+  anonymizer?: PgSubjectAnonymizer;
+  tenantWipeExecutor?: PgTenantWipeExecutor;
+} {
+  const pool = getSharedPgPool();
+  if (!pool) return {};
+  const blobs = createStudentBlobStore();
+  return {
+    anonymizer: new PgSubjectAnonymizer({
+      pool,
+      deleteObject: (key) => blobs.delete(key),
+    }),
+    ...(env['PRIVACY_TENANT_WIPE_ENABLED']?.trim().toLowerCase() === 'true'
+      ? { tenantWipeExecutor: new PgTenantWipeExecutor({ pool }) }
+      : {}),
+  };
 }
