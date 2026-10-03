@@ -34,6 +34,16 @@ export interface OtpChallengeStore {
   incrementAttempts(id: string): Promise<void>;
   consume(id: string): Promise<void>;
   /**
+   * PRC-M498: challenges for a user (within a tenant) or a phone created at or
+   * after `since`. Backs the send/resend caps and cross-resend lockout.
+   */
+  listRecent(filter: {
+    tenantId: string;
+    userId?: string;
+    phone?: string;
+    since: Date;
+  }): Promise<OtpChallengeRecord[]>;
+  /**
    * PRC-M177: evaluate one verification attempt atomically. Implementations
    * must perform the expiry / consumed / attempt-cap checks, the attempt
    * increment on mismatch and the single-use consume as one indivisible step
@@ -91,6 +101,23 @@ export class InMemoryOtpChallengeStore implements OtpChallengeStore {
         return;
       }
     }
+  }
+
+  async listRecent(filter: {
+    tenantId: string;
+    userId?: string;
+    phone?: string;
+    since: Date;
+  }): Promise<OtpChallengeRecord[]> {
+    return [...this.byToken.values()]
+      .filter(
+        (row) =>
+          row.tenantId === filter.tenantId &&
+          (filter.userId === undefined || row.userId === filter.userId) &&
+          (filter.phone === undefined || row.phone === filter.phone) &&
+          new Date(row.createdAt).getTime() >= filter.since.getTime(),
+      )
+      .map((row) => ({ ...row }));
   }
 
   async consume(id: string): Promise<void> {
@@ -163,6 +190,23 @@ export interface OtpServiceOptions {
    * safe for single-instance/dev deployments.
    */
   pepper?: string;
+  /** PRC-M498: minimum seconds between sends/resends for a user (default 60). */
+  resendCooldownSeconds?: number;
+  /** PRC-M498: max challenges per user and per phone in the window (default 5). */
+  maxSendsPerWindow?: number;
+  /** PRC-M498: rolling window for send caps and lockout (default 3600). */
+  sendWindowSeconds?: number;
+  /** PRC-M498: total failed verifies across resends in the window that lock the user (default 10). */
+  maxFailedAttemptsPerWindow?: number;
+  /** PRC-M498: alert hook for SMS volume / lockouts (wire to metrics/alerting). */
+  onAbuseSignal?: (signal: OtpAbuseSignal) => void;
+}
+
+/** PRC-M498: emitted when a send/verify is throttled or a user is locked. */
+export interface OtpAbuseSignal {
+  reason: 'cooldown' | 'user_cap' | 'phone_cap' | 'locked';
+  tenantId: string;
+  userId: string;
 }
 
 export class OtpService {
@@ -173,8 +217,18 @@ export class OtpService {
   private readonly exposeCodeInResponse: boolean;
   private readonly messageTemplate: string;
   private readonly pepper: string;
+  private readonly resendCooldownMs: number;
+  private readonly maxSendsPerWindow: number;
+  private readonly windowMs: number;
+  private readonly maxFailedPerWindow: number;
+  private readonly onAbuseSignal?: (signal: OtpAbuseSignal) => void;
 
   constructor(options: OtpServiceOptions) {
+    this.resendCooldownMs = (options.resendCooldownSeconds ?? 60) * 1000;
+    this.maxSendsPerWindow = options.maxSendsPerWindow ?? 5;
+    this.windowMs = (options.sendWindowSeconds ?? 3600) * 1000;
+    this.maxFailedPerWindow = options.maxFailedAttemptsPerWindow ?? 10;
+    this.onAbuseSignal = options.onAbuseSignal;
     this.pepper = options.pepper || randomBytes(32).toString('hex');
     this.store = options.store;
     this.sms = options.sms;
@@ -196,6 +250,55 @@ export class OtpService {
       throw new OtpValidationError('A valid phone number is required');
     }
 
+    await this.assertSendAllowed(input.userId, input.tenantId, phone);
+    return this.issue({ ...input, phone }, 0);
+  }
+
+  /**
+   * PRC-M498: per-user cooldown, per-user and per-phone caps in the rolling
+   * window, and a hard lock once total failed verifies across resends reach
+   * the limit. Throttled sends never reach the SMS provider.
+   */
+  private async assertSendAllowed(userId: string, tenantId: string, phone: string): Promise<void> {
+    const since = new Date(Date.now() - this.windowMs);
+    const byUser = await this.store.listRecent({ tenantId, userId, since });
+    if (this.failedAttempts(byUser) >= this.maxFailedPerWindow) {
+      this.signal('locked', tenantId, userId);
+      throw new OtpRateLimitError('Too many failed verification attempts. Try again later.');
+    }
+    const newest = Math.max(0, ...byUser.map((r) => new Date(r.createdAt).getTime()));
+    if (newest && Date.now() - newest < this.resendCooldownMs) {
+      this.signal('cooldown', tenantId, userId);
+      throw new OtpRateLimitError('Please wait before requesting another code.');
+    }
+    if (byUser.length >= this.maxSendsPerWindow) {
+      this.signal('user_cap', tenantId, userId);
+      throw new OtpRateLimitError('Too many verification codes requested. Try again later.');
+    }
+    const byPhone = await this.store.listRecent({ tenantId, phone, since });
+    if (byPhone.length >= this.maxSendsPerWindow) {
+      this.signal('phone_cap', tenantId, userId);
+      throw new OtpRateLimitError('Too many verification codes requested. Try again later.');
+    }
+  }
+
+  private failedAttempts(rows: OtpChallengeRecord[]): number {
+    return rows.reduce((sum, r) => sum + (r.consumedAt ? 0 : r.attemptCount), 0);
+  }
+
+  private signal(reason: OtpAbuseSignal['reason'], tenantId: string, userId: string): void {
+    try {
+      this.onAbuseSignal?.({ reason, tenantId, userId });
+    } catch {
+      // Alerting must never change the throttling decision.
+    }
+  }
+
+  private async issue(
+    input: { userId: string; tenantId: string; phone: string },
+    carriedAttempts: number,
+  ): Promise<SendOtpResult> {
+    const phone = input.phone;
     const code = generateOtpCode(6);
     const mfaToken = randomUUID();
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);
@@ -208,7 +311,9 @@ export class OtpService {
       codeHash: hashOtpCode(code, this.pepper, mfaToken),
       expiresAt,
       consumedAt: null,
-      attemptCount: 0,
+      // PRC-M498: failed attempts carry across resends so resending never
+      // resets the guess budget.
+      attemptCount: carriedAttempts,
       createdAt: new Date(),
     };
     await this.store.create(record);
@@ -232,8 +337,28 @@ export class OtpService {
 
   async verifyChallenge(input: { mfaToken: string; code: string }): Promise<VerifyOtpResult> {
     const code = String(input.code ?? '').trim();
+    const mfaToken = String(input.mfaToken ?? '');
+    // PRC-M498: cross-resend lockout — failed attempts across every challenge
+    // for this user inside the window block further guesses.
+    const existing = await this.store.findByToken(mfaToken);
+    if (
+      existing &&
+      !existing.consumedAt &&
+      new Date(existing.expiresAt).getTime() > Date.now() &&
+      existing.attemptCount < this.maxAttempts
+    ) {
+      const recent = await this.store.listRecent({
+        tenantId: existing.tenantId,
+        userId: existing.userId,
+        since: new Date(Date.now() - this.windowMs),
+      });
+      if (this.failedAttempts(recent) >= this.maxFailedPerWindow) {
+        this.signal('locked', existing.tenantId, existing.userId);
+        throw new OtpRateLimitError('Too many failed verification attempts. Try again later.');
+      }
+    }
     const outcome = await this.store.verifyAttempt(
-      String(input.mfaToken ?? ''),
+      mfaToken,
       (record) => hashesEqual(record.codeHash, hashOtpCode(code, this.pepper, record.mfaToken)),
       this.maxAttempts,
       new Date(),
@@ -258,13 +383,23 @@ export class OtpService {
     if (!existing) {
       throw new OtpAuthError('Invalid or expired verification challenge');
     }
+    // PRC-M498: only a live challenge can be resent.
+    if (existing.consumedAt) {
+      throw new OtpAuthError('Verification challenge has already been used');
+    }
+    if (new Date(existing.expiresAt).getTime() <= Date.now()) {
+      throw new OtpAuthError('Verification code has expired');
+    }
+    if (existing.attemptCount >= this.maxAttempts) {
+      throw new OtpAuthError('Too many invalid attempts. Sign in again.');
+    }
+    await this.assertSendAllowed(existing.userId, existing.tenantId, existing.phone);
     // Mark old challenge consumed so the previous code cannot be reused.
     await this.store.consume(existing.id);
-    return this.sendChallenge({
-      userId: existing.userId,
-      tenantId: existing.tenantId,
-      phone: existing.phone,
-    });
+    return this.issue(
+      { userId: existing.userId, tenantId: existing.tenantId, phone: existing.phone },
+      existing.attemptCount,
+    );
   }
 }
 
@@ -274,6 +409,16 @@ export class OtpValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'OtpValidationError';
+  }
+}
+
+/** PRC-M498: send/verify throttled (cooldown, caps, lockout). */
+export class OtpRateLimitError extends Error {
+  readonly statusCode = 429;
+  readonly code = 'OTP_RATE_LIMITED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'OtpRateLimitError';
   }
 }
 

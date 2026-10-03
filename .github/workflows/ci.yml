@@ -1608,7 +1608,8 @@ jobs:
   # Fail-closed flutter analyze + flutter test for apps/mobile. Mirrors
   # .github/workflows/mobile-flutter.yml but participates in CI Aggregate so
   # an incorrect path-filter skip cannot greenwash a mobile change.
-  # No device farm / integration_test device runs — flutter test only (test/).
+  # No device farm: test/ plus integration_test/hardened_journeys_test.dart on
+  # the headless flutter-tester device (PRC-M567).
   # ---------------------------------------------------------------------------
   mobile-flutter:
     name: Mobile Flutter (W1-OPS-07)
@@ -1642,6 +1643,17 @@ jobs:
         # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without
         # --update-goldens; integration_test/ is not invoked (no device farm).
         run: flutter test
+
+      - name: Hardened journeys on flutter-tester (PRC-M567, fail closed)
+        # Headless integration journeys (login, push deep link, tenant
+        # scoping/contract, workspace switch). No device farm needed.
+        run: flutter test -d flutter-tester integration_test/hardened_journeys_test.dart
+
+      - name: api-client tests (PRC-M254 route contract, fail closed)
+        working-directory: packages/flutter-core/api-client
+        run: |
+          dart pub get
+          dart test
 
       - name: Job summary
         if: always()

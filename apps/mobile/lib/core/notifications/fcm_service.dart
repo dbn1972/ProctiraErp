@@ -56,7 +56,13 @@ class FcmService {
     Future<void> Function(FirebaseOptions? options)? firebaseInitialiser,
     FirebaseOptions? firebaseOptions,
     Future<LocalNotificationPreferences> Function()? preferencesLoader,
+    Stream<RemoteMessage>? onMessage,
+    Stream<RemoteMessage>? onMessageOpenedApp,
+    void Function(BackgroundMessageHandler handler)? registerBackgroundHandler,
   }) : _deviceApi = deviceApi,
+       _onMessageOverride = onMessage,
+       _onMessageOpenedAppOverride = onMessageOpenedApp,
+       _registerBackgroundHandler = registerBackgroundHandler,
        _preferencesLoader = preferencesLoader,
        _repository = repository,
        _router = router,
@@ -73,7 +79,12 @@ class FcmService {
   final Future<void> Function(FirebaseOptions? options)? _firebaseInitialiser;
   final FirebaseOptions? _firebaseOptions;
   final Future<LocalNotificationPreferences> Function()? _preferencesLoader;
-
+  // PRC-M564: injectable message streams so push routing is testable without
+  // the Firebase platform channels.
+  final Stream<RemoteMessage>? _onMessageOverride;
+  final Stream<RemoteMessage>? _onMessageOpenedAppOverride;
+  final void Function(BackgroundMessageHandler handler)?
+  _registerBackgroundHandler;
   bool _started = false;
   String? _token;
 
@@ -131,9 +142,14 @@ class FcmService {
       debugPrint('FCM token registration skipped: $error');
     }
 
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
-    FirebaseMessaging.onBackgroundMessage(openemisFcmBackgroundHandler);
+    (_onMessageOverride ?? FirebaseMessaging.onMessage).listen(
+      _onForegroundMessage,
+    );
+    (_onMessageOpenedAppOverride ?? FirebaseMessaging.onMessageOpenedApp)
+        .listen(_onMessageOpenedApp);
+    (_registerBackgroundHandler ?? FirebaseMessaging.onBackgroundMessage)(
+      openemisFcmBackgroundHandler,
+    );
 
     // If the app was launched by tapping a notification, surface that as a
     // deep-link event so the router can navigate after first frame.
@@ -261,4 +277,14 @@ class FcmService {
     }
     return null;
   }
+}
+
+/// PRC-M564: the single place push deep links are applied to navigation
+/// (used by `main.dart` and by tests). The router's auth guard decides where
+/// an unauthenticated user actually lands.
+StreamSubscription<FcmDeepLink> bindPushDeepLinks(
+  Stream<FcmDeepLink> links,
+  void Function(String route) go,
+) {
+  return links.listen((FcmDeepLink link) => go(link.route));
 }

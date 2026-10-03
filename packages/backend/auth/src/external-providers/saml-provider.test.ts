@@ -2,6 +2,7 @@
  * Unit tests for SAMLProvider.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { inflateRawSync } from 'node:zlib';
 import { SAMLProvider, DefaultSAMLResponseParser } from './saml-provider.js';
 import type { SAMLResponseParser, SAMLParsedResponse } from './saml-provider.js';
 import type { SAMLProviderConfig } from './types.js';
@@ -25,16 +26,23 @@ const samlConfig: SAMLProviderConfig = {
 
 /** Mock SAML response parser for testing */
 class MockSAMLResponseParser implements SAMLResponseParser {
+  readonly verifiesSignature = true;
   public parseResult: SAMLParsedResponse | null = null;
   public parseError: Error | null = null;
-
+  private seq = 0;
   async parseResponse(
     _samlResponse: string,
     _config: SAMLProviderConfig,
+    context?: { expectedInResponseTo: string },
   ): Promise<SAMLParsedResponse> {
     if (this.parseError) throw this.parseError;
     if (!this.parseResult) throw new Error('No mock result configured');
-    return this.parseResult;
+    this.seq += 1;
+    return {
+      inResponseTo: context?.expectedInResponseTo,
+      assertionId: `_assertion-${this.seq}`,
+      ...this.parseResult,
+    };
   }
 }
 
@@ -65,7 +73,8 @@ describe('SAMLProvider', () => {
       expect(samlRequest).toBeDefined();
 
       // Decode and verify it's valid XML
-      const decoded = Buffer.from(samlRequest!, 'base64').toString('utf-8');
+      // PRC-M587: HTTP-Redirect binding is DEFLATE + base64.
+      const decoded = inflateRawSync(Buffer.from(samlRequest!, 'base64')).toString('utf-8');
       expect(decoded).toContain('AuthnRequest');
       expect(decoded).toContain('samlp:AuthnRequest');
       expect(decoded).toContain(samlConfig.issuer);
@@ -167,19 +176,41 @@ describe('SAMLProvider', () => {
       ).rejects.toThrow('Could not determine email');
     });
 
-    it('should work without relay state (direct IdP-initiated login)', async () => {
+    it('rejects unsolicited responses without RelayState (PRC-M587)', async () => {
       mockParser.parseResult = {
         nameId: 'user@corp.com',
         attributes: {
           'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress': 'user@corp.com',
-          'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name': 'Direct User',
         },
       };
+      await expect(
+        provider.handleCallback({ samlResponse: 'response' }, 'tenant-1'),
+      ).rejects.toMatchObject({ code: 'SAML_MISSING_RELAY_STATE' });
+    });
 
-      const profile = await provider.handleCallback({ samlResponse: 'response' }, 'tenant-1');
+    it('rejects a response that does not answer the pending AuthnRequest (PRC-M587)', async () => {
+      const init = await provider.initiateAuth('tenant-1');
+      mockParser.parseResult = {
+        nameId: 'user@corp.com',
+        inResponseTo: '_some-other-request',
+        attributes: {},
+      };
+      await expect(
+        provider.handleCallback({ samlResponse: 'r', relayState: init.state }, 'tenant-1'),
+      ).rejects.toMatchObject({ code: 'SAML_IN_RESPONSE_TO_MISMATCH' });
+    });
 
-      expect(profile.email).toBe('user@corp.com');
-      expect(profile.displayName).toBe('Direct User');
+    it('rejects a replayed assertion and a reused RelayState (PRC-M587)', async () => {
+      const first = await provider.initiateAuth('tenant-1');
+      mockParser.parseResult = { nameId: 'user@corp.com', assertionId: '_fixed', attributes: {} };
+      await provider.handleCallback({ samlResponse: 'r', relayState: first.state }, 'tenant-1');
+      await expect(
+        provider.handleCallback({ samlResponse: 'r', relayState: first.state }, 'tenant-1'),
+      ).rejects.toMatchObject({ code: 'SAML_INVALID_RELAY_STATE' });
+      const second = await provider.initiateAuth('tenant-1');
+      await expect(
+        provider.handleCallback({ samlResponse: 'r', relayState: second.state }, 'tenant-1'),
+      ).rejects.toMatchObject({ code: 'SAML_ASSERTION_REPLAY' });
     });
 
     it('should propagate parser errors', async () => {
@@ -198,6 +229,15 @@ describe('SAMLProvider', () => {
         ),
       ).rejects.toThrow('Invalid signature');
     });
+  });
+});
+
+describe('PRC-M587 parser gate', () => {
+  it('refuses to construct without a parser or with the regex-only default parser', () => {
+    expect(() => new SAMLProvider(samlConfig)).toThrow(/signature-verifying/);
+    expect(() => new SAMLProvider(samlConfig, new DefaultSAMLResponseParser())).toThrow(
+      /signature-verifying/,
+    );
   });
 });
 

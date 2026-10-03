@@ -4,8 +4,8 @@
  * Implements Google OAuth2 authentication using Google's OAuth 2.0 endpoints.
  * Extracts user profile from Google's userinfo endpoint.
  */
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
+import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 
 /** Google OAuth2 authorization endpoint */
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -49,6 +49,11 @@ export const extractGoogleUserInfo: UserInfoExtractor = (
   if (!sub || !email) {
     throw new Error('Google userinfo response missing required fields (sub, email)');
   }
+  // PRC-M589: Google asserts verification explicitly; unverified emails are refused.
+  const verified = data['email_verified'] === true || data['email_verified'] === 'true';
+  if (!verified) {
+    throw new Error('Google account email is not verified');
+  }
 
   return {
     externalId: sub,
@@ -58,6 +63,7 @@ export const extractGoogleUserInfo: UserInfoExtractor = (
     lastName: familyName,
     avatarUrl: picture,
     rawAttributes: data,
+    emailVerified: true,
   };
 };
 

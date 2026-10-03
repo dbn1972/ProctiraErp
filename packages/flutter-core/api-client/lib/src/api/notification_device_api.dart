@@ -33,10 +33,7 @@ class NotificationDeviceApi extends BaseApi {
 
   /// Remove a previously registered device.
   Future<void> unregisterDevice({required String deviceId}) async {
-    await request<dynamic>(
-      '$_devicesPath/$deviceId',
-      method: 'DELETE',
-    );
+    await request<dynamic>('$_devicesPath/$deviceId', method: 'DELETE');
   }
 
   /// Fetch the most recent notifications for the current user. Returns an
@@ -48,16 +45,13 @@ class NotificationDeviceApi extends BaseApi {
     final Response<dynamic> response = await request<dynamic>(
       _notificationsPath,
       method: 'GET',
-      queryParameters: <String, dynamic>{
-        'page': page,
-        'pageSize': pageSize,
-      },
+      queryParameters: <String, dynamic>{'page': page, 'pageSize': pageSize},
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+      return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
     }
     return const <Map<String, dynamic>>[];
   }
