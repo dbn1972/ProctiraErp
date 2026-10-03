@@ -48,6 +48,23 @@ export class SQSAdapter implements QueueAdapter {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
+  /**
+   * Map a logical queue name to a valid SQS name (PRC-M361): the `.fifo` suffix
+   * is detected/preserved BEFORE sanitising (SQS allows only [A-Za-z0-9_-] plus
+   * the FIFO suffix), and `fifo: true` config forces FIFO naming.
+   */
+  toSqsQueueName(queueName: string): string {
+    const isFifo = this.config.fifo === true || queueName.endsWith('.fifo');
+    const base = queueName.endsWith('.fifo') ? queueName.slice(0, -'.fifo'.length) : queueName;
+    const sanitized = base.replace(/[^A-Za-z0-9_-]/g, '-');
+    const name = isFifo ? `${sanitized}.fifo` : sanitized;
+    if (name.length > 80) {
+      // Never truncate: truncation could alias two logical queues.
+      throw new Error(`SQSAdapter: queue name exceeds 80 characters: ${name}`);
+    }
+    return name;
+  }
+
   /** PRC-L356: only a definite "queue does not exist" may trigger CreateQueue. */
   private static isQueueDoesNotExist(error: unknown): boolean {
     const e = error as { name?: string; Code?: string; code?: string } | null;
@@ -119,6 +136,7 @@ export class SQSAdapter implements QueueAdapter {
       : buildTenantName(message.tenantId, message.type);
 
     const queueUrl = await this.getOrCreateQueueUrl(queueName);
+    const isFifo = this.toSqsQueueName(queueName).endsWith('.fifo');
 
     const messageAttributes: Record<string, { DataType: string; StringValue: string }> = {
       tenantId: { DataType: 'String', StringValue: message.tenantId },
@@ -147,8 +165,8 @@ export class SQSAdapter implements QueueAdapter {
         : message.metadata?.delay
           ? Math.min(Math.floor(message.metadata.delay / 1000), 900)
           : undefined,
-      MessageGroupId: message.tenantId,
-      MessageDeduplicationId: message.id,
+      // PRC-M361: group/dedup ids are only valid on FIFO queues.
+      ...(isFifo ? { MessageGroupId: message.tenantId, MessageDeduplicationId: message.id } : {}),
     });
 
     await this.client.send(command);
@@ -236,8 +254,7 @@ export class SQSAdapter implements QueueAdapter {
       throw new Error('SQS client not initialized');
     }
 
-    // Convert dots to hyphens for SQS queue naming (dots not allowed)
-    const sqsQueueName = queueName.replace(/\./g, '-');
+    const sqsQueueName = this.toSqsQueueName(queueName);
 
     try {
       const result = await this.client.send(new GetQueueUrlCommand({ QueueName: sqsQueueName }));

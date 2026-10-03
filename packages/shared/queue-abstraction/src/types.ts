@@ -190,6 +190,12 @@ export interface SQSAdapterConfig {
   waitTimeSeconds?: number;
   /** Visibility timeout in seconds */
   visibilityTimeout?: number;
+  /**
+   * Use FIFO queues (PRC-M361). When true every resolved queue name gets the
+   * `.fifo` suffix and messages carry MessageGroupId (tenant) and
+   * MessageDeduplicationId (message id). Default: standard queues.
+   */
+  fifo?: boolean;
 }
 
 /**
