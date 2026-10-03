@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/api/pagination.dart';
+
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -141,33 +143,74 @@ class InstitutionRepository {
     return (scope == null || scope.isEmpty) ? null : scope;
   }
 
+  /// Page through the institutions list until exhausted and replace this
+  /// tenant's cache with the result (PRC-M037). Throws on API failure so the
+  /// screen can show an error with retry instead of an empty state.
+  Future<int> refreshAll({int pageSize = kMaxApiPageSize, int maxPages = 50})
+      async {
+    final InstitutionApi? api = _api;
+    final String? tenantId = _scope(null);
+    if (api == null || tenantId == null) return 0;
+    final List<Institution> all = <Institution>[];
+    for (int page = 1; page <= maxPages; page++) {
+      final List<Institution> batch = await api.listInstitutions(
+        page: page,
+        pageSize: pageSize,
+      );
+      all.addAll(batch);
+      if (batch.length < pageSize) break;
+    }
+    final Database db = await _database.database;
+    await db.transaction((Transaction txn) async {
+      await txn.delete(
+        'institutions_cache',
+        where: 'tenant_id = ?',
+        whereArgs: <Object>[tenantId],
+      );
+      for (final Institution i in all) {
+        await txn.insert(
+          'institutions_cache',
+          _row(tenantId, i),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+    return all.length;
+  }
+
   Future<void> upsert(Institution institution) async {
     final Database db = await _database.database;
     final String? tenantId = _tenantProvider.tenantId;
     if (tenantId == null) return;
-    await db.insert('institutions_cache', <String, Object?>{
-      'id': institution.id,
+    await db.insert(
+      'institutions_cache',
+      _row(tenantId, institution),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Map<String, Object?> _row(String tenantId, Institution i) => <String, Object?>{
+      'id': i.id,
       'tenant_id': tenantId,
-      'name': institution.name,
-      'code': institution.code,
-      'area_id': institution.areaId,
-      'type': institution.type,
-      'sector': institution.sector,
-      'ownership': institution.ownership,
-      'status': institution.status,
+      'name': i.name,
+      'code': i.code,
+      'area_id': i.areaId,
+      'type': i.type,
+      'sector': i.sector,
+      'ownership': i.ownership,
+      'status': i.status,
       'payload': jsonEncode(<String, dynamic>{
-        'id': institution.id,
-        'name': institution.name,
-        'code': institution.code,
-        'areaId': institution.areaId,
-        'type': institution.type,
-        'sector': institution.sector,
-        'ownership': institution.ownership,
-        'status': institution.status,
-        'createdAt': institution.createdAt,
-        'updatedAt': institution.updatedAt,
+        'id': i.id,
+        'name': i.name,
+        'code': i.code,
+        'areaId': i.areaId,
+        'type': i.type,
+        'sector': i.sector,
+        'ownership': i.ownership,
+        'status': i.status,
+        'createdAt': i.createdAt,
+        'updatedAt': i.updatedAt,
       }),
       'updated_at': _now().millisecondsSinceEpoch,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+    };
 }
