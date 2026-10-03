@@ -13,6 +13,7 @@ import type {
   DeliveryLogFilter,
   DeliveryLogRecord,
 } from './circular-store.js';
+import { DEFAULT_PAGE, toPage, type Page, type PageRequest } from './pagination.js';
 import { createWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CircularView extends CircularRecord {
@@ -81,13 +82,30 @@ export class CircularsService {
     return this.toView(tenantId, record);
   }
 
-  async listCirculars(tenantId: string): Promise<CircularView[]> {
-    const rows = await this.store.listCirculars(tenantId);
-    const views: CircularView[] = [];
-    for (const row of rows) {
-      views.push(await this.toView(tenantId, row));
-    }
-    return views;
+  /**
+   * PRC-M191: paginated; ack totals come from ONE grouped query and the
+   * per-recipient ack rows are only returned by GET :id.
+   */
+  async listCirculars(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<Page<CircularView>> {
+    const { data: rows, nextCursor } = toPage(await this.store.listCirculars(tenantId, page), page);
+    const counts = await this.store.countAcksByCircular(
+      tenantId,
+      rows.map((r) => r.id),
+    );
+    const data = rows.map((record) => {
+      const c = counts.get(record.id) ?? { total: 0, acknowledged: 0 };
+      return {
+        ...record,
+        acks: [],
+        ackTotal: c.total,
+        ackCount: c.acknowledged,
+        ackRate: ackRate(c.total, c.acknowledged),
+      };
+    });
+    return { data, nextCursor };
   }
 
   async getCircular(tenantId: string, id: string): Promise<CircularView> {
@@ -166,8 +184,9 @@ export class CircularsService {
   async listDeliveryLogs(
     tenantId: string,
     filter: DeliveryLogFilter = {},
-  ): Promise<DeliveryLogRecord[]> {
-    return this.store.listDeliveryLogs(tenantId, filter);
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<Page<DeliveryLogRecord>> {
+    return toPage(await this.store.listDeliveryLogs(tenantId, filter, page), page);
   }
 
   async retryFailed(tenantId: string, logId: string): Promise<DeliveryLogRecord> {

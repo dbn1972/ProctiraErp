@@ -10,6 +10,7 @@ import {
   enforceCommunicationRouteAccess,
 } from './communication-http-guard.js';
 import type { CommunicationService } from './communication-service.js';
+import { MAX_PAGE_LIMIT, parsePageQuery } from './pagination.js';
 import {
   AudiencePreviewSchema,
   CampaignParamsSchema,
@@ -28,6 +29,14 @@ import {
 export interface CommunicationRoutesOptions {
   communicationService: CommunicationService;
   prefix?: string;
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${MAX_PAGE_LIMIT}; cursor must be a token from nextCursor`,
+    statusCode: 400,
+  });
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -150,8 +159,12 @@ export async function registerCommunicationRoutes(
         });
       }
 
-      const campaigns = await communicationService.listCampaigns(tenantId);
-      return reply.status(200).send({ data: campaigns.map(formatCampaign) });
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const campaigns = await communicationService.listCampaigns(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: campaigns.data.map(formatCampaign), nextCursor: campaigns.nextCursor });
     },
   );
 
@@ -431,8 +444,12 @@ export async function registerCommunicationRoutes(
         });
       }
 
-      const blasts = await communicationService.listEmergencyBlasts(tenantId);
-      return reply.status(200).send({ data: blasts.map(formatEmergency) });
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const blasts = await communicationService.listEmergencyBlasts(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: blasts.data.map(formatEmergency), nextCursor: blasts.nextCursor });
     },
   );
 }

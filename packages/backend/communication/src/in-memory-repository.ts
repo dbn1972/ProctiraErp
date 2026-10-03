@@ -6,6 +6,7 @@ import type {
   CommunicationRepository,
   EmergencyBlastEntity,
 } from './communication-repository.js';
+import { DEFAULT_PAGE, sliceForPage, type PageRequest } from './pagination.js';
 
 export class InMemoryCommunicationRepository implements CommunicationRepository {
   private campaigns: CampaignEntity[] = [];
@@ -20,8 +21,11 @@ export class InMemoryCommunicationRepository implements CommunicationRepository 
     return entity;
   }
 
-  async listCampaigns(tenantId: string): Promise<CampaignEntity[]> {
-    return this.campaigns.filter((c) => c.tenantId === tenantId);
+  async listCampaigns(tenantId: string, page: PageRequest = DEFAULT_PAGE): Promise<CampaignEntity[]> {
+    const rows = this.campaigns
+      .filter((c) => c.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page);
   }
 
   async findCampaignById(id: string, tenantId: string): Promise<CampaignEntity | null> {
@@ -53,8 +57,14 @@ export class InMemoryCommunicationRepository implements CommunicationRepository 
     return entity;
   }
 
-  async listEmergencyBlasts(tenantId: string): Promise<EmergencyBlastEntity[]> {
-    return this.emergencyBlasts.filter((b) => b.tenantId === tenantId);
+  async listEmergencyBlasts(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<EmergencyBlastEntity[]> {
+    const rows = this.emergencyBlasts
+      .filter((b) => b.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page);
   }
 
   async findEmergencyBlastById(id: string, tenantId: string): Promise<EmergencyBlastEntity | null> {

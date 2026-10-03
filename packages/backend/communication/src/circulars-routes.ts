@@ -30,6 +30,7 @@ import {
   enforceCommunicationRouteAccess,
 } from './communication-http-guard.js';
 import type { CircularsService } from './circulars-service.js';
+import { MAX_PAGE_LIMIT, parsePageQuery } from './pagination.js';
 
 /** Resolves identities the caller may acknowledge for besides itself (PRC-M188). */
 export interface CircularRecipientBinding {
@@ -50,6 +51,14 @@ function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
     message: 'Tenant context is required',
+    statusCode: 400,
+  });
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${MAX_PAGE_LIMIT}; cursor must be a token from nextCursor`,
     statusCode: 400,
   });
 }
@@ -167,8 +176,12 @@ export async function registerCircularRoutes(
     async function listCircularsHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const rows = await circularsService.listCirculars(tenantId);
-      return reply.status(200).send({ data: rows.map(formatCircular) });
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const result = await circularsService.listCirculars(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: result.data.map(formatCircular), nextCursor: result.nextCursor });
     },
   );
 
@@ -317,10 +330,18 @@ export async function registerCircularRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const result = validate(DeliveryLogQuerySchema, request.query ?? {});
+      const page = parsePageQuery(request.query);
+      if (!page) return invalidPage(reply);
+      const { limit: _limit, cursor: _cursor, ...filterQuery } = (request.query ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const result = validate(DeliveryLogQuerySchema, filterQuery);
       const filter = result.success ? result.data : {};
-      const rows = await circularsService.listDeliveryLogs(tenantId, filter);
-      return reply.status(200).send({ data: rows.map(formatLog) });
+      const rows = await circularsService.listDeliveryLogs(tenantId, filter, page);
+      return reply
+        .status(200)
+        .send({ data: rows.data.map(formatLog), nextCursor: rows.nextCursor });
     },
   );
 

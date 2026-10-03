@@ -13,6 +13,7 @@ import {
   type DeliveryResult,
 } from './delivery-adapter.js';
 import { fetchLiveAudienceCounts } from './live-audience.js';
+import { DEFAULT_PAGE, toPage, type PageRequest } from './pagination.js';
 import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
 
 export interface CommunicationAuditEvent {
@@ -77,8 +78,8 @@ export class CommunicationService {
     });
   }
 
-  async listCampaigns(tenantId: string) {
-    return this.repository.listCampaigns(tenantId);
+  async listCampaigns(tenantId: string, page: PageRequest = DEFAULT_PAGE) {
+    return toPage(await this.repository.listCampaigns(tenantId, page), page);
   }
 
   async getCampaign(tenantId: string, id: string) {
@@ -165,8 +166,8 @@ export class CommunicationService {
     });
   }
 
-  async listEmergencyBlasts(tenantId: string) {
-    return this.repository.listEmergencyBlasts(tenantId);
+  async listEmergencyBlasts(tenantId: string, page: PageRequest = DEFAULT_PAGE) {
+    return toPage(await this.repository.listEmergencyBlasts(tenantId, page), page);
   }
 
   async confirmEmergencyBlast(tenantId: string, id: string, actorId: string) {
