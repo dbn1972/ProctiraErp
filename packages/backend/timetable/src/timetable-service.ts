@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { NotFoundError, ValidationError } from '@proctira/common';
 
-import { detectMeetingClashes, detectSubstituteClashes } from './clash-helper.js';
+import {
+  detectMeetingClashes,
+  detectSubstituteClashes,
+  type PeriodWindow,
+} from './clash-helper.js';
 import {
   InMemoryTimetableOpsStore,
   type GenerationJobRecord,
@@ -447,6 +451,10 @@ export class TimetableService {
       academicPeriodId: filter.academicPeriodId,
     });
 
+    const periodTimes = await this.loadPeriodTimes(
+      tenantId,
+      meetings.map((m) => m.periodId),
+    );
     const seen = new Set<string>();
     const out: Array<{
       reason: string;
@@ -460,7 +468,7 @@ export class TimetableService {
     }> = [];
 
     for (const candidate of meetings) {
-      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id, periodTimes);
       for (const c of conflicts) {
         const peer = c.meetingId ?? '';
         const pairKey = [candidate.id, peer].sort().join('|');
@@ -509,8 +517,12 @@ export class TimetableService {
     }
 
     // Validate each of this section's meetings against the rest of the institution grid.
+    const periodTimes = await this.loadPeriodTimes(
+      tenantId,
+      meetings.map((m) => m.periodId),
+    );
     for (const candidate of sectionMeetings) {
-      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id, periodTimes);
       const hard = conflicts.filter((c) => c.reason === 'staff' || c.reason === 'room');
       if (hard.length > 0) {
         throw new TimetableClashError(
@@ -699,13 +711,20 @@ export class TimetableService {
       });
     }
 
+    const periodTimes = await this.loadPeriodTimes(tenantId, [
+      meeting.periodId,
+      ...meetings.filter((m) => m.dayOfWeek === meeting.dayOfWeek).map((m) => m.periodId),
+      ...enrichedSubs.map((sub) => sub.periodId),
+    ]);
     const conflicts = detectSubstituteClashes({
       substituteStaffId: input.substituteStaffId,
       periodId: meeting.periodId,
       dayOfWeek: meeting.dayOfWeek,
       substitutionDate: input.substitutionDate,
-      meetings,
+      // PRC-M398: only the meeting's academic period can collide.
+      meetings: meetings.filter((m) => m.academicPeriodId === meeting.academicPeriodId),
       substitutions: enrichedSubs,
+      periodTimes,
     });
 
     if (conflicts.length > 0) {
@@ -980,15 +999,35 @@ export class TimetableService {
     }
   }
 
+  /** PRC-M398: wall-clock windows for every period referenced, for time-overlap clash checks. */
+  private async loadPeriodTimes(
+    tenantId: string,
+    periodIds: Iterable<string>,
+  ): Promise<Map<string, PeriodWindow>> {
+    const out = new Map<string, PeriodWindow>();
+    for (const id of new Set(periodIds)) {
+      const period = await this.repo.getPeriod(tenantId, id);
+      if (period) out.set(id, { startTime: period.startTime, endTime: period.endTime });
+    }
+    return out;
+  }
+
   private async assertNoMeetingClash(
     tenantId: string,
     candidate: MeetingInput,
     excludeMeetingId?: string,
   ): Promise<void> {
+    // PRC-M398: only meetings of the same academic period can collide.
     const meetings = await this.repo.listMeetings(tenantId, {
       institutionId: candidate.institutionId,
+      academicPeriodId: candidate.academicPeriodId,
     });
-    const conflicts = detectMeetingClashes(meetings, candidate, excludeMeetingId);
+    const sameDay = meetings.filter((m) => m.dayOfWeek === candidate.dayOfWeek);
+    const periodTimes = await this.loadPeriodTimes(tenantId, [
+      candidate.periodId,
+      ...sameDay.map((m) => m.periodId),
+    ]);
+    const conflicts = detectMeetingClashes(sameDay, candidate, excludeMeetingId, periodTimes);
     if (conflicts.length > 0) {
       const reasons = [...new Set(conflicts.map((c) => c.reason))].join(', ');
       throw new TimetableClashError(
