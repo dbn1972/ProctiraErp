@@ -193,6 +193,22 @@ export async function listStaff(filters: StaffListFilters = {}): Promise<StaffLi
   return result.data;
 }
 
+/**
+ * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
+ * failed read is distinguishable from an institution with no staff.
+ */
+export async function listAllStaffResult(maxPages = 4): Promise<ListResult<Staff>> {
+  const rows: Staff[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchList<Staff>(`/staff?page=${page}&pageSize=100`, {
+      next: { revalidate: 0 },
+    });
+    if (!batch.ok) return batch;
+    rows.push(...batch.items);
+    if (batch.items.length < 100) break;
+  }
+  return { ok: true, items: rows };
+}
 export async function getStaff(id: string): Promise<Staff | null> {
   const result = await gatewayFetch<Staff>(`/staff/${id}`, {
     method: 'GET',
