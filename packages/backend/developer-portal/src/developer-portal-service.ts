@@ -771,6 +771,11 @@ export class DeveloperPortalService {
     if (account.status !== 'active') {
       throw new BusinessRuleError('Cannot submit plugin from inactive account');
     }
+    // PRC-M219: a published plugin name belongs to the account that published it.
+    const listed = await this.repository.getListingByName(input.name);
+    if (listed && listed.accountId !== accountId) {
+      throw new ConflictError(`Plugin name '${input.name}' is owned by another developer account`);
+    }
 
     const submission: PluginSubmissionEntity = {
       id: uuidv4(),
@@ -858,10 +863,17 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Only approved plugins can be published');
     }
 
+    // PRC-M219: never overwrite another account's listing; a same-owner re-publish is a
+    // version update that keeps installs, ratings and the original publish date.
+    const existing = await this.repository.getListingByName(submission.name);
+    if (existing && existing.accountId !== submission.accountId) {
+      throw new ConflictError(
+        `Plugin name '${submission.name}' is owned by another developer account`,
+      );
+    }
     // Get account for author name
     const account = await this.repository.getAccountById(submission.accountId);
     const authorName = account?.name ?? 'Unknown';
-
     // Create marketplace listing
     const now = new Date();
     const listing: MarketplaceListingEntity = {
@@ -876,16 +888,23 @@ export class DeveloperPortalService {
       screenshots: submission.screenshots,
       tags: submission.tags,
       license: submission.license,
-      installs: 0,
-      averageRating: 0,
-      ratingCount: 0,
-      publishedAt: now,
+      installs: existing?.installs ?? 0,
+      averageRating: existing?.averageRating ?? 0,
+      ratingCount: existing?.ratingCount ?? 0,
+      publishedAt: existing?.publishedAt ?? now,
       updatedAt: now,
     };
-
     await this.repository.createListing(listing);
-    await this.repository.updateSubmissionStatus(submissionId, 'published');
-
+    try {
+      const marked = await this.repository.updateSubmissionStatus(submissionId, 'published');
+      if (!marked) throw new NotFoundError(`Plugin submission '${submissionId}' not found`);
+    } catch (error) {
+      // PRC-M219: listings are not in the same store as submissions, so undo the listing
+      // write rather than leave a live listing for an unpublished submission.
+      if (existing) await this.repository.createListing(existing);
+      else await this.repository.deleteListing(listing.name);
+      throw error;
+    }
     return listing;
   }
 

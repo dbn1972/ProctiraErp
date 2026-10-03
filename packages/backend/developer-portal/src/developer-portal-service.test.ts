@@ -601,3 +601,80 @@ describe('DeveloperPortalService', () => {
     });
   });
 });
+
+// ─── PRC-M219: listing ownership + atomic publish ────────────────────────────
+describe('plugin name ownership and publish atomicity (PRC-M219)', () => {
+  const plugin = (name: string, version: string) => ({
+    name,
+    version,
+    displayName: 'Owned Plugin',
+    description: 'A plugin that someone owns',
+    category: 'workflow',
+    supportedProductVersions: '>=1.0.0',
+    requiredPermissions: [],
+  });
+
+  async function setup() {
+    const repository = new InMemoryDeveloperPortalRepository();
+    const service = new DeveloperPortalService(repository, DEFAULT_CONFIG);
+    const owner = await service.createAccount({ name: 'Owner', email: 'owner@example.com' });
+    const other = await service.createAccount({ name: 'Other', email: 'other@example.com' });
+    const publish = async (accountId: string, version: string) => {
+      const sub = await service.submitPlugin(accountId, plugin('owned-plugin', version));
+      await service.reviewPlugin(sub.id, 'reviewer-1', { decision: 'approved' });
+      return { sub, listing: await service.publishPlugin(sub.id) };
+    };
+    return { repository, service, owner, other, publish };
+  }
+
+  it('rejects another account submitting a published name', async () => {
+    const { service, owner, other, publish } = await setup();
+    await publish(owner.id, '1.0.0');
+    await expect(service.submitPlugin(other.id, plugin('owned-plugin', '9.9.9'))).rejects.toThrow(
+      ConflictError,
+    );
+  });
+
+  it('rejects another account publishing over an existing listing', async () => {
+    const { service, repository, owner, other, publish } = await setup();
+    // Both submit before anything is published; the first publish wins the name.
+    const otherSub = await service.submitPlugin(other.id, plugin('owned-plugin', '5.0.0'));
+    await service.reviewPlugin(otherSub.id, 'reviewer-1', { decision: 'approved' });
+    await publish(owner.id, '1.0.0');
+    await expect(service.publishPlugin(otherSub.id)).rejects.toThrow(ConflictError);
+    expect((await repository.getListingByName('owned-plugin'))?.accountId).toBe(owner.id);
+  });
+
+  it('same-owner new version keeps installs and ratings', async () => {
+    const { repository, owner, publish } = await setup();
+    const first = await publish(owner.id, '1.0.0');
+    await repository.createListing({
+      ...first.listing,
+      installs: 42,
+      averageRating: 4.5,
+      ratingCount: 8,
+    });
+    const second = await publish(owner.id, '1.1.0');
+    expect(second.listing).toMatchObject({
+      version: '1.1.0',
+      installs: 42,
+      averageRating: 4.5,
+      ratingCount: 8,
+      publishedAt: first.listing.publishedAt,
+    });
+  });
+
+  it('rolls the listing back when marking the submission published fails', async () => {
+    const { service, repository, owner } = await setup();
+    const sub = await service.submitPlugin(owner.id, plugin('owned-plugin', '1.0.0'));
+    await service.reviewPlugin(sub.id, 'reviewer-1', { decision: 'approved' });
+    const original = repository.updateSubmissionStatus.bind(repository);
+    repository.updateSubmissionStatus = async () => {
+      throw new Error('injected failure');
+    };
+    await expect(service.publishPlugin(sub.id)).rejects.toThrow('injected failure');
+    expect(await repository.getListingByName('owned-plugin')).toBeNull();
+    repository.updateSubmissionStatus = original;
+    expect((await service.getSubmission(sub.id)).status).toBe('approved');
+  });
+});
