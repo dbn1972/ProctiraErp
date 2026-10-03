@@ -16,6 +16,7 @@ import type {
   FeesMoneyAuditSink,
   FeesRepository,
   LedgerAccount,
+  LockedInvoiceBalance,
   PaymentMethod,
 } from './fees-repository.js';
 import {
@@ -833,7 +834,12 @@ export class FeesService {
     return { created, skipped, structureId: structure.id };
   }
 
-  async applyConcession(tenantId: string, actorId: string, input: ApplyConcessionInput) {
+  async applyConcession(
+    tenantId: string,
+    actorId: string,
+    input: ApplyConcessionInput,
+    audit?: FeesMoneyAuditSink,
+  ) {
     const structure = await this.getFeeStructure(tenantId, input.structureId);
     const discount = concessionDiscountCents(structure.amountCents, input);
     const peers = (await this.repository.listConcessions(tenantId)).filter(
@@ -859,7 +865,7 @@ export class FeesService {
       }
     }
 
-    const concession = await this.repository.createConcession({
+    const row: Omit<FeeConcessionEntity, 'createdAt'> = {
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
@@ -873,13 +879,44 @@ export class FeesService {
       approverId: autoApprove ? (input.approverId ?? actorId) : null,
       status: autoApprove ? 'approved' : 'pending',
       createdBy: actorId,
-    });
+    };
 
     if (!autoApprove) {
+      const concession = await this.repository.createConcession(row);
       return { concession, invoice: null, discountCents: discount };
     }
 
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount);
+    // PRC-L306: an auto-approved concession (scholarship netting) is created, applied,
+    // journalled and audited in ONE money transaction — a failed audit rolls it all back.
+    const auditKind = input.sourceDisbursementId ? 'scholarship_netting' : 'concession_approve';
+    const target = await this.resolveConcessionTarget(tenantId, row);
+    if (!target) {
+      return this.repository.runInTransaction(tenantId, async (tx) => {
+        const concession = await tx.createConcession(row);
+        await audit?.(tx, {
+          kind: auditKind,
+          entityId: concession.id,
+          invoiceId: null,
+          amountCents: 0,
+          beforeStatus: 'none',
+          afterStatus: concession.status,
+        });
+        return { concession, invoice: null, discountCents: discount };
+      });
+    }
+    return this.repository.withInvoiceLock(tenantId, target.id, async (tx, locked) => {
+      const concession = await tx.createConcession(row);
+      return this.applyConcessionLocked(
+        tx,
+        locked,
+        tenantId,
+        actorId,
+        concession,
+        discount,
+        auditKind,
+        audit,
+      );
+    });
   }
 
   /**
@@ -905,14 +942,56 @@ export class FeesService {
       (await this.getFeeStructure(tenantId, concession.structureId)).amountCents,
       concession,
     );
-    const approved = await this.repository.updateConcession(concession.id, tenantId, {
-      status: 'approved',
-      approverId: actorId,
+    // PRC-L306: re-check 'pending' and flip to 'approved' inside the same invoice lock
+    // as the journal + face update + audit, so approve/reject/approve races serialize
+    // and a failure anywhere leaves the concession pending.
+    const approveInTx = async (tx: FeesRepository) => {
+      const fresh = await tx.findConcessionById(concession.id, tenantId);
+      if (!fresh || fresh.status !== 'pending') {
+        throw new BusinessRuleError('Only pending concessions can be approved');
+      }
+      const approved = await tx.updateConcession(concession.id, tenantId, {
+        status: 'approved',
+        approverId: actorId,
+      });
+      return approved ?? { ...fresh, status: 'approved' as const, approverId: actorId };
+    };
+    const target = await this.resolveConcessionTarget(tenantId, concession);
+    if (!target) {
+      return this.repository.runInTransaction(tenantId, async (tx) => {
+        const approved = await approveInTx(tx);
+        await audit?.(tx, {
+          kind: 'concession_approve',
+          entityId: concession.id,
+          invoiceId: null,
+          amountCents: 0,
+          beforeStatus: 'pending',
+          afterStatus: 'approved',
+        });
+        return { concession: approved, invoice: null, discountCents: discount };
+      });
+    }
+    return this.repository.withInvoiceLock(tenantId, target.id, async (tx, locked) => {
+      const approved = await approveInTx(tx);
+      return this.applyConcessionLocked(
+        tx,
+        locked,
+        tenantId,
+        actorId,
+        approved,
+        discount,
+        'concession_approve',
+        audit,
+      );
     });
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount, audit);
   }
 
-  async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
+  async rejectConcession(
+    tenantId: string,
+    actorId: string,
+    concessionId: string,
+    audit?: FeesMoneyAuditSink,
+  ) {
     const concession = await this.repository.findConcessionById(concessionId, tenantId);
     if (!concession) {
       throw new NotFoundError(`Concession with id '${concessionId}' not found`);
@@ -923,68 +1002,97 @@ export class FeesService {
     if (concession.createdBy === actorId) {
       throw new BusinessRuleError('Concession creator cannot self-reject (four-eyes)');
     }
-    const rejected = await this.repository.updateConcession(concession.id, tenantId, {
-      status: 'rejected',
-      approverId: actorId,
-    });
-    return { concession: rejected!, invoice: null, discountCents: 0 };
+    // PRC-L306: status re-check + reject + audit in one transaction, under the same
+    // invoice lock approve uses (when a target invoice exists) so they serialize.
+    const rejectInTx = async (tx: FeesRepository, invoiceId: string | null) => {
+      const fresh = await tx.findConcessionById(concession.id, tenantId);
+      if (!fresh || fresh.status !== 'pending') {
+        throw new BusinessRuleError('Only pending concessions can be rejected');
+      }
+      const rejected = await tx.updateConcession(concession.id, tenantId, {
+        status: 'rejected',
+        approverId: actorId,
+      });
+      await audit?.(tx, {
+        kind: 'concession_reject',
+        entityId: concession.id,
+        invoiceId,
+        amountCents: 0,
+        beforeStatus: 'pending',
+        afterStatus: 'rejected',
+      });
+      return {
+        concession: rejected ?? { ...fresh, status: 'rejected' as const, approverId: actorId },
+        invoice: null,
+        discountCents: 0,
+      };
+    };
+    const target = await this.resolveConcessionTarget(tenantId, concession);
+    return target
+      ? this.repository.withInvoiceLock(tenantId, target.id, (tx) => rejectInTx(tx, target.id))
+      : this.repository.runInTransaction(tenantId, (tx) => rejectInTx(tx, null));
   }
 
-  private async applyApprovedConcessionToInvoice(
+  /** Invoice a concession applies to: its explicit invoice, else the structure/student invoice. */
+  private async resolveConcessionTarget(
     tenantId: string,
-    actorId: string,
-    concession: FeeConcessionEntity,
-    discount: number,
-    audit?: FeesMoneyAuditSink,
-  ) {
-    const target = concession.invoiceId
-      ? await this.getInvoice(tenantId, concession.invoiceId)
-      : await this.repository.findInvoiceForStructureStudent(
+    concession: Pick<FeeConcessionEntity, 'invoiceId' | 'structureId' | 'studentId'>,
+  ): Promise<FeeInvoiceEntity | null> {
+    return concession.invoiceId
+      ? this.getInvoice(tenantId, concession.invoiceId)
+      : this.repository.findInvoiceForStructureStudent(
           tenantId,
           concession.structureId,
           concession.studentId,
         );
-    if (!target) {
-      return { concession, invoice: null, discountCents: discount };
+  }
+
+  /** Apply an approved concession to the locked invoice: journal + face + link + audit. */
+  private async applyConcessionLocked(
+    tx: FeesRepository,
+    locked: LockedInvoiceBalance,
+    tenantId: string,
+    actorId: string,
+    concession: FeeConcessionEntity,
+    discount: number,
+    auditKind: 'concession_approve' | 'scholarship_netting',
+    audit?: FeesMoneyAuditSink,
+  ) {
+    const { invoice } = locked;
+    if (invoice.status !== 'open') {
+      throw new BusinessRuleError('Concession can only recompute dues on an open invoice');
     }
-    // PRC-H058: re-read the invoice under lock; journal + face update + link are atomic.
-    return this.repository.withInvoiceLock(tenantId, target.id, async (tx, locked) => {
-      const { invoice } = locked;
-      if (invoice.status !== 'open') {
-        throw new BusinessRuleError('Concession can only recompute dues on an open invoice');
-      }
-      // Never discount below cash already collected (negative AR).
-      const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
-      const applied = Math.min(discount, unpaid);
-      const nextAmount = invoice.amountCents - applied;
-      if (applied > 0) {
-        await this.postJournal(
-          tx,
-          invoice,
-          actorId,
-          'concession applied',
-          [
-            ['fee_revenue', 'debit'],
-            ['accounts_receivable', 'credit'],
-          ],
-          applied,
-        );
-      }
-      const updated = await tx.updateInvoice(invoice.id, tenantId, {
-        amountCents: nextAmount,
-      });
-      await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
-      const refreshed = await tx.findConcessionById(concession.id, tenantId);
-      await audit?.(tx, {
-        kind: 'concession_approve',
-        entityId: concession.id,
-        invoiceId: invoice.id,
-        amountCents: applied,
-        beforeStatus: invoice.status,
-        afterStatus: updated?.status ?? invoice.status,
-      });
-      return { concession: refreshed ?? concession, invoice: updated, discountCents: applied };
+    // Never discount below cash already collected (negative AR).
+    const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+    const applied = Math.min(discount, unpaid);
+    const nextAmount = invoice.amountCents - applied;
+    if (applied > 0) {
+      await this.postJournal(
+        tx,
+        invoice,
+        actorId,
+        'concession applied',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        applied,
+      );
+    }
+    const updated = await tx.updateInvoice(invoice.id, tenantId, {
+      amountCents: nextAmount,
     });
+    await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
+    const refreshed = await tx.findConcessionById(concession.id, tenantId);
+    await audit?.(tx, {
+      kind: auditKind,
+      entityId: concession.id,
+      invoiceId: invoice.id,
+      amountCents: applied,
+      beforeStatus: invoice.status,
+      afterStatus: updated?.status ?? invoice.status,
+    });
+    return { concession: refreshed ?? concession, invoice: updated, discountCents: applied };
   }
 
   async recordRefund(
@@ -1600,6 +1708,7 @@ export class FeesService {
       invoiceId?: string;
       currency?: string;
     },
+    audit?: FeesMoneyAuditSink,
   ) {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Scholarship netting amountCents must be a positive integer');
@@ -1646,29 +1755,39 @@ export class FeesService {
     }
 
     if (!invoice) {
-      const concession = await this.applyConcession(tenantId, actorId, {
-        studentId: input.studentId,
-        structureId,
-        kind: 'amount',
-        amountCents: input.amountCents,
-        reason: `${marker} (no open invoice — credit reserved)`,
-        sourceDisbursementId: input.disbursementId,
-        autoApprove: true,
-      });
+      const concession = await this.applyConcession(
+        tenantId,
+        actorId,
+        {
+          studentId: input.studentId,
+          structureId,
+          kind: 'amount',
+          amountCents: input.amountCents,
+          reason: `${marker} (no open invoice — credit reserved)`,
+          sourceDisbursementId: input.disbursementId,
+          autoApprove: true,
+        },
+        audit,
+      );
       return { ...concession, idempotent: false as const };
     }
 
     return {
-      ...(await this.applyConcession(tenantId, actorId, {
-        studentId: input.studentId,
-        structureId,
-        invoiceId: invoice.id,
-        kind: 'amount',
-        amountCents: Math.min(input.amountCents, invoice.amountCents),
-        reason: marker,
-        sourceDisbursementId: input.disbursementId,
-        autoApprove: true,
-      })),
+      ...(await this.applyConcession(
+        tenantId,
+        actorId,
+        {
+          studentId: input.studentId,
+          structureId,
+          invoiceId: invoice.id,
+          kind: 'amount',
+          amountCents: Math.min(input.amountCents, invoice.amountCents),
+          reason: marker,
+          sourceDisbursementId: input.disbursementId,
+          autoApprove: true,
+        },
+        audit,
+      )),
       idempotent: false as const,
     };
   }
@@ -1689,6 +1808,7 @@ export class FeesService {
       invoiceId?: string;
       currency?: string;
     },
+    audit?: FeesMoneyAuditSink,
   ) {
     const disbursement = await lookup.findDisbursement(tenantId, input.disbursementId);
     if (!disbursement || disbursement.tenantId !== tenantId) {
@@ -1707,13 +1827,18 @@ export class FeesService {
     ) {
       throw new BusinessRuleError('Netting amount must equal the paid disbursement amount');
     }
-    return this.applyScholarshipNetting(tenantId, actorId, {
-      studentId: disbursement.studentId,
-      disbursementId: disbursement.id,
-      amountCents: disbursement.amountCents,
-      invoiceId: input.invoiceId,
-      currency: disbursement.currency ?? input.currency,
-    });
+    return this.applyScholarshipNetting(
+      tenantId,
+      actorId,
+      {
+        studentId: disbursement.studentId,
+        disbursementId: disbursement.id,
+        amountCents: disbursement.amountCents,
+        invoiceId: input.invoiceId,
+        currency: disbursement.currency ?? input.currency,
+      },
+      audit,
+    );
   }
   /** PRC-H020: paid disbursements for the tenant that have not yet been netted. */
   async listNettableScholarshipDisbursements(
@@ -1739,6 +1864,7 @@ export class FeesService {
     tenantId: string,
     actorId: string,
     input: { disbursementId: string },
+    audit?: FeesMoneyAuditSink,
   ) {
     const prior = await this.repository.findConcessionBySourceDisbursementId(
       tenantId,
@@ -1786,6 +1912,15 @@ export class FeesService {
         );
       }
       const rejectedRow = await tx.updateConcession(prior.id, tenantId, { status: 'rejected' });
+      // PRC-L306: reversal audit commits or rolls back with the face restore + journal.
+      await audit?.(tx, {
+        kind: 'scholarship_netting_reversal',
+        entityId: prior.id,
+        invoiceId: invoice?.id ?? null,
+        amountCents: invoice ? discountCents : 0,
+        beforeStatus: prior.status,
+        afterStatus: 'rejected',
+      });
       return { invoice: restored, rejected: rejectedRow };
     };
     const { invoice, rejected } = existing

@@ -289,29 +289,42 @@ export async function bulkInvoiceStructure(
   return throwIfMissing(result, 'Failed to bulk invoice');
 }
 
-export async function applyConcession(input: {
-  studentId: string;
-  structureId: string;
-  invoiceId?: string;
-  kind: 'percent' | 'amount';
-  percent?: number;
-  amountCents?: number;
-  reason: string;
-}): Promise<{ discountCents: number; invoice: FeeInvoice | null }> {
+/** PRC-H058: gateway Idempotency-Key header for money mutations. */
+export interface MoneyMutationOptions {
+  idempotencyKey?: string;
+}
+
+function idempotencyHeaders(options?: MoneyMutationOptions): Record<string, string> | undefined {
+  return options?.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined;
+}
+
+export async function applyConcession(
+  input: {
+    studentId: string;
+    structureId: string;
+    invoiceId?: string;
+    kind: 'percent' | 'amount';
+    percent?: number;
+    amountCents?: number;
+    reason: string;
+  },
+  options?: MoneyMutationOptions,
+): Promise<{ discountCents: number; invoice: FeeInvoice | null }> {
   const result = await gatewayFetch<{
     discountCents: number;
     invoice: FeeInvoice | null;
-  }>('/fees/concessions', { method: 'POST', json: input });
+  }>('/fees/concessions', { method: 'POST', json: input, headers: idempotencyHeaders(options) });
   return throwIfMissing(result, 'Failed to apply concession');
 }
 
 export async function refundInvoice(
   invoiceId: string,
   input: { amountCents: number; reason: string },
+  options?: MoneyMutationOptions,
 ): Promise<{ id: string; amountCents: number }> {
   const result = await gatewayFetch<{ id: string; amountCents: number }>(
     `/fees/invoices/${invoiceId}/refund`,
-    { method: 'POST', json: input },
+    { method: 'POST', json: input, headers: idempotencyHeaders(options) },
   );
   return throwIfMissing(result, 'Failed to record refund');
 }
@@ -424,10 +437,14 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
-export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
+export async function recordInvoicePayment(
+  invoiceId: string,
+  options?: MoneyMutationOptions,
+): Promise<FeeInvoice> {
   const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
     method: 'POST',
     json: { method: 'sandbox' },
+    headers: idempotencyHeaders(options),
   });
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
@@ -486,10 +503,12 @@ export async function listNettableScholarshipDisbursementsResult(): Promise<
 
 export async function applyScholarshipNetting(
   input: ApplyScholarshipNettingInput,
+  options?: MoneyMutationOptions,
 ): Promise<ScholarshipNettingResult> {
   const result = await gatewayFetch<ScholarshipNettingResult>('/fees/scholarships/net', {
     method: 'POST',
     json: input,
+    headers: idempotencyHeaders(options),
   });
   return throwIfMissing(result, 'Failed to apply scholarship netting');
 }

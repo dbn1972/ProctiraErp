@@ -103,6 +103,7 @@ export const examinationPlugin = fp(
     // candidate results; ops write final marks back and publication is gated
     // on unresolved variances.
     let resultPublicationService: ResultPublicationService | undefined;
+    let certificateGenerator: DocumentGenerationService | undefined;
     const examOpsService = examOpsStore
       ? new ExamOpsService({
           store: examOpsStore,
@@ -117,6 +118,19 @@ export const examinationPlugin = fp(
                 return resultPublicationService.publishResults(tenantId, examinationId);
               }
             : undefined,
+          // PRC-H057: revised marks after publication -> regenerate that candidate's certificate.
+          regenerateCertificates:
+            documentRepository && pdfGenerator
+              ? async (tenantId, examinationId, registrationIds) => {
+                  if (!certificateGenerator) {
+                    throw new Error('Document generation service is not initialised');
+                  }
+                  return certificateGenerator.requestGeneration(tenantId, examinationId, {
+                    documentType: 'result_certificate',
+                    candidateIds: registrationIds,
+                  });
+                }
+              : undefined,
         })
       : undefined;
     if (resultRepository) {
@@ -148,6 +162,7 @@ export const examinationPlugin = fp(
         undefined,
         outboxStore,
       );
+      certificateGenerator = documentGenerationService;
       fastify.decorate('documentGenerationService', documentGenerationService);
 
       // Encapsulate: document-routes installs a plugin-wide `document.generate` preHandler
