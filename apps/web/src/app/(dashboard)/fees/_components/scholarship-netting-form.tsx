@@ -17,6 +17,7 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import { applyScholarshipNettingAction } from '@/lib/fees/actions';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 import type { NettableScholarshipDisbursement, ScholarshipNettingResult } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
@@ -69,6 +70,7 @@ export function ScholarshipNettingForm({
     disbursementId: string;
     invoiceId: string;
     currency?: string;
+    idempotencyKey: string;
   } | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -88,6 +90,8 @@ export function ScholarshipNettingForm({
       invoiceId: String(fd.get('invoiceId') ?? '').trim(),
       // PRC-L040: send the disbursement's currency when known, otherwise let the server choose.
       ...(disbursement.currency ? { currency: disbursement.currency } : {}),
+      // PRC-H058: one Idempotency-Key per submission; a double-confirm reuses it.
+      idempotencyKey: generateIdempotencyKey(),
     });
     setConfirmOpen(true);
   }

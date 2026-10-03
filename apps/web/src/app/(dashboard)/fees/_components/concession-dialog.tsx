@@ -16,6 +16,7 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import { applyConcessionAction } from '@/lib/fees/actions';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 
 export function ConcessionDialog({
   studentId,
@@ -38,6 +39,8 @@ export function ConcessionDialog({
     const fd = new FormData(event.currentTarget);
     // PRC-L238: blank stays blank (undefined) so validation rejects it instead of applying 0%.
     const rawPercent = String(fd.get('percent') ?? '').trim();
+    // PRC-H058: one Idempotency-Key per submission.
+    const idempotencyKey = generateIdempotencyKey();
     startTransition(async () => {
       setError(null);
       setFieldErrors({});
@@ -48,6 +51,7 @@ export function ConcessionDialog({
         kind: 'percent',
         percent: rawPercent === '' ? undefined : Number(rawPercent),
         reason: String(fd.get('reason') ?? ''),
+        idempotencyKey,
       });
       if (!result.success) {
         const byField: Record<string, string> = {};
