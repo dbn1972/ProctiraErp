@@ -670,7 +670,8 @@
     "accessDeniedTitle": "पहुँच अस्वीकृत",
     "accessDeniedHelp": "यदि आपको लगता है कि आपके पास पहुँच होनी चाहिए तो अपने प्रशासक से संपर्क करें।",
     "returnToDashboard": "डैशबोर्ड पर वापस जाएँ",
-    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड"
+    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड",
+    "unknownStudent": "अज्ञात छात्र"
   },
   "workflows": {
     "title": "कार्यप्रवाह परिभाषाएं",

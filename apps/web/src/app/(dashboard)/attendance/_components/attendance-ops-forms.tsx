@@ -18,13 +18,13 @@ import {
 const uuid = z.string().uuid();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+// PRC-M081: the attendance record and its current ("from") status are
+// resolved server-side from student + class + date — no pasted ids.
 const regularisationSchema = z.object({
-  attendanceId: uuid,
   studentId: uuid,
   institutionId: uuid,
   classId: uuid,
   attendanceDate: isoDate,
-  fromStatus: z.string().min(1),
   toStatus: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'EARLY_DEPARTURE']),
   reason: z.string().max(2000).optional(),
 });
@@ -40,6 +40,10 @@ const leaveSchema = z.object({
   attachmentUrl: z.string().url().optional().or(z.literal('')),
 });
 
+function labelFor(map: Map<string, string>, id: string, fallback: string): string {
+  return map.get(id) ?? fallback;
+}
+
 export function AttendanceOpsForms({
   regularisations,
   leaves,
@@ -51,6 +55,7 @@ export function AttendanceOpsForms({
   regularisations: Array<{
     id: string;
     studentId: string;
+    classId?: string;
     fromStatus: string;
     toStatus: string;
     status: string;
@@ -59,6 +64,7 @@ export function AttendanceOpsForms({
   leaves: Array<{
     id: string;
     studentId: string;
+    classId?: string;
     fromDate: string;
     toDate: string;
     status: string;
@@ -71,6 +77,8 @@ export function AttendanceOpsForms({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
+  const classLabels = new Map(classOptions.map((o) => [o.id, o.label]));
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -89,12 +97,10 @@ export function AttendanceOpsForms({
           setError(null);
           const fd = new FormData(event.currentTarget);
           const parsed = regularisationSchema.safeParse({
-            attendanceId: fd.get('attendanceId'),
             studentId: fd.get('studentId'),
             institutionId: fd.get('institutionId'),
             classId: fd.get('classId'),
             attendanceDate: fd.get('attendanceDate'),
-            fromStatus: fd.get('fromStatus'),
             toStatus: fd.get('toStatus'),
             reason: String(fd.get('reason') ?? '') || undefined,
           });
@@ -113,10 +119,10 @@ export function AttendanceOpsForms({
         }}
       >
         <h3 className="text-base font-semibold sm:col-span-2">Request regularisation</h3>
-        <div className="space-y-1">
-          <Label htmlFor="attendanceId">Attendance record id</Label>
-          <Input id="attendanceId" name="attendanceId" required />
-        </div>
+        <p className="text-sm text-muted-foreground sm:col-span-2" id="regularisation-help">
+          Pick the student, class and date. The recorded mark is looked up automatically and used as
+          the current status.
+        </p>
         <EntitySearchSelect
           id="studentId"
           name="studentId"
@@ -141,10 +147,6 @@ export function AttendanceOpsForms({
         <div className="space-y-1">
           <Label htmlFor="attendanceDate">Date</Label>
           <Input id="attendanceDate" name="attendanceDate" type="date" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="fromStatus">From status</Label>
-          <Input id="fromStatus" name="fromStatus" defaultValue="ABSENT" required />
         </div>
         <div className="space-y-1">
           <Label htmlFor="toStatus">To status</Label>
@@ -183,6 +185,10 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
+                {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.attendanceDate} · {row.fromStatus} → {row.toStatus} · {row.status}
               </span>
               {row.status === 'requested' ? (
@@ -314,6 +320,10 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
+                {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.fromDate}–{row.toDate} · {row.status}
                 {row.reason ? ` · ${row.reason}` : ''}
               </span>

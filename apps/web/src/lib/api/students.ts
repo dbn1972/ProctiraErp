@@ -83,6 +83,8 @@ export interface StudentListFilters {
   status?: 'ENROLLED' | 'TRANSFERRED' | 'WITHDRAWN' | 'GRADUATED' | 'ALL';
   sortBy?: 'firstName' | 'lastName' | 'dateOfBirth' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
+  /** PRC-M097: batch lookup by id (max 100 per request). */
+  ids?: string[];
 }
 
 export interface CreateStudentInput {
@@ -223,6 +225,7 @@ function toQuery(filters: StudentListFilters): string {
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
   if (filters.gradeId) params.set('gradeId', filters.gradeId);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  if (filters.ids && filters.ids.length > 0) params.set('ids', filters.ids.join(','));
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }

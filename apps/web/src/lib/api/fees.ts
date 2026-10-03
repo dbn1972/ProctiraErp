@@ -136,6 +136,8 @@ export interface CreateFeeStructureInput {
   academicPeriodId?: string;
   gradeId?: string;
   classId?: string;
+  /** PRC-M091: instalments created atomically with the structure. */
+  partCount?: number;
 }
 
 function throwIfMissing<T>(
@@ -289,6 +291,26 @@ export async function bulkInvoiceStructure(
   return throwIfMissing(result, 'Failed to bulk invoice');
 }
 
+/** PRC-M086: dry-run count + total for the bulk-invoice confirm dialog. */
+export interface BulkInvoicePreview {
+  structureId: string;
+  studentCount: number;
+  toCreateCount: number;
+  skippedCount: number;
+  totalAmountCents: number;
+  currency: string;
+}
+export async function previewBulkInvoiceStructure(
+  structureId: string,
+  input: { classId?: string; gradeId?: string; studentIds?: string[] },
+): Promise<BulkInvoicePreview> {
+  const result = await gatewayFetch<BulkInvoicePreview>(
+    `/fees/structures/${structureId}/bulk-invoice/preview`,
+    { method: 'POST', json: input },
+  );
+  return throwIfMissing(result, 'Failed to preview bulk invoice');
+}
+
 export async function applyConcession(input: {
   studentId: string;
   structureId: string;
@@ -424,10 +446,22 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
-export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
+/**
+ * PRC-M089: record a staff-collected payment (method, partial amount,
+ * reference) with a client idempotency key so a double submit pays once.
+ */
+export async function recordInvoicePayment(
+  invoiceId: string,
+  input: {
+    method: 'cash' | 'upi' | 'sandbox';
+    amountCents: number;
+    idempotencyKey: string;
+    reference?: string;
+  },
+): Promise<FeeInvoice> {
   const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
     method: 'POST',
-    json: { method: 'sandbox' },
+    json: input,
   });
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }

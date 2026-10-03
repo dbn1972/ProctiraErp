@@ -147,9 +147,36 @@ function getRoute(): string {
   return window.location.pathname || '/';
 }
 
-/** Build the localStorage key for a given form id at the current route. */
-export function buildDraftKey(formId: string): string {
-  return `${getBrand()}-draft:${getRoute()}:${formId}`;
+/**
+ * Build the localStorage key for a given form id at the current route.
+ *
+ * PRC-M079: when a `scope` (tenantId:userId) is supplied it is embedded in
+ * the key so a draft written by one user/tenant on a shared device is never
+ * restored for another.
+ */
+export function buildDraftKey(formId: string, scope?: string): string {
+  const scoped = scope ? `${scope}:` : '';
+  return `${getBrand()}-draft:${scoped}${getRoute()}:${formId}`;
+}
+
+/**
+ * PRC-M079: remove every persisted draft for this brand. Called on logout,
+ * 401 and user/tenant switch so a shared device never keeps the previous
+ * user's in-progress form data. Best-effort; never throws.
+ */
+export function purgeAllDrafts(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const prefix = `${getBrand()}-draft:`;
+    const doomed: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith(prefix)) doomed.push(key);
+    }
+    for (const key of doomed) window.localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable — nothing to purge.
+  }
 }
 
 /**
@@ -157,7 +184,7 @@ export function buildDraftKey(formId: string): string {
  * is unavailable, the slot is empty, or the persisted envelope is
  * malformed / stale.
  */
-function readDraft<T>(key: string): DraftEnvelope<T> | null {
+function readDraft<T>(key: string, ttlMs?: number): DraftEnvelope<T> | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(key);
@@ -172,7 +199,16 @@ function readDraft<T>(key: string): DraftEnvelope<T> | null {
       window.localStorage.removeItem(key);
       return null;
     }
-    return parsed as DraftEnvelope<T>;
+    const envelope = parsed as DraftEnvelope<T>;
+    if (ttlMs !== undefined) {
+      // PRC-M079: expired drafts are discarded, never restored.
+      const savedAt = Date.parse(envelope.savedAt);
+      if (!Number.isFinite(savedAt) || Date.now() - savedAt > ttlMs) {
+        window.localStorage.removeItem(key);
+        return null;
+      }
+    }
+    return envelope;
   } catch {
     // SecurityError (private mode), QuotaExceededError, or invalid JSON.
     return null;
@@ -208,6 +244,22 @@ function removeDraft(key: string): void {
 
 // ─── Public hook ─────────────────────────────────────────────────────────────
 
+/** Optional scoping / lifetime controls for `useDraftAutosave`. */
+export interface DraftAutosaveOptions {
+  /**
+   * Identity scope embedded in the storage key, normally
+   * `<tenantId>:<userId>` (PRC-M079).
+   */
+  scope?: string;
+  /** Discard drafts older than this many milliseconds (PRC-M079). */
+  ttlMs?: number;
+  /**
+   * When true the hook neither reads nor writes storage. Use while the
+   * form has no stable identity (e.g. no user scope or no selection).
+   */
+  disabled?: boolean;
+}
+
 /**
  * Auto-save in-progress form data to `localStorage` and rehydrate on
  * remount. See module-level docs for the full contract.
@@ -222,7 +274,9 @@ function removeDraft(key: string): void {
 export function useDraftAutosave<T>(
   formId: string,
   intervalMs: number = DRAFT_AUTOSAVE_DEFAULT_INTERVAL_MS,
+  options: DraftAutosaveOptions = {},
 ): DraftAutosave<T> {
+  const { scope, ttlMs, disabled = false } = options;
   // Clamp the interval to the AC ceiling. Negative or NaN values fall
   // through to the default; ergonomics over strict validation.
   const safeInterval =
@@ -235,30 +289,44 @@ export function useDraftAutosave<T>(
   // mid-form. Both `formId` and the route should be stable for a
   // given form mount; if the caller passes a different `formId` we
   // pick it up via the useRef + effect dance below.
-  const keyRef = useRef<string>(buildDraftKey(formId));
-  useEffect(() => {
-    keyRef.current = buildDraftKey(formId);
-  }, [formId]);
-
-  const [hydrated, setHydrated] = useState<DraftEnvelope<T> | null>(() =>
-    readDraft<T>(keyRef.current),
-  );
-
-  // Rehydrate after mount so SSR renders match the server's empty
-  // state and the client picks up the stored draft on hydrate. We
-  // deliberately re-read in an effect: `useState`'s initializer runs
-  // on the server during Next's SSR pass, where `window` may be
-  // unavailable. The effect only runs in the browser.
-  useEffect(() => {
-    setHydrated(readDraft<T>(keyRef.current));
-  }, []);
-
+  // `null` key = storage disabled for this mount.
+  const keyRef = useRef<string | null>(disabled ? null : buildDraftKey(formId, scope));
   // Debounce machinery. We keep both the timer and the most recent
   // pending value in refs so the public callbacks remain referentially
   // stable and we never miss a final save when the component unmounts
   // mid-debounce.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<T | null>(null);
+  const ttlRef = useRef<number | undefined>(ttlMs);
+  ttlRef.current = ttlMs;
+
+  const [hydrated, setHydrated] = useState<DraftEnvelope<T> | null>(() =>
+    keyRef.current ? readDraft<T>(keyRef.current, ttlMs) : null,
+  );
+
+  // Rehydrate after mount so SSR renders match the server's empty
+  // state and the client picks up the stored draft on hydrate. We
+  // deliberately re-read in an effect: `useState`'s initializer runs
+  // on the server during Next's SSR pass, where `window` may be
+  // unavailable. The effect only runs in the browser. It also re-runs
+  // when the key changes (PRC-M080) so a draft for one selection is
+  // never presented under another selection.
+  useEffect(() => {
+    const nextKey = disabled ? null : buildDraftKey(formId, scope);
+    if (nextKey !== keyRef.current) {
+      // Persist any pending edit under the key it was made for before switching.
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (pendingRef.current !== null && keyRef.current) {
+        writeDraft<T>(keyRef.current, pendingRef.current);
+      }
+      pendingRef.current = null;
+    }
+    keyRef.current = nextKey;
+    setHydrated(keyRef.current ? readDraft<T>(keyRef.current, ttlRef.current) : null);
+  }, [formId, scope, disabled]);
 
   const flushPending = useCallback(() => {
     if (timerRef.current !== null) {
@@ -266,7 +334,7 @@ export function useDraftAutosave<T>(
       timerRef.current = null;
     }
     if (pendingRef.current !== null) {
-      writeDraft<T>(keyRef.current, pendingRef.current);
+      if (keyRef.current) writeDraft<T>(keyRef.current, pendingRef.current);
       pendingRef.current = null;
     }
   }, []);
@@ -281,7 +349,7 @@ export function useDraftAutosave<T>(
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         if (pendingRef.current !== null) {
-          writeDraft<T>(keyRef.current, pendingRef.current);
+          if (keyRef.current) writeDraft<T>(keyRef.current, pendingRef.current);
           pendingRef.current = null;
         }
       }, safeInterval);
@@ -303,12 +371,12 @@ export function useDraftAutosave<T>(
       timerRef.current = null;
     }
     pendingRef.current = null;
-    removeDraft(keyRef.current);
+    if (keyRef.current) removeDraft(keyRef.current);
     setHydrated(null);
   }, []);
 
   const restore = useCallback((): T | null => {
-    const env = readDraft<T>(keyRef.current);
+    const env = keyRef.current ? readDraft<T>(keyRef.current, ttlRef.current) : null;
     setHydrated(env);
     return env?.values ?? null;
   }, []);

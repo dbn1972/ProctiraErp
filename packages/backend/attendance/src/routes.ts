@@ -17,6 +17,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
 import type { AttendanceService } from './attendance-service.js';
 import {
   RecordStudentAttendanceSchema,
@@ -33,7 +34,6 @@ import {
   type AbsenceThresholdCheckQueryInput,
 } from './schemas.js';
 
-import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
 
 /**
  * Options for registering attendance routes.
@@ -395,6 +395,50 @@ export async function registerAttendanceRoutes(
           result.data,
         );
         return reply.status(200).send(percentage);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /attendance/reports/export
+   * PRC-M082: explicit export action for the attendance report. Same
+   * computation as GET /percentage, but as a mutating request so the
+   * gateway's mutation audit trail records who exported which scope/range.
+   */
+  fastify.post(
+    `${prefix}/reports/export`,
+    async function exportReportHandler(
+      request: FastifyRequest<{ Body: AttendancePercentageQueryInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(AttendancePercentageQuerySchema, { ...(request.body ?? {}) });
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const percentage = await attendanceService.calculateAttendancePercentage(
+          tenantId,
+          result.data,
+        );
+        return reply.status(200).send({ ...percentage, exportedAt: new Date().toISOString() });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

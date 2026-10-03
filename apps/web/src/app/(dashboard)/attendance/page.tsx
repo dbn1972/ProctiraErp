@@ -24,6 +24,7 @@ import type { ClassSection } from '@/lib/institutions/types';
 
 import { AttendanceMarkingForm } from './_components/attendance-marking-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { getSession } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,9 @@ export default async function AttendancePage(props: PageProps) {
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
+  // PRC-M079: scope local drafts to the signed-in tenant + user.
+  const session = await getSession();
+  const draftScope = session ? `${session.user.tenantId}:${session.user.sub}` : undefined;
   const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     institutionId
@@ -158,6 +162,7 @@ export default async function AttendancePage(props: PageProps) {
               date,
             }}
             roster={roster}
+            draftScope={draftScope}
           />
         </CardContent>
       </Card>

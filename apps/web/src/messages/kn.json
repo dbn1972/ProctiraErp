@@ -670,7 +670,8 @@
     "accessDeniedTitle": "ಪ್ರವೇಶ ನಿರಾಕರಿಸಲಾಗಿದೆ",
     "accessDeniedHelp": "ನಿಮಗೆ ಪ್ರವೇಶ ಇರಬೇಕೆಂದು ಭಾವಿಸಿದರೆ ನಿಮ್ಮ ನಿರ್ವಾಹಕರನ್ನು ಸಂಪರ್ಕಿಸಿ.",
     "returnToDashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ಗೆ ಹಿಂತಿರುಗಿ",
-    "tableAriaLabel": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು"
+    "tableAriaLabel": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು",
+    "unknownStudent": "ಅಜ್ಞಾತ ವಿದ್ಯಾರ್ಥಿ"
   },
   "workflows": {
     "title": "ವರ್ಕ್‌ಫ್ಲೋ ವ್ಯಾಖ್ಯಾನಗಳು",

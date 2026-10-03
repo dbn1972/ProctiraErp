@@ -341,6 +341,9 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   if (filter.search) {
     where.OR = nameOrNationalIdMatch(filter.search);
   }
+  if (filter.ids) {
+    where.id = { in: filter.ids };
+  }
   if (filter.institutionId) {
     where.enrollments = {
       some: {

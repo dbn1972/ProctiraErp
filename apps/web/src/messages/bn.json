@@ -670,7 +670,8 @@
     "accessDeniedTitle": "প্রবেশ অস্বীকৃত",
     "accessDeniedHelp": "আপনার প্রবেশাধিকার থাকা উচিত মনে করলে আপনার প্রশাসকের সাথে যোগাযোগ করুন।",
     "returnToDashboard": "ড্যাশবোর্ডে ফিরে যান",
-    "tableAriaLabel": "স্বাস্থ্য রেকর্ড"
+    "tableAriaLabel": "স্বাস্থ্য রেকর্ড",
+    "unknownStudent": "অজানা শিক্ষার্থী"
   },
   "workflows": {
     "title": "ওয়ার্কফ্লো সংজ্ঞা",
