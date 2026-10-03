@@ -117,6 +117,40 @@ export interface ReportCardServiceOptions {
    * explicitly rather than issuing report cards with blank names.
    */
   directory?: ReportCardDirectory | null;
+  /** PRC-M165: structured logger for publish / processing failures. */
+  logger?: ReportCardServiceLogger;
+  /**
+   * PRC-M165: a `processing` job untouched for this long is considered abandoned
+   * by a crashed worker and may be reclaimed. Default 15 minutes.
+   */
+  staleProcessingMs?: number;
+}
+
+export interface ReportCardServiceLogger {
+  warn(obj: Record<string, unknown>, msg: string): void;
+  error(obj: Record<string, unknown>, msg: string): void;
+}
+
+/** PRC-M165: options for a single processing attempt. */
+export interface ProcessReportCardJobOptions {
+  /**
+   * Queue workers set this so transient failures propagate and the broker
+   * retries / dead-letters the message. Inline (HTTP) callers get the stored
+   * `failed` job instead.
+   */
+  rethrowRetryable?: boolean;
+}
+
+/** Default abandonment window for `processing` jobs (PRC-M165). */
+export const DEFAULT_STALE_PROCESSING_MS = 15 * 60 * 1000;
+
+/**
+ * PRC-M165: client / data errors (4xx AppErrors) will not succeed on retry;
+ * everything else (DB, store, network) is treated as transient.
+ */
+export function isRetryableReportCardError(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return !(typeof status === 'number' && status >= 400 && status < 500);
 }
 
 /** A generated report card ready to be streamed to a client. */
@@ -343,8 +377,9 @@ export class ReportCardService {
             retryCount: 0,
           },
         });
-      } catch {
-        // Leave status=queued for reclaim — do not fail the API create.
+      } catch (error: unknown) {
+        // Leave status=queued for reclaim — do not fail the API create (PRC-M165: but log it).
+        this.logPublishFailure(tenantId, job.id, error);
       }
     } else if (this.options.processInline) {
       return this.processReportCardJob(tenantId, job.id);
@@ -415,8 +450,9 @@ export class ReportCardService {
               retryCount: 0,
             },
           });
-        } catch {
-          // Leave status=queued for reclaimQueuedJobs.
+        } catch (error: unknown) {
+          // Leave status=queued for reclaimQueuedJobs (PRC-M165: but log it).
+          this.logPublishFailure(tenantId, job.id, error);
         }
       } else if (this.options.processInline) {
         jobs.push(await this.processReportCardJob(tenantId, job.id));
@@ -451,7 +487,14 @@ export class ReportCardService {
    * create→publish dual-write crash. Returns the number of jobs touched.
    */
   async reclaimQueuedJobs(tenantId: string): Promise<number> {
-    const orphaned = await this.jobRepo.listByStatus(tenantId, 'queued');
+    // PRC-M165: also reclaim `processing` rows abandoned by a crashed worker.
+    const staleBefore = this.staleBefore();
+    const orphaned = [
+      ...(await this.jobRepo.listByStatus(tenantId, 'queued')),
+      ...(await this.jobRepo.listByStatus(tenantId, 'processing')).filter(
+        (job) => job.updatedAt < staleBefore,
+      ),
+    ];
     let count = 0;
     for (const job of orphaned) {
       if (this.taskQueuePublisher) {
@@ -492,20 +535,24 @@ export class ReportCardService {
    *
    * Requirement 8.7: Full report card generation.
    */
-  async processReportCardJob(tenantId: string, jobId: string): Promise<ReportCardJobEntity> {
-    const job = await this.jobRepo.findById(jobId, tenantId);
-    if (!job) {
+  async processReportCardJob(
+    tenantId: string,
+    jobId: string,
+    processOptions: ProcessReportCardJobOptions = {},
+  ): Promise<ReportCardJobEntity> {
+    const current = await this.jobRepo.findById(jobId, tenantId);
+    if (!current) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
     }
-
     // Idempotent: completed jobs survive redelivery after worker crash/ack loss.
-    if (job.status === 'completed') {
-      return job;
+    if (current.status === 'completed') {
+      return current;
     }
-
-    // Mark as processing
-    await this.jobRepo.updateStatus(jobId, tenantId, 'processing');
-
+    // PRC-M165: compare-and-set claim; a concurrent/duplicate delivery is a no-op.
+    const job = await this.jobRepo.claimForProcessing(jobId, tenantId, this.staleBefore());
+    if (!job) {
+      return (await this.jobRepo.findById(jobId, tenantId)) ?? current;
+    }
     try {
       // Get template
       const template = await this.templateRepo.findById(job.templateId, tenantId);
@@ -646,8 +693,31 @@ export class ReportCardService {
       const failedJob = await this.jobRepo.updateStatus(jobId, tenantId, 'failed', {
         errorMessage,
       });
+      const retryable = isRetryableReportCardError(error);
+      this.options.logger?.error(
+        { tenantId, jobId, retryable, err: errorMessage },
+        'report-card job failed',
+      );
+      // PRC-M165: `failed` is claimable again, so a broker redelivery retries it;
+      // after maxRetries the broker dead-letters the message.
+      if (retryable && processOptions.rethrowRetryable) {
+        throw error;
+      }
       return failedJob!;
     }
+  }
+
+  private staleBefore(): Date {
+    return new Date(
+      Date.now() - (this.options.staleProcessingMs ?? DEFAULT_STALE_PROCESSING_MS),
+    );
+  }
+
+  private logPublishFailure(tenantId: string, jobId: string, error: unknown): void {
+    this.options.logger?.warn(
+      { tenantId, jobId, err: error instanceof Error ? error.message : String(error) },
+      'report-card job publish failed; left queued for reclaim',
+    );
   }
 
   /** Storage key for a job's PDF: `report-cards/<tenant>/<student>/<period>/<job>.pdf`. */

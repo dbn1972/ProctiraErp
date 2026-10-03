@@ -202,6 +202,10 @@ export const assessmentPlugin = fp(
           directory: resolvedDirectory,
           // Without a queue consumer there is no worker, so finish the job in-request.
           processInline: !effectivePublisher,
+          logger: {
+            warn: (obj, msg) => fastify.log.warn(obj, msg),
+            error: (obj, msg) => fastify.log.error(obj, msg),
+          },
         },
       );
 
