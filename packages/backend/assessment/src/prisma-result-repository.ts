@@ -68,6 +68,56 @@ async function upsertInTx(
   return toEntity(row);
 }
 
+/** PRC-M164: rows per UNNEST statement (keeps bind arrays bounded). */
+export const BULK_UPSERT_CHUNK = 1000;
+
+/**
+ * PRC-M164: set-based upsert — one `INSERT ... SELECT FROM UNNEST(...) ON CONFLICT`
+ * per chunk instead of one round-trip per row. Duplicate (student, item) keys in
+ * the input keep the last value (ON CONFLICT cannot touch a row twice).
+ * All values are bound parameters; tenant comes from the bound transaction.
+ */
+export async function bulkUpsertInTx(
+  tx: TenantTransactionClient,
+  tenantId: string,
+  data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>[],
+): Promise<AssessmentResultEntity[]> {
+  const deduped = new Map<string, Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>>();
+  for (const entry of data) {
+    if (entry.tenantId !== tenantId) {
+      throw new Error('bulkUpsert: all rows must belong to the same tenant');
+    }
+    deduped.set(`${entry.studentId}:${entry.assessmentItemId}`, entry);
+  }
+  const rows = [...deduped.values()];
+  const out: AssessmentResultEntity[] = [];
+  for (let i = 0; i < rows.length; i += BULK_UPSERT_CHUNK) {
+    const chunk = rows.slice(i, i + BULK_UPSERT_CHUNK);
+    const returned = (await tx.$queryRawUnsafe(
+      `INSERT INTO assessment_results
+         (id, tenant_id, student_id, assessment_item_id, subject_id, academic_period_id, score, created_at, updated_at)
+       SELECT u.id, $1::uuid, u.student_id, u.assessment_item_id, u.subject_id, u.academic_period_id, u.score, now(), now()
+         FROM UNNEST($2::uuid[], $3::uuid[], $4::uuid[], $5::uuid[], $6::uuid[], $7::float8[])
+           AS u(id, student_id, assessment_item_id, subject_id, academic_period_id, score)
+       ON CONFLICT (tenant_id, student_id, assessment_item_id)
+         DO UPDATE SET score = EXCLUDED.score, updated_at = now()
+       RETURNING id::text AS "id", tenant_id::text AS "tenantId", student_id::text AS "studentId",
+                 assessment_item_id::text AS "assessmentItemId", subject_id::text AS "subjectId",
+                 academic_period_id::text AS "academicPeriodId", score, created_at AS "createdAt",
+                 updated_at AS "updatedAt"`,
+      tenantId,
+      chunk.map((r) => r.id),
+      chunk.map((r) => r.studentId),
+      chunk.map((r) => r.assessmentItemId),
+      chunk.map((r) => r.subjectId),
+      chunk.map((r) => r.academicPeriodId),
+      chunk.map((r) => r.score),
+    )) as AssessmentResultRow[];
+    out.push(...returned.map((r) => toEntity({ ...r, score: Number(r.score) })));
+  }
+  return out;
+}
+
 export class PrismaAssessmentResultRepository implements AssessmentResultRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -82,13 +132,9 @@ export class PrismaAssessmentResultRepository implements AssessmentResultReposit
   ): Promise<AssessmentResultEntity[]> {
     if (data.length === 0) return [];
     const tenantId = data[0]!.tenantId;
-    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      const results: AssessmentResultEntity[] = [];
-      for (const entry of data) {
-        results.push(await upsertInTx(tx, entry));
-      }
-      return results;
-    });
+    return withTenantTransaction(this.prisma, tenantId, async (tx) =>
+      bulkUpsertInTx(tx, tenantId, data),
+    );
   }
 
   async findByStudentSubjectPeriod(

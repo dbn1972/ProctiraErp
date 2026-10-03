@@ -13,7 +13,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ResultService } from './result-service.js';
+import { MAX_GRADE_PAGE_SIZE, type ResultService } from './result-service.js';
 import {
   EnterSingleResultSchema,
   BulkResultEntrySchema,
@@ -250,12 +250,20 @@ const { resultService, resultsPrefix = '/results' } = options;
           return reply.status(200).send({ data: [grade] });
         } else {
           // All students
-          const grades = await resultService.calculateAllGrades(
+          // PRC-M164: bounded page (default 500) with total for client paging.
+          const paged = await resultService.calculateGradesPage(
             tenantId,
             result.data.subjectId,
             result.data.academicPeriodId,
+            {
+              page: result.data.page ? Number(result.data.page) : 1,
+              limit: result.data.limit ? Number(result.data.limit) : MAX_GRADE_PAGE_SIZE,
+            },
           );
-          return reply.status(200).send({ data: grades });
+          return reply.status(200).send({
+            data: paged.data,
+            meta: { page: paged.page, limit: paged.limit, total: paged.total },
+          });
         }
       } catch (error: unknown) {
         if (error instanceof AppError) {

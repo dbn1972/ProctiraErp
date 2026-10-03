@@ -145,6 +145,11 @@ export const StudentResultsQuerySchema = Type.Object({
       description: 'Student UUID (optional, returns all students if omitted)',
     }),
   ),
+  // PRC-M164: subject-wide listings are paged (default/maximum 500 per page).
+  page: Type.Optional(Type.String({ pattern: '^[1-9][0-9]{0,6}$', description: 'Page (1-based)' })),
+  limit: Type.Optional(
+    Type.String({ pattern: '^[1-9][0-9]{0,2}$', description: 'Page size (max 500)' }),
+  ),
 });
 
 export type StudentResultsQuery = Static<typeof StudentResultsQuerySchema>;
