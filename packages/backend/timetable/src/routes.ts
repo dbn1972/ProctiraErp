@@ -904,11 +904,21 @@ export async function registerTimetableRoutes(
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
     try {
-      const query = request.query as { institutionId?: string };
+      const query = request.query as { institutionId?: string; limit?: string; offset?: string };
+      const limit = query.limit === undefined ? undefined : Number(query.limit);
+      const offset = query.offset === undefined ? undefined : Number(query.offset);
+      if (
+        (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) ||
+        (offset !== undefined && (!Number.isInteger(offset) || offset < 0))
+      ) {
+        return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      }
       const rows = await service.listGenerationJobs(tenantId, {
         institutionId: query.institutionId,
+        limit,
+        offset,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page: { limit: Math.min(limit ?? 50, 100), offset: offset ?? 0 } });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -946,8 +956,12 @@ export async function registerTimetableRoutes(
     }
     try {
       const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
-      const row = await service.runGenerationJob(tenantId, validated.data, actor);
-      return reply.status(201).send(row);
+      // PRC-M401: `?async=true` queues the run and returns 202; poll GET /generation-jobs/:id.
+      const runAsync = (request.query as { async?: string } | undefined)?.async === 'true';
+      const row = await service.runGenerationJob(tenantId, validated.data, actor, {
+        async: runAsync,
+      });
+      return reply.status(runAsync ? 202 : 201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
     }

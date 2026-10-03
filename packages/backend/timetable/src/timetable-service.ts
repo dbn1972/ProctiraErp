@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { NotFoundError, ValidationError } from '@proctira/common';
+import { AppError, NotFoundError, ValidationError } from '@proctira/common';
 
 import {
   detectMeetingClashes,
@@ -72,6 +72,18 @@ type SubstitutionInput = {
   status?: string;
 };
 
+/** PRC-M401: a queued/running generation older than this is treated as crashed. */
+const GENERATION_STALE_MS = 15 * 60 * 1000;
+const GENERATION_STALE_MESSAGE = 'Generation interrupted (worker stopped); re-run the job';
+/** PRC-M401: per-process cap on concurrent solver runs (CPU-bound). */
+const DEFAULT_GENERATION_CONCURRENCY = 2;
+
+/** Client-safe failure text: domain validation messages pass through, internals do not. */
+function sanitizeGenerationError(error: unknown): string {
+  if (error instanceof AppError && error.statusCode < 500) return error.message;
+  return 'Generation failed due to an internal error';
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -99,11 +111,21 @@ export class TimetableService {
   private readonly auditLog: TimetableAuditEntry[] = [];
   private readonly ops: TimetableOpsStore;
 
+  private runningGenerations = 0;
+  private readonly maxConcurrentGenerations: number;
+
   constructor(
     private readonly repo: TimetableRepository,
     ops?: TimetableOpsStore,
+    options: { maxConcurrentGenerations?: number } = {},
   ) {
     this.ops = ops ?? new InMemoryTimetableOpsStore();
+    const envCap = Number(process.env.TIMETABLE_GENERATION_MAX_CONCURRENCY);
+    this.maxConcurrentGenerations = Math.max(
+      1,
+      options.maxConcurrentGenerations ??
+        (Number.isInteger(envCap) && envCap > 0 ? envCap : DEFAULT_GENERATION_CONCURRENCY),
+    );
   }
 
   listAudits(tenantId: string): TimetableAuditEntry[] {
@@ -802,8 +824,21 @@ export class TimetableService {
     return this.repo.listAttendancePeriods(tenantId, filter);
   }
 
-  listGenerationJobs(tenantId: string, filter: { institutionId?: string }) {
+  /** PRC-M401: sweeps crashed runs, then returns a bounded summary page (no blobs). */
+  async listGenerationJobs(
+    tenantId: string,
+    filter: { institutionId?: string; limit?: number; offset?: number },
+  ) {
+    await this.sweepStaleGenerationJobs(tenantId);
     return this.ops.listJobs(tenantId, filter);
+  }
+
+  async sweepStaleGenerationJobs(tenantId: string, now: number = Date.now()): Promise<number> {
+    return this.ops.failStaleJobs(
+      tenantId,
+      new Date(now - GENERATION_STALE_MS).toISOString(),
+      GENERATION_STALE_MESSAGE,
+    );
   }
 
   getGenerationJob(tenantId: string, id: string) {
@@ -817,7 +852,16 @@ export class TimetableService {
     tenantId: string,
     input: CreateGenerationJobInput,
     requestedBy: string | null,
+    options: { async?: boolean } = {},
   ): Promise<GenerationJobRecord> {
+    if (this.runningGenerations >= this.maxConcurrentGenerations) {
+      throw new AppError(
+        'Too many timetable generations are running; retry shortly',
+        'TOO_MANY_REQUESTS',
+        429,
+      );
+    }
+    await this.sweepStaleGenerationJobs(tenantId);
     const now = nowIso();
     const job = await this.ops.createJob({
       id: randomUUID(),
@@ -844,6 +888,23 @@ export class TimetableService {
       updatedAt: now,
     });
 
+    this.runningGenerations += 1;
+    if (options.async) {
+      // PRC-M401: off the request path; the stale sweeper fails it if the process dies.
+      setImmediate(() => {
+        void this.executeGenerationJob(tenantId, job, input, requestedBy).catch(() => undefined);
+      });
+      return job;
+    }
+    return this.executeGenerationJob(tenantId, job, input, requestedBy);
+  }
+
+  private async executeGenerationJob(
+    tenantId: string,
+    job: GenerationJobRecord,
+    input: CreateGenerationJobInput,
+    requestedBy: string | null,
+  ): Promise<GenerationJobRecord> {
     await this.ops.updateJob(tenantId, job.id, {
       status: 'running',
       startedAt: nowIso(),
@@ -928,14 +989,15 @@ export class TimetableService {
       });
       return updated ?? job;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'generation failed';
       const failed = await this.ops.updateJob(tenantId, job.id, {
         status: 'failed',
-        errorMessage: message,
+        errorMessage: sanitizeGenerationError(error),
         finishedAt: nowIso(),
       });
       if (failed) return failed;
       throw error;
+    } finally {
+      this.runningGenerations -= 1;
     }
   }
 
