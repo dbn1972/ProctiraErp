@@ -360,14 +360,19 @@ export async function middleware(request: NextRequest) {
   // (branding only). A client-supplied X-Tenant-ID is never trusted.
   const hostTenant = resolveTenantForRequest(request);
   const resolvedTenantSlug = hostTenant || 'default';
-  const response = NextResponse.next({
-    request: { headers: withTrustedTenantHeader(request, hostTenant) },
-  });
-  ensureCsrfCookie(request, response);
-
   // Look up tenant config from cache (5-min TTL). This validates the tenant
   // exists and provides branding tokens for the SSR layer.
   const tenantConfig = await getTenantConfig(resolvedTenantSlug);
+
+  // PRC-M153: tenant context must reach Server Components as *request* headers
+  // (`headers()` reads the request, not the response). Client-supplied
+  // x-tenant-* values are stripped first so they can never select a tenant.
+  const response = NextResponse.next({
+    request: {
+      headers: withTrustedTenantHeader(request, hostTenant, hostTenant ? tenantConfig.slug : null),
+    },
+  });
+  ensureCsrfCookie(request, response);
 
   // Set tenant context headers for downstream Server Components and API calls.
   response.headers.set('X-Tenant-ID', tenantConfig.id);
@@ -472,12 +477,30 @@ export function handleApiRequest(request: NextRequest): NextResponse {
  * request with the Host-derived tenant (or removes it when unresolved), so
  * route handlers and server components never see a spoofed tenant.
  */
-export function withTrustedTenantHeader(request: NextRequest, tenant: string | null): Headers {
+export function withTrustedTenantHeader(
+  request: NextRequest,
+  tenant: string | null,
+  /** PRC-M153: trusted slug from the resolved tenant config, forwarded as x-tenant-slug. */
+  slug: string | null = null,
+): Headers {
   const headers = new Headers(request.headers);
-  headers.delete('x-tenant-id');
+  for (const name of TENANT_CONTEXT_REQUEST_HEADERS) headers.delete(name);
   if (tenant) headers.set('x-tenant-id', tenant);
+  if (tenant && slug) headers.set('x-tenant-slug', slug);
   return headers;
 }
+
+/**
+ * PRC-M153: tenant context headers only the middleware may set on the forwarded
+ * request; any inbound copy from the client is discarded.
+ */
+const TENANT_CONTEXT_REQUEST_HEADERS = [
+  'x-tenant-id',
+  'x-tenant-slug',
+  'x-tenant-name',
+  'x-tenant-primary-color',
+  'x-tenant-accent-color',
+] as const;
 
 /**
  * Issues the readable double-submit CSRF cookie on page navigations when the
