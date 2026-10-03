@@ -5,12 +5,15 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
+import { isStrictIsoDate } from '../date-of-birth.js';
 import type { StudentEntity, StudentRepository } from '../student-repository.js';
 
 import type { StudentBlobStore } from './blob-store.js';
 import {
   aggregateAttendanceHeatmap,
   defaultHeatmapRange,
+  HEATMAP_MAX_DAYS,
+  heatmapSpanDays,
   type AttendanceDayInput,
   type HeatmapResult,
 } from './heatmap.js';
@@ -397,9 +400,26 @@ export class Students360Service {
     const range = from && to ? { from, to } : defaultHeatmapRange();
     const start = from ?? range.from;
     const end = to ?? range.to;
+    // PRC-M385: calendar-valid dates and a bounded span (checked after
+    // defaulting, so a lone ancient `from` cannot produce a huge range).
+    for (const [field, value] of [
+      ['from', start],
+      ['to', end],
+    ] as const) {
+      if (!isStrictIsoDate(value)) {
+        throw new ValidationError(`${field} must be a valid calendar date`, [
+          { field, rule: 'format', message: `${field} must be a valid calendar date` },
+        ]);
+      }
+    }
     if (start > end) {
       throw new ValidationError('from must be on or before to', [
         { field: 'from', rule: 'range', message: 'from must be on or before to' },
+      ]);
+    }
+    if (heatmapSpanDays(start, end) > HEATMAP_MAX_DAYS) {
+      throw new ValidationError(`Range must not exceed ${HEATMAP_MAX_DAYS} days`, [
+        { field: 'to', rule: 'range', message: `Range must not exceed ${HEATMAP_MAX_DAYS} days` },
       ]);
     }
     const records = this.deps.attendance
