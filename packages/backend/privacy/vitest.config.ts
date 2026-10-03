@@ -4,6 +4,8 @@ import path from 'path';
 export default defineConfig({
   resolve: {
     alias: {
+      // PRC-L579 subpath must precede the package alias.
+      '@proctira/common/node-env': path.resolve(__dirname, '../../shared/common/src/node-env.ts'),
       '@proctira/common': path.resolve(__dirname, '../../shared/common/src/index.ts'),
       '@proctira/logging': path.resolve(__dirname, '../../shared/logging/src/index.ts'),
       '@proctira/validation': path.resolve(__dirname, '../../shared/validation/src/index.ts'),
