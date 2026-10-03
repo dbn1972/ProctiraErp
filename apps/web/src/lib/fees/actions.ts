@@ -29,6 +29,7 @@ import {
   feeStructureFormSchema,
   parseStudentIdList,
   reconciliationFormSchema,
+  recordPaymentFormSchema,
   refundFormSchema,
   reminderSendFormSchema,
   reminderSuppressionFormSchema,
@@ -38,6 +39,7 @@ import {
   type ConcessionFormValues,
   type FeeStructureFormValues,
   type ReconciliationFormValues,
+  type RecordPaymentFormValues,
   type RefundFormValues,
   type ReminderSendFormValues,
   type ReminderSuppressionFormValues,
@@ -207,11 +209,32 @@ export async function refundInvoiceAction(
   }
 }
 
-export async function payInvoiceStaffAction(
-  invoiceId: string,
+/** PRC-M089: sandbox charges for staff are off unless explicitly enabled. */
+function staffSandboxPaymentsEnabled(): boolean {
+  return process.env['FEES_STAFF_SANDBOX_PAYMENTS']?.trim().toLowerCase() === 'true';
+}
+
+export async function recordStaffPaymentAction(
+  values: RecordPaymentFormValues,
 ): Promise<ActionResult<{ id: string }>> {
+  const parsed = recordPaymentFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
+  }
+  if (parsed.data.method === 'sandbox' && !staffSandboxPaymentsEnabled()) {
+    return { success: false, error: 'Sandbox payments are disabled in this environment.' };
+  }
   try {
-    const invoice = await recordInvoicePayment(invoiceId);
+    const invoice = await recordInvoicePayment(parsed.data.invoiceId, {
+      method: parsed.data.method,
+      amountCents: majorUnitsToCents(parsed.data.amount),
+      idempotencyKey: parsed.data.idempotencyKey,
+      ...(parsed.data.reference ? { reference: parsed.data.reference } : {}),
+    });
     refreshFees();
     return { success: true, data: { id: invoice.id } };
   } catch (error) {

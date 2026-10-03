@@ -151,6 +151,8 @@ const PayInvoiceSchema = Type.Object({
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  /** PRC-M089: UPI txn id / receipt-book number for manually recorded payments. */
+  reference: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({

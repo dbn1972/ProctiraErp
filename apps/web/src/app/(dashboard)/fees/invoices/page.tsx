@@ -31,6 +31,9 @@ export default async function FeesInvoicesPage() {
   const invoices = invoicesResult.ok ? invoicesResult.items : [];
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
+  // PRC-M089: the sandbox method is only offered when explicitly enabled.
+  const staffSandboxPayments =
+    process.env['FEES_STAFF_SANDBOX_PAYMENTS']?.trim().toLowerCase() === 'true';
 
   return (
     <div className="space-y-6 p-6">
@@ -85,7 +88,12 @@ export default async function FeesInvoicesPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (
-                      <PayInvoiceStaffButton invoiceId={invoice.id} />
+                      <PayInvoiceStaffButton
+                        invoiceId={invoice.id}
+                        amountCents={invoice.amountCents}
+                        currency={invoice.currency}
+                        sandboxEnabled={staffSandboxPayments}
+                      />
                     ) : null}
                     {invoice.status === 'open' && invoice.structureId ? (
                       <ConcessionDialog

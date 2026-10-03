@@ -83,6 +83,11 @@ export interface RecordPaymentInput {
   amountCents?: number;
   /** W2-FIN-02: replay-safe client/PSP event key (unique per tenant). */
   idempotencyKey?: string;
+  /**
+   * PRC-M089: external reference (UPI txn id, receipt-book no.). Persisted on
+   * the payment's ledger journal memo.
+   */
+  reference?: string;
 }
 
 export interface CreateFeeStructureInput {
@@ -601,7 +606,9 @@ export class FeesService {
             side: side as 'debit' | 'credit',
             amountCents: paymentAmountCents,
             currency: invoice.currency,
-            memo: 'payment received',
+            memo: input.reference?.trim()
+              ? `payment received · ref ${input.reference.trim().slice(0, 100)}`
+              : 'payment received',
             postedBy: actorId,
             postedAt,
           })),

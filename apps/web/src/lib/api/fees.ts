@@ -444,10 +444,22 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
-export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
+/**
+ * PRC-M089: record a staff-collected payment (method, partial amount,
+ * reference) with a client idempotency key so a double submit pays once.
+ */
+export async function recordInvoicePayment(
+  invoiceId: string,
+  input: {
+    method: 'cash' | 'upi' | 'sandbox';
+    amountCents: number;
+    idempotencyKey: string;
+    reference?: string;
+  },
+): Promise<FeeInvoice> {
   const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
     method: 'POST',
-    json: { method: 'sandbox' },
+    json: input,
   });
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }

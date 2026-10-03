@@ -76,6 +76,24 @@ export const bulkInvoiceFormSchema = z.object({
   { message: 'Choose a class or add students to invoice', path: ['classId'] },
 );
 
+/**
+ * PRC-M089: staff "Record payment". Real methods need a reference (UPI txn id
+ * or receipt-book number); `sandbox` is only accepted when the server enables it.
+ */
+export const recordPaymentFormSchema = z
+  .object({
+    invoiceId: z.string().regex(UUID, 'Invoice is required'),
+    method: z.enum(['cash', 'upi', 'sandbox']),
+    amount: positiveAmount('Amount'),
+    reference: z.string().trim().max(100, 'Reference is too long').optional(),
+    idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
+  })
+  .refine((d) => d.method === 'sandbox' || Boolean(d.reference && d.reference.length > 0), {
+    message: 'Reference is required (UPI transaction id or receipt number)',
+    path: ['reference'],
+  });
+export type RecordPaymentFormValues = z.infer<typeof recordPaymentFormSchema>;
+
 export const concessionFormSchema = z
   .object({
     studentId: z.string().regex(UUID, 'Student must be a UUID'),
