@@ -101,7 +101,7 @@ export function resolvePayrollProrationPolicy(
     return value as PayrollProrationPolicy;
   }
   throw new BusinessRuleError(
-    `PAYROLL_PRORATION must be one of ${PAYROLL_PRORATION_POLICIES.join(', ')}; got '${raw}'`,
+    `PAYROLL_PRORATION must be one of ${PAYROLL_PRORATION_POLICIES.join(', ')}; got '${String(raw)}'`,
   );
 }
 
