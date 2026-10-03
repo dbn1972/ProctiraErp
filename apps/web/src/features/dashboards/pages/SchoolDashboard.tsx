@@ -22,6 +22,7 @@
  * mechanical.
  */
 
+import { useOptionalAuthScope } from '@/providers/AuthProvider';
 import { Link } from 'react-router-dom';
 import {
   CalendarCheck,
@@ -63,7 +64,9 @@ function staffUtilization(staffOnDuty: number, totalStaff: number): number {
 }
 
 export default function SchoolDashboard() {
-  const { data, isLoading, error } = useSchoolDashboard();
+  // PRC-M578: institution comes from the signed-in user's scope.
+  const scope = useOptionalAuthScope();
+  const { data, isLoading, error } = useSchoolDashboard(scope?.institution_id);
 
   const kpis = data?.kpis;
   const utilization = kpis ? staffUtilization(kpis.staffOnDuty, kpis.totalStaff) : 0;

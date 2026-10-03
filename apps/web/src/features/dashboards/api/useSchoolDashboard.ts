@@ -7,6 +7,7 @@
  * gateway client. Failures are surfaced as `error` (PRC-M577).
  */
 
+import { DashboardScopeError } from './queries';
 import { useEffect, useRef, useState } from 'react';
 
 import { fetchSchoolDashboard } from '@/lib/api/dashboards';
@@ -85,7 +86,9 @@ export function useSchoolDashboard(
 
     (async () => {
       try {
-        const result = await fetchSchoolDashboard(idRef.current ?? 'current', controller.signal);
+        // PRC-M578: the backend cannot resolve 'current'; require a real id.
+        if (!idRef.current) throw new DashboardScopeError('institution');
+        const result = await fetchSchoolDashboard(idRef.current, controller.signal);
         if (!cancelled) {
           setData(result);
           setError(null);

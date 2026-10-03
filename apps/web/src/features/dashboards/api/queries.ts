@@ -30,6 +30,14 @@ import type {
   StateDashboardData,
 } from './types';
 
+/** PRC-M578: the signed-in user's scope does not name the entity a dashboard needs. */
+export class DashboardScopeError extends Error {
+  constructor(public readonly missing: 'institution' | 'state' | 'board') {
+    super(`Your account is not assigned to a ${missing}, so this dashboard cannot be shown.`);
+    this.name = 'DashboardScopeError';
+  }
+}
+
 /**
  * Generic hook that calls an async fetcher. PRC-M577: failures (401/403/5xx,
  * network) are surfaced as `error`; sample data is never substituted.
@@ -94,8 +102,13 @@ export function useCountryDashboardData(): DashboardQueryResult<CountryDashboard
 export function useStateDashboardData(
   stateCode?: string,
 ): DashboardQueryResult<StateDashboardData> {
+  // PRC-M578: no hard-coded 'MH' default; callers pass the scope's state.
   return useApiQuery(
-    (signal) => fetchStateDashboard(stateCode ?? 'MH', signal),
+    (signal) =>
+      stateCode
+        ? fetchStateDashboard(stateCode, signal)
+        : Promise.reject(new DashboardScopeError('state')),
+    [stateCode],
   );
 }
 
@@ -108,8 +121,13 @@ export function useStateDashboardData(
 export function useBoardAdminDashboardData(
   boardCode?: string,
 ): DashboardQueryResult<BoardAdminDashboardData> {
+  // PRC-M578: no hard-coded 'cbse' default; callers pass the scope's board.
   return useApiQuery(
-    (signal) => fetchBoardAdminDashboard(boardCode ?? 'cbse', signal),
+    (signal) =>
+      boardCode
+        ? fetchBoardAdminDashboard(boardCode, signal)
+        : Promise.reject(new DashboardScopeError('board')),
+    [boardCode],
   );
 }
 

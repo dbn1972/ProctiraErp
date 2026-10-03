@@ -13,6 +13,7 @@
  * not change.
  */
 
+import { useOptionalAuthScope } from '@/providers/AuthProvider';
 import { DashboardLoadError } from '../DashboardLoadError';
 import {
   Briefcase,
@@ -222,7 +223,11 @@ function DistrictRankingCard({ ranking, loading }: DistrictRankingCardProps) {
 export default function StateDashboard() {
   const navigate = useNavigate();
   const params = useParams<{ stateCode?: string }>();
-  const { data, isLoading, error } = useStateDashboardData(params.stateCode);
+  // PRC-M578: route param, else the state-level user's own area.
+  const scope = useOptionalAuthScope();
+  const { data, isLoading, error } = useStateDashboardData(
+    params.stateCode ?? (scope?.level === 'state' ? scope.area_id : undefined),
+  );
 
   const kpis = data?.kpis ?? [];
   const boards = data?.boards ?? [];

@@ -17,6 +17,7 @@
  */
 
 import { AlertTriangle, Briefcase, Calendar, School, TrendingUp, Users } from 'lucide-react';
+import { useOptionalAuthScope } from '@/providers/AuthProvider';
 import { DashboardLoadError } from '../DashboardLoadError';
 import {
   CartesianGrid,
@@ -252,7 +253,9 @@ function toActionItems(items: ReadonlyArray<BoardActionItem>): ActionItem[] {
 }
 
 export default function BoardAdminDashboard() {
-  const { data, isLoading, error } = useBoardAdminDashboardData();
+  // PRC-M578: board comes from the signed-in user's scope.
+  const scope = useOptionalAuthScope();
+  const { data, isLoading, error } = useBoardAdminDashboardData(scope?.board_id);
 
   const kpis = data?.kpis ?? [];
   const regions = data?.regions ?? [];
