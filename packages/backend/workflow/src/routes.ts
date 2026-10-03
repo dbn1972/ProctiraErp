@@ -18,7 +18,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { WorkflowService } from './workflow-service.js';
+import type { TransitionActor, WorkflowService } from './workflow-service.js';
 import {
   CreateWorkflowDefinitionSchema,
   UpdateWorkflowDefinitionSchema,
@@ -114,6 +114,15 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
+/** PRC-M490: authenticated actor (JWT subject + roles) from the auth plugin. */
+function getActor(request: FastifyRequest): TransitionActor | null {
+  const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;
+  if (!user || typeof user.sub !== 'string' || user.sub.length === 0) return null;
+  const roles = Array.isArray(user.roles)
+    ? user.roles.filter((r): r is string => typeof r === 'string')
+    : [];
+  return { id: user.sub, roles };
+}
 /**
  * Register workflow routes on a Fastify instance.
  */
@@ -505,11 +514,21 @@ export async function registerWorkflowRoutes(
         });
       }
 
+      // PRC-M490: the actor is the authenticated JWT subject; a body actorId is ignored.
+      const actor = getActor(request);
+      if (!actor) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to transition a workflow',
+          statusCode: 401,
+        });
+      }
       try {
         const instance = await workflowService.transition(
           tenantId,
           paramsResult.data.instanceId,
-          bodyResult.data,
+          { action: bodyResult.data.action, comments: bodyResult.data.comments },
+          actor,
         );
         return reply.status(200).send(formatInstanceResponse(instance));
       } catch (error: unknown) {

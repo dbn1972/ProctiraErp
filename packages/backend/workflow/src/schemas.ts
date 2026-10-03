@@ -201,11 +201,15 @@ export const TransitionRequestSchema = Type.Object({
     maxLength: 100,
     description: 'Transition action (e.g., approve, reject)',
   }),
-  actorId: Type.String({
-    minLength: 1,
-    maxLength: 255,
-    description: 'User performing the transition',
-  }),
+  // PRC-M490: ignored by the HTTP route (the actor is the authenticated JWT subject);
+  // kept optional for backwards-compatible clients and trusted in-process callers.
+  actorId: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 255,
+      description: 'Ignored over HTTP: the actor is derived from the authenticated user',
+    }),
+  ),
   comments: Type.Optional(
     Type.String({ maxLength: 2000, description: 'Comments for the transition' }),
   ),

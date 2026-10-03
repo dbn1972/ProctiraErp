@@ -13,6 +13,8 @@
 import {
   NotFoundError,
   BusinessRuleError,
+  ConflictError,
+  ForbiddenError,
   ValidationError,
   WorkflowStateType,
 } from '@proctira/common';
@@ -251,7 +253,13 @@ export class WorkflowService {
     tenantId: string,
     instanceId: string,
     input: TransitionRequestInput,
+    actor?: TransitionActor,
   ): Promise<WorkflowInstanceEntity> {
+    // PRC-M490: an explicit actor (HTTP route) wins over any body-supplied actorId.
+    const actorId = actor?.id ?? input.actorId;
+    if (!actorId) {
+      throw new ValidationError('Transition actor is required');
+    }
     const instance = await this.repository.findInstanceById(instanceId, tenantId);
     if (!instance) {
       throw new NotFoundError(`Workflow instance with id '${instanceId}' not found`);
@@ -285,13 +293,29 @@ export class WorkflowService {
       );
     }
 
+    // PRC-M490: only the assignee of the current state may act on it.
+    if (actor) {
+      const currentState = definition.states.find((st) => st.id === instance.currentStateId);
+      if (!currentState || !isAssignee(currentState, actor)) {
+        throw new ForbiddenError('You are not assigned to the current workflow state');
+      }
+    }
+    // PRC-M490: one approval per actor per state+action, so a single user cannot satisfy
+    // requiredApprovals by transitioning repeatedly.
+    const alreadyApproved = instance.approvals.some(
+      (a) =>
+        a.stateId === instance.currentStateId && a.action === input.action && a.actorId === actorId,
+    );
+    if (alreadyApproved) {
+      throw new ConflictError('You have already recorded this action for the current state');
+    }
     // Handle parallel approval paths (Requirement 13.4)
     const requiredApprovals = validTransition.requiredApprovals ?? 1;
 
     // Record this approval
     const newApproval = {
       stateId: instance.currentStateId,
-      actorId: input.actorId,
+      actorId,
       action: input.action,
       timestamp: new Date(),
     };
@@ -325,7 +349,7 @@ export class WorkflowService {
       fromStateId: instance.currentStateId,
       toStateId: newStateId,
       action: input.action,
-      actorId: input.actorId,
+      actorId,
       comments: input.comments ?? null,
       timestamp: new Date(),
     };
@@ -453,4 +477,22 @@ export class WorkflowService {
       }
     }
   }
+}
+
+/** PRC-M490: authenticated caller performing a transition over HTTP. */
+export interface TransitionActor {
+  id: string;
+  roles: readonly string[];
+}
+/**
+ * PRC-M490: does `actor` match the state's assignee rule? `area_role` is matched by role
+ * name (fail closed) because area-hierarchy resolution is not available at this layer.
+ */
+export function isAssignee(
+  state: { assigneeType: 'role' | 'user' | 'area_role'; assigneeId: string },
+  actor: TransitionActor,
+): boolean {
+  if (state.assigneeType === 'user') return state.assigneeId === actor.id;
+  const wanted = state.assigneeId.toLowerCase();
+  return actor.roles.some((r) => r.toLowerCase() === wanted);
 }

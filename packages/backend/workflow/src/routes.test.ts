@@ -18,6 +18,12 @@ function createApp(): FastifyInstance {
   // Simulate tenant resolution middleware
   app.addHook('onRequest', async (request) => {
     (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
+    // PRC-M490: simulate the auth plugin; tests pick the caller via x-test-user/x-test-roles.
+    const sub = (request.headers['x-test-user'] as string | undefined) ?? 'creator';
+    const roles = ((request.headers['x-test-roles'] as string | undefined) ?? 'admin').split(',');
+    if (sub !== 'anonymous') {
+      (request as typeof request & { user: unknown }).user = { sub, roles };
+    }
   });
 
   return app;
@@ -328,7 +334,8 @@ describe('Workflow Routes', () => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].fromStateId).toBe('draft');
       expect(body.data[0].toStateId).toBe('review');
-      expect(body.data[0].actorId).toBe('user-001');
+      // PRC-M490: body actorId 'user-001' is ignored; the JWT subject is recorded.
+      expect(body.data[0].actorId).toBe('creator');
       expect(body.data[0].comments).toBe('Submitting');
       expect(body.data[0].timestamp).toBeDefined();
     });

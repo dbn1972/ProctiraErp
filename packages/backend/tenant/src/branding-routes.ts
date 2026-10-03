@@ -78,6 +78,15 @@ export type TenantIdResolver = (request: FastifyRequest) => string | undefined;
 /**
  * Default resolver: read `request.tenantId` (set by the gateway plugin).
  */
+/**
+ * PRC-M490: the publisher/saver recorded on branding audit rows is the authenticated JWT
+ * subject, never the client-supplied `publishedBy`/`savedBy`. The body value is only used
+ * when no auth plugin decorated the request (in-process/test mounts).
+ */
+function authenticatedActor(request: FastifyRequest): string | undefined {
+  const sub = (request as FastifyRequest & { user?: { sub?: unknown } }).user?.sub;
+  return typeof sub === 'string' && sub.length > 0 ? sub : undefined;
+}
 const defaultTenantIdResolver: TenantIdResolver = (request) =>
   (request as FastifyRequest & { tenantId?: string }).tenantId;
 
@@ -316,7 +325,10 @@ export async function registerBrandingRoutes(
       }
 
       try {
-        const version = await tenantService.publishBranding(tenantId, result.data);
+        const version = await tenantService.publishBranding(tenantId, {
+          ...result.data,
+          publishedBy: authenticatedActor(request) ?? result.data.publishedBy,
+        });
         return reply.status(201).send(tenantService.formatThemeVersionResponse(version));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -353,7 +365,10 @@ export async function registerBrandingRoutes(
       }
 
       try {
-        const rollback = await tenantService.rollbackBranding(tenantId, result.data);
+        const rollback = await tenantService.rollbackBranding(tenantId, {
+          ...result.data,
+          publishedBy: authenticatedActor(request) ?? result.data.publishedBy,
+        });
         return reply.status(201).send(tenantService.formatThemeVersionResponse(rollback));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -425,7 +440,10 @@ export async function registerBrandingRoutes(
       }
 
       try {
-        const draft = await tenantService.saveBrandingDraft(tenantId, result.data);
+        const draft = await tenantService.saveBrandingDraft(tenantId, {
+          ...result.data,
+          savedBy: authenticatedActor(request) ?? result.data.savedBy,
+        });
         return reply.status(201).send(tenantService.formatBrandingDraftResponse(draft));
       } catch (error: unknown) {
         if (error instanceof AppError) {
