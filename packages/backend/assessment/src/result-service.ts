@@ -45,6 +45,28 @@ export const MAX_GRADE_PAGE_SIZE = 500;
  */
 export interface ResultStudentDirectory {
   findExistingStudentIds(tenantId: string, studentIds: readonly string[]): Promise<Set<string>>;
+  /**
+   * PRC-M161: subset of `studentIds` with an ENROLLED enrolment in `academicPeriodId`.
+   * Directories without enrolment data omit it (the check is then skipped).
+   */
+  findEnrolledStudentIds?(
+    tenantId: string,
+    academicPeriodId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>>;
+}
+
+/**
+ * PRC-M161 defaulted decision: the enrolment source of truth is the `enrollments` table and a
+ * result may only be entered for a student ENROLLED in the item's academic period.
+ * ASSESSMENT_RESULT_ENROLMENT_CHECK=off disables it (owner choice); default enforce.
+ */
+export function readEnrolmentCheckMode(
+  env: Record<string, string | undefined> = process.env,
+): 'enforce' | 'off' {
+  return env['ASSESSMENT_RESULT_ENROLMENT_CHECK']?.trim().toLowerCase() === 'off'
+    ? 'off'
+    : 'enforce';
 }
 
 export interface ResultServiceOptions {
@@ -53,6 +75,8 @@ export interface ResultServiceOptions {
    * call). Without it the `assessment_results_student_id_fkey` constraint is the backstop.
    */
   studentDirectory?: ResultStudentDirectory | null;
+  /** PRC-M161: default readEnrolmentCheckMode() ('enforce'). */
+  enrolmentCheck?: 'enforce' | 'off';
 }
 
 /** PRC-M164: optional page window for subject-wide grade listings. */
@@ -112,6 +136,14 @@ export class ResultService {
         throw new NotFoundError(`Student with id '${input.studentId}' not found`);
       }
     }
+    const enrolled = await this.enrolledStudents(tenantId, item.academicPeriodId, [
+      input.studentId,
+    ]);
+    if (enrolled && !enrolled.has(input.studentId)) {
+      throw new BusinessRuleError(
+        `Student '${input.studentId}' is not enrolled in the item's academic period`,
+      );
+    }
 
     // Upsert the result (subject/period derived from the item)
     const entity: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'> = {
@@ -170,6 +202,10 @@ export class ResultService {
         ])
       : null;
 
+    // PRC-M161: one enrolment query for the subject+period of this batch.
+    const enrolledStudents = await this.enrolledStudents(tenantId, input.academicPeriodId, [
+      ...new Set(input.results.map((r) => r.studentId)),
+    ]);
     // Validate each row
     const validEntries: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>[] = [];
     const errors: RowValidationError[] = [];
@@ -196,6 +232,16 @@ export class ResultService {
           assessmentItemId: row.assessmentItemId,
           field: 'studentId',
           message: `Student with id '${row.studentId}' not found`,
+        });
+        continue;
+      }
+      if (enrolledStudents && !enrolledStudents.has(row.studentId)) {
+        errors.push({
+          row: i,
+          studentId: row.studentId,
+          assessmentItemId: row.assessmentItemId,
+          field: 'studentId',
+          message: `Student '${row.studentId}' is not enrolled in the academic period`,
         });
         continue;
       }
@@ -532,6 +578,20 @@ export class ResultService {
    *
    * @throws BusinessRuleError if score is outside the valid range
    */
+  /** PRC-M161: enrolled subset, or null when the check is off or unsupported. */
+  private async enrolledStudents(
+    tenantId: string,
+    academicPeriodId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string> | null> {
+    const directory = this.options.studentDirectory;
+    const mode = this.options.enrolmentCheck ?? readEnrolmentCheckMode();
+    if (mode === 'off' || !directory?.findEnrolledStudentIds || studentIds.length === 0) {
+      return null;
+    }
+    return directory.findEnrolledStudentIds(tenantId, academicPeriodId, studentIds);
+  }
+
   private validateScoreRange(score: number, item: AssessmentItemEntity): void {
     if (score < item.minScore || score > item.maxScore) {
       throw new BusinessRuleError(

@@ -38,6 +38,23 @@ export class PgReportCardDirectory implements ReportCardDirectory, ResultStudent
     });
   }
 
+  /** PRC-M161: students ENROLLED in the academic period (tenant-scoped, one query). */
+  async findEnrolledStudentIds(
+    tenantId: string,
+    academicPeriodId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT DISTINCT student_id::text AS id FROM enrollments
+          WHERE tenant_id::text = $1 AND academic_period_id::text = $2
+            AND student_id::text = ANY($3::text[]) AND status = 'ENROLLED'`,
+        [tenantId, academicPeriodId, [...studentIds]],
+      );
+      return new Set((result.rows as Array<{ id: string }>).map((r) => r.id));
+    });
+  }
   async findStudentName(tenantId: string, studentId: string): Promise<string | null> {
     return withPgTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(
