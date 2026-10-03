@@ -18,7 +18,7 @@
  */
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
@@ -97,6 +97,9 @@ export default function ScholarshipApplication({
   const [currentStep, setCurrentStep] = useState<Step>('program');
   const [programs, setPrograms] = useState<ScholarshipProgramSummary[]>([]);
   const [loadingPrograms, setLoadingPrograms] = useState(true);
+  // PRC-M151: a failed program read is an error, not "no open programs".
+  const [programsLoadError, setProgramsLoadError] = useState<string | null>(null);
+  const fieldId = useId();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -124,13 +127,19 @@ export default function ScholarshipApplication({
   // Fetch open programs
   const fetchPrograms = useCallback(async () => {
     setLoadingPrograms(true);
+    setProgramsLoadError(null);
     try {
       const result = await scholarshipBrowserFetch<{ data: ScholarshipProgramSummary[] }>(
         '/scholarships/programs?status=open&pageSize=50',
       );
       setPrograms(result.data);
-    } catch {
-      // Silently handle — user will see empty list
+    } catch (err) {
+      setPrograms([]);
+      setProgramsLoadError(
+        err instanceof BrowserGatewayError
+          ? err.message
+          : 'Scholarship programs could not be loaded.',
+      );
     } finally {
       setLoadingPrograms(false);
     }
@@ -312,17 +321,39 @@ export default function ScholarshipApplication({
           <div className="space-y-4">
             <h2 className="text-lg font-medium">Select a Scholarship Program</h2>
             {loadingPrograms ? (
-              <p className="text-muted-foreground text-sm">Loading available programs…</p>
+              <p className="text-muted-foreground text-sm" role="status">
+                Loading available programs…
+              </p>
+            ) : programsLoadError ? (
+              <div
+                role="alert"
+                className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="scholarship-programs-load-error"
+              >
+                <p>Could not load scholarship programs. {programsLoadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void fetchPrograms()}
+                  className="mt-2 rounded-md border border-destructive px-3 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Retry
+                </button>
+              </div>
             ) : programs.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 No open scholarship programs available.
               </p>
             ) : (
-              <div className="space-y-3">
+              <div
+                className="space-y-3"
+                role="radiogroup"
+                aria-label="Scholarship programs"
+                aria-required="true"
+              >
                 {programs.map((program) => (
                   <label
                     key={program.id}
-                    className={`block rounded-md border p-4 cursor-pointer transition-colors ${
+                    className={`block rounded-md border p-4 cursor-pointer transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 ${
                       selectedProgramId === program.id
                         ? 'border-primary bg-primary/5'
                         : 'border-input hover:border-primary/50'
@@ -338,7 +369,12 @@ export default function ScholarshipApplication({
                     />
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-medium">{program.name}</div>
+                        <div className="font-medium">
+                          {program.name}
+                          {selectedProgramId === program.id ? (
+                            <span className="ms-2 text-xs font-normal text-primary">(selected)</span>
+                          ) : null}
+                        </div>
                         {program.description && (
                           <div className="text-muted-foreground text-xs mt-1 line-clamp-2">
                             {program.description}
@@ -399,8 +435,12 @@ export default function ScholarshipApplication({
                 <legend className="text-sm font-medium px-1">Record {idx + 1}</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium mb-1">Institution Name *</label>
+                    <label htmlFor={`${fieldId}-institutionName-${idx}`} className="block text-xs font-medium mb-1">
+                      Institution Name *
+                    </label>
                     <input
+                      id={`${fieldId}-institutionName-${idx}`}
+                      aria-required="true"
                       type="text"
                       value={record.institutionName}
                       onChange={(e) => {
@@ -413,8 +453,12 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1">Education Level *</label>
+                    <label htmlFor={`${fieldId}-educationLevel-${idx}`} className="block text-xs font-medium mb-1">
+                      Education Level *
+                    </label>
                     <input
+                      id={`${fieldId}-educationLevel-${idx}`}
+                      aria-required="true"
                       type="text"
                       value={record.educationLevel}
                       onChange={(e) => {
@@ -427,8 +471,11 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1">GPA</label>
+                    <label htmlFor={`${fieldId}-gpa-${idx}`} className="block text-xs font-medium mb-1">
+                      GPA
+                    </label>
                     <input
+                      id={`${fieldId}-gpa-${idx}`}
                       type="number"
                       step="0.01"
                       min="0"
@@ -446,8 +493,11 @@ export default function ScholarshipApplication({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1">Year Completed</label>
+                    <label htmlFor={`${fieldId}-yearCompleted-${idx}`} className="block text-xs font-medium mb-1">
+                      Year Completed
+                    </label>
                     <input
+                      id={`${fieldId}-yearCompleted-${idx}`}
                       type="number"
                       min="1900"
                       max="2100"
@@ -502,8 +552,11 @@ export default function ScholarshipApplication({
             <h2 className="text-lg font-medium">Financial Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium mb-1">Annual Family Income</label>
+                <label htmlFor={`${fieldId}-familyIncome`} className="block text-xs font-medium mb-1">
+                  Annual Family Income
+                </label>
                 <input
+                  id={`${fieldId}-familyIncome`}
                   type="number"
                   min="0"
                   value={financialInfo.familyIncome ?? ''}
@@ -517,8 +570,11 @@ export default function ScholarshipApplication({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Number of Dependents</label>
+                <label htmlFor={`${fieldId}-numberOfDependents`} className="block text-xs font-medium mb-1">
+                  Number of Dependents
+                </label>
                 <input
+                  id={`${fieldId}-numberOfDependents`}
                   type="number"
                   min="0"
                   max="50"
@@ -533,8 +589,11 @@ export default function ScholarshipApplication({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Employment Status</label>
+                <label htmlFor={`${fieldId}-employmentStatus`} className="block text-xs font-medium mb-1">
+                  Employment Status
+                </label>
                 <select
+                  id={`${fieldId}-employmentStatus`}
                   value={financialInfo.employmentStatus ?? ''}
                   onChange={(e) =>
                     setFinancialInfo({
@@ -658,10 +717,14 @@ export default function ScholarshipApplication({
 
             {/* Personal statement */}
             <div>
-              <label className="block text-xs font-medium mb-1">
+              <label
+                htmlFor={`${fieldId}-personalStatement`}
+                className="block text-xs font-medium mb-1"
+              >
                 Personal Statement (optional)
               </label>
               <textarea
+                id={`${fieldId}-personalStatement`}
                 value={personalStatement}
                 onChange={(e) => setPersonalStatement(e.target.value)}
                 maxLength={5000}
