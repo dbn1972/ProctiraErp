@@ -612,6 +612,19 @@ describe('AttendanceService', () => {
   });
 
   describe('recordBulkStudentAttendance', () => {
+    beforeEach(() => {
+      // PRC-M574: bulk records must belong to the class roster.
+      for (const id of [STUDENT_ID, '88888888-8888-4888-8888-888888888888']) {
+        repository.addRosterEntry({
+          studentId: id,
+          studentName: id,
+          enrollmentId: `enr-${id}`,
+          classId: CLASS_ID,
+          gradeId: 'grade-001',
+        });
+      }
+    });
+
     it('should record attendance for multiple students', async () => {
       const student2Id = '88888888-8888-4888-8888-888888888888';
 
@@ -665,6 +678,28 @@ describe('AttendanceService', () => {
       expect(result.recorded).toHaveLength(0);
       expect(result.updated).toHaveLength(1);
       expect(result.updated[0]!.status).toBe(AttendanceStatus.ABSENT);
+    });
+
+    it('rejects a student who is not enrolled in the posted class (PRC-M574)', async () => {
+      const outsider = '99999999-9999-4999-8999-999999999999';
+      const result = await service.recordBulkStudentAttendance(
+        TENANT_ID,
+        {
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID,
+          academicPeriodId: PERIOD_ID,
+          date: '2024-06-15',
+          records: [
+            { studentId: STUDENT_ID, status: 'PRESENT' },
+            { studentId: outsider, status: 'PRESENT' },
+          ],
+        },
+        RECORDED_BY,
+      );
+      expect(result.recorded).toHaveLength(1);
+      expect(result.errors).toEqual([
+        expect.objectContaining({ studentId: outsider, message: expect.stringContaining('not enrolled') }),
+      ]);
     });
   });
 

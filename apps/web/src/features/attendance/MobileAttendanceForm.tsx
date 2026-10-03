@@ -64,7 +64,8 @@ export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'EARL
 export interface MobileAttendanceRow {
   studentId: string;
   studentName: string;
-  status: AttendanceStatus;
+  /** PRC-M574: `null` = not yet marked; never silently sent as PRESENT. */
+  status: AttendanceStatus | null;
   comment: string;
 }
 
@@ -241,7 +242,7 @@ function rosterToRows(roster: RosterEntry[]): MobileAttendanceRow[] {
   return roster.map((entry) => ({
     studentId: entry.studentId,
     studentName: entry.studentName,
-    status: (entry.attendance?.status as AttendanceStatus | undefined) ?? 'PRESENT',
+    status: (entry.attendance?.status as AttendanceStatus | undefined) ?? null,
     comment: entry.attendance?.comment ?? '',
   }));
 }
@@ -284,6 +285,9 @@ export function MobileAttendanceForm({
   const [academicPeriodId, setAcademicPeriodId] = useState(defaults.academicPeriodId);
   const [date, setDate] = useState(defaults.date);
   const [rows, setRows] = useState<MobileAttendanceRow[]>(() => rosterToRows(roster));
+  // PRC-M574: the class the loaded roster belongs to. Rows are only ever
+  // submitted under that class; a roster from another class disables submit.
+  const rosterClassIds = useMemo(() => new Set(roster.map((r) => r.classId)), [roster]);
   const [expandedComment, setExpandedComment] = useState<string | null>(null);
   const [submission, setSubmission] = useState<MobileAttendanceSubmitResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -325,6 +329,13 @@ export function MobileAttendanceForm({
     setRows(rosterToRows(roster));
   }, [roster]);
 
+  // PRC-M574: a new class/period selection from the parent clears the grid
+  // until the matching roster arrives (rows never carry over between classes).
+  useEffect(() => {
+    setClassId(defaults.classId);
+    setAcademicPeriodId(defaults.academicPeriodId);
+  }, [defaults.classId, defaults.academicPeriodId]);
+
   // Auto-save the live snapshot. The hook itself debounces to ≤ 30 s.
   useEffect(() => {
     draft.save({
@@ -351,6 +362,10 @@ export function MobileAttendanceForm({
     setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, comment } : r)));
   }, []);
 
+  const markAllUnmarkedPresent = useCallback(() => {
+    setRows((prev) => prev.map((r) => (r.status === null ? { ...r, status: 'PRESENT' } : r)));
+  }, []);
+
   const toggleCommentRow = useCallback((studentId: string) => {
     setExpandedComment((prev) => (prev === studentId ? null : studentId));
   }, []);
@@ -363,14 +378,17 @@ export function MobileAttendanceForm({
       classId,
       academicPeriodId,
       date,
-      records: rows.map((r) => {
+      // PRC-M574: only explicitly marked rows are sent (submit is disabled
+      // while any row is unmarked, this is defence in depth).
+      records: rows.flatMap((r) => {
+        if (r.status === null) return [];
         const out: {
           studentId: string;
           status: AttendanceStatus;
           comment?: string;
         } = { studentId: r.studentId, status: r.status };
         if (r.comment) out.comment = r.comment;
-        return out;
+        return [out];
       }),
     };
 
@@ -472,9 +490,15 @@ export function MobileAttendanceForm({
 
   const summary = useMemo(() => {
     const tally = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, EARLY_DEPARTURE: 0 };
-    for (const row of rows) tally[row.status] += 1;
+    for (const row of rows) if (row.status !== null) tally[row.status] += 1;
     return tally;
   }, [rows]);
+  const unmarkedCount = useMemo(() => rows.filter((r) => r.status === null).length, [rows]);
+  // PRC-M574: roster must belong to the selected class (no cross-class POST).
+  const rosterMatchesClass =
+    roster.length > 0 && rosterClassIds.size === 1 && rosterClassIds.has(classId);
+  const canSubmit =
+    !isSubmitting && rows.length > 0 && unmarkedCount === 0 && rosterMatchesClass;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -494,10 +518,9 @@ export function MobileAttendanceForm({
           <span className="font-medium">Class</span>
           <Input
             value={classId}
-            onChange={(event) => setClassId(event.target.value)}
+            readOnly
+            aria-readonly="true"
             data-testid="mobile-attendance-class-input"
-            inputMode="text"
-            autoComplete="off"
             aria-label="Class identifier"
           />
         </label>
@@ -505,10 +528,9 @@ export function MobileAttendanceForm({
           <span className="font-medium">Academic period</span>
           <Input
             value={academicPeriodId}
-            onChange={(event) => setAcademicPeriodId(event.target.value)}
+            readOnly
+            aria-readonly="true"
             data-testid="mobile-attendance-period-input"
-            inputMode="text"
-            autoComplete="off"
             aria-label="Academic period identifier"
           />
         </label>
@@ -675,11 +697,34 @@ export function MobileAttendanceForm({
         </div>
       ) : null}
 
+      {/* PRC-M574: explicit bulk action instead of an implicit PRESENT default. */}
+      {unmarkedCount > 0 ? (
+        <button
+          type="button"
+          onClick={markAllUnmarkedPresent}
+          data-testid="mobile-attendance-mark-all-present"
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Mark {unmarkedCount} unmarked as present
+        </button>
+      ) : null}
+      {rows.length > 0 && !canSubmit && !isSubmitting ? (
+        <p
+          id="mobile-attendance-submit-hint"
+          data-testid="mobile-attendance-submit-hint"
+          className="text-sm text-muted-foreground"
+        >
+          {!rosterMatchesClass
+            ? 'The loaded roster does not belong to the selected class. Reload the roster before saving.'
+            : `${unmarkedCount} student${unmarkedCount === 1 ? '' : 's'} not marked yet.`}
+        </p>
+      ) : null}
       {/* Submit — full-width to match the mobile thumb zone. */}
       {rows.length > 0 ? (
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={!canSubmit}
+          aria-describedby={canSubmit ? undefined : 'mobile-attendance-submit-hint'}
           data-testid="mobile-attendance-submit"
           className="inline-flex min-h-[48px] w-full items-center justify-center gap-3 rounded-md bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary))]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
