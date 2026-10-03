@@ -8,7 +8,13 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { ConflictError } from '@proctira/common';
 
 import { ADMISSION_NUMBER_CONFLICT, admissionNoOf } from './admission-number.js';
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import type {
+  StudentEntity,
+  StudentFilter,
+  StudentRepository,
+  StudentUpdateOptions,
+} from './student-repository.js';
+import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: Map<string, StudentEntity> = new Map();
@@ -45,10 +51,18 @@ export class InMemoryStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
     const existing = this.students.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
+    }
+    // PRC-L365: conditional write (single-threaded map ⇒ check+set is atomic).
+    if (
+      options?.expectedUpdatedAt &&
+      !updatedAtMatches(existing.updatedAt, options.expectedUpdatedAt)
+    ) {
+      throw new StaleStudentUpdateError(id);
     }
 
     if (data.customData !== undefined) {
