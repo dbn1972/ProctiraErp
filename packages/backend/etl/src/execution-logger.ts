@@ -214,7 +214,8 @@ export class ExecutionLogger {
           executionId,
           tenantId,
           message: `Row ${err.row}: ${err.message}${err.field ? ` (field: ${err.field})` : ''}`,
-          metadata: { row: err.row, field: err.field, data: err.data },
+          // PRC-M224: row index/field only — never source row values (PII) in logs.
+          metadata: { row: err.row, field: err.field },
         };
         this.sink.error(errorEntry);
       }
@@ -259,7 +260,8 @@ export class ExecutionLogger {
           executionId,
           tenantId,
           message: `Row ${err.row}: ${err.message}`,
-          metadata: { row: err.row, data: err.data },
+          // PRC-M224: row index only — never row values (PII) in logs.
+          metadata: { row: err.row },
         };
         this.sink.error(errorEntry);
       }

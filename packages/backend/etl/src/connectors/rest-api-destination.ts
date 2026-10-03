@@ -11,6 +11,9 @@ import type { RestApiDestinationConfig } from '../schemas.js';
 import { assertPublicHttpsUrl, safeFetch } from './safe-fetch.js';
 import type { DestinationConnector, DataRow, LoadResult, LoadError } from './types.js';
 
+/** PRC-M224: cap on remote error text kept per failed batch. */
+const REMOTE_ERROR_BODY_MAX = 200;
+
 export class RestApiDestinationConnector implements DestinationConnector {
   constructor(private readonly config: RestApiDestinationConfig) {}
 
@@ -30,12 +33,13 @@ export class RestApiDestinationConnector implements DestinationConnector {
         if (response.ok) {
           loadedCount += batch.length;
         } else {
-          const errorText = await response.text();
+          // PRC-M224: remote bodies can echo the payload; keep a short prefix only.
+          const errorText = (await response.text()).slice(0, REMOTE_ERROR_BODY_MAX);
           for (let i = 0; i < batch.length; i++) {
             errors.push({
               row: loadedCount + i,
               message: `API error: ${response.status} - ${errorText}`,
-              data: batch[i] ?? null,
+              data: null,
             });
           }
         }
@@ -45,7 +49,7 @@ export class RestApiDestinationConnector implements DestinationConnector {
           errors.push({
             row: loadedCount + i,
             message,
-            data: batch[i] ?? null,
+            data: null,
           });
         }
       }

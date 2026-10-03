@@ -650,12 +650,13 @@ export class ETLService {
       execution.loadedCount = loadResult.loadedCount;
 
       // Map load errors to execution errors
+      // PRC-M224: row index + message only; row values are never stored or logged.
       for (const err of loadResult.errors) {
         execution.errors.push({
           row: err.row,
           field: null,
           message: err.message,
-          data: err.data,
+          data: null,
         });
       }
 
@@ -669,7 +670,6 @@ export class ETLService {
           row: e.row,
           field: null,
           message: e.message,
-          data: e.data,
         })),
       });
 

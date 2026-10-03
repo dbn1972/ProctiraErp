@@ -10,6 +10,12 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
+import {
+  createConnectorSecretCipher,
+  openConnectorSecrets,
+  sealConnectorSecrets,
+  type ConnectorSecretCipher,
+} from './connector-secret-crypto.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type {
   PipelineListFilter,
@@ -37,18 +43,37 @@ function reviveExecution(doc: Record<string, unknown>): PipelineExecution {
 }
 
 export class PgPipelineRepository implements PipelineRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    /** PRC-M224: connector credentials are sealed before they reach the JSONB document. */
+    private readonly cipher: ConnectorSecretCipher = createConnectorSecretCipher(),
+  ) {}
+
+  private toDocument(pipeline: Pipeline): Record<string, unknown> {
+    return {
+      ...pipeline,
+      source: sealConnectorSecrets(pipeline.source, pipeline.tenantId, this.cipher),
+      destination: sealConnectorSecrets(pipeline.destination, pipeline.tenantId, this.cipher),
+      createdAt: pipeline.createdAt.toISOString(),
+      updatedAt: pipeline.updatedAt.toISOString(),
+    };
+  }
+
+  private fromDocument(doc: Record<string, unknown>): Pipeline {
+    const p = revivePipeline(doc);
+    return {
+      ...p,
+      source: openConnectorSecrets(p.source, p.tenantId, this.cipher),
+      destination: openConnectorSecrets(p.destination, p.tenantId, this.cipher),
+    };
+  }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool, tenantId, fn);
   }
 
   async create(pipeline: Pipeline): Promise<Pipeline> {
-    const doc = {
-      ...pipeline,
-      createdAt: pipeline.createdAt.toISOString(),
-      updatedAt: pipeline.updatedAt.toISOString(),
-    };
+    const doc = this.toDocument(pipeline);
     await this.withTenant(pipeline.tenantId, async (client) => {
       await client.query(
         `INSERT INTO etl_pipelines (id, tenant_id, name, enabled, document, created_at, updated_at)
@@ -71,11 +96,7 @@ export class PgPipelineRepository implements PipelineRepository {
     const existing = await this.findById(id, tenantId);
     if (!existing) throw new Error(`Pipeline not found: ${id}`);
     const updated: Pipeline = { ...existing, ...updates, id, tenantId, updatedAt: new Date() };
-    const doc = {
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
+    const doc = this.toDocument(updated);
     await this.withTenant(tenantId, async (client) => {
       await client.query(
         `UPDATE etl_pipelines SET name=$3, enabled=$4, document=$5::jsonb, updated_at=$6
@@ -106,7 +127,7 @@ export class PgPipelineRepository implements PipelineRepository {
         [id, tenantId],
       );
       const row = result.rows[0] as { document?: Record<string, unknown> } | undefined;
-      return row?.document ? revivePipeline(row.document) : null;
+      return row?.document ? this.fromDocument(row.document) : null;
     });
   }
 
@@ -122,7 +143,7 @@ export class PgPipelineRepository implements PipelineRepository {
         [tenantId],
       );
       let data = result.rows.map((r) =>
-        revivePipeline((r as { document: Record<string, unknown> }).document),
+        this.fromDocument((r as { document: Record<string, unknown> }).document),
       );
       if (filter.search) {
         const s = filter.search.toLowerCase();
