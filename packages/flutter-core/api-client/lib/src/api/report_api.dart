@@ -51,10 +51,7 @@ class ReportApi extends BaseApi {
     final Response<dynamic> response = await request<dynamic>(
       _basePath,
       method: 'GET',
-      queryParameters: <String, dynamic>{
-        'page': page,
-        'pageSize': pageSize,
-      },
+      queryParameters: <String, dynamic>{'page': page, 'pageSize': pageSize},
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
@@ -83,8 +80,11 @@ class ReportApi extends BaseApi {
 
   /// Download the generated report file as raw bytes.
   Future<Uint8List> downloadReport(String reportId) async {
-    final Response<List<int>> response = await dio.get<List<int>>(
+    // Routed through [request] so failures surface as typed ApiExceptions
+    // (not raw DioExceptions) like every other call.
+    final Response<List<int>> response = await request<List<int>>(
       '$_basePath/$reportId/download',
+      method: 'GET',
       options: Options(responseType: ResponseType.bytes),
     );
     return Uint8List.fromList(response.data ?? const <int>[]);

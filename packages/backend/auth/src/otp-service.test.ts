@@ -107,6 +107,8 @@ describe('OtpService', () => {
       store: new InMemoryOtpChallengeStore(),
       sms,
       exposeCodeInResponse: true,
+      // PRC-M498 cooldown is covered in otp-rate-limit.test.ts.
+      resendCooldownSeconds: 0,
     });
     const first = await service.sendChallenge({
       userId: 'u1',

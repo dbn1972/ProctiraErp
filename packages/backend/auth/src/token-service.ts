@@ -110,6 +110,10 @@ export class TokenService {
     refreshToken: string,
     user: AuthUser,
     clientIp?: string,
+    options?: {
+      /** PRC-M584: absolute cap (session expiry) for the rotated refresh token. */
+      notAfter?: Date;
+    },
   ): Promise<TokenPair> {
     // Look up the refresh token
     const storedToken = await this.refreshTokenStore.findByToken(refreshToken);
@@ -160,8 +164,10 @@ export class TokenService {
       expiresIn: this.config.jwt.accessTokenExpiresIn,
     });
 
-    const refreshExpiresAt = new Date(Date.now() + this.config.refreshToken.maxLifetime * 1000);
-
+    const slidingExpiry = Date.now() + this.config.refreshToken.maxLifetime * 1000;
+    const refreshExpiresAt = new Date(
+      options?.notAfter ? Math.min(slidingExpiry, options.notAfter.getTime()) : slidingExpiry,
+    );
     await this.refreshTokenStore.create({
       token: newRefreshTokenValue,
       userId: user.userId,

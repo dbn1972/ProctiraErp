@@ -4,14 +4,8 @@
  * Implements Microsoft OAuth2 authentication using Microsoft Identity Platform (v2.0).
  * Supports both personal Microsoft accounts and Azure AD organizational accounts.
  */
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
-
-/** Microsoft OAuth2 authorization endpoint (common tenant for multi-tenant) */
-const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
-
-/** Microsoft OAuth2 token endpoint */
-const MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
 
 /** Microsoft Graph userinfo endpoint */
 const MICROSOFT_USERINFO_URL = 'https://graph.microsoft.com/v1.0/me';
@@ -29,8 +23,12 @@ export interface MicrosoftProviderOptions {
   clientSecret: string;
   /** Callback URL for Microsoft auth */
   callbackUrl: string;
-  /** Azure AD tenant ID (use 'common' for multi-tenant, 'organizations' for work accounts only) */
-  tenantId?: string;
+  /**
+   * PRC-M589: Azure AD tenant (directory) ID. Required — the multi-tenant
+   * aliases 'common' / 'organizations' / 'consumers' are refused so only the
+   * school's own directory can sign in.
+   */
+  tenantId: string;
   /** Additional scopes beyond the defaults */
   additionalScopes?: string[];
 }
@@ -40,7 +38,16 @@ export interface MicrosoftProviderOptions {
  */
 export const extractMicrosoftUserInfo: UserInfoExtractor = (
   data: Record<string, unknown>,
-): ExternalUserProfile => {
+): ExternalUserProfile => microsoftProfile(data, undefined);
+
+/**
+ * PRC-M589: stable identity is `tid:oid`; Graph `mail`/UPN are not verified
+ * claims, so `emailVerified` is false and email-based linking is disabled.
+ */
+function microsoftProfile(
+  data: Record<string, unknown>,
+  directoryId: string | undefined,
+): ExternalUserProfile {
   const id = data['id'] as string | undefined;
   const mail = data['mail'] as string | undefined;
   const userPrincipalName = data['userPrincipalName'] as string | undefined;
@@ -57,14 +64,15 @@ export const extractMicrosoftUserInfo: UserInfoExtractor = (
   }
 
   return {
-    externalId: id,
+    externalId: directoryId ? `${directoryId}:${id}` : id,
     email,
     displayName: displayName ?? email,
     firstName: givenName ?? undefined,
     lastName: surname ?? undefined,
     rawAttributes: data,
+    emailVerified: false,
   };
-};
+}
 
 /**
  * Create a Microsoft OAuth2 provider instance.
@@ -73,7 +81,12 @@ export function createMicrosoftProvider(
   options: MicrosoftProviderOptions,
   httpClient?: HttpClient,
 ): OAuth2Provider {
-  const tenant = options.tenantId ?? 'common';
+  const tenant = options.tenantId?.trim();
+  if (!tenant || ['common', 'organizations', 'consumers'].includes(tenant.toLowerCase())) {
+    throw new Error(
+      'Microsoft provider requires a specific Azure AD tenant ID (multi-tenant endpoints are refused)',
+    );
+  }
   const scopes = [...MICROSOFT_DEFAULT_SCOPES, ...(options.additionalScopes ?? [])];
 
   const authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize`;
@@ -92,5 +105,5 @@ export function createMicrosoftProvider(
     callbackUrl: options.callbackUrl,
   };
 
-  return new OAuth2Provider(config, extractMicrosoftUserInfo, httpClient);
+  return new OAuth2Provider(config, (data) => microsoftProfile(data, tenant), httpClient);
 }

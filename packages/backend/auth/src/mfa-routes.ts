@@ -7,7 +7,7 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { OtpAuthError, OtpValidationError } from './otp-service.js';
+import { OtpAuthError, OtpRateLimitError, OtpValidationError } from './otp-service.js';
 import type { OtpService } from './otp-service.js';
 import type { UserLookup } from './routes.js';
 import type { SessionService } from './session-service.js';
@@ -30,14 +30,34 @@ export interface MfaRoutesOptions {
     email?: string;
     tenantId: string;
   }) => Promise<string | null>;
+  /**
+   * PRC-M497: resolve the server-side primary-auth step (password / IdP
+   * success) that this OTP challenge completes — e.g. by verifying a
+   * short-lived pre-MFA ticket minted by the login handler. The challenge is
+   * bound to the returned identity; client-supplied userId/email/phone/tenantId
+   * are ignored. When omitted, `/mfa/otp/send` fails closed with 401.
+   */
+  resolvePrimaryAuth?: (request: FastifyRequest) => Promise<PrimaryAuthContext | null>;
+  /**
+   * PRC-M497: on the non-token path, mint an opaque login-completion ticket for
+   * the verified challenge. The verify response never carries a bare userId.
+   */
+  issueCompletionTicket?: (verified: PrimaryAuthContext) => Promise<string>;
 }
 
+/** Identity established by the primary authentication factor. */
+export interface PrimaryAuthContext {
+  userId: string;
+  tenantId: string;
+}
+
+/**
+ * PRC-M497: identity/phone fields are no longer accepted from the client; the
+ * challenge is bound to {@link MfaRoutesOptions.resolvePrimaryAuth}. Only
+ * `tenantId` is read, and only to reject a mismatch with the host tenant.
+ */
 type SendBody = {
-  userId?: string;
-  email?: string;
-  phone?: string;
   tenantId?: string;
-  mfaToken?: string;
 };
 
 type VerifyBody = {
@@ -61,6 +81,8 @@ export async function registerMfaRoutes(
     userLookup,
     prefix = '/auth',
     resolvePhone,
+    resolvePrimaryAuth,
+    issueCompletionTicket,
   } = options;
 
   /**
@@ -74,39 +96,42 @@ export async function registerMfaRoutes(
       reply: FastifyReply,
     ) {
       const body = request.body ?? {};
-      const tenantId =
-        body.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId ?? '';
-      if (!tenantId) {
+      const hostTenantId = (request as FastifyRequest & { tenantId?: string }).tenantId ?? '';
+      // PRC-M497: the tenant comes from the host, never the body. A differing
+      // body.tenantId is an explicit cross-tenant attempt and is rejected.
+      if (body.tenantId && hostTenantId && body.tenantId !== hostTenantId) {
         return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
+          code: 'TENANT_MISMATCH',
+          message: 'Tenant does not match the request host',
           statusCode: 400,
         });
       }
-
-      let phone = body.phone?.trim() ?? '';
-      let userId = body.userId?.trim() ?? '';
-
-      if (!phone && resolvePhone) {
-        phone =
-          (await resolvePhone({
-            userId: body.userId,
-            email: body.email,
-            tenantId,
-          })) ?? '';
+      const primary = resolvePrimaryAuth ? await resolvePrimaryAuth(request) : null;
+      if (!primary) {
+        return reply.status(401).send({
+          code: 'PRIMARY_AUTH_REQUIRED',
+          message: 'Sign in with your primary credentials before requesting a code',
+          statusCode: 401,
+        });
       }
-
-      if (!userId && body.email && userLookup) {
-        const user = await userLookup.findByUsername(body.email, tenantId);
-        if (user) userId = user.id;
+      const tenantId = primary.tenantId;
+      if (!tenantId || (hostTenantId && tenantId !== hostTenantId)) {
+        return reply.status(403).send({
+          code: 'TENANT_MISMATCH',
+          message: 'Tenant does not match the request host',
+          statusCode: 403,
+        });
       }
-
-      if (!userId) {
-        // Anonymous challenge still needs a stable user key for the store;
-        // use a synthetic id derived from phone when identity is unknown.
-        userId = `phone:${phone || 'unknown'}`;
+      const userId = primary.userId;
+      // Phone is resolved server-side from the user record only.
+      const phone = resolvePhone ? ((await resolvePhone({ userId, tenantId })) ?? '') : '';
+      if (!phone) {
+        return reply.status(400).send({
+          code: 'MFA_PHONE_UNAVAILABLE',
+          message: 'No verified phone number is registered for SMS verification',
+          statusCode: 400,
+        });
       }
-
       try {
         const result = await otpService.sendChallenge({ userId, tenantId, phone });
         return reply.status(200).send(result);
@@ -211,12 +236,15 @@ export async function registerMfaRoutes(
           });
         }
 
-        // Gateway / Keycloak path: challenge verified; caller completes login.
+        // Gateway / Keycloak path: challenge verified; caller completes login
+        // with an opaque completion ticket (PRC-M497: never a bare userId).
+        const completionTicket = issueCompletionTicket
+          ? await issueCompletionTicket({ userId: verified.userId, tenantId: verified.tenantId })
+          : undefined;
         return reply.status(200).send({
           success: true,
           method: 'sms',
-          userId: verified.userId,
-          tenantId: verified.tenantId,
+          ...(completionTicket ? { completionTicket } : {}),
         });
       } catch (error: unknown) {
         return sendOtpError(reply, error);
@@ -231,6 +259,13 @@ function sendOtpError(reply: FastifyReply, error: unknown) {
       code: error.code,
       message: error.message,
       statusCode: error.statusCode,
+    });
+  }
+  if (error instanceof OtpRateLimitError) {
+    return reply.status(429).send({
+      code: error.code,
+      message: error.message,
+      statusCode: 429,
     });
   }
   if (error instanceof OtpAuthError) {

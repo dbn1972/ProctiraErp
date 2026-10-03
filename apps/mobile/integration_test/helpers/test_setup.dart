@@ -154,9 +154,7 @@ class JourneyHarness {
     Duration timeout = const Duration(seconds: 2),
   }) async {
     if (matcher(bloc.state)) return;
-    await bloc.stream
-        .firstWhere(matcher)
-        .timeout(timeout);
+    await bloc.stream.firstWhere(matcher).timeout(timeout);
   }
 
   Future<void> dispose() async {
@@ -197,10 +195,12 @@ Future<JourneyHarness> bootstrapTestApp({
 
   // Replace the production database with one rooted in a temp file so each
   // test starts with a clean store.
-  final Directory tempDir =
-      await Directory.systemTemp.createTemp('openemis_int_');
-  final AppDatabase tempDb =
-      AppDatabase(overridePath: '${tempDir.path}/openemis.db');
+  final Directory tempDir = await Directory.systemTemp.createTemp(
+    'openemis_int_',
+  );
+  final AppDatabase tempDb = AppDatabase(
+    overridePath: '${tempDir.path}/openemis.db',
+  );
   await getIt.unregister<AppDatabase>(
     instance: getIt<AppDatabase>(),
     disposingFunction: (AppDatabase d) => d.close(),
@@ -213,8 +213,9 @@ Future<JourneyHarness> bootstrapTestApp({
   dio.httpClientAdapter = _ExplodingHttpAdapter();
 
   // Swap in the fake connectivity monitor and the recording dispatcher.
-  final FakeConnectivityMonitor connectivity =
-      FakeConnectivityMonitor(startsOnline: startsOnline);
+  final FakeConnectivityMonitor connectivity = FakeConnectivityMonitor(
+    startsOnline: startsOnline,
+  );
   await _replaceConnectivity(connectivity);
   final RecordingSyncDispatcher dispatcher = RecordingSyncDispatcher();
   await _replaceSyncEngine(dispatcher);
@@ -270,6 +271,10 @@ void goJourney(String location) {
   getIt<AppRouter>().config.go(location);
 }
 
+/// Current router path (PRC-M563/M564: assert navigation, not just widgets).
+/// Uses [GoRouter.state] so imperatively pushed routes count.
+String currentJourneyPath() => getIt<AppRouter>().config.state.uri.path;
+
 /// Pump the app and wait for first-frame settle. The harness waits an extra
 /// frame to give GoRouter time to resolve auth/tenant redirects.
 Future<void> pumpJourneyApp(WidgetTester tester) async {
@@ -285,7 +290,8 @@ class RecordingSyncDispatcher implements SyncDispatcher {
   RecordingSyncDispatcher({
     DispatchOutcome Function(PendingSyncRow row)? outcomeFactory,
   }) : _outcomeFactory =
-            outcomeFactory ?? ((PendingSyncRow _) => const DispatchTransient('test'));
+           outcomeFactory ??
+           ((PendingSyncRow _) => const DispatchTransient('test'));
 
   final DispatchOutcome Function(PendingSyncRow row) _outcomeFactory;
   final List<PendingSyncRow> received = <PendingSyncRow>[];
