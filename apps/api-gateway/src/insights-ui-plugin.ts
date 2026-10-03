@@ -22,6 +22,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import {
+  BoardSummaryUnavailableError,
   clearBoardSummariesForTests,
   emptyBoardSummary,
   getBoardSummary,
@@ -125,10 +126,24 @@ export const insightsUiPlugin = fp(
             statusCode: 403,
           });
         }
-        const summary = await getBoardSummary(boardId, tenantId, {
-          forceMemory: options.forceMemory,
-        });
-        return reply.send(summary);
+        try {
+          const summary = await getBoardSummary(boardId, tenantId, {
+            forceMemory: options.forceMemory,
+          });
+          return reply.send(summary);
+        } catch (error) {
+          if (!(error instanceof BoardSummaryUnavailableError)) throw error;
+          // PRC-M009: log with the request id; never present a DB failure as zeros.
+          request.log.error(
+            { err: error.cause ?? error, boardId, reqId: request.id },
+            'board summary unavailable',
+          );
+          return reply.status(503).send({
+            code: 'BOARD_SUMMARY_UNAVAILABLE',
+            message: 'Board summary is temporarily unavailable. Please try again later.',
+            statusCode: 503,
+          });
+        }
       },
     );
 
