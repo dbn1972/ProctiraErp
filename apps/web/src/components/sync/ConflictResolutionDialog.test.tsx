@@ -108,7 +108,7 @@ describe('<ConflictResolutionDialog> — opens on sync:conflict', () => {
   it('does not render anything before a conflict arrives', () => {
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={vi.fn()} />
+        <ConflictResolutionDialog dequeueOperation={vi.fn()} getQueuedOperation={async () => null} />
       </Harness>,
     );
     expect(screen.queryByTestId('conflict-resolution-dialog')).toBeNull();
@@ -117,7 +117,7 @@ describe('<ConflictResolutionDialog> — opens on sync:conflict', () => {
   it('renders the dialog when a sync:conflict event fires', () => {
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={vi.fn()} />
+        <ConflictResolutionDialog dequeueOperation={vi.fn()} getQueuedOperation={async () => null} />
       </Harness>,
     );
     fireConflict(makeDetail());
@@ -127,7 +127,7 @@ describe('<ConflictResolutionDialog> — opens on sync:conflict', () => {
   it('renders one row per conflicting field with both values', () => {
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={vi.fn()} />
+        <ConflictResolutionDialog dequeueOperation={vi.fn()} getQueuedOperation={async () => null} />
       </Harness>,
     );
     fireConflict(makeDetail());
@@ -145,7 +145,7 @@ describe('<ConflictResolutionDialog> — opens on sync:conflict', () => {
   it('renders the local and server payload panels', () => {
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={vi.fn()} />
+        <ConflictResolutionDialog dequeueOperation={vi.fn()} getQueuedOperation={async () => null} />
       </Harness>,
     );
     fireConflict(makeDetail());
@@ -168,7 +168,7 @@ describe('<ConflictResolutionDialog> — Amend', () => {
     try {
       render(
         <Harness>
-          <ConflictResolutionDialog dequeueOperation={dequeueSpy} />
+          <ConflictResolutionDialog dequeueOperation={dequeueSpy} getQueuedOperation={async () => null} />
         </Harness>,
       );
       fireConflict(makeDetail());
@@ -202,7 +202,7 @@ describe('<ConflictResolutionDialog> — Amend', () => {
     try {
       render(
         <Harness>
-          <ConflictResolutionDialog dequeueOperation={vi.fn().mockResolvedValue(undefined)} />
+          <ConflictResolutionDialog dequeueOperation={vi.fn().mockResolvedValue(undefined)} getQueuedOperation={async () => null} />
         </Harness>,
       );
       fireConflict(makeDetail());
@@ -236,7 +236,7 @@ describe('<ConflictResolutionDialog> — Discard', () => {
     try {
       render(
         <Harness>
-          <ConflictResolutionDialog dequeueOperation={dequeueSpy} />
+          <ConflictResolutionDialog dequeueOperation={dequeueSpy} getQueuedOperation={async () => null} />
         </Harness>,
       );
       fireConflict(makeDetail());
@@ -266,7 +266,7 @@ describe('<ConflictResolutionDialog> — burst handling', () => {
     const dequeueSpy = vi.fn().mockResolvedValue(undefined);
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={dequeueSpy} />
+        <ConflictResolutionDialog dequeueOperation={dequeueSpy} getQueuedOperation={async () => null} />
       </Harness>,
     );
 
@@ -302,7 +302,7 @@ describe('<ConflictResolutionDialog> — burst handling', () => {
   it('drops duplicate sync:conflict events for the same queueId', async () => {
     render(
       <Harness>
-        <ConflictResolutionDialog dequeueOperation={vi.fn().mockResolvedValue(undefined)} />
+        <ConflictResolutionDialog dequeueOperation={vi.fn().mockResolvedValue(undefined)} getQueuedOperation={async () => null} />
       </Harness>,
     );
     fireConflict(makeDetail({ queueId: 'op-1' }));
