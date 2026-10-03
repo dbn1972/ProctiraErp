@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,6 +26,7 @@ class SecureStorage {
   static const String selectedStudentIdKey = 'prefs.selected_student_id';
   static const String selectedStudentNameKey = 'prefs.selected_student_name';
   static const String notificationPrefsKey = 'prefs.notification_local';
+  static const String installationIdKey = 'device.installation_id';
 
   final FlutterSecureStorage _storage;
 
@@ -40,6 +42,20 @@ class SecureStorage {
       key: cacheMasterKeyKey,
       value: base64Encode(fresh),
     );
+    return fresh;
+  }
+
+  /// Stable random id for this app install, used as the push `deviceId`
+  /// (PRC-M033). Survives logout; it identifies the device, not the user.
+  Future<String> getOrCreateInstallationId() async {
+    final String? existing = await _storage.read(key: installationIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final Random rng = Random.secure();
+    final String fresh = List<String>.generate(
+      16,
+      (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    await _storage.write(key: installationIdKey, value: fresh);
     return fresh;
   }
 

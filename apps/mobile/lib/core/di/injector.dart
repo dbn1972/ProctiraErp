@@ -287,6 +287,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       preferencesLoader: () async => LocalNotificationPreferences.decode(
         await getIt<SecureStorage>().readNotificationPreferences(),
       ),
+      installationId: () => getIt<SecureStorage>().getOrCreateInstallationId(),
     ),
   );
 
@@ -296,6 +297,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     database: database,
     authApi: getIt<AuthApi>(),
     selectedStudent: selectedStudent,
+    push: getIt<FcmService>(),
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

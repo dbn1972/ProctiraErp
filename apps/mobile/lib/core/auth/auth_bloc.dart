@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
+import '../notifications/push_device_lifecycle.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -87,7 +90,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AppDatabase? database,
     AuthApi? authApi,
     SelectedStudentStore? selectedStudent,
+    PushDeviceLifecycle? push,
   })  : _storage = secureStorage,
+        _push = push,
         _database = database,
         _authApi = authApi,
         _selectedStudent = selectedStudent,
@@ -101,6 +106,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AppDatabase? _database;
   final AuthApi? _authApi;
   final SelectedStudentStore? _selectedStudent;
+  final PushDeviceLifecycle? _push;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -119,6 +125,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userId: userId,
         accessToken: access,
       ));
+      _registerPush();
     } else {
       emit(const AuthState.unauthenticated());
     }
@@ -139,12 +146,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       userId: event.userId,
       accessToken: event.accessToken,
     ));
+    _registerPush();
+  }
+
+  /// Fire-and-forget: push registration retries internally and must never
+  /// block or fail the sign-in (PRC-M033).
+  void _registerPush() {
+    final PushDeviceLifecycle? push = _push;
+    if (push != null) unawaited(push.onAuthenticated());
   }
 
   Future<void> _onLogout(
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
+    // Unregister the push device while the session is still valid, before
+    // tokens are cleared and caches purged (PRC-M033).
+    final PushDeviceLifecycle? push = _push;
+    if (push != null) {
+      try {
+        await push.onLoggingOut();
+      } catch (_) {
+        // Local logout must succeed even if unregistration fails.
+      }
+    }
     final AuthApi? api = _authApi;
     if (api != null) {
       final String? refresh = await _storage.readRefreshToken();
