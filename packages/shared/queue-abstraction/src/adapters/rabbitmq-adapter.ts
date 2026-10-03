@@ -158,6 +158,13 @@ export class RabbitMQAdapter implements QueueAdapter {
     };
     channel.on('close', () => failAll('channel closed'));
     channel.on('error', (err: unknown) => failAll(errorMessage(err)));
+    // A dropped broker connection must also fail in-flight publishes (PRC-H087 live test):
+    // do not rely on the channel 'close' event alone.
+    const connection = this.connection as Partial<Pick<ChannelModel, 'on'>>;
+    if (typeof connection.on === 'function') {
+      connection.on('close', () => failAll('connection closed'));
+      connection.on('error', (err: unknown) => failAll(`connection error: ${errorMessage(err)}`));
+    }
 
     // Assert the main exchange
     await channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
