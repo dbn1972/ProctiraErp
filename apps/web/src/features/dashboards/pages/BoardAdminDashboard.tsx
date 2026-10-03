@@ -17,6 +17,7 @@
  */
 
 import { AlertTriangle, Briefcase, Calendar, School, TrendingUp, Users } from 'lucide-react';
+import { DashboardLoadError } from '../DashboardLoadError';
 import {
   CartesianGrid,
   Line,
@@ -251,7 +252,7 @@ function toActionItems(items: ReadonlyArray<BoardActionItem>): ActionItem[] {
 }
 
 export default function BoardAdminDashboard() {
-  const { data, isLoading } = useBoardAdminDashboardData();
+  const { data, isLoading, error } = useBoardAdminDashboardData();
 
   const kpis = data?.kpis ?? [];
   const regions = data?.regions ?? [];
@@ -259,6 +260,9 @@ export default function BoardAdminDashboard() {
   const enrollmentGrowth = data?.enrollmentGrowth ?? [];
   const actionItems = data?.actionItems ?? [];
   const boardName = data?.boardName ?? 'Board Administration';
+
+  // PRC-M577: render the real failure instead of sample data.
+  if (error) return <DashboardLoadError title="Board Dashboard" error={error} />;
 
   return (
     <div className="space-y-6 p-6" data-testid="board-admin-dashboard">
