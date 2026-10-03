@@ -16,6 +16,7 @@ trap 'rm -rf "$OUT_DIR"' EXIT
 # package dir|space-separated test files (relative to the package)
 SUITES=(
   "packages/shared/queue-abstraction|src/__tests__/rabbitmq-broker.integration.test.ts"
+  "packages/backend/assessment|src/report-card-queue.rabbitmq.test.ts"
 )
 
 status=0
