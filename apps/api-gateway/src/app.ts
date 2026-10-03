@@ -822,6 +822,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works).
+  // PRC-M010: replay runs in preHandler, i.e. after every onRequest gate below
+  // (RBAC, mutating authz, scope) and the preHandler rate limiter.
   // W1-ARCH-03: Redis required when IDEMPOTENCY_STORE=redis / REDIS_URL / production —
   // never silently fall back to process memory (refuse boot or request-time 503).
   const idempotencyStore = await resolveIdempotencyStore();
@@ -830,6 +832,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     redis: idempotencyStore.redis,
     ttlSeconds: parseInt(process.env['IDEMPOTENCY_TTL_SECONDS'] || '86400', 10),
     lockTtlSeconds: parseInt(process.env['IDEMPOTENCY_LOCK_TTL_SECONDS'] || '60', 10),
+    // PRC-M010: never share an anonymous / `global` replay space between callers.
+    requireScope: true,
     excludePaths: [
       ...authExcludePaths,
       '/api/v1/services',
