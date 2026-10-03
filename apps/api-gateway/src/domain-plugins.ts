@@ -95,6 +95,7 @@ import {
   createAreaHierarchyDb,
   createInstitutionRepository,
   institutionPlugin,
+  type RolloverExtras,
   type RolloverSummary,
 } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
@@ -245,6 +246,73 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
     entry.lms = { repository, service: new LmsService(repository) };
   }
   return entry.lms;
+}
+/**
+ * PRC-L318: claim-first rollover ledger hooks over `academic_rollover_runs`.
+ * The claim is a single INSERT … ON CONFLICT so exactly one concurrent
+ * same-key request wins; a previously `failed` row may be re-claimed.
+ */
+export function createRolloverClaimHooks(
+  pool: NonNullable<ReturnType<typeof getSharedPgPool>>,
+): Pick<RolloverExtras, 'claimRolloverRun' | 'finishRolloverRun'> {
+  return {
+    claimRolloverRun: (input) =>
+      withPgTenant(pool, input.tenantId, async (client) => {
+        const claimed = await client.query(
+          `INSERT INTO academic_rollover_runs (
+             id, tenant_id, source_period_id, target_period_id, actor_id,
+             dry_run, idempotency_key, request, summary, status
+           ) VALUES (
+             gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4,
+             false, $5, $6::jsonb, '{}'::jsonb, 'running'
+           )
+           ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+           DO UPDATE SET status = 'running',
+                         actor_id = EXCLUDED.actor_id,
+                         source_period_id = EXCLUDED.source_period_id,
+                         target_period_id = EXCLUDED.target_period_id,
+                         request = EXCLUDED.request
+             WHERE academic_rollover_runs.status = 'failed'
+           RETURNING id`,
+          [
+            input.tenantId,
+            input.sourcePeriodId,
+            input.targetPeriodId,
+            input.actorId,
+            input.idempotencyKey,
+            JSON.stringify(input.request),
+          ],
+        );
+        const claimedRow = claimed.rows[0] as { id: string } | undefined;
+        if (claimedRow) return { state: 'claimed' as const, runId: claimedRow.id };
+        const existing = await client.query(
+          `SELECT status, summary FROM academic_rollover_runs
+            WHERE tenant_id = $1::uuid AND idempotency_key = $2
+            LIMIT 1`,
+          [input.tenantId, input.idempotencyKey],
+        );
+        const row = existing.rows[0] as { status: string; summary: RolloverSummary } | undefined;
+        return row?.status === 'completed'
+          ? { state: 'completed' as const, summary: row.summary }
+          : { state: 'running' as const };
+      }),
+    finishRolloverRun: async (input) => {
+      await withPgTenant(pool, input.tenantId, async (client) => {
+        await client.query(
+          `UPDATE academic_rollover_runs
+              SET status = $3,
+                  summary = COALESCE($4::jsonb, summary)
+            WHERE id = $1::uuid AND tenant_id = $2::uuid`,
+          [
+            input.runId,
+            input.tenantId,
+            input.status,
+            input.summary ? JSON.stringify(input.summary) : null,
+          ],
+        );
+      });
+    },
+  };
 }
 let mountedScholarshipRepository: ScholarshipRepository | null = null;
 function scholarshipRepositoryForFees(): ScholarshipRepository {
@@ -760,6 +828,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                   return row?.summary ?? null;
                 })
             : undefined,
+          // PRC-L318: claim-first ledger (insert `running` before executing, then
+          // complete/fail). Needs the `running` status in the ledger CHECK, so it
+          // is opt-in until that migration is applied everywhere.
+          ...(pgPool && process.env['ROLLOVER_LEDGER_CLAIM_FIRST'] === 'true'
+            ? createRolloverClaimHooks(pgPool)
+            : {}),
           recordRolloverRun: pgPool
             ? async (input) => {
                 await withPgTenant(pgPool, input.tenantId, async (client) => {
