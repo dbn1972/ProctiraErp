@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { createPrivacyRepository, isPgPrivacyEnabled } from './create-privacy-repository.js';
 import { InMemoryPrivacyRepository } from './in-memory-repository.js';
+import { CompositeCorrectionApplier, type CorrectionApplier } from './correction-applier.js';
 import { RecordingPrivacyAuditPort } from './privacy-audit.js';
 import { PrivacyService } from './privacy-service.js';
 import { resetSharedInMemoryPrivacyRepositoryForTests } from './shared-store.js';
@@ -178,9 +179,104 @@ describe('PrivacyService correction path with audit (W1-SEC-06)', () => {
   let service: PrivacyService;
   let audit: RecordingPrivacyAuditPort;
 
+  // PRC-M321: a fake owning domain (student store) behind the CorrectionApplier port.
+  let studentStore: Map<string, Record<string, string>>;
+  let failWrite: boolean;
+  const studentApplier: CorrectionApplier = {
+    allowedFieldPaths: (subjectType) => (subjectType === 'student' ? ['legalName', 'email'] : []),
+    async readCurrentValue({ subjectId, fieldPath }) {
+      const row = studentStore.get(subjectId);
+      if (!row) throw new NotFoundError(`student ${subjectId}`);
+      return row[fieldPath] ?? null;
+    },
+    async applyValue({ subjectId, fieldPath, value }) {
+      if (failWrite) throw new Error('student write failed');
+      const row = studentStore.get(subjectId);
+      if (!row) throw new NotFoundError(`student ${subjectId}`);
+      row[fieldPath] = value;
+    },
+  };
+
   beforeEach(() => {
     audit = new RecordingPrivacyAuditPort();
-    service = new PrivacyService(new InMemoryPrivacyRepository(), { audit });
+    studentStore = new Map([['stu-1', { legalName: 'Jon', email: 'old@example.com' }]]);
+    failWrite = false;
+    service = new PrivacyService(new InMemoryPrivacyRepository(), {
+      audit,
+      correctionApplier: new CompositeCorrectionApplier({ student: studentApplier }),
+    });
+  });
+
+  async function approvedCorrection(fieldPath = 'email', requestedValue = 'new@example.com') {
+    const req = await service.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-1',
+      fieldPath,
+      // Client-claimed current value is not trusted for audit.
+      currentValue: 'client-claimed',
+      requestedValue,
+      requestedBy: 'parent-1',
+    });
+    await service.transitionCorrectionRequest(req.id, TENANT_A, 'under_review', 'officer');
+    await service.transitionCorrectionRequest(req.id, TENANT_A, 'approved', 'officer');
+    return req;
+  }
+
+  it('apply changes the student field; audit before digest is server-read (PRC-M321)', async () => {
+    const req = await approvedCorrection();
+    const applied = await service.applyCorrection(req.id, TENANT_A, 'officer');
+    expect(applied.status).toBe('applied');
+    expect(studentStore.get('stu-1')?.email).toBe('new@example.com');
+    const ev = audit.events.find(
+      (e) => e.entityType === 'privacy_correction' && e.afterValues?.status === 'applied',
+    );
+    const { createHash } = await import('node:crypto');
+    const digest = (v: string) =>
+      `sha256:${createHash('sha256').update(`${TENANT_A}\u0000${v}`).digest('hex')}`;
+    expect(ev?.beforeValues?.valueDigest).toBe(digest('old@example.com'));
+    expect(ev?.afterValues?.valueDigest).toBe(digest('new@example.com'));
+  });
+
+  it('unknown fieldPath is rejected with 400 (PRC-M321)', async () => {
+    await expect(
+      service.createCorrectionRequest({
+        tenantId: TENANT_A,
+        subjectType: 'student',
+        subjectId: 'stu-1',
+        fieldPath: 'passwordHash',
+        requestedValue: 'x',
+        requestedBy: 'parent-1',
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('failed domain write leaves the correction approved (PRC-M321)', async () => {
+    const req = await approvedCorrection();
+    failWrite = true;
+    await expect(service.applyCorrection(req.id, TENANT_A, 'officer')).rejects.toThrow(
+      /write failed/,
+    );
+    expect((await service.getCorrectionRequest(req.id, TENANT_A))?.status).toBe('approved');
+  });
+
+  it('without an applier apply refuses with 501 and does not report applied', async () => {
+    const repo = new InMemoryPrivacyRepository();
+    const bare = new PrivacyService(repo, { audit });
+    const req = await bare.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-1',
+      fieldPath: 'email',
+      requestedValue: 'x@example.com',
+      requestedBy: 'parent-1',
+    });
+    await bare.transitionCorrectionRequest(req.id, TENANT_A, 'under_review', 'officer');
+    await bare.transitionCorrectionRequest(req.id, TENANT_A, 'approved', 'officer');
+    await expect(bare.applyCorrection(req.id, TENANT_A, 'officer')).rejects.toMatchObject({
+      statusCode: 501,
+    });
+    expect((await bare.getCorrectionRequest(req.id, TENANT_A))?.status).toBe('approved');
   });
 
   it('applies correction with before/after audit', async () => {

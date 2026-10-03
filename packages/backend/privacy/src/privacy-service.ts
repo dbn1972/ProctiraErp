@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto';
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { CorrectionApplier } from './correction-applier.js';
 import type { PrivacyAuditPort } from './privacy-audit.js';
 import { NoopPrivacyAuditPort } from './privacy-audit.js';
 import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
@@ -118,6 +119,8 @@ export interface PrivacyServiceOptions {
   tenantWipeExecutor?: TenantWipeExecutor;
   anonymizationPublisher?: PrivacyAnonymizationPublisher;
   offboardPublisher?: PrivacyOffboardPublisher;
+  /** PRC-M321: domain writer for rectification. Absent -> apply refuses with 501. */
+  correctionApplier?: CorrectionApplier;
 }
 
 export class PrivacyService implements DestructiveDeleteGuard {
@@ -126,6 +129,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
   private readonly tenantWipeExecutor: TenantWipeExecutor;
   private readonly anonymizationPublisher?: PrivacyAnonymizationPublisher;
   private readonly offboardPublisher?: PrivacyOffboardPublisher;
+  private readonly correctionApplier?: CorrectionApplier;
   /** False when only the residual-recording default anonymizer is present. */
   readonly erasureExecutionAvailable: boolean;
   /** False when only the residual checklist wipe executor is present. */
@@ -142,6 +146,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.tenantWipeAvailable = options.tenantWipeExecutor !== undefined;
     this.anonymizationPublisher = options.anonymizationPublisher;
     this.offboardPublisher = options.offboardPublisher;
+    this.correctionApplier = options.correctionApplier;
   }
 
   async placeLegalHold(input: PlaceLegalHoldInput): Promise<LegalHoldEntity> {
@@ -523,6 +528,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
   async createCorrectionRequest(
     input: CreateCorrectionRequestInput,
   ): Promise<CorrectionRequestEntity> {
+    // PRC-M321: when a domain applier is configured, reject field paths it cannot rectify up front.
+    if (this.correctionApplier) {
+      this.assertCorrectableField(input.subjectType, input.fieldPath);
+    }
     const row = await this.repository.createCorrectionRequest({
       id: uuidv4(),
       tenantId: input.tenantId,
@@ -582,9 +591,20 @@ export class PrivacyService implements DestructiveDeleteGuard {
     }))!;
   }
 
+  private assertCorrectableField(subjectType: string, fieldPath: string): void {
+    const allowed = this.correctionApplier?.allowedFieldPaths(subjectType) ?? [];
+    if (!allowed.includes(fieldPath)) {
+      throw new ValidationError(
+        `Field '${fieldPath}' cannot be corrected for subject type '${subjectType}'`,
+      );
+    }
+  }
+
   /**
-   * Apply an approved correction and emit an audit event with before/after values.
-   * Domain field mutation is caller/residual — this records the rectification decision.
+   * Apply an approved correction (PRC-M321): the owning domain writes the new value via the
+   * CorrectionApplier, the before value is read server-side, and only then is the request
+   * marked `applied`. Without an applier this refuses (501) instead of reporting a change
+   * that never happened; a failed domain write leaves the request `approved`.
    */
   async applyCorrection(
     requestId: string,
@@ -599,6 +619,21 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Correction apply requires approved status; current=${existing.status}`,
       );
     }
+    const applier = this.correctionApplier;
+    if (!applier) {
+      throw new PrivacyExecutorNotConfiguredError(
+        'Correction apply is not available: no domain correction applier is configured',
+      );
+    }
+    this.assertCorrectableField(existing.subjectType, existing.fieldPath);
+    const target = {
+      tenantId: existing.tenantId,
+      subjectType: existing.subjectType,
+      subjectId: existing.subjectId,
+      fieldPath: existing.fieldPath,
+    };
+    const serverBefore = await applier.readCurrentValue(target);
+    await applier.applyValue({ ...target, value: existing.requestedValue });
 
     // PRC-M322: once applied the raw values are no longer needed; redact them at rest.
     const applied = await this.repository.updateCorrectionRequest(requestId, tenantId, {
@@ -620,7 +655,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       ipAddress: '0.0.0.0',
       beforeValues: {
         fieldPath: existing.fieldPath,
-        valueDigest: correctionValueDigest(existing.tenantId, existing.currentValue),
+        valueDigest: correctionValueDigest(existing.tenantId, serverBefore),
         status: existing.status,
       },
       afterValues: {
@@ -637,7 +672,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
     logger.info(
       { requestId, tenantId: existing.tenantId, fieldPath: existing.fieldPath },
-      'Correction applied with audit',
+      'Correction applied in owning domain with audit',
     );
     return applied!;
   }
