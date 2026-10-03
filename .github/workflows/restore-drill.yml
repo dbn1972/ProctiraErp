@@ -18,6 +18,7 @@ on:
       - 'tools/scripts/pg-restore.sh'
       - 'tools/scripts/backup-crypto.sh'
       - 'tools/scripts/restore-drill.sh'
+      - 'tools/scripts/restore-parity.sh'
       - 'tools/scripts/check-restore-drill-evidence.sh'
       - 'tools/scripts/phi-retention-job.mjs'
       - 'docs/audits/evidence/restore-drill-*.json'
@@ -138,6 +139,16 @@ jobs:
 
       # G-710 FORCE RLS: an ordinary app role must be refused (exit 2) rather
       # than produce a partial dump.
+      # PRC-M260: security/integrity parity beyond three row counts — policies,
+      # RLS enable/force flags, sequences, per-tenant counts, audit chain linkage
+      # and a NOBYPASSRLS cross-tenant probe on the restored database.
+      - name: Assert RLS, audit-chain and per-tenant parity
+        run: |
+          set -euo pipefail
+          SRC_URL="$DATABASE_URL" DST_URL="${DATABASE_URL%/*}/proctira_restore_drill" \
+            ARTIFACT_DIR="$ARTIFACT_DIR/parity" bash tools/scripts/restore-parity.sh \
+            | tee "$ARTIFACT_DIR/parity.log"
+          grep -E '^(OK|SKIP) ' "$ARTIFACT_DIR/parity.log" >> "$GITHUB_STEP_SUMMARY"
       - name: Backup preflight refuses a non-BYPASSRLS role
         run: |
           set -euo pipefail
