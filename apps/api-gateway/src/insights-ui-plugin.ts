@@ -22,6 +22,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import {
+  BoardSummaryUnavailableError,
   clearBoardSummariesForTests,
   emptyBoardSummary,
   getBoardSummary,
@@ -29,6 +30,7 @@ import {
   type BoardSummary,
 } from './board-summary.js';
 import { createInsightsUiStore, type InsightsUiStore } from './insights-ui-pg-store.js';
+import { PLATFORM_ADMIN_ROLE_IDS } from './rbac-registry.js';
 
 export type { BoardSummary };
 export { clearBoardSummariesForTests, emptyBoardSummary, seedBoardSummaryForTests };
@@ -38,6 +40,49 @@ function resolveTenantId(request: FastifyRequest): string {
   if (fromRequest) return fromRequest;
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
   return user?.tenantId ?? 'default';
+}
+
+/** PRC-M028: exact role ids allowed to read every board rollup in their tenant. */
+export const BOARD_ROLLUP_TENANT_WIDE_ROLE_IDS = new Set([
+  ...PLATFORM_ADMIN_ROLE_IDS,
+  'super_admin',
+  'system_admin',
+  'admin',
+  'tenant_admin',
+  'tenant-admin',
+]);
+
+export type BoardRollupPrincipal = {
+  roles?: Array<
+    | string
+    | {
+        roleId?: string;
+        roleName?: string;
+        areaId?: string | null;
+        institutionId?: string | null;
+      }
+  >;
+  areas?: Array<{ areaId?: string | null }>;
+};
+
+export function decideBoardRollupAccess(
+  user: BoardRollupPrincipal,
+  boardId: string,
+): 'allow' | 'deny' {
+  const roles = (user.roles ?? []).map((r) => (typeof r === 'string' ? { roleId: r } : r));
+  if (roles.some((r) => BOARD_ROLLUP_TENANT_WIDE_ROLE_IDS.has(String(r.roleId ?? '')))) {
+    return 'allow';
+  }
+  const scoped = new Set<string>();
+  for (const r of roles) {
+    if (r.areaId && r.areaId !== 'ROOT' && r.areaId !== 'root') scoped.add(r.areaId);
+    if (r.institutionId) scoped.add(r.institutionId);
+  }
+  for (const a of user.areas ?? []) {
+    if (a.areaId && a.areaId !== 'ROOT' && a.areaId !== 'root') scoped.add(a.areaId);
+  }
+  // No scope at all → deny (previously this fell through and returned any board).
+  return scoped.has(boardId) ? 'allow' : 'deny';
 }
 
 export interface InsightsUiPluginOptions {
@@ -61,42 +106,44 @@ export const insightsUiPlugin = fp(
       async (request, reply) => {
         const tenantId = resolveTenantId(request);
         const boardId = request.params.boardId;
-        const user = request.user as
-          | {
-              roles?: Array<{
-                roleId?: string;
-                roleName?: string;
-                areaId?: string | null;
-                institutionId?: string;
-              }>;
-            }
-          | undefined;
-        const roles = user?.roles ?? [];
-        const isPrivileged = roles.some((r) => {
-          const n = `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase();
-          return (
-            n.includes('system_admin') ||
-            n.includes('administrator') ||
-            n.includes('board') ||
-            n.includes('platform')
-          );
-        });
-        if (!isPrivileged) {
-          const scoped = roles
-            .map((r) => r.areaId || r.institutionId)
-            .filter((id): id is string => Boolean(id));
-          if (scoped.length > 0 && !scoped.includes(boardId)) {
-            return reply.status(403).send({
-              code: 'BOARD_FORBIDDEN',
-              message: 'You cannot load rollups for another board or area.',
-              statusCode: 403,
-            });
-          }
+        const user = request.user as BoardRollupPrincipal | undefined;
+        // PRC-M028: fail closed. No principal → 401; tenant-wide admins (exact
+        // role ids, no substring matching) may read any board in their tenant;
+        // everyone else — board_admin included — needs an explicit area /
+        // institution scope that names this board.
+        if (!user) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            statusCode: 401,
+          });
         }
-        const summary = await getBoardSummary(boardId, tenantId, {
-          forceMemory: options.forceMemory,
-        });
-        return reply.send(summary);
+        const decision = decideBoardRollupAccess(user, boardId);
+        if (decision !== 'allow') {
+          return reply.status(403).send({
+            code: 'BOARD_FORBIDDEN',
+            message: 'You cannot load rollups for another board or area.',
+            statusCode: 403,
+          });
+        }
+        try {
+          const summary = await getBoardSummary(boardId, tenantId, {
+            forceMemory: options.forceMemory,
+          });
+          return reply.send(summary);
+        } catch (error) {
+          if (!(error instanceof BoardSummaryUnavailableError)) throw error;
+          // PRC-M009: log with the request id; never present a DB failure as zeros.
+          request.log.error(
+            { err: error.cause ?? error, boardId, reqId: request.id },
+            'board summary unavailable',
+          );
+          return reply.status(503).send({
+            code: 'BOARD_SUMMARY_UNAVAILABLE',
+            message: 'Board summary is temporarily unavailable. Please try again later.',
+            statusCode: 503,
+          });
+        }
       },
     );
 

@@ -367,6 +367,134 @@ export class RolesService {
     return user;
   }
 
+  /** PRC-M026: single-row user lookup (no directory scan). */
+  async getUser(tenantId: string, userId: string): Promise<UserRecord> {
+    const user = await this.repository.findUserById(tenantId, userId);
+    if (!user) throw new NotFoundError(`User with id '${userId}' not found`);
+    return user;
+  }
+
+  async findUserByEmail(tenantId: string, email: string): Promise<UserRecord | null> {
+    return this.repository.findUserByEmail(tenantId, email.trim().toLowerCase());
+  }
+
+  /**
+   * PRC-M025: update directory profile attributes pushed by an IdP (SCIM PUT /
+   * PATCH): display name, e-mail (unique per tenant) and externalId.
+   */
+  async updateUserProfile(
+    tenantId: string,
+    userId: string,
+    patch: { displayName?: string; email?: string; externalId?: string | null },
+  ): Promise<UserRecord> {
+    const before = await this.getUser(tenantId, userId);
+    const next: UserRecord = { ...before, roleIds: [...before.roleIds] };
+    if (patch.displayName !== undefined) {
+      const name = patch.displayName.trim();
+      if (!name) {
+        throw new ValidationError('displayName must not be empty', [
+          { field: 'displayName', rule: 'required', message: 'displayName is required' },
+        ]);
+      }
+      next.displayName = name;
+    }
+    if (patch.email !== undefined) {
+      const email = patch.email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new ValidationError('Invalid e-mail address', [
+          { field: 'email', rule: 'format', message: 'email must be a valid address' },
+        ]);
+      }
+      if (email !== before.email.toLowerCase()) {
+        const clash = await this.repository.findUserByEmail(tenantId, email);
+        if (clash && clash.id !== userId) {
+          throw new ConflictError(`A user with e-mail '${email}' already exists in this tenant`);
+        }
+      }
+      next.email = email;
+    }
+    if (patch.externalId !== undefined) {
+      if (patch.externalId === null || patch.externalId.trim() === '') delete next.externalId;
+      else next.externalId = patch.externalId.trim();
+    }
+    const changed = (['displayName', 'email', 'externalId'] as const).filter(
+      (k) => before[k] !== next[k],
+    );
+    if (changed.length === 0) return before;
+    const updated = await this.repository.upsertUser(next);
+    await this.emitAudit({
+      tenantId,
+      entityType: 'user',
+      entityId: userId,
+      operation: 'UPDATE',
+      beforeValues: Object.fromEntries(changed.map((k) => [k, before[k] ?? null])),
+      afterValues: Object.fromEntries(changed.map((k) => [k, updated[k] ?? null])),
+      metadata: { riskLevel: 'high', change: 'user_profile_updated', changedFields: changed },
+    });
+    return updated;
+  }
+
+  private readonly roleLocks = new Map<string, Promise<unknown>>();
+
+  /**
+   * PRC-M026: add / remove role memberships for one user atomically. Uses the
+   * repository's locked read-modify-write when available; otherwise serialises
+   * per user within this process. Never writes from a stale snapshot.
+   */
+  async modifyUserRoles(
+    tenantId: string,
+    userId: string,
+    change: { add?: string[]; remove?: string[] },
+  ): Promise<UserRecord> {
+    const add = [...new Set(change.add ?? [])];
+    const remove = new Set(change.remove ?? []);
+    for (const rid of add) {
+      if (!(await this.repository.findRoleById(tenantId, rid))) {
+        throw new ValidationError('Role assignment references unknown role', [
+          { field: 'roleIds', rule: 'unknown', message: `Role '${rid}' does not exist` },
+        ]);
+      }
+    }
+    const mutate = (current: string[]) =>
+      [...current, ...add].filter((rid) => !remove.has(rid) || add.includes(rid));
+    let result: { before: string[]; user: UserRecord } | null;
+    if (this.repository.updateUserRolesAtomic) {
+      result = await this.repository.updateUserRolesAtomic(tenantId, userId, mutate);
+    } else {
+      const key = `${tenantId}:${userId}`;
+      const prior = this.roleLocks.get(key) ?? Promise.resolve();
+      const run = prior
+        .catch(() => undefined)
+        .then(async () => {
+          const user = await this.repository.findUserById(tenantId, userId);
+          if (!user) return null;
+          const before = [...user.roleIds];
+          const updated = await this.repository.setUserRoles(tenantId, userId, mutate(before));
+          return updated ? { before, user: updated } : null;
+        });
+      this.roleLocks.set(key, run);
+      try {
+        result = await run;
+      } finally {
+        if (this.roleLocks.get(key) === run) this.roleLocks.delete(key);
+      }
+    }
+    if (!result) throw new NotFoundError(`User with id '${userId}' not found`);
+    const { before, user } = result;
+    if (before.length !== user.roleIds.length || before.some((r, i) => r !== user.roleIds[i])) {
+      await this.emitAudit({
+        tenantId,
+        entityType: 'user',
+        entityId: userId,
+        operation: 'UPDATE',
+        beforeValues: { roleIds: before },
+        afterValues: { roleIds: [...user.roleIds] },
+        metadata: { riskLevel: 'high', change: 'user_roles_modified' },
+      });
+    }
+    return user;
+  }
+
   /** G-910 — suspend / reactivate a directory user. */
   async setUserStatus(
     tenantId: string,
