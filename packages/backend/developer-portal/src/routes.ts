@@ -22,7 +22,8 @@
  * POST   /developer/webhooks/verify-self-test   - Sign+verify+replay self-check (W1-SEC-08)
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
+import { Type, type Static, type TSchema } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
@@ -42,6 +43,12 @@ import {
   CreateDocPageSchema,
   UpdateDocPageSchema,
   RecordAnalyticsEventSchema,
+  ApiKeyListQuerySchema,
+  WebhookListQuerySchema,
+  WebhookDeliveryQuerySchema,
+  WebhookParamsSchema,
+  MarketplaceSearchQuerySchema,
+  DocListQuerySchema,
 } from './schemas.js';
 import type {
   CreateDeveloperAccountInput,
@@ -316,22 +323,62 @@ function formatDocPageResponse(entity: {
 }
 
 /**
- * Register developer portal routes on a Fastify instance.
+ * PRC-M220: query strings arrive as strings. Validate them against the TypeBox schemas with
+ * coercion (booleans, numbers) and reject non-integer / out-of-range paging before handlers
+ * see them (TypeBox Convert would truncate "1.5" to 1 for integers).
  */
-const SUBMISSION_STATUSES = new Set([
-  'draft',
-  'submitted',
-  'in_review',
-  'approved',
-  'rejected',
-  'published',
-]);
-
-function isSubmissionStatus(
-  value: unknown,
-): value is 'draft' | 'submitted' | 'in_review' | 'approved' | 'rejected' | 'published' {
-  return typeof value === 'string' && SUBMISSION_STATUSES.has(value);
+function parseListQuery<T extends TSchema>(
+  schema: T,
+  raw: unknown,
+): { ok: true; data: Static<T> } | { ok: false; body: Record<string, unknown> } {
+  const query = { ...((raw ?? {}) as Record<string, unknown>) };
+  for (const key of ['page', 'pageSize']) {
+    const value = query[key];
+    if (value === undefined) continue;
+    const integer =
+      typeof value === 'number' ? Number.isInteger(value) : /^\d+$/.test(String(value).trim());
+    if (!integer) {
+      return {
+        ok: false,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: `${key} must be a positive integer`,
+          statusCode: 400,
+          errors: [{ field: key, rule: 'integer', message: `${key} must be an integer` }],
+        },
+      };
+    }
+  }
+  const result = validateQuery(schema, query);
+  if (!result.success) {
+    return {
+      ok: false,
+      body: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid query parameters',
+        statusCode: 400,
+        errors: result.errors,
+      },
+    };
+  }
+  return { ok: true, data: result.data };
 }
+
+/** PRC-M220: submission list query (statuses of PluginSubmissionEntity). */
+const SubmissionListQuerySchema = Type.Object({
+  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+  status: Type.Optional(
+    Type.Union([
+      Type.Literal('draft'),
+      Type.Literal('submitted'),
+      Type.Literal('in_review'),
+      Type.Literal('approved'),
+      Type.Literal('rejected'),
+      Type.Literal('published'),
+    ]),
+  ),
+});
 
 /**
  * Returns the authenticated subject (`request.user.sub`, populated by the
@@ -344,6 +391,9 @@ function authenticatedSubject(request: FastifyRequest): string | null {
   return typeof sub === 'string' && sub.length > 0 ? sub : null;
 }
 
+/**
+ * Register developer portal routes on a Fastify instance.
+ */
 export async function registerDeveloperPortalRoutes(
   fastify: FastifyInstance,
   options: DeveloperPortalRoutesOptions,
@@ -582,10 +632,11 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-
+      const parsed = parseListQuery(ApiKeyListQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const result = await service.listApiKeys(
         paramsResult.data.accountId,
         tenantId,
@@ -780,10 +831,11 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-
+      const parsed = parseListQuery(WebhookListQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const result = await service.listWebhooks(
         paramsResult.data.accountId,
         tenantId,
@@ -934,11 +986,24 @@ export async function registerDeveloperPortalRoutes(
       }>,
       reply: FastifyReply,
     ) {
-      const params = request.params;
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-
+      const paramsResult = validate(
+        Type.Composite([DeveloperAccountParamsSchema, WebhookParamsSchema]),
+        request.params,
+      );
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid account or webhook ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const params = paramsResult.data;
+      const parsed = parseListQuery(WebhookDeliveryQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
@@ -1141,15 +1206,16 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
-      const query = request.query as { page?: number; pageSize?: number; status?: string };
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-
+      const parsed = parseListQuery(SubmissionListQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const result = await service.listSubmissions(
         paramsResult.data.accountId,
         page,
         pageSize,
-        isSubmissionStatus(query.status) ? query.status : undefined,
+        query.status,
       );
 
       return reply.status(200).send({
@@ -1295,9 +1361,11 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Querystring: MarketplaceSearchQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const parsed = parseListQuery(MarketplaceSearchQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const tags = query.tags ? query.tags.split(',').map((t) => t.trim()) : undefined;
 
       const result = await service.searchMarketplace(
@@ -1442,7 +1510,9 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Querystring: DocListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query;
+      const parsed = parseListQuery(DocListQuerySchema, request.query);
+      if (!parsed.ok) return reply.status(400).send(parsed.body);
+      const query = parsed.data;
       const pages = await service.listDocPages(query.category, query.published);
       return reply.status(200).send({
         data: pages.map(formatDocPageResponse),
