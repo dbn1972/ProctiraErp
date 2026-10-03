@@ -50,6 +50,7 @@ import {
   type ActionState,
 } from '../actions';
 import type { BulkResultEntryResponse } from '@/lib/api/assessments';
+import { parseResultsCsv } from '@/lib/assessments/results-csv';
 import { itemScoreError } from '@/lib/assessments/score-range';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 
@@ -369,134 +370,39 @@ export function ResultsEntryGrid({
     URL.revokeObjectURL(url);
   }
 
-  /** Validate uploaded CSV/XLSX rows by treating them as text/CSV first. */
+  /** Validate uploaded CSV rows (PRC-M572: shared parser, every row accounted for). */
   async function validateImportFile(file: File): Promise<ImportValidationResult> {
-    const text = await file.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    if (lines.length === 0) {
-      return {
-        totalRows: 0,
-        validRows: 0,
-        errorRows: 0,
-        warningRows: 0,
-        errors: [],
-        preview: [],
-        columnMappings: [],
-      };
-    }
-    const headers = (lines[0] ?? '').split(',').map((s) => s.trim());
-    const dataRows = lines.slice(1);
-
+    const parsed = parseResultsCsv(await file.text(), items);
     const itemNameSet = new Set(items.map((i) => i.name));
-    const columnMappings: ImportColumnMapping[] = headers.map((h) => ({
+    const columnMappings: ImportColumnMapping[] = parsed.headers.map((h) => ({
       sourceColumn: h,
       targetField: h === 'studentId' ? 'studentId' : itemNameSet.has(h) ? h : '',
       required: h === 'studentId',
       valid: h === 'studentId' || itemNameSet.has(h),
     }));
-
-    const errors: ImportValidationResult['errors'] = [];
-    const preview: ImportValidationResult['preview'] = [];
-    let validRows = 0;
-    let errorRows = 0;
-
-    dataRows.slice(0, 200).forEach((line, idx) => {
-      const row = idx + 2;
-      const cells = line.split(',').map((s) => s.trim());
-      const data: Record<string, unknown> = {};
-      headers.forEach((h, i) => {
-        data[h] = cells[i] ?? '';
-      });
-      let rowHasErrors = false;
-      const studentId = String(data['studentId'] ?? '');
-      if (!UUID_REGEX.test(studentId)) {
-        errors.push({
-          row,
-          field: 'studentId',
-          message: 'Student id is not a recognised directory id',
-          value: studentId,
-          severity: 'error',
-        });
-        rowHasErrors = true;
-      }
-      for (const item of items) {
-        const v = data[item.name];
-        if (v === undefined || v === '') continue;
-        if (itemScoreError(item, String(v))) {
-          errors.push({
-            row,
-            field: item.name,
-            message: `Score must be in [${item.minScore}, ${item.maxScore}]`,
-            value: String(v),
-            severity: 'error',
-          });
-          rowHasErrors = true;
-        }
-      }
-      preview.push({ rowNumber: row, data, hasErrors: rowHasErrors, errors: [] });
-      if (rowHasErrors) errorRows += 1;
-      else validRows += 1;
-    });
-
     return {
-      totalRows: dataRows.length,
-      validRows,
-      errorRows,
+      totalRows: parsed.totalRows,
+      validRows: parsed.validRows,
+      errorRows: parsed.rejectedRows.length,
       warningRows: 0,
-      errors,
-      preview,
+      errors: parsed.rowErrors.map((e) => ({ ...e, severity: 'error' as const })),
+      preview: parsed.preview
+        .slice(0, 200)
+        .map((p) => ({ rowNumber: p.row, data: p.data, hasErrors: p.hasErrors, errors: [] })),
       columnMappings,
     };
   }
-
   async function confirmImport(file: File): Promise<{ success: number; failed: number }> {
     if (!subjectId || !academicPeriodId) {
       throw new Error('Choose a subject and an academic period.');
     }
-    const text = await file.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    if (lines.length <= 1) {
-      return { success: 0, failed: 0 };
-    }
-    const headers = (lines[0] ?? '').split(',').map((s) => s.trim());
-    const studentIdIdx = headers.indexOf('studentId');
-    const itemColumns = items
-      .map((it) => ({ item: it, id: it.id, idx: headers.indexOf(it.name) }))
-      .filter((c) => c.idx >= 0);
-
-    const rowsToImport: {
-      studentId: string;
-      assessmentItemId: string;
-      score: number;
-    }[] = [];
-
-    for (const line of lines.slice(1)) {
-      const cells = line.split(',').map((s) => s.trim());
-      const studentId = studentIdIdx >= 0 ? (cells[studentIdIdx] ?? '') : '';
-      if (!UUID_REGEX.test(studentId)) continue;
-      for (const col of itemColumns) {
-        const raw = cells[col.idx];
-        if (raw === undefined || raw === '') continue;
-        if (itemScoreError(col.item, raw)) continue;
-        const num = Number(raw);
-        rowsToImport.push({
-          studentId,
-          assessmentItemId: col.id,
-          score: num,
-        });
-      }
-    }
-
+    const parsed = parseResultsCsv(await file.text(), items);
+    // PRC-M572: rejected rows are reported as failures, never dropped silently.
+    const rejected = parsed.rejectedRows.length;
+    const rowsToImport = parsed.entries;
     if (rowsToImport.length === 0) {
-      return { success: 0, failed: 0 };
+      return { success: 0, failed: rejected };
     }
-
     const result = await importResultsFromExcelAction({
       subjectId,
       academicPeriodId,
@@ -506,10 +412,10 @@ export function ResultsEntryGrid({
     if (result.status === 'success' && result.data) {
       return {
         success: result.data.successCount,
-        failed: result.data.errorCount,
+        failed: result.data.errorCount + rejected,
       };
     }
-    return { success: 0, failed: rowsToImport.length };
+    return { success: 0, failed: rowsToImport.length + rejected };
   }
 
   return (
