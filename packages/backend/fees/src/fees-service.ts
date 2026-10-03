@@ -18,6 +18,7 @@ import type {
   LedgerAccount,
   PaymentMethod,
 } from './fees-repository.js';
+import { PaymentIdempotencyReplay } from './fees-repository.js';
 import {
   allocateByShares,
   allocateInstalments,
@@ -34,6 +35,15 @@ import {
 } from './reminder-sandbox.js';
 
 export type { ReminderChannel, ReminderSendAuditEntity, ReminderSuppressionEntity };
+
+/** PRC-M247: unique violation on uq_parent_fee_payments_tenant_idempotency. */
+function isIdempotencyUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; constraint?: string } | null;
+  return (
+    e?.code === '23505' &&
+    (e.constraint === undefined || String(e.constraint).includes('idempotency'))
+  );
+}
 export { FEES_REMINDER_SANDBOX_HONESTY_NOTE };
 
 export interface AddReminderSuppressionInput {
@@ -494,31 +504,72 @@ export class FeesService {
         ? input.idempotencyKey.trim()
         : null;
 
+    const payerUserId = input.payerUserId ?? actorId;
     if (idempotencyKey) {
       const existing = await this.repository.findPaymentByIdempotencyKey(tenantId, idempotencyKey);
-      if (existing) {
-        if (existing.invoiceId !== input.invoiceId) {
-          throw new BusinessRuleError('Idempotency key already used for a different invoice');
-        }
-        if (input.amountCents != null && input.amountCents !== existing.amountCents) {
-          throw new BusinessRuleError(
-            'Idempotency key already used for a different payment amount',
-          );
-        }
-        const invoice = await this.getInvoice(tenantId, existing.invoiceId);
-        const receipt =
-          (await this.repository.listReceiptsForTenant(tenantId)).find(
-            (r) => r.paymentId === existing.id,
-          ) ?? null;
-        if (!receipt) {
-          throw new BusinessRuleError(
-            'Idempotent payment is missing its receipt — refuse silent repair',
-          );
-        }
-        return { invoice, payment: existing, receipt, idempotent: true };
-      }
+      if (existing) return this.replayIdempotentPayment(tenantId, existing, input, payerUserId);
     }
 
+    let settled: { invoice: FeeInvoiceEntity; payment: FeePaymentEntity; receipt: FeeReceiptEntity };
+    try {
+      settled = await this.settlePayment(tenantId, actorId, input, idempotencyKey, options);
+    } catch (err) {
+      // PRC-M247: a concurrent same-key request committed first — replay it.
+      if (err instanceof PaymentIdempotencyReplay) {
+        return this.replayIdempotentPayment(tenantId, err.payment, input, payerUserId);
+      }
+      if (idempotencyKey && isIdempotencyUniqueViolation(err)) {
+        const winner = await this.repository.findPaymentByIdempotencyKey(tenantId, idempotencyKey);
+        if (winner) return this.replayIdempotentPayment(tenantId, winner, input, payerUserId);
+      }
+      throw err;
+    }
+    return { ...settled, idempotent: false };
+  }
+
+  /** PRC-M247: replay validates invoice, amount and payer before returning the settlement. */
+  private async replayIdempotentPayment(
+    tenantId: string,
+    existing: FeePaymentEntity,
+    input: RecordPaymentInput,
+    payerUserId: string,
+  ) {
+    if (existing.invoiceId !== input.invoiceId) {
+      throw new BusinessRuleError('Idempotency key already used for a different invoice');
+    }
+    if (input.amountCents != null && input.amountCents !== existing.amountCents) {
+      throw new BusinessRuleError('Idempotency key already used for a different payment amount');
+    }
+    if (existing.payerUserId !== payerUserId) {
+      throw new BusinessRuleError('Idempotency key already used by a different payer');
+    }
+    const invoice = await this.getInvoice(tenantId, existing.invoiceId);
+    const receipt =
+      (await this.repository.listReceiptsForTenant(tenantId)).find(
+        (r) => r.paymentId === existing.id,
+      ) ?? null;
+    if (!receipt) {
+      throw new BusinessRuleError('Idempotent payment is missing its receipt — refuse silent repair');
+    }
+    return { invoice, payment: existing, receipt, idempotent: true };
+  }
+
+  private async settlePayment(
+    tenantId: string,
+    actorId: string,
+    input: RecordPaymentInput,
+    idempotencyKey: string | null,
+    options?: {
+      appendAuditInTxn?: (
+        client: PgQueryable,
+        settlement: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
+  ) {
     const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
       tenantId,
       input.invoiceId,
@@ -602,16 +653,26 @@ export class FeesService {
             : 'open') as FeeInvoiceEntity['status'],
         };
       },
-      options?.appendAuditInTxn
-        ? {
-            appendAuditInTxn: async (client, settled) => {
-              await options.appendAuditInTxn!(client, settled);
-            },
-          }
-        : undefined,
+      {
+        idempotencyKey,
+        ...(options?.appendAuditInTxn
+          ? {
+              appendAuditInTxn: async (
+                client: PgQueryable,
+                settled: {
+                  invoice: FeeInvoiceEntity;
+                  payment: FeePaymentEntity;
+                  receipt: FeeReceiptEntity;
+                },
+              ) => {
+                await options.appendAuditInTxn!(client, settled);
+              },
+            }
+          : {}),
+      },
     );
 
-    return { invoice, payment, receipt, idempotent: false };
+    return { invoice, payment, receipt };
   }
 
   async createFeeStructure(tenantId: string, actorId: string, input: CreateFeeStructureInput) {

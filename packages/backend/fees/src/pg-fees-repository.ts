@@ -20,6 +20,7 @@ import type pg from 'pg';
 
 import {
   assertJournalBalanced,
+  PaymentIdempotencyReplay,
   type ConcessionKind,
   type ConcessionStatus,
   type FeeConcessionEntity,
@@ -702,6 +703,7 @@ export class PgFeesRepository implements FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {
@@ -727,6 +729,16 @@ export class PgFeesRepository implements FeesRepository {
         throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
       }
       const invoice = mapInvoice(invoiceRow);
+      if (options?.idempotencyKey) {
+        // PRC-M247: a concurrent same-key request that won the lock already committed.
+        const prior = await client.query(
+          `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 AND idempotency_key = $2 LIMIT 1`,
+          [tenantId, options.idempotencyKey],
+        );
+        if (prior.rows[0]) {
+          throw new PaymentIdempotencyReplay(mapPayment(prior.rows[0] as Record<string, unknown>));
+        }
+      }
       if (invoice.status !== 'open') {
         throw new BusinessRuleError('Invoice is not open for payment');
       }

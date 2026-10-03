@@ -105,6 +105,18 @@ export interface LedgerTrialBalance {
 }
 
 /** Thrown when a journal's debits and credits do not balance. */
+/**
+ * PRC-M247: thrown by recordPaymentOnInvoice when the idempotency key already
+ * has a payment (found under the lock or via the unique index); the service
+ * turns it into an idempotent replay.
+ */
+export class PaymentIdempotencyReplay extends Error {
+  constructor(readonly payment: FeePaymentEntity) {
+    super('Idempotent payment replay');
+    this.name = 'PaymentIdempotencyReplay';
+  }
+}
+
 export class UnbalancedJournalError extends Error {
   constructor(journalId: string, debitCents: number, creditCents: number) {
     super(
@@ -440,6 +452,11 @@ export interface FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      /**
+       * PRC-M247: re-check this key under the invoice lock (before the status
+       * check and before `build` charges). A hit throws PaymentIdempotencyReplay.
+       */
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {

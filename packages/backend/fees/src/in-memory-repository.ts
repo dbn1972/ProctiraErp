@@ -26,6 +26,7 @@ import {
   type LedgerAccount,
   type LedgerTrialBalance,
   type RecordPaymentOnInvoiceSettlement,
+  PaymentIdempotencyReplay,
 } from './fees-repository.js';
 import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
@@ -561,6 +562,7 @@ export class InMemoryFeesRepository implements FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {
@@ -581,6 +583,12 @@ export class InMemoryFeesRepository implements FeesRepository {
       );
       if (!invoice) {
         throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      if (options?.idempotencyKey) {
+        const prior = this.payments.find(
+          (p) => p.tenantId === tenantId && p.idempotencyKey === options.idempotencyKey,
+        );
+        if (prior) throw new PaymentIdempotencyReplay({ ...prior });
       }
       if (invoice.status !== 'open') {
         throw new BusinessRuleError('Invoice is not open for payment');
