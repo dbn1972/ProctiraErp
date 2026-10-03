@@ -31,6 +31,7 @@ import type {
   RecordTrainingAttendanceInput,
   IssueCertificationInput,
 } from './training-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /**
  * Interface for notification integration.
@@ -85,6 +86,8 @@ export class TrainingService {
     private readonly attendanceRepository: TrainingAttendanceRepository,
     private readonly certificationRepository: CertificationRepository,
     private readonly notificationIntegration?: NotificationIntegration,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
   ) {}
 
   // ─── Training Programs ───────────────────────────────────────────────
@@ -308,6 +311,7 @@ export class TrainingService {
     tenantId: string,
     input: RecordTrainingAttendanceInput,
   ): Promise<TrainingAttendanceEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     const session = await this.sessionRepository.findById(input.sessionId, tenantId);
     if (!session) {
       throw new NotFoundError(`Training session with id '${input.sessionId}' not found`);
@@ -370,6 +374,7 @@ export class TrainingService {
     tenantId: string,
     input: IssueCertificationInput,
   ): Promise<CertificationEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     assertCalendarDates({ issuedDate: input.issuedDate, expiryDate: input.expiryDate });
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {

@@ -19,12 +19,17 @@ import type {
   StaffAssignmentRepository,
 } from './assignment-repository.js';
 import type { CreateAssignmentInput, UpdateAssignmentInput } from './assignment-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /**
  * Service handling staff assignment business logic.
  */
 export class StaffAssignmentService {
-  constructor(private readonly repository: StaffAssignmentRepository) {}
+  constructor(
+    private readonly repository: StaffAssignmentRepository,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
+  ) {}
 
   /**
    * Create a new staff assignment.
@@ -39,6 +44,7 @@ export class StaffAssignmentService {
    * @throws BusinessRuleError if endDate is before startDate
    */
   async create(tenantId: string, input: CreateAssignmentInput): Promise<StaffAssignmentEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     // Validate end date is after start date
     if (input.endDate && input.endDate <= input.startDate) {
       throw new BusinessRuleError('End date must be after start date');

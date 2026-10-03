@@ -20,6 +20,7 @@ import type {
 } from './appraisal-repository.js';
 import type { CreateAppraisalTemplateInput, CreateAppraisalInput } from './appraisal-schemas.js';
 import { AppraisalStatus } from './appraisal-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /**
  * Interface for workflow integration.
@@ -42,6 +43,8 @@ export class AppraisalService {
     private readonly templateRepository: AppraisalTemplateRepository,
     private readonly appraisalRepository: AppraisalRepository,
     private readonly workflowIntegration?: WorkflowIntegration,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
   ) {}
 
   /**
@@ -124,6 +127,7 @@ export class AppraisalService {
    * @throws BusinessRuleError if scores don't match criteria or are out of range
    */
   async createAppraisal(tenantId: string, input: CreateAppraisalInput): Promise<AppraisalEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     // Validate template exists
     const template = await this.templateRepository.findById(input.templateId, tenantId);
     if (!template) {

@@ -18,6 +18,7 @@ import {
   type CreateStaffLeaveInput,
   type DecideStaffLeaveInput,
 } from './leave-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
 export function inclusiveLeaveDays(startDate: string, endDate: string): number {
@@ -34,7 +35,11 @@ function requiresBalance(leaveType: StaffLeaveType): boolean {
 }
 
 export class StaffLeaveService {
-  constructor(private readonly repository: StaffLeaveRepository) {}
+  constructor(
+    private readonly repository: StaffLeaveRepository,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
+  ) {}
 
   async getBalance(tenantId: string, staffId: string, leaveType: StaffLeaveType) {
     return this.repository.getBalance(tenantId, staffId, leaveType);
@@ -57,6 +62,7 @@ export class StaffLeaveService {
   }
 
   async createLeave(tenantId: string, input: CreateStaffLeaveInput) {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     if (input.endDate < input.startDate) {
       throw new BusinessRuleError('End date must be on or after start date');
     }
