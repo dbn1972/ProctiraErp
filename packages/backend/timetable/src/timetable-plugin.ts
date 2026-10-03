@@ -5,12 +5,14 @@ import type { TimetableOpsStore } from './generation-store.js';
 import { createTimetableOpsStore } from './repository-factory.js';
 import { registerTimetableRoutes } from './routes.js';
 import type { TimetableRepository } from './timetable-repository.js';
-import { TimetableService } from './timetable-service.js';
+import { TimetableService, type StaffInstitutionMembership } from './timetable-service.js';
 
 export interface TimetablePluginOptions {
   repository: TimetableRepository;
   opsStore?: TimetableOpsStore;
   prefix?: string;
+  /** PRC-M101: when set, meetings/substitutions reject staff of another institution. */
+  staffBelongsToInstitution?: StaffInstitutionMembership;
 }
 
 declare module 'fastify' {
@@ -24,6 +26,7 @@ export const timetablePlugin = fp(
     const service = new TimetableService(
       options.repository,
       options.opsStore ?? createTimetableOpsStore(),
+      { staffBelongsToInstitution: options.staffBelongsToInstitution },
     );
     fastify.decorate('timetableService', service);
     await registerTimetableRoutes(fastify, {

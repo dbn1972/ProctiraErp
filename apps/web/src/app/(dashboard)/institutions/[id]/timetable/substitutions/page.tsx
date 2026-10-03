@@ -47,7 +47,8 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
     await Promise.all([
       listSubstitutions({ institutionId }),
       listMeetings({ institutionId }),
-      listAllStaffResult(),
+      // PRC-M101: only this institution's staff are offered.
+      listAllStaffResult({ institutionId }),
       listSections({ institutionId }),
       listRooms({ institutionId }),
       listBellSchedules({ institutionId }),

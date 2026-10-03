@@ -199,6 +199,16 @@ function scholarshipRepositoryForFees(): ScholarshipRepository {
   mountedScholarshipRepository ??= createScholarshipRepository();
   return mountedScholarshipRepository;
 }
+/**
+ * PRC-M101: one staff-assignment repository per process, shared by the staff
+ * routes and the timetable staff-membership check (the in-memory fallback must
+ * see the same rows the staff routes wrote).
+ */
+let assignmentRepositorySingleton: ReturnType<typeof createAssignmentRepository> | undefined;
+function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
+  assignmentRepositorySingleton ??= createAssignmentRepository();
+  return assignmentRepositorySingleton;
+}
 /** Trusted dependencies composed once by the gateway root. */
 export interface DomainPluginDependencies {
   publicTenantResolver: PublicTenantResolver;
@@ -749,7 +759,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // for both staff profiles and assignments.
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
-        assignmentRepository: createAssignmentRepository(),
+        assignmentRepository: sharedAssignmentRepository(),
         prefix: '/staff',
       });
     },
@@ -861,6 +871,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(timetablePlugin, {
         repository: createTimetableRepository(),
         prefix: '/timetable',
+        // PRC-M101: a meeting/substitution may only use staff with an active
+        // assignment at the meeting's institution (same tenant).
+        staffBelongsToInstitution: async (tenantId, staffId, institutionId) => {
+          const active = await sharedAssignmentRepository().findActiveByStaffId(
+            staffId,
+            tenantId,
+          );
+          return active.some((a) => a.institutionId === institutionId);
+        },
       });
     },
   },

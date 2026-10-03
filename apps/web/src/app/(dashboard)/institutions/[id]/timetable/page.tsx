@@ -81,7 +81,8 @@ export default async function InstitutionTimetablePage(props: PageProps) {
         academicPeriodId: academicPeriodId || undefined,
       }),
       listRooms({ institutionId }),
-      listAllStaffResult(),
+      // PRC-M101: only this institution's staff are offered.
+      listAllStaffResult({ institutionId }),
     ]);
 
   const meetings = meetingsResult.ok ? meetingsResult.data : [];

@@ -197,10 +197,15 @@ export async function listStaff(filters: StaffListFilters = {}): Promise<StaffLi
  * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
  * failed read is distinguishable from an institution with no staff.
  */
-export async function listAllStaffResult(maxPages = 4): Promise<ListResult<Staff>> {
+export async function listAllStaffResult(
+  opts: { institutionId?: string; maxPages?: number } = {},
+): Promise<ListResult<Staff>> {
+  const maxPages = opts.maxPages ?? 4;
+  // PRC-M101: scope to the institution's staff (active assignment there).
+  const scope = opts.institutionId ? `&institutionId=${encodeURIComponent(opts.institutionId)}` : '';
   const rows: Staff[] = [];
   for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchList<Staff>(`/staff?page=${page}&pageSize=100`, {
+    const batch = await fetchList<Staff>(`/staff?page=${page}&pageSize=100${scope}`, {
       next: { revalidate: 0 },
     });
     if (!batch.ok) return batch;
