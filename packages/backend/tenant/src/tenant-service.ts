@@ -38,6 +38,7 @@ import type {
   ThemeTokens,
   DomainResponse,
 } from './schemas.js';
+import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type {
   TenantEntity,
   DomainEntity,
@@ -79,6 +80,8 @@ export class TenantService {
     private readonly repository: TenantRepository,
     private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
     private readonly adminProvisioner?: TenantAdminProvisioner,
+    /** PRC-H099: seeds built-in roles + default settings before the admin. */
+    private readonly defaultsSeeder?: TenantDefaultsSeeder,
   ) {}
 
   /**
@@ -176,6 +179,8 @@ export class TenantService {
 
     let adminUserId: string;
     try {
+      // PRC-H099: roles/settings first, then the admin — all-or-nothing.
+      await this.defaultsSeeder?.seedTenantDefaults(tenant);
       ({ adminUserId } = await adminProvisioner.provisionTenantAdmin({
         tenantId: tenant.id,
         slug: tenant.slug,
@@ -189,7 +194,20 @@ export class TenantService {
         'Tenant admin provisioning failed; removing never-active tenant record',
       );
       try {
-        await this.repository.deleteTenant(tenant.id);
+        await this.defaultsSeeder?.removeTenantDefaults?.(tenant.id);
+      } catch (cleanupError) {
+        logger.error(
+          { tenantId: tenant.id, err: cleanupError },
+          'Failed to remove seeded tenant defaults after provisioning failure',
+        );
+      }
+      try {
+        // Hard-discard the never-active row when supported so the slug is free.
+        if (this.repository.discardProvisioningTenant) {
+          await this.repository.discardProvisioningTenant(tenant.id);
+        } else {
+          await this.repository.deleteTenant(tenant.id);
+        }
       } catch (cleanupError) {
         logger.error(
           { tenantId: tenant.id, err: cleanupError },

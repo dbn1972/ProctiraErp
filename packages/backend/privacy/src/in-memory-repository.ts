@@ -6,6 +6,7 @@ import type {
   ListPage,
   PrivacyRepository,
   TenantOffboardJobEntity,
+  StuckPrivacyJobRef,
 } from './privacy-repository.js';
 
 export class InMemoryPrivacyRepository implements PrivacyRepository {
@@ -198,6 +199,18 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async findAnonymizationJobById(id: string, tenantId: string) {
     return this.anonymizationJobs.find((j) => j.id === id && j.tenantId === tenantId) ?? null;
+  }
+
+  async listStuckQueuedJobs(olderThan: Date, limit: number): Promise<StuckPrivacyJobRef[]> {
+    const refs: StuckPrivacyJobRef[] = [
+      ...this.anonymizationJobs
+        .filter((j) => j.status === 'queued' && j.updatedAt < olderThan)
+        .map((j) => ({ kind: 'anonymization' as const, id: j.id, tenantId: j.tenantId })),
+      ...this.offboardJobs
+        .filter((j) => j.status === 'queued' && j.updatedAt < olderThan)
+        .map((j) => ({ kind: 'offboard' as const, id: j.id, tenantId: j.tenantId })),
+    ];
+    return refs.slice(0, limit);
   }
 
   async listAnonymizationJobs(tenantId: string) {

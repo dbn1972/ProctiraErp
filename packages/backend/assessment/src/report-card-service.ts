@@ -431,6 +431,29 @@ export class ReportCardService {
    * W2-JOB-02: re-dispatch (or inline-process) jobs left in `queued` after a
    * create→publish dual-write crash. Returns the number of jobs touched.
    */
+  /**
+   * PRC-H039: boot reclaim across tenants — enumerate tenants with `queued`
+   * jobs (platform scope), then reclaim each under its own tenant context.
+   * A failing tenant does not block the others.
+   */
+  async reclaimQueuedJobsAllTenants(): Promise<{
+    tenants: number;
+    reclaimed: number;
+    failedTenants: string[];
+  }> {
+    const tenantIds = (await this.jobRepo.listTenantIdsWithStatus?.('queued')) ?? [];
+    let reclaimed = 0;
+    const failedTenants: string[] = [];
+    for (const tenantId of tenantIds) {
+      try {
+        reclaimed += await this.reclaimQueuedJobs(tenantId);
+      } catch {
+        failedTenants.push(tenantId);
+      }
+    }
+    return { tenants: tenantIds.length, reclaimed, failedTenants };
+  }
+
   async reclaimQueuedJobs(tenantId: string): Promise<number> {
     const orphaned = await this.jobRepo.listByStatus(tenantId, 'queued');
     let count = 0;

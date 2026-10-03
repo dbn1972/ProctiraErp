@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
+    "@proctira/common": "workspace:*",
     "pg": "^8.23.0"
   },
   "devDependencies": {

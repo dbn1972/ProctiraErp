@@ -9,6 +9,7 @@
  * (`REPORT_DEMO_DATA=1` and `NODE_ENV !== 'production'`).
  */
 import { AppError, ValidationError } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type { CatalogueReportKey } from './catalogue.js';
@@ -24,7 +25,7 @@ export class ReportDataUnavailableError extends AppError {
 
 /** Demo rows are allowed only when explicitly opted in outside production. */
 export function isReportDemoDataEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.NODE_ENV !== 'production' && env.REPORT_DEMO_DATA === '1';
+  return !isProductionNodeEnv(env.NODE_ENV) && env.REPORT_DEMO_DATA === '1';
 }
 
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {

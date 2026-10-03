@@ -21,6 +21,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import {
+  ConnectionStringError,
+  describeSavedTarget,
+  savedTargetFrom,
+  toApiConnector,
+  type SavedConnectorTarget,
+} from '../connector-config';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -61,16 +68,10 @@ interface PipelineFormData {
 interface PipelineResponse {
   id: string;
   name: string;
-  source: {
-    type: string;
-    connectionString: string;
-    query: string;
-  };
-  destination: {
-    type: string;
-    connectionString: string;
-    table: string;
-  };
+  // PRC-H115: API connector schema (host/port/database/username/password,
+  // url or filePath); secrets come back as the redaction placeholder.
+  source: Record<string, unknown> & { type: string; query?: string };
+  destination: Record<string, unknown> & { type: string; table?: string };
   fieldMappings: Array<{
     sourceField: string;
     destinationField: string;
@@ -175,13 +176,6 @@ const INITIAL_FORM_DATA: PipelineFormData = {
   },
 };
 
-/**
- * PRC-H115: placeholder the ETL API returns for stored secrets and accepts on
- * update as "keep the saved value" (mirrors REDACTED_SECRET in
- * packages/backend/etl/src/secret-redaction.ts).
- */
-const REDACTED_SECRET = '__REDACTED__';
-
 /* ------------------------------------------------------------------ Component */
 
 export default function PipelineBuilder() {
@@ -194,7 +188,10 @@ export default function PipelineBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // PRC-H115: whether the loaded pipeline has a stored (redacted) credential.
-  const [savedSecrets, setSavedSecrets] = useState({ source: false, destination: false });
+  const [savedTargets, setSavedTargets] = useState<{
+    source?: SavedConnectorTarget;
+    destination?: SavedConnectorTarget;
+  }>({});
 
   // Load existing pipeline for editing
   const loadPipeline = useCallback(async () => {
@@ -211,9 +208,9 @@ export default function PipelineBuilder() {
       else if (result.schedule === '0 0 * * *') schedulePreset = 'daily';
       else if (result.schedule === '0 0 * * 1') schedulePreset = 'weekly';
 
-      setSavedSecrets({
-        source: Boolean(result.source.connectionString),
-        destination: Boolean(result.destination.connectionString),
+      setSavedTargets({
+        source: savedTargetFrom(result.source),
+        destination: savedTargetFrom(result.destination),
       });
       setFormData({
         name: result.name,
@@ -222,12 +219,12 @@ export default function PipelineBuilder() {
           // PRC-H115: stored credentials are never loaded into the browser
           // form; leaving the field blank keeps the saved value.
           connectionString: '',
-          query: result.source.query,
+          query: result.source.query ?? '',
         },
         destination: {
           type: result.destination.type as DestinationType,
           connectionString: '',
-          table: result.destination.table,
+          table: result.destination.table ?? '',
         },
         fieldMappings: result.fieldMappings.map((m) => ({
           id: generateMappingId(),
@@ -331,23 +328,26 @@ export default function PipelineBuilder() {
     setIsSaving(true);
     setError(null);
 
-    // PRC-H115: when editing, a blank credential field means "keep saved".
-    // The API replaces source/destination wholesale and only restores values
-    // sent as the redaction placeholder, so echo the placeholder for a saved
-    // secret; omit the key only when nothing was stored.
-    const keepSavedSecret = <T extends { connectionString: string }>(
-      config: T,
-      hasSaved: boolean,
-    ) => {
-      if (!isEditing || config.connectionString) return config;
-      if (hasSaved) return { ...config, connectionString: REDACTED_SECRET };
-      const { connectionString: _omit, ...rest } = config;
-      return rest;
-    };
+    // PRC-H115: map the connection input onto the API connector schema. When
+    // editing, a blank input keeps the saved target and sends the redaction
+    // placeholder so the API restores the stored password.
+    let source: Record<string, unknown>;
+    let destination: Record<string, unknown>;
+    try {
+      source = toApiConnector(formData.source, isEditing ? savedTargets.source : undefined);
+      destination = toApiConnector(
+        formData.destination,
+        isEditing ? savedTargets.destination : undefined,
+      );
+    } catch (err) {
+      setError(err instanceof ConnectionStringError ? err.message : 'Invalid connection string');
+      setIsSaving(false);
+      return;
+    }
     const payload = {
       name: formData.name,
-      source: keepSavedSecret(formData.source, savedSecrets.source),
-      destination: keepSavedSecret(formData.destination, savedSecrets.destination),
+      source,
+      destination,
       fieldMappings: formData.fieldMappings
         .filter((m) => m.sourceField && m.destinationField)
         .map((m) => ({
@@ -476,6 +476,10 @@ export default function PipelineBuilder() {
               {isEditing ? (
                 <p id="etl-source-connection-hint" className="mt-1 text-xs text-muted-foreground">
                   Saved credentials are hidden. Leave blank to keep them, or enter a new value.
+                  {savedTargets.source &&
+                  describeSavedTarget(formData.source.type, savedTargets.source)
+                    ? ` Saved connection: ${describeSavedTarget(formData.source.type, savedTargets.source)}.`
+                    : null}
                 </p>
               ) : null}
             </div>
@@ -544,6 +548,10 @@ export default function PipelineBuilder() {
                   className="mt-1 text-xs text-muted-foreground"
                 >
                   Saved credentials are hidden. Leave blank to keep them, or enter a new value.
+                  {savedTargets.destination &&
+                  describeSavedTarget(formData.destination.type, savedTargets.destination)
+                    ? ` Saved connection: ${describeSavedTarget(formData.destination.type, savedTargets.destination)}.`
+                    : null}
                 </p>
               ) : null}
             </div>

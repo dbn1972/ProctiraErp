@@ -6,13 +6,15 @@
  * explicitly; these helpers do that in short, transaction-local platform
  * scopes without weakening production constraints or repository behavior.
  */
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 import { withPlatformScope } from './pg-document-store.js';
 import type { PgPoolWithConnect, PgQueryable } from './pg-tenant.js';
 
 export type PgTestFixtureDatabase = PgPoolWithConnect | PgQueryable;
 
 function assertTestRuntime(): void {
-  if (process.env['NODE_ENV'] === 'production') {
+  if (isProductionNodeEnv(process.env['NODE_ENV'])) {
     throw new Error('PostgreSQL test fixtures are disabled in production');
   }
 }
