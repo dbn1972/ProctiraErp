@@ -1,5 +1,5 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-
 import {
   defaultAccessTokenRevocationTtlSeconds,
   revokeAccessTokenIdentifiers,
@@ -50,7 +50,58 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * replayed after the access-token lifetime. Default 36000 (Keycloak default).
    */
   ssoSessionMaxSeconds?: number;
+  /**
+   * PRC-M500: one-time web login ticket store. Use the Redis store in any
+   * multi-replica deployment; the default is process-local memory.
+   */
+  webTicketStore?: WebTicketStore;
 };
+
+/** PRC-M500: one-time login ticket storage (shared across replicas when Redis-backed). */
+export interface WebTicketStore {
+  put(id: string, value: string, ttlSeconds: number): Promise<void>;
+  /** Atomically read-and-delete; null when absent/expired. */
+  take(id: string): Promise<string | null>;
+}
+
+export class MemoryWebTicketStore implements WebTicketStore {
+  private readonly entries = new Map<string, { value: string; expiresAt: number }>();
+  async put(id: string, value: string, ttlSeconds: number): Promise<void> {
+    const now = Date.now();
+    for (const [key, entry] of this.entries) if (entry.expiresAt <= now) this.entries.delete(key);
+    this.entries.set(id, { value, expiresAt: now + ttlSeconds * 1000 });
+  }
+  async take(id: string): Promise<string | null> {
+    const entry = this.entries.get(id);
+    this.entries.delete(id);
+    if (!entry || entry.expiresAt <= Date.now()) return null;
+    return entry.value;
+  }
+}
+
+export type RedisLikeForWebTickets = {
+  set(key: string, value: string, expiryMode: 'EX', ttlSeconds: number): Promise<unknown>;
+  getdel(key: string): Promise<string | null>;
+};
+
+/** Redis-backed tickets: SET EX + GETDEL so a ticket is redeemable once cluster-wide. */
+export class RedisWebTicketStore implements WebTicketStore {
+  constructor(
+    private readonly redis: RedisLikeForWebTickets,
+    private readonly keyPrefix = 'auth:web-ticket:',
+  ) {}
+  async put(id: string, value: string, ttlSeconds: number): Promise<void> {
+    await this.redis.set(
+      `${this.keyPrefix}${id}`,
+      value,
+      'EX',
+      Math.max(1, Math.trunc(ttlSeconds)),
+    );
+  }
+  async take(id: string): Promise<string | null> {
+    return this.redis.getdel(`${this.keyPrefix}${id}`);
+  }
+}
 
 const DEFAULT_SSO_SESSION_MAX_SECONDS = 36_000;
 
@@ -65,43 +116,91 @@ type IssuedTokens = {
   tokenType: string;
 };
 
-const webTickets = new Map<string, { tokens: IssuedTokens; expiresAt: number }>();
-const WEB_TICKET_TTL_MS = 60_000;
+const WEB_TICKET_TTL_SECONDS = 60;
+const MAX_TICKET_ID_LENGTH = 128;
 
-function pruneTickets(now = Date.now()): void {
-  for (const [id, ticket] of webTickets) {
-    if (ticket.expiresAt <= now) webTickets.delete(id);
+/** PRC-M500: login transaction bound to the browser via an httpOnly cookie. */
+const OIDC_TXN_COOKIE = 'kc_oidc_txn';
+const OIDC_TXN_TTL_SECONDS = 600;
+type OidcTransaction = { s: string; v: string; n: string; a?: string };
+
+function b64url(bytes: Buffer): string {
+  return bytes.toString('base64url');
+}
+
+function pkceChallenge(verifier: string): string {
+  return b64url(createHash('sha256').update(verifier).digest());
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+function readCookie(request: FastifyRequest, name: string): string | undefined {
+  const header = request.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    if (part.slice(0, idx).trim() === name) return part.slice(idx + 1).trim();
+  }
+  return undefined;
+}
+
+function parseTransaction(raw: string | undefined): OidcTransaction | null {
+  if (!raw || raw.length > 2048) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as OidcTransaction;
+    if (
+      typeof parsed?.s !== 'string' ||
+      typeof parsed.v !== 'string' ||
+      typeof parsed.n !== 'string' ||
+      (parsed.a !== undefined && typeof parsed.a !== 'string')
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
-function issueWebTicket(tokens: IssuedTokens): string {
-  pruneTickets();
-  const id = crypto.randomUUID();
-  webTickets.set(id, { tokens, expiresAt: Date.now() + WEB_TICKET_TTL_MS });
-  return id;
+function txnCookie(value: string, path: string, secure: boolean, maxAge: number): string {
+  return [
+    `${OIDC_TXN_COOKIE}=${value}`,
+    `Path=${path}`,
+    `Max-Age=${maxAge}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
 }
 
-function consumeWebTicket(id: string): IssuedTokens | null {
-  pruneTickets();
-  const ticket = webTickets.get(id);
-  if (!ticket) return null;
-  webTickets.delete(id);
-  return ticket.tokens;
-}
+/** PRC-M500: same-origin path only — no `//host`, backslashes or schemes. */
+const SAFE_RETURN_TO = /^\/(?!\/)[^\\]*$/;
 
-function webReturnTo(state: string | undefined): string | null {
+export function webReturnTo(state: string | undefined): string | null {
   if (!state?.startsWith('web:')) return null;
   const path = state.slice(4);
-  return path.startsWith('/') ? path : `/${path}`;
+  return SAFE_RETURN_TO.test(path) ? path : null;
 }
 
-function authorizeUrl(config: KeycloakRouteConfig, state: string): string {
+function authorizeUrl(
+  config: KeycloakRouteConfig,
+  state: string,
+  binding: { codeChallenge: string; nonce: string },
+): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/auth`);
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', config.redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid email profile roles');
   url.searchParams.set('state', state);
+  url.searchParams.set('nonce', binding.nonce);
+  url.searchParams.set('code_challenge', binding.codeChallenge);
+  url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('kc_locale', 'en');
   return url.toString();
 }
@@ -235,6 +334,8 @@ export async function registerKeycloakAuthRoutes(
     config.maxRevocationTtlSeconds && config.maxRevocationTtlSeconds > 0
       ? config.maxRevocationTtlSeconds
       : DEFAULT_MAX_REVOCATION_TTL_SECONDS;
+  const webTicketStore = config.webTicketStore ?? new MemoryWebTicketStore();
+  const secureCookies = config.redirectUri.startsWith('https://');
   const sessionRevocationTtlSeconds =
     config.ssoSessionMaxSeconds && config.ssoSessionMaxSeconds > 0
       ? config.ssoSessionMaxSeconds
@@ -308,8 +409,27 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      const state = request.query.state ?? crypto.randomUUID();
-      return reply.redirect(authorizeUrl(config, state), 302);
+      // PRC-M500: server-generated state + nonce + PKCE verifier, bound to this
+      // browser via an httpOnly cookie and verified in /callback.
+      const txn: OidcTransaction = {
+        s: b64url(randomBytes(24)),
+        v: b64url(randomBytes(48)),
+        n: b64url(randomBytes(24)),
+        ...(request.query.state ? { a: request.query.state.slice(0, 1024) } : {}),
+      };
+      reply.header(
+        'set-cookie',
+        txnCookie(
+          Buffer.from(JSON.stringify(txn)).toString('base64url'),
+          prefix,
+          secureCookies,
+          OIDC_TXN_TTL_SECONDS,
+        ),
+      );
+      return reply.redirect(
+        authorizeUrl(config, txn.s, { codeChallenge: pkceChallenge(txn.v), nonce: txn.n }),
+        302,
+      );
     },
   );
 
@@ -322,6 +442,16 @@ export async function registerKeycloakAuthRoutes(
       reply: FastifyReply,
     ) => {
       const { code, error, error_description } = request.query;
+      // PRC-M500: the transaction cookie is single-use whatever the outcome.
+      const txn = parseTransaction(readCookie(request, OIDC_TXN_COOKIE));
+      reply.header('set-cookie', txnCookie('', prefix, secureCookies, 0));
+      if (!txn || !request.query.state || !safeEqual(request.query.state, txn.s)) {
+        return reply.status(400).send({
+          code: 'KEYCLOAK_STATE_MISMATCH',
+          message: 'Login state is missing, expired or does not match this browser',
+          statusCode: 400,
+        });
+      }
       if (error) {
         return reply.status(401).send({
           code: 'KEYCLOAK_AUTH_ERROR',
@@ -342,6 +472,7 @@ export async function registerKeycloakAuthRoutes(
         code,
         client_id: config.clientId,
         redirect_uri: config.redirectUri,
+        code_verifier: txn.v,
       });
       if (config.clientSecret) body.set('client_secret', config.clientSecret);
 
@@ -369,7 +500,22 @@ export async function registerKeycloakAuthRoutes(
         expires_in?: number;
         token_type?: string;
       };
-
+      // PRC-M500: the ID token must carry the nonce issued for this browser.
+      if (tokens.id_token) {
+        let nonce: unknown;
+        try {
+          nonce = (decodeJwt(tokens.id_token).payload as Record<string, unknown>)['nonce'];
+        } catch {
+          nonce = undefined;
+        }
+        if (typeof nonce !== 'string' || !safeEqual(nonce, txn.n)) {
+          return reply.status(401).send({
+            code: 'KEYCLOAK_NONCE_MISMATCH',
+            message: 'ID token nonce does not match the login request',
+            statusCode: 401,
+          });
+        }
+      }
       let user: LinkedKeycloakUser | undefined;
       if (config.identityStore) {
         try {
@@ -390,9 +536,10 @@ export async function registerKeycloakAuthRoutes(
         tokenType: tokens.token_type ?? 'Bearer',
       };
 
-      const returnTo = webReturnTo(request.query.state);
+      const returnTo = webReturnTo(txn.a);
       if (returnTo && config.webOrigin) {
-        const ticket = issueWebTicket(issued);
+        const ticket = b64url(randomBytes(32));
+        await webTicketStore.put(ticket, JSON.stringify(issued), WEB_TICKET_TTL_SECONDS);
         const next = new URL('/api/auth/callback', config.webOrigin);
         next.searchParams.set('ticket', ticket);
         next.searchParams.set('returnTo', returnTo);
@@ -521,7 +668,8 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 400,
         });
       }
-      const tokens = consumeWebTicket(ticket);
+      const raw = ticket.length <= MAX_TICKET_ID_LENGTH ? await webTicketStore.take(ticket) : null;
+      const tokens = raw ? (JSON.parse(raw) as IssuedTokens) : null;
       if (!tokens) {
         return reply.status(401).send({
           code: 'KEYCLOAK_TICKET_INVALID',

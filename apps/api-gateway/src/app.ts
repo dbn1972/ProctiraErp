@@ -40,6 +40,7 @@ import {
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
+  RedisWebTicketStore,
   type AccessTokenRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
@@ -475,6 +476,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // PRC-M500: one-time login tickets must be redeemable on any replica.
+      ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),
     });
   } else {
     await app.register(authPlugin, {
