@@ -706,9 +706,10 @@ export class GradebookService {
       artifactUri: null,
       errorMessage: null,
       metadata: {
+        // PRC-M263: client metadata first; server-owned keys always win.
+        ...((input.metadata as Record<string, unknown>) ?? {}),
         studentId: input.studentId,
         academicPeriodId: input.academicPeriodId ?? null,
-        ...((input.metadata as Record<string, unknown>) ?? {}),
       },
       createdAt: now,
       updatedAt: now,
@@ -790,6 +791,8 @@ export class GradebookService {
 
     const nextVersion = (await this.repo.getLatestTranscriptVersion(tenantId, input.studentId)) + 1;
     const now = nowIso();
+    // PRC-M263: client metadata is namespaced so it can never overwrite the
+    // signed, server-computed transcript values.
     const payload = {
       studentId: input.studentId,
       version: nextVersion,
@@ -798,7 +801,7 @@ export class GradebookService {
       weightedGpa: snapshot?.weightedGpa ?? null,
       unweightedGpa: snapshot?.unweightedGpa ?? null,
       creditsEarned: snapshot?.creditsEarned ?? null,
-      ...((input.metadata as Record<string, unknown>) ?? {}),
+      clientMetadata: (input.metadata as Record<string, unknown>) ?? {},
     };
     const body = JSON.stringify(payload);
     const checksum = createHash('sha256').update(body).digest('hex');
