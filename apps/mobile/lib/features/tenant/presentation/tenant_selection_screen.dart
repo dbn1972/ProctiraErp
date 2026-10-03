@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/storage/secure_storage.dart';
@@ -43,17 +44,23 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
       return;
     }
     // PRC-M565: a different tenant wipes the prior tenant's session + caches.
-    await TenantSwitcher(
-      tenantProvider: getIt<TenantProvider>(),
-      storage: getIt<SecureStorage>(),
-      database: getIt<AppDatabase>(),
-      selectedStudent: getIt<SelectedStudentStore>(),
-    ).switchTo(
-      tenantId: _tenantIdCtrl.text.trim(),
-      displayName: _tenantNameCtrl.text.trim().isEmpty
-          ? null
-          : _tenantNameCtrl.text.trim(),
-    );
+    final bool purged =
+        await TenantSwitcher(
+          tenantProvider: getIt<TenantProvider>(),
+          storage: getIt<SecureStorage>(),
+          database: getIt<AppDatabase>(),
+          selectedStudent: getIt<SelectedStudentStore>(),
+        ).switchTo(
+          tenantId: _tenantIdCtrl.text.trim(),
+          displayName: _tenantNameCtrl.text.trim().isEmpty
+              ? null
+              : _tenantNameCtrl.text.trim(),
+        );
+    if (purged) {
+      // Tokens are gone: re-resolve auth so the router sends the user to
+      // sign in for the new workspace.
+      getIt<AuthBloc>().add(const AuthBootstrapRequested());
+    }
     if (!mounted) {
       return;
     }
