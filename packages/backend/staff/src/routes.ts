@@ -39,6 +39,12 @@ export interface StaffRoutesOptions {
   staffService: StaffService;
   /** Route prefix (default: '/staff') */
   prefix?: string;
+  /**
+   * PRC-M120: staff ids with an approved leave covering `today` (YYYY-MM-DD).
+   * When absent, `?type=ON_LEAVE` is rejected (fail closed) rather than
+   * silently returning the full list.
+   */
+  onLeaveStaffIds?: (tenantId: string, today: string) => Promise<Set<string>>;
 }
 
 /**
@@ -92,7 +98,7 @@ export async function registerStaffRoutes(
   fastify: FastifyInstance,
   options: StaffRoutesOptions,
 ): Promise<void> {
-  const { staffService, prefix = '/staff' } = options;
+  const { staffService, prefix = '/staff', onLeaveStaffIds } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
     const method = request.method.toUpperCase();
@@ -227,6 +233,26 @@ export async function registerStaffRoutes(
       const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'lastName';
       const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      // PRC-M120: staff type tabs.
+      const type = query.type;
+      if (type !== undefined && !['ALL', 'TEACHING', 'NON_TEACHING', 'ON_LEAVE'].includes(type)) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'type must be ALL, TEACHING, NON_TEACHING or ON_LEAVE',
+          statusCode: 400,
+        });
+      }
+      let ids: Set<string> | undefined;
+      if (type === 'ON_LEAVE') {
+        if (!onLeaveStaffIds) {
+          return reply.status(501).send({
+            code: 'ON_LEAVE_FILTER_UNAVAILABLE',
+            message: 'On-leave filtering is not available in this deployment',
+            statusCode: 501,
+          });
+        }
+        ids = await onLeaveStaffIds(tenantId, new Date().toISOString().slice(0, 10));
+      }
 
       const result = await staffService.list(
         tenantId,
@@ -235,6 +261,8 @@ export async function registerStaffRoutes(
           position: query.position,
           search: query.search,
           institutionId: query.institutionId,
+          ...(type === 'TEACHING' || type === 'NON_TEACHING' ? { staffType: type } : {}),
+          ...(ids ? { ids } : {}),
         },
         { page, pageSize, sortBy, sortOrder },
       );

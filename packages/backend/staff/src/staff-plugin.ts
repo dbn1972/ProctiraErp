@@ -27,6 +27,7 @@ import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
+import { staffIdsOnLeave } from './staff-type.js';
 import type { StaffRepository } from './staff-repository.js';
 import { StaffService } from './staff-service.js';
 import { registerTrainingRoutes } from './training-routes.js';
@@ -88,6 +89,9 @@ export const staffPlugin = fp(
       await registerStaffRoutes(scope, {
         staffService,
         prefix,
+        // PRC-M120: "On leave" tab = approved leave covering today.
+        onLeaveStaffIds: async (tenantId, today) =>
+          staffIdsOnLeave(await leaveRepository.listLeaves(tenantId), today),
       });
     });
 

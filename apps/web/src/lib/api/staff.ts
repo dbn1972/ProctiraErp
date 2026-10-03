@@ -54,6 +54,8 @@ export interface StaffListFilters {
   sortOrder?: 'asc' | 'desc';
   /** Convenience filter forwarded to backend (currently mapped to search). */
   institutionId?: string;
+  /** PRC-M120: staff type tab (teaching / non-teaching by position, on approved leave today). */
+  type?: 'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
 }
 
 export interface CreateStaffInput {
@@ -169,6 +171,7 @@ function buildQuery(filters: StaffListFilters): string {
   if (filters.sortBy) params.set('sortBy', filters.sortBy);
   if (filters.sortOrder) params.set('sortOrder', filters.sortOrder);
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
+  if (filters.type && filters.type !== 'ALL') params.set('type', filters.type);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }

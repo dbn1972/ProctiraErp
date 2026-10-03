@@ -5,6 +5,7 @@
  * Implementations can use Prisma, in-memory stores, or other backends.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import type { StaffTypeFilter } from './staff-type.js';
 
 /**
  * Staff entity as stored in the database.
@@ -34,6 +35,10 @@ export interface StaffFilter {
   search?: string; // Full-text search on name and identity number
   /** When set, only staff with an assignment at this institution are returned. */
   institutionId?: string;
+  /** PRC-M120: teaching vs non-teaching, derived from position. */
+  staffType?: StaffTypeFilter;
+  /** PRC-M120: restrict to these staff ids (e.g. on approved leave today). */
+  ids?: ReadonlySet<string>;
 }
 
 /**

@@ -47,3 +47,15 @@ describe('listAllStaffResult cap (PRC-M102)', () => {
     expect(await listAllStaffResult()).toMatchObject({ ok: true, truncated: false });
   });
 });
+
+describe('listStaff type tab (PRC-M120)', () => {
+  beforeEach(() => gatewayFetch.mockReset());
+  it('forwards ?type= to GET /staff and omits it for ALL', async () => {
+    const { listStaff } = await import('./staff');
+    gatewayFetch.mockResolvedValue({ ok: true, status: 200, data: { data: [], meta: {} } });
+    await listStaff({ page: 1, type: 'ON_LEAVE' });
+    expect(gatewayFetch.mock.calls[0]![0]).toBe('/staff?page=1&type=ON_LEAVE');
+    await listStaff({ page: 1, type: 'ALL' });
+    expect(gatewayFetch.mock.calls[1]![0]).toBe('/staff?page=1');
+  });
+});
