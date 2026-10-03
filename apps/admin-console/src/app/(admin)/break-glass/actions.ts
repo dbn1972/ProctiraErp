@@ -4,12 +4,17 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import { createBreakGlassRequest, decideBreakGlassRequest } from '@/lib/api/break-glass';
+import {
+  BREAK_GLASS_DECISIONS,
+  createBreakGlassRequest,
+  decideBreakGlassRequest,
+} from '@/lib/api/break-glass';
 import { BREAK_GLASS_MAX_MINUTES, BREAK_GLASS_USE_CASES } from '@/lib/api/break-glass-constants';
+import { resourceIdSchema } from '@/lib/api/path-segment';
 import { requireRole } from '@/lib/auth/server';
 
 const createSchema = z.object({
-  targetTenantId: z.string().min(1, 'Target tenant is required.'),
+  targetTenantId: resourceIdSchema,
   scope: z.enum(['read', 'support', 'admin']),
   useCase: z.enum(BREAK_GLASS_USE_CASES),
   justification: z.string().min(20, 'Provide at least 20 characters of justification.').max(2000),
@@ -20,6 +25,11 @@ const createSchema = z.object({
     .max(BREAK_GLASS_MAX_MINUTES, `Maximum is ${BREAK_GLASS_MAX_MINUTES} minutes.`),
 });
 
+const decisionSchema = z.object({
+  id: resourceIdSchema,
+  decision: z.enum(BREAK_GLASS_DECISIONS),
+  reason: z.string().max(2000),
+});
 export interface CreateBreakGlassState {
   error?: string;
   fieldErrors?: Record<string, string>;
@@ -68,10 +78,14 @@ function blockedReason(code: string | undefined): string {
 
 export async function breakGlassDecisionAction(formData: FormData): Promise<void> {
   await requireRole('breakGlassApprove');
-  const id = String(formData.get('id') ?? '');
-  const decision = String(formData.get('decision') ?? '') as 'approve' | 'deny' | 'revoke';
-  const reason = String(formData.get('reason') ?? '');
-  if (!id || !decision) return;
+  // PRC-M001: runtime-validate every value that becomes a gateway path segment.
+  const parsed = decisionSchema.safeParse({
+    id: formData.get('id'),
+    decision: formData.get('decision'),
+    reason: formData.get('reason') ?? '',
+  });
+  if (!parsed.success) throw new Error('Invalid break-glass decision.');
+  const { id, decision, reason } = parsed.data;
 
   // PRC-H003: the gateway enforces dual control (self-approval 403, wrong state 409). The console
   // no longer pre-checks with a lookup that can fall back to stub data; it reports the outcome.
