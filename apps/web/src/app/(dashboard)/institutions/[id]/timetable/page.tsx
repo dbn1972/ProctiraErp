@@ -13,7 +13,9 @@ import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
-import { listStaff } from '@/lib/api/staff';
+import { listAllStaffResult } from '@/lib/api/staff';
+import { LoadErrorsAlert } from '@/components/timetable/load-errors-alert';
+import { collectFailures } from '@/lib/timetable/load-errors';
 import { classBand, slotTitle, subjectTone } from '@/lib/timetable/subject-label';
 import {
   listBellSchedules,
@@ -52,6 +54,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   let academicPeriods: { id: string; label: string }[] = [];
   let academicPeriodId = '';
   let academicPeriodName = '';
+  let academicPeriodsError: string | null = null;
   try {
     const periods = await listAcademicPeriods();
     academicPeriods = periods.map((period) => ({
@@ -63,8 +66,10 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     const chosen = requested ?? active;
     academicPeriodId = chosen?.id ?? '';
     academicPeriodName = chosen?.name ?? '';
-  } catch {
+  } catch (error) {
+    // PRC-M100: a failed read must not render the 'Create an academic period' CTA.
     academicPeriodId = '';
+    academicPeriodsError = error instanceof Error ? error.message : 'Could not be loaded.';
   }
 
   const [meetingsResult, schedulesResult, sectionsResult, roomsResult, staffResult] =
@@ -76,25 +81,8 @@ export default async function InstitutionTimetablePage(props: PageProps) {
         academicPeriodId: academicPeriodId || undefined,
       }),
       listRooms({ institutionId }),
-      (async () => {
-        const rows: Awaited<ReturnType<typeof listStaff>>['data'] = [];
-        for (let page = 1; page <= 4; page += 1) {
-          const batch = await listStaff({ page, pageSize: 100 }).catch(() => ({
-            data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
-            meta: { page, pageSize: 100, totalItems: 0, totalPages: 0 },
-          }));
-          rows.push(...batch.data);
-          if (batch.data.length < 100) break;
-        }
-        return { data: rows };
-      })(),
+      listAllStaffResult(),
     ]);
-
-  const apiError = !meetingsResult.ok
-    ? meetingsResult.error
-    : !schedulesResult.ok
-      ? schedulesResult.error
-      : null;
 
   const meetings = meetingsResult.ok ? meetingsResult.data : [];
   const schedules = schedulesResult.ok ? schedulesResult.data : [];
@@ -115,7 +103,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   }));
   const roomCode = new Map(rooms.map((r) => [r.id, r.code]));
   const roomLabel = new Map(roomOptions.map((r) => [r.id, r.label]));
-  const staffOptions = (staffResult.data ?? []).map((s) => ({
+  const staffOptions = (staffResult.ok ? staffResult.items : []).map((s) => ({
     id: s.id,
     label: formatPersonLabel(s.firstName, s.lastName),
   }));
@@ -129,8 +117,9 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     isBreak: boolean;
     scheduleName: string;
   }[] = [];
-  for (const schedule of schedules) {
-    const periods = await listPeriods(schedule.id);
+  const periodResults = await Promise.all(schedules.map((schedule) => listPeriods(schedule.id)));
+  for (const [scheduleIndex, schedule] of schedules.entries()) {
+    const periods = periodResults[scheduleIndex]!;
     if (!periods.ok) continue;
     for (const p of periods.data) {
       periodRows.push({
@@ -179,6 +168,21 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     };
   });
 
+  const loadFailures = collectFailures([
+    [
+      'Academic periods',
+      academicPeriodsError ? { ok: false, error: academicPeriodsError } : null,
+    ],
+    ['Section meetings', meetingsResult],
+    ['Bell schedules', schedulesResult],
+    ['Sections', sectionsResult],
+    ['Rooms', roomsResult],
+    ['Staff', staffResult],
+    ...periodResults.map((r, i): [string, typeof r] => [
+      `Periods (${schedules[i]?.name ?? 'schedule'})`,
+      r,
+    ]),
+  ]);
   const query = (next: { view?: string; class?: string }) => {
     const params = new URLSearchParams();
     params.set('view', next.view ?? view);
@@ -225,23 +229,16 @@ export default async function InstitutionTimetablePage(props: PageProps) {
         </div>
       </div>
 
-      {apiError ? (
-        <Card>
-          <CardContent className="space-y-2 p-6">
-            <div className="text-sm" role="alert">
-              <p className="font-semibold">Timetable API unavailable</p>
-              <p className="text-muted-foreground">
-                {apiError}{' '}
-                <Link
-                  href={`/institutions/${institutionId}/timetable`}
-                  className="font-semibold underline"
-                >
-                  Retry
-                </Link>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {loadFailures.length > 0 ? (
+        <LoadErrorsAlert
+          title="Timetable data could not be loaded"
+          failures={loadFailures}
+          retryHref={`/institutions/${institutionId}/timetable${
+            searchParams.academicPeriod
+              ? `?academicPeriod=${encodeURIComponent(searchParams.academicPeriod)}`
+              : ''
+          }`}
+        />
       ) : !academicPeriodId ? (
         <Card>
           <CardContent className="space-y-2 p-6">

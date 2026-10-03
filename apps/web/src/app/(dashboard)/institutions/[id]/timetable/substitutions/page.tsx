@@ -9,7 +9,9 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { SubstitutionCreateForm } from '@/components/timetable/substitution-create-form';
 import { TeacherAbsenceForm } from '@/components/timetable/teacher-absence-form';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listStaff } from '@/lib/api/staff';
+import { listAllStaffResult } from '@/lib/api/staff';
+import { LoadErrorsAlert } from '@/components/timetable/load-errors-alert';
+import { collectFailures } from '@/lib/timetable/load-errors';
 import {
   listAffectedPeriods,
   listBellSchedules,
@@ -45,18 +47,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
     await Promise.all([
       listSubstitutions({ institutionId }),
       listMeetings({ institutionId }),
-      (async () => {
-        const rows: Awaited<ReturnType<typeof listStaff>>['data'] = [];
-        for (let page = 1; page <= 4; page += 1) {
-          const batch = await listStaff({ page, pageSize: 100 }).catch(() => ({
-            data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
-            meta: { page, pageSize: 100, totalItems: 0, totalPages: 0 },
-          }));
-          rows.push(...batch.data);
-          if (batch.data.length < 100) break;
-        }
-        return { data: rows };
-      })(),
+      listAllStaffResult(),
       listSections({ institutionId }),
       listRooms({ institutionId }),
       listBellSchedules({ institutionId }),
@@ -66,7 +57,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
   const meetings = meetingsResult.ok ? meetingsResult.data : [];
   const sections = sectionsResult.ok ? sectionsResult.data : [];
   const rooms = roomsResult.ok ? roomsResult.data : [];
-  const staffOptions = (staffResult.data ?? []).map((s) => ({
+  const staffOptions = (staffResult.ok ? staffResult.items : []).map((s) => ({
     id: s.id,
     label: formatPersonLabel(s.firstName, s.lastName),
   }));
@@ -75,15 +66,15 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
   const roomLabel = new Map(rooms.map((r) => [r.id, r.name]));
 
   const periodLabel = new Map<string, string>();
-  for (const schedule of schedulesResult.ok ? schedulesResult.data : []) {
-    const periods = await listPeriods(schedule.id);
+  const bellSchedules = schedulesResult.ok ? schedulesResult.data : [];
+  const periodResults = await Promise.all(bellSchedules.map((schedule) => listPeriods(schedule.id)));
+  for (const periods of periodResults) {
     if (!periods.ok) continue;
     for (const period of periods.data) {
       const short = period.name.replace(/^Period\s+/i, 'P');
       periodLabel.set(period.id, `${short} · ${period.startTime}–${period.endTime}`);
     }
   }
-
   const meetingById = new Map(meetings.map((m) => [m.id, m]));
   const meetingOptions = meetings.map((m) => ({
     id: m.id,
@@ -102,6 +93,25 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
         })
       : null;
   const affectedRows = affected && affected.ok ? affected.data : [];
+  // PRC-M100: a failed read is an error, never an empty state or a setup CTA.
+  const setupFailures = collectFailures([
+    ['Staff', staffResult],
+    ['Section meetings', meetingsResult],
+    ['Sections', sectionsResult],
+    ['Rooms', roomsResult],
+    ['Bell schedules', schedulesResult],
+    ...periodResults.map((r, i): [string, typeof r] => [
+      `Periods (${bellSchedules[i]?.name ?? 'schedule'})`,
+      r,
+    ]),
+  ]);
+  const retryParams = new URLSearchParams();
+  if (searchParams.staff) retryParams.set('staff', searchParams.staff);
+  if (searchParams.date) retryParams.set('date', searchParams.date);
+  const retryQuery = retryParams.toString();
+  const retryHref = `/institutions/${institutionId}/timetable/substitutions${
+    retryQuery ? `?${retryQuery}` : ''
+  }`;
   const covered = new Map(
     substitutions
       .filter((s) => !searchParams.date || s.substitutionDate.slice(0, 10) === searchParams.date)
@@ -126,7 +136,13 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
         </Button>
       </div>
 
-      {staffOptions.length === 0 ? (
+      {setupFailures.length > 0 ? (
+        <LoadErrorsAlert
+          title="Substitution data could not be loaded"
+          failures={setupFailures}
+          retryHref={retryHref}
+        />
+      ) : staffOptions.length === 0 ? (
         <Card>
           <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
             <h3 className="text-base font-semibold text-foreground">Substitutions</h3>
@@ -160,7 +176,11 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
                     {formatDay(searchParams.date ?? '')}
                   </p>
                 </div>
-                {affectedRows.length === 0 ? (
+                {!affected.ok ? (
+                  <p className="px-6 pb-6 text-sm" role="alert" data-testid="affected-error">
+                    Affected periods could not be loaded: {affected.error}
+                  </p>
+                ) : affectedRows.length === 0 ? (
                   <p className="px-6 pb-6 text-sm text-muted-foreground">
                     No periods on that date.
                   </p>
@@ -235,7 +255,14 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
       <Card>
         <CardContent className="space-y-3 p-0">
           <h3 className="px-6 pt-6 text-base font-semibold">Recent substitutions</h3>
-          {substitutions.length === 0 ? (
+          {!subsResult.ok ? (
+            <p className="px-6 pb-6 text-sm" role="alert" data-testid="substitutions-error">
+              Recent substitutions could not be loaded: {subsResult.error}{' '}
+              <Link href={retryHref} className="font-semibold underline">
+                Retry
+              </Link>
+            </p>
+          ) : substitutions.length === 0 ? (
             <p className="px-6 pb-6 text-sm text-muted-foreground">None recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
