@@ -12,7 +12,7 @@
  *         per subject, teacher comments (up to 500 chars), overall grade summary,
  *         and institution logo and name
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
@@ -126,6 +126,12 @@ export interface ReportCardPdfArtifact {
   bytes: Buffer;
 }
 
+/** PRC-M163: authenticated author of a teacher comment. */
+export interface TeacherCommentActor {
+  userId: string;
+  isAdmin: boolean;
+}
+
 /**
  * Service handling report card business logic.
  */
@@ -218,6 +224,7 @@ export class ReportCardService {
 
   /**
    * Create or update a teacher comment for a student on a subject.
+   * `actor` is the authenticated caller (PRC-M163).
    *
    * Requirement 8.7: Teacher comments up to 500 characters per subject.
    *
@@ -226,12 +233,23 @@ export class ReportCardService {
   async upsertComment(
     tenantId: string,
     input: UpsertTeacherCommentInput,
+    actor: TeacherCommentActor,
   ): Promise<TeacherCommentEntity> {
     // Validate comment length
     if (input.comment.length > MAX_COMMENT_LENGTH) {
       throw new BusinessRuleError(
         `Teacher comment must not exceed ${MAX_COMMENT_LENGTH} characters. Current length: ${input.comment.length}`,
       );
+    }
+    // PRC-M163: only the original author (or an admin) may overwrite a comment.
+    const existing = await this.commentRepo.findByStudentSubjectPeriod(
+      tenantId,
+      input.studentId,
+      input.subjectId,
+      input.academicPeriodId,
+    );
+    if (existing && existing.teacherId !== actor.userId && !actor.isAdmin) {
+      throw new ForbiddenError('Only the comment author or an administrator can change it');
     }
 
     const entity: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'> = {
@@ -240,7 +258,8 @@ export class ReportCardService {
       studentId: input.studentId,
       subjectId: input.subjectId,
       academicPeriodId: input.academicPeriodId,
-      teacherId: input.teacherId,
+      // PRC-M163: author is always the authenticated actor, never the request body.
+      teacherId: actor.userId,
       comment: input.comment,
     };
 
