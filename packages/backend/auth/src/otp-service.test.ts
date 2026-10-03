@@ -126,6 +126,47 @@ describe('OtpService', () => {
   });
 });
 
+describe('OtpService concurrency (PRC-M177)', () => {
+  /** Store whose reads yield to the event loop, exposing any read-modify-write race. */
+  class SlowStore extends InMemoryOtpChallengeStore {
+    override async findByToken(mfaToken: string) {
+      await new Promise((r) => setTimeout(r, 1));
+      return super.findByToken(mfaToken);
+    }
+  }
+  const make = (store = new SlowStore()) => ({
+    store,
+    service: new OtpService({
+      store,
+      sms: new ConsoleSmsProvider(),
+      maxAttempts: 5,
+      exposeCodeInResponse: true,
+    }),
+  });
+  it('50 parallel wrong codes evaluate at most maxAttempts attempts', async () => {
+    const { store, service } = make();
+    const ch = await service.sendChallenge({ userId: 'u1', tenantId: 't1', phone: '+15551234567' });
+    const wrong = ch.debugCode === '000000' ? '111111' : '000000';
+    const results = await Promise.allSettled(
+      Array.from({ length: 50 }, () => service.verifyChallenge({ mfaToken: ch.mfaToken, code: wrong })),
+    );
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    const row = await store.findByToken(ch.mfaToken);
+    expect(row?.attemptCount).toBe(5);
+    await expect(
+      service.verifyChallenge({ mfaToken: ch.mfaToken, code: ch.debugCode! }),
+    ).rejects.toThrow(/Too many invalid attempts/);
+  });
+  it('two parallel correct codes produce exactly one success', async () => {
+    const { service } = make();
+    const ch = await service.sendChallenge({ userId: 'u1', tenantId: 't1', phone: '+15551234567' });
+    const results = await Promise.allSettled([
+      service.verifyChallenge({ mfaToken: ch.mfaToken, code: ch.debugCode! }),
+      service.verifyChallenge({ mfaToken: ch.mfaToken, code: ch.debugCode! }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  });
+});
 describe('ConsoleSmsProvider redaction (G-731)', () => {
   it('never logs a usable OTP code or full phone number', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);

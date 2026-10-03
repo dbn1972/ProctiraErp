@@ -9,12 +9,16 @@ import {
   assertInMemoryFallbackAllowed,
   getSharedPgPool,
   PgDocumentCollection,
+  reviveDates,
+  withPlatformScope,
   type PgPoolWithConnect,
   type PgQueryable,
 } from '@proctira/database';
 
 import {
+  decideOtpAttempt,
   InMemoryOtpChallengeStore,
+  type OtpAttemptOutcome,
   type OtpChallengeRecord,
   type OtpChallengeStore,
 } from './otp-service.js';
@@ -23,7 +27,7 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
   private readonly challenges: PgDocumentCollection<OtpChallengeRecord>;
 
   constructor(pool: PgPoolWithConnect | PgQueryable) {
-    this.challenges = new PgDocumentCollection<OtpChallengeRecord>(pool, 'auth.otp_challenges');
+    this.challenges = new PgDocumentCollection<OtpChallengeRecord>(pool, COLLECTION);
   }
 
   create(record: OtpChallengeRecord): Promise<OtpChallengeRecord> {
@@ -63,6 +67,38 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
     const row = await this.findById(id);
     if (!row) return;
     await this.challenges.put(row.mfaToken, { ...row, consumedAt: new Date() }, row.tenantId);
+  }
+
+  /**
+   * PRC-M177: `SELECT ... FOR UPDATE` inside one transaction serialises every
+   * verify of the same challenge, so the attempt cap and single-use consume
+   * cannot be raced by parallel requests (each waits for the previous commit).
+   */
+  async verifyAttempt(
+    mfaToken: string,
+    matches: (record: OtpChallengeRecord) => boolean,
+    maxAttempts: number,
+    now: Date,
+  ): Promise<OtpAttemptOutcome> {
+    return withPlatformScope(this.pool, async (client) => {
+      const res = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE collection = $1 AND id = $2
+          FOR UPDATE`,
+        [COLLECTION, mfaToken],
+      );
+      const raw = (res.rows[0] as { data?: OtpChallengeRecord } | undefined)?.data;
+      const record = raw ? reviveDates(raw) : null;
+      const { outcome, next } = decideOtpAttempt(record, matches, maxAttempts, now);
+      if (next) {
+        await client.query(
+          `UPDATE control_plane_documents SET data = $3::jsonb, updated_at = now()
+            WHERE collection = $1 AND id = $2`,
+          [COLLECTION, mfaToken, JSON.stringify(next)],
+        );
+      }
+      return outcome;
+    });
   }
 }
 
