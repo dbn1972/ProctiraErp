@@ -116,6 +116,20 @@ const UUID_QUERY_KEYS = [
 const DATE_QUERY_KEYS = ['fromDate', 'toDate', 'date'] as const;
 const SECTION_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
+/** PRC-M407: list endpoints are always bounded (default 100, max 500). */
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 500;
+function listPageOf(request: FastifyRequest): { limit: number; offset: number } | null {
+  const query = (request.query ?? {}) as { limit?: unknown; offset?: unknown };
+  const limit = query.limit === undefined ? DEFAULT_LIST_LIMIT : Number(query.limit);
+  const offset = query.offset === undefined ? 0 : Number(query.offset);
+  if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(offset) || offset < 0) {
+    return null;
+  }
+  return { limit: Math.min(limit, MAX_LIST_LIMIT), offset };
+}
+const SUBSTITUTION_STATUSES = new Set(['scheduled', 'completed', 'cancelled']);
+
 function badRequest(reply: FastifyReply, message: string) {
   return reply.status(400).send({ code: 'VALIDATION_ERROR', message, statusCode: 400 });
 }
@@ -237,11 +251,14 @@ export async function registerTimetableRoutes(
         institutionId?: string;
         academicPeriodId?: string;
       };
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
       const rows = await service.listBellSchedules(tenantId, {
         institutionId: query.institutionId,
         academicPeriodId: query.academicPeriodId,
+        ...page,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -452,8 +469,16 @@ export async function registerTimetableRoutes(
         staffId?: string;
         sectionId?: string;
       };
-      const rows = await service.listMeetings(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      const rows = await service.listMeetings(tenantId, {
+        institutionId: query.institutionId,
+        academicPeriodId: query.academicPeriodId,
+        staffId: query.staffId,
+        sectionId: query.sectionId,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -552,9 +577,24 @@ export async function registerTimetableRoutes(
         institutionId?: string;
         fromDate?: string;
         toDate?: string;
+        status?: string;
       };
-      const rows = await service.listSubstitutions(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      if (
+        query.status !== undefined &&
+        (typeof query.status !== 'string' || !SUBSTITUTION_STATUSES.has(query.status.toLowerCase()))
+      ) {
+        return badRequest(reply, 'status must be scheduled, completed or cancelled');
+      }
+      const rows = await service.listSubstitutions(tenantId, {
+        institutionId: query.institutionId,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        status: query.status,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -588,10 +628,13 @@ export async function registerTimetableRoutes(
     if (!tenantId) return;
     try {
       const query = request.query as { institutionId?: string };
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
       const rows = await service.listRooms(tenantId, {
         institutionId: query.institutionId,
+        ...page,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -663,8 +706,15 @@ export async function registerTimetableRoutes(
         academicPeriodId?: string;
         status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
       };
-      const rows = await service.listSections(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      const rows = await service.listSections(tenantId, {
+        institutionId: query.institutionId,
+        academicPeriodId: query.academicPeriodId,
+        status: query.status,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }

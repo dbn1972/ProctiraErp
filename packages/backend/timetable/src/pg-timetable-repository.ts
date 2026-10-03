@@ -24,6 +24,7 @@ import type {
   ListSectionsFilter,
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
+  ListPageFilter,
   EnrollWithinCapacityInput,
   EnrollWithinCapacityResult,
 } from './timetable-repository.js';
@@ -237,6 +238,13 @@ const MEETING_SELECT = `
   JOIN sections s ON s.id = sm.section_id
 `;
 
+/** PRC-M407: append a bounded LIMIT/OFFSET when the caller asked for a page. */
+function pageSql(filter: ListPageFilter | undefined, params: unknown[]): string {
+  if (filter?.limit === undefined) return '';
+  params.push(Math.max(1, Math.trunc(filter.limit)), Math.max(0, Math.trunc(filter.offset ?? 0)));
+  return ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+}
+
 export class PgTimetableRepository implements TimetableRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -263,7 +271,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC`,
+        `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapBellSchedule(row as Record<string, unknown>));
@@ -517,11 +525,15 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.sectionId);
         clauses.push(`sm.section_id = $${params.length}`);
       }
+      if (filter?.dayOfWeek !== undefined) {
+        params.push(filter.dayOfWeek);
+        clauses.push(`sm.day_of_week = $${params.length}`);
+      }
       const result = await this.query(
         tenantId,
         `${MEETING_SELECT}
          WHERE ${clauses.join(' AND ')}
-         ORDER BY sm.day_of_week ASC, sm.bell_period_id ASC`,
+         ORDER BY sm.day_of_week ASC, sm.bell_period_id ASC, sm.id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapMeeting(row as Record<string, unknown>));
@@ -645,7 +657,8 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async listSubstitutions(tenantId: string, filter?: ListSubstitutionsFilter) {
     return withSchemaCheck(async () => {
-      const clauses = ['sub.tenant_id = $1'];
+      // PRC-M407: hide substitutions of soft-deleted meetings/sections.
+      const clauses = ['sub.tenant_id = $1', 'sm.deleted_at IS NULL', 's.deleted_at IS NULL'];
       const params: unknown[] = [tenantId];
       if (filter?.institutionId) {
         params.push(filter.institutionId);
@@ -659,6 +672,10 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.toDate);
         clauses.push(`sub.substitution_date <= $${params.length}::date`);
       }
+      if (filter?.status) {
+        params.push(filter.status.toUpperCase());
+        clauses.push(`sub.status = $${params.length}::substitution_status`);
+      }
       const result = await this.query(
         tenantId,
         `SELECT sub.*, s.institution_id
@@ -666,7 +683,7 @@ export class PgTimetableRepository implements TimetableRepository {
          JOIN section_meetings sm ON sm.id = sub.section_meeting_id
          JOIN sections s ON s.id = sm.section_id
          WHERE ${clauses.join(' AND ')}
-         ORDER BY sub.substitution_date DESC, sub.created_at DESC`,
+         ORDER BY sub.substitution_date DESC, sub.created_at DESC, sub.id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapSubstitution(row as Record<string, unknown>));
@@ -731,7 +748,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapRoom(row as Record<string, unknown>));
@@ -795,7 +812,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapSection(row as Record<string, unknown>));

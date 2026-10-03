@@ -26,6 +26,13 @@ function nextUpdatedAt(previous: string): string {
   return new Date(Date.parse(previous) + 1).toISOString();
 }
 
+/** PRC-M407: bounded window when the caller asked for a page. */
+function applyPage<T>(rows: T[], filter?: { limit?: number; offset?: number }): T[] {
+  if (filter?.limit === undefined) return rows;
+  const offset = Math.max(0, Math.trunc(filter.offset ?? 0));
+  return rows.slice(offset, offset + Math.max(1, Math.trunc(filter.limit)));
+}
+
 export class InMemoryTimetableRepository implements TimetableRepository {
   private readonly bellSchedules = new Map<string, BellScheduleEntity>();
   private readonly periods = new Map<string, PeriodEntity>();
@@ -36,7 +43,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   private readonly substitutions = new Map<string, SubstitutionEntity>();
 
   async listBellSchedules(tenantId: string, filter?: ListBellSchedulesFilter) {
-    return [...this.bellSchedules.values()].filter((row) => {
+    const rows = [...this.bellSchedules.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -44,6 +51,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       }
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getBellSchedule(tenantId: string, id: string) {
@@ -139,11 +147,12 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listRooms(tenantId: string, filter?: ListRoomsFilter) {
-    return [...this.rooms.values()].filter((row) => {
+    const rows = [...this.rooms.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getRoom(tenantId: string, id: string) {
@@ -157,7 +166,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listSections(tenantId: string, filter?: ListSectionsFilter) {
-    return [...this.sections.values()].filter((row) => {
+    const rows = [...this.sections.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -166,6 +175,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       if (filter?.status && row.status !== filter.status) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getSection(tenantId: string, id: string) {
@@ -283,7 +293,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listMeetings(tenantId: string, filter?: ListMeetingsFilter) {
-    return [...this.meetings.values()].filter((row) => {
+    const rows = [...this.meetings.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -291,8 +301,10 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       }
       if (filter?.staffId && row.staffId !== filter.staffId) return false;
       if (filter?.sectionId && row.sectionId !== filter.sectionId) return false;
+      if (filter?.dayOfWeek !== undefined && row.dayOfWeek !== filter.dayOfWeek) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getMeeting(tenantId: string, id: string) {
@@ -335,13 +347,15 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listSubstitutions(tenantId: string, filter?: ListSubstitutionsFilter) {
-    return [...this.substitutions.values()].filter((row) => {
+    const rows = [...this.substitutions.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.fromDate && row.substitutionDate < filter.fromDate) return false;
       if (filter?.toDate && row.substitutionDate > filter.toDate) return false;
+      if (filter?.status && row.status.toLowerCase() !== filter.status.toLowerCase()) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getSubstitution(tenantId: string, id: string) {

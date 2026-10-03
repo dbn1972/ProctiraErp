@@ -838,6 +838,8 @@ export class TimetableService {
 
     const meetings = await this.repo.listMeetings(tenantId, {
       institutionId,
+      academicPeriodId: meeting.academicPeriodId,
+      dayOfWeek: meeting.dayOfWeek,
     });
     const substitutions = await this.repo.listSubstitutions(tenantId, {
       institutionId,
@@ -1249,11 +1251,12 @@ export class TimetableService {
     excludeMeetingId?: string,
   ): Promise<void> {
     // PRC-M398: only meetings of the same academic period can collide.
-    const meetings = await this.repo.listMeetings(tenantId, {
+    // PRC-M407: fetch only candidate-relevant rows (same institution, period and weekday).
+    const sameDay = await this.repo.listMeetings(tenantId, {
       institutionId: candidate.institutionId,
       academicPeriodId: candidate.academicPeriodId,
+      dayOfWeek: candidate.dayOfWeek,
     });
-    const sameDay = meetings.filter((m) => m.dayOfWeek === candidate.dayOfWeek);
     const periodTimes = await this.loadPeriodTimes(tenantId, [
       candidate.periodId,
       ...sameDay.map((m) => m.periodId),

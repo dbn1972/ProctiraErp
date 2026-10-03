@@ -118,31 +118,40 @@ export interface AttendancePeriodSlot {
   teacherStaffId: string | null;
 }
 
-export interface ListBellSchedulesFilter {
+/** PRC-M407: optional page window; omitted -> unbounded (internal callers only). */
+export interface ListPageFilter {
+  limit?: number;
+  offset?: number;
+}
+export interface ListBellSchedulesFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
 }
 
-export interface ListMeetingsFilter {
+export interface ListMeetingsFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
   staffId?: string;
   sectionId?: string;
+  /** PRC-M407: candidate-relevant clash scans (same weekday only). */
+  dayOfWeek?: number;
 }
 
-export interface ListSubstitutionsFilter {
+export interface ListSubstitutionsFilter extends ListPageFilter {
   institutionId?: string;
   fromDate?: string;
   toDate?: string;
+  /** Case-insensitive substitution status (scheduled / completed / cancelled). */
+  status?: string;
 }
 
-export interface ListSectionsFilter {
+export interface ListSectionsFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
   status?: SectionPublishStatus;
 }
 
-export interface ListRoomsFilter {
+export interface ListRoomsFilter extends ListPageFilter {
   institutionId?: string;
 }
 
