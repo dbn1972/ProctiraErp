@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../notifications/push_device_lifecycle.dart';
+import 'session_roles.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -90,6 +91,13 @@ class AuthState extends Equatable {
   final String? accessToken;
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
+
+  /// Roles from the access token's `roles` claim (PRC-M040).
+  List<String> get roles => rolesFromAccessToken(accessToken);
+
+  /// Staff routes/tiles are shown only with a non-portal role; unknown
+  /// roles fail closed.
+  bool get canUseStaffFeatures => hasStaffRole(roles);
   bool get isResolved =>
       status != AuthStatus.unknown && status != AuthStatus.loading;
 
