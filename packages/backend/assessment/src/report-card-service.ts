@@ -436,7 +436,11 @@ export class ReportCardService {
    * jobs (platform scope), then reclaim each under its own tenant context.
    * A failing tenant does not block the others.
    */
-  async reclaimQueuedJobsAllTenants(): Promise<{ tenants: number; reclaimed: number; failedTenants: string[] }> {
+  async reclaimQueuedJobsAllTenants(): Promise<{
+    tenants: number;
+    reclaimed: number;
+    failedTenants: string[];
+  }> {
     const tenantIds = (await this.jobRepo.listTenantIdsWithStatus?.('queued')) ?? [];
     let reclaimed = 0;
     const failedTenants: string[] = [];

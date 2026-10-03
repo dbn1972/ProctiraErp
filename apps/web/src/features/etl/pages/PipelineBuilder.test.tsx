@@ -10,7 +10,6 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-
 const fetchMock = vi.fn();
 vi.mock('@/lib/api/browser-gateway', () => ({
   browserGatewayFetch: (...args: unknown[]) => fetchMock(...args),

@@ -48,9 +48,9 @@ function toDocument(row: Row): SearchDocument {
     entityId: String(row['entity_id']),
     title: String(row['title']),
     body: String(row['body']),
-    metadata:
-      metadata && typeof metadata === 'object' ? (metadata as Record<string, string>) : {},
-    indexedAt: row['indexed_at'] instanceof Date ? row['indexed_at'] : new Date(String(row['indexed_at'])),
+    metadata: metadata && typeof metadata === 'object' ? (metadata as Record<string, string>) : {},
+    indexedAt:
+      row['indexed_at'] instanceof Date ? row['indexed_at'] : new Date(String(row['indexed_at'])),
   };
 }
 
@@ -153,7 +153,12 @@ export class PostgresSearchIndex implements SearchIndexAdapter {
           checkedAt,
         };
       }
-      return { healthy: true, message: 'postgres search index reachable', adapter: 'postgres', checkedAt };
+      return {
+        healthy: true,
+        message: 'postgres search index reachable',
+        adapter: 'postgres',
+        checkedAt,
+      };
     } catch (err) {
       return {
         healthy: false,

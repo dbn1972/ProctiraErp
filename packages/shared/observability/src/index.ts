@@ -82,11 +82,7 @@ export type { TracingEnv, TracingInitOptions, TracingInitResult, TracingMode } f
 
 export { tracingPlugin } from './tracing-plugin.js';
 export type { TracingPluginOptions } from './tracing-plugin.js';
-export {
-  checkSloRuleCoverage,
-  generatePrometheusRules,
-  sloAlertName,
-} from './slo-rules.js';
+export { checkSloRuleCoverage, generatePrometheusRules, sloAlertName } from './slo-rules.js';
 export type {
   PrometheusAlertRule,
   PrometheusRuleGroup,

@@ -6,7 +6,6 @@
  *
  * Charter: Section 6 (Tenant Model)
  */
-import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -16,6 +15,7 @@ import {
   type TenantIdResolver,
 } from './branding-routes.js';
 import { registerTenantRoutes } from './routes.js';
+import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type { TenantRepository } from './tenant-repository.js';
 import {
   TenantService,

@@ -34,12 +34,20 @@ export function savedTargetFrom(config: Record<string, unknown> | undefined): Sa
     for (const key of PG_TARGET_KEYS) {
       if (config[key] !== undefined) target[key] = config[key];
     }
-    return { type, target, hasSecret: typeof config['password'] === 'string' && config['password'] !== '' };
+    return {
+      type,
+      target,
+      hasSecret: typeof config['password'] === 'string' && config['password'] !== '',
+    };
   }
   if (type === 'rest_api') {
     return { type, target: config['url'] ? { url: config['url'] } : {}, hasSecret: false };
   }
-  return { type, target: config['filePath'] ? { filePath: config['filePath'] } : {}, hasSecret: false };
+  return {
+    type,
+    target: config['filePath'] ? { filePath: config['filePath'] } : {},
+    hasSecret: false,
+  };
 }
 
 /** Human-readable saved target (never includes a secret). */
@@ -60,7 +68,9 @@ function parsePostgresUrl(raw: string): Record<string, unknown> {
   try {
     url = new URL(raw);
   } catch {
-    throw new ConnectionStringError('Enter a PostgreSQL URL like postgresql://user:pass@host:5432/db');
+    throw new ConnectionStringError(
+      'Enter a PostgreSQL URL like postgresql://user:pass@host:5432/db',
+    );
   }
   if (url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') {
     throw new ConnectionStringError('PostgreSQL URL must start with postgresql://');

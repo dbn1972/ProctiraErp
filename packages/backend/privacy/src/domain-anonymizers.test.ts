@@ -108,9 +108,14 @@ describe('PRC-H077 PgTenantWipeExecutor', () => {
     const { pool, queries } = fakePool((sql) => {
       if (sql.includes('information_schema.columns')) {
         return {
-          rows: ['students', 'student_documents', 'fee_invoices', 'health_records', 'privacy_legal_holds', 'staff'].map(
-            (table_name) => ({ table_name }),
-          ),
+          rows: [
+            'students',
+            'student_documents',
+            'fee_invoices',
+            'health_records',
+            'privacy_legal_holds',
+            'staff',
+          ].map((table_name) => ({ table_name })),
         };
       }
       if (sql.startsWith('DELETE FROM "students"')) {

@@ -13,7 +13,6 @@
  *
  * Charter: Section 6 (Tenant Model)
  */
-import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { createLogger } from '@proctira/logging';
@@ -39,6 +38,7 @@ import type {
   ThemeTokens,
   DomainResponse,
 } from './schemas.js';
+import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type {
   TenantEntity,
   DomainEntity,

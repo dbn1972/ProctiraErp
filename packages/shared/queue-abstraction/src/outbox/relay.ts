@@ -123,16 +123,24 @@ export class OutboxRelay {
     // PRC-H110: only the *remaining* delay goes to the broker. Rows deferred via
     // availableAt have already waited, so re-applying the full delay would
     // double it (and a broker delay is not needed once the time has passed).
-    const requestedDelay =
-      typeof row.metadata?.delay === 'number' ? row.metadata.delay : undefined;
+    const requestedDelay = typeof row.metadata?.delay === 'number' ? row.metadata.delay : undefined;
+    // A row whose availableAt differs from createdAt was explicitly deferred
+    // (delayed publisher, retry backoff, redrive): it is due now, so no broker
+    // delay. Otherwise subtract the time already spent in the outbox.
+    const explicitlyDeferred = row.availableAt.getTime() !== row.createdAt.getTime();
     const remainingDelay =
-      requestedDelay !== undefined
-        ? requestedDelay - (Date.now() - row.createdAt.getTime())
-        : undefined;
+      requestedDelay === undefined || explicitlyDeferred
+        ? undefined
+        : requestedDelay - (Date.now() - row.createdAt.getTime());
     const delay = remainingDelay !== undefined && remainingDelay > 0 ? remainingDelay : undefined;
-    const priority =
-      typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
+    const priority = typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
 
+    // Adapters fall back to metadata.delay, so it must carry the remaining
+    // delay only (or nothing), never the original full delay.
+    if (message.metadata) {
+      if (delay !== undefined) message.metadata.delay = delay;
+      else delete message.metadata.delay;
+    }
     if (row.dispatchMode === 'publish') {
       await this.queue.publish(message);
     } else {

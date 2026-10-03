@@ -19,6 +19,15 @@ import {
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { EscalationService } from './escalation-service.js';
+import type {
+  CreateWorkflowDefinitionInput,
+  UpdateWorkflowDefinitionInput,
+  CreateWorkflowInstanceInput,
+  TransitionRequestInput,
+  WorkflowStateInput,
+  WorkflowTransitionInput,
+} from './schemas.js';
 import type {
   WorkflowRepository,
   WorkflowDefinitionEntity,
@@ -28,15 +37,6 @@ import type {
   WorkflowInstanceStatus,
   TransitionAuditEntity,
 } from './workflow-repository.js';
-import type {
-  CreateWorkflowDefinitionInput,
-  UpdateWorkflowDefinitionInput,
-  CreateWorkflowInstanceInput,
-  TransitionRequestInput,
-  WorkflowStateInput,
-  WorkflowTransitionInput,
-} from './schemas.js';
-import type { EscalationService } from './escalation-service.js';
 
 /**
  * Service handling workflow engine business logic.

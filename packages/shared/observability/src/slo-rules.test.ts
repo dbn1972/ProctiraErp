@@ -22,7 +22,9 @@ describe('PRC-L493 SLO rule generation', () => {
       }
     }
     const gw = doc.groups.find((g) => g.name === 'slo_api_gateway')!;
-    const p95 = gw.rules.find((r) => r.alert === sloAlertName('api-gateway', 'ServiceP95LatencyHigh'))!;
+    const p95 = gw.rules.find(
+      (r) => r.alert === sloAlertName('api-gateway', 'ServiceP95LatencyHigh'),
+    )!;
     expect(p95.expr).toContain(`> ${SLO_CATALOG['api-gateway']!.indicators.latency.p95 / 1000}`);
   });
 

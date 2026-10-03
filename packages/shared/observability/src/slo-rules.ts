@@ -43,9 +43,7 @@ function errorRatio(service: string, window: string): string {
 }
 
 function latencyQuantile(service: string, q: number): string {
-  return (
-    `histogram_quantile(${q}, sum by (le) (rate(http_request_duration_seconds_bucket{${sel(service)}}[5m])))`
-  );
+  return `histogram_quantile(${q}, sum by (le) (rate(http_request_duration_seconds_bucket{${sel(service)}}[5m])))`;
 }
 
 /** PromQL + `for` for one catalog alert, or null when the SLI is not defined. */
@@ -89,7 +87,10 @@ function ruleFor(slo: ServiceSLO, alert: AlertConfig): { expr: string; for: stri
         for: '10m',
       };
     case 'availability':
-      return { expr: `${errorRatio(service, '30m')} > ${1 - indicators.availability.target}`, for: '15m' };
+      return {
+        expr: `${errorRatio(service, '30m')} > ${1 - indicators.availability.target}`,
+        for: '15m',
+      };
     case 'errorRate':
       return { expr: `${errorRatio(service, '1h')} > ${budget}`, for: '15m' };
     case 'latency':
@@ -137,7 +138,11 @@ export function generatePrometheusRules(
         },
       });
     }
-    groups.push({ name: `slo_${slo.service.replace(/[^a-zA-Z0-9]/g, '_')}`, interval: '30s', rules });
+    groups.push({
+      name: `slo_${slo.service.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      interval: '30s',
+      rules,
+    });
   }
   return { groups };
 }

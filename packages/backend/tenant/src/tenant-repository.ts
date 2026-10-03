@@ -8,6 +8,7 @@
  * Charter: Section 6 (Tenant Model)
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { TenantStatus, TenantConfig, ThemeTokens } from './schemas.js';
 
 // ─── Entity Types ────────────────────────────────────────────────────────────

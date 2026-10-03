@@ -14,7 +14,9 @@
  * handled is returned as a residual so the job fails closed.
  */
 import { createHash } from 'node:crypto';
+
 import { withPgTenant, type PgQueryable } from '@proctira/database';
+
 import type {
   AnonymizeSubjectInput,
   AnonymizeSubjectResult,
@@ -382,7 +384,11 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
           note: `Delete failed for: ${entry.failed.join(', ')}`.slice(0, 500),
         });
       } else {
-        results.push({ domain, status: 'completed', note: `${entry.tables.length} table(s) wiped` });
+        results.push({
+          domain,
+          status: 'completed',
+          note: `${entry.tables.length} table(s) wiped`,
+        });
       }
     }
     results.push({

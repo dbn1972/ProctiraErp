@@ -263,10 +263,16 @@ describe('ETL Routes', () => {
   // PRC-H050: pipeline definitions carry connector credentials and execution error rows carry
   // source records. Only ETL/admin roles may touch pipelines; report-readers must not.
   describe('etl.manage for connector config (PRC-H115)', () => {
-    const operator: TestRole[] = [{ roleId: 'etl_operator', roleName: 'ETL Operator', areaId: null }];
+    const operator: TestRole[] = [
+      { roleId: 'etl_operator', roleName: 'ETL Operator', areaId: null },
+    ];
     async function createAsEngineer() {
       principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
-      const res = await app.inject({ method: 'POST', url: '/pipelines', payload: validPipelineBody });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
       expect(res.statusCode).toBe(201);
       return JSON.parse(res.payload) as { id: string; destination: Record<string, unknown> };
     }
@@ -285,7 +291,11 @@ describe('ETL Routes', () => {
     it('operator cannot create or update pipelines (403)', async () => {
       const created = await createAsEngineer();
       principalRoles = operator;
-      const post = await app.inject({ method: 'POST', url: '/pipelines', payload: validPipelineBody });
+      const post = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
       expect(post.statusCode).toBe(403);
       const put = await app.inject({
         method: 'PUT',

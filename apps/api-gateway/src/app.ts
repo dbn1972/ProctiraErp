@@ -108,6 +108,7 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
@@ -115,7 +116,6 @@ import {
   noteTenantStatusChange,
   resolveTenantBlocked,
 } from './tenant-entitlement.js';
-import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 

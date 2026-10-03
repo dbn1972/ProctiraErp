@@ -72,8 +72,7 @@ export interface SearchIndexAdapter {
 
 /** Factory configuration — only in-memory is wired in Wave 3. */
 export type SearchIndexConfig =
-  | { adapter: 'memory' }
-  | { adapter: 'postgres'; connectionUrl?: string; pool?: SearchPgPoolLike };
+  { adapter: 'memory' } | { adapter: 'postgres'; connectionUrl?: string; pool?: SearchPgPoolLike };
 
 /** Legacy document shape used by tenant-isolation gate simulators. */
 export interface LegacySearchDocument {

@@ -176,7 +176,6 @@ const INITIAL_FORM_DATA: PipelineFormData = {
   },
 };
 
-
 /* ------------------------------------------------------------------ Component */
 
 export default function PipelineBuilder() {
@@ -477,7 +476,8 @@ export default function PipelineBuilder() {
               {isEditing ? (
                 <p id="etl-source-connection-hint" className="mt-1 text-xs text-muted-foreground">
                   Saved credentials are hidden. Leave blank to keep them, or enter a new value.
-                  {savedTargets.source && describeSavedTarget(formData.source.type, savedTargets.source)
+                  {savedTargets.source &&
+                  describeSavedTarget(formData.source.type, savedTargets.source)
                     ? ` Saved connection: ${describeSavedTarget(formData.source.type, savedTargets.source)}.`
                     : null}
                 </p>
@@ -548,7 +548,8 @@ export default function PipelineBuilder() {
                   className="mt-1 text-xs text-muted-foreground"
                 >
                   Saved credentials are hidden. Leave blank to keep them, or enter a new value.
-                  {savedTargets.destination && describeSavedTarget(formData.destination.type, savedTargets.destination)
+                  {savedTargets.destination &&
+                  describeSavedTarget(formData.destination.type, savedTargets.destination)
                     ? ` Saved connection: ${describeSavedTarget(formData.destination.type, savedTargets.destination)}.`
                     : null}
                 </p>

@@ -29,7 +29,11 @@ const input: CreateTenantInput = {
 };
 
 const SEED = [
-  { roleId: 'admin', roleName: 'Admin', permissions: [{ resource: '*', action: 'manage' as const }] },
+  {
+    roleId: 'admin',
+    roleName: 'Admin',
+    permissions: [{ resource: '*', action: 'manage' as const }],
+  },
 ];
 
 function seeder() {
@@ -126,7 +130,12 @@ describe('PRC-H099 tenant provisioner flow', () => {
   it('Keycloak 409 reuses only a user bound to the same tenant', async () => {
     const fetchImpl: ProvisionerFetch = async (url, init) => {
       if (url.endsWith('/token')) {
-        return { status: 200, ok: true, headers: { get: () => null }, json: async () => ({ access_token: 't' }) };
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          json: async () => ({ access_token: 't' }),
+        };
       }
       if (init.method === 'POST') {
         return { status: 409, ok: false, headers: { get: () => null }, json: async () => ({}) };
