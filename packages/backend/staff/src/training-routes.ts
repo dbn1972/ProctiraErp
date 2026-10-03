@@ -14,6 +14,7 @@
  * GET    /staff/training/certifications              - List certifications
  * GET    /staff/training/certifications/:certificationId - Get a certification
  * POST   /staff/training/certifications/process-expiry - Process expired certifications
+ * POST   /staff/training/certifications/:certificationId/reinstate - Undo a wrongful expiry (PRC-M377)
  *
  * Requirements:
  * - 7.4: Manage training programs, sessions, attendance, and certification tracking
@@ -709,7 +710,7 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const body = request.body as { asOfDate?: unknown } | undefined;
+      const body = request.body as { asOfDate?: unknown; dryRun?: unknown } | undefined;
       const asOfDate = body?.asOfDate;
       if (asOfDate !== undefined && typeof asOfDate !== 'string') {
         const err = new ValidationError('Validation failed', [
@@ -717,13 +718,64 @@ export async function registerTrainingRoutes(
         ]);
         return reply.status(err.statusCode).send(err.toJSON());
       }
+      // PRC-M377: dryRun previews what would expire without mutating anything.
+      const dryRun = body?.dryRun;
+      if (dryRun !== undefined && typeof dryRun !== 'boolean') {
+        const err = new ValidationError('Validation failed', [
+          { field: 'dryRun', message: 'dryRun must be a boolean', rule: 'type' },
+        ]);
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
 
       try {
-        const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate);
+        const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate, {
+          dryRun: dryRun === true,
+        });
         return reply.status(200).send({
+          dryRun: dryRun === true,
           processedCount: expiredCerts.length,
           certifications: expiredCerts.map(formatCertificationResponse),
         });
+      } catch (error: unknown) {
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /staff/training/certifications/:certificationId/reinstate (PRC-M377)
+   */
+  fastify.post(
+    `${prefix}/certifications/:certificationId/reinstate`,
+    async function reinstateCertificationHandler(
+      request: FastifyRequest<{ Params: CertificationParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(CertificationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid certification ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const cert = await trainingService.reinstateCertification(
+          tenantId,
+          paramsResult.data.certificationId,
+        );
+        return reply.status(200).send(formatCertificationResponse(cert));
       } catch (error: unknown) {
         const mapped = toTrainingAppError(error);
         if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());

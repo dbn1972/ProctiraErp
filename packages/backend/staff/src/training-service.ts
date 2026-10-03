@@ -436,6 +436,29 @@ export class TrainingService {
   }
 
   /**
+   * PRC-M377: undo a wrongful expiry. Only EXPIRED certifications whose expiry
+   * date has not actually passed may be reinstated to ACTIVE.
+   */
+  async reinstateCertification(
+    tenantId: string,
+    certificationId: string,
+  ): Promise<CertificationEntity> {
+    const cert = await this.getCertification(tenantId, certificationId);
+    if (cert.status !== CertificationStatus.EXPIRED) {
+      throw new BusinessRuleError(`Only EXPIRED certifications can be reinstated`);
+    }
+    const today = new Date().toISOString().split('T')[0]!;
+    if (cert.expiryDate != null && cert.expiryDate <= today) {
+      throw new BusinessRuleError(`Certification expiry date ${cert.expiryDate} has passed`);
+    }
+    const updated = await this.certificationRepository.update(certificationId, tenantId, {
+      status: CertificationStatus.ACTIVE,
+    });
+    if (!updated) throw new NotFoundError(`Certification with id '${certificationId}' not found`);
+    return updated;
+  }
+
+  /**
    * List certifications with filtering.
    */
   async listCertifications(
@@ -460,14 +483,23 @@ export class TrainingService {
   async processExpiredCertifications(
     tenantId: string,
     asOfDate?: string,
+    options: { dryRun?: boolean } = {},
   ): Promise<CertificationEntity[]> {
     assertCalendarDates({ asOfDate });
-    const checkDate = asOfDate ?? new Date().toISOString().split('T')[0]!;
+    const today = new Date().toISOString().split('T')[0]!;
+    // PRC-M377: a future asOfDate would irreversibly expire still-valid certificates.
+    if (asOfDate !== undefined && asOfDate > today) {
+      throw new ValidationError('Validation failed', [
+        { field: 'asOfDate', message: 'asOfDate must not be in the future', rule: 'max' },
+      ]);
+    }
+    const checkDate = asOfDate ?? today;
 
     const expiredCerts = await this.certificationRepository.findExpiredCertifications(
       tenantId,
       checkDate,
     );
+    if (options.dryRun) return expiredCerts;
 
     const updatedCerts: CertificationEntity[] = [];
 

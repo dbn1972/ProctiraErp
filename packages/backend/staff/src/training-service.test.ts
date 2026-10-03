@@ -488,7 +488,10 @@ describe('TrainingService', () => {
         issuedDate: '2024-01-01',
       });
 
-      const expired = await service.processExpiredCertifications(TENANT_ID, '2030-01-01');
+      const expired = await service.processExpiredCertifications(
+        TENANT_ID,
+        new Date().toISOString().slice(0, 10),
+      );
       expect(expired).toHaveLength(0);
     });
 

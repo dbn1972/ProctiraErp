@@ -93,6 +93,7 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   'POST /staff/training/attendance': 'staff.hr.write',
   'POST /staff/training/certifications': 'staff.hr.write',
   'POST /staff/training/certifications/process-expiry': 'staff.hr.write',
+  'POST /staff/training/certifications/:certificationId/reinstate': 'staff.hr.write',
   'GET /staff/training/programs': 'gateway-read',
   'GET /staff/training/programs/:programId': 'gateway-read',
   'GET /staff/training/programs/:programId/sessions': 'gateway-read',
