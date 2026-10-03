@@ -8,7 +8,9 @@
  * GET  /auth/external/:providerId/callback - OAuth2/OIDC callback handler
  * POST /auth/external/:providerId/callback - SAML callback handler (POST binding)
  */
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { MemoryWebTicketStore, type WebTicketStore } from '../keycloak/routes.js';
 import type { ExternalAuthHandler } from './external-auth-handler.js';
 import { ExternalAuthError } from './types.js';
 
@@ -24,7 +26,55 @@ export interface ExternalAuthRoutesOptions {
   successRedirectUrl?: string;
   /** URL to redirect to on auth failure */
   errorRedirectUrl?: string;
+  /**
+   * PRC-M589: one-time ticket store for redirect delivery (tokens never go in
+   * the URL). Use the Redis store for multi-replica deployments.
+   */
+  ticketStore?: WebTicketStore;
+  /** PRC-M589: mark the state cookie Secure + SameSite=None (default true). */
+  secureCookies?: boolean;
 }
+
+/** PRC-M589: browser-bound state cookie (also carries SAML RelayState). */
+const STATE_COOKIE = 'ext_auth_state';
+const STATE_COOKIE_TTL_SECONDS = 600;
+const TICKET_TTL_SECONDS = 60;
+
+function readCookie(request: FastifyRequest, name: string): string | undefined {
+  const header = request.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx > 0 && part.slice(0, idx).trim() === name) return part.slice(idx + 1).trim();
+  }
+  return undefined;
+}
+
+function stateCookie(value: string, path: string, secure: boolean, maxAge: number): string {
+  // SAML HTTP-POST callbacks are cross-site POSTs: SameSite=None (+Secure) is
+  // required for the cookie to arrive; plain-http dev falls back to Lax.
+  return [
+    `${STATE_COOKIE}=${value}`,
+    `Path=${path}`,
+    `Max-Age=${maxAge}`,
+    'HttpOnly',
+    ...(secure ? ['Secure', 'SameSite=None'] : ['SameSite=Lax']),
+  ].join('; ');
+}
+
+function stateMatchesBrowser(request: FastifyRequest, state: string | undefined): boolean {
+  const cookie = readCookie(request, STATE_COOKIE);
+  if (!cookie || !state) return false;
+  const a = Buffer.from(cookie);
+  const b = Buffer.from(state);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+const STATE_MISMATCH = {
+  code: 'EXTERNAL_AUTH_STATE_MISMATCH',
+  message: 'Login state does not match this browser',
+  statusCode: 400,
+} as const;
 
 /**
  * Register external authentication routes on a Fastify instance.
@@ -34,6 +84,30 @@ export async function registerExternalAuthRoutes(
   options: ExternalAuthRoutesOptions,
 ): Promise<void> {
   const { handler, prefix = '/auth/external', successRedirectUrl, errorRedirectUrl } = options;
+  const ticketStore = options.ticketStore ?? new MemoryWebTicketStore();
+  const secureCookies = options.secureCookies ?? true;
+  const deliver = (reply: FastifyReply, result: SuccessResult) =>
+    sendSuccess(reply, successRedirectUrl, result, ticketStore);
+
+  /**
+   * GET /auth/external/ticket?ticket=... (PRC-M589)
+   * One-time redemption of the tokens issued by a redirect-mode callback.
+   */
+  fastify.get(
+    `${prefix}/ticket`,
+    async (request: FastifyRequest<{ Querystring: { ticket?: string } }>, reply: FastifyReply) => {
+      const ticket = request.query.ticket;
+      const raw = ticket && ticket.length <= 128 ? await ticketStore.take(ticket) : null;
+      if (!raw) {
+        return reply.status(401).send({
+          code: 'EXTERNAL_AUTH_TICKET_INVALID',
+          message: 'Login ticket is invalid or expired',
+          statusCode: 401,
+        });
+      }
+      return reply.status(200).send(JSON.parse(raw) as unknown);
+    },
+  );
 
   /**
    * GET /auth/external/providers
@@ -70,7 +144,11 @@ export async function registerExternalAuthRoutes(
       }
 
       try {
-        const { redirectUrl } = await handler.initiateAuth(providerId, tenantId);
+        const { redirectUrl, state } = await handler.initiateAuth(providerId, tenantId);
+        reply.header(
+          'set-cookie',
+          stateCookie(state, prefix, secureCookies, STATE_COOKIE_TTL_SECONDS),
+        );
         return reply.redirect(redirectUrl, 302);
       } catch (error: unknown) {
         if (error instanceof ExternalAuthError) {
@@ -111,6 +189,11 @@ export async function registerExternalAuthRoutes(
         });
       }
 
+      // PRC-M589: the state must come back to the browser that started login.
+      if (!stateMatchesBrowser(request, state)) {
+        return sendError(reply, errorRedirectUrl, STATE_MISMATCH);
+      }
+      reply.header('set-cookie', stateCookie('', prefix, secureCookies, 0));
       try {
         const result = await handler.handleCallback(
           providerId,
@@ -119,7 +202,7 @@ export async function registerExternalAuthRoutes(
           { userAgent: request.headers['user-agent'], ipAddress: request.ip },
         );
 
-        return sendSuccess(reply, successRedirectUrl, result);
+        return deliver(reply, result);
       } catch (error: unknown) {
         if (error instanceof ExternalAuthError) {
           return sendError(reply, errorRedirectUrl, {
@@ -161,6 +244,10 @@ export async function registerExternalAuthRoutes(
         });
       }
 
+      if (!stateMatchesBrowser(request, relayState)) {
+        return sendError(reply, errorRedirectUrl, STATE_MISMATCH);
+      }
+      reply.header('set-cookie', stateCookie('', prefix, secureCookies, 0));
       try {
         const result = await handler.handleCallback(
           providerId,
@@ -169,7 +256,7 @@ export async function registerExternalAuthRoutes(
           { userAgent: request.headers['user-agent'], ipAddress: request.ip },
         );
 
-        return sendSuccess(reply, successRedirectUrl, result);
+        return deliver(reply, result);
       } catch (error: unknown) {
         if (error instanceof ExternalAuthError) {
           return sendError(reply, errorRedirectUrl, {
@@ -190,35 +277,40 @@ export async function registerExternalAuthRoutes(
  * If a redirect URL is configured, redirects with tokens in query params.
  * Otherwise, returns JSON response.
  */
-function sendSuccess(
+type SuccessResult = {
+  tokens: { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string };
+  session: { id: string; expiresAt: string };
+  user: unknown;
+  isNewUser: boolean;
+  providerId: string;
+};
+
+async function sendSuccess(
   reply: FastifyReply,
   redirectUrl: string | undefined,
-  result: {
-    tokens: { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string };
-    session: { id: string; expiresAt: string };
-    user: unknown;
-    isNewUser: boolean;
-    providerId: string;
-  },
-): FastifyReply {
-  if (redirectUrl) {
-    const params = new URLSearchParams({
-      access_token: result.tokens.accessToken,
-      refresh_token: result.tokens.refreshToken,
-      expires_in: String(result.tokens.expiresIn),
-      provider: result.providerId,
-      is_new_user: String(result.isNewUser),
-    });
-    return reply.redirect(`${redirectUrl}?${params.toString()}`, 302);
-  }
-
-  return reply.status(200).send({
+  result: SuccessResult,
+  ticketStore: WebTicketStore,
+): Promise<FastifyReply> {
+  const body = {
     tokens: result.tokens,
     session: result.session,
     user: result.user,
     isNewUser: result.isNewUser,
     providerId: result.providerId,
-  });
+  };
+  if (redirectUrl) {
+    // PRC-M589: tokens never travel in the URL (history, logs, Referer); the
+    // client redeems a short-lived one-time ticket at GET {prefix}/ticket.
+    const ticket = randomBytes(32).toString('base64url');
+    await ticketStore.put(ticket, JSON.stringify(body), TICKET_TTL_SECONDS);
+    const params = new URLSearchParams({
+      ticket,
+      provider: result.providerId,
+      is_new_user: String(result.isNewUser),
+    });
+    return reply.redirect(`${redirectUrl}?${params.toString()}`, 302);
+  }
+  return reply.status(200).send(body);
 }
 
 /**

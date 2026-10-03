@@ -137,9 +137,10 @@ export class ExternalAuthHandler {
     private readonly sessionService: SessionService,
     private readonly identityStore: ExternalIdentityStore,
     private readonly userLookup: ExternalAuthUserLookup,
+    // PRC-M589: safe defaults — no silent account linking or provisioning.
     private readonly config: ExternalAuthHandlerConfig = {
-      autoProvisionUsers: true,
-      linkByEmail: true,
+      autoProvisionUsers: false,
+      linkByEmail: false,
     },
   ) {}
 
@@ -222,7 +223,8 @@ export class ExternalAuthHandler {
     }
 
     // 2. Try to match by email if configured
-    if (this.config.linkByEmail) {
+    // PRC-M589: only an IdP-verified email may be linked to an existing account.
+    if (this.config.linkByEmail && profile.emailVerified === true) {
       const userByEmail = await this.userLookup.findByEmail(profile.email, tenantId);
       if (userByEmail) {
         // Create identity link for this user
@@ -238,7 +240,8 @@ export class ExternalAuthHandler {
     }
 
     // 3. Auto-provision if enabled
-    if (this.config.autoProvisionUsers) {
+    // PRC-M589: never provision an account around an unverified email.
+    if (this.config.autoProvisionUsers && profile.emailVerified === true) {
       const newUser = await this.userLookup.createFromExternalProfile(
         profile,
         tenantId,

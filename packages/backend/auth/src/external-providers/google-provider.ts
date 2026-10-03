@@ -49,6 +49,11 @@ export const extractGoogleUserInfo: UserInfoExtractor = (
   if (!sub || !email) {
     throw new Error('Google userinfo response missing required fields (sub, email)');
   }
+  // PRC-M589: Google asserts verification explicitly; unverified emails are refused.
+  const verified = data['email_verified'] === true || data['email_verified'] === 'true';
+  if (!verified) {
+    throw new Error('Google account email is not verified');
+  }
 
   return {
     externalId: sub,
@@ -58,6 +63,7 @@ export const extractGoogleUserInfo: UserInfoExtractor = (
     lastName: familyName,
     avatarUrl: picture,
     rawAttributes: data,
+    emailVerified: true,
   };
 };
 
