@@ -30,6 +30,8 @@ import {
 import { ResultService } from './result-service.js';
 import { registerReportCardRoutes } from './report-card-routes.js';
 
+const TEST_USER_ID = '9f3c2b1a-0d4e-4f5a-8b6c-7d8e9f0a1b2c';
+
 describe('Report Card Routes', () => {
   let app: FastifyInstance;
   let templateRepo: InMemoryReportCardTemplateRepository;
@@ -77,11 +79,10 @@ describe('Report Card Routes', () => {
     app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
-        sub: 'test-user',
+        sub: TEST_USER_ID,
         roles: ['teacher'],
       };
     });
-
 
     await registerReportCardRoutes(app, { reportCardService });
     await app.ready();
@@ -214,6 +215,8 @@ describe('Report Card Routes', () => {
       expect(response.statusCode).toBe(201);
       const body = response.json();
       expect(body.comment).toBe('Great work this semester!');
+      // PRC-M163: body teacherId is ignored; stored author is the JWT subject.
+      expect(body.teacherId).toBe(TEST_USER_ID);
     });
 
     it('should return 400 for comment exceeding 500 characters', async () => {

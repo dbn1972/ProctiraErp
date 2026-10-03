@@ -10,6 +10,12 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
+import {
+  createConnectorSecretCipher,
+  openConnectorSecrets,
+  sealConnectorSecrets,
+  type ConnectorSecretCipher,
+} from './connector-secret-crypto.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type {
   PipelineListFilter,
@@ -36,19 +42,52 @@ function reviveExecution(doc: Record<string, unknown>): PipelineExecution {
   };
 }
 
+/** PRC-M226: hard ceiling for one page (hydration reads up to this many pipelines). */
+export const MAX_PAGE_SIZE = 10_000;
+
+function pageWindow(page: number, pageSize: number): { limit: number; offset: number } {
+  const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, Math.floor(pageSize) || 1));
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  return { limit, offset: (safePage - 1) * limit };
+}
+
+/** Escape LIKE wildcards so a search term is matched literally. */
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export class PgPipelineRepository implements PipelineRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    /** PRC-M224: connector credentials are sealed before they reach the JSONB document. */
+    private readonly cipher: ConnectorSecretCipher = createConnectorSecretCipher(),
+  ) {}
+
+  private toDocument(pipeline: Pipeline): Record<string, unknown> {
+    return {
+      ...pipeline,
+      source: sealConnectorSecrets(pipeline.source, pipeline.tenantId, this.cipher),
+      destination: sealConnectorSecrets(pipeline.destination, pipeline.tenantId, this.cipher),
+      createdAt: pipeline.createdAt.toISOString(),
+      updatedAt: pipeline.updatedAt.toISOString(),
+    };
+  }
+
+  private fromDocument(doc: Record<string, unknown>): Pipeline {
+    const p = revivePipeline(doc);
+    return {
+      ...p,
+      source: openConnectorSecrets(p.source, p.tenantId, this.cipher),
+      destination: openConnectorSecrets(p.destination, p.tenantId, this.cipher),
+    };
+  }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool, tenantId, fn);
   }
 
   async create(pipeline: Pipeline): Promise<Pipeline> {
-    const doc = {
-      ...pipeline,
-      createdAt: pipeline.createdAt.toISOString(),
-      updatedAt: pipeline.updatedAt.toISOString(),
-    };
+    const doc = this.toDocument(pipeline);
     await this.withTenant(pipeline.tenantId, async (client) => {
       await client.query(
         `INSERT INTO etl_pipelines (id, tenant_id, name, enabled, document, created_at, updated_at)
@@ -71,11 +110,7 @@ export class PgPipelineRepository implements PipelineRepository {
     const existing = await this.findById(id, tenantId);
     if (!existing) throw new Error(`Pipeline not found: ${id}`);
     const updated: Pipeline = { ...existing, ...updates, id, tenantId, updatedAt: new Date() };
-    const doc = {
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
+    const doc = this.toDocument(updated);
     await this.withTenant(tenantId, async (client) => {
       await client.query(
         `UPDATE etl_pipelines SET name=$3, enabled=$4, document=$5::jsonb, updated_at=$6
@@ -106,7 +141,7 @@ export class PgPipelineRepository implements PipelineRepository {
         [id, tenantId],
       );
       const row = result.rows[0] as { document?: Record<string, unknown> } | undefined;
-      return row?.document ? revivePipeline(row.document) : null;
+      return row?.document ? this.fromDocument(row.document) : null;
     });
   }
 
@@ -116,27 +151,35 @@ export class PgPipelineRepository implements PipelineRepository {
     page: number,
     pageSize: number,
   ): Promise<PipelineListResult> {
+    // PRC-M226: filter + page in SQL (bounded rows per request), parameterised.
+    const where: string[] = ['tenant_id=$1'];
+    const params: unknown[] = [tenantId];
+    if (filter.enabled !== undefined) {
+      params.push(filter.enabled);
+      where.push(`enabled=$${params.length}`);
+    }
+    if (filter.search) {
+      params.push(`%${escapeLike(filter.search)}%`);
+      where.push(
+        `(name ILIKE $${params.length} ESCAPE '\\' OR document->>'description' ILIKE $${params.length} ESCAPE '\\')`,
+      );
+    }
+    const { limit, offset } = pageWindow(page, pageSize);
     return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM etl_pipelines WHERE ${where.join(' AND ')}`,
+        params,
+      );
       const result = await client.query(
-        `SELECT document FROM etl_pipelines WHERE tenant_id=$1 ORDER BY updated_at DESC`,
-        [tenantId],
+        `SELECT document FROM etl_pipelines WHERE ${where.join(' AND ')}
+          ORDER BY updated_at DESC, id
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset],
       );
-      let data = result.rows.map((r) =>
-        revivePipeline((r as { document: Record<string, unknown> }).document),
+      const data = result.rows.map((r) =>
+        this.fromDocument((r as { document: Record<string, unknown> }).document),
       );
-      if (filter.search) {
-        const s = filter.search.toLowerCase();
-        data = data.filter(
-          (p) =>
-            p.name.toLowerCase().includes(s) || (p.description?.toLowerCase().includes(s) ?? false),
-        );
-      }
-      if (filter.enabled !== undefined) {
-        data = data.filter((p) => p.enabled === filter.enabled);
-      }
-      const total = data.length;
-      const offset = (page - 1) * pageSize;
-      return { data: data.slice(offset, offset + pageSize), total };
+      return { data, total: Number((count.rows[0] as { total?: number } | undefined)?.total ?? 0) };
     });
   }
 
@@ -165,6 +208,43 @@ export class PgPipelineRepository implements PipelineRepository {
     return { ...execution };
   }
 
+  async createExecutionIfIdle(execution: PipelineExecution, staleBefore: Date): Promise<boolean> {
+    const doc = {
+      ...execution,
+      startedAt: execution.startedAt.toISOString(),
+      completedAt: execution.completedAt?.toISOString() ?? null,
+    };
+    return this.withTenant(execution.tenantId, async (client) => {
+      // PRC-M225: a transaction-scoped advisory lock per (tenant, pipeline) serialises
+      // concurrent starts across processes; the running-check + insert happen under it.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        `etl-run:${execution.tenantId}:${execution.pipelineId}`,
+      ]);
+      const running = await client.query(
+        `SELECT 1 FROM etl_pipeline_runs
+          WHERE tenant_id=$1 AND pipeline_id=$2 AND status='running' AND started_at > $3
+          LIMIT 1`,
+        [execution.tenantId, execution.pipelineId, staleBefore.toISOString()],
+      );
+      if (running.rows.length > 0) return false;
+      await client.query(
+        `INSERT INTO etl_pipeline_runs
+           (id, tenant_id, pipeline_id, status, document, started_at, completed_at)
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`,
+        [
+          execution.id,
+          execution.tenantId,
+          execution.pipelineId,
+          execution.status,
+          JSON.stringify(doc),
+          execution.startedAt.toISOString(),
+          execution.completedAt?.toISOString() ?? null,
+        ],
+      );
+      return true;
+    });
+  }
+
   async updateExecution(
     id: string,
     updates: Partial<PipelineExecution>,
@@ -180,8 +260,7 @@ export class PgPipelineRepository implements PipelineRepository {
         [id, tenantId],
       );
       const row = found.rows[0] as
-        | { tenant_id: string; document: Record<string, unknown> }
-        | undefined;
+        { tenant_id: string; document: Record<string, unknown> } | undefined;
       if (!row) throw new Error(`Execution not found: ${id}`);
       const existing = reviveExecution(row.document);
       const updated: PipelineExecution = { ...existing, ...updates, id, tenantId };
@@ -222,18 +301,23 @@ export class PgPipelineRepository implements PipelineRepository {
     page: number,
     pageSize: number,
   ): Promise<{ data: PipelineExecution[]; total: number }> {
+    // PRC-M226: COUNT + LIMIT/OFFSET in SQL instead of loading every run.
+    const { limit, offset } = pageWindow(page, pageSize);
     return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM etl_pipeline_runs WHERE tenant_id=$1 AND pipeline_id=$2`,
+        [tenantId, pipelineId],
+      );
       const result = await client.query(
         `SELECT document FROM etl_pipeline_runs
-         WHERE tenant_id=$1 AND pipeline_id=$2 ORDER BY started_at DESC`,
-        [tenantId, pipelineId],
+         WHERE tenant_id=$1 AND pipeline_id=$2 ORDER BY started_at DESC, id
+         LIMIT $3 OFFSET $4`,
+        [tenantId, pipelineId, limit, offset],
       );
       const data = result.rows.map((r) =>
         reviveExecution((r as { document: Record<string, unknown> }).document),
       );
-      const total = data.length;
-      const offset = (page - 1) * pageSize;
-      return { data: data.slice(offset, offset + pageSize), total };
+      return { data, total: Number((count.rows[0] as { total?: number } | undefined)?.total ?? 0) };
     });
   }
 }

@@ -50,6 +50,8 @@ export type AllocateInvigilatorInput = Static<typeof AllocateInvigilatorSchema>;
 export const GenerateSeatingSchema = Type.Object({
   sessionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   seatsPerRoom: Type.Optional(Type.Number({ minimum: 1, maximum: 200 })),
+  /** PRC-M238: regenerate even though admit cards were already issued (audited). */
+  force: Type.Optional(Type.Boolean()),
 });
 export type GenerateSeatingInput = Static<typeof GenerateSeatingSchema>;
 
@@ -58,7 +60,8 @@ export const RecordDoubleEntrySchema = Type.Object({
   subjectId: Type.String({ pattern: UUID_PATTERN }),
   entryNo: Type.Union([Type.Literal(1), Type.Literal(2)]),
   marks: Type.Number({ minimum: 0 }),
-  tolerance: Type.Optional(Type.Number({ minimum: 0 })),
+  // PRC-M230: variance tolerance is server configuration only; a client value is
+  // ignored (an entrant must not be able to suppress the variance flag).
 });
 export type RecordDoubleEntryInput = Static<typeof RecordDoubleEntrySchema>;
 

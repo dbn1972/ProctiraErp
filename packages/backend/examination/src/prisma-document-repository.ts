@@ -395,6 +395,29 @@ export class PrismaDocumentRepository implements DocumentRepository {
     });
   }
 
+  async claimJob(
+    jobId: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<DocumentGenerationJob | null> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      // PRC-M235: single UPDATE with a status predicate — concurrent claims cannot both win.
+      const claimed = await tx.examinationDocumentJob.updateMany({
+        where: {
+          id: jobId,
+          tenantId,
+          OR: [{ status: 'queued' }, { status: 'processing', startedAt: { lt: staleBefore } }],
+        },
+        data: { status: 'processing', startedAt: new Date() },
+      });
+      if (claimed.count !== 1) return null;
+      const row = (await tx.examinationDocumentJob.findFirst({
+        where: { id: jobId, tenantId },
+      })) as JobRow | null;
+      return row ? toJob(row) : null;
+    });
+  }
+
   async getJob(jobId: string, tenantId: string): Promise<DocumentGenerationJob | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = (await tx.examinationDocumentJob.findFirst({
