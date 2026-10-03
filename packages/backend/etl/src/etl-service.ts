@@ -18,7 +18,11 @@ import {
   createPipelineEvent,
 } from './pipeline-events.js';
 import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
-import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
+import {
+  PipelineScheduler,
+  isValidCronExpression,
+  type SchedulerConfig,
+} from './pipeline-scheduler.js';
 import {
   RetryExecutor,
   TestableRetryExecutor,
@@ -161,8 +165,19 @@ export class ETLService {
     let registered = 0;
     for (const pipeline of data) {
       if (pipeline.schedule && pipeline.enabled) {
-        this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
-        registered += 1;
+        // PRC-M223: one poisoned row (e.g. legacy invalid cron) must not brick every
+        // ETL endpoint for the tenant — skip and log it, keep hydrating the rest.
+        try {
+          this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
+          registered += 1;
+        } catch (error: unknown) {
+          this.scheduler.unregisterSchedule(pipeline.id);
+          this.logger.logScheduleSkipped(
+            pipeline.id,
+            pipeline.tenantId,
+            error instanceof Error ? error.message : 'invalid schedule',
+          );
+        }
       } else {
         this.scheduler.unregisterSchedule(pipeline.id);
       }
@@ -212,6 +227,7 @@ export class ETLService {
     // PRC-H115: the redaction placeholder is never a valid credential.
     assertNoRedactedSecret(input.source, 'source');
     assertNoRedactedSecret(input.destination, 'destination');
+    assertValidSchedule(input.schedule);
     await this.ensureSchedulesHydrated(tenantId);
     await this.assertConnectorConfigSafe(input);
     const now = new Date();
@@ -255,6 +271,8 @@ export class ETLService {
     pipelineId: string,
     input: UpdatePipelineInput,
   ): Promise<Pipeline> {
+    // PRC-M223: reject an invalid cron before anything is written.
+    assertValidSchedule(input.schedule);
     await this.ensureSchedulesHydrated(tenantId);
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
@@ -746,6 +764,20 @@ export class ETLService {
     // Verify pipeline exists and belongs to tenant
     await this.getPipeline(tenantId, pipelineId);
     return this.repository.listExecutions(pipelineId, tenantId, page, pageSize);
+  }
+}
+
+/** PRC-M223: schedules are validated (400) before persistence. */
+function assertValidSchedule(schedule: string | null | undefined): void {
+  if (schedule === undefined || schedule === null) return;
+  if (!isValidCronExpression(schedule)) {
+    throw new ValidationError('Invalid cron expression', [
+      {
+        field: 'schedule',
+        rule: 'cron',
+        message: 'Use a 5-field cron expression (minute hour day month weekday) or an alias',
+      },
+    ]);
   }
 }
 

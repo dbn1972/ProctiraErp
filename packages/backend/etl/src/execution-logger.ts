@@ -301,6 +301,22 @@ export class ExecutionLogger {
   /**
    * Log a pipeline execution failure.
    */
+  /**
+   * PRC-M223: a stored schedule could not be registered (e.g. invalid cron); the
+   * pipeline stays readable/editable but is not scheduled.
+   */
+  logScheduleSkipped(pipelineId: string, tenantId: string, reason: string): void {
+    this.sink.warn({
+      timestamp: new Date(),
+      level: 'warn',
+      phase: 'pipeline',
+      pipelineId,
+      executionId: '',
+      tenantId,
+      message: `Schedule not registered: ${reason}`,
+    });
+  }
+
   logExecutionFailure(
     executionId: string,
     pipelineId: string,
