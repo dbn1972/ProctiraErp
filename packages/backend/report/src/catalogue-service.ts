@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { NotFoundError, ValidationError } from '@proctira/common';
+import { getSharedPgPool } from '@proctira/database';
 
 import type { ReportBlobStore } from './blob-store.js';
 import {
@@ -19,7 +20,11 @@ import {
   type RoleDashboard,
 } from './dashboards.js';
 import { contentTypeFor, filenameFor, generateReportBytes, sha256Hex } from './generators.js';
-import { fetchCatalogueTable, MAX_CATALOGUE_REPORT_ROWS } from './providers.js';
+import {
+  fetchCatalogueTable,
+  MAX_CATALOGUE_REPORT_ROWS,
+  ReportDataUnavailableError,
+} from './providers.js';
 import type {
   ReportArtifactRecord,
   ReportRunRecord,
@@ -293,10 +298,23 @@ export class CatalogueService {
     tenantId: string,
     roles: Array<{ roleId?: string; roleName?: string }> | undefined,
     queryRole?: string | null,
+    userId?: string | null,
   ): Promise<RoleDashboard> {
     const role = resolveDashboardRole(roles, queryRole);
-    const agg = await loadDashboardAggregates(tenantId);
-    return buildRoleDashboard(role, valuesForRole(role, agg));
+    try {
+      const agg = await loadDashboardAggregates(tenantId, { role, userId: userId ?? null });
+      return {
+        ...buildRoleDashboard(role, valuesForRole(role, agg)),
+        // No pool here means explicit demo mode (otherwise loadDashboardAggregates threw).
+        dataStatus: getSharedPgPool() ? 'live' : 'demo',
+      };
+    } catch (error: unknown) {
+      // PRC-M344: never show fabricated numbers — cards stay '—' and are flagged.
+      if (error instanceof ReportDataUnavailableError) {
+        return { ...buildRoleDashboard(role), dataStatus: 'unavailable' };
+      }
+      throw error;
+    }
   }
 
   /**

@@ -351,7 +351,8 @@ describe('G-909 catalogue plugin routes', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('preHandler', async (req) => {
-      (req as typeof req & { user?: { roles: Array<{ roleName: string }> } }).user = {
+      (req as typeof req & { user?: { sub: string; roles: Array<{ roleName: string }> } }).user = {
+        sub: 'parent-user-1',
         roles: [{ roleName: 'PARENT' }],
       };
     });
