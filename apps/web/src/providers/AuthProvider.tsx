@@ -36,6 +36,7 @@ import {
   signOut as sessionSignOut,
 } from '@/lib/auth/session';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { purgeAllDrafts } from '@/lib/draft/useDraftAutosave';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,6 +136,9 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
   const lastIdentity = useRef<string | null>(null);
   useEffect(() => {
     if (status === 'unauthenticated') {
+      // PRC-M119: a session that ends here (logout / expiry) drops every form
+      // draft; a cold unauthenticated load still drops all user-owned drafts.
+      purgeAllDrafts({ ownedOnly: lastIdentity.current === null });
       lastIdentity.current = null;
       void purgeServiceWorkerCaches();
       return;
@@ -143,6 +147,7 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
     const identity = `${user.tenant_id}:${user.id}`;
     if (lastIdentity.current !== null && lastIdentity.current !== identity) {
       void purgeServiceWorkerCaches();
+      purgeAllDrafts();
     }
     lastIdentity.current = identity;
   }, [status, user]);
