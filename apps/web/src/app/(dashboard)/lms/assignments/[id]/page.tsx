@@ -33,7 +33,6 @@ import { isUuidLike, resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
 import { KindPill, ScopePill, StatusPill, SubmissionPill } from '../../_components/badges';
-import { loadCriterionOptions } from '../../_components/criterion-options';
 import { AssignmentLifecycle } from '../../_components/assignment-lifecycle';
 import { AssignmentFileForm, RubricGradeForm } from '../../_components/depth-grade-forms';
 import { GradeSubmissionForm } from '../../_components/grade-submission-form';
@@ -93,7 +92,6 @@ export default async function AssignmentDetailPage({
   );
   const rubricId = essayQuestion?.payload?.rubricId;
   const rubric: LmsRubric | null = rubricId ? await getRubric(rubricId).catch(() => null) : null;
-  const criterionOptions = await loadCriterionOptions(rubric);
   const graded = submissions.filter((s) => s.status === 'graded' || s.status === 'returned');
   const average =
     graded.length > 0 ? graded.reduce((sum, s) => sum + (s.score ?? 0), 0) / graded.length : null;
@@ -342,7 +340,6 @@ export default async function AssignmentDetailPage({
                           submissionId={s.id}
                           questionId={essayQuestion?.id}
                           rubric={rubric}
-                          criterionOptions={criterionOptions}
                         />
                       </TableCell>
                     </TableRow>
