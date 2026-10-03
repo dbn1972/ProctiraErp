@@ -12,12 +12,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { ETLService } from './etl-service.js';
+import { memoryConnectorFactory } from './test-support/memory-connector-factory.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type { CreatePipelineInput } from './schemas.js';
 
 const TENANT_ID = 'tenant-etl-sched';
 
 const defaultConfig = {
+  connectorFactory: memoryConnectorFactory(),
   defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
   testMode: true as const,
 };

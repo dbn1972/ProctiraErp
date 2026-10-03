@@ -6,10 +6,10 @@
  * Supports scheduled execution, retry with exponential backoff,
  * structured execution logging, and Kafka event publishing.
  */
-import { AppError, NotFoundError, ValidationError } from '@proctira/common';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
+import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
 import { ExecutionLogger, type LogSink } from './execution-logger.js';
 import { buildExecutionLineage } from './lineage.js';
 import {
@@ -18,7 +18,11 @@ import {
   createPipelineEvent,
 } from './pipeline-events.js';
 import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
-import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
+import {
+  PipelineScheduler,
+  isValidCronExpression,
+  type SchedulerConfig,
+} from './pipeline-scheduler.js';
 import {
   RetryExecutor,
   TestableRetryExecutor,
@@ -48,7 +52,20 @@ export interface ETLServiceConfig {
   schedulerConfig?: Partial<SchedulerConfig>;
   /** Use testable retry executor (no actual sleep) - for testing */
   testMode?: boolean;
+  /** PRC-M222: connector construction (defaults to the fail-closed production factory). */
+  connectorFactory?: ConnectorFactory;
+  /**
+   * PRC-M225: a `running` execution older than this is treated as abandoned (crashed
+   * process) and no longer blocks a new run. Default 6 hours.
+   */
+  runningExecutionStaleMs?: number;
 }
+
+/** PRC-M226: row errors persisted per run (errorCount still reports the total). */
+export const MAX_STORED_RUN_ERRORS = 100;
+
+/** Default abandonment window for `running` executions (PRC-M225). */
+export const DEFAULT_RUNNING_EXECUTION_STALE_MS = 6 * 60 * 60 * 1000;
 
 export class ETLService {
   private readonly logger: ExecutionLogger;
@@ -66,16 +83,27 @@ export class ETLService {
   /** Promises for in-flight pipeline executions (API + scheduled). */
   private readonly inFlight = new Set<Promise<unknown>>();
 
+  private readonly connectors: ConnectorFactory;
   constructor(
     private readonly repository: PipelineRepository,
     private readonly config: ETLServiceConfig,
   ) {
+    this.connectors = config.connectorFactory ?? defaultConnectorFactory;
     this.adminNotifier = config.adminNotifier ?? new InMemoryAdminNotifier();
     this.logger = new ExecutionLogger(config.logSink);
     this.retryExecutor = config.testMode
       ? new TestableRetryExecutor(this.adminNotifier)
       : new RetryExecutor(this.adminNotifier);
-    this.scheduler = new PipelineScheduler(config.schedulerConfig);
+    this.scheduler = new PipelineScheduler({
+      // PRC-M226: scheduled-run failures go to the structured execution log.
+      onError: (error, entry) =>
+        this.logger.logScheduledRunError(
+          entry?.pipelineId ?? '',
+          entry?.tenantId ?? '',
+          error instanceof Error ? error.message : String(error),
+        ),
+      ...config.schedulerConfig,
+    });
     this.eventPublisher = config.eventPublisher ?? new InMemoryEventPublisher();
 
     // Wire up scheduler to execute pipelines when due
@@ -157,8 +185,19 @@ export class ETLService {
     let registered = 0;
     for (const pipeline of data) {
       if (pipeline.schedule && pipeline.enabled) {
-        this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
-        registered += 1;
+        // PRC-M223: one poisoned row (e.g. legacy invalid cron) must not brick every
+        // ETL endpoint for the tenant — skip and log it, keep hydrating the rest.
+        try {
+          this.scheduler.registerSchedule(pipeline.id, pipeline.tenantId, pipeline.schedule, true);
+          registered += 1;
+        } catch (error: unknown) {
+          this.scheduler.unregisterSchedule(pipeline.id);
+          this.logger.logScheduleSkipped(
+            pipeline.id,
+            pipeline.tenantId,
+            error instanceof Error ? error.message : 'invalid schedule',
+          );
+        }
       } else {
         this.scheduler.unregisterSchedule(pipeline.id);
       }
@@ -186,7 +225,7 @@ export class ETLService {
     source: CreatePipelineInput['source'];
     destination: CreatePipelineInput['destination'];
   }): Promise<void> {
-    const source = await createSourceConnector(input.source).validate();
+    const source = await this.connectors.createSource(input.source).validate();
     if (!source.valid) {
       throw new AppError(
         source.error ?? 'Invalid source configuration',
@@ -194,7 +233,7 @@ export class ETLService {
         400,
       );
     }
-    const destination = await createDestinationConnector(input.destination).validate();
+    const destination = await this.connectors.createDestination(input.destination).validate();
     if (!destination.valid) {
       throw new AppError(
         destination.error ?? 'Invalid destination configuration',
@@ -208,6 +247,7 @@ export class ETLService {
     // PRC-H115: the redaction placeholder is never a valid credential.
     assertNoRedactedSecret(input.source, 'source');
     assertNoRedactedSecret(input.destination, 'destination');
+    assertValidSchedule(input.schedule);
     await this.ensureSchedulesHydrated(tenantId);
     await this.assertConnectorConfigSafe(input);
     const now = new Date();
@@ -251,6 +291,8 @@ export class ETLService {
     pipelineId: string,
     input: UpdatePipelineInput,
   ): Promise<Pipeline> {
+    // PRC-M223: reject an invalid cron before anything is written.
+    assertValidSchedule(input.schedule);
     await this.ensureSchedulesHydrated(tenantId);
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
@@ -378,7 +420,37 @@ export class ETLService {
       throw new AppError('Pipeline is disabled', 'PIPELINE_DISABLED', 400);
     }
 
-    return this.runPipelineExecution(pipeline, tenantId, 0, false);
+    const execution = await this.startExecution(pipeline, tenantId);
+    return this.runPipelineExecution(pipeline, tenantId, 0, false, execution);
+  }
+
+  /**
+   * PRC-M225: create the single run row for this execution (shared by every retry
+   * attempt). Fails with 409 when the pipeline already has a running execution.
+   */
+  private async startExecution(pipeline: Pipeline, tenantId: string): Promise<PipelineExecution> {
+    const execution: PipelineExecution = {
+      id: uuidv4(),
+      pipelineId: pipeline.id,
+      tenantId,
+      status: 'running',
+      startedAt: new Date(),
+      completedAt: null,
+      extractedCount: 0,
+      transformedCount: 0,
+      loadedCount: 0,
+      errorCount: 0,
+      errors: [],
+      lineage: buildExecutionLineage(pipeline),
+    };
+    const staleBefore = new Date(
+      Date.now() - (this.config.runningExecutionStaleMs ?? DEFAULT_RUNNING_EXECUTION_STALE_MS),
+    );
+    const started = await this.repository.createExecutionIfIdle(execution, staleBefore);
+    if (!started) {
+      throw new ConflictError(`Pipeline ${pipeline.id} already has a running execution`);
+    }
+    return execution;
   }
 
   /**
@@ -408,7 +480,26 @@ export class ETLService {
       throw new AppError('Pipeline is disabled', 'PIPELINE_DISABLED', 400);
     }
 
-    const executionId = uuidv4();
+    // PRC-M225: one run row for the whole retry sequence; 409 if one is running.
+    const execution = await this.startExecution(pipeline, tenantId);
+    const executionId = execution.id;
+
+    try {
+      return await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+    } finally {
+      // PRC-M225: retry bookkeeping is per run; drop it once the run is settled.
+      this.retryExecutor.clearState(executionId);
+    }
+  }
+
+  private async runWithRetries(
+    pipeline: Pipeline,
+    tenantId: string,
+    scheduledExecution: boolean,
+    execution: PipelineExecution,
+  ): Promise<PipelineExecution> {
+    const pipelineId = pipeline.id;
+    const executionId = execution.id;
 
     // Publish execution started event
     await this.eventPublisher.publish(
@@ -450,7 +541,13 @@ export class ETLService {
           );
         }
 
-        return this.runPipelineExecution(pipeline, tenantId, attempt, scheduledExecution);
+        return this.runPipelineExecution(
+          pipeline,
+          tenantId,
+          attempt,
+          scheduledExecution,
+          execution,
+        );
       },
     );
 
@@ -494,17 +591,11 @@ export class ETLService {
       ),
     );
 
-    // Create a failed execution record
+    // PRC-M225: settle the same run row (no extra row per attempt / on exhaustion).
     const failedExecution: PipelineExecution = {
-      id: executionId,
-      pipelineId,
-      tenantId,
+      ...execution,
       status: 'failed',
-      startedAt: new Date(),
       completedAt: new Date(),
-      extractedCount: 0,
-      transformedCount: 0,
-      loadedCount: 0,
       errorCount: 1,
       errors: [
         {
@@ -514,10 +605,9 @@ export class ETLService {
           data: null,
         },
       ],
-      lineage: buildExecutionLineage(pipeline),
     };
 
-    await this.repository.createExecution(failedExecution);
+    await this.repository.updateExecution(executionId, failedExecution);
     return failedExecution;
   }
 
@@ -529,35 +619,48 @@ export class ETLService {
     tenantId: string,
     attempt: number,
     _scheduledExecution: boolean,
+    execution: PipelineExecution,
   ): Promise<PipelineExecution> {
-    const executionId = uuidv4();
-    const startedAt = new Date();
+    const executionId = execution.id;
+    const startedAt = execution.startedAt;
 
     // Log execution start
     this.logger.logExecutionStart(executionId, pipeline.id, tenantId, attempt);
 
-    // Create execution record (thin lineage breadcrumb — P2-WH / PRD-018)
-    const execution: PipelineExecution = {
-      id: executionId,
-      pipelineId: pipeline.id,
-      tenantId,
-      status: 'running',
-      startedAt,
-      completedAt: null,
-      extractedCount: 0,
-      transformedCount: 0,
-      loadedCount: 0,
-      errorCount: 0,
-      errors: [],
-      lineage: buildExecutionLineage(pipeline),
-    };
-
-    await this.repository.createExecution(execution);
-
+    // PRC-M225: each attempt reuses the run row; reset per-attempt counters.
+    execution.status = 'running';
+    execution.completedAt = null;
+    execution.extractedCount = 0;
+    execution.transformedCount = 0;
+    execution.loadedCount = 0;
+    execution.errorCount = 0;
+    execution.errors = [];
     try {
+      // PRC-M222: build + validate both connectors before touching any data, so an
+      // invalid / unimplemented config fails the run instead of "succeeding".
+      const sourceConnector = this.connectors.createSource(pipeline.source);
+      const destConnector = this.connectors.createDestination(pipeline.destination);
+      const [sourceCheck, destCheck] = await Promise.all([
+        sourceConnector.validate(),
+        destConnector.validate(),
+      ]);
+      if (!sourceCheck.valid) {
+        throw new AppError(
+          sourceCheck.error ?? 'Invalid source configuration',
+          'INVALID_SOURCE_CONFIG',
+          400,
+        );
+      }
+      if (!destCheck.valid) {
+        throw new AppError(
+          destCheck.error ?? 'Invalid destination configuration',
+          'INVALID_DESTINATION_CONFIG',
+          400,
+        );
+      }
+
       // 1. Extract
       const extractStart = Date.now();
-      const sourceConnector = createSourceConnector(pipeline.source);
       const extractionResult = await sourceConnector.extract();
       const extractDuration = Date.now() - extractStart;
       execution.extractedCount = extractionResult.totalCount;
@@ -601,18 +704,21 @@ export class ETLService {
 
       // 3. Load
       const loadStart = Date.now();
-      const destConnector = createDestinationConnector(pipeline.destination);
-      const loadResult = await destConnector.load(transformResult.rows);
+      // PRC-M225: run id is the idempotency key, stable across retry attempts.
+      const loadResult = await destConnector.load(transformResult.rows, {
+        idempotencyKey: executionId,
+      });
       const loadDuration = Date.now() - loadStart;
       execution.loadedCount = loadResult.loadedCount;
 
       // Map load errors to execution errors
+      // PRC-M224: row index + message only; row values are never stored or logged.
       for (const err of loadResult.errors) {
         execution.errors.push({
           row: err.row,
           field: null,
           message: err.message,
-          data: err.data,
+          data: null,
         });
       }
 
@@ -626,12 +732,16 @@ export class ETLService {
           row: e.row,
           field: null,
           message: e.message,
-          data: e.data,
         })),
       });
 
       execution.errorCount = execution.errors.length;
-      execution.status = 'completed';
+      // PRC-M226: keep the true count but store a bounded sample of row errors.
+      if (execution.errors.length > MAX_STORED_RUN_ERRORS) {
+        execution.errors = execution.errors.slice(0, MAX_STORED_RUN_ERRORS);
+      }
+      // PRC-M227: partial failure is visible in the run status.
+      execution.status = execution.errorCount > 0 ? 'completed_with_errors' : 'completed';
       execution.completedAt = new Date();
 
       // Log execution summary
@@ -640,7 +750,7 @@ export class ETLService {
         executionId,
         pipelineId: pipeline.id,
         tenantId,
-        status: 'completed',
+        status: execution.status,
         startedAt,
         completedAt: execution.completedAt,
         totalDurationMs: totalDuration,
@@ -721,6 +831,20 @@ export class ETLService {
     // Verify pipeline exists and belongs to tenant
     await this.getPipeline(tenantId, pipelineId);
     return this.repository.listExecutions(pipelineId, tenantId, page, pageSize);
+  }
+}
+
+/** PRC-M223: schedules are validated (400) before persistence. */
+function assertValidSchedule(schedule: string | null | undefined): void {
+  if (schedule === undefined || schedule === null) return;
+  if (!isValidCronExpression(schedule)) {
+    throw new ValidationError('Invalid cron expression', [
+      {
+        field: 'schedule',
+        rule: 'cron',
+        message: 'Use a 5-field cron expression (minute hour day month weekday) or an alias',
+      },
+    ]);
   }
 }
 

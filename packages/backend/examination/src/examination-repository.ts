@@ -129,6 +129,10 @@ export interface StudentEnrollment {
    * rejecting every registration.
    */
   completedSubjectCodes: string[] | null;
+  /** PRC-M240: gender from the student record (raw value), when known. */
+  gender?: string | null;
+  /** PRC-M240: geographic area of the enrolling institution, when known. */
+  areaId?: string | null;
 }
 
 /**
