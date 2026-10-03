@@ -1,0 +1,72 @@
+# PRC-L176: nightly k6 load test against a seeded staging environment.
+#
+# Required repository/environment secrets (owner action — this workflow fails closed
+# without them rather than reporting a green run that tested nothing):
+#   LOAD_TEST_BASE_URL       — staging API base URL (https://...)
+#   LOAD_TEST_FIXTURES_JSON  — fixtures document: { "tenants": [ { name, token,
+#                              institutionId, classId, academicPeriodId, studentIds } ] }
+#                              with at least two tenants (per-tenant tokens, real ids).
+name: Load Test (nightly)
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-test-nightly
+  cancel-in-progress: false
+
+jobs:
+  k6:
+    name: k6 load test (thresholds enforced)
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require target and fixtures
+        env:
+          LOAD_TEST_BASE_URL: ${{ secrets.LOAD_TEST_BASE_URL }}
+          LOAD_TEST_FIXTURES_JSON: ${{ secrets.LOAD_TEST_FIXTURES_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LOAD_TEST_BASE_URL}" ] || [ -z "${LOAD_TEST_FIXTURES_JSON}" ]; then
+            echo "::error::LOAD_TEST_BASE_URL and LOAD_TEST_FIXTURES_JSON secrets are required"
+            exit 1
+          fi
+          case "${LOAD_TEST_BASE_URL}" in
+            https://*) ;;
+            *) echo "::error::LOAD_TEST_BASE_URL must be https://"; exit 1 ;;
+          esac
+          umask 077
+          printf '%s' "${LOAD_TEST_FIXTURES_JSON}" > "${RUNNER_TEMP}/fixtures.json"
+          node -e 'const f=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(!Array.isArray(f.tenants)||f.tenants.length<2){console.error("::error::fixtures need >= 2 tenants");process.exit(1)}' "${RUNNER_TEMP}/fixtures.json"
+      - name: Unit-test load-test helpers
+        run: node --test tools/load-test/lib.test.mjs
+      # The repo's load test is a k6 script; run the pinned official image (no extra action).
+      - name: Run k6 (fails on threshold breach)
+        env:
+          BASE_URL: ${{ secrets.LOAD_TEST_BASE_URL }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e BASE_URL \
+            -e LOAD_TEST_FIXTURES=/work/fixtures.json \
+            -e SUMMARY_PATH=/work/k6-summary.json \
+            -v "${GITHUB_WORKSPACE}/tools/load-test:/scripts:ro" \
+            -v "${RUNNER_TEMP}:/work" \
+            grafana/k6:0.54.0 run /scripts/k6-script.js
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k6-summary
+          path: ${{ runner.temp }}/k6-summary.json
+          if-no-files-found: warn
+      - name: Remove fixtures (tokens)
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/fixtures.json"
