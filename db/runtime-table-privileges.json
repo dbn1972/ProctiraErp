@@ -81,6 +81,7 @@
     "examination_candidate_registrations": "dml",
     "examination_candidates": "dml",
     "examination_document_jobs": "dml",
+    "examination_publication_versions": "append_only",
     "examination_publications": "dml",
     "examination_result_analyses": "dml",
     "examinations": "dml",
