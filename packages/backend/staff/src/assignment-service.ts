@@ -13,13 +13,16 @@ import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/commo
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  StaffAssignmentEntity,
-  StaffAssignmentFilter,
-  StaffAssignmentRepository,
+import {
+  AllocationExceededError,
+  type StaffAssignmentEntity,
+  type StaffAssignmentFilter,
+  type StaffAssignmentRepository,
 } from './assignment-repository.js';
 import type { CreateAssignmentInput, UpdateAssignmentInput } from './assignment-schemas.js';
 import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
+
+const ALLOCATION_GUARD = { maxTotalPercentage: 100 } as const;
 
 /**
  * Service handling staff assignment business logic.
@@ -67,16 +70,6 @@ export class StaffAssignmentService {
       );
     }
 
-    // Check total allocation constraint
-    const activeAssignments = await this.repository.findActiveByStaffId(input.staffId, tenantId);
-    const currentTotal = activeAssignments.reduce((sum, a) => sum + a.allocationPercentage, 0);
-
-    if (currentTotal + input.allocationPercentage > 100) {
-      throw new BusinessRuleError(
-        `Total allocation would exceed 100%. Current allocation: ${currentTotal}%, requested: ${input.allocationPercentage}%, total would be: ${currentTotal + input.allocationPercentage}%`,
-      );
-    }
-
     const assignment: Omit<StaffAssignmentEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -91,7 +84,9 @@ export class StaffAssignmentService {
       status: 'ACTIVE',
     };
 
-    return this.repository.create(assignment);
+    // PRC-M375: cap is checked by the repository in the write transaction,
+    // counting only assignments whose period overlaps this one.
+    return this.withAllocationError(() => this.repository.create(assignment, ALLOCATION_GUARD));
   }
 
   /**
@@ -146,27 +141,6 @@ export class StaffAssignmentService {
       }
     }
 
-    // Check allocation constraint if allocation changes
-    if (input.allocationPercentage !== undefined) {
-      const newStatus = input.status ?? existing.status;
-      // Only check allocation if the assignment will be active
-      if (newStatus === 'ACTIVE') {
-        const activeAssignments = await this.repository.findActiveByStaffId(
-          existing.staffId,
-          tenantId,
-        );
-        const currentTotal = activeAssignments
-          .filter((a) => a.id !== id) // Exclude current assignment
-          .reduce((sum, a) => sum + a.allocationPercentage, 0);
-
-        if (currentTotal + input.allocationPercentage > 100) {
-          throw new BusinessRuleError(
-            `Total allocation would exceed 100%. Current allocation (excluding this assignment): ${currentTotal}%, requested: ${input.allocationPercentage}%, total would be: ${currentTotal + input.allocationPercentage}%`,
-          );
-        }
-      }
-    }
-
     const updateData: Partial<StaffAssignmentEntity> = {};
     if (input.role !== undefined) updateData.role = input.role;
     if (input.allocationPercentage !== undefined)
@@ -175,7 +149,21 @@ export class StaffAssignmentService {
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.status !== undefined) updateData.status = input.status as 'ACTIVE' | 'INACTIVE';
 
-    const updated = await this.repository.update(id, tenantId, updateData);
+    // PRC-M375: re-check on any change that can raise overlapping allocation,
+    // including an INACTIVE -> ACTIVE re-activation.
+    const affectsAllocation =
+      input.allocationPercentage !== undefined ||
+      input.startDate !== undefined ||
+      input.endDate !== undefined ||
+      (input.status === 'ACTIVE' && existing.status !== 'ACTIVE');
+    const updated = await this.withAllocationError(() =>
+      this.repository.update(
+        id,
+        tenantId,
+        updateData,
+        affectsAllocation ? ALLOCATION_GUARD : undefined,
+      ),
+    );
     if (!updated) {
       throw new NotFoundError(`Assignment with id '${id}' not found`);
     }
@@ -222,6 +210,15 @@ export class StaffAssignmentService {
   /**
    * Get total allocation percentage for a staff member across all active assignments.
    */
+  private async withAllocationError<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error instanceof AllocationExceededError) throw new BusinessRuleError(error.message);
+      throw error;
+    }
+  }
+
   async getTotalAllocation(tenantId: string, staffId: string): Promise<number> {
     const activeAssignments = await this.repository.findActiveByStaffId(staffId, tenantId);
     return activeAssignments.reduce((sum, a) => sum + a.allocationPercentage, 0);
