@@ -96,6 +96,11 @@ jobs:
       - name: Run gitleaks
         # Explicit fail-closed: secrets must never soft-pass.
         continue-on-error: false
+        # PRC-M256: event values via env, not inline in the script.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           # .gitleaks.toml extends the upstream defaults (useDefault = true) and only
@@ -106,11 +111,11 @@ jobs:
             echo "error: .gitleaks.toml missing — refusing to scan with implicit defaults" >&2
             exit 1
           }
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
             gitleaks detect \
               --source . \
               --config .gitleaks.toml \
-              --log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
+              --log-opts "${PR_BASE_SHA}..${PR_HEAD_SHA}" \
               --redact \
               --verbose \
               --exit-code 1

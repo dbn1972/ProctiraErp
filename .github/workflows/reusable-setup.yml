@@ -52,10 +52,12 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       - name: Smoke-check toolchain
+        env:
+          INSTALL_DEPENDENCIES: ${{ inputs.install-dependencies }}
         run: |
           set -euo pipefail
           node --version
           pnpm --version
-          if [ "${{ inputs.install-dependencies }}" = "true" ]; then
+          if [ "${INSTALL_DEPENDENCIES}" = "true" ]; then
             test -d node_modules
           fi

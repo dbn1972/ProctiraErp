@@ -1288,6 +1288,13 @@ jobs:
       - name: Fail when tenant-scoped tables lack leading tenant_id indexes
         run: node tools/scripts/check-tenant-id-indexes.mjs
 
+      # PRC-M205: demo/fixture tenants belong in NNNb_*_seed.sql, never schema migrations.
+      - name: Unit-test migration tenant-insert gate
+        run: node --test tools/scripts/check-migration-tenant-inserts.test.mjs
+
+      - name: Fail when a numbered migration inserts into tenants
+        run: node tools/scripts/check-migration-tenant-inserts.mjs
+
   # ---------------------------------------------------------------------------
   # Migration lock/statement timeouts + online DDL hazard gate (W1-DATA-17)
   # ---------------------------------------------------------------------------

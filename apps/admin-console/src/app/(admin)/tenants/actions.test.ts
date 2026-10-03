@@ -49,7 +49,9 @@ describe('tenant server actions with an unreachable gateway (PRC-H002)', () => {
 
   it('tenantLifecycleAction throws instead of silently revalidating', async () => {
     await expect(
-      tenantLifecycleAction(form({ id: 'tnt_001', action: 'suspend', reason: 'r' })),
+      tenantLifecycleAction(
+        form({ id: 'tnt_001', action: 'suspend', reason: 'Customer requested suspension' }),
+      ),
     ).rejects.toThrow('Gateway unreachable (test)');
     expect(revalidatePath).not.toHaveBeenCalled();
   });

@@ -326,6 +326,41 @@ describe('Billing Routes', () => {
     });
   });
 
+  describe('quota numeric validation (PRC-M187)', () => {
+    it('creates an unlimited (-1) quota plan', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/billing/plans',
+        payload: {
+          name: 'Unlimited Plan',
+          tier: 'enterprise',
+          features: [],
+          quotas: [{ metric: 'students', limit: -1 }],
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      expect(JSON.parse(response.body).quotas[0].limit).toBe(-1);
+    });
+
+    it.each([-2, 2.5])('rejects quota limit %s', async (limit) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/billing/plans',
+        payload: { name: 'Bad Plan', tier: 'free', features: [], quotas: [{ metric: 's', limit }] },
+      });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('rejects a fractional usage increment', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/billing/usage/record',
+        payload: { tenantId, metric: 'api_calls', increment: 1.5 },
+      });
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
   describe('POST /billing/usage/query', () => {
     it('should query usage', async () => {
       const plan = await service.createPlan({

@@ -43,6 +43,7 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import { openWebhookSecret, sealWebhookSecret } from './webhook-secret-crypto.js';
 import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
@@ -383,7 +384,7 @@ export class DeveloperPortalService {
     accountId: string,
     tenantId: string,
     input: CreateWebhookInput,
-  ): Promise<WebhookEntity> {
+  ): Promise<WebhookEntity & { signingSecret?: string }> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -392,7 +393,6 @@ export class DeveloperPortalService {
     if (account.status !== 'active') {
       throw new BusinessRuleError('Cannot create webhook for inactive account');
     }
-
     // Check webhook limit (per account + tenant, matching API key scoping)
     const existing = await this.repository.listWebhooks({ accountId, tenantId }, 1, 1);
     if (existing.total >= this.config.maxWebhooksPerAccount) {
@@ -404,22 +404,25 @@ export class DeveloperPortalService {
     // Generate secret if not provided
     const secret = input.secret ?? generateApiKey();
     const secretHash = hashApiKey(secret);
-
     const now = new Date();
+    const id = uuidv4();
     const webhook: WebhookEntity = {
-      id: uuidv4(),
+      id,
       tenantId,
       accountId,
       url: input.url,
       events: input.events,
       secretHash,
+      // PRC-M211: sealed (not hashed) so the delivery worker can sign with it.
+      secretCiphertext: sealWebhookSecret(secret, { webhookId: id, tenantId }),
       description: input.description ?? null,
       active: input.active ?? true,
       createdAt: now,
       updatedAt: now,
     };
-
-    return this.repository.createWebhook(webhook);
+    const created = await this.repository.createWebhook(webhook);
+    // The plaintext is returned once (server-generated secrets are otherwise unknowable).
+    return input.secret === undefined ? { ...created, signingSecret: secret } : created;
   }
 
   async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
@@ -452,11 +455,20 @@ export class DeveloperPortalService {
     }
 
     const updates: Partial<
-      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+      Pick<
+        WebhookEntity,
+        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
+      >
     > = {};
     if (input.url !== undefined) updates.url = input.url;
     if (input.events !== undefined) updates.events = input.events;
-    if (input.secret !== undefined) updates.secretHash = hashApiKey(input.secret);
+    if (input.secret !== undefined) {
+      updates.secretHash = hashApiKey(input.secret);
+      updates.secretCiphertext = sealWebhookSecret(input.secret, {
+        webhookId: webhook.id,
+        tenantId: webhook.tenantId,
+      });
+    }
     if (input.description !== undefined) updates.description = input.description;
     if (input.active !== undefined) updates.active = input.active;
 
@@ -478,7 +490,6 @@ export class DeveloperPortalService {
     webhookId: string,
     event: string,
     payload: Record<string, unknown>,
-    signingSecret?: string,
   ): Promise<WebhookDeliveryEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
     if (!webhook) {
@@ -515,7 +526,6 @@ export class DeveloperPortalService {
         url: webhook.url,
         event,
         body: payload,
-        signingSecret,
         attempt: 0,
       });
     }
@@ -576,11 +586,31 @@ export class DeveloperPortalService {
       'x-proctira-event': job.event,
       'x-proctira-delivery': job.deliveryId,
     };
-    if (job.signingSecret) {
-      // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
-      // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
-      Object.assign(headers, createWebhookSignatureHeaders(body, job.signingSecret).headers);
+    // PRC-M211: signing is mandatory. The secret comes from the sealed column on the webhook
+    // row (never the queue message); legacy hash-only rows or an undecryptable secret fail the
+    // delivery permanently instead of sending it unsigned.
+    let signingSecret: string | null = null;
+    try {
+      signingSecret = openWebhookSecret(webhook.secretCiphertext, {
+        webhookId: webhook.id,
+        tenantId: webhook.tenantId,
+      });
+    } catch {
+      signingSecret = null;
     }
+    if (!signingSecret) {
+      await this.repository.updateDelivery(job.deliveryId, {
+        status: 'failed',
+        httpStatus: null,
+        attempts: delivery.attempts + 1,
+        lastAttemptAt: new Date(),
+        nextRetryAt: null,
+      });
+      return;
+    }
+    // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
+    // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
+    Object.assign(headers, createWebhookSignatureHeaders(body, signingSecret).headers);
 
     try {
       const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
@@ -741,6 +771,11 @@ export class DeveloperPortalService {
     if (account.status !== 'active') {
       throw new BusinessRuleError('Cannot submit plugin from inactive account');
     }
+    // PRC-M219: a published plugin name belongs to the account that published it.
+    const listed = await this.repository.getListingByName(input.name);
+    if (listed && listed.accountId !== accountId) {
+      throw new ConflictError(`Plugin name '${input.name}' is owned by another developer account`);
+    }
 
     const submission: PluginSubmissionEntity = {
       id: uuidv4(),
@@ -828,10 +863,17 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Only approved plugins can be published');
     }
 
+    // PRC-M219: never overwrite another account's listing; a same-owner re-publish is a
+    // version update that keeps installs, ratings and the original publish date.
+    const existing = await this.repository.getListingByName(submission.name);
+    if (existing && existing.accountId !== submission.accountId) {
+      throw new ConflictError(
+        `Plugin name '${submission.name}' is owned by another developer account`,
+      );
+    }
     // Get account for author name
     const account = await this.repository.getAccountById(submission.accountId);
     const authorName = account?.name ?? 'Unknown';
-
     // Create marketplace listing
     const now = new Date();
     const listing: MarketplaceListingEntity = {
@@ -846,16 +888,23 @@ export class DeveloperPortalService {
       screenshots: submission.screenshots,
       tags: submission.tags,
       license: submission.license,
-      installs: 0,
-      averageRating: 0,
-      ratingCount: 0,
-      publishedAt: now,
+      installs: existing?.installs ?? 0,
+      averageRating: existing?.averageRating ?? 0,
+      ratingCount: existing?.ratingCount ?? 0,
+      publishedAt: existing?.publishedAt ?? now,
       updatedAt: now,
     };
-
     await this.repository.createListing(listing);
-    await this.repository.updateSubmissionStatus(submissionId, 'published');
-
+    try {
+      const marked = await this.repository.updateSubmissionStatus(submissionId, 'published');
+      if (!marked) throw new NotFoundError(`Plugin submission '${submissionId}' not found`);
+    } catch (error) {
+      // PRC-M219: listings are not in the same store as submissions, so undo the listing
+      // write rather than leave a live listing for an unpublished submission.
+      if (existing) await this.repository.createListing(existing);
+      else await this.repository.deleteListing(listing.name);
+      throw error;
+    }
     return listing;
   }
 

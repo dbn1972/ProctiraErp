@@ -2,6 +2,7 @@
  * Theme review API client.
  */
 import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export type ThemeStatus = 'submitted' | 'in_review' | 'approved' | 'rejected';
 
@@ -76,25 +77,32 @@ export async function listThemes(): Promise<{
 export async function getTheme(
   id: string,
 ): Promise<{ theme: ThemeSubmission | null; source: 'gateway' | 'stub' }> {
-  const response = await gatewayFetch<ThemeSubmission>(`/themes/${id}`);
+  if (!RESOURCE_ID_PATTERN.test(id)) return { theme: null, source: 'gateway' };
+  const response = await gatewayFetch<ThemeSubmission>(`/themes/${pathSegment(id)}`);
   if (response.ok && response.data) {
     return { theme: response.data, source: 'gateway' };
   }
+  // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
+  if (response.status > 0) return { theme: null, source: 'gateway' };
   return {
     theme: STUB_THEMES.find((t) => t.id === id) ?? null,
     source: 'stub',
   };
 }
 
+export const THEME_ACTIONS = ['approve', 'reject'] as const;
 export async function themeAction(
   id: string,
   action: 'approve' | 'reject',
   reason: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const response = await gatewayFetch<unknown>(`/themes/${id}/${action}`, {
-    method: 'POST',
-    json: { reason },
-  });
+  const response = await gatewayFetch<unknown>(
+    `/themes/${pathSegment(id)}/${verbSegment(action, THEME_ACTIONS)}`,
+    {
+      method: 'POST',
+      json: { reason },
+    },
+  );
   if (response.ok) return { ok: true };
   // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
   if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
