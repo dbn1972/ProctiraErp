@@ -31,6 +31,7 @@ describe('GradebookService', () => {
       name: 'Class 10-A',
       status: 'PUBLISHED',
     });
+    repo.seedBoard({ id: BOARD, tenantId: TENANT, code: 'CBSE', name: 'CBSE' });
     repo.seedScale({
       id: SCALE,
       tenantId: TENANT,

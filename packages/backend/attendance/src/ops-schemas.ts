@@ -8,13 +8,21 @@ const StatusUnion = Type.Union([
   Type.Literal('EARLY_DEPARTURE'),
 ]);
 
+const UUID_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
+/**
+ * PRC-M170: attendanceId must be a UUID; studentId/classId/attendanceDate are
+ * verified against the stored record and fromStatus is derived from it (a
+ * supplied fromStatus must match the current status).
+ */
 export const CreateRegularisationSchema = Type.Object({
-  attendanceId: Type.String({ minLength: 1 }),
+  attendanceId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ minLength: 1 }),
   institutionId: Type.String({ minLength: 1 }),
   classId: Type.String({ minLength: 1 }),
   attendanceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
-  fromStatus: Type.String({ minLength: 1 }),
+  fromStatus: Type.Optional(Type.String({ minLength: 1 })),
   toStatus: StatusUnion,
   reason: Type.Optional(Type.String({ maxLength: 2000 })),
 });

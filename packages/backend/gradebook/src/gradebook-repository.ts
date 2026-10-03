@@ -1,5 +1,11 @@
 import type { GradeBand } from './gpa-engine.js';
 
+/** PRC-M264: optimistic-concurrency guard for grade writes. */
+export type GradeEntryWriteGuard = {
+  expectedUpdatedAt: string;
+  requireUnlocked?: boolean;
+};
+
 export type GradeEntryEntity = {
   id: string;
   tenantId: string;
@@ -102,6 +108,8 @@ export type SectionSummary = {
 export type ListGradeEntriesFilter = {
   sectionId?: string;
   studentId?: string;
+  /** PRC-M269: batch-load many students in one query. */
+  studentIds?: string[];
 };
 
 export type ListTranscriptsFilter = {
@@ -190,11 +198,17 @@ export interface GradebookRepository {
     row: GradeEntryEntity,
     audit?: GradeChangeAuditContext,
   ): Promise<GradeEntryEntity>;
+  /**
+   * PRC-M264: with `guard`, the row is re-read under a row lock and the write
+   * fails with ConflictError (409) when `updatedAt` moved since the caller's
+   * read or (requireUnlocked) the row became locked/published.
+   */
   updateGradeEntry(
     tenantId: string,
     id: string,
     patch: Partial<GradeEntryEntity>,
     audit?: GradeChangeAuditContext,
+    guard?: GradeEntryWriteGuard,
   ): Promise<GradeEntryEntity | null>;
 
   listCreditRules(tenantId: string, boardId?: string): Promise<CreditRuleEntity[]>;

@@ -65,7 +65,7 @@ export { registerCommunicationRoutes } from './routes.js';
 export type { CommunicationRoutesOptions } from './routes.js';
 
 export { CircularsService } from './circulars-service.js';
-export { registerCircularRoutes } from './circulars-routes.js';
+export { registerCircularRoutes, type CircularRecipientBinding } from './circulars-routes.js';
 export { InMemoryCircularStore } from './circular-store.js';
 export { PgCircularStore, ensureCircularSchema } from './pg-circular-store.js';
 export { createCircularStore } from './create-circular-store.js';

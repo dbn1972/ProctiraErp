@@ -136,7 +136,7 @@ export function buildTranscriptPdf(input: TranscriptArtifactInput): Buffer {
   return flow.finish();
 }
 
-export function writeTranscriptPdfLite(input: {
+type TranscriptWriteInput = {
   tenantId: string;
   studentId: string;
   version: number;
@@ -148,18 +148,40 @@ export function writeTranscriptPdfLite(input: {
   institutionName?: string | null;
   studentName?: string | null;
   signature?: string | null;
-}): { artifactDir: string; pdfPath: string; pdfLitePath: string; jsonPath: string } {
-  const artifactDir = resolveTranscriptArtifactDir(input.tenantId, input.studentId, input.version);
-  mkdirSync(artifactDir, { recursive: true });
-  const pdfPath = join(artifactDir, 'transcript.pdf');
-  const pdfLitePath = join(artifactDir, 'transcript.pdf-lite.html');
-  const jsonPath = join(artifactDir, 'transcript.json');
-  writeFileSync(pdfPath, buildTranscriptPdf(input));
-  const html = buildTranscriptPdfLiteHtml(input);
-  writeFileSync(pdfLitePath, html, 'utf8');
-  writeFileSync(
-    jsonPath,
-    JSON.stringify(
+};
+
+export type TranscriptArtifactPaths = {
+  artifactDir: string;
+  pdfPath: string;
+  pdfLitePath: string;
+  jsonPath: string;
+};
+
+/** PRC-M267: deterministic artifact paths (computed before the DB insert). */
+export function transcriptArtifactPaths(
+  tenantId: string,
+  studentId: string,
+  version: number,
+): TranscriptArtifactPaths {
+  const artifactDir = resolveTranscriptArtifactDir(tenantId, studentId, version);
+  return {
+    artifactDir,
+    pdfPath: join(artifactDir, 'transcript.pdf'),
+    pdfLitePath: join(artifactDir, 'transcript.pdf-lite.html'),
+    jsonPath: join(artifactDir, 'transcript.json'),
+  };
+}
+
+/** PRC-M267: build artifact bytes in memory (no filesystem side effects). */
+export function buildTranscriptArtifacts(input: TranscriptWriteInput): {
+  pdf: Buffer;
+  html: string;
+  json: string;
+} {
+  return {
+    pdf: buildTranscriptPdf(input),
+    html: buildTranscriptPdfLiteHtml(input),
+    json: JSON.stringify(
       {
         studentId: input.studentId,
         version: input.version,
@@ -172,7 +194,22 @@ export function writeTranscriptPdfLite(input: {
       null,
       2,
     ),
-    'utf8',
-  );
-  return { artifactDir, pdfPath, pdfLitePath, jsonPath };
+  };
+}
+
+/** PRC-M267: write pre-built artifacts (called only after the DB row committed). */
+export function persistTranscriptArtifacts(
+  paths: TranscriptArtifactPaths,
+  artifacts: { pdf: Buffer; html: string; json: string },
+): void {
+  mkdirSync(paths.artifactDir, { recursive: true });
+  writeFileSync(paths.pdfPath, artifacts.pdf);
+  writeFileSync(paths.pdfLitePath, artifacts.html, 'utf8');
+  writeFileSync(paths.jsonPath, artifacts.json, 'utf8');
+}
+
+export function writeTranscriptPdfLite(input: TranscriptWriteInput): TranscriptArtifactPaths {
+  const paths = transcriptArtifactPaths(input.tenantId, input.studentId, input.version);
+  persistTranscriptArtifacts(paths, buildTranscriptArtifacts(input));
+  return paths;
 }
