@@ -3,7 +3,7 @@
  * timezone / locale / IP-allowlist values.
  */
 import Fastify, { type FastifyInstance } from 'fastify';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isIpOrCidr } from './config-validation.js';
 import { InMemoryTenantRepository } from './in-memory-repository.js';
@@ -60,13 +60,21 @@ describe('tenant config validation (PRC-M391)', () => {
     expect(
       (await put(`/tenants/${tenantId}/config`, { security: { ipWhitelist: ['x'] } })).statusCode,
     ).toBe(400);
+    const valid = { security: { ipWhitelist: ['10.0.0.0/8', '192.168.1.5', '2001:db8::/32'] } };
+    // PRC-M391 defaulted: the gateway does not enforce ipWhitelist/mfaRequired, so enabling
+    // them is rejected unless the owner opts in.
+    const rejected = await put(`/tenants/${tenantId}/config`, valid);
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body).toContain('notEnforced');
     expect(
-      (
-        await put(`/tenants/${tenantId}/config`, {
-          security: { ipWhitelist: ['10.0.0.0/8', '192.168.1.5', '2001:db8::/32'] },
-        })
-      ).statusCode,
-    ).toBe(200);
+      (await put(`/tenants/${tenantId}/config`, { security: { mfaRequired: true } })).statusCode,
+    ).toBe(400);
+    vi.stubEnv('TENANT_UNENFORCED_SECURITY_SETTINGS', 'accept');
+    try {
+      expect((await put(`/tenants/${tenantId}/config`, valid)).statusCode).toBe(200);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('invalid timezone or defaultLocale outside supportedLocales -> 400', async () => {

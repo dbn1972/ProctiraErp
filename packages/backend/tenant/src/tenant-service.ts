@@ -77,6 +77,37 @@ export interface TenantAdminProvisioner {
 /**
  * Service handling tenant lifecycle business logic.
  */
+
+/**
+ * PRC-M391 defaulted decision: security.mfaRequired and security.ipWhitelist are not
+ * enforced by the gateway/auth stack, so enabling them would only advertise a control that
+ * does not exist. Writes that turn them on are rejected (400) unless the owner opts in with
+ * TENANT_UNENFORCED_SECURITY_SETTINGS=accept (e.g. once an enforcing IdP policy exists).
+ */
+export function assertEnforceableSecurity(
+  security: { mfaRequired?: boolean; ipWhitelist?: readonly string[] } | undefined,
+  field: string,
+  env: Record<string, string | undefined> = process.env,
+): void {
+  if (!security) return;
+  if (env['TENANT_UNENFORCED_SECURITY_SETTINGS']?.trim().toLowerCase() === 'accept') return;
+  const errors: { field: string; rule: string; message: string }[] = [];
+  if (security.mfaRequired === true) {
+    errors.push({
+      field: `${field}.mfaRequired`,
+      rule: 'notEnforced',
+      message: 'mfaRequired is not enforced by this deployment; configure MFA in the IdP',
+    });
+  }
+  if (Array.isArray(security.ipWhitelist) && security.ipWhitelist.length > 0) {
+    errors.push({
+      field: `${field}.ipWhitelist`,
+      rule: 'notEnforced',
+      message: 'ipWhitelist is not enforced by this deployment; restrict access at the edge',
+    });
+  }
+  if (errors.length > 0) throw new ValidationError('Validation failed', errors);
+}
 export class TenantService {
   constructor(
     private readonly repository: TenantRepository,
@@ -157,6 +188,7 @@ export class TenantService {
     };
 
     // Merge user-provided config with defaults
+    assertEnforceableSecurity(input.config?.security, 'config.security');
     const config = this.mergeConfig(defaultConfig, input.config);
     this.assertValidTimezone(config.locale?.timezone, 'config.locale.timezone');
 
@@ -261,6 +293,7 @@ export class TenantService {
     if (input.plan !== undefined) updateData.plan = input.plan;
     if (input.region !== undefined) updateData.region = input.region;
     if (input.config !== undefined) {
+      assertEnforceableSecurity(input.config.security, 'config.security');
       updateData.config = this.mergeConfig(existing.config, input.config);
     }
 
@@ -515,6 +548,7 @@ export class TenantService {
     if (input.locale !== undefined) {
       this.assertValidTimezone(input.locale.timezone, 'locale.timezone');
     }
+    assertEnforceableSecurity(input.security, 'security');
     const updatedConfig = this.mergeConfig(tenant.config, input);
 
     const updated = await this.applyUpdate(id, {
