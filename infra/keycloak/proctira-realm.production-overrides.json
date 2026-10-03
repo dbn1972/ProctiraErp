@@ -1,0 +1,15 @@
+{
+  "_comment": "PRC-H043: settings that MUST hold on the live production realm. Apply with kcadm (see docs/runbooks/keycloak-production-realm.md); tools/scripts/check-keycloak-realm-policy.test.mjs keeps this file and the dev realm honest.",
+  "realm": "proctira",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "otpPolicyType": "totp",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "requiredActions": [{ "alias": "CONFIGURE_TOTP", "enabled": true, "defaultAction": true }],
+  "clients": [{ "clientId": "proctira-gateway", "directAccessGrantsEnabled": false }]
+}

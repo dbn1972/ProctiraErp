@@ -1506,6 +1506,7 @@ jobs:
           tools/scripts/check-dod-evidence.test.mjs
           tools/scripts/check-i18n.test.mjs
           tools/scripts/check-icon-only-button.test.mjs
+          tools/scripts/check-keycloak-realm-policy.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs

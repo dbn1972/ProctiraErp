@@ -42,6 +42,7 @@ import {
   OtpService,
   PasswordLoginThrottle,
   rbacPlugin,
+  readPasswordGrantMode,
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
@@ -540,6 +541,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           redis: rateLimitRedis,
           NODE_ENV: process.env['NODE_ENV'] ?? config.env,
         }),
+      }),
+      // PRC-H043: ROPC defaults to disabled in production (AUTH_PASSWORD_GRANT=enabled opts in).
+      passwordGrant: readPasswordGrantMode({
+        ...process.env,
+        NODE_ENV: process.env['NODE_ENV'] ?? config.env,
       }),
       // PRC-M500: one-time login tickets must be redeemable on any replica.
       ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),

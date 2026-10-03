@@ -20,6 +20,7 @@ import {
   type KeycloakIdentityStore,
   type LinkedKeycloakUser,
 } from './identity.js';
+import { readOneTimeCode, type PasswordGrantMode } from './password-grant-policy.js';
 import { PasswordLoginThrottle, type PasswordThrottleOptions } from './password-throttle.js';
 import { keycloakRoleCatalog } from './roles.js';
 import {
@@ -45,6 +46,11 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * Pass options to tune, or a prebuilt instance to share/inspect in tests.
    */
   passwordThrottle?: PasswordLoginThrottle | PasswordThrottleOptions;
+  /**
+   * PRC-H043: ROPC policy for POST /password. 'disabled' answers 403 PASSWORD_GRANT_DISABLED.
+   * Default 'enabled' here; the gateway passes readPasswordGrantMode() (disabled in production).
+   */
+  passwordGrant?: PasswordGrantMode;
   /** Tenant repository used by GET /tenants for real name/slug/status (PRC-L084). */
   tenantDirectory?: TenantDirectoryReader;
   /** Upper bound for logout denylist entries in seconds (PRC-L282). Default 3600. */
@@ -695,16 +701,33 @@ export async function registerKeycloakAuthRoutes(
     `${prefix}/password`,
     async (
       request: FastifyRequest<{
-        Body: { username?: string; password?: string; email?: string };
+        Body: {
+          username?: string;
+          password?: string;
+          email?: string;
+          otp?: string;
+          totp?: string;
+        };
       }>,
       reply: FastifyReply,
     ) => {
+      // PRC-H043: ROPC is off unless explicitly enabled (production default: disabled).
+      if ((config.passwordGrant ?? 'enabled') === 'disabled') {
+        return reply.status(403).send({
+          code: 'PASSWORD_GRANT_DISABLED',
+          message: 'Password sign-in is disabled; use single sign-on',
+          statusCode: 403,
+        });
+      }
       const username = (request.body?.username ?? request.body?.email ?? '').trim();
       const password = request.body?.password ?? '';
-      if (!username || !password) {
+      const oneTime = readOneTimeCode(request.body);
+      if (!username || !password || oneTime.invalid) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
-          message: 'Username and password are required',
+          message: oneTime.invalid
+            ? 'otp must be a 6-8 digit code'
+            : 'Username and password are required',
           statusCode: 400,
         });
       }
@@ -739,6 +762,9 @@ export async function registerKeycloakAuthRoutes(
         scope: 'openid email profile roles',
       });
       if (config.clientSecret) body.set('client_secret', config.clientSecret);
+      // PRC-H043: Keycloak's direct-grant conditional OTP requires `totp` for users with an
+      // OTP credential; without it the grant fails and no tokens are issued.
+      if (oneTime.code) body.set('totp', oneTime.code);
 
       const tokenResponse = await fetch(
         `${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/token`,
@@ -974,8 +1000,22 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      await fastify.authenticate(request, reply);
-      if (reply.sent) return;
+      const authenticate = (fastify as Partial<Pick<FastifyInstance, 'authenticate'>>)
+        .authenticate;
+      if (typeof authenticate === 'function') {
+        await authenticate.call(fastify, request, reply);
+        if (reply.sent) return;
+      } else {
+        // Routes mounted without the auth plugin: the Bearer token must still verify.
+        const bearer = readBearer(request);
+        if (!bearer || !(await verifyForLogout(bearer))) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'A valid access token is required to log out',
+            statusCode: 401,
+          });
+        }
+      }
 
       const body = request.body ?? {};
       const refreshToken =

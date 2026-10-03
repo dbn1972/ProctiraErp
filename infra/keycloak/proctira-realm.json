@@ -5,17 +5,48 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1,
   "internationalizationEnabled": true,
   "supportedLocales": ["en", "hi", "ta", "te", "mr", "bn", "gu", "kn", "ar"],
   "defaultLocale": "en",
   "roles": {
     "realm": [
-      { "name": "super-admin", "description": "Platform super administrator" },
-      { "name": "admin", "description": "School / tenant administrator" },
-      { "name": "principal", "description": "Institution principal" },
-      { "name": "teacher", "description": "Teacher" },
-      { "name": "staff", "description": "Non-teaching staff" },
-      { "name": "guardian", "description": "Parent or guardian" }
+      {
+        "name": "super-admin",
+        "description": "Platform super administrator"
+      },
+      {
+        "name": "admin",
+        "description": "School / tenant administrator"
+      },
+      {
+        "name": "principal",
+        "description": "Institution principal"
+      },
+      {
+        "name": "teacher",
+        "description": "Teacher"
+      },
+      {
+        "name": "staff",
+        "description": "Non-teaching staff"
+      },
+      {
+        "name": "guardian",
+        "description": "Parent or guardian"
+      }
     ]
   },
   "clients": [
@@ -112,6 +143,35 @@
         }
       ],
       "realmRoles": ["admin"]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
     }
   ]
 }

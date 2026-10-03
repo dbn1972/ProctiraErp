@@ -164,6 +164,8 @@ export {
   type WebTicketStore,
 } from './keycloak/routes.js';
 export type { KeycloakRouteConfig } from './keycloak/routes.js';
+export { readPasswordGrantMode, readOneTimeCode } from './keycloak/password-grant-policy.js';
+export type { PasswordGrantMode } from './keycloak/password-grant-policy.js';
 export {
   PasswordLoginThrottle,
   MemoryPasswordThrottleState,
