@@ -3083,6 +3083,9 @@ importers:
       kafkajs:
         specifier: ^2.2.4
         version: 2.2.4
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/amqplib':
         specifier: ^0.10.5

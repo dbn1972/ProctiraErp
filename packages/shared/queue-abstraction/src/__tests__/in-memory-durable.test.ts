@@ -113,3 +113,41 @@ async function viWaitUntil(pred: () => boolean, timeoutMs: number): Promise<void
     await new Promise((r) => setTimeout(r, 5));
   }
 }
+
+describe('InMemoryDurableQueueAdapter receive-side guard (PRC-L355)', () => {
+  it('dead-letters (does not deliver) a message whose tenantId differs from its routing key', async () => {
+    const { InMemoryDurableQueueAdapter, InMemoryDurableQueueStore } =
+      await import('../adapters/in-memory-durable-adapter');
+    const store = new InMemoryDurableQueueStore();
+    const adapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
+    await adapter.connect();
+    const ok = {
+      id: 'ok',
+      tenantId: 'tenant-a',
+      type: 'report.generate',
+      payload: {},
+      timestamp: new Date().toISOString(),
+    };
+    // Spoofed: routed under tenant-a but claims tenant-b in the body.
+    store.enqueue('tenant.tenant-a.report.generate', { ...ok, id: 'spoof', tenantId: 'tenant-b' });
+    // Invalid envelope (missing type/timestamp).
+    store.enqueue('tenant.tenant-a.report.generate', {
+      id: 'bad',
+      tenantId: 'tenant-a',
+    } as never);
+    store.enqueue('tenant.tenant-a.report.generate', ok);
+    const seen: string[] = [];
+    await adapter.consume({ topic: 'tenant.*.report.generate' }, async (m) => {
+      seen.push(m.id);
+    });
+    const started = Date.now();
+    while (store.pendingCount > 0 && Date.now() - started < 2000) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    await new Promise((r) => setTimeout(r, 20));
+    expect(seen).toEqual(['ok']);
+    expect(store.deadLetters.map((d) => d.message.id).sort()).toEqual(['bad', 'spoof']);
+    expect(adapter.failures.deadLettered).toBe(2);
+    await adapter.disconnect();
+  });
+});
