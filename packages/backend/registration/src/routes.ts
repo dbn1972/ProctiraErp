@@ -3,7 +3,8 @@
  *
  * Public-facing routes (no authentication required):
  * POST   /registrations              - Submit a registration application
- * GET    /registrations/:trackingNumber/status - Check application status
+ * POST   /registrations/status       - Check application status (DOB in body)
+ * GET    /registrations/:trackingNumber/status - Check status (DOB via x-applicant-dob header)
  * GET    /registrations/institutions  - Get institution locations for map
  * GET    /registrations/form-config/:institutionId - Get form configuration
  * POST   /registrations/language      - Set language preference (session)
@@ -17,6 +18,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { parseListPage, toPageResult } from './pagination.js';
+import { PublicRegistrationThrottle } from './public-throttle.js';
 import { isPublicRegistrationPath } from './registration-access.js';
 import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
 import type { RegistrationService } from './registration-service.js';
@@ -53,6 +55,8 @@ export interface RegistrationRoutesOptions {
    * refuses this option and requires publicTenantResolver.
    */
   defaultTenantId?: string;
+  /** PRC-M331/M332: per-identifier throttles for anonymous endpoints. */
+  publicThrottle?: PublicRegistrationThrottle;
   /**
    * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
    * in-memory only when NODE_ENV !== 'production'.
@@ -140,6 +144,17 @@ declare module 'fastify' {
 
 const SUBMISSION_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
+function tooManyRequests(reply: FastifyReply, retryAfterSeconds: number) {
+  return reply
+    .status(429)
+    .header('retry-after', String(retryAfterSeconds))
+    .send({
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many attempts. Please wait and try again.',
+      statusCode: 429,
+    });
+}
+
 function publicTenantId(request: FastifyRequest): string {
   const tenantId = request.publicRegistrationTenantId;
   if (!tenantId) {
@@ -204,6 +219,7 @@ export async function registerRegistrationRoutes(
     defaultTenantId,
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+  const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
   if (process.env.NODE_ENV === 'production' && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
@@ -320,9 +336,72 @@ export async function registerRegistrationRoutes(
   );
 
   /**
-   * GET /registrations/:trackingNumber/status
-   * Check application status by tracking number.
+   * Shared status lookup (PRC-M331): DOB never travels in the URL, wrong-DOB
+   * attempts per tracking number lock the lookup out (429).
+   */
+  async function lookupStatus(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    trackingNumberInput: unknown,
+    dob: string | undefined,
+  ) {
+    const paramsResult = validate(TrackingNumberParamsSchema, {
+      trackingNumber: trackingNumberInput,
+    });
+    if (!paramsResult.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid tracking number format',
+        statusCode: 400,
+        errors: paramsResult.errors,
+      });
+    }
+    const tenantId = publicTenantId(request);
+    const trackingKey = `${tenantId}:${paramsResult.data.trackingNumber}`;
+    const locked = throttle.statusFailures.check(trackingKey);
+    if (!locked.allowed) {
+      return tooManyRequests(reply, locked.retryAfterSeconds);
+    }
+    try {
+      const status = await registrationService.checkStatus(
+        paramsResult.data.trackingNumber,
+        dob,
+        tenantId,
+      );
+      return reply.status(200).send(status);
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        if (error.statusCode === 404) {
+          throttle.statusFailures.hit(trackingKey);
+          if (!throttle.statusFailures.check(trackingKey).allowed) {
+            // Alerting signal: repeated no-match lookups for one tracking number.
+            request.log.warn(
+              { event: 'registration.status.lockout', trackingNumber: paramsResult.data.trackingNumber },
+              'Registration status lookup locked after repeated failures',
+            );
+          }
+        }
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * POST /registrations/status  { trackingNumber, dateOfBirth }
+   * Preferred status lookup: DOB in the body, never in URLs/access logs.
    * Requirement 16.6: No authentication required.
+   */
+  fastify.post(`${prefix}/status`, async function statusLookupHandler(request, reply) {
+    const body = (request.body ?? {}) as { trackingNumber?: unknown; dateOfBirth?: unknown };
+    const dob = typeof body.dateOfBirth === 'string' ? body.dateOfBirth : undefined;
+    return lookupStatus(request, reply, body.trackingNumber, dob);
+  });
+
+  /**
+   * GET /registrations/:trackingNumber/status
+   * Compatibility path: DOB only via the `x-applicant-dob` header. A `dob`
+   * query parameter is refused so it can never be written to access logs.
    */
   fastify.get(
     `${prefix}/:trackingNumber/status`,
@@ -330,34 +409,17 @@ export async function registerRegistrationRoutes(
       request: FastifyRequest<{ Params: TrackingNumberParams }>,
       reply: FastifyReply,
     ) {
-      // Validate params
-      const paramsResult = validate(TrackingNumberParamsSchema, request.params);
-      if (!paramsResult.success) {
+      const query = (request.query ?? {}) as Record<string, unknown>;
+      if ('dob' in query || 'dateOfBirth' in query) {
         return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid tracking number format',
+          code: 'DOB_IN_QUERY_NOT_ALLOWED',
+          message: 'Send the date of birth via POST /registrations/status',
           statusCode: 400,
-          errors: paramsResult.errors,
         });
       }
-
-      try {
-        const dob =
-          typeof (request.query as { dob?: string }).dob === 'string'
-            ? (request.query as { dob?: string }).dob
-            : undefined;
-        const status = await registrationService.checkStatus(
-          paramsResult.data.trackingNumber,
-          dob,
-          publicTenantId(request),
-        );
-        return reply.status(200).send(status);
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
+      const header = request.headers['x-applicant-dob'];
+      const dob = typeof header === 'string' ? header : undefined;
+      return lookupStatus(request, reply, request.params.trackingNumber, dob);
     },
   );
 

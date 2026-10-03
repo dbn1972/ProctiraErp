@@ -520,10 +520,11 @@ export class RegistrationService {
       trackingNumber: registration.trackingNumber,
       status: registration.status,
       institutionName: registration.institutionName,
-      applicantName: `${registration.firstName} ${registration.lastName}`,
+      // PRC-M331: anonymous lookup discloses only the first-name initial and no
+      // staff free-text remarks.
+      applicantName: `${registration.firstName.trim().charAt(0).toUpperCase()}.`,
       submittedAt: registration.submittedAt.toISOString(),
       updatedAt: registration.updatedAt.toISOString(),
-      remarks: registration.remarks ?? undefined,
       waitlistPosition:
         waitlist.find((row) => row.applicationId === registration.id)?.position ?? undefined,
       interviewBookings: bookings

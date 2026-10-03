@@ -1,7 +1,16 @@
 /**
  * Access-log redaction for capability tokens carried in query strings (PRC-L344).
  */
-const SENSITIVE_QUERY_KEYS = new Set(['token', 'access_token', 'ticket', 'signature']);
+const SENSITIVE_QUERY_KEYS = new Set([
+  'token',
+  'access_token',
+  'ticket',
+  'signature',
+  // PRC-M331: applicant date of birth must never reach access logs.
+  'dob',
+  'dateofbirth',
+  'date_of_birth',
+]);
 
 export function redactUrlQuerySecrets(url: string | undefined): string | undefined {
   if (!url) return url;

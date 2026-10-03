@@ -216,10 +216,10 @@ export interface RegistrationStatus {
   trackingNumber: string;
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
   institutionName: string;
+  /** First-name initial only (PRC-M331). */
   applicantName: string;
   submittedAt: string;
   updatedAt: string;
-  remarks?: string;
 }
 
 export async function checkApplicationStatus(
@@ -227,10 +227,12 @@ export async function checkApplicationStatus(
   dateOfBirth: string,
   transport: RegistrationTransport = browserTransport,
 ): Promise<RegistrationStatus | null> {
-  const params = new URLSearchParams({ dob: dateOfBirth });
-  const response = await transport(
-    `/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
-  );
+  // PRC-M331: DOB travels in the POST body, never in the URL / access logs.
+  const response = await transport('/registrations/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingNumber, dateOfBirth }),
+  });
   if (response.status === 404) return null;
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationStatus;

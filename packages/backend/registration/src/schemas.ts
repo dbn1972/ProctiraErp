@@ -385,10 +385,9 @@ export const RegistrationStatusResponseSchema = Type.Object({
     description: 'Current application status',
   }),
   institutionName: Type.String({ description: 'Target institution name' }),
-  applicantName: Type.String({ description: 'Applicant full name' }),
+  applicantName: Type.String({ description: 'Applicant first-name initial (PRC-M331)' }),
   submittedAt: Type.String({ description: 'Submission timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
-  remarks: Type.Optional(Type.String({ description: 'Reviewer remarks' })),
   waitlistPosition: Type.Optional(Type.Number({ minimum: 1 })),
   interviewBookings: Type.Optional(
     Type.Array(
