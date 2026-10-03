@@ -123,7 +123,7 @@ describe('privacy routes HTTP contract (PRC-M324)', () => {
       requestedBy: 'dpo-1',
     });
     const asB = { 'x-test-tenant': TENANT_B };
-    const calls: Array<[('GET' | 'POST'), string, unknown]> = [
+    const calls: Array<['GET' | 'POST', string, unknown]> = [
       ['POST', `/privacy/legal-holds/${hold.id}/release`, {}],
       ['GET', `/privacy/erasure-requests/${er.id}`, undefined],
       ['POST', `/privacy/erasure-requests/${er.id}/transition`, { status: 'under_review' }],
@@ -142,7 +142,11 @@ describe('privacy routes HTTP contract (PRC-M324)', () => {
       expect(res.statusCode, `${method} ${url}`).toBe(404);
     }
     // Lists are tenant-scoped too.
-    const list = await app.inject({ method: 'GET', url: '/privacy/erasure-requests', headers: asB });
+    const list = await app.inject({
+      method: 'GET',
+      url: '/privacy/erasure-requests',
+      headers: asB,
+    });
     expect(list.json().data).toHaveLength(0);
     // Tenant A state is untouched.
     expect((await service.getErasureRequest(er.id, TENANT_A))?.status).toBe('requested');

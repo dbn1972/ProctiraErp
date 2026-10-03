@@ -11,8 +11,8 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 import type pg from 'pg';
-import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,

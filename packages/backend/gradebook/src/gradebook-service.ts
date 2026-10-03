@@ -1,12 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import {
-  BusinessRuleError,
-  ConflictError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { writeBoardExportArtifacts } from './board-export-generator.js';
 import {

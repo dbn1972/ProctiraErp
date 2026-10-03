@@ -67,34 +67,37 @@ describe('PgTransportRepository', () => {
     expect(updates[1]!.text).not.toContain('status');
   });
 
-  it.skipIf(!isPgTransportEnabled())('concurrent updates on different fields preserve both', async () => {
-    const pool = getSharedTransportPool()!;
-    const repo = new PgTransportRepository(pool);
-    const tenantId = randomUUID();
-    const routeId = randomUUID();
-    await ensurePgTestTenant(pool, tenantId);
-    await repo.createRoute({
-      id: routeId,
-      tenantId,
-      name: 'M448 route',
-      description: null,
-      status: 'active',
-      startLocation: 'A',
-      endLocation: 'B',
-      distanceKm: 5,
-      estimatedDurationMinutes: 20,
-      operatingDays: ['Mon'],
-      departureTime: '07:30',
-      returnTime: '15:30',
-      institutionId: null,
-    });
-    await Promise.all([
-      repo.updateRoute(routeId, tenantId, { status: 'inactive' }),
-      repo.updateRoute(routeId, tenantId, { name: 'M448 renamed' }),
-    ]);
-    const after = await repo.findRouteById(routeId, tenantId);
-    expect(after?.status).toBe('inactive');
-    expect(after?.name).toBe('M448 renamed');
-    await repo.deleteRoute(routeId, tenantId);
-  });
+  it.skipIf(!isPgTransportEnabled())(
+    'concurrent updates on different fields preserve both',
+    async () => {
+      const pool = getSharedTransportPool()!;
+      const repo = new PgTransportRepository(pool);
+      const tenantId = randomUUID();
+      const routeId = randomUUID();
+      await ensurePgTestTenant(pool, tenantId);
+      await repo.createRoute({
+        id: routeId,
+        tenantId,
+        name: 'M448 route',
+        description: null,
+        status: 'active',
+        startLocation: 'A',
+        endLocation: 'B',
+        distanceKm: 5,
+        estimatedDurationMinutes: 20,
+        operatingDays: ['Mon'],
+        departureTime: '07:30',
+        returnTime: '15:30',
+        institutionId: null,
+      });
+      await Promise.all([
+        repo.updateRoute(routeId, tenantId, { status: 'inactive' }),
+        repo.updateRoute(routeId, tenantId, { name: 'M448 renamed' }),
+      ]);
+      const after = await repo.findRouteById(routeId, tenantId);
+      expect(after?.status).toBe('inactive');
+      expect(after?.name).toBe('M448 renamed');
+      await repo.deleteRoute(routeId, tenantId);
+    },
+  );
 });

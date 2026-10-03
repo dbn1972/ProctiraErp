@@ -70,10 +70,10 @@ export type CreateBellScheduleInput = Static<typeof CreateBellScheduleSchema>;
  */
 export const UpdateBellScheduleSchema = Type.Object(
   {
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
-  dayPattern: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-  status: Type.Optional(BellScheduleStatusEnum),
+    name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+    code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+    dayPattern: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    status: Type.Optional(BellScheduleStatusEnum),
   },
   { additionalProperties: false },
 );

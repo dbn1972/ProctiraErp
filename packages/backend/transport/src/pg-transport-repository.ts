@@ -321,7 +321,7 @@ export class PgTransportRepository implements TransportRepository {
     const values: unknown[] = [id, tenantId];
     for (const [key, spec] of Object.entries(columns)) {
       if (data[key] === undefined) continue;
-      const [column, cast] = spec.split('::');
+      const [column = spec, cast] = spec.split('::');
       values.push(data[key]);
       sets.push(`${column} = $${values.length}${cast ? `::${cast}` : ''}`);
     }
@@ -405,7 +405,6 @@ export class PgTransportRepository implements TransportRepository {
     );
     return row ? mapRouteRow(row) : null;
   }
-
 
   async findRouteById(id: string, tenantId: string): Promise<TransportRouteEntity | null> {
     await this.ensureSchema();
@@ -533,7 +532,6 @@ export class PgTransportRepository implements TransportRepository {
     return row ? mapStopRow(row) : null;
   }
 
-
   async findStopById(id: string, tenantId: string): Promise<RouteStopEntity | null> {
     await this.ensureSchema();
     const result = await this.query(
@@ -627,7 +625,6 @@ export class PgTransportRepository implements TransportRepository {
     );
     return row ? mapVehicleRow(row) : null;
   }
-
 
   async findVehicleById(id: string, tenantId: string): Promise<VehicleEntity | null> {
     await this.ensureSchema();
@@ -770,7 +767,6 @@ export class PgTransportRepository implements TransportRepository {
     return row ? mapDriverAssignmentRow(row) : null;
   }
 
-
   async findDriverAssignmentById(
     id: string,
     tenantId: string,
@@ -907,7 +903,6 @@ export class PgTransportRepository implements TransportRepository {
     );
     return row ? mapStudentAssignmentRow(row) : null;
   }
-
 
   async findStudentAssignmentById(
     id: string,

@@ -104,9 +104,9 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
     expect(erasureEvents.map((e) => e.afterValues?.status)).toEqual(
       expect.arrayContaining(['requested', 'under_review', 'approved', 'in_progress']),
     );
-    expect(
-      erasureEvents.find((e) => e.afterValues?.status === 'approved')?.beforeValues,
-    ).toEqual({ status: 'under_review' });
+    expect(erasureEvents.find((e) => e.afterValues?.status === 'approved')?.beforeValues).toEqual({
+      status: 'under_review',
+    });
     const correctionEvents = audit.events.filter((e) => e.entityId === cid);
     expect(correctionEvents.map((e) => e.afterValues?.status)).toEqual([
       'requested',
@@ -115,7 +115,10 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
       'applied',
     ]);
     // Request-driven events carry the real actor and caller ip.
-    for (const e of [...correctionEvents, ...erasureEvents.filter((x) => x.operation === 'CREATE')]) {
+    for (const e of [
+      ...correctionEvents,
+      ...erasureEvents.filter((x) => x.operation === 'CREATE'),
+    ]) {
       expect(e.userId).toBe('dpo-1');
       expect(e.ipAddress).toBe(IP);
     }

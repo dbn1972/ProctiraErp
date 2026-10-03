@@ -72,9 +72,7 @@ describe('erasure completion is reachable only via anonymization (PRC-H076)', ()
     };
     const service = new PrivacyService(repository, { anonymizer: flaky });
     const req = await approvedRequest(service);
-    await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toThrow(
-      /unavailable/,
-    );
+    await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toThrow(/unavailable/);
     expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('approved');
     fail = false;
     const done = await service.executeErasure(req.id, TENANT, 'officer');

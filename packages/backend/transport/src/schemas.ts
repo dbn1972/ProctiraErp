@@ -419,7 +419,11 @@ export type StudentAssignmentResponse = Static<typeof StudentAssignmentResponseS
 // ─── GPS / attendance-on-bus stub schemas (G-602) ────────────────────────────
 
 /** PRC-M446: RFC 3339 date-time with explicit offset (clock-skew bounds enforced in service). */
-const IsoDateTime = () => Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:\\d{2})$', maxLength: 40 });
+const IsoDateTime = () =>
+  Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:\\d{2})$',
+    maxLength: 40,
+  });
 
 export const RecordGpsPingSchema = Type.Object({
   latitude: Type.Number({ minimum: -90, maximum: 90 }),

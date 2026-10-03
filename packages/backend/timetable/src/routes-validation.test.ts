@@ -39,13 +39,14 @@ describe('timetable input validation (PRC-M399)', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it.each(['/timetable/bell-schedules/abc', '/timetable/sections/1', '/timetable/generation-jobs/x'])(
-    'GET %s with a non-UUID path id returns 400',
-    async (url) => {
-      const res = await app.inject({ method: 'GET', url });
-      expect(res.statusCode).toBe(400);
-    },
-  );
+  it.each([
+    '/timetable/bell-schedules/abc',
+    '/timetable/sections/1',
+    '/timetable/generation-jobs/x',
+  ])('GET %s with a non-UUID path id returns 400', async (url) => {
+    const res = await app.inject({ method: 'GET', url });
+    expect(res.statusCode).toBe(400);
+  });
 
   it.each([
     '/timetable/sections?status=x',

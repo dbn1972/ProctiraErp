@@ -182,7 +182,11 @@ function pgErrorStatus(error: unknown): { status: number; code: string; message:
     return { status: 409, code: 'CONFLICT', message: 'A record with these values already exists' };
   }
   if (code === '23503') {
-    return { status: 409, code: 'CONFLICT', message: 'Referenced record does not exist or is in use' };
+    return {
+      status: 409,
+      code: 'CONFLICT',
+      message: 'Referenced record does not exist or is in use',
+    };
   }
   if (code.startsWith('23')) {
     return { status: 400, code: 'VALIDATION_ERROR', message: 'Request violates a data constraint' };
@@ -1008,7 +1012,10 @@ export async function registerTimetableRoutes(
         limit,
         offset,
       });
-      return reply.send({ data: rows, page: { limit: Math.min(limit ?? 50, 100), offset: offset ?? 0 } });
+      return reply.send({
+        data: rows,
+        page: { limit: Math.min(limit ?? 50, 100), offset: offset ?? 0 },
+      });
     } catch (error) {
       return sendDomainError(reply, error);
     }

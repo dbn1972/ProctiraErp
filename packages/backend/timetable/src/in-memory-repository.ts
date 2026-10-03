@@ -1,3 +1,4 @@
+import { TimetableVersionConflictError } from './timetable-errors.js';
 import type {
   AttendancePeriodSlot,
   BellScheduleEntity,
@@ -17,7 +18,6 @@ import type {
   EnrollWithinCapacityInput,
   EnrollWithinCapacityResult,
 } from './timetable-repository.js';
-import { TimetableVersionConflictError } from './timetable-errors.js';
 
 /** Ensure OCC tokens always advance (same-ms Date.now collisions). */
 function nextUpdatedAt(previous: string): string {
@@ -242,7 +242,9 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async enrollWithinCapacity(input: EnrollWithinCapacityInput): Promise<EnrollWithinCapacityResult> {
+  async enrollWithinCapacity(
+    input: EnrollWithinCapacityInput,
+  ): Promise<EnrollWithinCapacityResult> {
     // No await between read and write: atomic within the event loop.
     const section = this.sections.get(input.sectionId);
     if (!section || section.tenantId !== input.tenantId) return { outcome: 'section_missing' };
@@ -251,7 +253,8 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       (e) => e.tenantId === input.tenantId && e.sectionId === input.sectionId,
     );
     const existing = rows.find((e) => e.studentId === input.studentId);
-    if (existing?.status === 'ENROLLED') return { outcome: 'already_enrolled', enrollment: existing };
+    if (existing?.status === 'ENROLLED')
+      return { outcome: 'already_enrolled', enrollment: existing };
     const active = rows.filter((e) => e.status === 'ENROLLED').length;
     if (active >= section.capacity) {
       return { outcome: 'full', capacity: section.capacity, code: section.code };

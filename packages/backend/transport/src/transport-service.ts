@@ -1177,7 +1177,12 @@ export class TransportService {
       reason: 'Awaiting Fees invoice',
     });
     try {
-      const invoiceId = await this.postTransportInvoice(tenantId, actorId, band, assignment.studentId);
+      const invoiceId = await this.postTransportInvoice(
+        tenantId,
+        actorId,
+        band,
+        assignment.studentId,
+      );
       return (
         (await this.repository.settleFeeLink(pending.id, tenantId, {
           status: 'invoiced',
@@ -1256,7 +1261,9 @@ export class TransportService {
     let invoiced = 0;
     let stillPending = 0;
     for (const link of claimed) {
-      const band = link.transportFeeStructureId ? bands.get(link.transportFeeStructureId) : undefined;
+      const band = link.transportFeeStructureId
+        ? bands.get(link.transportFeeStructureId)
+        : undefined;
       if (!band) {
         await this.repository.settleFeeLink(
           link.id,

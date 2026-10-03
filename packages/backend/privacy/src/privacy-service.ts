@@ -7,6 +7,8 @@
  * - Residuals → job status `failed` (never claim `completed` wipe)
  * - Every id op is tenant-bound (IDOR fail-closed)
  */
+import { createHash } from 'node:crypto';
+
 import {
   AppError,
   BusinessRuleError,
@@ -14,8 +16,6 @@ import {
   NotFoundError,
   ValidationError,
 } from '@proctira/common';
-import { createHash } from 'node:crypto';
-
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 

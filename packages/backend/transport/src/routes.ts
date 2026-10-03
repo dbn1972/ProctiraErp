@@ -36,10 +36,6 @@
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import {
-  requireTransportAction,
-  transportActionForMethod,
-} from './transport-http-guard.js';
 
 import {
   CreateTransportRouteSchema,
@@ -86,6 +82,7 @@ import {
   type EvaluateAlertsInput,
   type CreateTransportFeeStructureInput,
 } from './schemas.js';
+import { requireTransportAction, transportActionForMethod } from './transport-http-guard.js';
 import type { RouteStatus, VehicleStatus, TripDirection } from './transport-repository.js';
 import type { TransportService } from './transport-service.js';
 
@@ -133,7 +130,6 @@ export async function registerTransportRoutes(
       return reply;
     }
   });
-
 
   // ─── Route Routes ──────────────────────────────────────────────────────
 

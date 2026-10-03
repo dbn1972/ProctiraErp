@@ -66,14 +66,17 @@ describe('privacy routes validation and bounds (PRC-L137)', () => {
 });
 
 describe('correction fieldPath allow-pattern (PRC-M322)', () => {
-  it.each(['a b', '$where', 'x;drop', '.lead', 'a..b'])('rejects fieldPath %s with 400', async (fp) => {
-    const { app } = await buildApp();
-    const res = await app.inject({
-      method: 'POST',
-      url: '/privacy/correction-requests',
-      payload: { subjectType: 'student', subjectId: 'stu-1', fieldPath: fp, requestedValue: 'x' },
-    });
-    expect(res.statusCode).toBe(400);
-    await app.close();
-  });
+  it.each(['a b', '$where', 'x;drop', '.lead', 'a..b'])(
+    'rejects fieldPath %s with 400',
+    async (fp) => {
+      const { app } = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/privacy/correction-requests',
+        payload: { subjectType: 'student', subjectId: 'stu-1', fieldPath: fp, requestedValue: 'x' },
+      });
+      expect(res.statusCode).toBe(400);
+      await app.close();
+    },
+  );
 });

@@ -4,7 +4,7 @@
  */
 import { ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
 import { GradebookSchemaMissingError } from './gradebook-errors.js';
@@ -671,8 +671,8 @@ export class PgGradebookRepository implements GradebookRepository {
           row.issuedBy,
           row.artifactUri,
           row.checksumSha256,
-          row.signatureHmac
-            ?? (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
+          row.signatureHmac ??
+            (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
           JSON.stringify(row.metadata ?? {}),
           row.createdAt,
           row.updatedAt,

@@ -19,7 +19,10 @@ let service: TimetableService;
 let meetingId: string;
 
 beforeEach(async () => {
-  service = new TimetableService(new InMemoryTimetableRepository(), new InMemoryTimetableOpsStore());
+  service = new TimetableService(
+    new InMemoryTimetableRepository(),
+    new InMemoryTimetableOpsStore(),
+  );
   const schedule = await service.createBellSchedule(tenantId, {
     institutionId,
     academicPeriodId,

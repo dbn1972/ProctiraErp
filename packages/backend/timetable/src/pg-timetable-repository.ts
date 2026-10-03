@@ -986,7 +986,9 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async enrollWithinCapacity(input: EnrollWithinCapacityInput): Promise<EnrollWithinCapacityResult> {
+  async enrollWithinCapacity(
+    input: EnrollWithinCapacityInput,
+  ): Promise<EnrollWithinCapacityResult> {
     return withSchemaCheck(async () =>
       withPgTenant(this.pool, input.tenantId, async (client) => {
         const q = (text: string, values: unknown[]) =>
@@ -999,8 +1001,7 @@ export class PgTimetableRepository implements TimetableRepository {
           [input.tenantId, input.sectionId],
         );
         const section = sec.rows[0] as
-          | { code: string; capacity: number; status: string }
-          | undefined;
+          { code: string; capacity: number; status: string } | undefined;
         if (!section) return { outcome: 'section_missing' as const };
         if (String(section.status).toUpperCase() === 'ARCHIVED') {
           return { outcome: 'section_archived' as const };
