@@ -18,7 +18,16 @@ describe('tenant timezone validation (PRC-L358)', () => {
     for (const zone of ['UTC', 'Asia/Kolkata', 'America/Argentina/Buenos_Aires', 'Etc/GMT+5']) {
       expect(isValidTenantTimezone(zone), zone).toBe(true);
     }
-    for (const zone of ['', ' ', 'Asia/Calcuta', ' Asia/Kolkata', '+05:30', 'IST', 'Mars/Base', 1]) {
+    for (const zone of [
+      '',
+      ' ',
+      'Asia/Calcuta',
+      ' Asia/Kolkata',
+      '+05:30',
+      'IST',
+      'Mars/Base',
+      1,
+    ]) {
       expect(isValidTenantTimezone(zone), String(zone)).toBe(false);
     }
   });

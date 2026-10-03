@@ -12,14 +12,14 @@ import fp from 'fastify-plugin';
 
 import { deriveApplicantAttributes, type ApplicantAttributesLookup } from './application-intake.js';
 import { actorFromRequest, assertCanReadDocuments } from './document-access.js';
-import type {
-  DownloadTokenReplayStore,
-  ScholarshipDocumentDownloadAuditRecorder,
-} from './document-bytes.js';
 import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
+import type {
+  DownloadTokenReplayStore,
+  ScholarshipDocumentDownloadAuditRecorder,
+} from './document-bytes.js';
 import {
   authorizeApplicationCreate,
   registerScholarshipDocumentRoutes,

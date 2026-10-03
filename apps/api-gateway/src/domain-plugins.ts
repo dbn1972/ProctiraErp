@@ -939,7 +939,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const scholarshipRedisUrl = process.env['REDIS_URL']?.trim();
       if (scholarshipRedisUrl) {
         const { default: Redis } = await import('ioredis');
-        const redis = new Redis(scholarshipRedisUrl, { maxRetriesPerRequest: 3, lazyConnect: true });
+        const redis = new Redis(scholarshipRedisUrl, {
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
         downloadReplayRedis = redis;
         scope.addHook('onClose', async () => {
           await redis.quit();

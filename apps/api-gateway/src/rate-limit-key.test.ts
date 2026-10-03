@@ -2,7 +2,10 @@
  * G-731 — rate-limit bucket keys never trust `x-tenant-id`; MFA_EXPOSE_OTP is
  * refused in production.
  */
-import { MemoryAccessTokenRevocationStore } from '@proctira/backend-auth';
+import {
+  MemoryAccessTokenRevocationStore,
+  MemoryTenantSessionRevocationStore,
+} from '@proctira/backend-auth';
 import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -86,9 +89,14 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
 
     // W1-SEC-09: production now has no env opt-out for a process-local
     // revocation denylist, so that guard would throw before the MFA one is
-    // reached. Inject a store to keep this test on the guard it is about.
+    // reached. Inject a store to keep this test on the guard it is about. PRC-H008 adds the
+    // same production requirement for the tenant-wide session revocation store.
     await expect(
-      buildApp({ config, accessTokenRevocationStore: new MemoryAccessTokenRevocationStore() }),
+      buildApp({
+        config,
+        accessTokenRevocationStore: new MemoryAccessTokenRevocationStore(),
+        tenantSessionRevocationStore: new MemoryTenantSessionRevocationStore(),
+      }),
     ).rejects.toThrow(/MFA_EXPOSE_OTP/);
   });
 });

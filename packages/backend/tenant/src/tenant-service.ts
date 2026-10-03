@@ -19,7 +19,6 @@ import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
-import { tenantTimezoneFieldError } from './timezone-validation.js';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -47,6 +46,7 @@ import type {
   TenantFilter,
   TenantRepository,
 } from './tenant-repository.js';
+import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 const logger = createLogger({ name: 'tenant-service' });
 

@@ -12,6 +12,7 @@ import { PgDocumentCollection, type PgPoolWithConnect, type PgQueryable } from '
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
 import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 export const TenantSettingsSchema = Type.Object({
