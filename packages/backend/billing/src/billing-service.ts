@@ -159,6 +159,18 @@ export class BillingService {
       throw new NotFoundError(`Plan with id '${id}' not found`);
     }
 
+    // PRC-M186: feature/quota edits reach existing subscribers (added keys granted, removed
+    // keys revoked, lowered limits enforced).
+    if (input.features !== undefined || input.quotas !== undefined) {
+      const subscribers = await this.repository.listSubscriptionsByStatus(
+        ['active', 'trial', 'suspended'],
+        id,
+      );
+      for (const sub of subscribers) {
+        await this.provisionEntitlements(sub.tenantId, sub.id, updated);
+      }
+    }
+
     return updated;
   }
 
@@ -309,7 +321,8 @@ export class BillingService {
       status: 'cancelled',
       cancelledAt: new Date(),
     });
-
+    // PRC-M186: a cancelled subscription grants nothing.
+    await this.repository.deleteEntitlementsBySubscription(subscriptionId);
     return updated!;
   }
 
@@ -403,7 +416,6 @@ export class BillingService {
     });
 
     // Re-provision entitlements from the new plan
-    await this.repository.deleteEntitlementsBySubscription(subscription.id);
     await this.provisionEntitlements(tenantId, subscription.id, newPlan);
 
     return updated!;
@@ -471,7 +483,6 @@ export class BillingService {
     });
 
     // Re-provision entitlements from the new plan
-    await this.repository.deleteEntitlementsBySubscription(subscription.id);
     await this.provisionEntitlements(tenantId, subscription.id, newPlan);
 
     return {
@@ -509,7 +520,7 @@ export class BillingService {
       };
     }
 
-    const entitlement = await this.repository.findEntitlement(tenantId, feature);
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, feature);
     if (!entitlement) {
       return {
         allowed: false,
@@ -589,8 +600,8 @@ export class BillingService {
       };
     }
 
-    // Find the quota limit for this metric
-    const entitlement = await this.repository.findEntitlement(tenantId, metric);
+    // Find the quota limit for this metric (only rows owned by the current subscription)
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, metric);
     const limit = entitlement?.quotaLimit ?? 0;
 
     // Get or create usage record for current period
@@ -651,7 +662,7 @@ export class BillingService {
     const end = periodEnd ?? subscription.currentPeriodEnd;
 
     const usage = await this.repository.getUsage(tenantId, metric, start, end);
-    const entitlement = await this.repository.findEntitlement(tenantId, metric);
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, metric);
 
     return {
       tenantId,
@@ -735,8 +746,20 @@ export class BillingService {
 
   // ─── Private Helpers ─────────────────────────────────────────────────────
 
+  /** PRC-M186: an entitlement counts only when it belongs to the tenant's current subscription. */
+  private async currentEntitlement(
+    tenantId: string,
+    subscriptionId: string,
+    featureKey: string,
+  ): Promise<EntitlementEntity | null> {
+    const entitlement = await this.repository.findEntitlement(tenantId, featureKey);
+    return entitlement && entitlement.subscriptionId === subscriptionId ? entitlement : null;
+  }
+
   /**
    * Provision entitlements for a tenant based on a plan's features and quotas.
+   * PRC-M186: replaces the tenant's whole entitlement set so keys from a previous plan or
+   * subscription never survive.
    */
   private async provisionEntitlements(
     tenantId: string,
@@ -769,6 +792,7 @@ export class BillingService {
       });
     }
 
+    await this.repository.deleteEntitlementsByTenant(tenantId);
     await this.repository.upsertEntitlements(entitlements);
   }
 

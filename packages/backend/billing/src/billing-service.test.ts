@@ -657,3 +657,66 @@ describe('BillingService subscription lifecycle (PRC-M185)', () => {
     expect(result.rolledPeriods).toBe(2);
   });
 });
+
+// ─── PRC-M186: entitlements follow the subscription and plan version ──────────
+describe('BillingService entitlement lifecycle (PRC-M186)', () => {
+  const tenant = '44444444-4444-4444-8444-444444444444';
+
+  async function activePlan(svc: BillingService, input: Partial<CreatePlanInput>) {
+    const plan = await svc.createPlan({
+      name: `P ${Math.random()}`,
+      tier: 'starter',
+      features: [],
+      quotas: [],
+      ...input,
+    } as CreatePlanInput);
+    await svc.updatePlan(plan.id, { status: 'active' });
+    return plan;
+  }
+
+  it('Enterprise -> cancel -> Starter denies enterprise-only features', async () => {
+    const svc = new BillingService(new InMemoryBillingRepository());
+    const enterprise = await activePlan(svc, {
+      tier: 'enterprise',
+      features: [
+        { featureKey: 'reports', enabled: true },
+        { featureKey: 'sso', enabled: true },
+      ],
+    });
+    const starter = await activePlan(svc, {
+      features: [{ featureKey: 'reports', enabled: true }],
+    });
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: enterprise.id });
+    expect((await svc.checkEntitlement(tenant, 'sso')).allowed).toBe(true);
+    await svc.cancelSubscription(sub.id);
+    await svc.subscribeTenant({ tenantId: tenant, planId: starter.id });
+    expect((await svc.checkEntitlement(tenant, 'sso')).allowed).toBe(false);
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(true);
+  });
+
+  it('cancelling removes entitlements', async () => {
+    const repo = new InMemoryBillingRepository();
+    const svc = new BillingService(repo);
+    const plan = await activePlan(svc, { features: [{ featureKey: 'reports', enabled: true }] });
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    await svc.cancelSubscription(sub.id);
+    expect(await repo.findEntitlementsByTenant(tenant)).toEqual([]);
+  });
+
+  it('plan quota/feature edits reach existing subscribers', async () => {
+    const svc = new BillingService(new InMemoryBillingRepository());
+    const plan = await activePlan(svc, {
+      features: [{ featureKey: 'reports', enabled: true }],
+      quotas: [{ metric: 'api_calls', limit: 100 }],
+    });
+    await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 50)).allowed).toBe(true);
+    await svc.updatePlan(plan.id, {
+      features: [{ featureKey: 'exports', enabled: true }],
+      quotas: [{ metric: 'api_calls', limit: 40 }],
+    });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 1)).allowed).toBe(false);
+    expect((await svc.checkEntitlement(tenant, 'exports')).allowed).toBe(true);
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(false);
+  });
+});
