@@ -30,13 +30,7 @@ void main() {
     db = AppDatabase(overridePath: '${dir.path}/m043.db');
     tenant = TenantProvider(SecureStorage(const FlutterSecureStorage()));
     await tenant.setTenant(tenantId: 'tenant-a');
-    // Stand-in for the pending scholarship cache migration.
-    final Database raw = await db.database;
-    await raw.execute(
-      'CREATE TABLE IF NOT EXISTS scholarship_programs_cache '
-      '(id TEXT, tenant_id TEXT, is_open INTEGER, deadline TEXT, '
-      'payload TEXT)',
-    );
+    // PRC-M567: the real v9 schema provides scholarship_programs_cache.
   });
   tearDown(() => db.close());
 
@@ -69,6 +63,11 @@ void main() {
     });
     await r.getPrograms();
     expect(r.lastServedFromCache, isFalse);
+    // PRC-M567: the live fetch was written to the real local cache table.
+    final List<Map<String, Object?>> cachedRows = await (await db.database)
+        .query('scholarship_programs_cache');
+    expect(cachedRows.single['id'], 'p1');
+    expect(cachedRows.single['tenant_id'], 'tenant-a');
 
     reply = const FakeReply.fail(DioExceptionType.connectionError);
     final ScholarshipBloc bloc = ScholarshipBloc(repository: r);
