@@ -5,6 +5,7 @@ import type { QueueAdapter } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { CorrectionApplier } from './correction-applier.js';
 import type { PrivacyAuditPort } from './privacy-audit.js';
 import type { PrivacyRepository } from './privacy-repository.js';
 import { PrivacyService, type PrivacyServiceOptions } from './privacy-service.js';
@@ -25,6 +26,8 @@ export interface PrivacyPluginOptions {
   /** Route prefix (default: `/privacy`). */
   prefix?: string;
   audit?: PrivacyAuditPort;
+  /** PRC-M321: domain rectification writer; absent -> correction apply returns 501. */
+  correctionApplier?: CorrectionApplier;
   anonymizer?: SubjectAnonymizer;
   tenantWipeExecutor?: TenantWipeExecutor;
   anonymizationPublisher?: PrivacyAnonymizationPublisher;
@@ -66,6 +69,7 @@ export const privacyPlugin = fp(
       repository,
       prefix = '/privacy',
       audit,
+      correctionApplier,
       anonymizer,
       tenantWipeExecutor,
       anonymizationPublisher,
@@ -86,6 +90,7 @@ export const privacyPlugin = fp(
     }
     const serviceOptions: PrivacyServiceOptions = {
       audit,
+      correctionApplier,
       anonymizer,
       tenantWipeExecutor,
       anonymizationPublisher: effectiveAnonymizationPublisher,

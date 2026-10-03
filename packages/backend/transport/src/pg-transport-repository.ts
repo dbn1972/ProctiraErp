@@ -36,6 +36,7 @@ import type {
   VehicleFilter,
   VehicleStatus,
 } from './transport-repository.js';
+import { FEE_LINK_LEASE_PREFIX } from './transport-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -1165,6 +1166,61 @@ export class PgTransportRepository implements TransportRepository {
     return { ping: mapGpsPingRow(existing.rows[0] as Record<string, unknown>), duplicate: true };
   }
 
+  async ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>> {
+    await this.ensureSchema();
+    // PRC-M446: whole batch in one withPgTenant transaction (one connection, one commit).
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const q = (text: string, values: unknown[]) =>
+        client.query(text, values) as unknown as Promise<pg.QueryResult>;
+      const now = new Date();
+      const out: Array<{ ping: GpsPingEntity; duplicate: boolean }> = [];
+      for (const data of rows) {
+        const inserted = await q(
+          `INSERT INTO transport_gps_pings (
+            id, tenant_id, vehicle_id, device_id, ping_id, latitude, longitude,
+            recorded_at, speed_kph, heading_deg, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          ON CONFLICT (tenant_id, device_id, ping_id) DO NOTHING
+          RETURNING *`,
+          [
+            data.id,
+            tenantId,
+            data.vehicleId,
+            data.deviceId,
+            data.pingId,
+            data.latitude,
+            data.longitude,
+            data.recordedAt,
+            data.speedKph,
+            data.headingDeg,
+            now,
+          ],
+        );
+        if (inserted.rows[0]) {
+          out.push({
+            ping: mapGpsPingRow(inserted.rows[0] as Record<string, unknown>),
+            duplicate: false,
+          });
+          continue;
+        }
+        const existing = await q(
+          `SELECT * FROM transport_gps_pings
+           WHERE tenant_id = $1 AND device_id = $2 AND ping_id = $3
+           LIMIT 1`,
+          [tenantId, data.deviceId, data.pingId],
+        );
+        out.push({
+          ping: mapGpsPingRow(existing.rows[0] as Record<string, unknown>),
+          duplicate: true,
+        });
+      }
+      return out;
+    });
+  }
+
   async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
@@ -1411,6 +1467,92 @@ export class PgTransportRepository implements TransportRepository {
       [tenantId],
     );
     return (result.rows as Record<string, unknown>[]).map(mapFeeLinkRow);
+  }
+
+  async setTransportFeeStructureFeesId(
+    id: string,
+    tenantId: string,
+    feesStructureId: string,
+  ): Promise<TransportFeeStructureEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_structures SET fees_structure_id = $3, updated_at = now()
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, feesStructureId],
+    );
+    if (!result.rows[0]) return null;
+    return mapFeeStructureRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async claimPendingFeeLinks(
+    tenantId: string,
+    leaseToken: string,
+    leaseExpiresAt: Date,
+    limit: number,
+  ): Promise<TransportFeeLinkEntity[]> {
+    await this.ensureSchema();
+    // PRC-M439: SKIP LOCKED + lease marker so concurrent workers never claim the same link.
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_links l
+          SET reason = $2
+        WHERE l.id IN (
+          SELECT id FROM transport_fee_links
+           WHERE tenant_id = $1 AND status = 'pending'
+             AND (reason IS NULL OR reason NOT LIKE '${FEE_LINK_LEASE_PREFIX}%'
+                  OR COALESCE(NULLIF(split_part(reason, ':', 3), ''), '0')::bigint < $3)
+           ORDER BY created_at
+           LIMIT $4
+           FOR UPDATE SKIP LOCKED
+        )
+        RETURNING l.*`,
+      [
+        tenantId,
+        `${FEE_LINK_LEASE_PREFIX}${leaseToken}:${leaseExpiresAt.getTime()}`,
+        Date.now(),
+        limit,
+      ],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapFeeLinkRow);
+  }
+
+  async settleFeeLink(
+    id: string,
+    tenantId: string,
+    patch: { status: TransportFeeLinkStatus; feesInvoiceId: string | null; reason: string | null },
+    leaseToken?: string,
+  ): Promise<TransportFeeLinkEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_links
+          SET status = $3, fees_invoice_id = $4, reason = $5
+        WHERE id = $1 AND tenant_id = $2 AND status = 'pending'
+          AND ($6::text IS NULL OR reason LIKE $6::text || '%')
+        RETURNING *`,
+      [
+        id,
+        tenantId,
+        patch.status,
+        patch.feesInvoiceId,
+        patch.reason,
+        leaseToken ? `${FEE_LINK_LEASE_PREFIX}${leaseToken}:` : null,
+      ],
+    );
+    if (!result.rows[0]) return null;
+    return mapFeeLinkRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async countPendingFeeLinks(tenantId: string): Promise<number> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS n FROM transport_fee_links WHERE tenant_id = $1 AND status = 'pending'`,
+      [tenantId],
+    );
+    return Number((result.rows[0] as { n?: number } | undefined)?.n ?? 0);
   }
 
   async findFeeLinkByAssignment(

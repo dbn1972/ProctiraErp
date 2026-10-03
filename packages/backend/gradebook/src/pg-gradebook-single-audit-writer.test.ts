@@ -136,6 +136,7 @@ describe('W1-DATA-14 PgGradebook single audit writer', () => {
       createExportJob: vi.fn(),
       getExportJob: vi.fn(),
       updateExportJob: vi.fn(),
+      claimExportJob: vi.fn(),
       listExportJobs: vi.fn(async () => []),
       listSections: vi.fn(async () => []),
       listBoards: vi.fn(async () => []),

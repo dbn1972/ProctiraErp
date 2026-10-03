@@ -47,21 +47,76 @@ describe('erasure completion is reachable only via anonymization (PRC-H076)', ()
     expect(after?.completedAt).toBeNull();
   });
 
-  it('in_progress with residual cannot be manually completed', async () => {
+  it('residual run returns to approved (retryable) and cannot be manually completed', async () => {
     const service = new PrivacyService(repository, {
       anonymizer: new RecordingSubjectAnonymizer(),
     });
     const req = await approvedRequest(service);
     await service.executeErasure(req.id, TENANT, 'officer');
-    expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('in_progress');
+    expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('approved');
     await expect(
       service.transitionErasureRequest(req.id, TENANT, 'completed', 'officer'),
     ).rejects.toBeInstanceOf(BusinessRuleError);
     const after = await service.getErasureRequest(req.id, TENANT);
-    expect(after?.status).toBe('in_progress');
+    expect(after?.status).toBe('approved');
     expect(after?.completedAt).toBeNull();
   });
-
+  // PRC-M320: failure / fault-injection leave the request retryable.
+  it('anonymizer throw -> request retryable; re-execute creates a new job', async () => {
+    let fail = true;
+    const flaky: SubjectAnonymizer = {
+      async anonymize() {
+        if (fail) throw new Error('domain store unavailable');
+        return { fieldsTouched: ['display_name'] };
+      },
+    };
+    const service = new PrivacyService(repository, { anonymizer: flaky });
+    const req = await approvedRequest(service);
+    await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toThrow(
+      /unavailable/,
+    );
+    expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('approved');
+    fail = false;
+    const done = await service.executeErasure(req.id, TENANT, 'officer');
+    expect(done.status).toBe('completed');
+    const jobs = (await repository.listAnonymizationJobs(TENANT)).filter(
+      (j) => j.erasureRequestId === req.id,
+    );
+    expect(jobs.map((j) => j.status).sort()).toEqual(['completed', 'failed']);
+  });
+  it('createAnonymizationJob fault leaves the request approved (no half-written start)', async () => {
+    const service = new PrivacyService(repository, { anonymizer: cleanAnonymizer });
+    const req = await approvedRequest(service);
+    repository.createAnonymizationJob = async () => {
+      throw new Error('insert failed');
+    };
+    await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toThrow(
+      /insert failed/,
+    );
+    expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('approved');
+  });
+  it('enqueue failure compensates: job failed, request approved', async () => {
+    const service = new PrivacyService(repository, {
+      anonymizer: cleanAnonymizer,
+      anonymizationPublisher: {
+        async enqueueAnonymization() {
+          throw new Error('broker down');
+        },
+      },
+    });
+    const req = await approvedRequest(service);
+    await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toThrow(/broker/);
+    expect((await service.getErasureRequest(req.id, TENANT))?.status).toBe('approved');
+    const jobs = await repository.listAnonymizationJobs(TENANT);
+    expect(jobs[0]?.status).toBe('failed');
+  });
+  it('stuck in_progress can be manually returned to approved for retry', async () => {
+    const service = new PrivacyService(repository, { anonymizer: cleanAnonymizer });
+    const req = await approvedRequest(service);
+    await repository.updateErasureRequest(req.id, TENANT, { status: 'in_progress' });
+    const back = await service.transitionErasureRequest(req.id, TENANT, 'approved', 'officer');
+    expect(back.status).toBe('approved');
+  });
   it('completed only when a completed zero-residual anonymization job exists', async () => {
     const service = new PrivacyService(repository, { anonymizer: cleanAnonymizer });
     const req = await approvedRequest(service);
@@ -77,14 +132,11 @@ describe('erasure completion is reachable only via anonymization (PRC-H076)', ()
     });
     const req = await approvedRequest(service);
     const repoUpdate = repository.updateErasureRequest.bind(repository);
+    const repoStart = repository.startErasureExecution.bind(repository);
     // Simulate a concurrent executor moving the row after our read.
-    let raced = false;
-    repository.updateErasureRequest = async (id, tenantId, data, options) => {
-      if (!raced && options?.expectedStatus === 'approved') {
-        raced = true;
-        await repoUpdate(id, tenantId, { status: 'in_progress' });
-      }
-      return repoUpdate(id, tenantId, data, options);
+    repository.startErasureExecution = async (id, tenantId, patch, job) => {
+      await repoUpdate(id, tenantId, { status: 'in_progress' });
+      return repoStart(id, tenantId, patch, job);
     };
     await expect(service.executeErasure(req.id, TENANT, 'officer')).rejects.toBeInstanceOf(
       ConflictError,
@@ -97,6 +149,7 @@ describe('erasure completion is reachable only via anonymization (PRC-H076)', ()
     const app = Fastify();
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT;
+      (request as unknown as { user: { sub: string } }).user = { sub: 'officer-1' };
     });
     await registerPrivacyRoutes(app, { privacyService: service });
     const res = await app.inject({

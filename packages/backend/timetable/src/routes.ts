@@ -25,8 +25,14 @@ import {
   CreateRoomSchema,
   CreateGenerationJobSchema,
   CreateTeacherAbsenceSchema,
+  isValidIsoDate,
+  UUID_PATTERN,
 } from './schemas.js';
-import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
+import {
+  assertTimetableAccess,
+  hasTimetableAccess,
+  type TimetableAction,
+} from './timetable-access.js';
 import {
   isTimetableClashError,
   isTimetableSchemaMissingError,
@@ -98,6 +104,95 @@ function setEtag(reply: FastifyReply, updatedAt: string | undefined | null) {
   }
 }
 
+const UUID_RE = new RegExp(UUID_PATTERN);
+/** Query keys that carry entity ids (UUID columns). */
+const UUID_QUERY_KEYS = [
+  'institutionId',
+  'academicPeriodId',
+  'staffId',
+  'sectionId',
+  'bellScheduleId',
+] as const;
+const DATE_QUERY_KEYS = ['fromDate', 'toDate', 'date'] as const;
+const SECTION_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+
+/** PRC-M407: list endpoints are always bounded (default 100, max 500). */
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 500;
+function listPageOf(request: FastifyRequest): { limit: number; offset: number } | null {
+  const query = (request.query ?? {}) as { limit?: unknown; offset?: unknown };
+  const limit = query.limit === undefined ? DEFAULT_LIST_LIMIT : Number(query.limit);
+  const offset = query.offset === undefined ? 0 : Number(query.offset);
+  if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(offset) || offset < 0) {
+    return null;
+  }
+  return { limit: Math.min(limit, MAX_LIST_LIMIT), offset };
+}
+const SUBSTITUTION_STATUSES = new Set(['scheduled', 'completed', 'cancelled']);
+
+function badRequest(reply: FastifyReply, message: string) {
+  return reply.status(400).send({ code: 'VALIDATION_ERROR', message, statusCode: 400 });
+}
+
+/**
+ * PRC-M399: validate every path param and known query param before handlers run, so a
+ * malformed id/date/enum is a 400 instead of a Postgres cast error surfacing as 500.
+ */
+function paramAndQueryError(request: FastifyRequest): string | null {
+  const params = (request.params ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value !== 'string' || !UUID_RE.test(value)) {
+      return `Path parameter ${key} must be a UUID`;
+    }
+  }
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  for (const key of UUID_QUERY_KEYS) {
+    const value = query[key];
+    if (value !== undefined && (typeof value !== 'string' || !UUID_RE.test(value))) {
+      return `Query parameter ${key} must be a UUID`;
+    }
+  }
+  for (const key of DATE_QUERY_KEYS) {
+    const value = query[key];
+    if (value !== undefined && (typeof value !== 'string' || !isValidIsoDate(value))) {
+      return `Query parameter ${key} must be a YYYY-MM-DD date`;
+    }
+  }
+  if (query.dayOfWeek !== undefined) {
+    const n = Number(query.dayOfWeek);
+    if (!Number.isInteger(n) || n < 1 || n > 7) {
+      return 'Query parameter dayOfWeek must be an integer 1-7';
+    }
+  }
+  if (
+    request.routeOptions?.url?.endsWith('/sections') &&
+    query.status !== undefined &&
+    (typeof query.status !== 'string' || !SECTION_STATUSES.has(query.status))
+  ) {
+    return 'Query parameter status must be DRAFT, PUBLISHED or ARCHIVED';
+  }
+  return null;
+}
+
+/** PRC-M399: map Postgres data/constraint errors to client errors instead of 500. */
+function pgErrorStatus(error: unknown): { status: number; code: string; message: string } | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code !== 'string' || !/^[0-9A-Z]{5}$/.test(code)) return null;
+  if (code === '23505') {
+    return { status: 409, code: 'CONFLICT', message: 'A record with these values already exists' };
+  }
+  if (code === '23503') {
+    return { status: 409, code: 'CONFLICT', message: 'Referenced record does not exist or is in use' };
+  }
+  if (code.startsWith('23')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Request violates a data constraint' };
+  }
+  if (code.startsWith('22')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Invalid value for a field' };
+  }
+  return null;
+}
+
 function sendDomainError(reply: FastifyReply, error: unknown) {
   if (isTimetableClashError(error)) {
     return reply.status(409).send(error.toJSON());
@@ -110,6 +205,12 @@ function sendDomainError(reply: FastifyReply, error: unknown) {
   }
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
+  }
+  const mapped = pgErrorStatus(error);
+  if (mapped) {
+    return reply
+      .status(mapped.status)
+      .send({ code: mapped.code, message: mapped.message, statusCode: mapped.status });
   }
   throw error;
 }
@@ -180,6 +281,24 @@ export async function registerTimetableRoutes(
       throw error;
     }
   });
+  fastify.addHook('preValidation', async (request, reply) => {
+    const url = request.routeOptions?.url;
+    if (!url || !url.startsWith(`${prefix}/`)) return;
+    const problem = paramAndQueryError(request);
+    if (problem) {
+      await badRequest(reply, problem);
+      return reply;
+    }
+    // PRC-M404: optimistic concurrency is mandatory on full-entity updates.
+    if (request.method === 'PUT' && !ifMatchOf(request)) {
+      await reply.status(428).send({
+        code: 'PRECONDITION_REQUIRED',
+        message: 'If-Match header with the entity ETag/updatedAt is required',
+        statusCode: 428,
+      });
+      return reply;
+    }
+  });
 
   // ── Bell schedules ────────────────────────────────────────────────────────
 
@@ -191,11 +310,14 @@ export async function registerTimetableRoutes(
         institutionId?: string;
         academicPeriodId?: string;
       };
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
       const rows = await service.listBellSchedules(tenantId, {
         institutionId: query.institutionId,
         academicPeriodId: query.academicPeriodId,
+        ...page,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -261,12 +383,19 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updateBellSchedule(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updateBellSchedule(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply
           .status(404)
           .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       }
+      setEtag(reply, row.updatedAt);
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -351,7 +480,13 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updatePeriod(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updatePeriod(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply
           .status(404)
@@ -393,8 +528,16 @@ export async function registerTimetableRoutes(
         staffId?: string;
         sectionId?: string;
       };
-      const rows = await service.listMeetings(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      const rows = await service.listMeetings(tenantId, {
+        institutionId: query.institutionId,
+        academicPeriodId: query.academicPeriodId,
+        staffId: query.staffId,
+        sectionId: query.sectionId,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -493,9 +636,24 @@ export async function registerTimetableRoutes(
         institutionId?: string;
         fromDate?: string;
         toDate?: string;
+        status?: string;
       };
-      const rows = await service.listSubstitutions(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      if (
+        query.status !== undefined &&
+        (typeof query.status !== 'string' || !SUBSTITUTION_STATUSES.has(query.status.toLowerCase()))
+      ) {
+        return badRequest(reply, 'status must be scheduled, completed or cancelled');
+      }
+      const rows = await service.listSubstitutions(tenantId, {
+        institutionId: query.institutionId,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        status: query.status,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -529,10 +687,13 @@ export async function registerTimetableRoutes(
     if (!tenantId) return;
     try {
       const query = request.query as { institutionId?: string };
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
       const rows = await service.listRooms(tenantId, {
         institutionId: query.institutionId,
+        ...page,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -604,8 +765,15 @@ export async function registerTimetableRoutes(
         academicPeriodId?: string;
         status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
       };
-      const rows = await service.listSections(tenantId, query);
-      return reply.send({ data: rows });
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      const rows = await service.listSections(tenantId, {
+        institutionId: query.institutionId,
+        academicPeriodId: query.academicPeriodId,
+        status: query.status,
+        ...page,
+      });
+      return reply.send({ data: rows, page });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -624,12 +792,14 @@ export async function registerTimetableRoutes(
           statusCode: 404,
         });
       }
+      // PRC-M406: the roster (student ids) is staff-only; other readers get the schedule.
+      const staff = hasTimetableAccess(requestRoles(request), 'schedule.read');
       const [enrollments, meetings] = await Promise.all([
-        service.listEnrollments(tenantId, id),
+        staff ? service.listEnrollments(tenantId, id) : Promise.resolve(undefined),
         service.listMeetings(tenantId, { sectionId: id }),
       ]);
       setEtag(reply, row.updatedAt);
-      return reply.send({ ...row, enrollments, meetings });
+      return reply.send(staff ? { ...row, enrollments, meetings } : { ...row, meetings });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -726,6 +896,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/sections/:id/enrollments`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const { id } = request.params as { id: string };
       const section = await service.getSection(tenantId, id);
@@ -822,7 +993,12 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
-      const row = await service.publishSection(tenantId, id);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.publishSection(
+        tenantId,
+        id,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -835,7 +1011,12 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
-      const row = await service.unpublishSection(tenantId, id);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.unpublishSection(
+        tenantId,
+        id,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -872,12 +1053,23 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/generation-jobs`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
-      const query = request.query as { institutionId?: string };
+      const query = request.query as { institutionId?: string; limit?: string; offset?: string };
+      const limit = query.limit === undefined ? undefined : Number(query.limit);
+      const offset = query.offset === undefined ? undefined : Number(query.offset);
+      if (
+        (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) ||
+        (offset !== undefined && (!Number.isInteger(offset) || offset < 0))
+      ) {
+        return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      }
       const rows = await service.listGenerationJobs(tenantId, {
         institutionId: query.institutionId,
+        limit,
+        offset,
       });
-      return reply.send({ data: rows });
+      return reply.send({ data: rows, page: { limit: Math.min(limit ?? 50, 100), offset: offset ?? 0 } });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -886,6 +1078,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/generation-jobs/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const { id } = request.params as { id: string };
       const row = await service.getGenerationJob(tenantId, id);
@@ -915,8 +1108,12 @@ export async function registerTimetableRoutes(
     }
     try {
       const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
-      const row = await service.runGenerationJob(tenantId, validated.data, actor);
-      return reply.status(201).send(row);
+      // PRC-M401: `?async=true` queues the run and returns 202; poll GET /generation-jobs/:id.
+      const runAsync = (request.query as { async?: string } | undefined)?.async === 'true';
+      const row = await service.runGenerationJob(tenantId, validated.data, actor, {
+        async: runAsync,
+      });
+      return reply.status(runAsync ? 202 : 201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -949,6 +1146,7 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/teacher-absences/affected`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
     try {
       const query = request.query as {
         institutionId?: string;
@@ -975,12 +1173,21 @@ export async function registerTimetableRoutes(
   fastify.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
     `${prefix}/clone-period`,
     async (request, reply) => {
+      // PRC-M406: clone writes sections/meetings — scheduler roles only, tenant first.
+      const tenantId = tenantIdOf(request, reply);
+      if (!tenantId) return;
+      if (!requireAction(request, reply, 'schedule.write')) return;
       const sourcePeriodId = request.body?.sourcePeriodId;
       const targetPeriodId = request.body?.targetPeriodId;
-      if (!sourcePeriodId || !targetPeriodId) {
+      if (
+        !sourcePeriodId ||
+        !targetPeriodId ||
+        !UUID_RE.test(sourcePeriodId) ||
+        !UUID_RE.test(targetPeriodId)
+      ) {
         return reply.code(400).send({
           code: 'VALIDATION_ERROR',
-          message: 'sourcePeriodId and targetPeriodId are required',
+          message: 'sourcePeriodId and targetPeriodId are required UUIDs',
           statusCode: 400,
         });
       }
