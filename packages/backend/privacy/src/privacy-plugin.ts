@@ -45,6 +45,11 @@ export interface PrivacyPluginOptions {
    * wired; `stuckMinutes` defaults to PRIVACY_JOB_STUCK_MINUTES (15).
    */
   sweeper?: { enabled?: boolean; stuckMinutes?: number; intervalMs?: number };
+  /**
+   * PRC-H078: consumers run in the dedicated `workers/privacy` process (PRIVACY_WORKERS=external).
+   * Publishers are used without in-process worker queues and the sweeper stays with the worker.
+   */
+  externalWorkers?: boolean;
 }
 
 declare module 'fastify' {
@@ -77,14 +82,16 @@ export const privacyPlugin = fp(
       anonymizationWorkerQueue,
       offboardWorkerQueue,
       sweeper,
+      externalWorkers = false,
     } = options;
-    const effectiveAnonymizationPublisher = anonymizationWorkerQueue
-      ? anonymizationPublisher
-      : undefined;
-    const effectiveOffboardPublisher = offboardWorkerQueue ? offboardPublisher : undefined;
+    const effectiveAnonymizationPublisher =
+      anonymizationWorkerQueue || externalWorkers ? anonymizationPublisher : undefined;
+    const effectiveOffboardPublisher =
+      offboardWorkerQueue || externalWorkers ? offboardPublisher : undefined;
     if (
-      (anonymizationPublisher && !anonymizationWorkerQueue) ||
-      (offboardPublisher && !offboardWorkerQueue)
+      !externalWorkers &&
+      ((anonymizationPublisher && !anonymizationWorkerQueue) ||
+        (offboardPublisher && !offboardWorkerQueue))
     ) {
       fastify.log.warn('privacy queue publisher configured without a consumer; processing inline');
     }
@@ -104,7 +111,7 @@ export const privacyPlugin = fp(
       error: (obj: Record<string, unknown>, msg: string) => fastify.log.error(obj, msg),
     };
     const workers: PrivacyWorker[] = [];
-    if (effectiveAnonymizationPublisher && anonymizationWorkerQueue) {
+    if (effectiveAnonymizationPublisher && anonymizationWorkerQueue && !externalWorkers) {
       workers.push(
         createPrivacyAnonymizationWorker({
           queue: anonymizationWorkerQueue,
@@ -113,7 +120,7 @@ export const privacyPlugin = fp(
         }),
       );
     }
-    if (effectiveOffboardPublisher && offboardWorkerQueue) {
+    if (effectiveOffboardPublisher && offboardWorkerQueue && !externalWorkers) {
       workers.push(
         createPrivacyOffboardWorker({
           queue: offboardWorkerQueue,

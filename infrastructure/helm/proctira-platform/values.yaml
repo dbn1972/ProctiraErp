@@ -233,6 +233,32 @@ etlWorker:
     enabled: false
     minAvailable: 1
 
+# -- PRC-H078: dedicated privacy worker (anonymization + tenant offboard consumers and the
+# stuck-job sweeper). Disabled by default: the gateway then keeps in-process consumers.
+# Enabling it switches the gateway to PRIVACY_WORKERS=external (publish only).
+privacyWorker:
+  enabled: false
+  replicaCount: 1
+  healthPort: 8095
+  image:
+    repository: proctira/privacy-worker
+    tag: ''
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    OTEL_SERVICE_NAME: privacy-worker
+    PRIVACY_JOB_STUCK_MINUTES: '15'
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
 # -- Registration Portal service
 registrationPortal:
   enabled: true

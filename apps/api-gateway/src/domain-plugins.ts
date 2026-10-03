@@ -125,6 +125,7 @@ import {
   PrivacyService,
   privacyPlugin,
   readFinanceHealthErasureMode,
+  readPrivacyWorkersMode,
 } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
@@ -1721,9 +1722,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         },
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
-        // PRC-H078: in-process consumers (dedicated connections) for both job types.
-        anonymizationWorkerQueue: queueHandle?.createConsumerAdapter(),
-        offboardWorkerQueue: queueHandle?.createConsumerAdapter(),
+        // PRC-H078: in-process consumers (dedicated connections) for both job types, unless
+        // PRIVACY_WORKERS=external hands consumption to the workers/privacy deployment.
+        ...(readPrivacyWorkersMode() === 'external'
+          ? { externalWorkers: true }
+          : {
+              anonymizationWorkerQueue: queueHandle?.createConsumerAdapter(),
+              offboardWorkerQueue: queueHandle?.createConsumerAdapter(),
+            }),
       });
     },
   },

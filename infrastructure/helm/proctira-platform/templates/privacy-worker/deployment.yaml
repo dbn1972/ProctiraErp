@@ -1,29 +1,31 @@
-{{- if .Values.apiGateway.enabled }}
+{{- if .Values.privacyWorker.enabled }}
+# PRC-H078: dedicated privacy anonymization / tenant-offboard consumer + stuck-job sweeper.
+# When enabled the API gateway runs with PRIVACY_WORKERS=external (publish only).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "proctira.fullname" . }}-api-gateway
+  name: {{ include "proctira.fullname" . }}-privacy-worker
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "proctira.labels" . | nindent 4 }}
-    app.kubernetes.io/name: api-gateway
-    app.kubernetes.io/component: backend
+    app.kubernetes.io/name: privacy-worker
+    app.kubernetes.io/component: worker
 spec:
-  replicas: {{ .Values.apiGateway.replicaCount }}
+  replicas: {{ .Values.privacyWorker.replicaCount }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      app.kubernetes.io/name: privacy-worker
       app.kubernetes.io/instance: {{ .Release.Name }}
   strategy:
-    {{- toYaml .Values.apiGateway.strategy | nindent 4 }}
+    {{- toYaml .Values.privacyWorker.strategy | nindent 4 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/name: privacy-worker
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/part-of: proctira-platform
-        app.kubernetes.io/component: backend
+        app.kubernetes.io/component: worker
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -32,7 +34,7 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         {{- include "proctira.podSecurityContext" . | nindent 8 }}
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 60
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -41,25 +43,22 @@ spec:
         - name: tmp
           emptyDir: {}
       containers:
-        - name: api-gateway
-          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.apiGateway.image "appVersion" .Chart.AppVersion) }}
-          imagePullPolicy: {{ .Values.apiGateway.image.pullPolicy }}
+        - name: privacy-worker
+          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.privacyWorker.image "appVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.privacyWorker.image.pullPolicy }}
           securityContext:
             {{- include "proctira.containerSecurityContext" . | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
           ports:
-            - name: http
-              containerPort: {{ .Values.apiGateway.service.targetPort }}
+            - name: health
+              containerPort: {{ .Values.privacyWorker.healthPort }}
               protocol: TCP
           env:
-            {{- if .Values.privacyWorker.enabled }}
-            # PRC-H078: privacy jobs are consumed by the dedicated privacy-worker Deployment.
-            - name: PRIVACY_WORKERS
-              value: external
-            {{- end }}
-            {{- range $key, $value := .Values.apiGateway.env }}
+            - name: PRIVACY_WORKER_HEALTH_PORT
+              value: {{ .Values.privacyWorker.healthPort | quote }}
+            {{- range $key, $value := .Values.privacyWorker.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -69,17 +68,21 @@ spec:
             - secretRef:
                 name: {{ include "proctira.secretName" . }}
           resources:
-            {{- toYaml .Values.apiGateway.resources | nindent 12 }}
-          {{- with .Values.apiGateway.livenessProbe }}
+            {{- toYaml .Values.privacyWorker.resources | nindent 12 }}
           livenessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.apiGateway.readinessProbe }}
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.apiGateway.startupProbe }}
-          startupProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
 {{- end }}

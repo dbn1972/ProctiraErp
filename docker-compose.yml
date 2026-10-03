@@ -258,6 +258,38 @@ services:
     networks:
       - proctira
 
+  # PRC-H078: dedicated privacy anonymization / offboard consumer + stuck-job sweeper.
+  # Compose keeps the gateway's in-process consumers too (PRIVACY_WORKERS unset); both
+  # compete on the same durable queues. Set PRIVACY_WORKERS=external on api-gateway to
+  # leave consumption to this service only.
+  privacy-worker:
+    build:
+      context: .
+      dockerfile: workers/privacy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      PRIVACY_WORKER_HEALTH_PORT: 8095
+      PRIVACY_JOB_STUCK_MINUTES: ${PRIVACY_JOB_STUCK_MINUTES:-15}
+      OTEL_SERVICE_NAME: ${PRIVACY_WORKER_OTEL_SERVICE_NAME:-privacy-worker}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    # Health port is internal only (no host mapping).
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:8095/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - proctira
   web:
     build:
       context: .

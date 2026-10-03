@@ -84,6 +84,17 @@ export type {
 export { createPrivacyQueuePublishersFromEnv } from './privacy-queue-factory.js';
 export type { PrivacyQueueHandle } from './privacy-queue-factory.js';
 export { createPrivacyAnonymizationWorker, createPrivacyOffboardWorker } from './privacy-worker.js';
+export {
+  createPrivacyWorkerRuntime,
+  readPrivacyWorkersMode,
+  startPrivacyWorkerHealthServer,
+} from './privacy-worker-runtime.js';
+export type {
+  PrivacyWorkerHealth,
+  PrivacyWorkerRuntime,
+  PrivacyWorkerRuntimeOptions,
+  PrivacyWorkersMode,
+} from './privacy-worker-runtime.js';
 export type {
   PrivacyWorker,
   PrivacyWorkerLogger,
