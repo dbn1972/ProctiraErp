@@ -10,7 +10,13 @@
  *
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  ForbiddenError,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -33,6 +39,13 @@ import type {
   QuestionInput,
   CompletionStatus,
 } from './schemas.js';
+
+/**
+ * Authenticated submitter scope (PRC-M387): institutions the caller may act for.
+ */
+export interface SubmitterScope {
+  institutionIds: readonly string[];
+}
 
 /**
  * Notification publisher interface for sending reminders.
@@ -265,7 +278,18 @@ export class SurveyService {
    * @throws ValidationError if required fields missing or data types invalid
    * @throws BusinessRuleError if already submitted
    */
-  async submitSurvey(tenantId: string, input: SubmitSurveyInput): Promise<SubmissionEntity> {
+  async submitSurvey(
+    tenantId: string,
+    input: SubmitSurveyInput,
+    scope?: SubmitterScope,
+  ): Promise<SubmissionEntity> {
+    // PRC-M387: institution comes from the body, so it must be inside the
+    // caller's authenticated institution scope (HTTP callers always pass scope).
+    if (scope && !scope.institutionIds.includes(input.institutionId)) {
+      throw new ForbiddenError(
+        `Not authorised to submit surveys for institution '${input.institutionId}'`,
+      );
+    }
     const survey = await this.surveyRepo.findById(input.surveyId, tenantId);
     if (!survey) {
       throw new NotFoundError(`Survey with id '${input.surveyId}' not found`);

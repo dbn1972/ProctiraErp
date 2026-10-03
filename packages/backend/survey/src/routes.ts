@@ -26,6 +26,16 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { SurveyService } from './survey-service.js';
+
+/**
+ * Institutions the authenticated principal is scoped to (JWT `institutions`).
+ * Missing/invalid claims yield an empty scope, i.e. fail closed (PRC-M387).
+ */
+function getUserInstitutionIds(request: FastifyRequest): string[] {
+  const user = (request as FastifyRequest & { user?: { institutions?: unknown } }).user;
+  const raw = user?.institutions;
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+}
 import {
   CreateSurveySchema,
   UpdateSurveySchema,
@@ -490,7 +500,9 @@ export async function registerSurveyRoutes(
       }
 
       try {
-        const submission = await surveyService.submitSurvey(tenantId, result.data);
+        const submission = await surveyService.submitSurvey(tenantId, result.data, {
+          institutionIds: getUserInstitutionIds(request),
+        });
         return reply.status(201).send({
           id: submission.id,
           surveyId: submission.surveyId,

@@ -45,6 +45,14 @@ describe('Survey Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
     });
+    app.addHook('onRequest', async (request) => {
+      (request as unknown as { user: unknown }).user = {
+        sub: 'user-1',
+        institutions: (request.headers['x-test-institutions'] as string | undefined)?.split(',') ?? [
+          '22222222-2222-4222-8222-222222222222',
+        ],
+      };
+    });
 
     await registerSurveyRoutes(app, { surveyService });
     await app.ready();
@@ -281,6 +289,19 @@ describe('Survey Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.surveyId).toBe(created.id);
       expect(body.institutionId).toBe(instId);
+
+      // PRC-M387: a user scoped to another institution gets 403
+      const other = await app.inject({
+        method: 'POST',
+        url: '/surveys/submit',
+        headers: { 'x-test-institutions': '33333333-3333-4333-8333-333333333333' },
+        payload: {
+          surveyId: created.id,
+          institutionId: instId,
+          answers: [{ questionId: created.questions[0].id, value: 'Hijack' }],
+        },
+      });
+      expect(other.statusCode).toBe(403);
     });
   });
 });

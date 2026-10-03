@@ -7,7 +7,13 @@
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  ForbiddenError,
+} from '@proctira/common';
 
 import { SurveyService } from './survey-service.js';
 import type { NotificationPublisher } from './survey-service.js';
@@ -311,6 +317,41 @@ describe('SurveyService', () => {
 
       return survey;
     }
+
+    it('PRC-M387: rejects submission for an institution outside the caller scope', async () => {
+      const survey = await setupDistributedSurvey();
+      const questions = survey.questions;
+      await expect(
+        service.submitSurvey(
+          tenantId,
+          {
+            surveyId: survey.id,
+            institutionId: 'inst-001',
+            answers: [
+              { questionId: questions[0]!.id, value: 'Test School' },
+              { questionId: questions[1]!.id, value: 500 },
+              { questionId: questions[2]!.id, value: 'primary' },
+            ],
+          },
+          { institutionIds: ['inst-other'] },
+        ),
+      ).rejects.toThrow(ForbiddenError);
+      // Nothing recorded; the in-scope institution can still submit.
+      const ok = await service.submitSurvey(
+        tenantId,
+        {
+          surveyId: survey.id,
+          institutionId: 'inst-001',
+          answers: [
+            { questionId: questions[0]!.id, value: 'Test School' },
+            { questionId: questions[1]!.id, value: 500 },
+            { questionId: questions[2]!.id, value: 'primary' },
+          ],
+        },
+        { institutionIds: ['inst-001'] },
+      );
+      expect(ok.institutionId).toBe('inst-001');
+    });
 
     it('should accept valid submission', async () => {
       const survey = await setupDistributedSurvey();
