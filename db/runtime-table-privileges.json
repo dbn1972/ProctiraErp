@@ -147,6 +147,7 @@
     "insights_ui_templates": "select_insert",
     "institution_condition_options": "dml",
     "institution_infrastructure": "dml",
+    "institution_repair_request_status_events": "append_only",
     "institution_repair_requests": "append_only",
     "institution_subjects": "dml",
     "institutions": "dml",

@@ -93,6 +93,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.institution_infrastructure',
     'public.institution_condition_options',
     'public.institution_repair_requests',
+    'public.institution_repair_request_status_events',
   ],
   library: [
     'public.library_items',

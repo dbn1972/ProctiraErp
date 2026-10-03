@@ -11,6 +11,7 @@
  * bypassed for superuser / table-owner roles (the default `POSTGRES_USER` in
  * container images is one), so the policy alone is not a tenancy guarantee.
  */
+import { randomUUID } from 'node:crypto';
 import { BusinessRuleError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
@@ -290,19 +291,18 @@ export class PgInfrastructureStore implements InfrastructureStore {
   async findRepairRequest(id: string): Promise<RepairRequestRecord | null> {
     return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT * FROM institution_repair_requests WHERE tenant_id = $1 AND id = $2`,
+        `${EFFECTIVE_REPAIR_SELECT} WHERE r.tenant_id = $1 AND r.id = $2`,
         [tenantId, id],
       );
       const row = rows[0] as RepairRow | undefined;
       return row ? toRepairRecord(row) : null;
     });
   }
-
   /**
-   * PRC-L124: conditional status UPDATE. The runtime role currently holds
-   * append-only (SELECT, INSERT) on this table; until the grant/status-event
-   * migration lands the UPDATE is denied (42501) and surfaces as an explicit
-   * business-rule error instead of a 500.
+   * PRC-L124 (db/sql/170): status changes are appended to
+   * institution_repair_request_status_events — the request ledger stays append-only. The
+   * change applies only when the effective status is still `fromStatus`; a concurrent
+   * change wins the (tenant, request, seq) UNIQUE race and this call returns null (409).
    */
   async updateRepairRequestStatus(
     id: string,
@@ -310,55 +310,59 @@ export class PgInfrastructureStore implements InfrastructureStore {
     toStatus: RepairRequestRecord['status'],
   ): Promise<RepairRequestRecord | null> {
     return this.run(async (client, tenantId) => {
+      const { rows } = await client.query(
+        `${EFFECTIVE_REPAIR_SELECT} WHERE r.tenant_id = $1 AND r.id = $2`,
+        [tenantId, id],
+      );
+      const current = rows[0] as (RepairRow & { seq: number | string }) | undefined;
+      if (!current || current.status !== fromStatus) return null;
       try {
-        const { rows } = await client.query(
-          `UPDATE institution_repair_requests SET status = $4
-            WHERE tenant_id = $1 AND id = $2 AND status = $3
-            RETURNING *`,
-          [tenantId, id, fromStatus, toStatus],
+        await client.query(
+          `INSERT INTO institution_repair_request_status_events
+             (id, tenant_id, repair_request_id, seq, from_status, to_status)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [randomUUID(), tenantId, id, Number(current.seq) + 1, fromStatus, toStatus],
         );
-        const row = rows[0] as RepairRow | undefined;
-        return row ? toRepairRecord(row) : null;
       } catch (err) {
-        if ((err as { code?: string }).code === '42501') {
+        const code = (err as { code?: string }).code;
+        if (code === '23505') return null;
+        if (code === '42P01' || code === '42501') {
           throw new BusinessRuleError(
             'Closing repair requests is not enabled in this deployment yet',
           );
         }
         throw err;
       }
+      return toRepairRecord({ ...current, status: toStatus });
     });
   }
-
   async listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
     return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT * FROM institution_repair_requests
-          WHERE tenant_id = $1 AND institution_id = $2
-          ORDER BY created_at DESC`,
+        `${EFFECTIVE_REPAIR_SELECT}
+          WHERE r.tenant_id = $1 AND r.institution_id = $2
+          ORDER BY r.created_at DESC`,
         [tenantId, institutionId],
       );
-      return (
-        rows as Array<{
-          id: string;
-          institution_id: string;
-          infrastructure_id: string;
-          summary: string;
-          status: 'open' | 'closed';
-          created_at: Date | string;
-        }>
-      ).map((row) => ({
-        id: row.id,
-        institutionId: row.institution_id,
-        infrastructureId: row.infrastructure_id,
-        summary: row.summary,
-        status: row.status,
-        createdAt: new Date(row.created_at),
-      }));
+      return (rows as RepairRow[]).map(toRepairRecord);
     });
   }
 }
-
+/**
+ * PRC-L124: a repair request with its effective status (latest status event, else the
+ * status it was created with).
+ */
+const EFFECTIVE_REPAIR_SELECT = `
+  SELECT r.id, r.institution_id, r.infrastructure_id, r.summary, r.created_at,
+         COALESCE(e.to_status, r.status) AS status, COALESCE(e.seq, 0) AS seq
+    FROM institution_repair_requests r
+    LEFT JOIN LATERAL (
+      SELECT ev.to_status, ev.seq
+        FROM institution_repair_request_status_events ev
+       WHERE ev.tenant_id = r.tenant_id AND ev.repair_request_id = r.id
+       ORDER BY ev.seq DESC
+       LIMIT 1
+    ) e ON true`;
 interface ConditionRow {
   id: string;
   name: string;
