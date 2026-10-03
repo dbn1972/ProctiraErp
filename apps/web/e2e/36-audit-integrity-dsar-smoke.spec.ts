@@ -103,6 +103,8 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(body.headSeq).toBeGreaterThanOrEqual(entry.chainSeq);
 
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
+    // PRC-M085: verification is an explicit action, not part of page load.
+    await page.getByTestId('chain-verify').click();
     await expect(page.getByTestId('chain-integrity')).toHaveAttribute('data-valid', 'true');
   });
 

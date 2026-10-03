@@ -2,7 +2,7 @@
 
 /**
  * G-913 — retention policy editor + on-demand archival for the audit trail.
- * The chain-integrity card is server-rendered (see audit-logs/page.tsx); this
+ * The chain-integrity card verifies on demand (chain-integrity-card.tsx); this
  * component only owns the mutations.
  */
 import { useState, useTransition } from 'react';
