@@ -372,6 +372,62 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return (await this.repository.findErasureRequestById(requestId, tenantId))!;
   }
 
+  /**
+   * PRC-H078: retry privacy jobs stuck in `queued` longer than `stuckMinutes`
+   * (lost publish, consumer down). Re-enqueues on the durable queue when a
+   * publisher is wired, else processes inline. The job's statusReason is
+   * touched first so the next sweep does not immediately re-pick it.
+   */
+  async sweepStuckJobs(
+    stuckMinutes: number,
+    now: Date = new Date(),
+    limit = 100,
+  ): Promise<{ scanned: number; retried: number; failed: number }> {
+    if (!this.repository.listStuckQueuedJobs) return { scanned: 0, retried: 0, failed: 0 };
+    const olderThan = new Date(now.getTime() - stuckMinutes * 60_000);
+    const refs = await this.repository.listStuckQueuedJobs(olderThan, limit);
+    let retried = 0;
+    let failed = 0;
+    for (const ref of refs) {
+      try {
+        const reason = `Re-enqueued by stuck-job sweeper after ${stuckMinutes} min in queued`;
+        if (ref.kind === 'anonymization') {
+          await this.repository.updateAnonymizationJob(ref.id, ref.tenantId, {
+            statusReason: reason,
+          });
+          if (this.anonymizationPublisher) {
+            const job = await this.repository.findAnonymizationJobById(ref.id, ref.tenantId);
+            if (!job) continue;
+            await this.anonymizationPublisher.enqueueAnonymization({
+              jobId: job.id,
+              tenantId: job.tenantId,
+              erasureRequestId: job.erasureRequestId,
+            });
+          } else {
+            await this.processAnonymizationJob(ref.id, ref.tenantId);
+          }
+        } else {
+          await this.repository.updateTenantOffboardJob(ref.id, ref.tenantId, {
+            statusReason: reason,
+          });
+          if (this.offboardPublisher) {
+            await this.offboardPublisher.enqueueOffboard({ jobId: ref.id, tenantId: ref.tenantId });
+          } else {
+            await this.processTenantOffboardJob(ref.id, ref.tenantId);
+          }
+        }
+        retried += 1;
+      } catch (err) {
+        failed += 1;
+        logger.error(
+          { kind: ref.kind, jobId: ref.id, tenantId: ref.tenantId, err: String(err) },
+          'Privacy stuck-job retry failed',
+        );
+      }
+    }
+    return { scanned: refs.length, retried, failed };
+  }
+
   async processAnonymizationJob(jobId: string, tenantId: string): Promise<AnonymizationJobEntity> {
     const job = await this.repository.findAnonymizationJobById(jobId, tenantId);
     if (!job) throw new NotFoundError(`Anonymization job '${jobId}' not found`);

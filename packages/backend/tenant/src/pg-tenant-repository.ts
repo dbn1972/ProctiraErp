@@ -110,7 +110,49 @@ export class PgTenantRepository implements TenantRepository {
   async createTenant(data: Omit<TenantEntity, 'createdAt' | 'updatedAt'>): Promise<TenantEntity> {
     const now = new Date();
     const entity: TenantEntity = { ...data, createdAt: now, updatedAt: now };
-    return this.tenants.put(entity.id, entity);
+    // PRC-H099: the RLS-bound `tenants` row is what tenant-scoped tables FK to
+    // and what RLS binds app.tenant_id against — write it first, under the new
+    // tenant's own GUC (021 policy: id = app.tenant_id).
+    if (UUID_RE.test(entity.id)) {
+      await withPgTenant(this.assertPool(), entity.id, (client) =>
+        client.query(
+          `INSERT INTO tenants (id, name, slug, config, status, created_at, updated_at)
+           VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6, $6)`,
+          [
+            entity.id,
+            entity.name,
+            entity.slug,
+            JSON.stringify(entity.config ?? {}),
+            entity.status,
+            now,
+          ],
+        ),
+      );
+    }
+    try {
+      return await this.tenants.put(entity.id, entity);
+    } catch (err) {
+      await this.discardProvisioningTenant(entity.id).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** PRC-H099: hard-delete a never-active tenant (row + document) on rollback. */
+  async discardProvisioningTenant(id: string): Promise<boolean> {
+    const doc = await this.tenants.get(id);
+    if (doc && doc.status !== 'provisioning') return false;
+    let removedRow = false;
+    if (UUID_RE.test(id)) {
+      const res = await withPgTenant(this.assertPool(), id, (client) =>
+        client.query(
+          `DELETE FROM tenants WHERE id = $1::uuid AND status = 'provisioning' RETURNING id`,
+          [id],
+        ),
+      );
+      removedRow = res.rows.length > 0;
+    }
+    const removedDoc = doc ? await this.tenants.delete(id) : false;
+    return removedRow || removedDoc;
   }
 
   /**

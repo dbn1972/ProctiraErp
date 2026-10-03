@@ -40,10 +40,31 @@ export interface WorkflowPluginOptions {
    * consumes from (started onReady, stopped onClose).
    */
   escalationWorkerQueue?: QueueAdapter;
+  /**
+   * PRC-H110: reject definitions with escalationRules (422) when the worker is
+   * not wired. Default false (env WORKFLOW_REJECT_UNWIRED_ESCALATIONS).
+   */
+  rejectUnwiredEscalations?: boolean;
   /** Area hierarchy resolver (optional - enables area-based assignment) */
   areaHierarchyResolver?: AreaHierarchyResolver;
   /** Route prefix for workflows (default: '/workflows') */
   prefix?: string;
+}
+
+/** PRC-H110: escalation pipeline health (degraded when rules cannot fire). */
+export interface WorkflowEscalationHealth {
+  status: 'ok' | 'degraded';
+  wiring: 'wired' | 'publisher_only' | 'unwired';
+  rejectUnwiredEscalations: boolean;
+  message?: string;
+}
+
+/** Parse WORKFLOW_REJECT_UNWIRED_ESCALATIONS (default false). */
+export function readRejectUnwiredEscalations(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const raw = env['WORKFLOW_REJECT_UNWIRED_ESCALATIONS']?.trim().toLowerCase();
+  return raw === 'true' || raw === '1';
 }
 
 // Extend Fastify types
@@ -53,6 +74,7 @@ declare module 'fastify' {
     caseService?: CaseService;
     escalationService?: EscalationService;
     escalationWorker?: WorkflowEscalationWorker;
+    workflowEscalationHealth: () => WorkflowEscalationHealth;
     assignmentService?: AssignmentService;
   }
 }
@@ -69,6 +91,7 @@ export const workflowPlugin = fp(
       escalationWorkerQueue,
       areaHierarchyResolver,
       prefix = '/workflows',
+      rejectUnwiredEscalations = readRejectUnwiredEscalations(),
     } = options;
 
     // Create workflow service instance
@@ -106,6 +129,30 @@ export const workflowPlugin = fp(
         'workflow escalation publisher not configured (QUEUE_BACKEND/RABBITMQ_URL unset); escalation rules will not fire',
       );
     }
+
+    // PRC-H110: escalation health — degraded unless a consumer is running here.
+    const wiring: WorkflowEscalationHealth['wiring'] = escalationPublisher
+      ? escalationWorkerQueue
+        ? 'wired'
+        : 'publisher_only'
+      : 'unwired';
+    workflowService.setEscalationWiring(wiring === 'wired', rejectUnwiredEscalations);
+    const health: WorkflowEscalationHealth =
+      wiring === 'wired'
+        ? { status: 'ok', wiring, rejectUnwiredEscalations }
+        : {
+            status: 'degraded',
+            wiring,
+            rejectUnwiredEscalations,
+            message:
+              wiring === 'publisher_only'
+                ? 'escalations are published but no consumer runs in this process'
+                : 'no escalation publisher configured; escalation rules will not fire',
+          };
+    fastify.decorate('workflowEscalationHealth', () => ({ ...health }));
+    fastify.get(`${prefix}/escalations/health`, async (_request, reply) =>
+      reply.status(200).send(health),
+    );
 
     // Set up assignment service if area resolver is provided (Req 13.2)
     if (areaHierarchyResolver) {

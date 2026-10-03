@@ -18,8 +18,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "kafkajs": "^2.2.4",
-    "amqplib": "^0.10.4"
+    "@proctira/common": "workspace:*",
+    "amqplib": "^0.10.4",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",

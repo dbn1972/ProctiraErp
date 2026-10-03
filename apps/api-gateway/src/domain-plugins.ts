@@ -108,8 +108,11 @@ import { createParentPortalRepository, parentPortalPlugin } from '@proctira/back
 import {
   createPrivacyQueuePublishersFromEnv,
   createPrivacyRepository,
+  PgDomainSubjectAnonymizer,
+  PgTenantWipeExecutor,
   PrivacyService,
   privacyPlugin,
+  readFinanceHealthErasureMode,
 } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
@@ -1448,9 +1451,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           await queueHandle.disconnect();
         });
       }
+      // PRC-H077: real per-domain anonymizers + tenant wipe on Postgres. Without
+      // a pool, erasure/offboard stay 'not implemented' (501) — never faked.
+      const privacyPool = getSharedPgPool();
+      const financeHealthMode = readFinanceHealthErasureMode();
       await scope.register(privacyPlugin, {
         repository: sharedPrivacyRepository,
         prefix: '/privacy',
+        ...(privacyPool
+          ? {
+              anonymizer: new PgDomainSubjectAnonymizer(privacyPool, { financeHealthMode }),
+              tenantWipeExecutor: new PgTenantWipeExecutor(privacyPool, { financeHealthMode }),
+            }
+          : {}),
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
         // PRC-H078: in-process consumers (dedicated connections) for both job types.
