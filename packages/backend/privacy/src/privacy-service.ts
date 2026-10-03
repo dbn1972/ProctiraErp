@@ -14,11 +14,15 @@ import {
   NotFoundError,
   ValidationError,
 } from '@proctira/common';
+import { createHash } from 'node:crypto';
+
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { CorrectionApplier } from './correction-applier.js';
 import type { PrivacyAuditPort } from './privacy-audit.js';
 import { NoopPrivacyAuditPort } from './privacy-audit.js';
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -50,11 +54,22 @@ import {
 
 const logger = createLogger({ name: 'privacy-service' });
 
+/**
+ * PRC-M322: audit rows are immutable and never erased, so correction values are recorded only
+ * as a tenant-salted SHA-256 digest (proves which value without retaining the PII).
+ */
+function correctionValueDigest(tenantId: string, value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  return `sha256:${createHash('sha256').update(`${tenantId}\u0000${value}`).digest('hex')}`;
+}
+
 const ERASURE_TRANSITIONS: Record<ErasureStatus, readonly ErasureStatus[]> = {
   requested: ['under_review', 'rejected', 'cancelled'],
   under_review: ['approved', 'rejected', 'cancelled'],
   approved: ['in_progress', 'blocked_legal_hold', 'cancelled'],
-  in_progress: ['completed', 'blocked_legal_hold'],
+  // PRC-M320: in_progress -> approved is the retry path (automatic on failed/residual
+  // anonymization; manual for a run stuck after a worker crash).
+  in_progress: ['completed', 'blocked_legal_hold', 'approved'],
   blocked_legal_hold: ['approved', 'cancelled'],
   completed: [],
   rejected: [],
@@ -94,6 +109,18 @@ export class PrivacyExecutorNotConfiguredError extends AppError {
   }
 }
 
+/** PRC-M323: caller context for audit attribution (HTTP routes pass request.ip). */
+export interface PrivacyRequestContext {
+  ipAddress?: string;
+}
+
+/** Address recorded for writes raised outside an HTTP request (workers, internal calls). */
+const NO_REQUEST_IP = '0.0.0.0';
+
+function ipOf(ctx?: PrivacyRequestContext): string {
+  return ctx?.ipAddress?.trim() ? ctx.ipAddress : NO_REQUEST_IP;
+}
+
 export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
@@ -104,6 +131,8 @@ export interface PrivacyServiceOptions {
   tenantWipeExecutor?: TenantWipeExecutor;
   anonymizationPublisher?: PrivacyAnonymizationPublisher;
   offboardPublisher?: PrivacyOffboardPublisher;
+  /** PRC-M321: domain writer for rectification. Absent -> apply refuses with 501. */
+  correctionApplier?: CorrectionApplier;
 }
 
 export class PrivacyService implements DestructiveDeleteGuard {
@@ -112,6 +141,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
   private readonly tenantWipeExecutor: TenantWipeExecutor;
   private readonly anonymizationPublisher?: PrivacyAnonymizationPublisher;
   private readonly offboardPublisher?: PrivacyOffboardPublisher;
+  private readonly correctionApplier?: CorrectionApplier;
   /** False when only the residual-recording default anonymizer is present. */
   readonly erasureExecutionAvailable: boolean;
   /** False when only the residual checklist wipe executor is present. */
@@ -128,9 +158,13 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.tenantWipeAvailable = options.tenantWipeExecutor !== undefined;
     this.anonymizationPublisher = options.anonymizationPublisher;
     this.offboardPublisher = options.offboardPublisher;
+    this.correctionApplier = options.correctionApplier;
   }
 
-  async placeLegalHold(input: PlaceLegalHoldInput): Promise<LegalHoldEntity> {
+  async placeLegalHold(
+    input: PlaceLegalHoldInput,
+    ctx?: PrivacyRequestContext,
+  ): Promise<LegalHoldEntity> {
     if (input.scope === 'subject') {
       if (!input.subjectType?.trim() || !input.subjectId?.trim()) {
         throw new ValidationError('subjectType and subjectId are required for subject-scope holds');
@@ -158,7 +192,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.placedBy,
       userName: input.placedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: {
         scope: hold.scope,
@@ -179,6 +213,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     holdId: string,
     tenantId: string,
     releasedBy: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<LegalHoldEntity> {
     const existing = await this.repository.findLegalHoldById(holdId, tenantId);
     if (!existing) throw new NotFoundError(`Legal hold '${holdId}' not found`);
@@ -195,7 +230,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: releasedBy,
       userName: releasedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: { active: true },
       afterValues: { active: false, releasedBy },
     });
@@ -237,8 +272,11 @@ export class PrivacyService implements DestructiveDeleteGuard {
     );
   }
 
-  async createErasureRequest(input: CreateErasureRequestInput): Promise<ErasureRequestEntity> {
-    return this.repository.createErasureRequest({
+  async createErasureRequest(
+    input: CreateErasureRequestInput,
+    ctx?: PrivacyRequestContext,
+  ): Promise<ErasureRequestEntity> {
+    const row = await this.repository.createErasureRequest({
       id: uuidv4(),
       tenantId: input.tenantId,
       subjectType: input.subjectType,
@@ -251,6 +289,24 @@ export class PrivacyService implements DestructiveDeleteGuard {
       statusReason: null,
       completedAt: null,
     });
+    // PRC-M323: every erasure mutation is audited.
+    await this.audit.record({
+      tenantId: row.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: row.id,
+      operation: 'CREATE',
+      userId: input.requestedBy,
+      userName: input.requestedBy,
+      ipAddress: ipOf(ctx),
+      beforeValues: null,
+      afterValues: {
+        status: row.status,
+        requestType: row.requestType,
+        subjectType: row.subjectType,
+        subjectId: row.subjectId,
+      },
+    });
+    return row;
   }
 
   async transitionErasureRequest(
@@ -259,6 +315,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     toStatus: ErasureStatus,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<ErasureRequestEntity> {
     const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
@@ -285,6 +342,17 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Erasure request '${requestId}' changed concurrently; reload and retry`,
       );
     }
+    await this.audit.record({
+      tenantId: updated.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: updated.status, statusReason: updated.statusReason },
+    });
     return updated;
   }
 
@@ -297,6 +365,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     requestId: string,
     tenantId: string,
     actorId: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<ErasureRequestEntity> {
     const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
@@ -319,47 +388,82 @@ export class PrivacyService implements DestructiveDeleteGuard {
         reviewedBy: actorId,
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
       });
+      await this.audit.record({
+        tenantId: existing.tenantId,
+        entityType: 'privacy_erasure',
+        entityId: requestId,
+        operation: 'UPDATE',
+        userId: actorId,
+        userName: actorId,
+        ipAddress: ipOf(ctx),
+        beforeValues: { status: existing.status },
+        afterValues: { status: 'blocked_legal_hold' },
+      });
       throw new BusinessRuleError(
         `Erasure blocked: subject under legal hold (request ${requestId})`,
       );
     }
 
-    const started = await this.repository.updateErasureRequest(
+    // PRC-M320: status flip + job creation in one transaction (fails closed to `approved`).
+    const startedExecution = await this.repository.startErasureExecution(
       requestId,
       tenantId,
+      { reviewedBy: actorId, statusReason: 'Erasure execution started' },
       {
-        status: 'in_progress',
-        reviewedBy: actorId,
-        statusReason: 'Erasure execution started',
+        id: uuidv4(),
+        tenantId: existing.tenantId,
+        erasureRequestId: requestId,
+        subjectType: existing.subjectType,
+        subjectId: existing.subjectId,
+        requestType: existing.requestType,
+        status: 'queued',
+        actorId,
+        statusReason: 'Queued for durable anonymization worker',
+        fieldsTouched: [],
+        residualNote: null,
+        startedAt: null,
+        completedAt: null,
       },
-      { expectedStatus: 'approved' },
     );
-    if (!started) {
+    if (!startedExecution) {
       throw new ConflictError(`Erasure request '${requestId}' is already being executed`);
     }
-
-    const job = await this.repository.createAnonymizationJob({
-      id: uuidv4(),
+    const { job } = startedExecution;
+    await this.audit.record({
       tenantId: existing.tenantId,
-      erasureRequestId: requestId,
-      subjectType: existing.subjectType,
-      subjectId: existing.subjectId,
-      requestType: existing.requestType,
-      status: 'queued',
-      actorId,
-      statusReason: 'Queued for durable anonymization worker',
-      fieldsTouched: [],
-      residualNote: null,
-      startedAt: null,
-      completedAt: null,
+      entityType: 'privacy_erasure',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: 'in_progress', jobId: job.id },
+      metadata: { requestType: existing.requestType, subjectType: existing.subjectType },
     });
 
     if (this.anonymizationPublisher) {
-      await this.anonymizationPublisher.enqueueAnonymization({
-        jobId: job.id,
-        tenantId: existing.tenantId,
-        erasureRequestId: requestId,
-      });
+      try {
+        // Enqueue only after the start transaction committed.
+        await this.anonymizationPublisher.enqueueAnonymization({
+          jobId: job.id,
+          tenantId: existing.tenantId,
+          erasureRequestId: requestId,
+        });
+      } catch (error) {
+        // PRC-M320: compensate so the request is retryable instead of stuck in_progress.
+        await this.repository.updateAnonymizationJob(job.id, tenantId, {
+          status: 'failed',
+          statusReason: 'Enqueue to anonymization worker failed',
+          completedAt: new Date(),
+        });
+        await this.revertErasureForRetry(
+          requestId,
+          tenantId,
+          'Enqueue to anonymization worker failed; retry execute',
+        );
+        throw error;
+      }
       logger.info(
         { requestId, jobId: job.id, tenantId: existing.tenantId },
         'Erasure anonymization job enqueued',
@@ -421,11 +525,15 @@ export class PrivacyService implements DestructiveDeleteGuard {
       });
 
       if (hasResidual) {
-        await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
-          statusReason: residualNote,
-          // Keep erasure in_progress — do not claim completed wipe.
-        });
+        // PRC-M320: never claim completed; return to `approved` so execute can be retried.
+        await this.revertErasureForRetry(job.erasureRequestId, tenantId, residualNote);
       } else {
+        // PRC-M322: correction rows hold the subject's PII too; erase them with the subject.
+        await this.repository.redactCorrectionValuesForSubject(
+          job.tenantId,
+          job.subjectType,
+          job.subjectId,
+        );
         await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
           status: 'completed',
           statusReason: 'Anonymization completed via durable worker',
@@ -440,10 +548,11 @@ export class PrivacyService implements DestructiveDeleteGuard {
         operation: 'UPDATE',
         userId: job.actorId,
         userName: job.actorId,
-        ipAddress: '0.0.0.0',
+        ipAddress: NO_REQUEST_IP,
         beforeValues: { status: 'in_progress' },
         afterValues: {
-          status: jobStatus,
+          status: hasResidual ? 'approved' : 'completed',
+          jobStatus,
           jobId,
           fieldsTouched: result.fieldsTouched,
           residualNote,
@@ -463,15 +572,40 @@ export class PrivacyService implements DestructiveDeleteGuard {
         statusReason: error instanceof Error ? error.message : 'Anonymization failed',
         completedAt: new Date(),
       });
+      // PRC-M320: a thrown anonymizer leaves the request retryable, not stuck in_progress.
+      await this.revertErasureForRetry(
+        job.erasureRequestId,
+        tenantId,
+        'Anonymization failed; retry execute',
+      );
       throw error;
     }
+  }
+
+  /** PRC-M320: in_progress -> approved (CAS) so a failed run can be re-executed. */
+  private async revertErasureForRetry(
+    requestId: string,
+    tenantId: string,
+    statusReason: string,
+  ): Promise<void> {
+    await this.repository.updateErasureRequest(
+      requestId,
+      tenantId,
+      { status: 'approved', statusReason },
+      { expectedStatus: 'in_progress' },
+    );
   }
 
   // ─── Correction (rectification) ──────────────────────────────────────────
 
   async createCorrectionRequest(
     input: CreateCorrectionRequestInput,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
+    // PRC-M321: when a domain applier is configured, reject field paths it cannot rectify up front.
+    if (this.correctionApplier) {
+      this.assertCorrectableField(input.subjectType, input.fieldPath);
+    }
     const row = await this.repository.createCorrectionRequest({
       id: uuidv4(),
       tenantId: input.tenantId,
@@ -494,13 +628,13 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.requestedBy,
       userName: input.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: {
         subjectType: row.subjectType,
         subjectId: row.subjectId,
         fieldPath: row.fieldPath,
-        requestedValue: row.requestedValue,
+        requestedValueDigest: correctionValueDigest(row.tenantId, row.requestedValue),
         status: row.status,
       },
     });
@@ -513,6 +647,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     toStatus: CorrectionStatus,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
     const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
@@ -522,24 +657,48 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
     if (toStatus === 'applied') {
-      return this.applyCorrection(requestId, tenantId, actorId, statusReason);
+      return this.applyCorrection(requestId, tenantId, actorId, statusReason, ctx);
     }
-    return (await this.repository.updateCorrectionRequest(requestId, tenantId, {
+    const updated = (await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: toStatus,
       reviewedBy: actorId,
       statusReason: statusReason ?? null,
     }))!;
+    await this.audit.record({
+      tenantId: existing.tenantId,
+      entityType: 'privacy_correction',
+      entityId: requestId,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: { status: toStatus, statusReason: updated.statusReason },
+    });
+    return updated;
+  }
+
+  private assertCorrectableField(subjectType: string, fieldPath: string): void {
+    const allowed = this.correctionApplier?.allowedFieldPaths(subjectType) ?? [];
+    if (!allowed.includes(fieldPath)) {
+      throw new ValidationError(
+        `Field '${fieldPath}' cannot be corrected for subject type '${subjectType}'`,
+      );
+    }
   }
 
   /**
-   * Apply an approved correction and emit an audit event with before/after values.
-   * Domain field mutation is caller/residual — this records the rectification decision.
+   * Apply an approved correction (PRC-M321): the owning domain writes the new value via the
+   * CorrectionApplier, the before value is read server-side, and only then is the request
+   * marked `applied`. Without an applier this refuses (501) instead of reporting a change
+   * that never happened; a failed domain write leaves the request `approved`.
    */
   async applyCorrection(
     requestId: string,
     tenantId: string,
     actorId: string,
     statusReason?: string,
+    ctx?: PrivacyRequestContext,
   ): Promise<CorrectionRequestEntity> {
     const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
@@ -548,12 +707,30 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Correction apply requires approved status; current=${existing.status}`,
       );
     }
+    const applier = this.correctionApplier;
+    if (!applier) {
+      throw new PrivacyExecutorNotConfiguredError(
+        'Correction apply is not available: no domain correction applier is configured',
+      );
+    }
+    this.assertCorrectableField(existing.subjectType, existing.fieldPath);
+    const target = {
+      tenantId: existing.tenantId,
+      subjectType: existing.subjectType,
+      subjectId: existing.subjectId,
+      fieldPath: existing.fieldPath,
+    };
+    const serverBefore = await applier.readCurrentValue(target);
+    await applier.applyValue({ ...target, value: existing.requestedValue });
 
+    // PRC-M322: once applied the raw values are no longer needed; redact them at rest.
     const applied = await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: 'applied',
       reviewedBy: actorId,
       statusReason: statusReason ?? 'Correction applied',
       appliedAt: new Date(),
+      currentValue: null,
+      requestedValue: CORRECTION_VALUE_REDACTED,
     });
 
     await this.audit.record({
@@ -563,15 +740,15 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: actorId,
       userName: actorId,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: {
         fieldPath: existing.fieldPath,
-        value: existing.currentValue,
+        valueDigest: correctionValueDigest(existing.tenantId, serverBefore),
         status: existing.status,
       },
       afterValues: {
         fieldPath: existing.fieldPath,
-        value: existing.requestedValue,
+        valueDigest: correctionValueDigest(existing.tenantId, existing.requestedValue),
         status: 'applied',
       },
       metadata: {
@@ -583,7 +760,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
     logger.info(
       { requestId, tenantId: existing.tenantId, fieldPath: existing.fieldPath },
-      'Correction applied with audit',
+      'Correction applied in owning domain with audit',
     );
     return applied!;
   }
@@ -600,6 +777,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
   async requestTenantOffboardWipe(
     input: RequestTenantOffboardInput,
+    ctx?: PrivacyRequestContext,
   ): Promise<TenantOffboardJobEntity> {
     if (!this.tenantWipeAvailable) {
       // PRC-H077: no real TenantWipeExecutor -> tenant offboard is disabled.
@@ -633,7 +811,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'CREATE',
       userId: input.requestedBy,
       userName: input.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: ipOf(ctx),
       beforeValues: null,
       afterValues: { status: 'queued', reason: input.reason },
     });
@@ -715,7 +893,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       operation: 'UPDATE',
       userId: job.requestedBy,
       userName: job.requestedBy,
-      ipAddress: '0.0.0.0',
+      ipAddress: NO_REQUEST_IP,
       beforeValues: { status: 'in_progress' },
       afterValues: { status: jobStatus, checklist, residualNote },
     });

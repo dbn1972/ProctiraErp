@@ -25,7 +25,9 @@ import type {
   TransportFeeStructureEntity,
   TransportFeeLinkEntity,
   TripDirection,
+  TransportFeeLinkStatus,
 } from './transport-repository.js';
+import { FEE_LINK_LEASE_PREFIX } from './transport-repository.js';
 
 export class InMemoryTransportRepository implements TransportRepository {
   private routes: Map<string, TransportRouteEntity> = new Map();
@@ -460,6 +462,16 @@ export class InMemoryTransportRepository implements TransportRepository {
     return { ping, duplicate: false };
   }
 
+  async ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>> {
+    const out: Array<{ ping: GpsPingEntity; duplicate: boolean }> = [];
+    for (const row of rows) {
+      out.push(await this.ingestGpsPing({ ...row, tenantId }));
+    }
+    return out;
+  }
   async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
     return Array.from(this.gpsPings.values())
       .filter((e) => e.tenantId === tenantId && e.vehicleId === vehicleId)
@@ -583,6 +595,65 @@ export class InMemoryTransportRepository implements TransportRepository {
 
   async listFeeLinks(tenantId: string): Promise<TransportFeeLinkEntity[]> {
     return Array.from(this.feeLinks.values()).filter((e) => e.tenantId === tenantId);
+  }
+
+  async setTransportFeeStructureFeesId(
+    id: string,
+    tenantId: string,
+    feesStructureId: string,
+  ): Promise<TransportFeeStructureEntity | null> {
+    const row = this.feeStructures.get(id);
+    if (!row || row.tenantId !== tenantId) return null;
+    const next = { ...row, feesStructureId, updatedAt: new Date() };
+    this.feeStructures.set(id, next);
+    return next;
+  }
+
+  async claimPendingFeeLinks(
+    tenantId: string,
+    leaseToken: string,
+    leaseExpiresAt: Date,
+    limit: number,
+  ): Promise<TransportFeeLinkEntity[]> {
+    const now = Date.now();
+    const claimed: TransportFeeLinkEntity[] = [];
+    for (const link of this.feeLinks.values()) {
+      if (claimed.length >= limit) break;
+      if (link.tenantId !== tenantId || link.status !== 'pending') continue;
+      if (link.reason?.startsWith(FEE_LINK_LEASE_PREFIX)) {
+        const expires = Number(link.reason.split(':')[2]);
+        if (Number.isFinite(expires) && expires > now) continue;
+      }
+      const next = {
+        ...link,
+        reason: `${FEE_LINK_LEASE_PREFIX}${leaseToken}:${leaseExpiresAt.getTime()}`,
+      };
+      this.feeLinks.set(link.id, next);
+      claimed.push(next);
+    }
+    return claimed;
+  }
+
+  async settleFeeLink(
+    id: string,
+    tenantId: string,
+    patch: { status: TransportFeeLinkStatus; feesInvoiceId: string | null; reason: string | null },
+    leaseToken?: string,
+  ): Promise<TransportFeeLinkEntity | null> {
+    const link = this.feeLinks.get(id);
+    if (!link || link.tenantId !== tenantId || link.status !== 'pending') return null;
+    if (leaseToken && !link.reason?.startsWith(`${FEE_LINK_LEASE_PREFIX}${leaseToken}:`)) {
+      return null;
+    }
+    const next = { ...link, ...patch };
+    this.feeLinks.set(id, next);
+    return next;
+  }
+
+  async countPendingFeeLinks(tenantId: string): Promise<number> {
+    return Array.from(this.feeLinks.values()).filter(
+      (e) => e.tenantId === tenantId && e.status === 'pending',
+    ).length;
   }
 
   async findFeeLinkByAssignment(

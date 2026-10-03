@@ -418,10 +418,13 @@ export type StudentAssignmentResponse = Static<typeof StudentAssignmentResponseS
 
 // ─── GPS / attendance-on-bus stub schemas (G-602) ────────────────────────────
 
+/** PRC-M446: RFC 3339 date-time with explicit offset (clock-skew bounds enforced in service). */
+const IsoDateTime = () => Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:\\d{2})$', maxLength: 40 });
+
 export const RecordGpsPingSchema = Type.Object({
   latitude: Type.Number({ minimum: -90, maximum: 90 }),
   longitude: Type.Number({ minimum: -180, maximum: 180 }),
-  recordedAt: Type.Optional(Type.String()),
+  recordedAt: Type.Optional(IsoDateTime()),
   speedKph: Type.Optional(Type.Number({ minimum: 0 })),
   headingDeg: Type.Optional(Type.Number({ minimum: 0, maximum: 360 })),
 });
@@ -439,7 +442,7 @@ export const RecordBusAttendanceSchema = Type.Object({
   studentId: Type.String({ minLength: 1, maxLength: 128 }),
   eventType: Type.Union([Type.Literal('board'), Type.Literal('alight')]),
   routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  recordedAt: Type.Optional(Type.String()),
+  recordedAt: Type.Optional(IsoDateTime()),
 });
 
 export type RecordBusAttendanceInput = Static<typeof RecordBusAttendanceSchema>;
@@ -453,7 +456,7 @@ export const IngestGpsBatchSchema = Type.Object({
       pingId: Type.String({ minLength: 1, maxLength: 128 }),
       latitude: Type.Number({ minimum: -90, maximum: 90 }),
       longitude: Type.Number({ minimum: -180, maximum: 180 }),
-      recordedAt: Type.Optional(Type.String()),
+      recordedAt: Type.Optional(IsoDateTime()),
       speedKph: Type.Optional(Type.Number({ minimum: 0 })),
       headingDeg: Type.Optional(Type.Number({ minimum: 0, maximum: 360 })),
     }),

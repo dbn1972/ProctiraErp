@@ -1503,6 +1503,26 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(privacyPlugin, {
         repository: sharedPrivacyRepository,
         prefix: '/privacy',
+        // PRC-M323: privacy lifecycle writes land in the platform audit trail.
+        audit: {
+          record: async (event) => {
+            const auditService = (
+              scope as unknown as {
+                auditService?: {
+                  recordAudit: (input: Record<string, unknown>) => Promise<unknown>;
+                };
+              }
+            ).auditService;
+            if (!auditService) {
+              scope.log.warn(
+                { entityType: event.entityType, entityId: event.entityId },
+                'privacy audit event dropped: auditService not registered',
+              );
+              return;
+            }
+            await auditService.recordAudit({ ...event });
+          },
+        },
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
         // PRC-H078: in-process consumers (dedicated connections) for both job types.
