@@ -87,7 +87,8 @@ export async function previewAudienceAction(
     if (preview.source !== 'live') {
       return {
         status: 'success',
-        message: 'Estimate unavailable — a live recipient count is not available for this audience.',
+        message:
+          'Estimate unavailable — a live recipient count is not available for this audience.',
         honestyNote: preview.honestyNote,
       };
     }

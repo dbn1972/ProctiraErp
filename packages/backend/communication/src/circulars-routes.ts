@@ -24,14 +24,13 @@ import {
   type DeliveryLogParams,
   type DeliveryLogQuery,
 } from './circular-schemas.js';
-
+import type { CircularsService } from './circulars-service.js';
 import { hasCommunicationAccess } from './communication-access.js';
 import {
   communicationActorId,
   communicationRequestRoles,
   enforceCommunicationRouteAccess,
 } from './communication-http-guard.js';
-import type { CircularsService } from './circulars-service.js';
 
 export interface CircularRoutesOptions {
   circularsService: CircularsService;

@@ -127,8 +127,20 @@ export default async function AttendanceOpsPage() {
           {!regularisationsResult.ok || !leavesResult.ok ? (
             <div className="mb-4">
               <ListLoadFailure
-                kind={!regularisationsResult.ok ? regularisationsResult.kind : leavesResult.ok ? 'unavailable' : leavesResult.kind}
-                status={!regularisationsResult.ok ? regularisationsResult.status : leavesResult.ok ? 0 : leavesResult.status}
+                kind={
+                  !regularisationsResult.ok
+                    ? regularisationsResult.kind
+                    : leavesResult.ok
+                      ? 'unavailable'
+                      : leavesResult.kind
+                }
+                status={
+                  !regularisationsResult.ok
+                    ? regularisationsResult.status
+                    : leavesResult.ok
+                      ? 0
+                      : leavesResult.status
+                }
                 returnTo="/attendance/ops"
               />
             </div>

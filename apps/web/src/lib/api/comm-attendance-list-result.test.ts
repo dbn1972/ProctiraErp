@@ -12,12 +12,7 @@ vi.mock('./gateway', async () => {
 });
 
 import { getClassRoster, listLeaveRequests, listRegularisations } from './attendance';
-import {
-  getCircular,
-  listCirculars,
-  listDeliveryLogs,
-  listEmergencyBlasts,
-} from './communication';
+import { getCircular, listCirculars, listDeliveryLogs, listEmergencyBlasts } from './communication';
 
 function fail(status: number) {
   return { ok: false, status, data: null, error: { code: 'X', message: 'x' } };

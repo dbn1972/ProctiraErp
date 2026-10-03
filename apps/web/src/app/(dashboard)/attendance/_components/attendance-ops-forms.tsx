@@ -102,7 +102,10 @@ export function AttendanceOpsForms({
           ? await decideRegularisationAction(id, decision, note)
           : await decideLeaveAction(id, decision, note);
       if (result.status === 'error') {
-        setError(result.message ?? `Could not ${decision} the ${target === 'leave' ? 'leave request' : 'regularisation'}.`);
+        setError(
+          result.message ??
+            `Could not ${decision} the ${target === 'leave' ? 'leave request' : 'regularisation'}.`,
+        );
         setPendingDecision(null);
         return;
       }

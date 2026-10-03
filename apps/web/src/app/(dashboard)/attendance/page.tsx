@@ -54,21 +54,22 @@ export default async function AttendancePage(props: PageProps) {
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
-  const [institutions, classes, academicPeriods, rosterResult, publishedPeriods] = await Promise.all([
-    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
-    institutionId
-      ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
-      : Promise.resolve<ClassSection[]>([]),
-    institutionId
-      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-      : Promise.resolve<AcademicPeriod[]>([]),
-    classId && academicPeriodId
-      ? getClassRoster(classId, academicPeriodId, date)
-      : Promise.resolve<ListResult<RosterEntry>>({ ok: true, items: [] }),
-    institutionId
-      ? listAttendancePeriods({ institutionId, dayOfWeek })
-      : Promise.resolve({ ok: true as const, data: [] }),
-  ]);
+  const [institutions, classes, academicPeriods, rosterResult, publishedPeriods] =
+    await Promise.all([
+      listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+      institutionId
+        ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
+        : Promise.resolve<ClassSection[]>([]),
+      institutionId
+        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        : Promise.resolve<AcademicPeriod[]>([]),
+      classId && academicPeriodId
+        ? getClassRoster(classId, academicPeriodId, date)
+        : Promise.resolve<ListResult<RosterEntry>>({ ok: true, items: [] }),
+      institutionId
+        ? listAttendancePeriods({ institutionId, dayOfWeek })
+        : Promise.resolve({ ok: true as const, data: [] }),
+    ]);
 
   const roster = rosterResult.ok ? rosterResult.items : [];
   const publishedSlots = publishedPeriods.ok === true ? publishedPeriods.data : [];

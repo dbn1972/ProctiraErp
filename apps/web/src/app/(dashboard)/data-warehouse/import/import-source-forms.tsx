@@ -251,7 +251,9 @@ function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
               variant={liveImport ? 'default' : 'warning'}
               data-testid={liveImport ? 'database-live-submit' : 'database-demo-submit'}
             >
-              <AlertTitle>{liveImport ? 'Database pull not available yet' : 'Demo submit'}</AlertTitle>
+              <AlertTitle>
+                {liveImport ? 'Database pull not available yet' : 'Demo submit'}
+              </AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}

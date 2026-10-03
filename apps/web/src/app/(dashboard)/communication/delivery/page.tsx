@@ -56,7 +56,9 @@ export default async function DeliveryLogPage(props: PageProps) {
         <CardHeader>
           <CardTitle className="text-base">Filter</CardTitle>
           <CardDescription>
-            {logs.ok ? `${rows.length} row${rows.length === 1 ? '' : 's'}` : 'Delivery log unavailable'}
+            {logs.ok
+              ? `${rows.length} row${rows.length === 1 ? '' : 's'}`
+              : 'Delivery log unavailable'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

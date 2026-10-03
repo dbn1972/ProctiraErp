@@ -23,9 +23,9 @@ function uploadCsv(file: File) {
 
 describe('validateImportFile (PRC-M072)', () => {
   it('rejects files over 50 MB', () => {
-    expect(
-      validateImportFile({ name: 'big.csv', size: 60 * 1024 * 1024 }, '.csv', 'CSV'),
-    ).toMatch(/50 MB/);
+    expect(validateImportFile({ name: 'big.csv', size: 60 * 1024 * 1024 }, '.csv', 'CSV')).toMatch(
+      /50 MB/,
+    );
   });
   it('rejects disallowed extensions', () => {
     expect(validateImportFile({ name: 'x.exe', size: 10 }, '.csv', 'CSV')).toMatch(/\.csv/);
