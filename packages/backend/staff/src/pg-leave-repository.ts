@@ -1,6 +1,7 @@
 /**
  * Postgres-backed staff leave repository (raw `pg` — no Prisma).
  */
+import type { PagedRows, PageWindow } from './hr-store.js';
 import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
@@ -110,6 +111,28 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
         ],
       );
       return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listLeavesPage(
+    tenantId: string,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffLeaveEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM staff_leave_requests WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      const result = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE tenant_id = $1
+          ORDER BY created_at DESC, id LIMIT $2 OFFSET $3`,
+        [tenantId, window.limit, window.offset],
+      );
+      return {
+        rows: result.rows.map((row) => mapLeave(row as Record<string, unknown>)),
+        total: Number((count.rows[0] as { total?: unknown } | undefined)?.total ?? 0),
+      };
     });
   }
 

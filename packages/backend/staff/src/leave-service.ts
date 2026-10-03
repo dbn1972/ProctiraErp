@@ -93,6 +93,11 @@ export class StaffLeaveService {
     });
   }
 
+  /** PRC-M379: bounded list with total. */
+  async listLeavesPage(tenantId: string, window: { limit: number; offset: number }) {
+    return this.repository.listLeavesPage(tenantId, window);
+  }
+
   async listLeaves(tenantId: string) {
     return this.repository.listLeaves(tenantId);
   }

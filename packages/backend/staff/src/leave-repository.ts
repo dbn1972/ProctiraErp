@@ -1,6 +1,7 @@
 /**
  * Staff leave repository contract (HR leave v1).
  */
+import type { PagedRows, PageWindow } from './hr-store.js';
 export type StaffLeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type StaffLeaveType = 'annual' | 'sick' | 'casual' | 'unpaid' | 'other';
 
@@ -87,6 +88,8 @@ export interface StaffLeaveRepository {
   ): Promise<StaffLeaveEntity | null>;
   createLeave(data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<StaffLeaveEntity>;
   listLeaves(tenantId: string): Promise<StaffLeaveEntity[]>;
+  /** PRC-M379: bounded list with total for GET /staff/leaves. */
+  listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>>;
   findLeaveById(id: string, tenantId: string): Promise<StaffLeaveEntity | null>;
   updateLeave(
     id: string,

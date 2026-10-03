@@ -17,6 +17,8 @@ import type {
   VerifyQualificationInput,
 } from './hr-schemas.js';
 import type {
+  AttendanceListFilter,
+  PageWindow,
   StaffAttendanceRecord,
   StaffContractRecord,
   StaffContractStatus,
@@ -181,6 +183,20 @@ export class StaffHrService {
       updatedAt: now,
     });
     return withRenewalAlert(record);
+  }
+
+  /** PRC-M379: windowed list with total. */
+  async listContractsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    const page = await this.store.listContractsPage(tenantId, staffId, window);
+    return { rows: page.rows.map((row) => withRenewalAlert(row)), total: page.total };
+  }
+
+  async listQualificationsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    return this.store.listQualificationsPage(tenantId, staffId, window);
+  }
+
+  async listAttendancePage(tenantId: string, filter: AttendanceListFilter, window: PageWindow) {
+    return this.store.listAttendancePage(tenantId, filter, window);
   }
 
   async listContracts(tenantId: string, staffId?: string): Promise<ContractView[]> {

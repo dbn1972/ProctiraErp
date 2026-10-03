@@ -1,6 +1,7 @@
 /**
  * In-memory staff leave repository.
  */
+import { pageSlice, type PageWindow } from './hr-store.js';
 import {
   InsufficientLeaveBalanceError,
   LeaveBalanceMissingError,
@@ -27,6 +28,10 @@ export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
     const entity: StaffLeaveEntity = { ...data, createdAt: now, updatedAt: now };
     this.leaves.push(entity);
     return entity;
+  }
+
+  async listLeavesPage(tenantId: string, window: PageWindow) {
+    return pageSlice(await this.listLeaves(tenantId), window);
   }
 
   async listLeaves(tenantId: string): Promise<StaffLeaveEntity[]> {
