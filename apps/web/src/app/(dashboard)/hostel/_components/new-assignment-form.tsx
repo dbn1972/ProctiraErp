@@ -17,6 +17,7 @@ import {
 
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { HostelBed, HostelFeeStructure } from '@/lib/api/hostel';
+import { formatMoney } from '@/lib/format-money';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { createHostelAssignmentAction } from '../../campus-actions';
 
@@ -147,7 +148,7 @@ export function NewHostelAssignmentForm({
               <option value="">No invoice</option>
               {feeStructures.map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.roomType} · {row.termLabel} · {row.amountCents}¢
+{row.roomType} · {row.termLabel} · {formatMoney(row.amountCents, row.currency)}
                 </option>
               ))}
             </select>
