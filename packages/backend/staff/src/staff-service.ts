@@ -9,7 +9,7 @@
  * - 7.6: Support custom fields via JSONB custom_data column
  * - 7.7: Validate required fields (name, DOB, identity number, contact, position); unique identity number
  */
-import { ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
+import { ConflictError, NotFoundError, EntityStatus, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -28,6 +28,36 @@ export interface StaffOffboardStatusView {
   decidedAt: string | null;
 }
 
+/** PRC-M371: keys beginning with '__' are server-owned (e.g. __offboard, __profile). */
+const RESERVED_CUSTOM_DATA_PREFIX = '__';
+
+function assertNoReservedCustomDataKeys(customData: Record<string, unknown> | null | undefined) {
+  if (!customData) return;
+  const reserved = Object.keys(customData).filter((key) =>
+    key.startsWith(RESERVED_CUSTOM_DATA_PREFIX),
+  );
+  if (reserved.length > 0) {
+    throw new ValidationError('customData contains reserved keys', [
+      {
+        field: 'customData',
+        rule: 'reserved',
+        message: `Keys starting with "${RESERVED_CUSTOM_DATA_PREFIX}" are reserved: ${reserved.join(', ')}`,
+      },
+    ]);
+  }
+}
+
+/** Server-owned keys from the stored customData, preserved across client replaces. */
+function reservedCustomData(
+  customData: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(customData ?? {})) {
+    if (key.startsWith(RESERVED_CUSTOM_DATA_PREFIX)) out[key] = value;
+  }
+  return out;
+}
+
 /**
  * Service handling staff business logic.
  */
@@ -43,6 +73,7 @@ export class StaffService {
    * @throws ConflictError if identity number already exists
    */
   async create(tenantId: string, input: CreateStaffInput): Promise<StaffEntity> {
+    assertNoReservedCustomDataKeys(input.customData);
     // Check global uniqueness of identity number
     const existingByIdentity = await this.repository.findByIdentityNumber(input.identityNumber);
     if (existingByIdentity) {
@@ -79,6 +110,7 @@ export class StaffService {
    * @throws ConflictError if identity number uniqueness violated
    */
   async update(tenantId: string, id: string, input: UpdateStaffInput): Promise<StaffEntity> {
+    assertNoReservedCustomDataKeys(input.customData);
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Staff with id '${id}' not found`);
@@ -102,7 +134,11 @@ export class StaffService {
     if (input.contactPhone !== undefined) updateData.contactPhone = input.contactPhone;
     if (input.contactEmail !== undefined) updateData.contactEmail = input.contactEmail;
     if (input.position !== undefined) updateData.position = input.position;
-    if (input.customData !== undefined) updateData.customData = input.customData;
+    if (input.customData !== undefined) {
+      // PRC-M371: client keys replace user data; server-owned keys survive.
+      const reserved = reservedCustomData(existing.customData);
+      updateData.customData = { ...input.customData, ...reserved };
+    }
 
     const updated = await this.repository.update(id, tenantId, updateData);
     if (!updated) {

@@ -105,4 +105,22 @@ export interface StudentRepository {
    * Format: ADM-{YYYY}-{seq} (seq is monotonic per tenant).
    */
   allocateAdmissionNumber(tenantId: string): Promise<string>;
+
+  /**
+   * PRC-M384: apply all creates + updates in ONE database transaction
+   * (all-or-nothing). Missing update targets abort the whole batch.
+   * Optional — callers must fall back (and not claim transactional semantics)
+   * when an implementation does not provide it.
+   */
+  bulkWrite?(tenantId: string, ops: StudentBulkWrite): Promise<StudentBulkWriteResult>;
+}
+
+export interface StudentBulkWrite {
+  creates: Array<Omit<StudentEntity, 'createdAt' | 'updatedAt'>>;
+  updates: Array<{ id: string; data: Partial<StudentEntity> }>;
+}
+
+export interface StudentBulkWriteResult {
+  created: StudentEntity[];
+  updated: StudentEntity[];
 }

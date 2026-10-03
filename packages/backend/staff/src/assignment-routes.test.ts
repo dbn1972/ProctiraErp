@@ -388,12 +388,13 @@ describe('Staff Assignment Routes', () => {
 
       expect(response.statusCode).toBe(204);
 
-      // Verify it's gone
+      // PRC-M375: history is kept — the assignment is ended, not erased.
       const getResponse = await app.inject({
         method: 'GET',
         url: `/staff/assignments/${created.id}`,
       });
-      expect(getResponse.statusCode).toBe(404);
+      expect(getResponse.statusCode).toBe(200);
+      expect(getResponse.json().status).toBe('INACTIVE');
     });
 
     it('should return 404 when assignment does not exist', async () => {
