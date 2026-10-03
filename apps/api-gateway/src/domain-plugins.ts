@@ -98,7 +98,12 @@ import {
   type RolloverSummary,
 } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
-import { createLmsRepository, LmsService, lmsPlugin } from '@proctira/backend-lms';
+import {
+  createLmsRepository,
+  LmsService,
+  lmsPlugin,
+  type LmsRepository,
+} from '@proctira/backend-lms';
 import {
   createNotificationDeliveryPublisherFromEnv,
   createNotificationStack,
@@ -143,6 +148,8 @@ import {
 } from '@proctira/backend-student';
 import {
   createTimetableRepository,
+  createTimetableOpsStore,
+  type TimetableRepository,
   TimetableService,
   timetablePlugin,
 } from '@proctira/backend-timetable';
@@ -194,6 +201,51 @@ function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
  * PRC-H020: the fees netting routes verify disbursements against the repository
  * mounted by the scholarship registrar (same instance in in-memory mode).
  */
+/**
+ * PRC-L320: one Timetable/LMS service instance per gateway app, shared by the
+ * mounted domain plugin and the institution rollover clone hooks (keyed on the
+ * per-app dependencies object so separate test apps never share state).
+ */
+const sharedDomainServices = new WeakMap<
+  DomainPluginDependencies,
+  {
+    timetable?: { service: TimetableService; repository: TimetableRepository };
+    lms?: { service: LmsService; repository: LmsRepository };
+  }
+>();
+function sharedServicesFor(dependencies: DomainPluginDependencies) {
+  let entry = sharedDomainServices.get(dependencies);
+  if (!entry) {
+    entry = {};
+    sharedDomainServices.set(dependencies, entry);
+  }
+  return entry;
+}
+export function sharedTimetableService(dependencies: DomainPluginDependencies): {
+  service: TimetableService;
+  repository: TimetableRepository;
+} {
+  const entry = sharedServicesFor(dependencies);
+  if (!entry.timetable) {
+    const repository = createTimetableRepository();
+    entry.timetable = {
+      repository,
+      service: new TimetableService(repository, createTimetableOpsStore()),
+    };
+  }
+  return entry.timetable;
+}
+export function sharedLmsService(dependencies: DomainPluginDependencies): {
+  service: LmsService;
+  repository: LmsRepository;
+} {
+  const entry = sharedServicesFor(dependencies);
+  if (!entry.lms) {
+    const repository = createLmsRepository();
+    entry.lms = { repository, service: new LmsService(repository) };
+  }
+  return entry.lms;
+}
 let mountedScholarshipRepository: ScholarshipRepository | null = null;
 function scholarshipRepositoryForFees(): ScholarshipRepository {
   mountedScholarshipRepository ??= createScholarshipRepository();
@@ -638,15 +690,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       '/institution-subjects',
       '/infrastructure',
     ],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
       const feesForRollover = new FeesService(createFeesRepository());
       // PRC-L320: timetable/LMS clone hooks are wired directly (no catch-and-zero
-      // fallback that reported success with zero counts on an import failure).
-      const timetableForRollover = new TimetableService(createTimetableRepository());
-      const lmsForRollover = new LmsService(createLmsRepository());
+      // fallback) and reuse the SAME service instances the timetable/LMS domain
+      // plugins mount, rather than constructing private copies.
+      const timetableForRollover = sharedTimetableService(dependencies).service;
+      const lmsForRollover = sharedLmsService(dependencies).service;
       const copyTimetable = (
         tenantId: string,
         _actorId: string,
@@ -855,11 +908,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'timetable',
     proxyPrefixes: ['/timetable'],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // Raw pg against 003_sis_timetable_schedule_schema.sql when DATABASE_URL
       // is set; in-memory otherwise. No Prisma on this path.
+      // PRC-L320: mount the shared instance (also used by institution rollover).
+      const shared = sharedTimetableService(dependencies);
       await scope.register(timetablePlugin, {
-        repository: createTimetableRepository(),
+        repository: shared.repository,
+        service: shared.service,
         prefix: '/timetable',
       });
     },
@@ -902,10 +958,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'lms',
     proxyPrefixes: ['/lms'],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // G-801/G-802/G-915: Pg when DATABASE_URL (026 + 038); else in-memory.
+      // PRC-L320: mount the shared instance (also used by institution rollover).
+      const shared = sharedLmsService(dependencies);
       await scope.register(lmsPlugin, {
-        repository: createLmsRepository(),
+        repository: shared.repository,
+        service: shared.service,
         prefix: '/lms',
       });
     },
