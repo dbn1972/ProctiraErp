@@ -58,6 +58,10 @@ import {
 } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
+import {
+  bindQueueFailureMetrics,
+  type QueueFailureMetricsRegistry,
+} from '@proctira/queue-abstraction';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
@@ -235,6 +239,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(observabilityPlugin, {
     serviceName: 'api-gateway',
     ignorePaths: ['/health', '/health/live', '/health/ready'],
+  });
+  // PRC-H086: every in-process queue consumer failure (retry / dead-letter) is exported as
+  // proctira_queue_consumer_failures_total{type,disposition} on this registry.
+  const unbindQueueFailureMetrics = bindQueueFailureMetrics(
+    (app as unknown as { metrics: QueueFailureMetricsRegistry }).metrics,
+  );
+  app.addHook('onClose', async () => {
+    unbindQueueFailureMetrics();
   });
 
   // 3. Register CORS

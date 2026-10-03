@@ -105,6 +105,54 @@ export function reportDeliveryFailure(
   } catch {
     // Observability hooks must never break consumption.
   }
+  for (const listener of globalFailureListeners) {
+    try {
+      listener(event);
+    } catch {
+      // Observability hooks must never break consumption.
+    }
+  }
+}
+
+const globalFailureListeners = new Set<(event: DeliveryFailureEvent) => void>();
+
+/**
+ * PRC-H086: process-wide hook invoked for every failed delivery of every adapter instance
+ * (adapters are built by env factories that take no metric hook). Used to export the consumer
+ * failure counter as a Prometheus metric. Returns an unsubscribe function.
+ */
+export function addQueueDeliveryFailureListener(
+  listener: (event: DeliveryFailureEvent) => void,
+): () => void {
+  globalFailureListeners.add(listener);
+  return () => {
+    globalFailureListeners.delete(listener);
+  };
+}
+
+/** Minimal structural view of a metrics registry (avoids a prom-client dependency here). */
+export interface QueueFailureMetricsRegistry {
+  counter(config: { name: string; help: string; labelNames?: readonly string[] }): {
+    inc(labels: Record<string, string>, value?: number): void;
+  };
+}
+
+export const QUEUE_CONSUMER_FAILURES_METRIC = 'proctira_queue_consumer_failures_total';
+
+/**
+ * PRC-H086: export consumer failures as `proctira_queue_consumer_failures_total{type,disposition}`.
+ * Labels stay bounded: job type (catalogue of job names) and retry|dead-letter — never tenant
+ * or message ids.
+ */
+export function bindQueueFailureMetrics(registry: QueueFailureMetricsRegistry): () => void {
+  const counter = registry.counter({
+    name: QUEUE_CONSUMER_FAILURES_METRIC,
+    help: 'Queue consumer handler failures by job type and disposition (retry or dead-letter)',
+    labelNames: ['type', 'disposition'],
+  });
+  return addQueueDeliveryFailureListener((event) => {
+    counter.inc({ type: event.type ?? 'unknown', disposition: event.disposition });
+  });
 }
 
 export function errorMessage(err: unknown): string {
