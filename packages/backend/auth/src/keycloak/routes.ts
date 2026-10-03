@@ -724,6 +724,54 @@ export async function registerKeycloakAuthRoutes(
     },
   );
 
+  /**
+   * POST /auth/logout — PRC-L282 authenticated logout (web BFF and mobile).
+   * The Bearer access token must verify (signature, issuer, expiry, not revoked); its jti/sid
+   * are denylisted with a capped TTL, the refresh token (body, never the query string) is
+   * denylisted when it belongs to the same session, and the IdP session is ended server-side.
+   * Returns the IdP end-session URL for browser clients that also want the front-channel hop.
+   * GET /auth/logout stays for redirect-based clients with signature-verified, capped denylisting.
+   */
+  fastify.post(
+    `${prefix}/logout`,
+    async (
+      request: FastifyRequest<{
+        Body: { refreshToken?: unknown; idToken?: unknown; redirect?: unknown } | null;
+      }>,
+      reply: FastifyReply,
+    ) => {
+      await fastify.authenticate(request, reply);
+      if (reply.sent) return;
+
+      const body = request.body ?? {};
+      const refreshToken =
+        typeof body.refreshToken === 'string' && body.refreshToken.trim()
+          ? body.refreshToken.trim()
+          : undefined;
+      const idTokenHint =
+        typeof body.idToken === 'string' && body.idToken.trim() ? body.idToken.trim() : undefined;
+      const redirect = typeof body.redirect === 'string' ? body.redirect : config.webOrigin;
+
+      const store =
+        config.revocationStore ??
+        (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
+          .accessTokenRevocationStore;
+
+      await revokePresentedTokensBeforeIdpLogout(
+        store,
+        { accessToken: readBearer(request), refreshToken },
+        verifyForLogout,
+        maxRevocationTtlSeconds,
+      );
+      await endIdpSession(config, refreshToken);
+
+      return reply.status(200).send({
+        loggedOut: true,
+        endSessionUrl: logoutUrl(config, redirect, idTokenHint),
+      });
+    },
+  );
+
   fastify.get(`${prefix}/me`, async (request: FastifyRequest, reply: FastifyReply) => {
     await fastify.authenticate(request, reply);
     if (reply.sent) return;
