@@ -171,7 +171,7 @@ describe('Keycloak auth routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/password',
-      payload: { username: 'admin@proctira.in', password: 'proctira-india-admin' },
+      payload: { username: 'admin@example.test', password: 'example-password' },
     });
 
     expect(response.statusCode).toBe(200);

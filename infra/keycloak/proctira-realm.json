@@ -135,14 +135,8 @@
         "tenant_id": ["5a58f9ff-b6a6-43bd-a014-bb622f763e48"],
         "country": ["IN"]
       },
-      "credentials": [
-        {
-          "type": "password",
-          "value": "proctira-india-admin",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["admin"]
+      "realmRoles": ["admin"],
+      "requiredActions": ["UPDATE_PASSWORD"]
     }
   ],
   "requiredActions": [

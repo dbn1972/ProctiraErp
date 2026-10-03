@@ -32,6 +32,18 @@ test('static: no committed default credentials or fixed /tmp token files', () =>
   }
 });
 
+test('static: the realm export and auth tests carry no India admin password (PRC-L183)', () => {
+  for (const rel of [
+    'infra/keycloak/proctira-realm.json',
+    'packages/backend/auth/src/keycloak/routes.test.ts',
+  ]) {
+    assert.doesNotMatch(read(rel), /proctira-india-admin/, `${rel}: India admin password`);
+  }
+  const realm = JSON.parse(read('infra/keycloak/proctira-realm.json'));
+  for (const user of realm.users ?? []) {
+    assert.equal(user.credentials, undefined, `realm user ${user.username} ships a credential`);
+  }
+});
 // Minimal env: no credentials; unreachable URLs so nothing can talk to a
 // real service even if a guard regressed.
 const bareEnv = {

@@ -30,3 +30,15 @@ kcadm.sh update "clients/$CID" -r proctira -s directAccessGrantsEnabled=false
 
 Verify: `kcadm.sh get realms/proctira --fields bruteForceProtected` returns `true`, and a
 `POST /api/v1/auth/password` against production returns 403.
+
+## Development realm admin (PRC-L183)
+
+The dev realm's `india-admin` user ships without a password (required action
+`UPDATE_PASSWORD`). Set one locally after import:
+
+```bash
+kcadm.sh set-password -r proctira --username india-admin --new-password "$INDIA_ADMIN_PASSWORD"
+```
+
+The previously committed India admin password must be treated as compromised: rotate it on
+every live Keycloak where it was ever set (owner action).
