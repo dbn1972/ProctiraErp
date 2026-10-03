@@ -19,7 +19,12 @@ import {
   StaffTruncationNotice,
 } from '@/components/timetable/load-errors-alert';
 import { collectFailures } from '@/lib/timetable/load-errors';
-import { classBand, slotTitle, subjectTone } from '@/lib/timetable/subject-label';
+import {
+  classFilterOptions,
+  sectionClassKey,
+  slotTitle,
+  subjectTone,
+} from '@/lib/timetable/subject-label';
 import {
   listBellSchedules,
   listMeetings,
@@ -146,15 +151,22 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   const periodLabel = new Map(periodOptions.map((p) => [p.id, p.label]));
   const periodStart = new Map(periodRows.map((p) => [p.id, p.startTime]));
 
-  const bands = [
-    ...new Set(sections.map((s) => classBand(s.name)).filter((b): b is string => !!b)),
-  ];
-  const classKey = searchParams.class ?? (bands.includes('9-B') ? '9-B' : 'all');
+  // PRC-M103: default to every class; filter by a per-section key so sections
+  // without 'Class N-X' naming remain reachable; the list view honours it too.
+  const classOptions = classFilterOptions(sections);
+  const requestedClass = searchParams.class ?? 'all';
+  const classKey =
+    requestedClass === 'all' || classOptions.some((o) => o.value === requestedClass)
+      ? requestedClass
+      : 'all';
+  const classLabel = classOptions.find((o) => o.value === classKey)?.label;
   const visibleMeetings =
     classKey === 'all'
       ? meetings
-      : meetings.filter((m) => classBand(sectionById.get(m.sectionId)?.name ?? '') === classKey);
-
+      : meetings.filter((m) => {
+          const section = sectionById.get(m.sectionId);
+          return section ? sectionClassKey(section) === classKey : false;
+        });
   const gridMeetings = visibleMeetings.map((m) => {
     const section = sectionById.get(m.sectionId);
     const teacher = resolveEntityLabel(m.staffId, staffLabel, 'Teacher');
@@ -309,7 +321,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                 </div>
                 <ClassBandSelect
                   value={classKey}
-                  bands={bands}
+                  options={classOptions}
                   preserve={{ view, academicPeriod: academicPeriodId || undefined }}
                 />
                 {context ? <span className="text-xs text-muted-foreground">{context}</span> : null}
@@ -318,6 +330,10 @@ export default async function InstitutionTimetablePage(props: PageProps) {
               {view === 'list' ? (
                 meetings.length === 0 ? (
                   <EmptyMeetings institutionId={institutionId} />
+                ) : visibleMeetings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="class-filter-empty">
+                    No meetings for {classLabel ?? 'this class'}.
+                  </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[40rem] text-sm" aria-label="Meetings">
@@ -332,7 +348,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {meetings
+                        {visibleMeetings
                           .slice()
                           .sort(
                             (a, b) =>
@@ -378,7 +394,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   classKey={classKey}
                   academicPeriodId={academicPeriodId}
                   openMeetingId={searchParams.meeting}
-                  caption={`Weekly timetable${classKey === 'all' ? '' : `, Class ${classKey}`}`}
+                  caption={`Weekly timetable${classLabel ? `, ${classLabel}` : ''}`}
                   periods={periodRows.map((p) => ({
                     id: p.id,
                     label: p.isBreak ? 'Break' : p.name.replace(/^Period\s+/i, 'P'),
