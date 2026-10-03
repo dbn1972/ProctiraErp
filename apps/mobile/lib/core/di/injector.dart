@@ -298,6 +298,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     authApi: getIt<AuthApi>(),
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
+    tenantProvider: tenantProvider,
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

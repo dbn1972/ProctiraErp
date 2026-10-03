@@ -8,6 +8,7 @@ import '../notifications/push_device_lifecycle.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
+import '../tenant/tenant_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Events
@@ -51,6 +52,22 @@ class AuthLogoutRequested extends AuthEvent {
   const AuthLogoutRequested();
 }
 
+/// User picked a different workspace while signed in (PRC-M034).
+///
+/// Tokens are minted for one tenant, so switching performs a full logout
+/// (server revoke, token wipe, selected student + cache purge, in-memory
+/// tenant reset) and then activates [tenantId]; the router sends the user
+/// to sign in against the new workspace.
+class AuthWorkspaceSwitchRequested extends AuthEvent {
+  const AuthWorkspaceSwitchRequested({required this.tenantId, this.displayName});
+
+  final String tenantId;
+  final String? displayName;
+
+  @override
+  List<Object?> get props => <Object?>[tenantId, displayName];
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -91,7 +108,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthApi? authApi,
     SelectedStudentStore? selectedStudent,
     PushDeviceLifecycle? push,
+    TenantProvider? tenantProvider,
   })  : _storage = secureStorage,
+        _tenantProvider = tenantProvider,
         _push = push,
         _database = database,
         _authApi = authApi,
@@ -100,6 +119,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
     on<AuthLogoutRequested>(_onLogout);
+    on<AuthWorkspaceSwitchRequested>(_onWorkspaceSwitch);
   }
 
   final SecureStorage _storage;
@@ -107,6 +127,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthApi? _authApi;
   final SelectedStudentStore? _selectedStudent;
   final PushDeviceLifecycle? _push;
+  final TenantProvider? _tenantProvider;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -160,6 +181,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
+    await _signOutAndPurge();
+    emit(const AuthState.unauthenticated());
+  }
+
+  Future<void> _onWorkspaceSwitch(
+    AuthWorkspaceSwitchRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    await _signOutAndPurge();
+    final TenantProvider? tenant = _tenantProvider;
+    if (tenant != null) {
+      await tenant.setTenant(
+        tenantId: event.tenantId,
+        displayName: event.displayName,
+      );
+    } else {
+      await _storage.writeTenant(
+        tenantId: event.tenantId,
+        displayName: event.displayName,
+      );
+    }
+    emit(const AuthState.unauthenticated());
+  }
+
+  /// Everything a sign-out must clear: push device, server session, tokens,
+  /// tenant (storage AND in-memory), selected student, offline caches.
+  Future<void> _signOutAndPurge() async {
     // Unregister the push device while the session is still valid, before
     // tokens are cleared and caches purged (PRC-M033).
     final PushDeviceLifecycle? push = _push;
@@ -180,12 +228,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     }
     await _storage.clearTokens();
-    await _storage.clearTenant();
+    final TenantProvider? tenant = _tenantProvider;
+    if (tenant != null) {
+      // Clears storage and the in-memory id used for X-Tenant-ID (PRC-M034).
+      await tenant.clear();
+    } else {
+      await _storage.clearTenant();
+    }
     await _selectedStudent?.clear();
     final AppDatabase? database = _database;
     if (database != null) {
       await database.purgeAllUserData();
     }
-    emit(const AuthState.unauthenticated());
   }
 }
