@@ -17,6 +17,7 @@ import { requireSession } from '@/lib/auth/server';
 import { listUserNotifications } from '@/lib/api/notifications-inbox';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
+import { LocalTime, MarkAllReadButton, MarkReadButton } from './_components/inbox-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,7 @@ export default async function NotificationsInboxPage(props: {
           <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <MarkAllReadButton />
           <Button asChild variant="outline">
             <Link href="/notifications/preferences">
               <Settings className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -99,25 +101,40 @@ export default async function NotificationsInboxPage(props: {
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
-                  data-testid="notification-inbox-row"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{titleFor(item)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {item.channel} · {item.status}
-                      {item.priority ? ` · ${item.priority}` : ''}
-                      {` · ${item.readAt ? t('read') : t('unread')}`}
-                    </p>
-                  </div>
-                  <time className="text-xs text-muted-foreground" dateTime={item.createdAt}>
-                    {item.createdAt.slice(0, 16).replace('T', ' ')}
-                  </time>
-                </li>
-              ))}
+              {items.map((item) => {
+                const title = titleFor(item);
+                const unread = !item.readAt;
+                return (
+                  <li
+                    key={item.id}
+                    className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                    data-testid="notification-inbox-row"
+                    data-unread={unread ? 'true' : 'false'}
+                  >
+                    <div className="flex items-start gap-2">
+                      {/* PRC-M115: visual + screen-reader unread indicator. */}
+                      <span
+                        aria-hidden="true"
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unread ? 'bg-primary' : 'bg-transparent'}`}
+                      />
+                      <div>
+                        <p className={`text-sm text-foreground ${unread ? 'font-semibold' : 'font-medium'}`}>
+                          <span className="sr-only">{unread ? `${t('unread')}: ` : `${t('read')}: `}</span>
+                          {title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.channel} · {item.status}
+                          {item.priority ? ` · ${item.priority}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <LocalTime iso={item.createdAt} />
+                      {unread ? <MarkReadButton id={item.id} label={title} /> : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
           {result.ok && (result.meta?.totalPages ?? 1) > 1 ? (

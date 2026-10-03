@@ -24,6 +24,11 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+vi.mock('./_components/inbox-controls', () => ({
+  MarkAllReadButton: () => null,
+  MarkReadButton: () => null,
+  LocalTime: ({ iso }: { iso: string }) => iso,
+}));
 import Page from './page';
 
 describe('notifications inbox failures (PRC-M113)', () => {
