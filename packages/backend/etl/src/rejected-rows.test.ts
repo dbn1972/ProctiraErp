@@ -18,7 +18,7 @@ describe('rejected rows (PRC-M227)', () => {
   it('a row with a bad number never reaches the destination; status is completed_with_errors', async () => {
     const sink = new MemoryDestination();
     const service = new ETLService(new InMemoryPipelineRepository(), {
-      defaultRetryPolicy: { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 },
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 100 },
       testMode: true,
       connectorFactory: memoryConnectorFactory(sink),
     });

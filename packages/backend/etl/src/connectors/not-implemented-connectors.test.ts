@@ -59,7 +59,7 @@ describe('unimplemented connectors (PRC-M222)', () => {
   it('creating a pipeline with source.type=postgresql is a 501 and nothing is stored', async () => {
     const repository = new InMemoryPipelineRepository();
     const service = new ETLService(repository, {
-      defaultRetryPolicy: { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 },
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 100 },
       testMode: true,
     });
     const input = {
@@ -75,7 +75,7 @@ describe('unimplemented connectors (PRC-M222)', () => {
   it('a stored (pre-existing) postgresql pipeline run is marked failed, not completed', async () => {
     const repository = new InMemoryPipelineRepository();
     const service = new ETLService(repository, {
-      defaultRetryPolicy: { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 },
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 100 },
       testMode: true,
     });
     const now = new Date();
@@ -88,7 +88,7 @@ describe('unimplemented connectors (PRC-M222)', () => {
       destination: { type: 'postgresql', ...pg, table: 't', writeMode: 'insert' },
       fieldMappings: [{ sourceField: 'a', destinationField: 'a' }],
       schedule: null,
-      retryPolicy: { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 },
+      retryPolicy: { maxRetries: 0, backoffMs: 100 },
       enabled: true,
       createdAt: now,
       updatedAt: now,

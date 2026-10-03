@@ -6,7 +6,7 @@
  * Supports scheduled execution, retry with exponential backoff,
  * structured execution logging, and Kafka event publishing.
  */
-import { AppError, NotFoundError, ValidationError } from '@proctira/common';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
@@ -54,7 +54,15 @@ export interface ETLServiceConfig {
   testMode?: boolean;
   /** PRC-M222: connector construction (defaults to the fail-closed production factory). */
   connectorFactory?: ConnectorFactory;
+  /**
+   * PRC-M225: a `running` execution older than this is treated as abandoned (crashed
+   * process) and no longer blocks a new run. Default 6 hours.
+   */
+  runningExecutionStaleMs?: number;
 }
+
+/** Default abandonment window for `running` executions (PRC-M225). */
+export const DEFAULT_RUNNING_EXECUTION_STALE_MS = 6 * 60 * 60 * 1000;
 
 export class ETLService {
   private readonly logger: ExecutionLogger;
@@ -400,7 +408,37 @@ export class ETLService {
       throw new AppError('Pipeline is disabled', 'PIPELINE_DISABLED', 400);
     }
 
-    return this.runPipelineExecution(pipeline, tenantId, 0, false);
+    const execution = await this.startExecution(pipeline, tenantId);
+    return this.runPipelineExecution(pipeline, tenantId, 0, false, execution);
+  }
+
+  /**
+   * PRC-M225: create the single run row for this execution (shared by every retry
+   * attempt). Fails with 409 when the pipeline already has a running execution.
+   */
+  private async startExecution(pipeline: Pipeline, tenantId: string): Promise<PipelineExecution> {
+    const execution: PipelineExecution = {
+      id: uuidv4(),
+      pipelineId: pipeline.id,
+      tenantId,
+      status: 'running',
+      startedAt: new Date(),
+      completedAt: null,
+      extractedCount: 0,
+      transformedCount: 0,
+      loadedCount: 0,
+      errorCount: 0,
+      errors: [],
+      lineage: buildExecutionLineage(pipeline),
+    };
+    const staleBefore = new Date(
+      Date.now() - (this.config.runningExecutionStaleMs ?? DEFAULT_RUNNING_EXECUTION_STALE_MS),
+    );
+    const started = await this.repository.createExecutionIfIdle(execution, staleBefore);
+    if (!started) {
+      throw new ConflictError(`Pipeline ${pipeline.id} already has a running execution`);
+    }
+    return execution;
   }
 
   /**
@@ -430,7 +468,26 @@ export class ETLService {
       throw new AppError('Pipeline is disabled', 'PIPELINE_DISABLED', 400);
     }
 
-    const executionId = uuidv4();
+    // PRC-M225: one run row for the whole retry sequence; 409 if one is running.
+    const execution = await this.startExecution(pipeline, tenantId);
+    const executionId = execution.id;
+
+    try {
+      return await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+    } finally {
+      // PRC-M225: retry bookkeeping is per run; drop it once the run is settled.
+      this.retryExecutor.clearState(executionId);
+    }
+  }
+
+  private async runWithRetries(
+    pipeline: Pipeline,
+    tenantId: string,
+    scheduledExecution: boolean,
+    execution: PipelineExecution,
+  ): Promise<PipelineExecution> {
+    const pipelineId = pipeline.id;
+    const executionId = execution.id;
 
     // Publish execution started event
     await this.eventPublisher.publish(
@@ -472,7 +529,13 @@ export class ETLService {
           );
         }
 
-        return this.runPipelineExecution(pipeline, tenantId, attempt, scheduledExecution);
+        return this.runPipelineExecution(
+          pipeline,
+          tenantId,
+          attempt,
+          scheduledExecution,
+          execution,
+        );
       },
     );
 
@@ -516,17 +579,11 @@ export class ETLService {
       ),
     );
 
-    // Create a failed execution record
+    // PRC-M225: settle the same run row (no extra row per attempt / on exhaustion).
     const failedExecution: PipelineExecution = {
-      id: executionId,
-      pipelineId,
-      tenantId,
+      ...execution,
       status: 'failed',
-      startedAt: new Date(),
       completedAt: new Date(),
-      extractedCount: 0,
-      transformedCount: 0,
-      loadedCount: 0,
       errorCount: 1,
       errors: [
         {
@@ -536,10 +593,9 @@ export class ETLService {
           data: null,
         },
       ],
-      lineage: buildExecutionLineage(pipeline),
     };
 
-    await this.repository.createExecution(failedExecution);
+    await this.repository.updateExecution(executionId, failedExecution);
     return failedExecution;
   }
 
@@ -551,31 +607,22 @@ export class ETLService {
     tenantId: string,
     attempt: number,
     _scheduledExecution: boolean,
+    execution: PipelineExecution,
   ): Promise<PipelineExecution> {
-    const executionId = uuidv4();
-    const startedAt = new Date();
+    const executionId = execution.id;
+    const startedAt = execution.startedAt;
 
     // Log execution start
     this.logger.logExecutionStart(executionId, pipeline.id, tenantId, attempt);
 
-    // Create execution record (thin lineage breadcrumb — P2-WH / PRD-018)
-    const execution: PipelineExecution = {
-      id: executionId,
-      pipelineId: pipeline.id,
-      tenantId,
-      status: 'running',
-      startedAt,
-      completedAt: null,
-      extractedCount: 0,
-      transformedCount: 0,
-      loadedCount: 0,
-      errorCount: 0,
-      errors: [],
-      lineage: buildExecutionLineage(pipeline),
-    };
-
-    await this.repository.createExecution(execution);
-
+    // PRC-M225: each attempt reuses the run row; reset per-attempt counters.
+    execution.status = 'running';
+    execution.completedAt = null;
+    execution.extractedCount = 0;
+    execution.transformedCount = 0;
+    execution.loadedCount = 0;
+    execution.errorCount = 0;
+    execution.errors = [];
     try {
       // PRC-M222: build + validate both connectors before touching any data, so an
       // invalid / unimplemented config fails the run instead of "succeeding".
@@ -645,7 +692,10 @@ export class ETLService {
 
       // 3. Load
       const loadStart = Date.now();
-      const loadResult = await destConnector.load(transformResult.rows);
+      // PRC-M225: run id is the idempotency key, stable across retry attempts.
+      const loadResult = await destConnector.load(transformResult.rows, {
+        idempotencyKey: executionId,
+      });
       const loadDuration = Date.now() - loadStart;
       execution.loadedCount = loadResult.loadedCount;
 

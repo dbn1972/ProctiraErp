@@ -65,13 +65,21 @@ export interface SourceConnector {
 }
 
 /**
+ * PRC-M225: per-run load context. `idempotencyKey` is stable across retry
+ * attempts of one run, so destinations can de-duplicate re-sent batches.
+ */
+export interface LoadContext {
+  idempotencyKey?: string;
+}
+
+/**
  * Destination connector interface - loads data into a destination.
  */
 export interface DestinationConnector {
   /**
    * Load rows into the configured destination.
    */
-  load(rows: DataRow[]): Promise<LoadResult>;
+  load(rows: DataRow[], context?: LoadContext): Promise<LoadResult>;
 
   /**
    * Validate the destination configuration (e.g., test connection).

@@ -186,6 +186,43 @@ export class PgPipelineRepository implements PipelineRepository {
     return { ...execution };
   }
 
+  async createExecutionIfIdle(execution: PipelineExecution, staleBefore: Date): Promise<boolean> {
+    const doc = {
+      ...execution,
+      startedAt: execution.startedAt.toISOString(),
+      completedAt: execution.completedAt?.toISOString() ?? null,
+    };
+    return this.withTenant(execution.tenantId, async (client) => {
+      // PRC-M225: a transaction-scoped advisory lock per (tenant, pipeline) serialises
+      // concurrent starts across processes; the running-check + insert happen under it.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        `etl-run:${execution.tenantId}:${execution.pipelineId}`,
+      ]);
+      const running = await client.query(
+        `SELECT 1 FROM etl_pipeline_runs
+          WHERE tenant_id=$1 AND pipeline_id=$2 AND status='running' AND started_at > $3
+          LIMIT 1`,
+        [execution.tenantId, execution.pipelineId, staleBefore.toISOString()],
+      );
+      if (running.rows.length > 0) return false;
+      await client.query(
+        `INSERT INTO etl_pipeline_runs
+           (id, tenant_id, pipeline_id, status, document, started_at, completed_at)
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`,
+        [
+          execution.id,
+          execution.tenantId,
+          execution.pipelineId,
+          execution.status,
+          JSON.stringify(doc),
+          execution.startedAt.toISOString(),
+          execution.completedAt?.toISOString() ?? null,
+        ],
+      );
+      return true;
+    });
+  }
+
   async updateExecution(
     id: string,
     updates: Partial<PipelineExecution>,

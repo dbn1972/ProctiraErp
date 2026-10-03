@@ -11,7 +11,7 @@ import type { CreatePipelineInput, Pipeline } from './schemas.js';
 import { memoryConnectorFactory } from './test-support/memory-connector-factory.js';
 
 const TENANT = 'tenant-m223';
-const retryPolicy = { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 };
+const retryPolicy = { maxRetries: 0, backoffMs: 100 };
 const input = (schedule?: string): CreatePipelineInput => ({
   name: `p-${schedule ?? 'none'}`,
   source: { type: 'csv', fileContent: 'a\n1\n', delimiter: ',', hasHeader: true },

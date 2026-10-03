@@ -65,7 +65,7 @@ function pipeline(): Pipeline {
     },
     fieldMappings: [{ sourceField: 'a', destinationField: 'a' }],
     schedule: null,
-    retryPolicy: { maxRetries: 0, initialDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1 },
+    retryPolicy: { maxRetries: 0, backoffMs: 100 },
     enabled: true,
     createdAt: now,
     updatedAt: now,

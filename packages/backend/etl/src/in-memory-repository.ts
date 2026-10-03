@@ -78,6 +78,22 @@ export class InMemoryPipelineRepository implements PipelineRepository {
     return { ...execution };
   }
 
+  async createExecutionIfIdle(execution: PipelineExecution, staleBefore: Date): Promise<boolean> {
+    // Synchronous check-and-insert: atomic within the JS thread (PRC-M225).
+    for (const e of this.executions.values()) {
+      if (
+        e.tenantId === execution.tenantId &&
+        e.pipelineId === execution.pipelineId &&
+        e.status === 'running' &&
+        e.startedAt > staleBefore
+      ) {
+        return false;
+      }
+    }
+    this.executions.set(execution.id, { ...execution });
+    return true;
+  }
+
   async updateExecution(
     id: string,
     updates: Partial<PipelineExecution>,
