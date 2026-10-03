@@ -36,6 +36,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.developer_portal_accounts',
     'public.developer_portal_webhooks',
     'public.developer_portal_webhook_deliveries',
+    'public.developer_portal_webhook_signing_secrets',
   ],
   fees: [
     'public.parent_fee_plans',

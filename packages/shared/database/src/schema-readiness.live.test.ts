@@ -89,6 +89,6 @@ describe.skipIf(!DATABASE_URL)('UP-P0-02 runtime schema readiness (live)', () =>
   it('requires the strict-FK repair and current schema marker', () => {
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('082_repair_strict_tenant_fk_validate.sql');
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('092_hostel_assignment_uniqueness.sql');
-    expect(REQUIRED_RUNTIME_MIGRATIONS.at(-1)).toBe('112_student_import_jobs.sql');
+    expect(REQUIRED_RUNTIME_MIGRATIONS.at(-1)).toBe('113_developer_portal_webhook_signing_secrets.sql');
   });
 });

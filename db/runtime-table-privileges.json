@@ -66,6 +66,7 @@
     "developer_portal_accounts": "dml",
     "developer_portal_api_keys": "dml",
     "developer_portal_webhook_deliveries": "dml",
+    "developer_portal_webhook_signing_secrets": "dml",
     "developer_portal_webhooks": "dml",
     "enquiry_followups": "dml",
     "enrollment_history": "trigger_owned",

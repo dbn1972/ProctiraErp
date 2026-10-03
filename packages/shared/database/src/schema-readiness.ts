@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '112_student_import_jobs.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '113_developer_portal_webhook_signing_secrets.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
