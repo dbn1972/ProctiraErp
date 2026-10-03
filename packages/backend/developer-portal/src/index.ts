@@ -52,7 +52,16 @@ export type {
 } from './developer-portal-service.js';
 
 // Durable webhook delivery spine (W2-JOB-07)
-export { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
+export {
+  OutboxWebhookDeliveryPublisher,
+  QueueWebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
+export {
+  assertWebhookEventsInCatalogue,
+  isCatalogueEvent,
+  WEBHOOK_EVENT_CATALOGUE,
+} from './webhook-event-catalogue.js';
+export type { WebhookCatalogueEvent } from './webhook-event-catalogue.js';
 export type {
   WebhookDeliveryJobPayload,
   WebhookDeliveryPublisher,
@@ -63,7 +72,10 @@ export type {
   WebhookDeliveryWorkerOptions,
   WebhookDeliveryProcessor,
 } from './webhook-delivery-worker.js';
-export { createWebhookDeliveryPublisherFromEnv } from './webhook-delivery-publisher-factory.js';
+export {
+  createWebhookDeliveryPublisherFromEnv,
+  webhookDeliveryUsesOutbox,
+} from './webhook-delivery-publisher-factory.js';
 export {
   createWebhookEventFanOutSubscriber,
   parseWebhookFanOutEvents,

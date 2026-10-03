@@ -25,10 +25,12 @@ import type {
   PluginAnalyticsSummary,
   AnalyticsTimeSeries,
 } from './developer-portal-repository.js';
-import type {
-  WebhookDeliveryJobPayload,
-  WebhookDeliveryPublisher,
+import {
+  OutboxWebhookDeliveryPublisher,
+  type WebhookDeliveryJobPayload,
+  type WebhookDeliveryPublisher,
 } from './queue-webhook-delivery-publisher.js';
+import { assertWebhookEventsInCatalogue, isCatalogueEvent } from './webhook-event-catalogue.js';
 import type {
   CreateDeveloperAccountInput,
   UpdateDeveloperAccountInput,
@@ -401,6 +403,9 @@ export class DeveloperPortalService {
       );
     }
 
+    // PRC-H046: subscriptions are limited to the webhook event catalogue.
+    assertWebhookEventsInCatalogue(input.events);
+
     // Generate secret if not provided
     const secret = input.secret ?? generateApiKey();
     const secretHash = hashApiKey(secret);
@@ -461,7 +466,10 @@ export class DeveloperPortalService {
       >
     > = {};
     if (input.url !== undefined) updates.url = input.url;
-    if (input.events !== undefined) updates.events = input.events;
+    if (input.events !== undefined) {
+      assertWebhookEventsInCatalogue(input.events);
+      updates.events = input.events;
+    }
     if (input.secret !== undefined) {
       updates.secretHash = hashApiKey(input.secret);
       updates.secretCiphertext = sealWebhookSecret(input.secret, {
@@ -515,19 +523,32 @@ export class DeveloperPortalService {
       createdAt: new Date(),
     };
 
+    const job = {
+      deliveryId: delivery.id,
+      webhookId: webhook.id,
+      tenantId: webhook.tenantId,
+      url: webhook.url,
+      event,
+      body: payload,
+      attempt: 0,
+    };
+    // PRC-H046: outbox publisher → delivery row and job commit together.
+    if (
+      this.deliveryPublisher instanceof OutboxWebhookDeliveryPublisher &&
+      this.repository.createDeliveryWithOutbox
+    ) {
+      return this.repository.createDeliveryWithOutbox(
+        delivery,
+        this.deliveryPublisher.buildEntry(job),
+        this.deliveryPublisher.outbox,
+      );
+    }
+
     const created = await this.repository.createDelivery(delivery);
 
     // W2-JOB-07: enqueue durable HTTP delivery (no-op publisher = pending-only residual)
     if (this.deliveryPublisher) {
-      await this.deliveryPublisher.enqueueDelivery({
-        deliveryId: created.id,
-        webhookId: webhook.id,
-        tenantId: webhook.tenantId,
-        url: webhook.url,
-        event,
-        body: payload,
-        attempt: 0,
-      });
+      await this.deliveryPublisher.enqueueDelivery({ ...job, deliveryId: created.id });
     }
 
     return created;
@@ -543,6 +564,7 @@ export class DeveloperPortalService {
     event: string,
     payload: Record<string, unknown>,
   ): Promise<WebhookDeliveryEntity[]> {
+    if (!isCatalogueEvent(event)) return [];
     const webhooks = await this.repository.listActiveWebhooksForTenant(tenantId);
     const deliveries: WebhookDeliveryEntity[] = [];
     for (const webhook of webhooks) {

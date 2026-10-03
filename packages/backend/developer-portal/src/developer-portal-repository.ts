@@ -6,6 +6,8 @@
  * documentation pages, and plugin analytics.
  */
 
+import type { NewOutboxEntry, OutboxStore } from '@proctira/queue-abstraction';
+
 // ─── Entity Types ─────────────────────────────────────────────────────────────
 
 export interface DeveloperAccountEntity {
@@ -146,6 +148,15 @@ export interface DeveloperPortalRepository {
 
   // Webhook Deliveries
   createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity>;
+  /**
+   * PRC-H046: persist the delivery row and its outbox job atomically (one transaction on
+   * Postgres). Optional: repositories without it fall back to create-then-enqueue.
+   */
+  createDeliveryWithOutbox?(
+    delivery: WebhookDeliveryEntity,
+    entry: NewOutboxEntry,
+    outbox: OutboxStore,
+  ): Promise<WebhookDeliveryEntity>;
   getDeliveryById(id: string): Promise<WebhookDeliveryEntity | null>;
   listDeliveries(
     filter: WebhookDeliveryFilter,

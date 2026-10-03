@@ -1,3 +1,4 @@
+import type { NewOutboxEntry, OutboxStore } from '@proctira/queue-abstraction';
 /**
  * Hybrid developer-portal repository:
  * - Postgres: API keys (055) + accounts/webhooks/deliveries (089) when configured
@@ -156,6 +157,15 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity> {
     if (this.durable) return this.durable.createDelivery(delivery);
     return this.memory.createDelivery(delivery);
+  }
+
+  createDeliveryWithOutbox(
+    delivery: WebhookDeliveryEntity,
+    entry: NewOutboxEntry,
+    outbox: OutboxStore,
+  ): Promise<WebhookDeliveryEntity> {
+    if (this.durable) return this.durable.createDeliveryWithOutbox(delivery, entry, outbox);
+    return this.memory.createDeliveryWithOutbox(delivery, entry, outbox);
   }
 
   getDeliveryById(id: string): Promise<WebhookDeliveryEntity | null> {

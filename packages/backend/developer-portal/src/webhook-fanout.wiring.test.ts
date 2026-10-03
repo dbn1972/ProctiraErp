@@ -16,6 +16,7 @@ import type { WebhookEntity } from './developer-portal-repository.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
 import type { WebhookDeliveryJobPayload } from './queue-webhook-delivery-publisher.js';
+import { WEBHOOK_EVENT_CATALOGUE } from './webhook-event-catalogue.js';
 import { parseWebhookFanOutEvents } from './webhook-event-fanout.js';
 import { sealWebhookSecret } from './webhook-secret-crypto.js';
 import {
@@ -184,10 +185,12 @@ describe('PRC-H046 webhook fan-out + delivery worker wiring', () => {
 describe('parseWebhookFanOutEvents', () => {
   it('parses a comma list and rejects wildcard / internal job events', () => {
     expect(parseWebhookFanOutEvents(undefined)).toEqual([]);
-    expect(parseWebhookFanOutEvents(' student.enrolled, fee.paid ,student.enrolled')).toEqual([
-      'student.enrolled',
-      'fee.paid',
-    ]);
+    expect(
+      parseWebhookFanOutEvents(' student.enrolled, fees.payment.succeeded ,student.enrolled'),
+    ).toEqual(['student.enrolled', 'fees.payment.succeeded']);
+    // PRC-H046: names outside the webhook event catalogue are refused; `catalogue` expands.
+    expect(() => parseWebhookFanOutEvents('fee.paid')).toThrow(/catalogue/);
+    expect(parseWebhookFanOutEvents('catalogue')).toEqual([...WEBHOOK_EVENT_CATALOGUE]);
     expect(() => parseWebhookFanOutEvents('#')).toThrow();
     expect(() => parseWebhookFanOutEvents('webhook.delivery')).toThrow();
   });

@@ -11,6 +11,7 @@
 import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
 
 import type { WebhookDeliveryWorkerLogger } from './webhook-delivery-worker.js';
+import { isCatalogueEvent, WEBHOOK_EVENT_CATALOGUE } from './webhook-event-catalogue.js';
 
 export interface WebhookEventFanOutProcessor {
   fanOutEvent(tenantId: string, event: string, payload: Record<string, unknown>): Promise<unknown>;
@@ -35,9 +36,13 @@ export interface WebhookEventFanOutSubscriber {
 
 const EVENT_NAME = /^[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)+$/i;
 
-/** Parse `WEBHOOK_FANOUT_EVENTS` (comma separated, validated event names). */
+/**
+ * Parse `WEBHOOK_FANOUT_EVENTS` (comma separated, validated event names). PRC-H046: every name
+ * must be in WEBHOOK_EVENT_CATALOGUE; `catalogue` expands to the whole catalogue. Unset → [].
+ */
 export function parseWebhookFanOutEvents(raw: string | undefined): string[] {
   if (!raw) return [];
+  if (raw.trim().toLowerCase() === 'catalogue') return [...WEBHOOK_EVENT_CATALOGUE];
   const events = raw
     .split(',')
     .map((e) => e.trim())
@@ -45,6 +50,9 @@ export function parseWebhookFanOutEvents(raw: string | undefined): string[] {
   for (const event of events) {
     if (!EVENT_NAME.test(event) || event.startsWith('webhook.')) {
       throw new Error(`WEBHOOK_FANOUT_EVENTS: invalid or internal event name "${event}"`);
+    }
+    if (!isCatalogueEvent(event)) {
+      throw new Error(`WEBHOOK_FANOUT_EVENTS: "${event}" is not in the webhook event catalogue`);
     }
   }
   return [...new Set(events)];

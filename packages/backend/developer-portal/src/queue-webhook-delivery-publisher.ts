@@ -3,7 +3,12 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
+import type {
+  NewOutboxEntry,
+  OutboxStore,
+  QueueAdapter,
+  QueueMessage,
+} from '@proctira/queue-abstraction';
 import { WEBHOOK_DELIVERY_JOB_TYPE } from '@proctira/queue-abstraction';
 
 /** Payload carried on `webhook.delivery` queue messages. */
@@ -44,5 +49,43 @@ export class QueueWebhookDeliveryPublisher implements WebhookDeliveryPublisher {
     };
 
     await this.queue.dispatch(message, delayMs > 0 ? { delay: delayMs } : undefined);
+  }
+}
+
+function deliveryMetadata(job: WebhookDeliveryJobPayload, delayMs: number) {
+  return {
+    correlationId: job.deliveryId,
+    delay: delayMs > 0 ? delayMs : undefined,
+    maxRetries: 5,
+    retryCount: job.attempt,
+  };
+}
+
+/**
+ * PRC-H046: transactional-outbox delivery publisher. The delivery job is written as an outbox
+ * row (in the same transaction as the delivery row when the repository supports
+ * `createDeliveryWithOutbox`); OutboxRelay dispatches it to the queue afterwards, so a broker
+ * outage can no longer leave a delivery row that is never sent.
+ */
+export class OutboxWebhookDeliveryPublisher implements WebhookDeliveryPublisher {
+  constructor(readonly outbox: OutboxStore) {}
+
+  buildEntry(job: WebhookDeliveryJobPayload, delayMs = 0): NewOutboxEntry {
+    return {
+      id: randomUUID(),
+      tenantId: job.tenantId,
+      aggregateType: 'webhook_delivery',
+      aggregateId: job.deliveryId,
+      eventType: WEBHOOK_DELIVERY_JOB_TYPE,
+      payload: job,
+      // Delay is applied by availableAt (relay claims it later), not again on dispatch.
+      metadata: deliveryMetadata(job, 0),
+      dispatchMode: 'dispatch',
+      ...(delayMs > 0 ? { availableAt: new Date(Date.now() + delayMs) } : {}),
+    };
+  }
+
+  async enqueueDelivery(job: WebhookDeliveryJobPayload, delayMs = 0): Promise<void> {
+    await this.outbox.enqueue(this.buildEntry(job, delayMs));
   }
 }

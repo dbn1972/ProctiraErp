@@ -41,11 +41,7 @@ export interface WebhookSignedHeaders extends WebhookSignatureParts {
 }
 
 export type WebhookVerifyFailureReason =
-  | 'malformed'
-  | 'expired'
-  | 'replay'
-  | 'bad_signature'
-  | 'replay_store_unavailable';
+  'malformed' | 'expired' | 'replay' | 'bad_signature' | 'replay_store_unavailable';
 
 export type WebhookVerifyResult = { ok: true } | { ok: false; reason: WebhookVerifyFailureReason };
 

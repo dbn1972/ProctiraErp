@@ -20,10 +20,7 @@ import type {
   WebhookDeliveryEntity,
   WebhookEntity,
 } from './developer-portal-repository.js';
-import {
-  generateApiKey,
-  hashApiKey,
-} from './developer-portal-service.js';
+import { generateApiKey, hashApiKey } from './developer-portal-service.js';
 import type { PgPoolLike } from './pg-api-key-store.js';
 import { PgApiKeyStore } from './pg-api-key-store.js';
 import {
@@ -150,7 +147,10 @@ function createMockPgPool(): {
       webhooks.set(String(row.id), row);
       return { rows: [row], rowCount: 1 };
     }
-    if (sql.includes('FROM developer_portal_webhooks WHERE id = $1') && sql.startsWith('SELECT *')) {
+    if (
+      sql.includes('FROM developer_portal_webhooks WHERE id = $1') &&
+      sql.startsWith('SELECT *')
+    ) {
       const found = webhooks.get(String(values![0]));
       return { rows: found ? [found] : [], rowCount: found ? 1 : 0 };
     }

@@ -694,6 +694,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # PRC-H086 / PRC-H046: real broker for DLQ/retry and webhook delivery proofs.
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
         with:
@@ -884,9 +895,19 @@ jobs:
           # ordinary repository paths continue to use DATABASE_URL above.
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
+          # PRC-H046: developer-portal webhook broker test runs against the service broker.
+          RABBITMQ_TEST_URL: amqp://guest:guest@localhost:5672
           NODE_ENV: test
           CI: true
           REQUIRE_LIVE_TESTS: '1'
+
+      # PRC-H086 / PRC-H087: broker-level retry -> DLQ and unroutable-dispatch proofs.
+      - name: Run RabbitMQ broker integration suite
+        run: pnpm --filter @proctira/queue-abstraction exec vitest run src/__tests__/rabbitmq-broker.integration.test.ts
+        env:
+          RABBITMQ_TEST_URL: amqp://guest:guest@localhost:5672
+          NODE_ENV: test
+          CI: true
 
       # W3-TEST-04: dedicated pg-gate runner asserts pg-* suites did not skip
       # when DATABASE_URL is present (complements W3-TEST-03 live gate).

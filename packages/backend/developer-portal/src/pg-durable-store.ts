@@ -1,3 +1,4 @@
+import type { NewOutboxEntry, OutboxQueryable, OutboxStore } from '@proctira/queue-abstraction';
 /**
  * Postgres-backed durable developer-portal state (W1-ARCH-01 COMPLETE).
  *
@@ -357,6 +358,24 @@ export class PgDeveloperPortalDurableStore {
   // ─── Deliveries (tenant via webhook) ──────────────────────────────────────
 
   async createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity> {
+    return this.insertDelivery(delivery);
+  }
+
+  /** PRC-H046: delivery row + outbox job in one tenant transaction. */
+  async createDeliveryWithOutbox(
+    delivery: WebhookDeliveryEntity,
+    entry: NewOutboxEntry,
+    outbox: OutboxStore,
+  ): Promise<WebhookDeliveryEntity> {
+    return this.insertDelivery(delivery, async (client) => {
+      await outbox.enqueue(entry, client as OutboxQueryable);
+    });
+  }
+
+  private async insertDelivery(
+    delivery: WebhookDeliveryEntity,
+    afterInsert?: (client: unknown) => Promise<void>,
+  ): Promise<WebhookDeliveryEntity> {
     const webhook = await this.getWebhookById(delivery.webhookId);
     if (!webhook) {
       throw new Error(`Webhook '${delivery.webhookId}' not found for delivery persistence`);
@@ -382,6 +401,7 @@ export class PgDeveloperPortalDurableStore {
           delivery.createdAt,
         ],
       );
+      if (afterInsert) await afterInsert(client);
       return mapDelivery(result.rows[0] as Record<string, unknown>);
     });
   }

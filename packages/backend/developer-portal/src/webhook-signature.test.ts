@@ -41,8 +41,7 @@ describe('webhook signature replay protection (W1-SEC-08)', () => {
   it('rejects expired signatures outside the skew window', async () => {
     const signedAtMs = 1_700_000_000_000;
     const signed = createWebhookSignatureHeaders(payload, secret, { nowMs: signedAtMs });
-    const tooLateMs =
-      signedAtMs + (WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS + 1) * 1000;
+    const tooLateMs = signedAtMs + (WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS + 1) * 1000;
     const result = await verifyWebhookSignatureSecure({
       payload,
       secret,

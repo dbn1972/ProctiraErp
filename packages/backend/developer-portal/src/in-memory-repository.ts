@@ -1,3 +1,4 @@
+import type { NewOutboxEntry, OutboxStore } from '@proctira/queue-abstraction';
 /**
  * In-Memory Developer Portal Repository
  *
@@ -187,6 +188,16 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   }
 
   // ─── Webhook Deliveries ───────────────────────────────────────────────────
+
+  async createDeliveryWithOutbox(
+    delivery: WebhookDeliveryEntity,
+    entry: NewOutboxEntry,
+    outbox: OutboxStore,
+  ): Promise<WebhookDeliveryEntity> {
+    const created = await this.createDelivery(delivery);
+    await outbox.enqueue(entry);
+    return created;
+  }
 
   async createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity> {
     this.deliveries.set(delivery.id, { ...delivery });
