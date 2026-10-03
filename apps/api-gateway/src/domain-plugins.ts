@@ -77,6 +77,7 @@ import {
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import {
+  buildSystemMoneyAuditSink,
   createFeesRepository,
   FeesService,
   feesPlugin,
@@ -987,6 +988,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                 amountCents,
                 currency: input.currency,
               },
+              // PRC-L306: netting audit is written inside the netting money transaction.
+              buildSystemMoneyAuditSink(input.tenantId, {
+                userId: 'scholarship-netting',
+                source: 'scholarship.disbursement.paid',
+              }),
             );
           },
           onDisbursementReversed: async (input) => {
@@ -994,6 +1000,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               input.tenantId,
               'scholarship-netting',
               { disbursementId: input.disbursementId },
+              buildSystemMoneyAuditSink(input.tenantId, {
+                userId: 'scholarship-netting',
+                source: 'scholarship.disbursement.reversed',
+              }),
             );
           },
         },
