@@ -28,6 +28,7 @@ export type KeycloakAccessClaims = {
   iss: string;
   exp: number;
   iat?: number;
+  nbf?: number;
   aud?: string | string[];
   azp?: string;
   email?: string;
@@ -47,6 +48,9 @@ export type KeycloakAccessClaims = {
   jti?: string;
   sid?: string;
 };
+
+/** Allowed clock skew for the `nbf` claim. */
+const NBF_SKEW_SECONDS = 30;
 
 export class KeycloakTokenError extends Error {
   constructor(message: string) {
@@ -138,11 +142,15 @@ export async function verifyKeycloakAccessToken(
   if (typeof claims.exp !== 'number' || claims.exp <= nowSeconds) {
     throw new KeycloakTokenError('Keycloak token expired');
   }
-  if (
-    config.audience &&
-    !audienceIncludes(claims.aud, config.audience) &&
-    claims.azp !== config.clientId
-  ) {
+  if (typeof claims.nbf === 'number' && claims.nbf > nowSeconds + NBF_SKEW_SECONDS) {
+    throw new KeycloakTokenError('Keycloak token not yet valid');
+  }
+  // PRC-M180: audience is always enforced. The token must either name the API
+  // audience (KEYCLOAK_AUDIENCE, defaulting to the gateway client id) in `aud`
+  // or have been issued to the gateway client itself (`azp`). A token minted
+  // for any other client in the realm is rejected even with default config.
+  const expectedAudience = config.audience?.trim() || config.clientId;
+  if (!audienceIncludes(claims.aud, expectedAudience) && claims.azp !== config.clientId) {
     throw new KeycloakTokenError('Keycloak audience mismatch');
   }
 
@@ -191,7 +199,7 @@ export function loadKeycloakAuthConfig(
     issuer,
     clientId,
     realm,
-    audience: env['KEYCLOAK_AUDIENCE'],
+    ...(env['KEYCLOAK_AUDIENCE']?.trim() ? { audience: env['KEYCLOAK_AUDIENCE'].trim() } : {}),
     jwksUri:
       env['KEYCLOAK_JWKS_URI'] ?? `${issuer.replace(/\/$/, '')}/protocol/openid-connect/certs`,
   };

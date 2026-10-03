@@ -76,7 +76,7 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     const store = new MemoryAccessTokenRevocationStore();
     const now = Math.floor(Date.now() / 1000);
     const accessToken = signRs256(
-      { sub: 'kc-user', iss: issuer, jti: 'jti-kc-logout', sid: 'sid-kc-logout', exp: now + 600 },
+      { sub: 'kc-user', iss: issuer, azp: 'proctira-gateway', jti: 'jti-kc-logout', sid: 'sid-kc-logout', exp: now + 600 },
       privateKeyPem,
     );
 
@@ -105,6 +105,7 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     const forged = unsigned({
       sub: 'attacker',
       iss: issuer,
+      azp: 'proctira-gateway',
       jti: 'jti-forged',
       sid: 'sid-victim',
       exp: now + 10 * 365 * 24 * 3600,
@@ -130,7 +131,7 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     const revoke = vi.spyOn(store, 'revoke');
     const now = Math.floor(Date.now() / 1000);
     const accessToken = signRs256(
-      { sub: 'kc-user', iss: issuer, jti: 'jti-long', sid: 'sid-long', exp: now + 365 * 24 * 3600 },
+      { sub: 'kc-user', iss: issuer, azp: 'proctira-gateway', jti: 'jti-long', sid: 'sid-long', exp: now + 365 * 24 * 3600 },
       privateKeyPem,
     );
     const app = Fastify();
@@ -154,7 +155,7 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     const store = new MemoryAccessTokenRevocationStore();
     const now = Math.floor(Date.now() / 1000);
     const accessToken = signRs256(
-      { sub: 'kc-user', iss: issuer, jti: 'jti-access', sid: 'sid-shared', exp: now + 300 },
+      { sub: 'kc-user', iss: issuer, azp: 'proctira-gateway', jti: 'jti-access', sid: 'sid-shared', exp: now + 300 },
       privateKeyPem,
     );
     const refreshToken = unsigned({

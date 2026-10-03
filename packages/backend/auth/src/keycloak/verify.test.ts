@@ -74,4 +74,51 @@ describe('Keycloak token verify', () => {
     expect(verifyRs256('a.b', 'c', publicKey)).toBe(false);
     expect(decodeJwt(token).header.alg).toBe('RS256');
   });
+
+  const pem = () => privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  const jwksFor = () =>
+    new KeycloakJwksClient(
+      config.jwksUri,
+      async () => new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] })),
+    );
+  const now = 1_700_000_000;
+  const base = { sub: 'kc-user-2', iss: issuer, exp: now + 300, iat: now, jti: 'j2' };
+
+  it('rejects a token minted for a different client with default config (PRC-M180)', async () => {
+    const token = signRs256({ ...base, azp: 'other-client', aud: ['account', 'other-client'] }, pem());
+    await expect(verifyKeycloakAccessToken(token, config, jwksFor(), now)).rejects.toThrow(
+      /audience mismatch/,
+    );
+  });
+
+  it('accepts aud naming the gateway client and enforces explicit KEYCLOAK_AUDIENCE (PRC-M180)', async () => {
+    const token = signRs256({ ...base, azp: 'mobile-app', aud: 'proctira-gateway' }, pem());
+    await expect(verifyKeycloakAccessToken(token, config, jwksFor(), now)).resolves.toBeTruthy();
+    const strict = { ...config, audience: 'proctira-api' };
+    await expect(verifyKeycloakAccessToken(token, strict, jwksFor(), now)).rejects.toThrow(
+      /audience mismatch/,
+    );
+  });
+
+  it('rejects a token whose nbf is in the future (PRC-M180)', async () => {
+    const token = signRs256({ ...base, azp: 'proctira-gateway', nbf: now + 600 }, pem());
+    await expect(verifyKeycloakAccessToken(token, config, jwksFor(), now)).rejects.toThrow(
+      /not yet valid/,
+    );
+  });
+
+  it('ignores admin roles granted on other clients (PRC-M178)', async () => {
+    const token = signRs256(
+      {
+        ...base,
+        azp: 'proctira-gateway',
+        roles: ['super-admin'],
+        resource_access: { 'other-client': { roles: ['super-admin', 'admin'] } },
+        realm_access: { roles: ['teacher'] },
+      },
+      pem(),
+    );
+    const payload = await verifyKeycloakAccessToken(token, config, jwksFor(), now);
+    expect(payload.roles.map((role) => role.roleId)).toEqual(['teacher']);
+  });
 });
