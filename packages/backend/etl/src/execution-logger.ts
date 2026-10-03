@@ -319,6 +319,19 @@ export class ExecutionLogger {
     });
   }
 
+  /** PRC-M226: a scheduled run (or the tick) failed outside an execution. */
+  logScheduledRunError(pipelineId: string, tenantId: string, message: string): void {
+    this.sink.error({
+      timestamp: new Date(),
+      level: 'error',
+      phase: 'pipeline',
+      pipelineId,
+      executionId: '',
+      tenantId,
+      message: `Scheduled run failed: ${message}`,
+    });
+  }
+
   logExecutionFailure(
     executionId: string,
     pipelineId: string,

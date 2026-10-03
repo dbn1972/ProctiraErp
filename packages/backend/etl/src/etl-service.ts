@@ -61,6 +61,9 @@ export interface ETLServiceConfig {
   runningExecutionStaleMs?: number;
 }
 
+/** PRC-M226: row errors persisted per run (errorCount still reports the total). */
+export const MAX_STORED_RUN_ERRORS = 100;
+
 /** Default abandonment window for `running` executions (PRC-M225). */
 export const DEFAULT_RUNNING_EXECUTION_STALE_MS = 6 * 60 * 60 * 1000;
 
@@ -91,7 +94,16 @@ export class ETLService {
     this.retryExecutor = config.testMode
       ? new TestableRetryExecutor(this.adminNotifier)
       : new RetryExecutor(this.adminNotifier);
-    this.scheduler = new PipelineScheduler(config.schedulerConfig);
+    this.scheduler = new PipelineScheduler({
+      // PRC-M226: scheduled-run failures go to the structured execution log.
+      onError: (error, entry) =>
+        this.logger.logScheduledRunError(
+          entry?.pipelineId ?? '',
+          entry?.tenantId ?? '',
+          error instanceof Error ? error.message : String(error),
+        ),
+      ...config.schedulerConfig,
+    });
     this.eventPublisher = config.eventPublisher ?? new InMemoryEventPublisher();
 
     // Wire up scheduler to execute pipelines when due
@@ -724,6 +736,10 @@ export class ETLService {
       });
 
       execution.errorCount = execution.errors.length;
+      // PRC-M226: keep the true count but store a bounded sample of row errors.
+      if (execution.errors.length > MAX_STORED_RUN_ERRORS) {
+        execution.errors = execution.errors.slice(0, MAX_STORED_RUN_ERRORS);
+      }
       // PRC-M227: partial failure is visible in the run status.
       execution.status = execution.errorCount > 0 ? 'completed_with_errors' : 'completed';
       execution.completedAt = new Date();

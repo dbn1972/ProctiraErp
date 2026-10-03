@@ -42,6 +42,20 @@ function reviveExecution(doc: Record<string, unknown>): PipelineExecution {
   };
 }
 
+/** PRC-M226: hard ceiling for one page (hydration reads up to this many pipelines). */
+export const MAX_PAGE_SIZE = 10_000;
+
+function pageWindow(page: number, pageSize: number): { limit: number; offset: number } {
+  const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, Math.floor(pageSize) || 1));
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  return { limit, offset: (safePage - 1) * limit };
+}
+
+/** Escape LIKE wildcards so a search term is matched literally. */
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export class PgPipelineRepository implements PipelineRepository {
   constructor(
     private readonly pool: Pool,
@@ -137,27 +151,35 @@ export class PgPipelineRepository implements PipelineRepository {
     page: number,
     pageSize: number,
   ): Promise<PipelineListResult> {
-    return this.withTenant(tenantId, async (client) => {
-      const result = await client.query(
-        `SELECT document FROM etl_pipelines WHERE tenant_id=$1 ORDER BY updated_at DESC`,
-        [tenantId],
+    // PRC-M226: filter + page in SQL (bounded rows per request), parameterised.
+    const where: string[] = ['tenant_id=$1'];
+    const params: unknown[] = [tenantId];
+    if (filter.enabled !== undefined) {
+      params.push(filter.enabled);
+      where.push(`enabled=$${params.length}`);
+    }
+    if (filter.search) {
+      params.push(`%${escapeLike(filter.search)}%`);
+      where.push(
+        `(name ILIKE $${params.length} ESCAPE '\\' OR document->>'description' ILIKE $${params.length} ESCAPE '\\')`,
       );
-      let data = result.rows.map((r) =>
+    }
+    const { limit, offset } = pageWindow(page, pageSize);
+    return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM etl_pipelines WHERE ${where.join(' AND ')}`,
+        params,
+      );
+      const result = await client.query(
+        `SELECT document FROM etl_pipelines WHERE ${where.join(' AND ')}
+          ORDER BY updated_at DESC, id
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset],
+      );
+      const data = result.rows.map((r) =>
         this.fromDocument((r as { document: Record<string, unknown> }).document),
       );
-      if (filter.search) {
-        const s = filter.search.toLowerCase();
-        data = data.filter(
-          (p) =>
-            p.name.toLowerCase().includes(s) || (p.description?.toLowerCase().includes(s) ?? false),
-        );
-      }
-      if (filter.enabled !== undefined) {
-        data = data.filter((p) => p.enabled === filter.enabled);
-      }
-      const total = data.length;
-      const offset = (page - 1) * pageSize;
-      return { data: data.slice(offset, offset + pageSize), total };
+      return { data, total: Number((count.rows[0] as { total?: number } | undefined)?.total ?? 0) };
     });
   }
 
@@ -280,18 +302,23 @@ export class PgPipelineRepository implements PipelineRepository {
     page: number,
     pageSize: number,
   ): Promise<{ data: PipelineExecution[]; total: number }> {
+    // PRC-M226: COUNT + LIMIT/OFFSET in SQL instead of loading every run.
+    const { limit, offset } = pageWindow(page, pageSize);
     return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM etl_pipeline_runs WHERE tenant_id=$1 AND pipeline_id=$2`,
+        [tenantId, pipelineId],
+      );
       const result = await client.query(
         `SELECT document FROM etl_pipeline_runs
-         WHERE tenant_id=$1 AND pipeline_id=$2 ORDER BY started_at DESC`,
-        [tenantId, pipelineId],
+         WHERE tenant_id=$1 AND pipeline_id=$2 ORDER BY started_at DESC, id
+         LIMIT $3 OFFSET $4`,
+        [tenantId, pipelineId, limit, offset],
       );
       const data = result.rows.map((r) =>
         reviveExecution((r as { document: Record<string, unknown> }).document),
       );
-      const total = data.length;
-      const offset = (page - 1) * pageSize;
-      return { data: data.slice(offset, offset + pageSize), total };
+      return { data, total: Number((count.rows[0] as { total?: number } | undefined)?.total ?? 0) };
     });
   }
 }

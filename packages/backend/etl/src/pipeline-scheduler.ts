@@ -19,6 +19,10 @@ export interface SchedulerConfig {
   checkIntervalMs: number;
   /** Timezone for cron evaluation (default: 'UTC') */
   timezone: string;
+  /** PRC-M226: max due pipelines started concurrently per tick (default 4). */
+  maxConcurrentRuns: number;
+  /** PRC-M226: receives tick / per-run errors (default: console.error). */
+  onError?: (error: unknown, entry?: ScheduleEntry) => void;
 }
 
 /**
@@ -245,6 +249,15 @@ export class PipelineScheduler {
     this.config = {
       checkIntervalMs: config.checkIntervalMs ?? 60000,
       timezone: config.timezone ?? 'UTC',
+      maxConcurrentRuns: Math.max(1, config.maxConcurrentRuns ?? 4),
+      onError:
+        config.onError ??
+        ((error, entry) =>
+          console.error('[etl-scheduler] scheduled run failed', {
+            pipelineId: entry?.pipelineId,
+            tenantId: entry?.tenantId,
+            error: error instanceof Error ? error.message : String(error),
+          })),
     };
     // PRC-M228: fail fast on an unknown IANA timezone instead of silently using UTC.
     assertValidTimezone(this.config.timezone);
@@ -346,7 +359,8 @@ export class PipelineScheduler {
     this.timer = setInterval(() => {
       if (this.stopping || this.tickInFlight) return;
       this.tickInFlight = this.tick()
-        .catch(() => undefined)
+        // PRC-M226: never swallow tick failures silently.
+        .catch((error: unknown) => this.config.onError?.(error))
         .finally(() => {
           this.tickInFlight = null;
         });
@@ -381,12 +395,24 @@ export class PipelineScheduler {
    */
   async tick(): Promise<void> {
     const duePipelines = this.getDuePipelines();
+    for (const entry of duePipelines) this.markExecuted(entry.pipelineId);
+    const callback = this.onDueCallback;
+    if (!callback) return;
 
-    for (const entry of duePipelines) {
-      this.markExecuted(entry.pipelineId);
-      if (this.onDueCallback) {
-        await this.onDueCallback(entry);
+    // PRC-M226: bounded concurrency; one slow/failing pipeline neither blocks
+    // the others nor aborts the tick, and every failure is reported.
+    let next = 0;
+    const worker = async () => {
+      while (next < duePipelines.length) {
+        const entry = duePipelines[next++]!;
+        try {
+          await callback(entry);
+        } catch (error: unknown) {
+          this.config.onError?.(error, entry);
+        }
       }
-    }
+    };
+    const width = Math.min(this.config.maxConcurrentRuns, duePipelines.length);
+    await Promise.all(Array.from({ length: width }, worker));
   }
 }
