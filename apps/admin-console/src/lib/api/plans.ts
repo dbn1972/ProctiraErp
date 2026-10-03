@@ -2,6 +2,7 @@
  * Plans + entitlements API client.
  */
 import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import { RESOURCE_ID_PATTERN, pathSegment } from './path-segment';
 
 export interface Plan {
   id: string;
@@ -84,10 +85,13 @@ export async function listPlans(): Promise<{
 export async function getPlan(
   id: string,
 ): Promise<{ plan: Plan | null; source: 'gateway' | 'stub' }> {
-  const response = await gatewayFetch<Plan>(`/plans/${id}`);
+  if (!RESOURCE_ID_PATTERN.test(id)) return { plan: null, source: 'gateway' };
+  const response = await gatewayFetch<Plan>(`/plans/${pathSegment(id)}`);
   if (response.ok && response.data) {
     return { plan: response.data, source: 'gateway' };
   }
+  // PRC-M002: a gateway answer (e.g. 404) is authoritative; fixtures only when unreachable.
+  if (response.status > 0) return { plan: null, source: 'gateway' };
   return {
     plan: STUB_PLANS.find((p) => p.id === id) ?? null,
     source: 'stub',
@@ -102,7 +106,7 @@ export interface UpdatePlanEntitlementsInput {
 export async function updatePlanEntitlements(
   input: UpdatePlanEntitlementsInput,
 ): Promise<{ ok: boolean; error?: string }> {
-  const response = await gatewayFetch<unknown>(`/plans/${input.planId}/entitlements`, {
+  const response = await gatewayFetch<unknown>(`/plans/${pathSegment(input.planId)}/entitlements`, {
     method: 'PUT',
     json: { entitlements: input.entitlements },
   });

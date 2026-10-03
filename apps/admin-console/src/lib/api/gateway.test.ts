@@ -94,13 +94,31 @@ describe('gatewayFetch', () => {
     expect(plain.error?.message).toBe('Bad');
   });
 
-  it('passes absolute URLs and non-JSON success through', async () => {
+  it('refuses absolute URLs and traversal paths without calling fetch (PRC-M001)', async () => {
+    vi.mocked(fetch).mockClear();
+    for (const bad of [
+      'https://gateway.example/api/v1/audit',
+      '//evil.example/x',
+      '/tenants/../../plugins/plg_001/approve',
+      '/tenants/%2e%2e/plugins',
+      '/tenants//suspend',
+    ]) {
+      const result = await gatewayFetch(bad);
+      expect(result).toMatchObject({ ok: false, status: 0, error: { code: 'INVALID_PATH' } });
+    }
+    await expect(gatewayFetch('https://x.example', { throwOnError: true })).rejects.toMatchObject({
+      code: 'INVALID_PATH',
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('passes non-JSON success through', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
-    const result = await gatewayFetch('https://gateway.example/api/v1/audit', {
+    const result = await gatewayFetch('/audit?x=1', {
       headers: { 'X-Trace': '1' },
       next: { revalidate: 0 },
     });
     expect(result).toMatchObject({ ok: true, status: 204, data: null });
-    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('https://gateway.example/api/v1/audit');
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/api\/v1\/audit\?x=1$/);
   });
 });

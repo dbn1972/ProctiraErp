@@ -30,11 +30,80 @@ describe('POST /api/contact', () => {
     delete process.env.CONTACT_WEBHOOK_URL;
   });
 
-  it('accepts a same-origin JSON submission', async () => {
-    const res = await POST(
-      post(valid, { origin: 'http://proctira.test', 'sec-fetch-site': 'same-origin' }),
-    );
-    expect(res.status).toBe(202);
+  it('accepts a same-origin JSON submission once the CRM accepted it', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    process.env.CONTACT_WEBHOOK_URL = 'https://crm.example/hook';
+    try {
+      const res = await POST(
+        post(valid, { origin: 'http://proctira.test', 'sec-fetch-site': 'same-origin' }),
+      );
+      expect(res.status).toBe(202);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('returns 503 with a fallback address when no sink is configured (PRC-M049)', async () => {
+    const res = await POST(post(valid, { 'x-forwarded-for': '203.0.113.90' }));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({
+      ok: false,
+      forwarded: false,
+      fallbackEmail: 'hello@proctira.org',
+    });
+  });
+
+  it('retries a failing webhook and succeeds when it recovers (PRC-M049)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+      .mockResolvedValueOnce(new Response('', { status: 502 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    process.env.CONTACT_WEBHOOK_URL = 'https://crm.example/hook';
+    try {
+      const res = await POST(post(valid, { 'x-forwarded-for': '203.0.113.91' }));
+      expect(res.status).toBe(202);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('tells the visitor it failed when the webhook stays down (PRC-M049)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 503 }));
+    process.env.CONTACT_WEBHOOK_URL = 'https://crm.example/hook';
+    try {
+      const res = await POST(post(valid, { 'x-forwarded-for': '203.0.113.92' }));
+      expect(res.status).toBe(503);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('never logs the raw name, email or organisation (PRC-M050)', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 400 }));
+    process.env.CONTACT_WEBHOOK_URL = 'https://crm.example/hook';
+    try {
+      await POST(post(valid, { 'x-forwarded-for': '203.0.113.93' }));
+      const logged = JSON.stringify([...info.mock.calls, ...warn.mock.calls]);
+      expect(logged).not.toContain(valid.email);
+      expect(logged).not.toContain(valid.name);
+      expect(logged).not.toContain(valid.organization);
+      expect(logged).not.toContain(valid.message);
+      expect(logged).toContain('@example.org');
+      expect(logged).toContain('requestId');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('rejects a cross-origin POST with 403', async () => {
@@ -74,7 +143,7 @@ describe('POST /api/contact', () => {
     process.env.CONTACT_WEBHOOK_URL = 'http://crm.internal/hook';
     try {
       const res = await POST(post(valid, { 'x-forwarded-for': '203.0.113.77' }));
-      expect(res.status).toBe(202);
+      expect(res.status).toBe(503);
       expect(((await res.json()) as { forwarded: boolean }).forwarded).toBe(false);
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {

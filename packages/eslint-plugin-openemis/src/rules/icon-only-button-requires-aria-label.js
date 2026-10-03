@@ -1,6 +1,6 @@
 /**
- * @fileoverview ESLint rule that flags any `<Button>` or `<IconButton>` (or
- * any element marked `data-icon-only`) whose only visible child is an icon
+ * @fileoverview ESLint rule that flags any native `<button>`, `<Button>` or `<IconButton>`
+ * (or any element marked `data-icon-only`) whose only visible child is an icon
  * component when no accessible name is provided. Charter / Design §K
  * (Accessibility, Requirement 37.4): "Icon-only buttons require an
  * `aria-label`; a custom ESLint rule `icon-only-button-requires-aria-label`
@@ -41,7 +41,8 @@
 
 'use strict';
 
-const DEFAULT_BUTTON_COMPONENTS = ['Button', 'IconButton'];
+// PRC-M221: the native DOM <button> is checked too (the documented `<button><Icon/></button>`).
+const DEFAULT_BUTTON_COMPONENTS = ['button', 'Button', 'IconButton'];
 const DEFAULT_ICON_PACKAGES = [
   'lucide-react',
   'react-icons',
@@ -409,6 +410,9 @@ module.exports = {
 
         // Self-closing buttons can never be icon-only — there are no children.
         if (opening.selfClosing) return;
+        // PRC-M221: `{...props}` may carry aria-label / aria-labelledby / title, which cannot
+        // be resolved statically; skip rather than report a false positive.
+        if (opening.attributes.some((attr) => attr.type === 'JSXSpreadAttribute')) return;
 
         if (!isIconOnly(node.children)) return;
 

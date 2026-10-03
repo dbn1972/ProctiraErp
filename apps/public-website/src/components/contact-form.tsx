@@ -43,6 +43,8 @@ export function ContactForm() {
   const [status, setStatus] = useState<Status>('idle');
   const [errors, setErrors] = useState<ContactFieldErrors>({});
   const [serverMessage, setServerMessage] = useState<string>('');
+  // PRC-M049: when delivery fails the server returns a fallback address to write to.
+  const [fallbackEmail, setFallbackEmail] = useState<string>('');
   // Bumped on each failed client validation so focus moves even if errors repeat.
   const [focusRequest, setFocusRequest] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
@@ -85,8 +87,14 @@ export function ContactForm() {
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as {
           error?: string;
+          fallbackEmail?: string;
         };
         setServerMessage(data.error ?? 'Something went wrong. Please try again later.');
+        setFallbackEmail(
+          typeof data.fallbackEmail === 'string' && /^[^\s@]+@[^\s@]+$/.test(data.fallbackEmail)
+            ? data.fallbackEmail
+            : '',
+        );
         setStatus('error');
         return;
       }
@@ -225,7 +233,19 @@ export function ContactForm() {
 
       <div role="status" aria-live="polite" className="min-h-[1.5rem] text-sm">
         {status === 'success' ? <p className="text-accent">{serverMessage}</p> : null}
-        {status === 'error' ? <p className="text-destructive">{serverMessage}</p> : null}
+        {status === 'error' ? (
+          <p className="text-destructive">
+            {serverMessage}
+            {fallbackEmail ? (
+              <>
+                {' '}
+                <a className="underline" href={`mailto:${fallbackEmail}`}>
+                  Email {fallbackEmail}
+                </a>
+              </>
+            ) : null}
+          </p>
+        ) : null}
         {errors.form ? <p className="text-destructive">{errors.form}</p> : null}
       </div>
     </form>

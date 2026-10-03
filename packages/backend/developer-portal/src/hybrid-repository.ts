@@ -136,7 +136,10 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   updateWebhook(
     id: string,
     updates: Partial<
-      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+      Pick<
+        WebhookEntity,
+        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
+      >
     >,
   ): Promise<WebhookEntity | null> {
     if (this.durable) return this.durable.updateWebhook(id, updates);

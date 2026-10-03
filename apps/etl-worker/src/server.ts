@@ -31,6 +31,8 @@ import {
 import { initTracing, observabilityPlugin, shutdownTracing } from '@proctira/observability';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { createEtlAuthHook, readEtlAuthConfig, type EtlAuthConfig } from './auth.js';
+
 const PORT = parseInt(process.env['ETL_WORKER_PORT'] ?? '3010', 10);
 const HOST = process.env['ETL_WORKER_HOST'] ?? '0.0.0.0';
 
@@ -47,9 +49,13 @@ export interface BuildEtlWorkerOptions {
   env?: PersistencePolicyEnv;
   /** DB probe timeout in ms (default 3000). */
   probeTimeoutMs?: number;
+  /** Override JWT verifier config (tests). Default: readEtlAuthConfig(). */
+  auth?: EtlAuthConfig;
 }
 
-function resolveEtlPersistenceMode(env: PersistencePolicyEnv = readPersistencePolicyEnv()): EtlPersistenceMode {
+function resolveEtlPersistenceMode(
+  env: PersistencePolicyEnv = readPersistencePolicyEnv(),
+): EtlPersistenceMode {
   return env.DATABASE_URL?.trim() ? 'postgres' : 'memory';
 }
 
@@ -83,15 +89,23 @@ export async function buildEtlWorkerApp(
   const persistence = resolveEtlPersistenceMode(env);
   const probeOpts = readinessOptions(options);
 
-  await fastify.register(etlPlugin, {
-    repository,
-    config: {
-      defaultRetryPolicy: {
-        maxRetries: 3,
-        backoffMs: 1000,
+  // PRC-M030: pipeline routes require a verified platform token; the tenant comes only from
+  // its verified tenantId claim. Health probes stay outside this encapsulated scope.
+  const auth = options.auth ?? readEtlAuthConfig();
+  await fastify.register(async (scope) => {
+    scope.decorateRequest('tenantId', undefined);
+    scope.decorateRequest('user', null as never);
+    scope.addHook('onRequest', createEtlAuthHook(auth));
+    await scope.register(etlPlugin, {
+      repository,
+      config: {
+        defaultRetryPolicy: {
+          maxRetries: 3,
+          backoffMs: 1000,
+        },
       },
-    },
-    prefix: '/api/v1/pipelines',
+      prefix: '/api/v1/pipelines',
+    });
   });
 
   fastify.get('/health', async (_request, reply) => {

@@ -88,7 +88,8 @@ export const PlanQuotaSchema = Type.Object({
     maxLength: 100,
     description: 'Quota metric key (e.g., "students", "institutions", "api_calls_per_day")',
   }),
-  limit: Type.Number({ minimum: 0, description: 'Maximum allowed value (-1 for unlimited)' }),
+  // PRC-M187: -1 is the documented unlimited sentinel; quotas are whole counts.
+  limit: Type.Integer({ minimum: -1, description: 'Maximum allowed value (-1 for unlimited)' }),
   description: Type.Optional(
     Type.String({ maxLength: 500, description: 'Human-readable quota description' }),
   ),
@@ -256,7 +257,7 @@ export const RecordUsageSchema = Type.Object({
     description: 'Tenant UUID',
   }),
   metric: Type.String({ minLength: 1, maxLength: 100, description: 'Usage metric key' }),
-  increment: Type.Number({ minimum: 1, description: 'Amount to increment usage by' }),
+  increment: Type.Integer({ minimum: 1, description: 'Amount to increment usage by' }),
 });
 
 export type RecordUsageInput = Static<typeof RecordUsageSchema>;

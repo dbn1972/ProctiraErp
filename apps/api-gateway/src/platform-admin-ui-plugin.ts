@@ -5,7 +5,8 @@
  *   GET/POST /tenants, GET /tenants/:id, POST lifecycle
  *   GET /plugins, GET /plugins/:id, POST decision
  *   GET/POST /break-glass, GET /break-glass/:id, POST approve/deny/revoke (PRC-H003)
- *   GET /plans, GET /themes
+ *   GET /plans, GET /plans/:id, PUT /plans/:id/entitlements (501 until billing-backed)
+ *   GET /themes, GET /themes/:id, POST /themes/:id/{approve,reject} (501 until wired)
  *   GET /platform/health, GET /platform/audit
  */
 import { randomUUID } from 'node:crypto';
@@ -41,6 +42,27 @@ type ServiceTenantStatus = NonNullable<Parameters<TenantService['listTenants']>[
 
 type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
+type TenantLifecycleVerb = 'suspend' | 'reactivate' | 'decommission' | 'offboard';
+
+/**
+ * PRC-M004: server-side tenant lifecycle transition table (console status labels). The console
+ * buttons mirror it, but the gateway is the authority: anything not listed is a 409.
+ */
+export const TENANT_LIFECYCLE_TRANSITIONS: Readonly<
+  Record<TenantLifecycleVerb, { from: readonly TenantStatus[]; to: TenantStatus }>
+> = {
+  suspend: { from: ['active'], to: 'suspended' },
+  reactivate: { from: ['suspended'], to: 'active' },
+  decommission: { from: ['active', 'suspended', 'provisioning'], to: 'decommissioning' },
+  offboard: { from: ['decommissioning'], to: 'archived' },
+};
+
+/** PRC-M004: minimum audit reason for every tenant lifecycle action (matches the console). */
+export const TENANT_LIFECYCLE_REASON_MIN = 10;
+
+/** PRC-M002: minimum plugin decision reason (console plugins/actions.ts uses the same value). */
+export const PLUGIN_DECISION_REASON_MIN = 10;
+
 interface Tenant {
   id: string;
   slug: string;
@@ -59,7 +81,7 @@ interface PluginSubmission {
   name: string;
   vendor: string;
   version: string;
-  status: 'submitted' | 'in_review' | 'approved' | 'revoked' | 'disabled';
+  status: 'submitted' | 'in_review' | 'approved' | 'rejected' | 'revoked' | 'disabled';
   submittedAt: string;
   category: string;
   description: string;
@@ -206,13 +228,29 @@ export const platformAdminUiPlugin = fp(
       }
       throw error;
     };
-    /** Same rule as the /tenant-lifecycle schemas: a 1–500 char reason is mandatory. */
+    /** PRC-M004: a 10–500 char audit reason is mandatory for every lifecycle action. */
     const reasonOf = (request: FastifyRequest): string | null => {
       const reason = (request.body as { reason?: unknown } | undefined)?.reason;
       if (typeof reason !== 'string') return null;
       const trimmed = reason.trim();
-      return trimmed.length >= 1 && trimmed.length <= 500 ? trimmed : null;
+      return trimmed.length >= TENANT_LIFECYCLE_REASON_MIN && trimmed.length <= 500
+        ? trimmed
+        : null;
     };
+    const missingReason = (reply: FastifyReply) =>
+      reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: `reason (${TENANT_LIFECYCLE_REASON_MIN}–500 characters) is required`,
+        statusCode: 400,
+      });
+    const illegalTransition = (reply: FastifyReply, action: TenantLifecycleVerb, from: string) =>
+      reply.status(409).send({
+        code: 'INVALID_TRANSITION',
+        message: `Cannot ${action} a tenant in '${from}' status.`,
+        statusCode: 409,
+      });
+    const transitionAllowed = (action: TenantLifecycleVerb, from: TenantStatus) =>
+      TENANT_LIFECYCLE_TRANSITIONS[action].from.includes(from);
     const retainDaysOf = (request: FastifyRequest): number | undefined => {
       const value = (request.body as { retainDataDays?: unknown } | undefined)?.retainDataDays;
       return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 365
@@ -308,24 +346,22 @@ export const platformAdminUiPlugin = fp(
 
     for (const action of ['suspend', 'reactivate', 'decommission'] as const) {
       fastify.post<{ Params: { id: string } }>(`/tenants/:id/${action}`, async (request, reply) => {
+        const reason = reasonOf(request);
+        if (!reason) return missingReason(reply);
         if (tenantService) {
-          const reason = reasonOf(request);
-          if (action !== 'reactivate' && !reason) {
-            return reply.status(400).send({
-              code: 'VALIDATION_ERROR',
-              message: 'reason (1–500 characters) is required',
-              statusCode: 400,
-            });
-          }
           try {
             const id = request.params.id;
+            const current = toConsoleTenant(await tenantService.getTenantById(id));
+            if (!transitionAllowed(action, current.status as TenantStatus)) {
+              return illegalTransition(reply, action, current.status);
+            }
             const updated =
               action === 'suspend'
-                ? await tenantService.suspendTenant(id, { reason: reason! })
+                ? await tenantService.suspendTenant(id, { reason })
                 : action === 'reactivate'
                   ? await tenantService.reactivateTenant(id)
                   : await tenantService.decommissionTenant(id, {
-                      reason: reason!,
+                      reason,
                       retainDataDays: retainDaysOf(request),
                     });
             return reply.send(toConsoleTenant(updated));
@@ -341,13 +377,10 @@ export const platformAdminUiPlugin = fp(
             statusCode: 404,
           });
         }
-        const next: TenantStatus =
-          action === 'suspend'
-            ? 'suspended'
-            : action === 'reactivate'
-              ? 'active'
-              : 'decommissioning';
-        const updated = { ...tenant, status: next };
+        if (!transitionAllowed(action, tenant.status)) {
+          return illegalTransition(reply, action, tenant.status);
+        }
+        const updated = { ...tenant, status: TENANT_LIFECYCLE_TRANSITIONS[action].to };
         await tenants.set(updated);
         return reply.send(updated);
       });
@@ -364,6 +397,7 @@ export const platformAdminUiPlugin = fp(
           statusCode: 501,
         });
       }
+      if (!reasonOf(request)) return missingReason(reply);
       const tenant = await tenants.get(request.params.id);
       if (!tenant) {
         return reply.status(404).send({
@@ -372,7 +406,10 @@ export const platformAdminUiPlugin = fp(
           statusCode: 404,
         });
       }
-      const updated = { ...tenant, status: 'archived' as const };
+      if (!transitionAllowed('offboard', tenant.status)) {
+        return illegalTransition(reply, 'offboard', tenant.status);
+      }
+      const updated = { ...tenant, status: TENANT_LIFECYCLE_TRANSITIONS.offboard.to };
       await tenants.set(updated);
       return reply.send(updated);
     });
@@ -394,6 +431,12 @@ export const platformAdminUiPlugin = fp(
       return reply.send(plugin);
     });
 
+    const PLUGIN_DECISION_STATUS = {
+      approve: 'approved',
+      revoke: 'revoked',
+      disable: 'disabled',
+      reject: 'rejected',
+    } as const satisfies Record<string, PluginSubmission['status']>;
     for (const action of ['approve', 'revoke', 'disable', 'reject'] as const) {
       fastify.post<{ Params: { id: string } }>(`/plugins/:id/${action}`, async (request, reply) => {
         const plugin = await plugins.get(request.params.id);
@@ -405,16 +448,19 @@ export const platformAdminUiPlugin = fp(
           });
         }
         const body = (request.body ?? {}) as { reason?: string };
-        if (!body.reason || body.reason.trim().length < 12) {
+        if (
+          typeof body.reason !== 'string' ||
+          body.reason.trim().length < PLUGIN_DECISION_REASON_MIN
+        ) {
           return reply.status(400).send({
             code: 'VALIDATION_ERROR',
-            message: 'reason must be at least 12 characters',
+            message: `reason must be at least ${PLUGIN_DECISION_REASON_MIN} characters`,
             statusCode: 400,
           });
         }
-        const status =
-          action === 'approve' ? 'approved' : action === 'disable' ? 'disabled' : 'revoked';
-        const updated = { ...plugin, status: status as PluginSubmission['status'] };
+        // PRC-M002: reject is its own terminal status, not an alias of revoke.
+        const status: PluginSubmission['status'] = PLUGIN_DECISION_STATUS[action];
+        const updated = { ...plugin, status };
         await plugins.set(updated);
         return reply.send(updated);
       });
@@ -555,23 +601,54 @@ export const platformAdminUiPlugin = fp(
       );
     });
 
-    fastify.get('/plans', async (_request, reply) => {
-      // PRC-H005: not backed by billing yet — labelled as scaffold data, not live plans.
-      return reply.send({
-        items: [
-          { id: 'plan_enterprise', name: 'Enterprise', priceMonthly: null },
-          { id: 'plan_standard', name: 'Standard', priceMonthly: null },
-        ],
-        meta: { source: 'scaffold' },
+    // PRC-H005: not backed by billing yet — labelled as scaffold data, not live plans.
+    const SCAFFOLD_PLANS = [
+      { id: 'plan_enterprise', name: 'Enterprise', priceMonthly: null, entitlements: [] },
+      { id: 'plan_standard', name: 'Standard', priceMonthly: null, entitlements: [] },
+    ];
+    const SCAFFOLD_THEMES = [{ id: 'theme_default', name: 'Default', status: 'published' }];
+    /**
+     * PRC-M002: every path the console calls is registered. Writes that have no backing service
+     * yet answer 501 so the console surfaces "not applied" instead of a generic 404.
+     */
+    const notWired = (reply: FastifyReply, what: string) =>
+      reply.status(501).send({
+        code: 'NOT_IMPLEMENTED',
+        message: `${what} is not wired to a persistent service yet; the change was not applied.`,
+        statusCode: 501,
       });
+    const scaffoldNotFound = (reply: FastifyReply, what: string) =>
+      reply.status(404).send({ code: 'NOT_FOUND', message: `${what} not found`, statusCode: 404 });
+
+    fastify.get('/plans', async (_request, reply) => {
+      return reply.send({ items: SCAFFOLD_PLANS, meta: { source: 'scaffold' } });
     });
 
-    fastify.get('/themes', async (_request, reply) => {
-      return reply.send({
-        items: [{ id: 'theme_default', name: 'Default', status: 'published' }],
-        meta: { source: 'scaffold' },
-      });
+    fastify.get<{ Params: { id: string } }>('/plans/:id', async (request, reply) => {
+      const plan = SCAFFOLD_PLANS.find((p) => p.id === request.params.id);
+      if (!plan) return scaffoldNotFound(reply, 'Plan');
+      return reply.send({ ...plan, meta: { source: 'scaffold' } });
     });
+
+    fastify.put<{ Params: { id: string } }>('/plans/:id/entitlements', async (_request, reply) =>
+      notWired(reply, 'Plan entitlement editing'),
+    );
+
+    fastify.get('/themes', async (_request, reply) => {
+      return reply.send({ items: SCAFFOLD_THEMES, meta: { source: 'scaffold' } });
+    });
+
+    fastify.get<{ Params: { id: string } }>('/themes/:id', async (request, reply) => {
+      const theme = SCAFFOLD_THEMES.find((t) => t.id === request.params.id);
+      if (!theme) return scaffoldNotFound(reply, 'Theme');
+      return reply.send({ ...theme, meta: { source: 'scaffold' } });
+    });
+
+    for (const action of ['approve', 'reject'] as const) {
+      fastify.post<{ Params: { id: string } }>(`/themes/:id/${action}`, async (_request, reply) =>
+        notWired(reply, `Theme ${action}`),
+      );
+    }
 
     // PRC-H005: health comes from real probes; nothing is reported healthy without a check.
     fastify.get('/health/system', async (_request, reply) => {

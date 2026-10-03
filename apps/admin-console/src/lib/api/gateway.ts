@@ -86,9 +86,15 @@ export async function gatewayFetch<T>(
     }
   }
 
-  const url = path.startsWith('http')
-    ? path
-    : `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`;
+  // PRC-M001: only gateway-relative paths. Absolute URLs (token exfiltration to another host)
+  // and dot/empty segments (normalised by fetch into another role area's route) are refused.
+  const unsafe = unsafeGatewayPath(path);
+  if (unsafe) {
+    const err = { code: 'INVALID_PATH', message: unsafe };
+    if (init.throwOnError) throw new GatewayError({ status: 0, ...err });
+    return { status: 0, ok: false, data: null, error: err };
+  }
+  const url = `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`;
 
   const fetchInit: RequestInit & { next?: GatewayRequestInit['next'] } = {
     ...init,
@@ -148,6 +154,24 @@ export async function gatewayFetch<T>(
   return { status: response.status, ok: true, data: (payload as T) ?? null };
 }
 
+/** Returns a reason when `path` is not a safe gateway-relative path (PRC-M001). */
+export function unsafeGatewayPath(path: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith('//')) {
+    return 'Absolute gateway URLs are not allowed.';
+  }
+  const pathname = path.split(/[?#]/, 1)[0] ?? '';
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return 'Malformed gateway path.';
+  }
+  const segments = decoded.replace(/^\//, '').split('/');
+  if (segments.some((seg) => seg === '' || seg === '.' || seg === '..' || seg.includes('\\'))) {
+    return 'Gateway path contains an empty or dot segment.';
+  }
+  return null;
+}
 function isErrorPayload(value: unknown): value is { code: string; message: string } {
   return (
     typeof value === 'object' &&
