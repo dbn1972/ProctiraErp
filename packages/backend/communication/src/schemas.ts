@@ -28,7 +28,9 @@ const ISO_DATE_TIME_PATTERN =
   '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})$';
 export const CreateCampaignSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  channels: Type.Optional(Type.Array(CommunicationChannelSchema, { maxItems: 5, uniqueItems: true })),
+  channels: Type.Optional(
+    Type.Array(CommunicationChannelSchema, { maxItems: 5, uniqueItems: true }),
+  ),
   body: Type.Optional(Type.String({ maxLength: 20_000 })),
   audienceJson: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   scheduledAt: Type.Optional(Type.String({ pattern: ISO_DATE_TIME_PATTERN })),

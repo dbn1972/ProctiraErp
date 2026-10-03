@@ -35,7 +35,9 @@ export const CreateCircularSchema = Type.Object({
   ),
   // PRC-M193: bounded fan-out (de-duplicated server-side).
   recipientIds: Type.Optional(
-    Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: MAX_CIRCULAR_RECIPIENTS }),
+    Type.Array(Type.String({ minLength: 1, maxLength: 128 }), {
+      maxItems: MAX_CIRCULAR_RECIPIENTS,
+    }),
   ),
   recipientLabels: Type.Optional(Type.Record(Type.String(), Type.String())),
   createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),

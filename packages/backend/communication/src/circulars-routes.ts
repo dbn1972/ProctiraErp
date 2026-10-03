@@ -24,12 +24,11 @@ import {
   type DeliveryLogParams,
   type DeliveryLogQuery,
 } from './circular-schemas.js';
-
+import type { CircularsService } from './circulars-service.js';
 import {
   communicationActorId,
   enforceCommunicationRouteAccess,
 } from './communication-http-guard.js';
-import type { CircularsService } from './circulars-service.js';
 import { MAX_PAGE_LIMIT, parsePageQuery } from './pagination.js';
 
 /** Resolves identities the caller may acknowledge for besides itself (PRC-M188). */
@@ -170,7 +169,6 @@ export async function registerCircularRoutes(
     }
   });
 
-
   fastify.get(
     `${prefix}/circulars`,
     async function listCircularsHandler(request: FastifyRequest, reply: FastifyReply) {
@@ -295,9 +293,7 @@ export async function registerCircularRoutes(
       // PRC-M188: bind the ack to the verified session, never to a body claim.
       const actorId = communicationActorId(request);
       if (!actorId) {
-        return reply
-          .status(403)
-          .send({ code: 'FORBIDDEN', message: 'Forbidden', statusCode: 403 });
+        return reply.status(403).send({ code: 'FORBIDDEN', message: 'Forbidden', statusCode: 403 });
       }
       const recipientId = bodyResult.data.recipientId ?? actorId;
       if (recipientId !== actorId) {
@@ -332,10 +328,11 @@ export async function registerCircularRoutes(
       if (!tenantId) return tenantRequired(reply);
       const page = parsePageQuery(request.query);
       if (!page) return invalidPage(reply);
-      const { limit: _limit, cursor: _cursor, ...filterQuery } = (request.query ?? {}) as Record<
-        string,
-        unknown
-      >;
+      const {
+        limit: _limit,
+        cursor: _cursor,
+        ...filterQuery
+      } = (request.query ?? {}) as Record<string, unknown>;
       // PRC-M192: an invalid filter is a 400, never silently widened to "all rows".
       const result = validate(DeliveryLogQuerySchema, filterQuery);
       if (!result.success) {

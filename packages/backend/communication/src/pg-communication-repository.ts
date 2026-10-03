@@ -9,7 +9,6 @@ import {
   withPgTenant,
 } from '@proctira/database';
 import type pg from 'pg';
-import { DEFAULT_PAGE, type PageRequest } from './pagination.js';
 
 import type {
   CampaignEntity,
@@ -18,6 +17,7 @@ import type {
   EmergencyBlastEntity,
   EmergencyStatus,
 } from './communication-repository.js';
+import { DEFAULT_PAGE, type PageRequest } from './pagination.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -139,7 +139,10 @@ export class PgCommunicationRepository implements CommunicationRepository {
     return mapCampaignRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async listCampaigns(tenantId: string, page: PageRequest = DEFAULT_PAGE): Promise<CampaignEntity[]> {
+  async listCampaigns(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CampaignEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,

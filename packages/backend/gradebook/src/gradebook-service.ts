@@ -38,6 +38,11 @@ import type {
   ListTranscriptsFilter,
   TranscriptIssuanceEntity,
 } from './gradebook-repository.js';
+import {
+  escapeReportCardHtml,
+  readReportCardArtifact,
+  writeReportCardArtifact,
+} from './report-card-artifact.js';
 import type {
   ComputeGpaInput,
   CreateBoardExportJobInput,
@@ -55,11 +60,11 @@ import {
   type BoardExportSignedDownload,
 } from './signed-download.js';
 import {
-  escapeReportCardHtml,
-  readReportCardArtifact,
-  writeReportCardArtifact,
-} from './report-card-artifact.js';
-import { transcriptArtifactRoot, buildTranscriptArtifacts, persistTranscriptArtifacts, transcriptArtifactPaths } from './transcript-artifact.js';
+  transcriptArtifactRoot,
+  buildTranscriptArtifacts,
+  persistTranscriptArtifacts,
+  transcriptArtifactPaths,
+} from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
   id: string;
@@ -628,7 +633,10 @@ export class GradebookService {
     const studentIds = [...new Set(entries.map((e) => e.studentId))];
     // PRC-M269: one batched entries query + one context load; pure calculation,
     // no gpa_snapshots written by ranking.
-    const ctx = await this.loadGpaContext(tenantId, { studentId: '', boardId: input.boardId ?? null });
+    const ctx = await this.loadGpaContext(tenantId, {
+      studentId: '',
+      boardId: input.boardId ?? null,
+    });
     const allEntries = await this.repo.listGradeEntries(tenantId, { studentIds });
     const byStudent = new Map<string, GradeEntryEntity[]>();
     for (const e of allEntries) {

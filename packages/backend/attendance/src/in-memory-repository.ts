@@ -169,7 +169,8 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
             updatedAt: new Date(),
           };
           this.studentAttendance.push(entity);
-          if (op.audit) pushAudit({ ...op.audit, tenantId, attendanceId: entity.id, previousStatus: null });
+          if (op.audit)
+            pushAudit({ ...op.audit, tenantId, attendanceId: entity.id, previousStatus: null });
           out.push(entity);
           continue;
         }
@@ -266,8 +267,16 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     return (
       this.academicPeriods.find((p) => {
         if (p.tenantId !== tenantId || p.status !== 'active') return false;
-        const start = Date.UTC(p.startDate.getUTCFullYear(), p.startDate.getUTCMonth(), p.startDate.getUTCDate());
-        const end = Date.UTC(p.endDate.getUTCFullYear(), p.endDate.getUTCMonth(), p.endDate.getUTCDate());
+        const start = Date.UTC(
+          p.startDate.getUTCFullYear(),
+          p.startDate.getUTCMonth(),
+          p.startDate.getUTCDate(),
+        );
+        const end = Date.UTC(
+          p.endDate.getUTCFullYear(),
+          p.endDate.getUTCMonth(),
+          p.endDate.getUTCDate(),
+        );
         return start <= asOfDay && asOfDay <= end;
       }) ?? null
     );

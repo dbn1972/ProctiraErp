@@ -111,7 +111,7 @@ export class AttendanceOpsService {
     ) {
       throw new BusinessRuleError('Regularisation does not match the attendance record');
     }
-    if (input.fromStatus !== undefined && input.fromStatus !== record.status) {
+    if (input.fromStatus !== undefined && input.fromStatus !== String(record.status)) {
       throw new ConflictError('Attendance status changed; reload and retry');
     }
     if (record.status === input.toStatus) {
@@ -163,7 +163,12 @@ export class AttendanceOpsService {
     const next = await this.store.updateRegularisation(
       tenantId,
       id,
-      { status: decision, decidedBy: actor.userId, decidedAt: nowIso(), decisionNote: note ?? null },
+      {
+        status: decision,
+        decidedBy: actor.userId,
+        decidedAt: nowIso(),
+        decisionNote: note ?? null,
+      },
       'requested',
     );
     if (!next) throw new ConflictError(`Regularisation '${id}' was already decided`);
@@ -171,22 +176,23 @@ export class AttendanceOpsService {
       // PRC-M168: status change + audit row in one tenant transaction.
       await this.withClaimRollback(
         () => this.store.updateRegularisation(tenantId, id, REOPEN, decision),
-        () => this.attendance.applyStudentAttendanceWrites(tenantId, [
-        {
-          kind: 'update',
-          id: row.attendanceId,
-          data: { status: row.toStatus as AttendanceStatus },
-          // PRC-M170: stale request (row changed since request) -> 409, no write.
-          expectedStatus: row.fromStatus as AttendanceStatus,
-          audit: {
-            id: uuidv4(),
-            previousStatus: null,
-            newStatus: row.toStatus as AttendanceStatus,
-            changedBy: actor.userId,
-            changedAt: new Date(),
-          },
-        },
-      ]),
+        () =>
+          this.attendance.applyStudentAttendanceWrites(tenantId, [
+            {
+              kind: 'update',
+              id: row.attendanceId,
+              data: { status: row.toStatus as AttendanceStatus },
+              // PRC-M170: stale request (row changed since request) -> 409, no write.
+              expectedStatus: row.fromStatus as AttendanceStatus,
+              audit: {
+                id: uuidv4(),
+                previousStatus: null,
+                newStatus: row.toStatus as AttendanceStatus,
+                changedBy: actor.userId,
+                changedAt: new Date(),
+              },
+            },
+          ]),
       );
     }
     return next;
@@ -261,7 +267,12 @@ export class AttendanceOpsService {
     const next = await this.store.updateLeave(
       tenantId,
       id,
-      { status: decision, decidedBy: actor.userId, decidedAt: nowIso(), decisionNote: note ?? null },
+      {
+        status: decision,
+        decidedBy: actor.userId,
+        decidedAt: nowIso(),
+        decisionNote: note ?? null,
+      },
       'requested',
     );
     if (!next) throw new ConflictError(`Leave request '${id}' was already decided`);

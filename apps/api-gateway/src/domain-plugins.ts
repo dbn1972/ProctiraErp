@@ -51,6 +51,7 @@ import {
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
 import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   communicationPlugin,
   createCommunicationRepository,
@@ -87,7 +88,6 @@ import {
   gradebookPlugin,
   type GradebookAuditEntry,
 } from '@proctira/backend-gradebook';
-import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   assertPhiEnvelopeConfigured,
   createHealthRepository,

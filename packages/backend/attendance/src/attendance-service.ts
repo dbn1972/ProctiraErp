@@ -135,7 +135,13 @@ export class AttendanceService {
       kind: 'update',
       id,
       data: { status, comment: comment ?? null, recordedBy },
-      audit: { id: uuidv4(), previousStatus: null, newStatus: status, changedBy: recordedBy, changedAt: new Date() },
+      audit: {
+        id: uuidv4(),
+        previousStatus: null,
+        newStatus: status,
+        changedBy: recordedBy,
+        changedAt: new Date(),
+      },
       auditOnlyOnStatusChange: true,
     };
   }
@@ -191,7 +197,12 @@ export class AttendanceService {
     if (existing) {
       // PRC-M168: update + audit row commit in one tenant transaction.
       const [updated] = await this.repository.applyStudentAttendanceWrites(tenantId, [
-        this.auditedUpdateOp(existing.id, input.status as AttendanceStatus, input.comment, recordedBy),
+        this.auditedUpdateOp(
+          existing.id,
+          input.status as AttendanceStatus,
+          input.comment,
+          recordedBy,
+        ),
       ]);
       return updated!;
     }

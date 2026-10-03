@@ -49,9 +49,9 @@ describe('PRC-M264 grade entry concurrency', () => {
     await service.transitionGradeEntry(TENANT, created.id, 'submit');
     const realGet = repo.getGradeEntry.bind(repo);
     repo.getGradeEntry = async () => stale;
-    await expect(
-      service.transitionGradeEntry(TENANT, created.id, 'submit'),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(service.transitionGradeEntry(TENANT, created.id, 'submit')).rejects.toMatchObject({
+      statusCode: 409,
+    });
     repo.getGradeEntry = realGet;
   });
 });

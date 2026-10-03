@@ -287,7 +287,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
            FOR UPDATE`;
         const current = locked[0];
         if (!current) throw new NotFoundError(`Attendance record '${op.id}' not found`);
-        if (op.expectedStatus !== undefined && current.status !== op.expectedStatus) {
+        if (op.expectedStatus !== undefined && current.status !== String(op.expectedStatus)) {
           throw new ConflictError(
             `Attendance record '${op.id}' changed since the request (now ${current.status})`,
           );

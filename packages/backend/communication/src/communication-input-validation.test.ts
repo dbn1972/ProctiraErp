@@ -40,7 +40,10 @@ describe('PRC-M192 communication input validation', () => {
     });
 
   it('delivery-log ?status=bogus -> 400', async () => {
-    const res = await app.inject({ method: 'GET', url: '/communication/delivery-log?status=bogus' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/communication/delivery-log?status=bogus',
+    });
     expect(res.statusCode).toBe(400);
     const ch = await app.inject({ method: 'GET', url: '/communication/delivery-log?channel=xyz' });
     expect(ch.statusCode).toBe(400);

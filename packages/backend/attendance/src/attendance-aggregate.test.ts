@@ -12,7 +12,12 @@ const TENANT_ID = 'tenant-001';
 const INSTITUTION_ID = '11111111-1111-4111-8111-111111111111';
 const CLASS_ID = '22222222-2222-4222-8222-222222222222';
 
-async function seed(repo: InMemoryAttendanceRepository, studentId: string, status: AttendanceStatus, date: string) {
+async function seed(
+  repo: InMemoryAttendanceRepository,
+  studentId: string,
+  status: AttendanceStatus,
+  date: string,
+) {
   await repo.createStudentAttendance({
     id: `${studentId}-${date}`,
     tenantId: TENANT_ID,

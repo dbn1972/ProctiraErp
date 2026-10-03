@@ -8,7 +8,8 @@ const StatusUnion = Type.Union([
   Type.Literal('EARLY_DEPARTURE'),
 ]);
 
-const UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+const UUID_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
 /**
  * PRC-M170: attendanceId must be a UUID; studentId/classId/attendanceDate are

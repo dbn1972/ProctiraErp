@@ -21,7 +21,10 @@ export class InMemoryCommunicationRepository implements CommunicationRepository 
     return entity;
   }
 
-  async listCampaigns(tenantId: string, page: PageRequest = DEFAULT_PAGE): Promise<CampaignEntity[]> {
+  async listCampaigns(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CampaignEntity[]> {
     const rows = this.campaigns
       .filter((c) => c.tenantId === tenantId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

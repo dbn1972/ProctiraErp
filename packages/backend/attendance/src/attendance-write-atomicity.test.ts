@@ -91,7 +91,9 @@ describe('PRC-M168 attendance write atomicity', () => {
       PARENT,
     );
     repo.failAuditOnCall = 1;
-    await expect(ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER)).rejects.toThrow();
+    await expect(
+      ops.decideRegularisation(TENANT_ID, req.id, 'approved', APPROVER),
+    ).rejects.toThrow();
     expect(repo.getStudentAttendanceRecords()[0]?.status).toBe(AttendanceStatus.ABSENT);
     expect((await store.getRegularisation(TENANT_ID, req.id))?.status).toBe('requested');
   });
@@ -195,8 +197,7 @@ describe('PRC-M171 decision compare-and-set', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(
       results.filter(
-        (r) =>
-          r.status === 'rejected' && (r.reason as { statusCode?: number }).statusCode === 409,
+        (r) => r.status === 'rejected' && (r.reason as { statusCode?: number }).statusCode === 409,
       ),
     ).toHaveLength(1);
   });

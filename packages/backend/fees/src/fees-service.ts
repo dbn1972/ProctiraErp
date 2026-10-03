@@ -535,7 +535,11 @@ export class FeesService {
       if (existing) return this.replayIdempotentPayment(tenantId, existing, input, payerUserId);
     }
 
-    let settled: { invoice: FeeInvoiceEntity; payment: FeePaymentEntity; receipt: FeeReceiptEntity };
+    let settled: {
+      invoice: FeeInvoiceEntity;
+      payment: FeePaymentEntity;
+      receipt: FeeReceiptEntity;
+    };
     try {
       settled = await this.settlePayment(tenantId, actorId, input, idempotencyKey, options);
     } catch (err) {
@@ -571,7 +575,9 @@ export class FeesService {
     const invoice = await this.getInvoice(tenantId, existing.invoiceId);
     const receipt = await this.repository.findReceiptByPaymentId(tenantId, existing.id);
     if (!receipt) {
-      throw new BusinessRuleError('Idempotent payment is missing its receipt — refuse silent repair');
+      throw new BusinessRuleError(
+        'Idempotent payment is missing its receipt — refuse silent repair',
+      );
     }
     return { invoice, payment: existing, receipt, idempotent: true };
   }
@@ -1050,9 +1056,7 @@ export class FeesService {
       // PRC-M245: a manual concession larger than the unpaid balance is rejected;
       // scholarship netting (sourceDisbursementId) credits at most the unpaid balance.
       if (discount > unpaid && concession.sourceDisbursementId == null) {
-        throw new BusinessRuleError(
-          `Concession ${discount} exceeds unpaid balance ${unpaid}`,
-        );
+        throw new BusinessRuleError(`Concession ${discount} exceeds unpaid balance ${unpaid}`);
       }
       const applied = Math.min(discount, unpaid);
       const nextAmount = invoice.amountCents - applied;

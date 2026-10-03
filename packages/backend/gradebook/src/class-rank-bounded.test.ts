@@ -19,8 +19,9 @@ describe('PRC-M269 class rank', () => {
       });
     }
     repo.gradeEntryQueries = 0;
-    const before = (await Promise.all([0, 1, 2].map((i) => repo.listGpaSnapshots(TENANT, student(i)))))
-      .flat().length;
+    const before = (
+      await Promise.all([0, 1, 2].map((i) => repo.listGpaSnapshots(TENANT, student(i))))
+    ).flat().length;
     const result = await service.computeClassRank(TENANT, {
       sectionId: SECTION,
       boardId: BOARD,
@@ -29,7 +30,8 @@ describe('PRC-M269 class rank', () => {
     expect(result.ranks).toHaveLength(200);
     expect(repo.gradeEntryQueries).toBe(2); // section entries + one batched student load
     let snapshots = 0;
-    for (let i = 0; i < 200; i += 1) snapshots += (await repo.listGpaSnapshots(TENANT, student(i))).length;
+    for (let i = 0; i < 200; i += 1)
+      snapshots += (await repo.listGpaSnapshots(TENANT, student(i))).length;
     expect(snapshots).toBe(before);
     const top = result.ranks.find((r) => r.classRank === 1);
     expect(top?.weightedGpa).toBeGreaterThan(0);

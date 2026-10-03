@@ -3,7 +3,6 @@
  */
 import type { PageRequest } from './pagination.js';
 
-
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type EmergencyStatus = 'pending_confirm' | 'confirmed' | 'sent' | 'cancelled';
 

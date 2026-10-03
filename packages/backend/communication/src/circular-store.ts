@@ -138,7 +138,10 @@ export class InMemoryCircularStore implements CircularStore {
     return clone(record);
   }
 
-  async listCirculars(tenantId: string, page: PageRequest = DEFAULT_PAGE): Promise<CircularRecord[]> {
+  async listCirculars(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CircularRecord[]> {
     const rows = [...this.circulars.values()]
       .filter((row) => row.tenantId === tenantId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
