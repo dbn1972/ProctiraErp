@@ -7,6 +7,7 @@
  * Requirements: 11.1, 11.2, 11.3, 11.4, 11.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
 import type {
   EligibilityCriteria,
@@ -262,10 +263,15 @@ export interface ScholarshipRepository {
   createDisbursement(
     data: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<DisbursementEntity>;
+  /**
+   * PRC-H084: `inTx` runs on the same transaction as the status write (Pg client,
+   * or null in-memory); if it throws, the update is rolled back.
+   */
   updateDisbursement(
     id: string,
     tenantId: string,
     data: Partial<DisbursementEntity>,
+    inTx?: (tx: ScholarshipTxClient) => Promise<void>,
   ): Promise<DisbursementEntity | null>;
   findDisbursementById(id: string, tenantId: string): Promise<DisbursementEntity | null>;
   listDisbursements(

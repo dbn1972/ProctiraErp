@@ -10,6 +10,11 @@ import {
 import { InMemoryScholarshipRepository } from './in-memory-repository.js';
 import { getSharedScholarshipPool, PgScholarshipRepository } from './pg-scholarship-repository.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
+import {
+  InMemoryScholarshipFeeOutbox,
+  PgScholarshipFeeOutbox,
+  type ScholarshipFeeOutbox,
+} from './scholarship-fee-outbox.js';
 
 export function isPgScholarshipEnabled(): boolean {
   const url = process.env.DATABASE_URL?.trim();
@@ -24,4 +29,17 @@ export function createScholarshipRepository(): ScholarshipRepository {
   }
   assertInMemoryFallbackAllowed('scholarship');
   return new InMemoryScholarshipRepository();
+}
+
+/**
+ * PRC-H084: disbursement->fees outbox. Pg targets `scholarship_fee_outbox`; if that
+ * table is absent, `isAvailable()` is false and the service keeps the legacy path.
+ */
+export function createScholarshipFeeOutbox(): ScholarshipFeeOutbox {
+  if (isPgScholarshipEnabled()) {
+    const pool = getSharedScholarshipPool();
+    assertPostgresRepositoryAvailable('scholarship', pool);
+    return new PgScholarshipFeeOutbox(pool);
+  }
+  return new InMemoryScholarshipFeeOutbox();
 }

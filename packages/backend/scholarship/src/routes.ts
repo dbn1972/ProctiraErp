@@ -741,6 +741,73 @@ export async function registerScholarshipRoutes(
   );
 
   /**
+   * PRC-H084: GET /scholarships/fee-outbox — undelivered disbursement->fees rows (reconcile view).
+   */
+  fastify.get(`${prefix}/fee-outbox`, async function listFeeOutboxHandler(request, reply) {
+    if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const rows = await scholarshipService.listOpenFeeOutbox(tenantId);
+    return reply.status(200).send({
+      data: rows.map((r) => ({
+        id: r.id,
+        disbursementId: r.disbursementId,
+        event: r.event,
+        status: r.status,
+        attempts: r.attempts,
+        lastError: r.lastError,
+        nextAttemptAt: r.nextAttemptAt.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  });
+  /**
+   * PRC-H084: POST /scholarships/fee-outbox/replay — requeue + redeliver (one id or all open).
+   * Fee hooks are disbursementId-idempotent, so replay nets once.
+   */
+  fastify.post(
+    `${prefix}/fee-outbox/replay`,
+    async function replayFeeOutboxHandler(
+      request: FastifyRequest<{ Body: { id?: unknown } | undefined }>,
+      reply: FastifyReply,
+    ) {
+      if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      const rawId = request.body?.id;
+      if (rawId !== undefined && (typeof rawId !== 'string' || !/^[0-9a-f-]{36}$/i.test(rawId))) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'id must be a UUID',
+          statusCode: 400,
+        });
+      }
+      try {
+        const result = await scholarshipService.replayFeeOutbox(tenantId, {
+          id: rawId as string | undefined,
+        });
+        return reply.status(200).send(result);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+  /**
    * PUT /scholarships/disbursements/:id - Update disbursement status
    */
   fastify.put(

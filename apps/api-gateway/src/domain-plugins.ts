@@ -124,6 +124,7 @@ import {
 import { reportCataloguePlugin } from '@proctira/backend-report';
 import {
   createScholarshipDocumentStore,
+  createScholarshipFeeOutbox,
   createScholarshipRepository,
   isPgScholarshipEnabled,
   linkedStudentIdsForParent,
@@ -975,6 +976,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               (await createStudentRepository().findById(studentId, tenantId)) !== null
           : undefined,
         serviceOptions: {
+          // PRC-H084: status + outbox row in one txn; hooks delivered/retried from the outbox.
+          feeOutbox: createScholarshipFeeOutbox(),
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
             const amountCents = input.amountCents ?? majorUnitsToCents(input.amount);

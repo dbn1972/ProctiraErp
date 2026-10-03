@@ -6,6 +6,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { majorUnitsNumberFromCents } from '@proctira/common';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
 import type {
   ScholarshipProgramEntity,
@@ -327,11 +328,14 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     id: string,
     tenantId: string,
     data: Partial<DisbursementEntity>,
+    inTx?: (tx: ScholarshipTxClient) => Promise<void>,
   ): Promise<DisbursementEntity | null> {
     const existing = this.disbursements.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
     }
+    // PRC-H084: run the in-transaction side effect first; a throw leaves the row untouched.
+    if (inTx) await inTx(null);
     const updated: DisbursementEntity = {
       ...existing,
       ...data,
