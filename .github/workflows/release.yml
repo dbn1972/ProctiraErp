@@ -169,6 +169,9 @@ jobs:
         env:
           MANUAL_SERVICES: ${{ inputs.services }}
           FORCE_ALL: ${{ inputs.force-all }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ needs.ci-gate.outputs.head-branch }}
+          HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
         run: |
           set -euo pipefail
 
@@ -176,7 +179,7 @@ jobs:
           # Canonical runtime: api-gateway (+ portals) + etl-worker (+ dr-tools).
           # institution…report are W1-OPS-16 NON-PROD / lab split-domain images
           # (still buildable; not the default deploy path).
-          ALL_SERVICES="api-gateway,web,registration-portal,admin-console,developer-portal,install-wizard,public-website,etl-worker,dr-tools,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+          ALL_SERVICES="$(node -e 'import("./tools/scripts/detect-affected-services.mjs").then((m) => console.log(m.servicesInScope(m.loadManifest(), "release").join(",")))')"
 
           # Manual override via workflow_dispatch.
           if [ "${FORCE_ALL:-false}" = "true" ]; then
@@ -193,60 +196,14 @@ jobs:
             exit 0
           fi
 
-          # Path -> service-name mapping. Multiple paths can map to the same
-          # service (e.g. when a feature spans backend + tooling).
-          declare -A SERVICE_MAP=(
-            ["apps/api-gateway"]="api-gateway"
-            ["apps/web"]="web"
-            ["apps/registration-portal"]="registration-portal"
-            ["apps/admin-console"]="admin-console"
-            ["apps/developer-portal"]="developer-portal"
-            ["apps/install-wizard"]="install-wizard"
-            ["apps/public-website"]="public-website"
-            ["apps/etl-worker"]="etl-worker"
-            ["tools/scripts"]="dr-tools"
-            ["packages/backend/institution"]="institution"
-            ["packages/backend/student"]="student"
-            ["packages/backend/staff"]="staff"
-            ["packages/backend/assessment"]="assessment"
-            ["packages/backend/attendance"]="attendance"
-            ["packages/backend/examination"]="examination"
-            ["packages/backend/workflow"]="workflow"
-            ["packages/backend/notification"]="notification"
-            ["packages/backend/report"]="report"
-          )
-
-          # Compare against the previous commit. On force-pushed branches HEAD~1
-          # may not exist; fall back gracefully.
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
-          else
-            echo "No previous commit available; treating as full release"
-            echo "services=${ALL_SERVICES}" >> "$GITHUB_OUTPUT"
-            echo "has-services=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Shared package or Dockerfile changes trigger a full release because
-          # all services share the same base layers and shared library code.
-          if echo "$CHANGED_FILES" | grep -qE "^(packages/shared/|infrastructure/docker/|Dockerfile|pnpm-lock\.yaml|turbo\.json|tsconfig\.base\.json)"; then
-            echo "Shared/infra change detected: building all services"
-            echo "services=${ALL_SERVICES}" >> "$GITHUB_OUTPUT"
-            echo "has-services=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          SERVICES=""
-          for path in "${!SERVICE_MAP[@]}"; do
-            if echo "$CHANGED_FILES" | grep -q "^${path}/"; then
-              if [ -n "$SERVICES" ]; then
-                SERVICES="${SERVICES},${SERVICE_MAP[$path]}"
-              else
-                SERVICES="${SERVICE_MAP[$path]}"
-              fi
-            fi
-          done
-
+          # PRC-M259: diff every commit since the last successful release of this
+          # branch (not HEAD~1), using the shared tools/scripts/services.json
+          # manifest. An unknown base fails safe to a full release.
+          BASE_SHA=$(gh run list -R "$GITHUB_REPOSITORY" --workflow release.yml --branch "$HEAD_BRANCH" \
+            --status success --limit 1 --json headSha -q '.[0].headSha' 2>/dev/null || true)
+          echo "Diff base: ${BASE_SHA:-<none; full release>}"
+          SERVICES=$(node tools/scripts/detect-affected-services.mjs affected --workflow release \
+            --base "${BASE_SHA:-}" --head "$HEAD_SHA")
           if [ -z "$SERVICES" ]; then
             echo "No service changes detected; skipping image builds"
             echo "services=" >> "$GITHUB_OUTPUT"
@@ -325,61 +282,8 @@ jobs:
           SERVICE: ${{ matrix.service }}
         run: |
           set -euo pipefail
-          case "$SERVICE" in
-            api-gateway)
-              DOCKERFILE="infrastructure/docker/Dockerfile.api-gateway"
-              BUILD_ARGS=""
-              ;;
-            web)
-              DOCKERFILE="infrastructure/docker/Dockerfile.web"
-              BUILD_ARGS=""
-              ;;
-            registration-portal|admin-console|developer-portal|install-wizard|public-website)
-              # G-724: every Next.js app ships through the generic standalone
-              # Dockerfile; ports mirror each app's `next start --port`.
-              DOCKERFILE="infrastructure/docker/Dockerfile.nextjs-app"
-              declare -A NEXT_PORT_MAP=(
-                ["registration-portal"]="3002"
-                ["public-website"]="3004"
-                ["developer-portal"]="3005"
-                ["admin-console"]="3014"
-                ["install-wizard"]="3100"
-              )
-              BUILD_ARGS=$'APP_NAME='"$SERVICE"$'\nAPP_PORT='"${NEXT_PORT_MAP[$SERVICE]}"
-              ;;
-            etl-worker)
-              DOCKERFILE="infrastructure/docker/Dockerfile.etl-worker"
-              BUILD_ARGS=""
-              ;;
-            dr-tools)
-              # G-707: image run by the backup / PHI-retention CronJobs.
-              DOCKERFILE="infrastructure/docker/Dockerfile.dr-tools"
-              BUILD_ARGS=""
-              ;;
-            *)
-              DOCKERFILE="infrastructure/docker/Dockerfile.backend-service"
-              declare -A PORT_MAP=(
-                ["institution"]="3020"
-                ["student"]="3021"
-                ["staff"]="3022"
-                ["assessment"]="3023"
-                ["attendance"]="3024"
-                ["examination"]="3025"
-                ["workflow"]="3026"
-                ["notification"]="3027"
-                ["report"]="3028"
-              )
-              PORT="${PORT_MAP[$SERVICE]:-3000}"
-              BUILD_ARGS=$'SERVICE_NAME='"$SERVICE"$'\nSERVICE_PORT='"$PORT"
-              ;;
-          esac
-          echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
-          {
-            echo 'build-args<<EOF'
-            echo "$BUILD_ARGS"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-
+          # PRC-M259: shared manifest (tools/scripts/services.json) — same mapping as deploy.yml.
+          node tools/scripts/detect-affected-services.mjs docker-config --service "$SERVICE" >> "$GITHUB_OUTPUT"
       # docker/metadata-action computes the canonical set of tags and labels
       # following OCI and OpenContainers conventions. Tags include:
       #   - branch name (e.g. develop, main)

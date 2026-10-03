@@ -203,59 +203,27 @@ jobs:
 
       - name: Detect affected services
         id: affected
+        env:
+          MANUAL_SERVICES: ${{ inputs.services }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ needs.ci-gate.outputs.head-branch }}
+          HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
         run: |
-          if [ -n "${{ inputs.services }}" ]; then
-            echo "services=${{ inputs.services }}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ -n "${MANUAL_SERVICES:-}" ]; then
+            echo "services=${MANUAL_SERVICES}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          SERVICES=""
-
-          # W1-OPS-16 — canonical topology = in-process gateway.
-          # Domain package changes redeploy api-gateway (not orphan split services).
-          # Split names (institution, student, …) only via inputs.services (lab).
-          declare -A SERVICE_MAP=(
-            ["apps/api-gateway"]="api-gateway"
-            ["apps/web"]="web"
-            ["apps/registration-portal"]="registration-portal"
-            ["apps/etl-worker"]="etl-worker"
-            ["packages/backend/"]="api-gateway"
-            ["db/"]="api-gateway"
-            ["tools/scripts/run-target-database-migrations.sh"]="api-gateway"
-            ["tools/scripts/assert-runtime-schema-ready.sh"]="api-gateway"
-            ["tools/scripts/required-migrations-lib.sh"]="api-gateway"
-            [".github/workflows/deploy.yml"]="api-gateway"
-          )
-
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-
-          # The per-service chart is shared by every canonical workload.
-          if echo "$CHANGED_FILES" | grep -q "^infrastructure/helm/proctira-service/"; then
-            SERVICES="api-gateway,web,registration-portal,etl-worker"
-          fi
-
-          # Shared packages → canonical fan-out (no split-domain releases)
-          if echo "$CHANGED_FILES" | grep -q "^packages/shared/"; then
-            SERVICES="api-gateway,web,registration-portal,etl-worker"
-            echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          for path in "${!SERVICE_MAP[@]}"; do
-            if echo "$CHANGED_FILES" | grep -q "^${path}"; then
-              if [ -n "$SERVICES" ]; then
-                case ",${SERVICES}," in
-                  *",${SERVICE_MAP[$path]},"*) ;;
-                  *) SERVICES="${SERVICES},${SERVICE_MAP[$path]}" ;;
-                esac
-              else
-                SERVICES="${SERVICE_MAP[$path]}"
-              fi
-            fi
-          done
-
+          # PRC-M259: diff every commit since the last successful deploy of this
+          # branch (not HEAD~1). Service paths live in tools/scripts/services.json;
+          # an unknown base fails safe to every canonical service.
+          BASE_SHA=$(gh run list -R "$GITHUB_REPOSITORY" --workflow deploy.yml --branch "$HEAD_BRANCH" \
+            --status success --limit 1 --json headSha -q '.[0].headSha' 2>/dev/null || true)
+          echo "Diff base: ${BASE_SHA:-<none; full canonical fan-out>}"
+          SERVICES=$(node tools/scripts/detect-affected-services.mjs affected --workflow deploy \
+            --base "${BASE_SHA:-}" --head "$HEAD_SHA")
+          echo "Affected services: ${SERVICES:-<none>}"
           echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
-
   # ---------------------------------------------------------------------------
   # W1-OPS-15 — Explicit secrets gate (aggregate fail when deploy was skipped
   # because secrets were missing). Production already fails in prepare; this
@@ -325,46 +293,12 @@ jobs:
 
       - name: Determine Dockerfile and build args
         id: docker-config
+        env:
+          SERVICE: ${{ matrix.service }}
         run: |
-          SERVICE="${{ matrix.service }}"
-
-          case "$SERVICE" in
-            api-gateway)
-              echo "dockerfile=infrastructure/docker/Dockerfile.api-gateway" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            web)
-              echo "dockerfile=infrastructure/docker/Dockerfile.web" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            registration-portal)
-              echo "dockerfile=infrastructure/docker/Dockerfile.nextjs-app" >> "$GITHUB_OUTPUT"
-              printf 'build-args=APP_NAME=registration-portal\nAPP_PORT=3002\n' >> "$GITHUB_OUTPUT"
-              ;;
-            etl-worker)
-              echo "dockerfile=infrastructure/docker/Dockerfile.etl-worker" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              # Backend services use the generic Dockerfile
-              echo "dockerfile=infrastructure/docker/Dockerfile.backend-service" >> "$GITHUB_OUTPUT"
-              # Map service name to port
-              declare -A PORT_MAP=(
-                ["institution"]="3020"
-                ["student"]="3021"
-                ["staff"]="3022"
-                ["assessment"]="3023"
-                ["attendance"]="3024"
-                ["examination"]="3025"
-                ["workflow"]="3026"
-                ["notification"]="3027"
-                ["report"]="3028"
-              )
-              PORT="${PORT_MAP[$SERVICE]:-3000}"
-              printf "build-args=SERVICE_NAME=%s\nSERVICE_PORT=%s\n" "$SERVICE" "$PORT" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
+          set -euo pipefail
+          # PRC-M259: shared manifest (tools/scripts/services.json) for every app.
+          node tools/scripts/detect-affected-services.mjs docker-config --service "$SERVICE" >> "$GITHUB_OUTPUT"
       - name: Compute image repository
         id: image-ref
         env:
