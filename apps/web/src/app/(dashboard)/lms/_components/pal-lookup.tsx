@@ -9,11 +9,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 import type { SpiralPlanItem } from '@/lib/api/lms';
 import { cn } from '@/lib/utils';
 
-import {
-  lookupStudentPalAction,
-  searchPalStudentsAction,
-  type PalLookupState,
-} from '../actions';
+import { lookupStudentPalAction, searchPalStudentsAction, type PalLookupState } from '../actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

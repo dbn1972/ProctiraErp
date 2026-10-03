@@ -175,11 +175,7 @@ export default async function ScholarshipDisbursementsPage(props: {
           iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
           label="Failed transfers"
           value={failed.length.toLocaleString()}
-          foot={
-            failed.length > 0
-              ? `${formatTotals(failed)} pending retry`
-              : 'No failed transfers'
-          }
+          foot={failed.length > 0 ? `${formatTotals(failed)} pending retry` : 'No failed transfers'}
         />
         <KpiCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
@@ -216,8 +212,7 @@ export default async function ScholarshipDisbursementsPage(props: {
               {failed.length === 1 ? '' : 's'}
             </p>
             <p className="text-xs opacity-90">
-              {formatTotals(failed)} needs retry. Confirm bank details before
-              reprocessing.
+              {formatTotals(failed)} needs retry. Confirm bank details before reprocessing.
             </p>
           </div>
           <RetryFailedTransfersButton failedIds={failed.map((d) => d.id)} />

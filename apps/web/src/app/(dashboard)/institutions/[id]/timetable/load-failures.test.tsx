@@ -202,9 +202,7 @@ describe('class filter (PRC-M103)', () => {
 
   it('list view with class=9-B shows only 9-B meetings', async () => {
     const { default: Page } = await import('./page');
-    render(
-      await Page({ params, searchParams: Promise.resolve({ view: 'list', class: '9-B' }) }),
-    );
+    render(await Page({ params, searchParams: Promise.resolve({ view: 'list', class: '9-B' }) }));
     const table = screen.getByRole('table', { name: 'Meetings' });
     expect(table.textContent).toContain('9B');
     expect(table.textContent).not.toContain('10A');
@@ -214,9 +212,14 @@ describe('class filter (PRC-M103)', () => {
   it('defaults to all classes and an unbanded section is selectable', async () => {
     const { default: Page } = await import('./page');
     render(await Page({ params, searchParams: Promise.resolve({ view: 'list' }) }));
-    expect(screen.getByRole('table', { name: 'Meetings' }).querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(
+      screen.getByRole('table', { name: 'Meetings' }).querySelectorAll('tbody tr'),
+    ).toHaveLength(3);
     render(
-      await Page({ params, searchParams: Promise.resolve({ view: 'list', class: 'section:club' }) }),
+      await Page({
+        params,
+        searchParams: Promise.resolve({ view: 'list', class: 'section:club' }),
+      }),
     );
     const tables = screen.getAllByRole('table', { name: 'Meetings' });
     expect(tables[1]!.querySelectorAll('tbody tr')).toHaveLength(1);

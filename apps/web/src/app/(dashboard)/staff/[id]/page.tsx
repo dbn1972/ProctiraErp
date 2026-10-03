@@ -131,7 +131,6 @@ interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-
 /* ──────────────────────────────────────────── Avatar palette ── */
 
 const AVATAR_PALETTES = [

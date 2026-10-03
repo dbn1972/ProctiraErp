@@ -349,7 +349,10 @@ export class NotificationService {
 
     const template = await this.repository.getTemplateById(tenantId, notification.templateId);
     if (!template) {
-      await this.handleDeliveryFailure(notification, `Template '${notification.templateId}' not found`);
+      await this.handleDeliveryFailure(
+        notification,
+        `Template '${notification.templateId}' not found`,
+      );
       return true;
     }
 

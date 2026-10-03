@@ -72,8 +72,7 @@ describe('GET /staff?type=', () => {
     });
     await registerStaffRoutes(app, {
       staffService: service,
-      onLeaveStaffIds: async (tenantId, d) =>
-        staffIdsOnLeave(await leaves.listLeaves(tenantId), d),
+      onLeaveStaffIds: async (tenantId, d) => staffIdsOnLeave(await leaves.listLeaves(tenantId), d),
     });
     await app.ready();
   });

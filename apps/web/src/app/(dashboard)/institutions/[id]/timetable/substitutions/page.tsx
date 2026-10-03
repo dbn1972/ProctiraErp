@@ -10,10 +10,7 @@ import { SubstitutionCreateForm } from '@/components/timetable/substitution-crea
 import { TeacherAbsenceForm } from '@/components/timetable/teacher-absence-form';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAllStaffResult } from '@/lib/api/staff';
-import {
-  LoadErrorsAlert,
-  StaffTruncationNotice,
-} from '@/components/timetable/load-errors-alert';
+import { LoadErrorsAlert, StaffTruncationNotice } from '@/components/timetable/load-errors-alert';
 import { collectFailures } from '@/lib/timetable/load-errors';
 import {
   listAffectedPeriods,

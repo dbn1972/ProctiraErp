@@ -171,8 +171,7 @@ export async function lookupStudentPalAction(
 }
 
 export type PalStudentSearchResult =
-  | { ok: true; items: Array<{ id: string; name: string }> }
-  | { ok: false };
+  { ok: true; items: Array<{ id: string; name: string }> } | { ok: false };
 
 /**
  * PRC-M116 — async learner search for the Spiral PAL picker (the page no

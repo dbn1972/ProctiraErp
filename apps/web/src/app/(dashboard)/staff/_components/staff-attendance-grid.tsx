@@ -119,7 +119,10 @@ export function StaffAttendanceGrid({
           {error}
         </p>
       ) : null}
-      <Button type="button" onClick={onSave} disabled={!hydrated || pending || staff.length === 0 || isFuture}
+      <Button
+        type="button"
+        onClick={onSave}
+        disabled={!hydrated || pending || staff.length === 0 || isFuture}
       >
         {pending ? 'Saving…' : 'Save attendance'}
       </Button>

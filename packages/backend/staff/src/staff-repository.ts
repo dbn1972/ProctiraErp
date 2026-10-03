@@ -5,6 +5,7 @@
  * Implementations can use Prisma, in-memory stores, or other backends.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { StaffTypeFilter } from './staff-type.js';
 
 /**

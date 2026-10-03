@@ -4,14 +4,15 @@
  * Creates source and destination connectors based on configuration type.
  */
 import type { DataSourceConfig, DataDestinationConfig } from '../schemas.js';
-import type { SourceConnector, DestinationConnector } from './types.js';
-import { PostgresSourceConnector } from './postgresql-source.js';
-import { RestApiSourceConnector } from './rest-api-source.js';
+
+import { resolveDestinationConnection } from './connection-registry.js';
 import { CsvSourceConnector } from './csv-source.js';
 import { ExcelSourceConnector } from './excel-source.js';
 import { PostgresDestinationConnector } from './postgresql-destination.js';
+import { PostgresSourceConnector } from './postgresql-source.js';
 import { RestApiDestinationConnector } from './rest-api-destination.js';
-import { resolveDestinationConnection } from './connection-registry.js';
+import { RestApiSourceConnector } from './rest-api-source.js';
+import type { SourceConnector, DestinationConnector } from './types.js';
 
 /**
  * Create a source connector based on the configuration type.

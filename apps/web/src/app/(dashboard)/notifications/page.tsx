@@ -118,8 +118,12 @@ export default async function NotificationsInboxPage(props: {
                         className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unread ? 'bg-primary' : 'bg-transparent'}`}
                       />
                       <div>
-                        <p className={`text-sm text-foreground ${unread ? 'font-semibold' : 'font-medium'}`}>
-                          <span className="sr-only">{unread ? `${t('unread')}: ` : `${t('read')}: `}</span>
+                        <p
+                          className={`text-sm text-foreground ${unread ? 'font-semibold' : 'font-medium'}`}
+                        >
+                          <span className="sr-only">
+                            {unread ? `${t('unread')}: ` : `${t('read')}: `}
+                          </span>
                           {title}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">

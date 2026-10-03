@@ -110,9 +110,9 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
   // PRC-M114: status, programId and page go to the API; counts come from meta.
   const page = Math.max(1, Number(readStringParam(searchParams, 'page', '1')) || 1);
   const PAGE_SIZE = 20;
-  const statusKey = (
-    ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'] as const
-  ).find((s) => s === status);
+  const statusKey = (['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'] as const).find(
+    (s) => s === status,
+  );
   const scope = { programId: programId || undefined };
   const countFor = async (key?: keyof typeof APPLICATION_STATUS_QUERY) => {
     const r = await listScholarshipApplications({

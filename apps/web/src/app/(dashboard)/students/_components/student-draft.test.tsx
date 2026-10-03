@@ -40,7 +40,9 @@ const values: StudentFormValues = {
       contactEmail: 'guardian@example.com',
     },
   ],
-  identityDocuments: [{ type: 'passport', number: 'P1234567', issuingCountry: 'IN', expiryDate: '' }],
+  identityDocuments: [
+    { type: 'passport', number: 'P1234567', issuingCountry: 'IN', expiryDate: '' },
+  ],
   customData: {},
 };
 
@@ -134,10 +136,15 @@ describe('student draft hardening (PRC-M119)', () => {
   });
 
   it('a newer draft is offered and only applied on Restore (sensitive fields kept)', () => {
-    seed(A, 'student-edit-s1', new Date().toISOString(), sanitizeStudentDraft({
-      ...values,
-      firstName: 'Draft',
-    }));
+    seed(
+      A,
+      'student-edit-s1',
+      new Date().toISOString(),
+      sanitizeStudentDraft({
+        ...values,
+        firstName: 'Draft',
+      }),
+    );
     render(
       <StudentForm
         mode="edit"

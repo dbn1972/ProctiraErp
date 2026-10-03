@@ -27,9 +27,9 @@ import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
-import { staffIdsOnLeave } from './staff-type.js';
 import type { StaffRepository } from './staff-repository.js';
 import { StaffService } from './staff-service.js';
+import { staffIdsOnLeave } from './staff-type.js';
 import { registerTrainingRoutes } from './training-routes.js';
 import { TrainingService, type NotificationIntegration } from './training-service.js';
 

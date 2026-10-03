@@ -15,6 +15,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { listDestinationConnections } from './connectors/connection-registry.js';
 import { hasEtlAccess } from './etl-access.js';
 import type { ETLService } from './etl-service.js';
 import {
@@ -30,7 +31,6 @@ import {
   type ExecutionError,
 } from './schemas.js';
 import { redactConnectorSecrets } from './secret-redaction.js';
-import { listDestinationConnections } from './connectors/connection-registry.js';
 
 /**
  * Options for registering ETL routes.

@@ -20,8 +20,7 @@ export interface BoardSummary {
 }
 
 export type BoardSummaryResult =
-  | { status: 'success'; summary: BoardSummary }
-  | { status: 'error'; message: string };
+  { status: 'success'; summary: BoardSummary } | { status: 'error'; message: string };
 
 export async function getBoardSummaryAction(boardId: string): Promise<BoardSummaryResult> {
   if (typeof boardId !== 'string' || !UUID.test(boardId)) {

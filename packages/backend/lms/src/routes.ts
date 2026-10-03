@@ -770,9 +770,11 @@ export async function registerLmsRoutes(
     if (!tenantId) return tenantRequired(reply);
     const { page = 1, pageSize = 20, include, ...filter } = query.data;
     try {
-      const result = await (
-        include === 'posts' ? lmsService.listDiscussionsWithPosts : lmsService.listDiscussions
-      ).call(lmsService, tenantId, filter, { page, pageSize }, getLmsActor(request));
+      const args = [tenantId, filter, { page, pageSize }, getLmsActor(request)] as const;
+      const result =
+        include === 'posts'
+          ? await lmsService.listDiscussionsWithPosts(...args)
+          : await lmsService.listDiscussions(...args);
       return reply.send({ data: result.data.map(serialise), meta: result.meta });
     } catch (error) {
       return sendError(reply, error);
@@ -968,9 +970,11 @@ export async function registerLmsRoutes(
     if (!tenantId) return tenantRequired(reply);
     const { page = 1, pageSize = 20, include, ...filter } = query.data;
     try {
-      const result = await (
-        include === 'resources' ? lmsService.listLessonsWithResources : lmsService.listLessons
-      ).call(lmsService, tenantId, filter, { page, pageSize }, getLmsActor(request));
+      const args = [tenantId, filter, { page, pageSize }, getLmsActor(request)] as const;
+      const result =
+        include === 'resources'
+          ? await lmsService.listLessonsWithResources(...args)
+          : await lmsService.listLessons(...args);
       return reply.send({ data: result.data.map(serialise), meta: result.meta });
     } catch (error) {
       return sendError(reply, error);

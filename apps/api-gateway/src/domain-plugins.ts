@@ -874,10 +874,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // PRC-M101: a meeting/substitution may only use staff with an active
         // assignment at the meeting's institution (same tenant).
         staffBelongsToInstitution: async (tenantId, staffId, institutionId) => {
-          const active = await sharedAssignmentRepository().findActiveByStaffId(
-            staffId,
-            tenantId,
-          );
+          const active = await sharedAssignmentRepository().findActiveByStaffId(staffId, tenantId);
           return active.some((a) => a.institutionId === institutionId);
         },
       });

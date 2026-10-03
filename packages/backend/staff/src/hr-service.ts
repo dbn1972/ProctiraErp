@@ -25,6 +25,15 @@ import type {
   StaffQualificationRecord,
 } from './hr-store.js';
 import { readOffboardMeta } from './offboard-meta.js';
+import {
+  assertPayrollRowBalanced,
+  calendarDaysInMonth,
+  resolveMonthlyGrossCents,
+  unpaidAbsenceDeductionCents,
+} from './payroll-compute.js';
+import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
+import type { StaffEntity } from './staff-repository.js';
+import type { StaffService } from './staff-service.js';
 
 /**
  * PRC-M123: latest calendar date anywhere on Earth (UTC+14). A mark dated
@@ -42,15 +51,6 @@ function assertNotFutureDate(date: string): void {
     ]);
   }
 }
-import {
-  assertPayrollRowBalanced,
-  calendarDaysInMonth,
-  resolveMonthlyGrossCents,
-  unpaidAbsenceDeductionCents,
-} from './payroll-compute.js';
-import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
-import type { StaffEntity } from './staff-repository.js';
-import type { StaffService } from './staff-service.js';
 
 export const CONTRACT_RENEWAL_WINDOW_DAYS = 60;
 

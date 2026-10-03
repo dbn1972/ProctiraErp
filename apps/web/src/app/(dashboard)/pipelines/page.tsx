@@ -13,10 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PipelinesPage() {
   await requireSession('/pipelines');
-  const [pipelinesResult, connections] = await Promise.all([
-    listPipelines(),
-    listEtlConnections(),
-  ]);
+  const [pipelinesResult, connections] = await Promise.all([listPipelines(), listEtlConnections()]);
   const pipelines = pipelinesResult.ok ? pipelinesResult.items : [];
 
   return (

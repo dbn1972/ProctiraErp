@@ -160,17 +160,17 @@ function NotificationBell() {
         cache: 'no-store',
         signal: controller.signal,
       })
-      .then(async (response) => {
-        if (!response.ok) return { unread: 0 };
-        return (await response.json()) as { unread?: number };
-      })
-      .then((body) => {
-        const count = typeof body.unread === 'number' ? body.unread : 0;
-        setUnread(count > 0 ? count : 0);
-      })
-      .catch(() => {
-        setUnread(0);
-      });
+        .then(async (response) => {
+          if (!response.ok) return { unread: 0 };
+          return (await response.json()) as { unread?: number };
+        })
+        .then((body) => {
+          const count = typeof body.unread === 'number' ? body.unread : 0;
+          setUnread(count > 0 ? count : 0);
+        })
+        .catch(() => {
+          setUnread(0);
+        });
     void load();
     // PRC-M115: the inbox fires this after mark-read so the bell count updates.
     const onChanged = () => void load();

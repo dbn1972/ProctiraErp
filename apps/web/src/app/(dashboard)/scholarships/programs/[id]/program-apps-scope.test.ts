@@ -1,9 +1,7 @@
 /** PRC-M114 — the program detail applications request carries programId. */
 import { describe, expect, it, vi } from 'vitest';
 
-const listScholarshipApplications = vi.hoisted(() =>
-  vi.fn(async () => ({ ok: true, items: [] })),
-);
+const listScholarshipApplications = vi.hoisted(() => vi.fn(async () => ({ ok: true, items: [] })));
 vi.mock('@/lib/api/scholarships', async (orig) => ({
   ...(await orig<typeof import('@/lib/api/scholarships')>()),
   getScholarshipProgram: vi.fn(async () => null),

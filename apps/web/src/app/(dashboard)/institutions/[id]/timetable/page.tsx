@@ -14,10 +14,7 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listAllStaffResult } from '@/lib/api/staff';
-import {
-  LoadErrorsAlert,
-  StaffTruncationNotice,
-} from '@/components/timetable/load-errors-alert';
+import { LoadErrorsAlert, StaffTruncationNotice } from '@/components/timetable/load-errors-alert';
 import { collectFailures } from '@/lib/timetable/load-errors';
 import {
   classFilterOptions,

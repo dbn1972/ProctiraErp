@@ -229,7 +229,11 @@ describe('PRC-M123 staff attendance integrity', () => {
     const a = await hireOne(staffService, 3);
     const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
     await expect(
-      hr.markAttendanceBulk(TENANT, { date: future, marks: [{ staffId: a, status: 'present' }] }, 'x'),
+      hr.markAttendanceBulk(
+        TENANT,
+        { date: future, marks: [{ staffId: a, status: 'present' }] },
+        'x',
+      ),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       hr.markAttendance(TENANT, { staffId: a, date: future, status: 'present' }, 'x'),
