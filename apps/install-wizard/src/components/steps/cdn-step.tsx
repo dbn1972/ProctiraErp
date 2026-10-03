@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
+import { StepCard } from '@/components/step-card';
 import { apiClient, type CdnConfig, type ValidationResult } from '@/lib/api-client';
 
 interface CdnStepProps {
@@ -83,31 +84,33 @@ export function CdnStep({ onComplete, onBack }: CdnStepProps) {
         <fieldset>
           <legend className="label">CDN Provider</legend>
           <div className="mt-2 flex flex-wrap gap-3">
-            {(['nginx', 'cloudfront', 'custom'] as const).map((adapter) => (
-              <label
-                key={adapter}
-                className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-3 transition-colors has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50"
-              >
-                <input
-                  type="radio"
-                  name="cdn-adapter"
-                  value={adapter}
-                  checked={config.adapter === adapter}
-                  onChange={() => {
-                    setConfig((prev) => ({ ...prev, adapter }));
-                    setResult(null);
-                  }}
-                  className="text-primary-700 focus:ring-primary-500"
-                />
-                <span className="text-sm font-medium">
-                  {adapter === 'nginx'
-                    ? 'Nginx'
-                    : adapter === 'cloudfront'
-                      ? 'CloudFront'
-                      : 'Custom'}
-                </span>
-              </label>
-            ))}
+            {(['nginx', 'cloudfront', 'custom'] as const satisfies readonly CdnAdapter[]).map(
+              (adapter) => (
+                <label
+                  key={adapter}
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-3 transition-colors has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50"
+                >
+                  <input
+                    type="radio"
+                    name="cdn-adapter"
+                    value={adapter}
+                    checked={config.adapter === adapter}
+                    onChange={() => {
+                      setConfig((prev) => ({ ...prev, adapter }));
+                      setResult(null);
+                    }}
+                    className="text-primary-700 focus:ring-primary-500"
+                  />
+                  <span className="text-sm font-medium">
+                    {adapter === 'nginx'
+                      ? 'Nginx'
+                      : adapter === 'cloudfront'
+                        ? 'CloudFront'
+                        : 'Custom'}
+                  </span>
+                </label>
+              ),
+            )}
           </div>
         </fieldset>
 
@@ -238,7 +241,7 @@ export function CdnStep({ onComplete, onBack }: CdnStepProps) {
           </button>
           <button
             type="button"
-            onClick={handleTest}
+            onClick={() => void handleTest()}
             disabled={testing || !config.baseUrl}
             className="btn-primary"
           >
