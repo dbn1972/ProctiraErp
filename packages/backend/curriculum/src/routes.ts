@@ -1,7 +1,7 @@
 /**
  * Curriculum Fastify routes (G-923). Prefix default: `/curriculum`
  */
-import { AppError } from '@proctira/common';
+import { AppError, assertInstitutionInScope } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -41,6 +41,40 @@ function sendError(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+/**
+ * PRC-H022: lesson-plan writes addressed by `:id` must name the owning institution
+ * (`?institutionId=`, authorized by the gateway institution-scope hook) and the plan's syllabus
+ * unit must belong to it. Missing → 400; foreign, tenant-wide or unknown plan → 404 so another
+ * school's ownership is not disclosed. Returns false when a reply has been sent.
+ */
+async function assertLessonPlanInInstitution(
+  service: CurriculumService,
+  tenantId: string,
+  id: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const institutionId = (request.query as { institutionId?: unknown } | undefined)?.institutionId;
+  if (typeof institutionId !== 'string' || institutionId.length === 0) {
+    reply.status(400).send({
+      code: 'INSTITUTION_REQUIRED',
+      message: 'institutionId query parameter is required',
+      statusCode: 400,
+    });
+    return false;
+  }
+  const owner = await service.lessonPlanInstitution(tenantId, id);
+  if (!owner || owner.institutionId !== institutionId) {
+    reply.status(404).send({
+      code: 'NOT_FOUND',
+      message: `Lesson plan ${id} not found`,
+      statusCode: 404,
+    });
+    return false;
+  }
+  return true;
+}
+
 export async function registerCurriculumRoutes(
   fastify: FastifyInstance,
   options: CurriculumRoutesOptions,
@@ -54,6 +88,41 @@ export async function registerCurriculumRoutes(
 
   const prefix = options.prefix ?? '/curriculum';
   const { service } = options;
+  // PRC-H004: `/units/:id…` and `/lesson-plans/:id` address records only by id, so the gateway
+  // scope hook cannot see their school. 404 a school-bound caller when the owning unit belongs to
+  // another school (tenant-wide units with no institution stay visible).
+  const unitRoute = `${fastify.prefix}${prefix}/units/:id`;
+  const planRoute = `${fastify.prefix}${prefix}/lesson-plans/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    const routeUrl = request.routeOptions.url ?? '';
+    const isUnit = routeUrl === unitRoute || routeUrl.startsWith(`${unitRoute}/`);
+    if (!isUnit && routeUrl !== planRoute) return;
+    const tenantId = tenantOf(request);
+    const id = (request.params as { id?: unknown }).id;
+    if (!tenantId || typeof id !== 'string') return;
+    let owner: string | null | undefined;
+    if (isUnit) {
+      try {
+        owner = (await service.getUnit(tenantId, id)).institutionId;
+      } catch (error) {
+        if (error instanceof AppError) return; // handler answers its own 404
+        throw error;
+      }
+    } else {
+      const found = await service.lessonPlanInstitution(tenantId, id);
+      if (!found) return;
+      owner = found.institutionId;
+    }
+    if (!owner) return;
+    try {
+      const user = (request as FastifyRequest & { user?: unknown }).user as
+        Parameters<typeof assertInstitutionInScope>[0] | undefined;
+      assertInstitutionInScope(user, owner, `Curriculum record ${id} not found`);
+    } catch (error) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
+  });
 
   fastify.post(`${prefix}/units`, async (request, reply) => {
     const tenantId = tenantOf(request);
@@ -181,6 +250,7 @@ export async function registerCurriculumRoutes(
       });
     }
     const { id } = request.params as { id: string };
+    if (!(await assertLessonPlanInInstitution(service, tenantId, id, request, reply))) return;
     const body = request.body as {
       title?: string;
       objectives?: string | null;
@@ -205,6 +275,7 @@ export async function registerCurriculumRoutes(
     }
     const { id } = request.params as { id: string };
     try {
+      if (!(await assertLessonPlanInInstitution(service, tenantId, id, request, reply))) return;
       await service.deleteLessonPlan(tenantId, id);
       return reply.status(204).send();
     } catch (error) {

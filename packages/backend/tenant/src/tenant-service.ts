@@ -46,6 +46,7 @@ import type {
   TenantFilter,
   TenantRepository,
 } from './tenant-repository.js';
+import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 const logger = createLogger({ name: 'tenant-service' });
 
@@ -153,6 +154,7 @@ export class TenantService {
 
     // Merge user-provided config with defaults
     const config = this.mergeConfig(defaultConfig, input.config);
+    this.assertValidTimezone(config.locale?.timezone, 'config.locale.timezone');
 
     const tenant = await this.repository.createTenant({
       id: uuidv4(),
@@ -480,6 +482,10 @@ export class TenantService {
       throw new BusinessRuleError('Cannot modify configuration of a decommissioned tenant');
     }
 
+    // PRC-L358: an invalid zone would silently resolve to UTC at runtime; reject it on write.
+    if (input.locale !== undefined) {
+      this.assertValidTimezone(input.locale.timezone, 'locale.timezone');
+    }
     const updatedConfig = this.mergeConfig(tenant.config, input);
 
     const updated = await this.applyUpdate(id, {
@@ -488,6 +494,12 @@ export class TenantService {
 
     logger.info({ tenantId: id }, 'Tenant configuration updated');
     return updated;
+  }
+
+  /** PRC-L358: reject a non-IANA tenant timezone on admin create/update. */
+  private assertValidTimezone(value: unknown, field: string): void {
+    const error = tenantTimezoneFieldError(value, field);
+    if (error) throw new ValidationError('Validation failed', [error]);
   }
 
   /**
