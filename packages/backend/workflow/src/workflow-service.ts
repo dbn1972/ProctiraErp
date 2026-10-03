@@ -43,6 +43,13 @@ import type { EscalationService } from './escalation-service.js';
  */
 export class WorkflowService {
   private escalationService: EscalationService | null = null;
+  /**
+   * PRC-H110: when true, definitions carrying escalationRules are rejected
+   * (422) while no escalation publisher/consumer is wired. Default false:
+   * accepted, and escalation health reports degraded instead.
+   */
+  private rejectUnwiredEscalations = false;
+  private escalationsWired = false;
 
   constructor(private readonly repository: WorkflowRepository) {}
 
@@ -52,6 +59,21 @@ export class WorkflowService {
    */
   setEscalationService(escalationService: EscalationService): void {
     this.escalationService = escalationService;
+  }
+
+  /** PRC-H110: record whether escalations will actually be processed. */
+  setEscalationWiring(wired: boolean, rejectUnwired: boolean): void {
+    this.escalationsWired = wired;
+    this.rejectUnwiredEscalations = rejectUnwired;
+  }
+
+  private assertEscalationsProcessable(rules: readonly unknown[] | null | undefined): void {
+    if (!this.rejectUnwiredEscalations || this.escalationsWired) return;
+    if (rules && rules.length > 0) {
+      throw new BusinessRuleError(
+        'Escalation rules are not supported: no escalation worker is configured (WORKFLOW_REJECT_UNWIRED_ESCALATIONS=true)',
+      );
+    }
   }
 
   // ─── Workflow Definition CRUD ────────────────────────────────────────────
@@ -72,6 +94,7 @@ export class WorkflowService {
     input: CreateWorkflowDefinitionInput,
   ): Promise<WorkflowDefinitionEntity> {
     this.validateDefinitionStructure(input.states, input.transitions, input.escalationRules ?? []);
+    this.assertEscalationsProcessable(input.escalationRules);
 
     const definition: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
@@ -130,6 +153,7 @@ export class WorkflowService {
     if (input.description !== undefined) updateData.description = input.description;
     if (input.states !== undefined) updateData.states = input.states;
     if (input.transitions !== undefined) updateData.transitions = input.transitions;
+    this.assertEscalationsProcessable(input.escalationRules);
     if (input.escalationRules !== undefined) updateData.escalationRules = input.escalationRules;
 
     const updated = await this.repository.updateDefinition(id, tenantId, updateData);
