@@ -318,6 +318,12 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
       const { accessToken, refreshToken } = setup(privateKeyPem, store);
       const app = Fastify();
       apps.push(app);
+      // PRC-L282: POST /logout authenticates the bearer through the auth plugin.
+      await app.register(keycloakAuthPlugin, {
+        config: routeConfigBase,
+        revocationStore: store,
+        excludePaths: ['/api/v1/auth/logout', '/api/v1/auth/refresh'],
+      });
       await registerKeycloakAuthRoutes(app, {
         ...routeConfigBase,
         revocationStore: store,

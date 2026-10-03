@@ -61,6 +61,18 @@ function mockTokenEndpoint(accessToken: string) {
   );
 }
 
+/** PRC-M500: the callback needs the browser transaction (cookie + state) from /login. */
+async function injectCallback(app: ReturnType<typeof Fastify>, code = 'abc') {
+  const login = await app.inject({ method: 'GET', url: '/api/v1/auth/login' });
+  const cookie = String(login.headers['set-cookie']).split(';')[0]!;
+  const state = new URL(String(login.headers.location)).searchParams.get('state')!;
+  return app.inject({
+    method: 'GET',
+    url: `/api/v1/auth/callback?code=${code}&state=${encodeURIComponent(state)}`,
+    headers: { cookie },
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   resetIdentityTouchThrottleForTests();
@@ -80,7 +92,10 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
       ...ROUTE_CONFIG,
       identityStore: store({ findIdentity: vi.fn().mockRejectedValue(new Error('db down')) }),
     });
-    const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+    const response =
+      method === 'GET'
+        ? await injectCallback(app)
+        : await app.inject({ method, url, ...(payload ? { payload } : {}) });
     expect(response.statusCode).toBe(503);
     expect(response.json()).toMatchObject({ code: 'IDENTITY_UNAVAILABLE' });
     expect(response.body).not.toContain('accessToken');
@@ -99,7 +114,10 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
         ...ROUTE_CONFIG,
         identityStore: store({ findIdentity: vi.fn().mockResolvedValue(null) }),
       });
-      const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+      const response =
+      method === 'GET'
+        ? await injectCallback(app)
+        : await app.inject({ method, url, ...(payload ? { payload } : {}) });
       expect(response.statusCode).toBe(401);
       expect(response.json()).toMatchObject({ code: 'IDENTITY_LINK_REJECTED' });
       expect(response.body).not.toContain('accessToken');

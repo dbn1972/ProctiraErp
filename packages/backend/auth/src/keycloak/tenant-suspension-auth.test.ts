@@ -54,6 +54,18 @@ function idpLogoutCalls(fetchMock: { mock: { calls: unknown[][] } }) {
   );
 }
 
+/** PRC-M500: the callback needs the browser transaction (cookie + state) from /login. */
+async function injectCallback(app: ReturnType<typeof Fastify>, code = 'abc') {
+  const login = await app.inject({ method: 'GET', url: '/api/v1/auth/login' });
+  const cookie = String(login.headers['set-cookie']).split(';')[0]!;
+  const state = new URL(String(login.headers.location)).searchParams.get('state')!;
+  return app.inject({
+    method: 'GET',
+    url: `/api/v1/auth/callback?code=${code}&state=${encodeURIComponent(state)}`,
+    headers: { cookie },
+  });
+}
+
 describe('Keycloak sign-in for suspended tenants (PRC-H008)', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -103,7 +115,7 @@ describe('Keycloak sign-in for suspended tenants (PRC-H008)', () => {
   it('OIDC callback for a suspended tenant is 403', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(tokenResponse()));
     const app = await buildRoutes({ tenantAuthGate: () => Promise.resolve(true) });
-    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/callback?code=abc' });
+    const res = await injectCallback(app);
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('TENANT_SUSPENDED');
     await app.close();

@@ -45,6 +45,33 @@ describe('Keycloak auth routes', () => {
     expect(location.searchParams.get('code_challenge')).toBeTruthy();
     expect(location.searchParams.get('nonce')).toBeTruthy();
     expect(String(response.headers['set-cookie'])).toMatch(/kc_oidc_txn=.+HttpOnly; SameSite=Lax/);
+    expect(location.searchParams.has('kc_action')).toBe(false);
+    await app.close();
+  });
+
+  it('PRC-H019: forwards only the allow-listed CONFIGURE_TOTP account action', async () => {
+    const app = Fastify();
+    await registerKeycloakAuthRoutes(app, {
+      issuer: 'http://localhost:8180/realms/proctira',
+      clientId: 'proctira-gateway',
+      realm: 'proctira',
+      jwksUri: 'http://localhost:8180/realms/proctira/protocol/openid-connect/certs',
+      redirectUri: 'http://localhost:3200/api/v1/auth/callback',
+    });
+    const enrol = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/login?kc_action=configure_totp&state=web:/settings/security',
+    });
+    expect(enrol.statusCode).toBe(302);
+    expect(new URL(String(enrol.headers.location)).searchParams.get('kc_action')).toBe(
+      'CONFIGURE_TOTP',
+    );
+    const refused = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/login?kc_action=delete_account',
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ code: 'KEYCLOAK_ACTION_NOT_ALLOWED' });
     await app.close();
   });
 

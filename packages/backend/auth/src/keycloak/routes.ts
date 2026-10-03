@@ -62,6 +62,7 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * multi-replica deployment; the default is process-local memory.
    */
   webTicketStore?: WebTicketStore;
+  /**
    * PRC-H008 / PRC-H098: true when the tenant is suspended/decommissioned. Throws when the
    * status cannot be read (login/refresh then fail closed with 503). When set, password login,
    * the OIDC callback and refresh refuse blocked tenants and end the just-issued IdP session.
@@ -201,10 +202,18 @@ export function webReturnTo(state: string | undefined): string | null {
   return SAFE_RETURN_TO.test(path) ? path : null;
 }
 
+/**
+ * PRC-H019: Keycloak application-initiated actions the BFF may request. MFA
+ * enrolment is owned by Keycloak (OTP required action) — the TOTP secret and
+ * recovery codes never touch Proctira storage. Allow-listed so a link cannot
+ * trigger arbitrary account actions (e.g. delete_account).
+ */
+export const KEYCLOAK_ALLOWED_ACTIONS = new Set(['CONFIGURE_TOTP']);
+
 function authorizeUrl(
   config: KeycloakRouteConfig,
   state: string,
-  binding: { codeChallenge: string; nonce: string },
+  binding: { codeChallenge: string; nonce: string; kcAction?: string },
 ): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/auth`);
   url.searchParams.set('client_id', config.clientId);
@@ -216,6 +225,7 @@ function authorizeUrl(
   url.searchParams.set('code_challenge', binding.codeChallenge);
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('kc_locale', 'en');
+  if (binding.kcAction) url.searchParams.set('kc_action', binding.kcAction);
   return url.toString();
 }
 
@@ -525,10 +535,19 @@ export async function registerKeycloakAuthRoutes(
     `${prefix}/login`,
     async (
       request: FastifyRequest<{
-        Querystring: { state?: string };
+        Querystring: { state?: string; kc_action?: string };
       }>,
       reply: FastifyReply,
     ) => {
+      // PRC-H019: only allow-listed Keycloak actions (MFA enrolment).
+      const kcAction = request.query.kc_action?.trim().toUpperCase();
+      if (kcAction && !KEYCLOAK_ALLOWED_ACTIONS.has(kcAction)) {
+        return reply.status(400).send({
+          code: 'KEYCLOAK_ACTION_NOT_ALLOWED',
+          message: 'Unsupported account action',
+          statusCode: 400,
+        });
+      }
       // PRC-M500: server-generated state + nonce + PKCE verifier, bound to this
       // browser via an httpOnly cookie and verified in /callback.
       const txn: OidcTransaction = {
@@ -547,7 +566,11 @@ export async function registerKeycloakAuthRoutes(
         ),
       );
       return reply.redirect(
-        authorizeUrl(config, txn.s, { codeChallenge: pkceChallenge(txn.v), nonce: txn.n }),
+        authorizeUrl(config, txn.s, {
+          codeChallenge: pkceChallenge(txn.v),
+          nonce: txn.n,
+          ...(kcAction ? { kcAction } : {}),
+        }),
         302,
       );
     },
