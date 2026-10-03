@@ -37,7 +37,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { headers } from 'next/headers';
-import { getLocale, getMessages } from 'next-intl/server';
+import { getLocale, getMessages, getTimeZone } from 'next-intl/server';
 import { getDirection } from '@/i18n/config';
 import {
   getPublishedTenantTheme,
@@ -127,6 +127,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
+  // PRC-M492: tenant timezone resolved by i18n/request.ts, shared with the client provider.
+  const timeZone = await getTimeZone();
   const direction = getDirection(locale);
 
   // ─── Tenant theme baseline (Task 58.1) ──────────────────────────────────
@@ -191,6 +193,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <LanguageProvider
             initialLocale={locale}
             messagesByLocale={{ [locale]: messages as TranslationMap }}
+            timeZone={timeZone}
           >
             <AppProviders>{children}</AppProviders>
           </LanguageProvider>
