@@ -1,3 +1,4 @@
+import { TimetableVersionConflictError } from './timetable-errors.js';
 import type {
   AttendancePeriodSlot,
   BellScheduleEntity,
@@ -14,14 +15,22 @@ import type {
   ListSectionsFilter,
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
+  EnrollWithinCapacityInput,
+  EnrollWithinCapacityResult,
 } from './timetable-repository.js';
-import { TimetableVersionConflictError } from './timetable-errors.js';
 
 /** Ensure OCC tokens always advance (same-ms Date.now collisions). */
 function nextUpdatedAt(previous: string): string {
   const now = new Date().toISOString();
   if (now > previous) return now;
   return new Date(Date.parse(previous) + 1).toISOString();
+}
+
+/** PRC-M407: bounded window when the caller asked for a page. */
+function applyPage<T>(rows: T[], filter?: { limit?: number; offset?: number }): T[] {
+  if (filter?.limit === undefined) return rows;
+  const offset = Math.max(0, Math.trunc(filter.offset ?? 0));
+  return rows.slice(offset, offset + Math.max(1, Math.trunc(filter.limit)));
 }
 
 export class InMemoryTimetableRepository implements TimetableRepository {
@@ -34,7 +43,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   private readonly substitutions = new Map<string, SubstitutionEntity>();
 
   async listBellSchedules(tenantId: string, filter?: ListBellSchedulesFilter) {
-    return [...this.bellSchedules.values()].filter((row) => {
+    const rows = [...this.bellSchedules.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -42,6 +51,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       }
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getBellSchedule(tenantId: string, id: string) {
@@ -57,15 +67,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return this.bellSchedules.get(row.id)!;
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleEntity>) {
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getBellSchedule(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('bell_schedule', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.bellSchedules.set(id, next);
     return next;
@@ -99,15 +117,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodEntity>) {
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getPeriod(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('period', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.periods.set(id, next);
     return next;
@@ -121,11 +147,12 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listRooms(tenantId: string, filter?: ListRoomsFilter) {
-    return [...this.rooms.values()].filter((row) => {
+    const rows = [...this.rooms.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getRoom(tenantId: string, id: string) {
@@ -139,7 +166,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listSections(tenantId: string, filter?: ListSectionsFilter) {
-    return [...this.sections.values()].filter((row) => {
+    const rows = [...this.sections.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -148,6 +175,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       if (filter?.status && row.status !== filter.status) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getSection(tenantId: string, id: string) {
@@ -214,6 +242,45 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
+  async enrollWithinCapacity(
+    input: EnrollWithinCapacityInput,
+  ): Promise<EnrollWithinCapacityResult> {
+    // No await between read and write: atomic within the event loop.
+    const section = this.sections.get(input.sectionId);
+    if (!section || section.tenantId !== input.tenantId) return { outcome: 'section_missing' };
+    if (section.status === 'ARCHIVED') return { outcome: 'section_archived' };
+    const rows = [...this.enrollments.values()].filter(
+      (e) => e.tenantId === input.tenantId && e.sectionId === input.sectionId,
+    );
+    const existing = rows.find((e) => e.studentId === input.studentId);
+    if (existing?.status === 'ENROLLED')
+      return { outcome: 'already_enrolled', enrollment: existing };
+    const active = rows.filter((e) => e.status === 'ENROLLED').length;
+    if (active >= section.capacity) {
+      return { outcome: 'full', capacity: section.capacity, code: section.code };
+    }
+    const enrollment: SectionEnrollmentEntity = existing
+      ? {
+          ...existing,
+          status: 'ENROLLED',
+          enrolledAt: input.enrolledAt,
+          withdrawnAt: null,
+          updatedAt: input.now,
+        }
+      : {
+          id: input.newId,
+          tenantId: input.tenantId,
+          sectionId: input.sectionId,
+          studentId: input.studentId,
+          status: 'ENROLLED',
+          enrolledAt: input.enrolledAt,
+          withdrawnAt: null,
+          createdAt: input.now,
+          updatedAt: input.now,
+        };
+    this.enrollments.set(enrollment.id, enrollment);
+    return { outcome: 'enrolled', enrollment };
+  }
   async updateEnrollment(tenantId: string, id: string, patch: Partial<SectionEnrollmentEntity>) {
     const cur = this.enrollments.get(id);
     if (!cur || cur.tenantId !== tenantId) return null;
@@ -229,7 +296,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listMeetings(tenantId: string, filter?: ListMeetingsFilter) {
-    return [...this.meetings.values()].filter((row) => {
+    const rows = [...this.meetings.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.academicPeriodId && row.academicPeriodId !== filter.academicPeriodId) {
@@ -237,8 +304,10 @@ export class InMemoryTimetableRepository implements TimetableRepository {
       }
       if (filter?.staffId && row.staffId !== filter.staffId) return false;
       if (filter?.sectionId && row.sectionId !== filter.sectionId) return false;
+      if (filter?.dayOfWeek !== undefined && row.dayOfWeek !== filter.dayOfWeek) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getMeeting(tenantId: string, id: string) {
@@ -281,13 +350,15 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async listSubstitutions(tenantId: string, filter?: ListSubstitutionsFilter) {
-    return [...this.substitutions.values()].filter((row) => {
+    const rows = [...this.substitutions.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
       if (filter?.fromDate && row.substitutionDate < filter.fromDate) return false;
       if (filter?.toDate && row.substitutionDate > filter.toDate) return false;
+      if (filter?.status && row.status.toLowerCase() !== filter.status.toLowerCase()) return false;
       return true;
     });
+    return applyPage(rows, filter);
   }
 
   async getSubstitution(tenantId: string, id: string) {

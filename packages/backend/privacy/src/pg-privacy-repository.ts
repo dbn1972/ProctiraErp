@@ -12,6 +12,7 @@ import {
 } from '@proctira/database';
 import type pg from 'pg';
 
+import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -183,6 +184,35 @@ function mapOffboard(row: Record<string, unknown>): TenantOffboardJobEntity {
   };
 }
 
+async function insertAnonymizationJob(
+  client: PgQueryable,
+  data: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+): Promise<AnonymizationJobEntity> {
+  const result = await client.query(
+    `INSERT INTO privacy_anonymization_jobs (
+       id, tenant_id, erasure_request_id, subject_type, subject_id,
+       request_type, status, actor_id, status_reason, fields_touched,
+       residual_note, started_at, completed_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
+     RETURNING *`,
+    [
+      data.id,
+      data.tenantId,
+      data.erasureRequestId,
+      data.subjectType,
+      data.subjectId,
+      data.requestType,
+      data.status,
+      data.actorId,
+      data.statusReason,
+      JSON.stringify(data.fieldsTouched ?? []),
+      data.residualNote,
+      data.startedAt,
+      data.completedAt,
+    ],
+  );
+  return mapAnonymization(result.rows[0] as Record<string, unknown>);
+}
 export class PgPrivacyRepository implements PrivacyRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -480,6 +510,25 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
+  async redactCorrectionValuesForSubject(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<number> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE privacy_correction_requests SET
+           current_value = NULL,
+           requested_value = $4,
+           updated_at = NOW()
+         WHERE tenant_id = $1 AND subject_type = $2 AND subject_id = $3
+           AND (current_value IS NOT NULL OR requested_value <> $4)`,
+        [tenantId, subjectType, subjectId, CORRECTION_VALUE_REDACTED],
+      );
+      return Number(result.rowCount ?? 0);
+    });
+  }
   async findCorrectionRequestById(
     id: string,
     tenantId: string,
@@ -515,34 +564,36 @@ export class PgPrivacyRepository implements PrivacyRepository {
     data: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<AnonymizationJobEntity> {
     await this.ensureSchema();
-    return this.withTenant(data.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO privacy_anonymization_jobs (
-           id, tenant_id, erasure_request_id, subject_type, subject_id,
-           request_type, status, actor_id, status_reason, fields_touched,
-           residual_note, started_at, completed_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
+    return this.withTenant(data.tenantId, (client) => insertAnonymizationJob(client, data));
+  }
+  async startErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null> {
+    await this.ensureSchema();
+    // PRC-M320: CAS status flip + job insert share one withPgTenant transaction; an insert
+    // failure rolls the flip back so the request stays `approved` and retryable.
+    return this.withTenant(tenantId, async (client) => {
+      const flipped = await client.query(
+        `UPDATE privacy_erasure_requests SET
+           status = 'in_progress',
+           reviewed_by = $3,
+           status_reason = $4,
+           updated_at = NOW()
+         WHERE id = $1 AND tenant_id = $2 AND status = 'approved'
          RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.erasureRequestId,
-          data.subjectType,
-          data.subjectId,
-          data.requestType,
-          data.status,
-          data.actorId,
-          data.statusReason,
-          JSON.stringify(data.fieldsTouched ?? []),
-          data.residualNote,
-          data.startedAt,
-          data.completedAt,
-        ],
+        [requestId, tenantId, patch.reviewedBy, patch.statusReason],
       );
-      return mapAnonymization(result.rows[0] as Record<string, unknown>);
+      if (!flipped.rows[0]) return null;
+      const created = await insertAnonymizationJob(client, job);
+      return {
+        erasure: mapErasure(flipped.rows[0] as Record<string, unknown>),
+        job: created,
+      };
     });
   }
-
   async updateAnonymizationJob(
     id: string,
     tenantId: string,
