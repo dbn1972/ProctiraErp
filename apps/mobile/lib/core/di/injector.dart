@@ -256,6 +256,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<AssessmentRepository>(
@@ -263,6 +264,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<ParentPortalRepository>(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -152,13 +153,18 @@ class ExaminationRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
+    required CacheCrypto cacheCrypto,
   }) : _database = database,
        _tenantProvider = tenantProvider,
-       _dio = dio;
+       _dio = dio,
+       _cacheCrypto = cacheCrypto;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+
+  /// Seals cached exam schedules/results (child data) at rest (PRC-M035).
+  final CacheCrypto _cacheCrypto;
 
   /// Fetch upcoming examinations for a student.
   Future<List<Examination>> getExaminations({
@@ -242,7 +248,7 @@ class ExaminationRepository {
           'student_id': studentId,
           'exam_date': exam.examDate,
           'status': exam.status.toWire(),
-          'payload': jsonEncode(exam.toJson()),
+          'payload': await _cacheCrypto.encrypt(jsonEncode(exam.toJson())),
         });
       }
     });
@@ -268,13 +274,14 @@ class ExaminationRepository {
       orderBy: 'exam_date ASC',
     );
 
-    return rows
-        .map((Map<String, Object?> row) {
-          final Map<String, dynamic> json =
-              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-          return Examination.fromJson(json);
-        })
-        .toList(growable: false);
+    final List<Examination> exams = <Examination>[];
+    for (final Map<String, Object?> row in rows) {
+      final Map<String, dynamic> json =
+          jsonDecode(await _cacheCrypto.decrypt(row['payload'] as String))
+              as Map<String, dynamic>;
+      exams.add(Examination.fromJson(json));
+    }
+    return exams;
   }
 
   Future<void> _cacheResults(
@@ -295,7 +302,7 @@ class ExaminationRepository {
           'tenant_id': tenantId,
           'student_id': studentId,
           'examination_id': result.examinationId,
-          'payload': jsonEncode(result.toJson()),
+          'payload': await _cacheCrypto.encrypt(jsonEncode(result.toJson())),
         });
       }
     });
@@ -312,13 +319,14 @@ class ExaminationRepository {
       whereArgs: <Object>[tenantId, studentId],
     );
 
-    return rows
-        .map((Map<String, Object?> row) {
-          final Map<String, dynamic> json =
-              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
-          return ExaminationResult.fromJson(json);
-        })
-        .toList(growable: false);
+    final List<ExaminationResult> results = <ExaminationResult>[];
+    for (final Map<String, Object?> row in rows) {
+      final Map<String, dynamic> json =
+          jsonDecode(await _cacheCrypto.decrypt(row['payload'] as String))
+              as Map<String, dynamic>;
+      results.add(ExaminationResult.fromJson(json));
+    }
+    return results;
   }
 
   String _requireTenantId() {
