@@ -27,6 +27,7 @@ import {
   listScholarshipApplications,
   listScholarshipDisbursements,
   listScholarshipPrograms,
+  totalsByCurrency,
   type ScholarshipProgram,
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
@@ -91,8 +92,8 @@ export default async function ScholarshipsPage() {
   ).length;
   const approvedApps = applications.filter((a) => a.status === 'APPROVED').length;
   const processed = disbursements.filter((d) => d.status === 'PROCESSED');
-  const disbursedTotal = processed.reduce((sum, d) => sum + d.amount, 0);
-  const disbursedCurrency = processed[0]?.currency ?? programs[0]?.currency ?? 'INR';
+  // PRC-M111: totals per currency; never one sum across currencies.
+  const disbursedTotals = totalsByCurrency(processed);
 
   return (
     <section aria-labelledby="programs-heading" className="space-y-6">
@@ -138,7 +139,11 @@ export default async function ScholarshipsPage() {
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label={t('kpiDisbursed')}
-          value={processed.length > 0 ? formatMoney(disbursedTotal, disbursedCurrency) : '—'}
+          value={
+            processed.length > 0
+              ? disbursedTotals.map((t) => formatMoney(t.total, t.currency)).join(' + ')
+              : '—'
+          }
           foot={t('processedPayments', { count: processed.length })}
         />
         <KpiCard

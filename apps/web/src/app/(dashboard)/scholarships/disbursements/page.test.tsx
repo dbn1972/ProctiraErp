@@ -1,0 +1,45 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * PRC-M111 — cancelled disbursements are counted separately and totals are
+ * shown per currency.
+ */
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+const rows = [
+  { id: '1', status: 'PROCESSED', amount: 1000, currency: 'INR' },
+  { id: '2', status: 'PROCESSED', amount: 10, currency: 'USD' },
+  { id: '3', status: 'CANCELLED', amount: 500, currency: 'INR' },
+  { id: '4', status: 'PROCESSING', amount: 200, currency: 'INR' },
+].map((r) => ({
+  ...r,
+  applicationId: `app-${r.id}`,
+  applicantName: `Student ${r.id}`,
+  programName: 'Merit',
+  paymentDate: '2026-01-01',
+  paymentMethod: 'BANK_TRANSFER',
+}));
+
+vi.mock('@/lib/api/scholarships', async (orig) => ({
+  ...(await orig<typeof import('@/lib/api/scholarships')>()),
+  listScholarshipDisbursements: vi.fn(async () => rows),
+}));
+vi.mock('../_components/retry-failed-transfers-button', () => ({
+  RetryFailedTransfersButton: () => null,
+}));
+
+import Page from './page';
+
+describe('disbursements page (PRC-M111)', () => {
+  it('shows a cancelled count, processing status and per-currency totals', async () => {
+    render(await Page());
+    // KPI label + the row's status pill.
+    expect(screen.getAllByText('Cancelled').length).toBe(2);
+    expect(screen.getByText(/₹500 not paid/)).toBeTruthy();
+    expect(screen.getByText(/1 processing now/)).toBeTruthy();
+    expect(screen.getAllByText('Processing').length).toBeGreaterThan(0);
+    const disbursed = screen.getByText(/₹1,000 \+ (US\$|\$)10/);
+    expect(disbursed).toBeTruthy();
+  });
+});

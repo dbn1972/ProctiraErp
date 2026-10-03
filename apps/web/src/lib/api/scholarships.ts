@@ -49,7 +49,7 @@ export interface ScholarshipDisbursement {
   currency: string;
   paymentDate: string;
   paymentMethod: 'BANK_TRANSFER' | 'CHEQUE' | 'CASH';
-  status: 'SCHEDULED' | 'PROCESSED' | 'FAILED';
+  status: 'SCHEDULED' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'CANCELLED';
 }
 
 export interface CreateScholarshipProgramInput {
@@ -137,11 +137,21 @@ function mapApplication(raw: Record<string, unknown>): ScholarshipApplication {
   };
 }
 
-function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement {
-  const paymentStatus = String(raw.status ?? raw.paymentStatus ?? 'SCHEDULED').toLowerCase();
-  let status: ScholarshipDisbursement['status'] = 'SCHEDULED';
-  if (paymentStatus === 'paid' || paymentStatus === 'processed') status = 'PROCESSED';
-  else if (paymentStatus === 'failed') status = 'FAILED';
+/** PRC-M111: every backend payment status keeps its own meaning. */
+const DISBURSEMENT_STATUS: Record<string, ScholarshipDisbursement['status']> = {
+  scheduled: 'SCHEDULED',
+  processing: 'PROCESSING',
+  paid: 'PROCESSED',
+  processed: 'PROCESSED',
+  failed: 'FAILED',
+  cancelled: 'CANCELLED',
+  canceled: 'CANCELLED',
+};
+
+export function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement {
+  const paymentStatus = String(raw.status ?? raw.paymentStatus ?? 'scheduled').toLowerCase();
+  const status: ScholarshipDisbursement['status'] =
+    DISBURSEMENT_STATUS[paymentStatus] ?? 'SCHEDULED';
 
   return {
     id: String(raw.id ?? ''),
@@ -297,4 +307,18 @@ export async function updateDisbursement(
     });
   }
   return mapDisbursement(result.data);
+}
+
+/** PRC-M111: money totals grouped per currency (never summed across currencies). */
+export function totalsByCurrency(
+  rows: ReadonlyArray<{ amount: number; currency: string }>,
+): Array<{ currency: string; total: number }> {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const currency = row.currency || 'INR';
+    totals.set(currency, (totals.get(currency) ?? 0) + row.amount);
+  }
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, total]) => ({ currency, total }));
 }
