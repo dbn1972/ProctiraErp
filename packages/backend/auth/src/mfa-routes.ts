@@ -7,7 +7,7 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { OtpAuthError, OtpValidationError } from './otp-service.js';
+import { OtpAuthError, OtpRateLimitError, OtpValidationError } from './otp-service.js';
 import type { OtpService } from './otp-service.js';
 import type { UserLookup } from './routes.js';
 import type { SessionService } from './session-service.js';
@@ -259,6 +259,13 @@ function sendOtpError(reply: FastifyReply, error: unknown) {
       code: error.code,
       message: error.message,
       statusCode: error.statusCode,
+    });
+  }
+  if (error instanceof OtpRateLimitError) {
+    return reply.status(429).send({
+      code: error.code,
+      message: error.message,
+      statusCode: 429,
     });
   }
   if (error instanceof OtpAuthError) {

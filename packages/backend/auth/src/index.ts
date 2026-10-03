@@ -217,6 +217,7 @@ export {
   generateOtpCode,
   OtpValidationError,
   OtpAuthError,
+  OtpRateLimitError,
 } from './otp-service.js';
 export type {
   OtpChallengeRecord,

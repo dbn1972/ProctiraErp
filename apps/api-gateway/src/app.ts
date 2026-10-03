@@ -529,6 +529,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     exposeCodeInResponse: exposeOtp,
     // PRC-L281: shared HMAC pepper so any replica can verify a challenge.
     pepper: process.env['MFA_OTP_PEPPER'] || config.jwt.secret,
+    // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
+    onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
