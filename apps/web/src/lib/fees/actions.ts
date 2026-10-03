@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { majorUnitsToCents } from '@proctira/common';
+import { validateReconciliationCsv } from './reconciliation-csv';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
@@ -248,10 +249,19 @@ export async function importReconciliationAction(
 ): Promise<ActionResult<{ matched: number; unmatched: number; batchId: string }>> {
   const parsed = reconciliationFormSchema.safeParse(values);
   if (!parsed.success) {
-    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Validation failed',
+      fieldErrors: flattenZod(parsed.error),
+    };
+  }
+  // PRC-M092: send the normalised integer-paise CSV (validated above).
+  const checked = validateReconciliationCsv(parsed.data.csv, parsed.data.unit);
+  if (!checked.ok || !checked.normalized) {
+    return { success: false, error: checked.issues[0]?.message ?? 'Invalid CSV' };
   }
   try {
-    const result = await importReconciliation(parsed.data.csv, parsed.data.filename);
+    const result = await importReconciliation(checked.normalized, parsed.data.filename);
     refreshFees();
     return {
       success: true,

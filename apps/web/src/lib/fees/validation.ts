@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateReconciliationCsv } from './reconciliation-csv';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -132,10 +133,26 @@ export const refundFormSchema = z.object({
   reason: z.string().min(1, 'Reason is required').max(2000),
 });
 
-export const reconciliationFormSchema = z.object({
-  csv: z.string().min(1, 'CSV is required'),
-  filename: z.string().max(255).optional(),
-});
+/** PRC-M092: header/row shape, size and unit are checked before any batch is created. */
+export const reconciliationFormSchema = z
+  .object({
+    csv: z.string().min(1, 'CSV is required'),
+    filename: z.string().max(255).optional(),
+    unit: z.enum(['paise', 'rupees']).default('paise'),
+  })
+  .superRefine((d, ctx) => {
+    const result = validateReconciliationCsv(d.csv, d.unit);
+    if (!result.ok) {
+      const first = result.issues[0];
+      ctx.addIssue({
+        code: 'custom',
+        path: ['csv'],
+        message: first
+          ? `${first.line > 0 ? `Line ${first.line}: ` : ''}${first.message}${result.issues.length > 1 ? ` (+${result.issues.length - 1} more)` : ''}`
+          : 'Invalid CSV',
+      });
+    }
+  });
 
 export const resolveReconExceptionFormSchema = z.object({
   rowId: z.string().regex(UUID, 'Row is required'),
@@ -181,7 +198,7 @@ export type FeeStructureFormValues = z.infer<typeof feeStructureFormSchema>;
 export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
-export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
+export type ReconciliationFormValues = z.input<typeof reconciliationFormSchema>;
 export type ResolveReconExceptionFormValues = z.infer<typeof resolveReconExceptionFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
 export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;
