@@ -269,6 +269,13 @@ describe('Scholarship Routes', () => {
       const body = JSON.parse(response.payload);
       expect(body.programId).toBe(program.id);
       expect(body.status).toBe('under_review');
+      // PRC-M353: the list masks financialInfo by default; the detail view keeps it.
+      const list = await app.inject({ method: 'GET', url: '/scholarships/applications' });
+      expect(list.statusCode).toBe(200);
+      const listed = JSON.parse(list.payload).data.find((a: { id: string }) => a.id === body.id);
+      expect(listed.financialInfo).toEqual({});
+      const detail = await app.inject({ method: 'GET', url: `/scholarships/applications/${body.id}` });
+      expect(JSON.parse(detail.payload).financialInfo).toEqual({ familyIncome: 30000 });
     });
 
     it('should return 400 for missing required fields', async () => {

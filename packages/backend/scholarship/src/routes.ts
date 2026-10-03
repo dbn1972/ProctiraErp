@@ -93,6 +93,18 @@ function disbursementStatus(value: string | undefined): PaymentStatus | undefine
 /**
  * Options for registering scholarship routes.
  */
+
+/**
+ * PRC-M353 defaulted decision: application list responses mask financialInfo.
+ * SCHOLARSHIP_LIST_FINANCIAL_INFO=full restores it (owner choice).
+ */
+export function readListFinancialInfoMode(
+  env: Record<string, string | undefined> = process.env,
+): 'masked' | 'full' {
+  return env['SCHOLARSHIP_LIST_FINANCIAL_INFO']?.trim().toLowerCase() === 'full'
+    ? 'full'
+    : 'masked';
+}
 export interface ScholarshipRoutesOptions {
   scholarshipService: ScholarshipService;
   /** Route prefix (default: '/scholarships') */
@@ -523,9 +535,13 @@ export async function registerScholarshipRoutes(
         { page, pageSize, sortBy, sortOrder },
       );
 
+      // PRC-M353: list views never carry applicants' family financial details unless the
+      // owner opts in; GET /applications/:id returns them for the reviewer.
+      const maskFinancial = readListFinancialInfoMode() === 'masked';
       return reply.status(200).send({
         data: result.data.map((a) => ({
           ...a,
+          ...(maskFinancial ? { financialInfo: {} } : {}),
           submittedAt: a.submittedAt.toISOString(),
           reviewedAt: formatDate(a.reviewedAt),
           createdAt: a.createdAt.toISOString(),
