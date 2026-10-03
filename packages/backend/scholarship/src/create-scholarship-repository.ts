@@ -9,12 +9,12 @@ import {
 
 import { InMemoryScholarshipRepository } from './in-memory-repository.js';
 import { getSharedScholarshipPool, PgScholarshipRepository } from './pg-scholarship-repository.js';
-import type { ScholarshipRepository } from './scholarship-repository.js';
 import {
   InMemoryScholarshipFeeOutbox,
   PgScholarshipFeeOutbox,
   type ScholarshipFeeOutbox,
 } from './scholarship-fee-outbox.js';
+import type { ScholarshipRepository } from './scholarship-repository.js';
 
 export function isPgScholarshipEnabled(): boolean {
   const url = process.env.DATABASE_URL?.trim();

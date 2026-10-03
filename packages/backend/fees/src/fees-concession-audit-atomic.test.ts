@@ -142,7 +142,12 @@ describe('concession + netting audit atomicity (PRC-L306)', () => {
       events.push(e);
     };
     const first = await service.applyScholarshipNetting(TENANT, 'scholarship-netting', input, sink);
-    const replay = await service.applyScholarshipNetting(TENANT, 'scholarship-netting', input, sink);
+    const replay = await service.applyScholarshipNetting(
+      TENANT,
+      'scholarship-netting',
+      input,
+      sink,
+    );
     expect(first.idempotent).toBe(false);
     expect(replay.idempotent).toBe(true);
     expect((await service.getInvoice(TENANT, invoice.id)).amountCents).toBe(7_000);
@@ -165,8 +170,8 @@ describe('concession + netting audit atomicity (PRC-L306)', () => {
       ),
     ).rejects.toThrow('audit sink down');
     expect((await service.getInvoice(TENANT, invoice.id)).amountCents).toBe(7_000);
-    expect(
-      (await repository.findConcessionBySourceDisbursementId(TENANT, 'disb-2'))?.status,
-    ).toBe('approved');
+    expect((await repository.findConcessionBySourceDisbursementId(TENANT, 'disb-2'))?.status).toBe(
+      'approved',
+    );
   });
 });

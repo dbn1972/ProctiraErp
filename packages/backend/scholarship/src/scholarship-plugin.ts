@@ -96,7 +96,9 @@ export const scholarshipPlugin = fp(
         draining = true;
         scholarshipService
           .drainFeeOutboxRetries()
-          .catch((error: unknown) => fastify.log.warn({ err: error }, 'scholarship fee outbox drain failed'))
+          .catch((error: unknown) =>
+            fastify.log.warn({ err: error }, 'scholarship fee outbox drain failed'),
+          )
           .finally(() => {
             draining = false;
           });

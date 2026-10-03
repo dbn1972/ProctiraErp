@@ -6,8 +6,8 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { majorUnitsNumberFromCents } from '@proctira/common';
-import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ScholarshipProgramEntity,
   ScholarshipApplicationEntity,

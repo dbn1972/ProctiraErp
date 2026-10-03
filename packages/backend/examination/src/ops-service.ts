@@ -455,7 +455,12 @@ export class ExamOpsService {
   ): Promise<FinalMarksWriteBack> {
     if (!this.results) {
       await opsMutation();
-      return { writtenBack: false, previousScore: null, republished: false, certificates: 'skipped' };
+      return {
+        writtenBack: false,
+        previousScore: null,
+        republished: false,
+        certificates: 'skipped',
+      };
     }
     const results = this.results;
     // Resolve everything the audit and the compensation need BEFORE any write.
@@ -697,10 +702,19 @@ export class ExamOpsService {
         },
       );
     } catch (error: unknown) {
-      await this.auditFailure(tenantId, examinationId, 'marks.resolve', 'exam_marks_entry', input.candidateId, actor.userId, {
-        subjectId: input.subjectId,
-        finalMarks: input.finalMarks,
-      }, error);
+      await this.auditFailure(
+        tenantId,
+        examinationId,
+        'marks.resolve',
+        'exam_marks_entry',
+        input.candidateId,
+        actor.userId,
+        {
+          subjectId: input.subjectId,
+          finalMarks: input.finalMarks,
+        },
+        error,
+      );
       throw error;
     }
     await this.audit(
@@ -859,10 +873,19 @@ export class ExamOpsService {
         },
       );
     } catch (error: unknown) {
-      await this.auditFailure(tenantId, examinationId, 'reevaluation.complete', 'exam_reevaluation_request', requestId, actor.userId, {
-        originalMarks: existing.originalMarks,
-        revisedMarks: input.revisedMarks,
-      }, error);
+      await this.auditFailure(
+        tenantId,
+        examinationId,
+        'reevaluation.complete',
+        'exam_reevaluation_request',
+        requestId,
+        actor.userId,
+        {
+          originalMarks: existing.originalMarks,
+          revisedMarks: input.revisedMarks,
+        },
+        error,
+      );
       throw error;
     }
     if (!updated) throw new NotFoundError(`Re-evaluation request '${requestId}' not found`);

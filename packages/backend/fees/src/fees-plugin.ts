@@ -15,11 +15,7 @@ import {
   requireFeesStaffRead,
   resolveFeesReadScope,
 } from './fees-http-guard.js';
-import type {
-  FeesMoneyAuditEvent,
-  FeesMoneyAuditSink,
-  FeesRepository,
-} from './fees-repository.js';
+import type { FeesMoneyAuditEvent, FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,

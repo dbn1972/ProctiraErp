@@ -235,7 +235,7 @@ export function ScholarshipNettingForm({
                   Object.fromEntries(invoiceOptions.map((option) => [option.id, option.label])),
                   'Invoice',
                 )}
-                <span className="ml-2">
+                <span className="ms-2">
                   balance{' '}
                   {formatAmount(result.invoice.amountCents, result.invoice.currency, locale)} (
                   {humanizeStatus(result.invoice.status)})

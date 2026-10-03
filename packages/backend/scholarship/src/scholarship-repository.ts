@@ -7,7 +7,6 @@
  * Requirements: 11.1, 11.2, 11.3, 11.4, 11.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
 import type {
   EligibilityCriteria,
@@ -15,6 +14,7 @@ import type {
   FinancialInfo,
   ApplicationDocument,
 } from './schemas.js';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
 // ─── Program Entity ──────────────────────────────────────────────────────────
 

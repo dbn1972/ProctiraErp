@@ -796,7 +796,7 @@ export async function registerScholarshipRoutes(
       }
       try {
         const result = await scholarshipService.replayFeeOutbox(tenantId, {
-          id: rawId as string | undefined,
+          id: rawId,
         });
         return reply.status(200).send(result);
       } catch (error: unknown) {

@@ -24,12 +24,6 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  outboxBackoffMs,
-  type ScholarshipFeeOutbox,
-  type ScholarshipFeeOutboxEvent,
-  type ScholarshipFeeOutboxRow,
-} from './scholarship-fee-outbox.js';
 
 import type {
   CreateScholarshipProgramInput,
@@ -42,6 +36,12 @@ import type {
   FinancialInfo,
   EligibilityCriteria,
 } from './schemas.js';
+import {
+  outboxBackoffMs,
+  type ScholarshipFeeOutbox,
+  type ScholarshipFeeOutboxEvent,
+  type ScholarshipFeeOutboxRow,
+} from './scholarship-fee-outbox.js';
 import type {
   ScholarshipProgramEntity,
   ScholarshipApplicationEntity,
@@ -962,10 +962,7 @@ export class ScholarshipService {
         ? await this.repository.findApplicationById(disbursement.applicationId, row.tenantId)
         : null;
       if (disbursement && application) {
-        const program = await this.repository.findProgramById(
-          application.programId,
-          row.tenantId,
-        );
+        const program = await this.repository.findProgramById(application.programId, row.tenantId);
         const currency = program?.currency ?? 'INR';
         if (row.event === 'disbursement.paid') {
           if (!this.onDisbursementPaid) throw new Error('onDisbursementPaid hook not configured');

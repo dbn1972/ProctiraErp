@@ -1755,29 +1755,39 @@ export class FeesService {
     }
 
     if (!invoice) {
-      const concession = await this.applyConcession(tenantId, actorId, {
-        studentId: input.studentId,
-        structureId,
-        kind: 'amount',
-        amountCents: input.amountCents,
-        reason: `${marker} (no open invoice — credit reserved)`,
-        sourceDisbursementId: input.disbursementId,
-        autoApprove: true,
-      }, audit);
+      const concession = await this.applyConcession(
+        tenantId,
+        actorId,
+        {
+          studentId: input.studentId,
+          structureId,
+          kind: 'amount',
+          amountCents: input.amountCents,
+          reason: `${marker} (no open invoice — credit reserved)`,
+          sourceDisbursementId: input.disbursementId,
+          autoApprove: true,
+        },
+        audit,
+      );
       return { ...concession, idempotent: false as const };
     }
 
     return {
-      ...(await this.applyConcession(tenantId, actorId, {
-        studentId: input.studentId,
-        structureId,
-        invoiceId: invoice.id,
-        kind: 'amount',
-        amountCents: Math.min(input.amountCents, invoice.amountCents),
-        reason: marker,
-        sourceDisbursementId: input.disbursementId,
-        autoApprove: true,
-      }, audit)),
+      ...(await this.applyConcession(
+        tenantId,
+        actorId,
+        {
+          studentId: input.studentId,
+          structureId,
+          invoiceId: invoice.id,
+          kind: 'amount',
+          amountCents: Math.min(input.amountCents, invoice.amountCents),
+          reason: marker,
+          sourceDisbursementId: input.disbursementId,
+          autoApprove: true,
+        },
+        audit,
+      )),
       idempotent: false as const,
     };
   }
@@ -1817,13 +1827,18 @@ export class FeesService {
     ) {
       throw new BusinessRuleError('Netting amount must equal the paid disbursement amount');
     }
-    return this.applyScholarshipNetting(tenantId, actorId, {
-      studentId: disbursement.studentId,
-      disbursementId: disbursement.id,
-      amountCents: disbursement.amountCents,
-      invoiceId: input.invoiceId,
-      currency: disbursement.currency ?? input.currency,
-    }, audit);
+    return this.applyScholarshipNetting(
+      tenantId,
+      actorId,
+      {
+        studentId: disbursement.studentId,
+        disbursementId: disbursement.id,
+        amountCents: disbursement.amountCents,
+        invoiceId: input.invoiceId,
+        currency: disbursement.currency ?? input.currency,
+      },
+      audit,
+    );
   }
   /** PRC-H020: paid disbursements for the tenant that have not yet been netted. */
   async listNettableScholarshipDisbursements(

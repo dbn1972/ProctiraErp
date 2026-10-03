@@ -43,7 +43,10 @@ export interface ScholarshipFeeOutbox {
   /** False when the backing table is absent: callers must use the legacy path. */
   isAvailable(): Promise<boolean>;
   /** Insert a pending row on the caller's open transaction (`tx`), or directly when null. */
-  enqueue(tx: ScholarshipTxClient, row: NewScholarshipFeeOutboxRow): Promise<ScholarshipFeeOutboxRow>;
+  enqueue(
+    tx: ScholarshipTxClient,
+    row: NewScholarshipFeeOutboxRow,
+  ): Promise<ScholarshipFeeOutboxRow>;
   /** Pending rows due at `now`, oldest first. */
   listDue(tenantId: string, now: Date, limit: number): Promise<ScholarshipFeeOutboxRow[]>;
   /** Pending + failed rows (reconcile view), oldest first. */

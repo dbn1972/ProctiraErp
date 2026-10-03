@@ -20,6 +20,7 @@ import type {
   EligibilityCriteria,
   FinancialInfo,
 } from './schemas.js';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ApplicationFilter,
   ApplicationStatus,
@@ -42,7 +43,6 @@ import type {
   ApproveApplicationOutcome,
 } from './scholarship-repository.js';
 import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
-import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 

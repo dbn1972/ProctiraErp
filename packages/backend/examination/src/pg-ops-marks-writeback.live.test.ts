@@ -120,7 +120,13 @@ describe.skipIf(!live)('ops marks write-back (live Postgres, PRC-H057)', () => {
       { candidateId, subjectId, originalMarks: 75 },
       MODERATOR,
     );
-    await ops.assignReevaluation(tenantId, examId, req.id, { evaluatorId: randomUUID() }, MODERATOR);
+    await ops.assignReevaluation(
+      tenantId,
+      examId,
+      req.id,
+      { evaluatorId: randomUUID() },
+      MODERATOR,
+    );
     await ops.completeReevaluation(tenantId, examId, req.id, { revisedMarks: 82 }, MODERATOR);
 
     const publication = await results.getPublicationResult(examId, tenantId);
@@ -147,7 +153,13 @@ describe.skipIf(!live)('ops marks write-back (live Postgres, PRC-H057)', () => {
       { candidateId, subjectId, originalMarks: 75 },
       MODERATOR,
     );
-    await ops.assignReevaluation(tenantId, examId, req.id, { evaluatorId: randomUUID() }, MODERATOR);
+    await ops.assignReevaluation(
+      tenantId,
+      examId,
+      req.id,
+      { evaluatorId: randomUUID() },
+      MODERATOR,
+    );
     fail = true;
     await expect(
       ops.completeReevaluation(tenantId, examId, req.id, { revisedMarks: 82 }, MODERATOR),

@@ -9,8 +9,8 @@
 import type { CacheClient } from '@proctira/cache';
 import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ScholarshipRepository,
   ScholarshipProgramEntity,
