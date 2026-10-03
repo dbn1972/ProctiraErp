@@ -19,7 +19,7 @@ import {
   type RoleDashboard,
 } from './dashboards.js';
 import { contentTypeFor, filenameFor, generateReportBytes, sha256Hex } from './generators.js';
-import { fetchCatalogueTable } from './providers.js';
+import { fetchCatalogueTable, MAX_CATALOGUE_REPORT_ROWS } from './providers.js';
 import type {
   ReportArtifactRecord,
   ReportRunRecord,
@@ -38,7 +38,7 @@ export const REPORT_SCHEDULE_LEASE_MS = 15 * 60_000;
 export const REPORT_SCHEDULE_RETRY_MS = 5 * 60_000;
 
 /** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
-export const MAX_CATALOGUE_REPORT_ROWS = 25_000;
+export { MAX_CATALOGUE_REPORT_ROWS };
 
 export interface GenerateInput {
   reportKey?: string;
