@@ -905,11 +905,12 @@ export class FeesService {
       (await this.getFeeStructure(tenantId, concession.structureId)).amountCents,
       concession,
     );
-    const approved = await this.repository.updateConcession(concession.id, tenantId, {
-      status: 'approved',
+    // PRC-M245: the approval is recorded in the same locked transaction that
+    // checks the unpaid balance, so a rejected (over-unpaid) approval leaves
+    // the concession pending.
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount, audit, {
       approverId: actorId,
     });
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount, audit);
   }
 
   async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
@@ -936,6 +937,7 @@ export class FeesService {
     concession: FeeConcessionEntity,
     discount: number,
     audit?: FeesMoneyAuditSink,
+    approve?: { approverId: string },
   ) {
     const target = concession.invoiceId
       ? await this.getInvoice(tenantId, concession.invoiceId)
@@ -945,6 +947,13 @@ export class FeesService {
           concession.studentId,
         );
     if (!target) {
+      if (approve) {
+        const approved = await this.repository.updateConcession(concession.id, tenantId, {
+          status: 'approved',
+          approverId: approve.approverId,
+        });
+        return { concession: approved ?? concession, invoice: null, discountCents: discount };
+      }
       return { concession, invoice: null, discountCents: discount };
     }
     // PRC-H058: re-read the invoice under lock; journal + face update + link are atomic.
@@ -955,8 +964,21 @@ export class FeesService {
       }
       // Never discount below cash already collected (negative AR).
       const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+      // PRC-M245: a manual concession larger than the unpaid balance is rejected;
+      // scholarship netting (sourceDisbursementId) credits at most the unpaid balance.
+      if (discount > unpaid && concession.sourceDisbursementId == null) {
+        throw new BusinessRuleError(
+          `Concession ${discount} exceeds unpaid balance ${unpaid}`,
+        );
+      }
       const applied = Math.min(discount, unpaid);
       const nextAmount = invoice.amountCents - applied;
+      if (approve) {
+        await tx.updateConcession(concession.id, tenantId, {
+          status: 'approved',
+          approverId: approve.approverId,
+        });
+      }
       if (applied > 0) {
         await this.postJournal(
           tx,
@@ -970,8 +992,10 @@ export class FeesService {
           applied,
         );
       }
+      // PRC-M245: nothing left to collect -> settled.
       const updated = await tx.updateInvoice(invoice.id, tenantId, {
         amountCents: nextAmount,
+        ...(nextAmount <= locked.paidCents ? { status: 'paid' as const } : {}),
       });
       await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
       const refreshed = await tx.findConcessionById(concession.id, tenantId);
@@ -1085,8 +1109,11 @@ export class FeesService {
         createdBy: actorId,
       });
 
+      // PRC-M245: a credit note that clears the unpaid balance settles the invoice.
+      const nextUnpaid = unpaid - input.amountCents;
       const updated = await tx.updateInvoice(invoice.id, tenantId, {
         amountCents: invoice.amountCents - input.amountCents,
+        ...(nextUnpaid === 0 ? { status: 'paid' as const } : {}),
       });
 
       await this.postJournal(
