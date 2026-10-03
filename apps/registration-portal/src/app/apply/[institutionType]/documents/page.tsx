@@ -1,7 +1,7 @@
 import { ApplySchoolHeading } from '@/components/registration/apply-school-heading';
 import { ConfigurationState } from '@/components/registration/configuration-state';
 import { DocumentsStep } from '@/components/registration/documents-step';
-import { loadFormConfiguration, lookupInstitutionName } from '@/lib/server';
+import { loadFormConfiguration } from '@/lib/server';
 
 interface PageProps {
   params: Promise<{ institutionType: string }>;
@@ -22,7 +22,8 @@ export default async function ApplyDocumentsPage({ params, searchParams }: PageP
     return <ConfigurationState status={result.status} retryHref={retryHref} />;
   }
 
-  const institutionName = await lookupInstitutionName(result.configuration.institutionId);
+  // PRC-M056: name comes with the form config (one backend call, no directory scan).
+  const institutionName = result.configuration.institutionName?.trim() || null;
   return (
     <div className="space-y-6">
       <ApplySchoolHeading institutionType={institutionType} institutionName={institutionName} />
