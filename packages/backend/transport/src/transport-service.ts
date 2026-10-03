@@ -777,15 +777,8 @@ export class TransportService {
         speedKph: ping.speedKph ?? null,
         headingDeg: ping.headingDeg ?? null,
       });
-      this.gpsAttendance.recordGpsPing({
-        tenantId,
-        vehicleId: device.vehicleId,
-        latitude: ping.latitude,
-        longitude: ping.longitude,
-        recordedAt,
-        speedKph: ping.speedKph,
-        headingDeg: ping.headingDeg,
-      });
+      // PRC-M444: the durable repository is the only sink for device pings; they are no
+      // longer mirrored into the process-local sandbox store.
       results.push({
         ...stored.ping,
         duplicate: stored.duplicate,
