@@ -691,3 +691,16 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 _Last updated: 2026-09-14 (W1-OPS-20: tip evidence requires timestamp/encryption/offsiteTarget; not prod restore)_
 _Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_
+
+## Production backup key provisioning checklist (PRC-L383)
+
+In-repo controls are complete: `pg-backup.sh` refuses plaintext unless `BACKUP_ALLOW_PLAINTEXT=1`,
+the production Helm render fails unless `dr.backup.encrypt.enabled=true`, and the CronJob reads
+`BACKUP_AGE_RECIPIENT` from `secrets.existingSecret`. The owner must still:
+
+1. Generate the age identity offline (`age-keygen -o backup-identity.txt`) and store the private key in
+   the restore vault / KMS-wrapped secret (never in the cluster that writes backups).
+2. Put the public recipient (`age-keygen -y backup-identity.txt`) into `proctira-prod-secrets` as
+   `BACKUP_AGE_RECIPIENT`, plus the S3 credentials for the Object Lock bucket.
+3. Run the restore drill workflow and record the sha256 + `age -d` round-trip evidence of the
+   offsite object.
