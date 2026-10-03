@@ -157,8 +157,9 @@ describe('etl-worker health probes (W1-OPS-02 B4 / W3-C2)', () => {
 
   it('keeps the PRC-H050 role guard on pipeline routes only', async () => {
     const instance = await app();
+    // PRC-M030: unauthenticated calls are rejected before the role guard (401, not 403).
     const pipelines = await instance.inject({ method: 'GET', url: '/api/v1/pipelines' });
-    expect(pipelines.statusCode).toBe(403);
+    expect(pipelines.statusCode).toBe(401);
     const health = await instance.inject({ method: 'GET', url: ETL_WORKER_K8S_PROBE_PATHS.legacy });
     expect(health.statusCode).toBe(200);
   });

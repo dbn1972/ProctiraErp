@@ -21,7 +21,14 @@ export interface BillingPluginOptions {
   repository: BillingRepository;
   /** Route prefix for billing (default: '/billing') */
   prefix?: string;
+  /**
+   * PRC-M185: interval for the subscription lifecycle sweep (trial expiry + period roll).
+   * Default 15 minutes; 0 disables (reads still refresh lazily).
+   */
+  lifecycleSweepIntervalMs?: number;
 }
+
+const DEFAULT_LIFECYCLE_SWEEP_MS = 15 * 60 * 1000;
 
 // Extend Fastify types
 declare module 'fastify' {
@@ -42,6 +49,31 @@ export const billingPlugin = fp(
 
     // Decorate fastify with the billing service
     fastify.decorate('billingService', billingService);
+
+    // PRC-M185: persist trial expiry / period roll-over even for tenants that are not reading.
+    const sweepMs = options.lifecycleSweepIntervalMs ?? DEFAULT_LIFECYCLE_SWEEP_MS;
+    if (sweepMs > 0) {
+      let running = false;
+      const timer = setInterval(() => {
+        if (running) return;
+        running = true;
+        billingService
+          .runLifecycleSweep()
+          .then((result) => {
+            if (result.expiredTrials || result.rolledPeriods || result.failures) {
+              fastify.log.info(result, 'billing lifecycle sweep');
+            }
+          })
+          .catch((error: unknown) =>
+            fastify.log.error({ err: error }, 'billing lifecycle sweep failed'),
+          )
+          .finally(() => {
+            running = false;
+          });
+      }, sweepMs);
+      timer.unref();
+      fastify.addHook('onClose', async () => clearInterval(timer));
+    }
 
     // Encapsulate routes + plugin-wide preHandler so `fp` does not leak
     // billing RBAC onto every gateway route (W1-SEC-02).

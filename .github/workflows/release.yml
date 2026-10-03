@@ -86,15 +86,30 @@ jobs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
     steps:
+      # PRC-M256: context values reach the shell only through env (never inline in script).
       - name: Resolve commit and branch
         id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PUSH_SHA: ${{ github.sha }}
+          PUSH_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          if [ "${EVENT_NAME}" = "workflow_run" ]; then
+            HEAD_SHA="${RUN_HEAD_SHA}"
+            HEAD_BRANCH="${RUN_HEAD_BRANCH}"
           else
-            HEAD_SHA="${{ github.sha }}"
-            HEAD_BRANCH="${{ github.ref_name }}"
+            HEAD_SHA="${PUSH_SHA}"
+            HEAD_BRANCH="${PUSH_REF_NAME}"
+          fi
+          if ! [[ "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Unexpected head SHA format"
+            exit 1
+          fi
+          if ! [[ "${HEAD_BRANCH}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::Unexpected branch name format"
+            exit 1
           fi
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
@@ -187,6 +202,18 @@ jobs:
           fi
 
           if [ -n "${MANUAL_SERVICES:-}" ]; then
+            # PRC-M256: format + allowlist before the list reaches GITHUB_OUTPUT / build jobs.
+            if ! [[ "${MANUAL_SERVICES}" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]]; then
+              echo "::error::services must be a comma-separated list of service names ([a-z0-9-])"
+              exit 1
+            fi
+            IFS=',' read -ra REQUESTED <<< "${MANUAL_SERVICES}"
+            for SERVICE in "${REQUESTED[@]}"; do
+              case ",${ALL_SERVICES}," in
+                *",${SERVICE},"*) ;;
+                *) echo "::error::Unknown service '${SERVICE}'"; exit 1 ;;
+              esac
+            done
             echo "Manual service list provided: ${MANUAL_SERVICES}"
             echo "services=${MANUAL_SERVICES}" >> "$GITHUB_OUTPUT"
             echo "has-services=true" >> "$GITHUB_OUTPUT"
@@ -439,14 +466,18 @@ jobs:
           echo "signed ${IMAGE}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record image digest
+        env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           {
-            echo "### ${{ matrix.service }}"
+            echo "### ${SERVICE}"
             echo ""
             echo '```'
             echo "Tags:"
-            echo "${{ steps.meta.outputs.tags }}"
-            echo "Digest: ${{ steps.build.outputs.digest }}"
+            echo "${IMAGE_TAGS}"
+            echo "Digest: ${IMAGE_DIGEST}"
             echo "Provenance: mode=max + BuildKit SBOM + cosign (required)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -462,14 +493,19 @@ jobs:
     if: always() && needs.ci-gate.result == 'success'
     steps:
       - name: Summarize
+        env:
+          HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
+          HEAD_BRANCH: ${{ needs.ci-gate.outputs.head-branch }}
+          SERVICES: ${{ needs.detect-services.outputs.services || 'none' }}
+          BUILD_RESULT: ${{ needs.build-and-push.result }}
         run: |
           {
             echo "## Release Summary"
             echo ""
-            echo "- Commit: \`${{ needs.ci-gate.outputs.head-sha }}\`"
-            echo "- Branch: \`${{ needs.ci-gate.outputs.head-branch }}\`"
-            echo "- Services: \`${{ needs.detect-services.outputs.services || 'none' }}\`"
-            echo "- Build status: \`${{ needs.build-and-push.result }}\`"
+            echo "- Commit: \`${HEAD_SHA}\`"
+            echo "- Branch: \`${HEAD_BRANCH}\`"
+            echo "- Services: \`${SERVICES}\`"
+            echo "- Build status: \`${BUILD_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any image build failed

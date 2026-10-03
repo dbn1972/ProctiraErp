@@ -5,6 +5,7 @@ import { ADMIN_AUTH_COOKIES } from './lib/auth/cookies';
 import { decodeJwtPayload } from './lib/auth/jwt-payload';
 import { isPublicPath } from './lib/auth/public-paths';
 import { sanitizeReturnTo } from './lib/auth/return-to';
+import { buildContentSecurityPolicy, createNonce } from './lib/security-headers';
 
 const TOKEN_EXPIRY_BUFFER_SECONDS = 30;
 
@@ -23,9 +24,25 @@ function isAccessTokenFresh(token: string): boolean {
 }
 
 /**
+ * PRC-M003: attach a per-request nonce CSP to a document response. Next.js reads the CSP from
+ * the forwarded request headers and stamps the nonce on its own scripts.
+ */
+function withCsp(request: NextRequest, build: (headers: Headers) => NextResponse): NextResponse {
+  const nonce = createNonce();
+  const csp = buildContentSecurityPolicy(nonce, process.env.NODE_ENV === 'development');
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
+  const response = build(requestHeaders);
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
+}
+
+/**
  * Platform Admin Console middleware: guards every protected page with a
- * cookie-based JWT check. Stamps `X-Platform-Admin: true` on the response so
- * downstream API calls can be authorised against platform-admin policies.
+ * cookie-based JWT check and sets the nonce CSP (PRC-M003). The platform-admin
+ * marker is a server-side request header set by gatewayFetch, never a response
+ * header (PRC-M003).
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -35,20 +52,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const next = (headers: Headers) => NextResponse.next({ request: { headers } });
   if (isPublicPath(pathname)) {
-    return NextResponse.next();
+    return withCsp(request, next);
   }
 
   const accessToken = request.cookies.get(ADMIN_AUTH_COOKIES.ACCESS_TOKEN)?.value;
   if (!accessToken || !isAccessTokenFresh(accessToken)) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('returnTo', sanitizeReturnTo(pathname));
-    return NextResponse.redirect(loginUrl);
+    return withCsp(request, () => NextResponse.redirect(loginUrl));
   }
-
-  const response = NextResponse.next();
-  response.headers.set('X-Platform-Admin', 'true');
-  return response;
+  return withCsp(request, next);
 }
 
 export const config = {

@@ -4,10 +4,10 @@
  * Tests plan management, subscription lifecycle, entitlement checking,
  * usage tracking, and plan upgrades/downgrades.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 
-import { BillingService } from './billing-service.js';
+import { BillingService, addMonthsClamped } from './billing-service.js';
 import { InMemoryBillingRepository } from './in-memory-repository.js';
 import type { CreatePlanInput } from './schemas.js';
 
@@ -75,7 +75,6 @@ describe('BillingService', () => {
   });
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
-
 
   describe('W1-DATA-09 integer cents prices', () => {
     it('rejects float monthly/yearly prices at the service boundary', async () => {
@@ -572,5 +571,152 @@ describe('BillingService', () => {
       result = await service.checkEntitlement(tenantId, 'custom_fields');
       expect(result.allowed).toBe(true);
     });
+  });
+});
+
+// ─── PRC-M185: trial expiry, period roll-over, month clamping ────────────────
+describe('BillingService subscription lifecycle (PRC-M185)', () => {
+  const tenant = '22222222-2222-4222-8222-222222222222';
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function setup(trialDays = 0) {
+    const repo = new InMemoryBillingRepository();
+    const svc = new BillingService(repo);
+    const plan = await svc.createPlan({
+      name: `Plan ${Math.random()}`,
+      tier: 'starter',
+      trialDays,
+      features: [{ featureKey: 'reports', enabled: true }],
+      quotas: [{ metric: 'api_calls', limit: 10 }],
+    });
+    await svc.updatePlan(plan.id, { status: 'active' });
+    return { repo, svc, plan };
+  }
+
+  it('clamps 31 Jan + 1 month to the end of February', () => {
+    expect(addMonthsClamped(new Date('2026-01-31T10:00:00Z'), 1).toISOString()).toBe(
+      '2026-02-28T10:00:00.000Z',
+    );
+    expect(addMonthsClamped(new Date('2028-01-31T10:00:00Z'), 1).toISOString()).toBe(
+      '2028-02-29T10:00:00.000Z',
+    );
+    // Anchor day is restored after a short month.
+    expect(addMonthsClamped(new Date('2026-02-28T10:00:00Z'), 1, 31).toISOString()).toBe(
+      '2026-03-31T10:00:00.000Z',
+    );
+  });
+
+  it('subscribing on 31 Jan yields a period end on 28 Feb', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-31T09:00:00Z'));
+    const { svc, plan } = await setup();
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    expect(sub.currentPeriodEnd.toISOString()).toBe('2026-02-28T09:00:00.000Z');
+  });
+
+  it('a trial is not entitled one second after trialEndsAt', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-01T00:00:00Z'));
+    const { svc, plan } = await setup(14);
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id, startTrial: true });
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(true);
+    vi.setSystemTime(new Date(sub.trialEndsAt!.getTime() + 1000));
+    const after = await svc.checkEntitlement(tenant, 'reports');
+    expect(after).toMatchObject({ allowed: false, reason: 'Trial has expired' });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 1)).allowed).toBe(false);
+    expect((await svc.getSubscription(sub.id)).status).toBe('suspended');
+  });
+
+  it('usage resets after the period boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    const { svc, plan } = await setup();
+    await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 10)).allowed).toBe(true);
+    expect((await svc.enforceQuota(tenant, 'api_calls', 1)).allowed).toBe(false);
+    vi.setSystemTime(new Date('2026-05-10T12:00:01Z'));
+    const next = await svc.enforceQuota(tenant, 'api_calls', 1);
+    expect(next).toMatchObject({ allowed: true, used: 1 });
+    expect((await svc.getUsage(tenant, 'api_calls')).periodStart).toBe('2026-05-10T12:00:00.000Z');
+  });
+
+  it('the sweep expires lapsed trials and rolls periods', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
+    const { svc, plan } = await setup(7);
+    await svc.subscribeTenant({ tenantId: tenant, planId: plan.id, startTrial: true });
+    await svc.subscribeTenant({
+      tenantId: '33333333-3333-4333-8333-333333333333',
+      planId: plan.id,
+    });
+    const result = await svc.runLifecycleSweep(new Date('2026-07-15T00:00:00Z'));
+    expect(result).toMatchObject({ checked: 2, expiredTrials: 1, failures: 0 });
+    expect(result.rolledPeriods).toBe(2);
+  });
+});
+
+// ─── PRC-M186: entitlements follow the subscription and plan version ──────────
+describe('BillingService entitlement lifecycle (PRC-M186)', () => {
+  const tenant = '44444444-4444-4444-8444-444444444444';
+
+  async function activePlan(svc: BillingService, input: Partial<CreatePlanInput>) {
+    const plan = await svc.createPlan({
+      name: `P ${Math.random()}`,
+      tier: 'starter',
+      features: [],
+      quotas: [],
+      ...input,
+    } as CreatePlanInput);
+    await svc.updatePlan(plan.id, { status: 'active' });
+    return plan;
+  }
+
+  it('Enterprise -> cancel -> Starter denies enterprise-only features', async () => {
+    const svc = new BillingService(new InMemoryBillingRepository());
+    const enterprise = await activePlan(svc, {
+      tier: 'enterprise',
+      features: [
+        { featureKey: 'reports', enabled: true },
+        { featureKey: 'sso', enabled: true },
+      ],
+    });
+    const starter = await activePlan(svc, {
+      features: [{ featureKey: 'reports', enabled: true }],
+    });
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: enterprise.id });
+    expect((await svc.checkEntitlement(tenant, 'sso')).allowed).toBe(true);
+    await svc.cancelSubscription(sub.id);
+    await svc.subscribeTenant({ tenantId: tenant, planId: starter.id });
+    expect((await svc.checkEntitlement(tenant, 'sso')).allowed).toBe(false);
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(true);
+  });
+
+  it('cancelling removes entitlements', async () => {
+    const repo = new InMemoryBillingRepository();
+    const svc = new BillingService(repo);
+    const plan = await activePlan(svc, { features: [{ featureKey: 'reports', enabled: true }] });
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    await svc.cancelSubscription(sub.id);
+    expect(await repo.findEntitlementsByTenant(tenant)).toEqual([]);
+  });
+
+  it('plan quota/feature edits reach existing subscribers', async () => {
+    const svc = new BillingService(new InMemoryBillingRepository());
+    const plan = await activePlan(svc, {
+      features: [{ featureKey: 'reports', enabled: true }],
+      quotas: [{ metric: 'api_calls', limit: 100 }],
+    });
+    await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 50)).allowed).toBe(true);
+    await svc.updatePlan(plan.id, {
+      features: [{ featureKey: 'exports', enabled: true }],
+      quotas: [{ metric: 'api_calls', limit: 40 }],
+    });
+    expect((await svc.enforceQuota(tenant, 'api_calls', 1)).allowed).toBe(false);
+    expect((await svc.checkEntitlement(tenant, 'exports')).allowed).toBe(true);
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(false);
   });
 });
