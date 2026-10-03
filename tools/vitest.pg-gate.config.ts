@@ -20,6 +20,8 @@ export default defineConfig({
       'packages/backend/**/*.integration.test.ts',
       'packages/backend/**/create-admissions-pipeline-store.test.ts',
       'packages/backend/**/bed-assignment.test.ts',
+      // PRC-L348: shared in-memory/Postgres repository contract must execute against live Pg.
+      'packages/backend/scholarship/src/repository-contract.test.ts',
     ],
     exclude: ['**/*.live.test.ts', '**/node_modules/**', '**/dist/**'],
     fileParallelism: false,
