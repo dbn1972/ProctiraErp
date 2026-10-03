@@ -6,6 +6,7 @@
  * and performs the authorization code flow with ID token validation.
  */
 import { v4 as uuidv4 } from 'uuid';
+import { KeycloakJwksClient, decodeJwt, verifyRs256 } from '../keycloak/verify.js';
 import type {
   ExternalAuthProvider,
   OIDCProviderConfig,
@@ -43,6 +44,11 @@ export class OIDCProvider implements ExternalAuthProvider {
   private readonly config: OIDCProviderConfig;
   private readonly httpClient: HttpClient;
   private discoveryDoc: OIDCDiscoveryDocument | null = null;
+  private jwks: KeycloakJwksClient | null = null;
+  /** PRC-M588: discovery documents are re-fetched after this TTL (not cached forever). */
+  private discoveryFetchedAt = 0;
+  private static readonly DISCOVERY_TTL_MS = 60 * 60 * 1000;
+  private static readonly CLOCK_SKEW_SECONDS = 60;
 
   // Store state/nonce for validation
   private readonly pendingAuths = new Map<
@@ -61,7 +67,7 @@ export class OIDCProvider implements ExternalAuthProvider {
    * Fetch and cache the OIDC discovery document.
    */
   async getDiscoveryDocument(): Promise<OIDCDiscoveryDocument> {
-    if (this.discoveryDoc) {
+    if (this.discoveryDoc && Date.now() - this.discoveryFetchedAt < OIDCProvider.DISCOVERY_TTL_MS) {
       return this.discoveryDoc;
     }
 
@@ -87,7 +93,25 @@ export class OIDCProvider implements ExternalAuthProvider {
       );
     }
 
+    // PRC-M588: pin the issuer to the configured discovery URL so a tampered
+    // discovery document cannot swap in another issuer / JWKS.
+    const expectedIssuer = this.config.discoveryUrl
+      .replace(/\/\.well-known\/openid-configuration\/?$/, '')
+      .replace(/\/$/, '');
+    if (!doc.issuer || doc.issuer.replace(/\/$/, '') !== expectedIssuer || !doc.jwks_uri) {
+      throw new ExternalAuthError(
+        'OIDC discovery issuer does not match the configured discovery URL',
+        this.providerId,
+        'OIDC_DISCOVERY_ISSUER_MISMATCH',
+        503,
+      );
+    }
     this.discoveryDoc = doc;
+    this.discoveryFetchedAt = Date.now();
+    this.jwks = new KeycloakJwksClient(doc.jwks_uri, (async (url: string) => {
+      const res = await this.httpClient.get(String(url));
+      return new Response(JSON.stringify(res.data), { status: res.status });
+    }) as unknown as typeof fetch);
     return doc;
   }
 
@@ -183,22 +207,17 @@ export class OIDCProvider implements ExternalAuthProvider {
       );
     }
 
-    // Try to extract user info from ID token claims first, fall back to userinfo endpoint
-    let profile: ExternalUserProfile;
-
-    if (idToken) {
-      profile = this.extractFromIdToken(idToken);
-    } else if (discovery.userinfo_endpoint) {
-      profile = await this.fetchUserInfo(accessToken, discovery.userinfo_endpoint);
-    } else {
+    // PRC-M588: identity only from a verified ID token (signature, iss, aud,
+    // azp, exp, nonce). No unverified userinfo fallback.
+    if (!idToken) {
       throw new ExternalAuthError(
-        'No ID token or userinfo endpoint available',
+        'OIDC provider did not return an ID token',
         this.providerId,
-        'OIDC_NO_USER_INFO',
+        'OIDC_MISSING_ID_TOKEN',
       );
     }
-
-    return profile;
+    const claims = await this.verifyIdToken(idToken, discovery, storedAuth.nonce);
+    return this.profileFromClaims(claims);
   }
 
   /**
@@ -228,25 +247,53 @@ export class OIDCProvider implements ExternalAuthProvider {
   }
 
   /**
-   * Extract user profile from ID token claims (without full JWT validation for simplicity).
-   * In production, you'd validate the signature against the JWKS.
+   * PRC-M588: verify the ID token against the provider JWKS (RS256 only — `none`
+   * and HMAC algs are rejected) and check iss, aud, azp, exp and nonce.
    */
-  private extractFromIdToken(idToken: string): ExternalUserProfile {
-    // Decode the payload (middle part of JWT)
-    const parts = idToken.split('.');
-    if (parts.length !== 3) {
-      throw new ExternalAuthError(
-        'Invalid ID token format',
-        this.providerId,
-        'OIDC_INVALID_ID_TOKEN',
-      );
+  private async verifyIdToken(
+    idToken: string,
+    discovery: OIDCDiscoveryDocument,
+    expectedNonce: string,
+  ): Promise<Record<string, unknown>> {
+    const fail = (message: string): never => {
+      throw new ExternalAuthError(message, this.providerId, 'OIDC_INVALID_ID_TOKEN');
+    };
+    let decoded: ReturnType<typeof decodeJwt>;
+    try {
+      decoded = decodeJwt(idToken);
+    } catch {
+      return fail('Invalid ID token format');
     }
+    if (decoded.header.alg !== 'RS256') fail('Unsupported ID token algorithm');
+    let valid = false;
+    try {
+      const key = await this.jwks!.getKey(decoded.header.kid);
+      valid = verifyRs256(decoded.signed, decoded.signature, key);
+    } catch {
+      valid = false;
+    }
+    if (!valid) fail('ID token signature is invalid');
+    const payload = decoded.payload as unknown as Record<string, unknown>;
+    if (payload['iss'] !== discovery.issuer) fail('ID token issuer mismatch');
+    const aud = payload['aud'];
+    const audiences = Array.isArray(aud) ? aud : [aud];
+    if (!audiences.includes(this.config.clientId)) fail('ID token audience mismatch');
+    if (audiences.length > 1 && payload['azp'] !== this.config.clientId) {
+      fail('ID token azp mismatch');
+    }
+    if (payload['azp'] !== undefined && payload['azp'] !== this.config.clientId) {
+      fail('ID token azp mismatch');
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const exp = payload['exp'];
+    if (typeof exp !== 'number' || exp + OIDCProvider.CLOCK_SKEW_SECONDS < now) {
+      fail('ID token is expired');
+    }
+    if (payload['nonce'] !== expectedNonce) fail('ID token nonce mismatch');
+    return payload;
+  }
 
-    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf-8')) as Record<
-      string,
-      unknown
-    >;
-
+  private profileFromClaims(payload: Record<string, unknown>): ExternalUserProfile {
     const sub = payload['sub'] as string | undefined;
     const email =
       (payload['email'] as string | undefined) ??
@@ -255,7 +302,6 @@ export class OIDCProvider implements ExternalAuthProvider {
     const givenName = payload['given_name'] as string | undefined;
     const familyName = payload['family_name'] as string | undefined;
     const picture = payload['picture'] as string | undefined;
-
     if (!sub || !email) {
       throw new ExternalAuthError(
         'ID token missing required claims (sub, email)',
@@ -263,7 +309,6 @@ export class OIDCProvider implements ExternalAuthProvider {
         'OIDC_MISSING_CLAIMS',
       );
     }
-
     return {
       externalId: sub,
       email,
@@ -272,53 +317,6 @@ export class OIDCProvider implements ExternalAuthProvider {
       lastName: familyName,
       avatarUrl: picture,
       rawAttributes: payload,
-    };
-  }
-
-  /**
-   * Fetch user info from the OIDC userinfo endpoint.
-   */
-  private async fetchUserInfo(
-    accessToken: string,
-    userinfoEndpoint: string,
-  ): Promise<ExternalUserProfile> {
-    const response = await this.httpClient.get(userinfoEndpoint, {
-      Authorization: `Bearer ${accessToken}`,
-    });
-
-    if (response.status !== 200) {
-      throw new ExternalAuthError(
-        `OIDC userinfo request failed with status ${response.status}`,
-        this.providerId,
-        'OIDC_USERINFO_FAILED',
-      );
-    }
-
-    const data = response.data;
-    const sub = data['sub'] as string | undefined;
-    const email =
-      (data['email'] as string | undefined) ?? (data['preferred_username'] as string | undefined);
-    const name = data['name'] as string | undefined;
-    const givenName = data['given_name'] as string | undefined;
-    const familyName = data['family_name'] as string | undefined;
-    const picture = data['picture'] as string | undefined;
-
-    if (!sub || !email) {
-      throw new ExternalAuthError(
-        'OIDC userinfo response missing required fields (sub, email)',
-        this.providerId,
-        'OIDC_MISSING_CLAIMS',
-      );
-    }
-
-    return {
-      externalId: sub,
-      email,
-      displayName: name ?? email,
-      firstName: givenName,
-      lastName: familyName,
-      avatarUrl: picture,
-      rawAttributes: data,
     };
   }
 
@@ -339,6 +337,8 @@ export class OIDCProvider implements ExternalAuthProvider {
    */
   clearDiscoveryCache(): void {
     this.discoveryDoc = null;
+    this.jwks = null;
+    this.discoveryFetchedAt = 0;
   }
 }
 

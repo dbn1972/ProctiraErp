@@ -32,6 +32,8 @@ export interface HttpClient {
 /**
  * Simple fetch-based HTTP client implementation.
  */
+const FETCH_TIMEOUT_MS = 10_000;
+
 export class FetchHttpClient implements HttpClient {
   async post(
     url: string,
@@ -45,6 +47,8 @@ export class FetchHttpClient implements HttpClient {
         ...headers,
       },
       body: new URLSearchParams(body).toString(),
+      // PRC-M588: never hang the login path on a slow IdP.
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
@@ -57,6 +61,7 @@ export class FetchHttpClient implements HttpClient {
     const response = await fetch(url, {
       method: 'GET',
       headers: { ...headers },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
