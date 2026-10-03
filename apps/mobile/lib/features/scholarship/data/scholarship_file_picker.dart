@@ -14,7 +14,7 @@ abstract class ScholarshipFilePicker {
 /// Camera and gallery via [ImagePicker]; PDF, JPEG, and PNG files via [FilePicker].
 class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
   DeviceScholarshipFilePicker({ImagePicker? images})
-      : _images = images ?? ImagePicker();
+    : _images = images ?? ImagePicker();
 
   final ImagePicker _images;
 
@@ -30,10 +30,7 @@ class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
         );
       case ScholarshipPickSource.camera:
         return _fromXFile(
-          await _images.pickImage(
-            source: ImageSource.camera,
-            imageQuality: 85,
-          ),
+          await _images.pickImage(source: ImageSource.camera, imageQuality: 85),
         );
       case ScholarshipPickSource.file:
         final List<PlatformFile> files = await FilePicker.pickFiles(

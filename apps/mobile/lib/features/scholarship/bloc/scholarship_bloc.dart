@@ -33,6 +33,7 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
     this.additionalData,
     this.documentIds,
     this.draftApplicationId,
+    this.academicRecord,
   });
 
   final String programId;
@@ -43,6 +44,9 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
   /// When set, finalize this draft instead of posting a new application.
   final String? draftApplicationId;
 
+  /// Current school record from the form; synced into the draft.
+  final ScholarshipAcademicRecord? academicRecord;
+
   @override
   List<Object?> get props => <Object?>[
     programId,
@@ -50,6 +54,7 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
     additionalData,
     documentIds,
     draftApplicationId,
+    academicRecord,
   ];
 }
 
@@ -226,6 +231,19 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
 
       final String? draftId = event.draftApplicationId;
       if (draftId != null && draftId.isNotEmpty) {
+        // Edits made after the first upload must reach the server before
+        // finalize (PRC-M044).
+        final ScholarshipAcademicRecord? record = event.academicRecord;
+        if (record != null) {
+          final Object? statement = event.additionalData?['personalStatement'];
+          final Object? income = event.additionalData?['familyIncome'];
+          await _repository.updateDraftApplication(
+            applicationId: draftId,
+            academicRecord: record,
+            personalStatement: statement is String ? statement : null,
+            familyIncome: income is num ? income.toDouble() : null,
+          );
+        }
         await _repository.finalizeApplication(draftId);
       } else {
         await _repository.submitApplication(

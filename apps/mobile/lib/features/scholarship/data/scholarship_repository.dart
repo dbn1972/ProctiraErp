@@ -258,6 +258,22 @@ class ScholarshipApplication {
   };
 }
 
+/// Applicant's current academic record, as entered on the form (PRC-M044).
+class ScholarshipAcademicRecord {
+  const ScholarshipAcademicRecord({
+    required this.institutionName,
+    required this.educationLevel,
+  });
+
+  final String institutionName;
+  final String educationLevel;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'institutionName': institutionName,
+    'educationLevel': educationLevel,
+  };
+}
+
 /// Repository for scholarship programs and applications.
 class ScholarshipRepository {
   ScholarshipRepository({
@@ -342,6 +358,23 @@ class ScholarshipRepository {
     }
   }
 
+  /// Name of the student's cached school, for prefilling the academic
+  /// record (PRC-M044). Null when either cache lacks it.
+  Future<String?> institutionNameForStudent(String studentId) async {
+    final String? institutionId = await institutionIdForStudent(studentId);
+    if (institutionId == null) return null;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.query(
+      'institutions_cache',
+      columns: <String>['name'],
+      where: 'tenant_id = ? AND id = ?',
+      whereArgs: <Object>[_requireTenantId(), institutionId],
+      limit: 1,
+    );
+    final Object? name = rows.isEmpty ? null : rows.first['name'];
+    return name is String && name.trim().isNotEmpty ? name.trim() : null;
+  }
+
   /// School id cached for this student, when the student list has been synced.
   Future<String?> institutionIdForStudent(String studentId) async {
     final String tenantId = _requireTenantId();
@@ -368,6 +401,7 @@ class ScholarshipRepository {
     required String programId,
     required String studentId,
     required String institutionId,
+    required ScholarshipAcademicRecord academicRecord,
     String? personalStatement,
     double? familyIncome,
   }) async {
@@ -377,12 +411,8 @@ class ScholarshipRepository {
         'programId': programId,
         'applicantId': studentId,
         'institutionId': institutionId,
-        'academicRecords': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'institutionName': 'Current school',
-            'educationLevel': 'secondary',
-          },
-        ],
+        // Real values from the form; never a placeholder (PRC-M044).
+        'academicRecords': <Map<String, dynamic>>[academicRecord.toJson()],
         'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
         'documents': <Map<String, dynamic>>[],
         'asDraft': true,
@@ -390,6 +420,24 @@ class ScholarshipRepository {
       },
     );
     return _applicationIdFromResponse(response.data);
+  }
+
+  /// Sync the latest form values into a draft before finalize (PRC-M044):
+  /// `PUT /scholarships/applications/:id` (PRC-H031 on the backend).
+  Future<void> updateDraftApplication({
+    required String applicationId,
+    required ScholarshipAcademicRecord academicRecord,
+    String? personalStatement,
+    double? familyIncome,
+  }) async {
+    await _dio.put(
+      '/api/v1/scholarships/applications/$applicationId',
+      data: <String, dynamic>{
+        'academicRecords': <Map<String, dynamic>>[academicRecord.toJson()],
+        'financialInfo': <String, dynamic>{'familyIncome': ?familyIncome},
+        'personalStatement': ?personalStatement,
+      },
+    );
   }
 
   /// Multipart upload of one supporting document. [onSendProgress] is byte counts.

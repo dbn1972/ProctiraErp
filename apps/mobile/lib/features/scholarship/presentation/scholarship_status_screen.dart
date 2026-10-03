@@ -73,7 +73,9 @@ class _StatusView extends StatelessWidget {
               if (state.applications.isEmpty) {
                 return const _EmptyView();
               }
-              final Widget list = _ApplicationsList(applications: state.applications);
+              final Widget list = _ApplicationsList(
+                applications: state.applications,
+              );
               if (!state.fromCache) return list;
               return Column(
                 children: <Widget>[
