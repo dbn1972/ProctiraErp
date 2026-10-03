@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/errors/offline_data_banner.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/student/student_route.dart';
 import '../../students/presentation/student_picker.dart';
@@ -72,7 +73,14 @@ class _StatusView extends StatelessWidget {
               if (state.applications.isEmpty) {
                 return const _EmptyView();
               }
-              return _ApplicationsList(applications: state.applications);
+              final Widget list = _ApplicationsList(applications: state.applications);
+              if (!state.fromCache) return list;
+              return Column(
+                children: <Widget>[
+                  const OfflineDataBanner(),
+                  Expanded(child: list),
+                ],
+              );
           }
         },
       ),

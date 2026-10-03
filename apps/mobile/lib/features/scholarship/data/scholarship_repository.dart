@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/errors/offline_fallback.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import 'scholarship_document_rules.dart';
@@ -271,6 +272,12 @@ class ScholarshipRepository {
   final TenantProvider _tenantProvider;
   final Dio _dio;
 
+  bool _lastServedFromCache = false;
+
+  /// True when the last [getPrograms] / [getApplications] call served saved
+  /// rows because the server was unreachable (PRC-M043).
+  bool get lastServedFromCache => _lastServedFromCache;
+
   /// One program, including closed rows, or null when it is not in the catalog.
   Future<ScholarshipProgram?> findProgram(String programId) async {
     final String id = programId.trim();
@@ -310,10 +317,15 @@ class ScholarshipRepository {
 
       await _bestEffortCache(() => _cachePrograms(tenantId, programs));
       return programs;
-    } on DioException {
-      return _cachedOrRethrow(
+    } on DioException catch (error) {
+      // Only an unreachable server may fall back to cache; 401/403/4xx/5xx
+      // are real answers and must surface (PRC-M043).
+      if (!isOfflineError(error)) rethrow;
+      final List<ScholarshipProgram> cached = await _cachedOrRethrow(
         () => _getCachedPrograms(tenantId, openOnly: openOnly),
       );
+      _lastServedFromCache = true;
+      return cached;
     }
   }
 
@@ -469,10 +481,13 @@ class ScholarshipRepository {
         () => _cacheApplications(tenantId, studentId, applications),
       );
       return applications;
-    } on DioException {
-      return _cachedOrRethrow(
+    } on DioException catch (error) {
+      if (!isOfflineError(error)) rethrow;
+      final List<ScholarshipApplication> cached = await _cachedOrRethrow(
         () => _getCachedApplications(tenantId, studentId),
       );
+      _lastServedFromCache = true;
+      return cached;
     }
   }
 

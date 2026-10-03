@@ -71,6 +71,7 @@ class ScholarshipState extends Equatable {
     this.applications = const <ScholarshipApplication>[],
     this.studentId = '',
     this.errorMessage,
+    this.fromCache = false,
   });
 
   final ScholarshipStatus status;
@@ -79,12 +80,16 @@ class ScholarshipState extends Equatable {
   final String studentId;
   final String? errorMessage;
 
+  /// Data is saved offline copy, not a live answer (PRC-M043).
+  final bool fromCache;
+
   ScholarshipState copyWith({
     ScholarshipStatus? status,
     List<ScholarshipProgram>? programs,
     List<ScholarshipApplication>? applications,
     String? studentId,
     String? errorMessage,
+    bool? fromCache,
   }) {
     return ScholarshipState(
       status: status ?? this.status,
@@ -92,6 +97,7 @@ class ScholarshipState extends Equatable {
       applications: applications ?? this.applications,
       studentId: studentId ?? this.studentId,
       errorMessage: errorMessage,
+      fromCache: fromCache ?? this.fromCache,
     );
   }
 
@@ -102,6 +108,7 @@ class ScholarshipState extends Equatable {
     applications,
     studentId,
     errorMessage,
+    fromCache,
   ];
 }
 
@@ -127,7 +134,11 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
     try {
       final List<ScholarshipProgram> programs = await _repository.getPrograms();
       emit(
-        state.copyWith(status: ScholarshipStatus.loaded, programs: programs),
+        state.copyWith(
+          status: ScholarshipStatus.loaded,
+          programs: programs,
+          fromCache: _repository.lastServedFromCache,
+        ),
       );
     } catch (error) {
       emit(
@@ -169,6 +180,7 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
         state.copyWith(
           status: ScholarshipStatus.loaded,
           applications: applications,
+          fromCache: _repository.lastServedFromCache,
         ),
       );
     } catch (error) {
