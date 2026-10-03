@@ -142,6 +142,10 @@ export class OutboxRelay {
   }
 
   private async deliver(row: OutboxRecord): Promise<void> {
+    // PRC-M360: scheduling is the outbox's job (availableAt, enforced by
+    // claimPending). A row is only claimed once due, so any legacy
+    // metadata.delay is stripped and never handed to the transport.
+    const { delay: _ignoredDelay, ...rowMetadata } = row.metadata ?? {};
     const message: QueueMessage = {
       id: randomUUID(),
       tenantId: row.tenantId,
@@ -149,7 +153,7 @@ export class OutboxRelay {
       payload: row.payload,
       timestamp: new Date().toISOString(),
       metadata: {
-        ...row.metadata,
+        ...rowMetadata,
         causationId: row.id,
         headers: {
           ...(row.metadata?.headers ?? {}),
@@ -160,8 +164,6 @@ export class OutboxRelay {
       },
     };
 
-    const delay =
-      typeof row.metadata?.delay === 'number' ? row.metadata.delay : undefined;
     const priority =
       typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
 
@@ -169,7 +171,6 @@ export class OutboxRelay {
       await this.queue.publish(message);
     } else {
       await this.queue.dispatch(message, {
-        ...(delay !== undefined ? { delay } : {}),
         ...(priority !== undefined ? { priority } : {}),
       });
     }

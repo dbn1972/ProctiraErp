@@ -18,7 +18,7 @@ import type {
   MessageHandler,
   HealthCheckResult,
 } from '../types';
-import { buildTenantName } from '../types';
+import { buildTenantName, requestedDelayMs } from '../types';
 
 import {
   DEFAULT_MAX_RETRIES,
@@ -35,6 +35,8 @@ export interface DurableQueuedMessage {
   deliveryTag: string;
   routingKey: string;
   message: QueueMessage;
+  /** Epoch ms before which the message is not leased (PRC-M360 delayed delivery). */
+  availableAt?: number;
 }
 
 /**
@@ -47,18 +49,28 @@ export class InMemoryDurableQueueStore {
   /** Dead-letter queue (PRC-H086): exhausted deliveries keep the original payload. */
   readonly deadLetters: DurableQueuedMessage[] = [];
 
-  enqueue(routingKey: string, message: QueueMessage): DurableQueuedMessage {
+  /** Clock used for delayed delivery; injectable for tests. */
+  constructor(private readonly now: () => number = () => Date.now()) {}
+
+  enqueue(routingKey: string, message: QueueMessage, delayMs = 0): DurableQueuedMessage {
     const entry: DurableQueuedMessage = {
       deliveryTag: randomUUID(),
       routingKey,
       message,
+      ...(delayMs > 0 ? { availableAt: this.now() + delayMs } : {}),
     };
     this.pending.push(entry);
     return entry;
   }
 
+  private isDue(entry: DurableQueuedMessage): boolean {
+    return entry.availableAt === undefined || entry.availableAt <= this.now();
+  }
+
   lease(): DurableQueuedMessage | undefined {
-    const next = this.pending.shift();
+    const idx = this.pending.findIndex((entry) => this.isDue(entry));
+    if (idx < 0) return undefined;
+    const [next] = this.pending.splice(idx, 1);
     if (!next) return undefined;
     this.inFlight.set(next.deliveryTag, next);
     return next;
@@ -66,7 +78,9 @@ export class InMemoryDurableQueueStore {
 
   /** Lease the first pending message whose routing key matches `pattern`. */
   leaseMatching(pattern: string): DurableQueuedMessage | undefined {
-    const idx = this.pending.findIndex((entry) => matchRoutingKey(pattern, entry.routingKey));
+    const idx = this.pending.findIndex(
+      (entry) => this.isDue(entry) && matchRoutingKey(pattern, entry.routingKey),
+    );
     if (idx < 0) return undefined;
     const [next] = this.pending.splice(idx, 1);
     if (!next) return undefined;
@@ -216,7 +230,8 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     const routingKey = options?.topic
       ? buildTenantName(message.tenantId, options.topic)
       : buildTenantName(message.tenantId, message.type);
-    this.store.enqueue(routingKey, message);
+    // PRC-M360: delayed messages are held until due (not delivered early).
+    this.store.enqueue(routingKey, message, requestedDelayMs(message, options));
   }
 
   async subscribe(options: SubscribeOptions, handler: MessageHandler): Promise<void> {

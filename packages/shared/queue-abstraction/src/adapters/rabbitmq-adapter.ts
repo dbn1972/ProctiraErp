@@ -17,7 +17,7 @@ import type {
   HealthCheckResult,
   RabbitMQAdapterConfig,
 } from '../types';
-import { buildTenantName } from '../types';
+import { buildTenantName, requestedDelayMs } from '../types';
 
 import {
   DEFAULT_MAX_RETRIES,
@@ -52,6 +52,11 @@ export function deadLetterQueueName(deadLetterExchange: string): string {
   return `${deadLetterExchange}.dlq`;
 }
 
+/** Header used to route a delayed message to its TTL bucket (PRC-M360). */
+const DELAY_BUCKET_HEADER = 'x-proctira-delay-ms';
+/** Extra idle lifetime of a delay bucket beyond its TTL. */
+const DELAY_BUCKET_IDLE_MS = 10 * 60 * 1000;
+
 interface PendingPublish {
   reject: (err: Error) => void;
   returned: boolean;
@@ -69,6 +74,8 @@ export class RabbitMQAdapter implements QueueAdapter {
   private readonly pendingPublishes = new Map<string, Set<PendingPublish>>();
   /** Failed-delivery counter (retried vs dead-lettered). */
   readonly failures = new DeliveryFailureCounter();
+  /** Delay buckets already declared on the current channel (PRC-M360). */
+  private readonly delayBuckets = new Set<number>();
 
   constructor(config: RabbitMQAdapterConfig, runtime: RabbitMQAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config } as RabbitMQAdapterConfig;
@@ -136,6 +143,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     if (this.channel) {
       await this.channel.close().catch(() => undefined);
       this.channel = null;
+      this.delayBuckets.clear();
     }
     if (this.connection) {
       await this.connection.close().catch(() => undefined);
@@ -177,21 +185,61 @@ export class RabbitMQAdapter implements QueueAdapter {
       timestamp: Date.now(),
     };
 
-    if (options?.delay ?? message.metadata?.delay) {
-      const delay = options?.delay ?? message.metadata?.delay ?? 0;
-      (publishOptions.headers as Record<string, unknown>)['x-delay'] = delay;
-      publishOptions.expiration = String(delay);
+    // PRC-M360: delayed delivery via TTL + dead-letter-back. The message waits in
+    // a per-delay bucket queue (queue-level TTL, so no head-of-line blocking) and
+    // is dead-lettered to the main exchange with its ORIGINAL routing key when
+    // due. The old `expiration` + `x-delay` on a plain topic exchange expired the
+    // message into the DLX (dropped) instead of delaying it.
+    const delayMs = requestedDelayMs(message, options);
+    let targetExchange = this.config.exchange;
+    if (delayMs > 0) {
+      targetExchange = await this.ensureDelayBucket(delayMs);
+      (publishOptions.headers as Record<string, unknown>)[DELAY_BUCKET_HEADER] = String(delayMs);
     }
-
     await this.confirmedSend(message.id, (cb) =>
       this.channel!.publish(
-        this.config.exchange,
+        targetExchange,
         routingKey,
         Buffer.from(JSON.stringify(message)),
         publishOptions,
         cb,
       ),
     );
+  }
+
+  /** Name of the headers exchange that routes delayed messages into buckets. */
+  delayExchangeName(): string {
+    return `${this.config.exchange}.delayed`;
+  }
+
+  /** Bucket queue holding messages for exactly `delayMs` before redelivery. */
+  delayQueueName(delayMs: number): string {
+    return `${this.config.exchange}.delay.${delayMs}`;
+  }
+
+  private async ensureDelayBucket(delayMs: number): Promise<string> {
+    const channel = this.channel!;
+    const exchange = this.delayExchangeName();
+    if (!this.delayBuckets.has(delayMs)) {
+      const durable = this.config.durable ?? true;
+      await channel.assertExchange(exchange, 'headers', { durable });
+      const queue = this.delayQueueName(delayMs);
+      await channel.assertQueue(queue, {
+        durable,
+        arguments: {
+          'x-message-ttl': delayMs,
+          'x-dead-letter-exchange': this.config.exchange,
+          // Idle buckets are garbage-collected well after their last message is due.
+          'x-expires': delayMs + DELAY_BUCKET_IDLE_MS,
+        },
+      });
+      await channel.bindQueue(queue, exchange, '', {
+        'x-match': 'all',
+        [DELAY_BUCKET_HEADER]: String(delayMs),
+      });
+      this.delayBuckets.add(delayMs);
+    }
+    return exchange;
   }
 
   /**

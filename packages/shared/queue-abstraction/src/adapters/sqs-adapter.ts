@@ -28,7 +28,12 @@ import type {
   HealthCheckResult,
   SQSAdapterConfig,
 } from '../types';
-import { buildTenantName } from '../types';
+import {
+  buildTenantName,
+  QueueUnsupportedOperationError,
+  requestedDelayMs,
+  SQS_MAX_DELAY_MS,
+} from '../types';
 
 const DEFAULT_CONFIG: Partial<SQSAdapterConfig> = {
   maxNumberOfMessages: 10,
@@ -137,6 +142,18 @@ export class SQSAdapter implements QueueAdapter {
 
     const queueUrl = await this.getOrCreateQueueUrl(queueName);
     const isFifo = this.toSqsQueueName(queueName).endsWith('.fifo');
+    // PRC-M360: honour delay exactly or refuse - never clamp to 15 minutes.
+    const delayMs = requestedDelayMs(message, options);
+    if (delayMs > 0 && isFifo) {
+      throw new QueueUnsupportedOperationError(
+        'SQS FIFO queues do not support per-message delay; schedule via the outbox (availableAt)',
+      );
+    }
+    if (delayMs > SQS_MAX_DELAY_MS) {
+      throw new QueueUnsupportedOperationError(
+        `SQS delay ${delayMs}ms exceeds the ${SQS_MAX_DELAY_MS}ms cap; schedule via the outbox (availableAt)`,
+      );
+    }
 
     const messageAttributes: Record<string, { DataType: string; StringValue: string }> = {
       tenantId: { DataType: 'String', StringValue: message.tenantId },
@@ -160,11 +177,7 @@ export class SQSAdapter implements QueueAdapter {
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify(message),
       MessageAttributes: messageAttributes,
-      DelaySeconds: options?.delay
-        ? Math.min(Math.floor(options.delay / 1000), 900)
-        : message.metadata?.delay
-          ? Math.min(Math.floor(message.metadata.delay / 1000), 900)
-          : undefined,
+      DelaySeconds: delayMs > 0 ? Math.ceil(delayMs / 1000) : undefined,
       // PRC-M361: group/dedup ids are only valid on FIFO queues.
       ...(isFifo ? { MessageGroupId: message.tenantId, MessageDeduplicationId: message.id } : {}),
     });

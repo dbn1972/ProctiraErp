@@ -21,7 +21,7 @@ import type {
   HealthCheckResult,
   KafkaAdapterConfig,
 } from '../types';
-import { buildTenantName } from '../types';
+import { buildTenantName, QueueUnsupportedOperationError, requestedDelayMs } from '../types';
 
 const DEFAULT_CONFIG: Partial<KafkaAdapterConfig> = {
   connectionTimeout: 10000,
@@ -88,7 +88,12 @@ export class KafkaAdapter implements QueueAdapter {
     if (!this.connected || !this.producer) {
       throw new Error('KafkaAdapter is not connected. Call connect() first.');
     }
-
+    // PRC-M360: Kafka has no delayed delivery; never deliver early silently.
+    if (requestedDelayMs(message, options) > 0) {
+      throw new QueueUnsupportedOperationError(
+        'KafkaAdapter does not support delayed delivery; schedule via the outbox (availableAt)',
+      );
+    }
     const topic = options?.topic
       ? buildTenantName(message.tenantId, options.topic)
       : buildTenantName(message.tenantId, message.type);

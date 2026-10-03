@@ -83,8 +83,12 @@ describe('workflow escalation restart-safe spine', () => {
   let store: InMemoryDurableQueueStore;
   let repository: InMemoryWorkflowRepository;
 
+  // PRC-M360: the in-memory store honours delay; the clock is advanced a day
+  // after scheduling so the escalation is due.
+  let clockOffsetMs = 0;
   beforeEach(() => {
-    store = new InMemoryDurableQueueStore();
+    clockOffsetMs = 0;
+    store = new InMemoryDurableQueueStore(() => Date.now() + clockOffsetMs);
     repository = new InMemoryWorkflowRepository();
   });
 
@@ -112,6 +116,8 @@ describe('workflow escalation restart-safe spine', () => {
 
     // scheduleEscalation already published via QueueEscalationPublisher
     expect(store.pendingCount).toBeGreaterThanOrEqual(1);
+    expect(store.lease()).toBeUndefined(); // not due yet (delay honoured)
+    clockOffsetMs = 24 * 60 * 60 * 1000;
 
     let hangResolve!: () => void;
     const hang = new Promise<void>((r) => {

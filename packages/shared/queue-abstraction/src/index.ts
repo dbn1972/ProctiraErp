@@ -29,7 +29,12 @@ export type {
   SQSAdapterConfig,
 } from './types';
 
-export { buildTenantName } from './types';
+export {
+  buildTenantName,
+  QueueUnsupportedOperationError,
+  requestedDelayMs,
+  SQS_MAX_DELAY_MS,
+} from './types';
 
 // Adapter implementations
 export { KafkaAdapter } from './adapters/kafka-adapter';

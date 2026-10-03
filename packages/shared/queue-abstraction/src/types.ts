@@ -164,6 +164,27 @@ export interface RabbitMQAdapterConfig {
 /**
  * AWS SQS adapter configuration.
  */
+/**
+ * Thrown when an adapter cannot honour a requested capability (e.g. delayed
+ * delivery) instead of silently degrading it (PRC-M360).
+ */
+export class QueueUnsupportedOperationError extends Error {
+  readonly code = 'QUEUE_UNSUPPORTED_OPERATION';
+  constructor(message: string) {
+    super(message);
+    this.name = 'QueueUnsupportedOperationError';
+  }
+}
+
+/** Effective delivery delay (ms) requested for a message: options win over metadata. */
+export function requestedDelayMs(message: QueueMessage, options?: PublishOptions): number {
+  const raw = options?.delay ?? message.metadata?.delay ?? 0;
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
+/** SQS per-message DelaySeconds hard cap (15 minutes). */
+export const SQS_MAX_DELAY_MS = 900_000;
+
 export interface SQSAdapterConfig {
   /** AWS region */
   region: string;
