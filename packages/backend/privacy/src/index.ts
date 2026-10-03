@@ -84,3 +84,15 @@ export type {
   PrivacyAnonymizationProcessor,
   PrivacyOffboardProcessor,
 } from './privacy-worker.js';
+export {
+  PgDomainSubjectAnonymizer,
+  PgTenantWipeExecutor,
+  classifyWipeTable,
+  defaultDomainAnonymizers,
+  readFinanceHealthErasureMode,
+} from './domain-anonymizers.js';
+export type {
+  DomainSubjectAnonymizer,
+  FinanceHealthErasureMode,
+  ObjectEraser,
+} from './domain-anonymizers.js';
