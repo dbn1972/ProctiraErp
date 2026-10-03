@@ -3,6 +3,8 @@
  * All durations are in seconds unless otherwise noted.
  */
 
+import { isProductionLike } from '@proctira/common/node-env';
+
 /**
  * Auth configuration interface.
  */
@@ -71,7 +73,7 @@ export const DEFAULT_SESSION_DURATION = 8 * 60 * 60; // 28800 seconds
 /** Default bcrypt salt rounds */
 export const DEFAULT_SALT_ROUNDS = 12;
 
-/** Dev-only fallback secret; never permitted when NODE_ENV=production. */
+/** Dev-only fallback secret; only permitted when NODE_ENV is development or test. */
 const INSECURE_DEV_JWT_SECRET = 'insecure-dev-only-change-me';
 
 /**
@@ -84,15 +86,35 @@ const INSECURE_DEV_JWT_SECRET = 'insecure-dev-only-change-me';
  */
 function resolveJwtSecret(explicit?: string): string {
   const secret = explicit ?? process.env['JWT_SECRET'];
-  if (secret && secret.length > 0) return secret;
-  if (process.env['NODE_ENV'] === 'production') {
+  // PRC-L579: normalised, closed-by-default environment check.
+  const strict = isProductionLike(process.env['NODE_ENV']);
+  if (secret && secret.length > 0) {
+    if (strict && Buffer.byteLength(secret, 'utf8') < MIN_JWT_SECRET_LENGTH) {
+      throw new Error(
+        `JWT secret must be at least ${MIN_JWT_SECRET_LENGTH} bytes outside ` +
+          'NODE_ENV=development/test. Set a long, random JWT_SECRET.',
+      );
+    }
+    return secret;
+  }
+  if (strict) {
     throw new Error(
-      'JWT_SECRET is required in production. Refusing to start with a default ' +
-        'signing secret (tokens would be forgeable). Set a long, random JWT_SECRET.',
+      'JWT_SECRET is required in production (any NODE_ENV other than development/test). ' +
+        'Refusing to start with a default signing secret (tokens would be forgeable). ' +
+        'Set a long, random JWT_SECRET.',
     );
   }
   return INSECURE_DEV_JWT_SECRET;
 }
+
+/** Minimum JWT signing secret length in bytes outside development/test (PRC-L579). */
+export const MIN_JWT_SECRET_LENGTH = 32;
+
+/**
+ * PRC-L579: closed-by-default NODE_ENV check, shared via @proctira/common so
+ * every service interprets NODE_ENV identically. Re-exported for compatibility.
+ */
+export { isProductionLike };
 
 /**
  * Creates a default auth configuration.

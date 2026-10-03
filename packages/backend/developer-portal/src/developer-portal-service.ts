@@ -129,9 +129,15 @@ export type WebhookHttpFetch = (
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+/** PRC-H046: port returning the decrypted webhook signing secret (or undefined). */
+export interface WebhookSigningSecretResolver {
+  resolveSigningSecret(webhook: WebhookEntity): Promise<string | undefined>;
+}
+
 export class DeveloperPortalService {
   private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
   private readonly httpFetch: WebhookHttpFetch;
+  private readonly signingSecretResolver: WebhookSigningSecretResolver | undefined;
   /** W1-SEC-08: nonce replay store for inbound signature verification. */
   private readonly replayStore: WebhookReplayStore | null | undefined;
 
@@ -143,8 +149,15 @@ export class DeveloperPortalService {
       httpFetch?: WebhookHttpFetch;
       /** Injected replay store (Redis in prod / memory in non-prod). */
       replayStore?: WebhookReplayStore | null;
+      /**
+       * PRC-H046: resolves the decrypted signing secret for a webhook at send
+       * time (secrets are never carried in queue/outbox payloads). Absent →
+       * fan-out deliveries are unsigned until encrypted secret storage lands.
+       */
+      signingSecretResolver?: WebhookSigningSecretResolver;
     },
   ) {
+    this.signingSecretResolver = options?.signingSecretResolver;
     this.deliveryPublisher = options?.deliveryPublisher;
     this.replayStore = options?.replayStore;
     this.httpFetch =
@@ -576,10 +589,12 @@ export class DeveloperPortalService {
       'x-proctira-event': job.event,
       'x-proctira-delivery': job.deliveryId,
     };
-    if (job.signingSecret) {
+    const signingSecret =
+      job.signingSecret ?? (await this.signingSecretResolver?.resolveSigningSecret(webhook));
+    if (signingSecret) {
       // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
       // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
-      Object.assign(headers, createWebhookSignatureHeaders(body, job.signingSecret).headers);
+      Object.assign(headers, createWebhookSignatureHeaders(body, signingSecret).headers);
     }
 
     try {

@@ -13,6 +13,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { AppError } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -203,21 +204,21 @@ export async function registerRegistrationRoutes(
     defaultTenantId,
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
-  if (process.env.NODE_ENV === 'production' && defaultTenantId) {
+  if (isProductionNodeEnv(process.env.NODE_ENV) && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
       'REGISTRATION_CONFIGURATION_ERROR',
       500,
     );
   }
-  if (process.env.NODE_ENV === 'production' && !publicTenantResolver) {
+  if (isProductionNodeEnv(process.env.NODE_ENV) && !publicTenantResolver) {
     throw new AppError(
       'Production public registration requires an injected publicTenantResolver',
       'REGISTRATION_CONFIGURATION_ERROR',
       500,
     );
   }
-  if (process.env.NODE_ENV === 'production' && !options.sessionStore) {
+  if (isProductionNodeEnv(process.env.NODE_ENV) && !options.sessionStore) {
     throw new AppError(
       'Production registration routes require an injected shared session store',
       'REGISTRATION_CONFIGURATION_ERROR',
@@ -248,7 +249,7 @@ export async function registerRegistrationRoutes(
     try {
       const resolved = await publicTenantResolver?.resolveHostname(request.headers.host);
       const explicitTestFallback =
-        process.env.NODE_ENV !== 'production' && defaultTenantId ? defaultTenantId : undefined;
+        !isProductionNodeEnv(process.env.NODE_ENV) && defaultTenantId ? defaultTenantId : undefined;
       const tenantId = resolved ?? explicitTestFallback;
       if (!tenantId) {
         return reply.status(404).send({
