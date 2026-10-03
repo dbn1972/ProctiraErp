@@ -68,12 +68,24 @@ describe('Installer default dependencies (PRC-H102)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const result = await run(['node', 'script', '--config', tmpFile, '--output', 'json']);
+      // PRC-H102: run() uses the real adapters; with nothing listening it must fail closed
+      // (never a fabricated success) and persist state outside the repo tree.
+      process.env['INSTALL_BOOTSTRAP_STATE_PATH'] = path.join(
+        require('node:os').tmpdir(),
+        `pcb1-install-${process.pid}.json`,
+      );
+      const result = await run(['node', 'script', '--config', tmpFile, '--output', 'json'], {
+        connectivityTester: {
+          testCdn: async () => ({ healthy: false, latencyMs: 0, error: 'nothing listening' }),
+        },
+      });
       expect(result?.success).toBe(false);
-      expect(result?.error).toMatch(/not implemented/);
+      expect(result?.migrationsRun).toBe(false);
+      expect(result?.adminCreated).toBe(false);
       expect(process.exitCode).toBe(1);
     } finally {
       fs.unlinkSync(tmpFile);
+      delete process.env['INSTALL_BOOTSTRAP_STATE_PATH'];
     }
   });
 });

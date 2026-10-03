@@ -11,6 +11,8 @@
 import {
   InstallServiceImpl,
   InMemoryBootstrapStore,
+  type BootstrapStore,
+  type ConnectivityTester,
   type ValidationResult,
 } from '@proctira/backend-install';
 
@@ -47,7 +49,7 @@ export interface AdminAccountCreator {
   /** Create the initial platform admin account */
   createAdmin(
     admin: AdminAccountConfig,
-  ): Promise<{ success: boolean; userId?: string; error?: string }>;
+  ): Promise<{ success: boolean; userId?: string; error?: string; delegated?: boolean }>;
 }
 
 /**
@@ -57,6 +59,15 @@ export interface InstallerDependencies {
   logger: InstallerLogger;
   migrationRunner?: MigrationRunner;
   adminCreator?: AdminAccountCreator;
+  /** PRC-H102: persistent bootstrap run store (default: in-memory). */
+  store?: BootstrapStore;
+  /** PRC-H102: real connectivity probes (default: none — configuration-only checks). */
+  connectivityTester?: ConnectivityTester;
+  /** PRC-H102: optional extra post-install probes (e.g. IdP OIDC discovery). */
+  extraHealthChecks?: Array<{
+    name: string;
+    check: () => Promise<{ healthy: boolean; error?: string }>;
+  }>;
 }
 
 /** Error returned by the built-in placeholders; never reported as success. */
@@ -107,9 +118,15 @@ export class Installer {
   private readonly logger: InstallerLogger;
   private readonly migrationRunner: MigrationRunner;
   private readonly adminCreator: AdminAccountCreator;
+  private readonly store: BootstrapStore;
+  private readonly connectivityTester: ConnectivityTester | undefined;
+  private readonly extraHealthChecks: NonNullable<InstallerDependencies['extraHealthChecks']>;
 
   constructor(deps: InstallerDependencies) {
     this.logger = deps.logger;
+    this.store = deps.store ?? new InMemoryBootstrapStore();
+    this.connectivityTester = deps.connectivityTester;
+    this.extraHealthChecks = deps.extraHealthChecks ?? [];
     this.migrationRunner = deps.migrationRunner ?? new NotImplementedMigrationRunner(deps.logger);
     this.adminCreator = deps.adminCreator ?? new NotImplementedAdminCreator(deps.logger);
   }
@@ -130,10 +147,10 @@ export class Installer {
     this.logger.info('Starting ProctiraERP platform installation...');
 
     // Create install service instance
-    const store = new InMemoryBootstrapStore();
     const installService = new InstallServiceImpl({
       logger: this.logger,
-      store,
+      store: this.store,
+      ...(this.connectivityTester ? { connectivityTester: this.connectivityTester } : {}),
     });
 
     // Step 1: Validate and configure all adapters
@@ -248,8 +265,12 @@ export class Installer {
           error: `Admin account creation failed: ${adminResult.error ?? 'unknown error'}`,
         };
       }
-      adminCreated = true;
-      this.logger.info(`  ✓ Admin account created: ${config.admin.username}`);
+      if (adminResult.delegated) {
+        this.logger.info(`  ✓ Admin account delegated to the identity provider (none created)`);
+      } else {
+        adminCreated = true;
+        this.logger.info(`  ✓ Admin account created: ${config.admin.username}`);
+      }
     } else {
       this.logger.info('Step 3/4: Skipping admin account creation (--skip-admin)');
     }
@@ -266,6 +287,26 @@ export class Installer {
         ]),
       ),
     };
+    for (const extra of this.extraHealthChecks) {
+      const r = await extra.check();
+      health.adapters[extra.name] = {
+        healthy: r.healthy,
+        message: r.healthy ? `${extra.name} reachable` : (r.error ?? `${extra.name} unreachable`),
+      };
+    }
+    const unhealthy = Object.entries(health.adapters).filter(([, v]) => !v.healthy);
+    if (healthResult.status === 'unhealthy' || unhealthy.length > 0) {
+      // PRC-H102: never report a successful install while a dependency is down.
+      return {
+        success: false,
+        completedAt: new Date().toISOString(),
+        adapterResults,
+        migrationsRun,
+        adminCreated,
+        health: { ...health, status: 'unhealthy' },
+        error: `Post-install health check failed: ${unhealthy.map(([k]) => k).join(', ') || healthResult.status}`,
+      };
+    }
     this.logger.info(`  ✓ Health status: ${healthResult.status}`);
 
     const elapsed = Date.now() - startTime;

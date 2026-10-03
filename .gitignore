@@ -64,3 +64,6 @@ test-results/
 # Local DB backup dumps (G-503)
 .backups/
 dump.rdb
+
+# install-cli bootstrap state (PRC-H102)
+.proctira/

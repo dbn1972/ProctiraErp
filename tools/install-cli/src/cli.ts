@@ -8,9 +8,21 @@
  *   proctira-install --help
  */
 
-import type { CliOptions, InstallConfig, InstallResult } from './types';
+import { join } from 'node:path';
+
 import { loadConfigFromFile, loadConfigFromEnv, loadConfigInteractive } from './config-loader';
 import { Installer, type InstallerDependencies } from './installer';
+import {
+  ADMIN_REFUSED,
+  createNetworkConnectivityTester,
+  FileBootstrapStore,
+  IdpDelegatedAdminCreator,
+  migratorUrlFrom,
+  probeIdentityProvider,
+  resolveInstallAdminMode,
+  ScriptMigrationRunner,
+} from './runtime-adapters';
+import type { CliOptions, InstallConfig, InstallResult } from './types';
 
 const VERSION = '0.1.0';
 
@@ -267,10 +279,30 @@ export async function run(
   }
 
   // Run installation
+  // PRC-H102: real adapters by default — script-driven migrations, persisted bootstrap
+  // state, protocol-level connectivity probes and an IdP discovery check.
+  const issuer = (process.env['INSTALL_IDP_ISSUER'] ?? process.env['KEYCLOAK_ISSUER'])?.trim();
+  const adminMode = resolveInstallAdminMode();
   const installer = new Installer({
     logger,
-    migrationRunner: deps?.migrationRunner,
-    adminCreator: deps?.adminCreator,
+    migrationRunner:
+      deps?.migrationRunner ??
+      new ScriptMigrationRunner({ migratorUrl: migratorUrlFrom(config.database), logger }),
+    adminCreator:
+      deps?.adminCreator ??
+      (adminMode === 'idp-delegated'
+        ? new IdpDelegatedAdminCreator({ issuer, logger })
+        : { createAdmin: async () => ({ success: false, error: ADMIN_REFUSED }) }),
+    store:
+      deps?.store ??
+      new FileBootstrapStore(
+        process.env['INSTALL_BOOTSTRAP_STATE_PATH']?.trim() ||
+          join(process.cwd(), '.proctira', 'install-state.json'),
+      ),
+    connectivityTester: deps?.connectivityTester ?? createNetworkConnectivityTester(),
+    extraHealthChecks:
+      deps?.extraHealthChecks ??
+      (issuer ? [{ name: 'identity_provider', check: () => probeIdentityProvider(issuer) }] : []),
   });
 
   const result = await installer.install(config, {

@@ -460,9 +460,10 @@ function checkMonitoring(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: tracingConfigured && !tracingForcedOff
-        ? 'Metrics + alerting configured; OTLP tracing endpoint set (collector ingest not verified here)'
-        : 'Metrics + alerting configured; tracing available when OTEL_EXPORTER_OTLP_* is set',
+      message:
+        tracingConfigured && !tracingForcedOff
+          ? 'Metrics + alerting configured; OTLP tracing endpoint set (collector ingest not verified here)'
+          : 'Metrics + alerting configured; tracing available when OTEL_EXPORTER_OTLP_* is set',
       ...(recommendations.length > 0 ? { recommendations } : {}),
     };
   }

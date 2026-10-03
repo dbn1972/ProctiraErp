@@ -5,6 +5,7 @@
  * argument parsing, and the full installation flow.
  */
 
+import { InMemoryBootstrapStore } from '@proctira/backend-install';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -480,6 +481,10 @@ describe('run', () => {
         adminCreator: {
           createAdmin: async () => ({ success: true, userId: 'u-1' }),
         },
+        // PRC-H102: run() probes real endpoints by default; this test injects none.
+        connectivityTester: {},
+        store: new InMemoryBootstrapStore(),
+        extraHealthChecks: [],
       });
       expect(result).not.toBeNull();
       expect(result!.success).toBe(true);
