@@ -72,6 +72,7 @@ externalSecret:
   secretStoreRef:
     name: ''
     kind: ClusterSecretStore
-  dataFrom:
-    - extract:
-        key: proctira/production/shared
+  # PRC-M279: per-workload allowlist (values.yaml serviceKeys) instead of
+  # extracting the whole shared bundle into every pod.
+  sharedRemoteKey: proctira/production/shared
+  dataFrom: []
