@@ -25,6 +25,23 @@ import type {
   StaffQualificationRecord,
 } from './hr-store.js';
 import { readOffboardMeta } from './offboard-meta.js';
+
+/**
+ * PRC-M123: latest calendar date anywhere on Earth (UTC+14). A mark dated
+ * after this is in the future for every tenant timezone and is rejected, so
+ * future 'present' marks cannot inflate payable days.
+ */
+export function latestTodayIso(now: number = Date.now()): string {
+  return new Date(now + 14 * 3_600_000).toISOString().slice(0, 10);
+}
+
+function assertNotFutureDate(date: string): void {
+  if (date > latestTodayIso()) {
+    throw new ValidationError('Attendance cannot be marked for a future date', [
+      { field: 'date', rule: 'notFuture', message: 'must not be in the future' },
+    ]);
+  }
+}
 import {
   assertPayrollRowBalanced,
   calendarDaysInMonth,
@@ -254,6 +271,7 @@ export class StaffHrService {
     input: MarkAttendanceInput,
     actorId: string | null,
   ): Promise<StaffAttendanceRecord> {
+    assertNotFutureDate(input.date);
     await this.staffService.getById(tenantId, input.staffId);
     const now = new Date();
     return this.store.upsertAttendance({
@@ -274,6 +292,7 @@ export class StaffHrService {
     input: BulkAttendanceInput,
     actorId: string | null,
   ): Promise<StaffAttendanceRecord[]> {
+    assertNotFutureDate(input.date);
     // PRC-L153: one tenant-scoped existence query, then one atomic upsert for all marks.
     await this.staffService.assertStaffExist(
       tenantId,
