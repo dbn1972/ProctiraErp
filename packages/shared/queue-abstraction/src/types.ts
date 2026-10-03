@@ -139,6 +139,12 @@ export interface KafkaAdapterConfig {
     username: string;
     password: string;
   };
+  /** Suffix of the dead-letter topic for poison messages (default `.dlq`) (PRC-M364). */
+  deadLetterSuffix?: string;
+  /** In-process handler retries before dead-lettering (default 3) (PRC-M364). */
+  maxHandlerRetries?: number;
+  /** Base backoff between handler retries in ms, doubled per attempt (default 200). */
+  handlerRetryBackoffMs?: number;
 }
 
 /**
@@ -217,6 +223,11 @@ export interface SQSAdapterConfig {
    * MessageDeduplicationId (message id). Default: standard queues.
    */
   fifo?: boolean;
+  /**
+   * Receives before a message is moved to `<queue>-dlq` (PRC-M364). Applied as
+   * RedrivePolicy when the adapter creates queues. Default 5.
+   */
+  maxReceiveCount?: number;
 }
 
 /**

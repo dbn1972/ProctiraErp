@@ -39,16 +39,25 @@ async function adapterWithSpy(cfg: { fifo?: boolean } = {}) {
     if (c.constructor.name === 'CreateQueueCommand') {
       return { QueueUrl: `https://sqs/${String(c.input['QueueName'])}` };
     }
+    if (c.constructor.name === 'GetQueueAttributesCommand') {
+      return { Attributes: { QueueArn: 'arn:aws:sqs:us-east-1:000000000000:dlq' } };
+    }
     return {};
   });
   return { adapter, calls };
+}
+
+function mainCreate(calls: Array<{ name: string; input: Record<string, unknown> }>) {
+  return calls.find(
+    (c) => c.name === 'CreateQueueCommand' && !String(c.input['QueueName']).includes('-dlq'),
+  )!;
 }
 
 describe('SQSAdapter queue type handling (PRC-M361)', () => {
   it('standard queues: no MessageGroupId / MessageDeduplicationId, no FifoQueue attribute', async () => {
     const { adapter, calls } = await adapterWithSpy();
     await adapter.dispatch(msg());
-    const create = calls.find((c) => c.name === 'CreateQueueCommand')!;
+    const create = mainCreate(calls);
     expect(String(create.input['QueueName'])).not.toMatch(/\.fifo$/);
     expect((create.input['Attributes'] as Record<string, string>)['FifoQueue']).toBeUndefined();
     const send = calls.find((c) => c.name === 'SendMessageCommand')!;
@@ -60,7 +69,7 @@ describe('SQSAdapter queue type handling (PRC-M361)', () => {
   it('FIFO queues: .fifo suffix preserved, FifoQueue set, group/dedup ids sent', async () => {
     const { adapter, calls } = await adapterWithSpy({ fifo: true });
     await adapter.dispatch(msg());
-    const create = calls.find((c) => c.name === 'CreateQueueCommand')!;
+    const create = mainCreate(calls);
     expect(String(create.input['QueueName'])).toMatch(/^[A-Za-z0-9_-]+\.fifo$/);
     expect((create.input['Attributes'] as Record<string, string>)['FifoQueue']).toBe('true');
     const send = calls.find((c) => c.name === 'SendMessageCommand')!;

@@ -45,6 +45,11 @@ export interface RabbitMQAdapterRuntimeOptions {
   logger?: QueueConsumerLogger;
   /** Metric hook invoked once per failed delivery. */
   onDeliveryFailure?: (event: DeliveryFailureEvent) => void;
+  /**
+   * Automatic reconnect after an unexpected connection/channel loss (PRC-M364).
+   * Enabled by default; consumers are re-registered after reconnecting.
+   */
+  reconnect?: { enabled?: boolean; initialDelayMs?: number; maxDelayMs?: number };
 }
 
 /** Name of the queue bound (`#`) to the dead-letter exchange (PRC-H086). */
@@ -76,19 +81,49 @@ export class RabbitMQAdapter implements QueueAdapter {
   readonly failures = new DeliveryFailureCounter();
   /** Delay buckets already declared on the current channel (PRC-M360). */
   private readonly delayBuckets = new Set<number>();
+  /** Consumers to re-register after a reconnect (PRC-M364). */
+  private readonly registrations: Array<{
+    queueName: string;
+    options: SubscribeOptions;
+    handler: MessageHandler;
+  }> = [];
+  private readonly reconnectOptions: Required<
+    NonNullable<RabbitMQAdapterRuntimeOptions['reconnect']>
+  >;
+  /** True while disconnect() is closing on purpose (no reconnect). */
+  private closing = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
+  /** Number of successful reconnects (observability / tests). */
+  reconnectCount = 0;
 
   constructor(config: RabbitMQAdapterConfig, runtime: RabbitMQAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config } as RabbitMQAdapterConfig;
     this.defaultMaxRetries = runtime.defaultMaxRetries ?? DEFAULT_MAX_RETRIES;
     this.logger = runtime.logger;
     this.onDeliveryFailure = runtime.onDeliveryFailure;
+    this.reconnectOptions = {
+      enabled: runtime.reconnect?.enabled ?? true,
+      initialDelayMs: runtime.reconnect?.initialDelayMs ?? 500,
+      maxDelayMs: runtime.reconnect?.maxDelayMs ?? 30_000,
+    };
   }
 
   async connect(): Promise<void> {
     if (this.connected) return;
-
-    this.connection = await amqplib.connect(this.config.url, {
+    this.closing = false;
+    const connection = await amqplib.connect(this.config.url, {
       heartbeat: this.config.heartbeat,
+    });
+    this.connection = connection;
+    // PRC-M364: an 'error' without a listener would crash the process; a
+    // broker restart closes the connection - both trigger a reconnect.
+    connection.on('error', (err: unknown) => {
+      this.logger?.error?.({ err: errorMessage(err) }, 'rabbitmq connection error');
+    });
+    connection.on('close', () => {
+      // Ignore late events from a connection that was already replaced.
+      if (this.connection === connection) this.handleUnexpectedClose('connection closed');
     });
 
     // PRC-H087: confirm channel so publish resolves only after broker ack.
@@ -116,7 +151,10 @@ export class RabbitMQAdapter implements QueueAdapter {
       }
       this.connected = false;
     };
-    channel.on('close', () => failAll('channel closed'));
+    channel.on('close', () => {
+      failAll('channel closed');
+      if (this.channel === channel) this.handleUnexpectedClose('channel closed');
+    });
     channel.on('error', (err: unknown) => failAll(errorMessage(err)));
 
     // Assert the main exchange
@@ -137,7 +175,63 @@ export class RabbitMQAdapter implements QueueAdapter {
     this.connected = true;
   }
 
+  /**
+   * PRC-M364: after an unexpected close, reconnect with exponential backoff and
+   * re-register every consumer. Never runs for an intentional disconnect().
+   */
+  private handleUnexpectedClose(reason: string): void {
+    this.connected = false;
+    if (this.closing || !this.reconnectOptions.enabled || this.reconnectTimer) return;
+    const stale = this.connection;
+    this.channel = null;
+    this.connection = null;
+    this.delayBuckets.clear();
+    // A channel-only failure leaves the TCP connection open: close it quietly.
+    stale?.close().catch(() => undefined);
+    this.logger?.warn?.({ reason }, 'rabbitmq connection lost; reconnecting');
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    const { initialDelayMs, maxDelayMs } = this.reconnectOptions;
+    const delay = Math.min(maxDelayMs, initialDelayMs * 2 ** this.reconnectAttempt);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnectNow();
+    }, delay);
+    if (typeof this.reconnectTimer === 'object' && 'unref' in this.reconnectTimer) {
+      this.reconnectTimer.unref();
+    }
+  }
+
+  private async reconnectNow(): Promise<void> {
+    this.reconnectTimer = null;
+    if (this.closing) return;
+    try {
+      await this.connect();
+      for (const reg of this.registrations) {
+        await this.consumeQueue(reg.queueName, reg.options, reg.handler, false);
+      }
+      this.reconnectAttempt = 0;
+      this.reconnectCount += 1;
+      this.logger?.warn?.(
+        { consumers: this.registrations.length },
+        'rabbitmq reconnected; consumers resumed',
+      );
+    } catch (err: unknown) {
+      this.connected = false;
+      this.logger?.error?.({ err: errorMessage(err) }, 'rabbitmq reconnect failed');
+      if (!this.closing) this.scheduleReconnect();
+    }
+  }
+
   async disconnect(): Promise<void> {
+    this.closing = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.registrations.length = 0;
     if (!this.connected && !this.channel && !this.connection) return;
 
     if (this.channel) {
@@ -319,8 +413,10 @@ export class RabbitMQAdapter implements QueueAdapter {
     queueName: string,
     options: SubscribeOptions,
     handler: MessageHandler,
+    register = true,
   ): Promise<void> {
     const channel = this.channel!;
+    if (register) this.registrations.push({ queueName, options, handler });
 
     // Assert queue with dead-letter exchange
     await channel.assertQueue(queueName, {

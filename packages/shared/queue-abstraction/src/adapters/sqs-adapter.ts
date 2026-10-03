@@ -5,6 +5,7 @@
  */
 
 import {
+  ChangeMessageVisibilityCommand,
   SQSClient,
   SendMessageCommand,
   ReceiveMessageCommand,
@@ -34,6 +35,15 @@ import {
   requestedDelayMs,
   SQS_MAX_DELAY_MS,
 } from '../types';
+import { errorMessage, type QueueConsumerLogger } from './delivery-failure';
+
+export interface SQSAdapterRuntimeOptions {
+  logger?: QueueConsumerLogger;
+}
+
+/** Poll-error backoff bounds (PRC-M364). */
+const POLL_BACKOFF_BASE_MS = 1000;
+const POLL_BACKOFF_MAX_MS = 30_000;
 
 const DEFAULT_CONFIG: Partial<SQSAdapterConfig> = {
   maxNumberOfMessages: 10,
@@ -49,8 +59,26 @@ export class SQSAdapter implements QueueAdapter {
   private pollingTimers: ReturnType<typeof setTimeout>[] = [];
   private queueUrlCache: Map<string, string> = new Map();
 
-  constructor(config: SQSAdapterConfig) {
+  private readonly logger: QueueConsumerLogger | undefined;
+  /** Consecutive poll failures, drives exponential backoff (PRC-M364). */
+  private pollFailures = 0;
+
+  constructor(config: SQSAdapterConfig, runtime: SQSAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.logger = runtime.logger;
+  }
+
+  /** Delay before the next poll: 100ms when healthy, exponential after failures. */
+  nextPollDelayMs(): number {
+    if (this.pollFailures === 0) return 100;
+    return Math.min(POLL_BACKOFF_MAX_MS, POLL_BACKOFF_BASE_MS * 2 ** (this.pollFailures - 1));
+  }
+
+  /** Dead-letter queue name for an SQS queue name (keeps the `.fifo` suffix). */
+  static deadLetterQueueName(sqsQueueName: string): string {
+    return sqsQueueName.endsWith('.fifo')
+      ? `${sqsQueueName.slice(0, -'.fifo'.length)}-dlq.fifo`
+      : `${sqsQueueName}-dlq`;
   }
 
   /**
@@ -291,7 +319,26 @@ export class SQSAdapter implements QueueAdapter {
         attributes['FifoQueue'] = 'true';
         attributes['ContentBasedDeduplication'] = 'true';
       }
-
+      // PRC-M364: poison messages move to a DLQ after maxReceiveCount receives
+      // instead of cycling forever.
+      const dlqName = SQSAdapter.deadLetterQueueName(sqsQueueName);
+      const dlq = await this.client.send(
+        new CreateQueueCommand({
+          QueueName: dlqName,
+          Attributes: isFifo ? { FifoQueue: 'true', MessageRetentionPeriod: '1209600' } : { MessageRetentionPeriod: '1209600' },
+        }),
+      );
+      const dlqAttrs = await this.client.send(
+        new GetQueueAttributesCommand({ QueueUrl: dlq.QueueUrl!, AttributeNames: ['QueueArn'] }),
+      );
+      const dlqArn = dlqAttrs.Attributes?.['QueueArn'];
+      if (!dlqArn) {
+        throw new Error(`SQSAdapter: could not resolve DLQ ARN for ${dlqName}`);
+      }
+      attributes['RedrivePolicy'] = JSON.stringify({
+        deadLetterTargetArn: dlqArn,
+        maxReceiveCount: String(this.config.maxReceiveCount ?? 5),
+      });
       const createResult = await this.client.send(
         new CreateQueueCommand({
           QueueName: sqsQueueName,
@@ -326,6 +373,7 @@ export class SQSAdapter implements QueueAdapter {
             MaxNumberOfMessages: Math.min(maxConcurrent, this.config.maxNumberOfMessages ?? 10),
             WaitTimeSeconds: this.config.waitTimeSeconds ?? 20,
             MessageAttributeNames: ['All'],
+            MessageSystemAttributeNames: ['ApproximateReceiveCount'],
           }),
         );
 
@@ -333,6 +381,28 @@ export class SQSAdapter implements QueueAdapter {
           const promises = result.Messages.map(async (sqsMessage) => {
             if (!sqsMessage.Body) return;
 
+            // PRC-M364: keep long jobs invisible while the handler runs.
+            const visibility = this.config.visibilityTimeout ?? 30;
+            const heartbeat = setInterval(
+              () => {
+                this.client
+                  ?.send(
+                    new ChangeMessageVisibilityCommand({
+                      QueueUrl: queueUrl,
+                      ReceiptHandle: sqsMessage.ReceiptHandle!,
+                      VisibilityTimeout: visibility,
+                    }),
+                  )
+                  .catch((err: unknown) =>
+                    this.logger?.warn?.(
+                      { queueName, messageId: sqsMessage.MessageId, err: errorMessage(err) },
+                      'sqs visibility extension failed',
+                    ),
+                  );
+              },
+              Math.max(1000, (visibility * 1000) / 2),
+            );
+            if (typeof heartbeat === 'object' && 'unref' in heartbeat) heartbeat.unref();
             try {
               const message = JSON.parse(sqsMessage.Body) as QueueMessage;
               // PRC-L355: body tenant must match the queue's tenant segment. Leave the
@@ -349,23 +419,44 @@ export class SQSAdapter implements QueueAdapter {
                   }),
                 );
               }
-            } catch {
-              // Message will become visible again after visibility timeout
-              // SQS handles retry via redrive policy
+            } catch (err: unknown) {
+              // Message becomes visible again after the visibility timeout; the
+              // redrive policy moves it to the DLQ after maxReceiveCount.
+              this.logger?.warn?.(
+                {
+                  queueName,
+                  messageId: sqsMessage.MessageId,
+                  receiveCount: sqsMessage.Attributes?.['ApproximateReceiveCount'],
+                  err: errorMessage(err),
+                },
+                'sqs message processing failed',
+              );
+            } finally {
+              clearInterval(heartbeat);
             }
           });
 
           await Promise.all(promises);
         }
-      } catch {
-        // Polling error — wait before retrying
+        this.pollFailures = 0;
+      } catch (err: unknown) {
+        // PRC-M364: log and back off exponentially (no silent 10 req/s hot loop).
+        this.pollFailures += 1;
+        this.logger?.error?.(
+          {
+            queueName,
+            consecutiveFailures: this.pollFailures,
+            nextPollMs: this.nextPollDelayMs(),
+            err: errorMessage(err),
+          },
+          'sqs receive failed; backing off',
+        );
       }
-
       // Schedule next poll
       if (this.pollingActive) {
         const timer = setTimeout(() => {
           void poll();
-        }, 100);
+        }, this.nextPollDelayMs());
         this.pollingTimers.push(timer);
       }
     };

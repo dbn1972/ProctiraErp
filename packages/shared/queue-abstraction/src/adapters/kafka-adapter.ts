@@ -22,6 +22,11 @@ import type {
   KafkaAdapterConfig,
 } from '../types';
 import { buildTenantName, QueueUnsupportedOperationError, requestedDelayMs } from '../types';
+import { DEFAULT_MAX_RETRIES, errorMessage, type QueueConsumerLogger } from './delivery-failure';
+
+export interface KafkaAdapterRuntimeOptions {
+  logger?: QueueConsumerLogger;
+}
 
 const DEFAULT_CONFIG: Partial<KafkaAdapterConfig> = {
   connectionTimeout: 10000,
@@ -37,8 +42,11 @@ export class KafkaAdapter implements QueueAdapter {
   private config: KafkaAdapterConfig;
   private connected = false;
 
-  constructor(config: KafkaAdapterConfig) {
+  private readonly logger: QueueConsumerLogger | undefined;
+
+  constructor(config: KafkaAdapterConfig, runtime: KafkaAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.logger = runtime.logger;
 
     // PRC-L356: never ship credentials / tenant payloads over plaintext in production.
     if (isProductionEnv() && !this.config.ssl) {
@@ -136,17 +144,85 @@ export class KafkaAdapter implements QueueAdapter {
     await consumer.run({
       eachMessage: async (payload: EachMessagePayload) => {
         if (!payload.message.value) return;
-
-        const message = JSON.parse(payload.message.value.toString()) as QueueMessage;
-
+        // PRC-M364: a malformed payload must not wedge the partition - park it
+        // on the DLQ topic and let the offset commit.
+        let message: QueueMessage;
+        try {
+          message = JSON.parse(payload.message.value.toString()) as QueueMessage;
+        } catch (err: unknown) {
+          await this.deadLetter(payload, 'parse-error', err);
+          return;
+        }
         // PRC-L355: body tenant must match the concrete topic the broker routed on.
         if (!messageTenantMatchesRoute(payload.topic, message)) return;
-
-        await handler(message);
+        await this.handleWithRetry(payload, message, handler);
       },
     });
 
     this.consumers.push(consumer);
+  }
+
+  /**
+   * PRC-M364: bounded in-process retry with exponential backoff, then DLQ so a
+   * failing message cannot block the partition forever.
+   */
+  private async handleWithRetry(
+    payload: EachMessagePayload,
+    message: QueueMessage,
+    handler: MessageHandler,
+  ): Promise<void> {
+    const maxRetries = this.config.maxHandlerRetries ?? DEFAULT_MAX_RETRIES;
+    const base = this.config.handlerRetryBackoffMs ?? 200;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await handler(message);
+        return;
+      } catch (err: unknown) {
+        if (attempt >= maxRetries) {
+          await this.deadLetter(payload, 'handler-failed', err);
+          return;
+        }
+        this.logger?.warn?.(
+          { topic: payload.topic, messageId: message.id, attempt: attempt + 1, err: errorMessage(err) },
+          'kafka handler failed; retrying',
+        );
+        await new Promise((r) => setTimeout(r, base * 2 ** attempt));
+      }
+    }
+  }
+
+  /** Name of the dead-letter topic for `topic`. */
+  deadLetterTopic(topic: string): string {
+    return `${topic}${this.config.deadLetterSuffix ?? '.dlq'}`;
+  }
+
+  private async deadLetter(payload: EachMessagePayload, reason: string, err: unknown): Promise<void> {
+    if (!this.producer) {
+      // Cannot park it: throw so the offset is NOT committed (kafkajs retries).
+      throw new Error(`KafkaAdapter: cannot dead-letter (${reason}); producer not connected`);
+    }
+    const dlq = this.deadLetterTopic(payload.topic);
+    await this.producer.send({
+      topic: dlq,
+      messages: [
+        {
+          key: payload.message.key ?? null,
+          value: payload.message.value,
+          headers: {
+            ...(payload.message.headers ?? {}),
+            'x-dlq-reason': reason,
+            'x-dlq-error': errorMessage(err).slice(0, 500),
+            'x-dlq-source-topic': payload.topic,
+            'x-dlq-source-partition': String(payload.partition),
+            'x-dlq-source-offset': String(payload.message.offset),
+          },
+        },
+      ],
+    });
+    this.logger?.error?.(
+      { topic: payload.topic, dlq, reason, offset: payload.message.offset, err: errorMessage(err) },
+      'kafka message dead-lettered',
+    );
   }
 
   async dispatch(message: QueueMessage, options?: PublishOptions): Promise<void> {

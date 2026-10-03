@@ -104,6 +104,7 @@ vi.mock('amqplib', () => ({
       // Legacy non-confirm channel: publish() returns without ever confirming.
       createChannel: vi.fn(async () => channel),
       close: vi.fn(async () => undefined),
+      on: vi.fn(),
     })),
   },
 }));
