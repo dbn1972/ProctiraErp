@@ -14,6 +14,8 @@ import type {
   ListSectionsFilter,
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
+  EnrollWithinCapacityInput,
+  EnrollWithinCapacityResult,
 } from './timetable-repository.js';
 import { TimetableVersionConflictError } from './timetable-errors.js';
 
@@ -214,6 +216,42 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
+  async enrollWithinCapacity(input: EnrollWithinCapacityInput): Promise<EnrollWithinCapacityResult> {
+    // No await between read and write: atomic within the event loop.
+    const section = this.sections.get(input.sectionId);
+    if (!section || section.tenantId !== input.tenantId) return { outcome: 'section_missing' };
+    if (section.status === 'ARCHIVED') return { outcome: 'section_archived' };
+    const rows = [...this.enrollments.values()].filter(
+      (e) => e.tenantId === input.tenantId && e.sectionId === input.sectionId,
+    );
+    const existing = rows.find((e) => e.studentId === input.studentId);
+    if (existing?.status === 'ENROLLED') return { outcome: 'already_enrolled', enrollment: existing };
+    const active = rows.filter((e) => e.status === 'ENROLLED').length;
+    if (active >= section.capacity) {
+      return { outcome: 'full', capacity: section.capacity, code: section.code };
+    }
+    const enrollment: SectionEnrollmentEntity = existing
+      ? {
+          ...existing,
+          status: 'ENROLLED',
+          enrolledAt: input.enrolledAt,
+          withdrawnAt: null,
+          updatedAt: input.now,
+        }
+      : {
+          id: input.newId,
+          tenantId: input.tenantId,
+          sectionId: input.sectionId,
+          studentId: input.studentId,
+          status: 'ENROLLED',
+          enrolledAt: input.enrolledAt,
+          withdrawnAt: null,
+          createdAt: input.now,
+          updatedAt: input.now,
+        };
+    this.enrollments.set(enrollment.id, enrollment);
+    return { outcome: 'enrolled', enrollment };
+  }
   async updateEnrollment(tenantId: string, id: string, patch: Partial<SectionEnrollmentEntity>) {
     const cur = this.enrollments.get(id);
     if (!cur || cur.tenantId !== tenantId) return null;

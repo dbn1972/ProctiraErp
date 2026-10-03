@@ -146,6 +146,22 @@ export interface ListRoomsFilter {
   institutionId?: string;
 }
 
+export interface EnrollWithinCapacityInput {
+  tenantId: string;
+  sectionId: string;
+  studentId: string;
+  /** Institution-local calendar date (YYYY-MM-DD). */
+  enrolledAt: string;
+  newId: string;
+  now: string;
+}
+
+export type EnrollWithinCapacityResult =
+  | { outcome: 'enrolled' | 'already_enrolled'; enrollment: SectionEnrollmentEntity }
+  | { outcome: 'section_missing' | 'student_missing' }
+  | { outcome: 'section_archived' }
+  | { outcome: 'full'; capacity: number; code: string };
+
 /** Thin optimistic concurrency: If-Match token is the entity `updatedAt` ISO string. */
 export interface UpdateConcurrencyOpts {
   expectedUpdatedAt?: string;
@@ -197,6 +213,12 @@ export interface TimetableRepository {
     studentId: string,
   ): Promise<SectionEnrollmentEntity | null>;
   createEnrollment(row: SectionEnrollmentEntity): Promise<SectionEnrollmentEntity>;
+  /**
+   * PRC-M403: atomic capacity-checked enroll. Locks the section row, counts active
+   * enrollments and inserts/reactivates in one transaction, so concurrent enrolls at
+   * capacity-1 yield exactly one success.
+   */
+  enrollWithinCapacity(input: EnrollWithinCapacityInput): Promise<EnrollWithinCapacityResult>;
   updateEnrollment(
     tenantId: string,
     id: string,

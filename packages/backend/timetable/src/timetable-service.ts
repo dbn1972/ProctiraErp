@@ -89,8 +89,30 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function dateToday(): string {
-  return new Date().toISOString().slice(0, 10);
+/** PRC-M403: calendar date (YYYY-MM-DD) of `instant` in an IANA timezone. */
+export function calendarDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Resolves the institution/tenant IANA timezone used for enrollment calendar dates. */
+export type TimetableTimeZoneResolver = (
+  tenantId: string,
+  institutionId?: string,
+) => string | Promise<string>;
+
+export interface TimetableServiceOptions {
+  maxConcurrentGenerations?: number;
+  /** Default 'UTC' (or TIMETABLE_DEFAULT_TIMEZONE). */
+  timeZone?: string | TimetableTimeZoneResolver;
+  /** Injectable clock for tests. */
+  now?: () => Date;
 }
 
 function slugCode(name: string, fallback: string): string {
@@ -118,7 +140,7 @@ export class TimetableService {
   constructor(
     private readonly repo: TimetableRepository,
     ops?: TimetableOpsStore,
-    options: { maxConcurrentGenerations?: number } = {},
+    private readonly options: TimetableServiceOptions = {},
   ) {
     this.ops = ops ?? new InMemoryTimetableOpsStore();
     const envCap = Number(process.env.TIMETABLE_GENERATION_MAX_CONCURRENCY);
@@ -127,6 +149,20 @@ export class TimetableService {
       options.maxConcurrentGenerations ??
         (Number.isInteger(envCap) && envCap > 0 ? envCap : DEFAULT_GENERATION_CONCURRENCY),
     );
+  }
+
+  private async localDate(tenantId: string, institutionId?: string): Promise<string> {
+    const configured = this.options.timeZone;
+    let zone =
+      typeof configured === 'function'
+        ? await configured(tenantId, institutionId)
+        : (configured ?? process.env.TIMETABLE_DEFAULT_TIMEZONE ?? 'UTC');
+    try {
+      Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    } catch {
+      zone = 'UTC';
+    }
+    return calendarDateInZone(this.options.now?.() ?? new Date(), zone);
   }
 
   listAudits(tenantId: string): TimetableAuditEntry[] {
@@ -377,42 +413,28 @@ export class TimetableService {
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
-    if (section.status === 'ARCHIVED') {
-      throw new ValidationError('Cannot enroll into an archived section');
-    }
-
-    const existing = await this.repo.getEnrollment(tenantId, sectionId, studentId);
-    if (existing && existing.status === 'ENROLLED') {
-      return existing;
-    }
-
-    const active = (await this.repo.listEnrollments(tenantId, sectionId)).filter(
-      (e) => e.status === 'ENROLLED',
-    );
-    if (!existing && active.length >= section.capacity) {
-      throw new ValidationError(`Section ${section.code} is at capacity (${section.capacity})`);
-    }
-
-    const now = nowIso();
-    if (existing) {
-      return this.repo.updateEnrollment(tenantId, existing.id, {
-        status: 'ENROLLED',
-        withdrawnAt: null,
-        enrolledAt: dateToday(),
-      });
-    }
-
-    return this.repo.createEnrollment({
-      id: randomUUID(),
+    // PRC-M403: capacity check + write are one atomic repository operation.
+    const result = await this.repo.enrollWithinCapacity({
       tenantId,
       sectionId,
       studentId,
-      status: 'ENROLLED',
-      enrolledAt: dateToday(),
-      withdrawnAt: null,
-      createdAt: now,
-      updatedAt: now,
+      enrolledAt: await this.localDate(tenantId, section.institutionId),
+      newId: randomUUID(),
+      now: nowIso(),
     });
+    switch (result.outcome) {
+      case 'enrolled':
+      case 'already_enrolled':
+        return result.enrollment;
+      case 'section_missing':
+        throw new NotFoundError(`Section ${sectionId} not found`);
+      case 'student_missing':
+        throw new NotFoundError(`Student ${studentId} not found`);
+      case 'section_archived':
+        throw new ValidationError('Cannot enroll into an archived section');
+      case 'full':
+        throw new ValidationError(`Section ${result.code} is at capacity (${result.capacity})`);
+    }
   }
 
   async withdrawStudent(tenantId: string, sectionId: string, studentId: string) {
@@ -423,9 +445,10 @@ export class TimetableService {
     if (enrollment.status === 'WITHDRAWN') {
       return enrollment;
     }
+    const section = await this.repo.getSection(tenantId, sectionId);
     return this.repo.updateEnrollment(tenantId, enrollment.id, {
       status: 'WITHDRAWN',
-      withdrawnAt: dateToday(),
+      withdrawnAt: await this.localDate(tenantId, section?.institutionId),
     });
   }
 
