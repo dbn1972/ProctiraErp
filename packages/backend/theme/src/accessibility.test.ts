@@ -30,7 +30,9 @@ describe('hexToRgb', () => {
   });
 
   it('should return null for invalid hex', () => {
-    expect(hexToRgb('#gg0000')).toEqual({ r: NaN, g: 0, b: 0 });
+    // PRC-M393: non-hex digits must not yield NaN channels
+    expect(hexToRgb('#gg0000')).toBeNull();
+    expect(hexToRgb('#zzzzzz')).toBeNull();
     expect(hexToRgb('#12')).toBeNull();
   });
 });
@@ -67,7 +69,14 @@ describe('parseColor', () => {
 
   it('should return null for unsupported formats', () => {
     expect(parseColor('red')).toBeNull();
-    expect(parseColor('rgb(255, 0, 0)')).toBeNull();
+    expect(parseColor('#zzzzzz')).toBeNull();
+    expect(parseColor('rgb(300, 0, 0)')).toBeNull();
+    expect(parseColor('hsl(400, 50%, 50%)')).toBeNull();
+  });
+
+  it('should parse rgb() and 8-digit hex', () => {
+    expect(parseColor('rgb(255, 0, 0)')).toEqual({ r: 255, g: 0, b: 0 });
+    expect(parseColor('#ff000080')).toEqual({ r: 255, g: 0, b: 0 });
   });
 });
 
@@ -159,7 +168,7 @@ describe('validateAccessibility', () => {
     expect(result.issues.some((i) => i.type === 'contrast-ratio')).toBe(true);
   });
 
-  it('should skip contrast check for undefined color pairs', () => {
+  it('PRC-M393: fails when the mandatory textPrimary/background pair is missing', () => {
     const tokens: ThemeTokens = {
       colors: {
         primary: '#1a56db',
@@ -173,7 +182,43 @@ describe('validateAccessibility', () => {
       spacing: { unit: 4 },
     };
     const result = validateAccessibility(tokens);
-    // Should not fail just because pairs are missing
-    expect(result.valid).toBe(true);
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.type === 'color-missing')).toBe(true);
   });
+
+  it('PRC-M393: missing textPrimary alone fails', () => {
+    const tokens = baseTokens();
+    delete tokens.colors.textPrimary;
+    expect(validateAccessibility(tokens).valid).toBe(false);
+  });
+
+  it('PRC-M393: half-defined optional pair fails', () => {
+    const tokens = baseTokens();
+    delete tokens.colors.onError;
+    expect(validateAccessibility(tokens).valid).toBe(false);
+  });
+
+  it('PRC-M393: unparsable colors are errors, not warnings', () => {
+    for (const bad of ['#zzzzzz', 'red']) {
+      const tokens = baseTokens();
+      tokens.colors.textPrimary = bad;
+      const result = validateAccessibility(tokens);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.type === 'color-parse' && i.severity === 'error')).toBe(
+        true,
+      );
+    }
+  });
+
+  it('PRC-M393: 18px body text still needs 4.5:1 (large-text 3:1 only at >=24px)', () => {
+    const tokens = baseTokens();
+    tokens.typography.baseFontSize = 18;
+    // #949494 on white is ~3.03:1: passes 3:1, fails 4.5:1
+    tokens.colors.textPrimary = '#949494';
+    expect(validateAccessibility(tokens).valid).toBe(false);
+    tokens.typography.baseFontSize = 24;
+    const atLarge = validateAccessibility(tokens);
+    expect(atLarge.issues.some((i) => i.message.startsWith('Primary text on background'))).toBe(false);
+  });
+
 });
