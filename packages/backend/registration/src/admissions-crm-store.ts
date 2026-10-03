@@ -73,6 +73,11 @@ export interface AdmissionsCrmStore {
    * Returns null when the queue is empty.
    */
   dequeueWaitlistHead(tenantId: string, institutionId: string): Promise<WaitlistEntry | null>;
+  /**
+   * PRC-M329: remove an application's waitlist entry (on any transition out of
+   * `waitlisted`). Returns true when an entry was removed.
+   */
+  removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean>;
   createSlot(input: CreateSlotInput): Promise<InterviewSlot>;
   listSlots(tenantId: string, institutionId?: string): Promise<InterviewSlot[]>;
   findSlot(id: string, tenantId: string): Promise<InterviewSlot | null>;
@@ -131,6 +136,14 @@ export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
     if (!head) return null;
     this.waitlist = this.waitlist.filter((row) => row.id !== head.id);
     return head;
+  }
+
+  async removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean> {
+    const before = this.waitlist.length;
+    this.waitlist = this.waitlist.filter(
+      (row) => !(row.tenantId === tenantId && row.applicationId === applicationId),
+    );
+    return this.waitlist.length !== before;
   }
 
   async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {

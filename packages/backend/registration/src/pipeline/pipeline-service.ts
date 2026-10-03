@@ -54,6 +54,9 @@ export interface SeatAvailability extends SeatMatrixRecord {
   available: number;
 }
 
+/** Upper bound on stale waitlist entries skipped in one promotion (PRC-M329). */
+const MAX_WAITLIST_SKIPS = 50;
+
 function num(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -621,7 +624,18 @@ export class AdmissionsPipelineService {
     released: OfferRecord,
   ): Promise<ReturnType<typeof formatOffer> | null> {
     if (!this.crm) return null;
-    const head = await this.crm.dequeueWaitlistHead(tenantId, released.institutionId);
+    // PRC-M329: skip (and drop) stale entries whose application is no longer
+    // `waitlisted` — a rejected/approved applicant is never promoted.
+    let head: Awaited<ReturnType<AdmissionsCrmStore['dequeueWaitlistHead']>> = null;
+    for (let i = 0; i < MAX_WAITLIST_SKIPS; i += 1) {
+      const candidate = await this.crm.dequeueWaitlistHead(tenantId, released.institutionId);
+      if (!candidate) return null;
+      const app = await this.applications.findById(candidate.applicationId, tenantId);
+      if (app && app.tenantId === tenantId && app.status === 'waitlisted') {
+        head = candidate;
+        break;
+      }
+    }
     if (!head) return null;
 
     // Ensure placement matches the freed seat band when missing.

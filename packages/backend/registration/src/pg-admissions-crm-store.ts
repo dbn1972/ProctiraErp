@@ -156,6 +156,18 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
     });
   }
 
+  async removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM admission_waitlist_entries
+          WHERE tenant_id = $1 AND application_id = $2
+          RETURNING id`,
+        [tenantId, applicationId],
+      );
+      return (result.rows as unknown[]).length > 0;
+    });
+  }
+
   async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {
     return this.withTenant(input.tenantId, async (client) => {
       const result = await client.query(

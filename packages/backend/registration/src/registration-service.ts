@@ -625,6 +625,11 @@ export class RegistrationService {
       throw new NotFoundError(`Application with id '${applicationId}' not found`);
     }
 
+    // PRC-M329: leaving `waitlisted` (approved/rejected/under_review) removes the
+    // queue entry so the applicant can never be promoted afterwards.
+    if (application.status === 'waitlisted' && status !== 'waitlisted') {
+      await this.crm.removeWaitlistEntry(tenantId, applicationId);
+    }
     let waitlistEntry: WaitlistEntry | null = null;
     if (status === 'waitlisted') {
       waitlistEntry = await this.crm.enqueueWaitlist({
