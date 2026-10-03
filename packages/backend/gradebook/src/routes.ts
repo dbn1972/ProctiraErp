@@ -631,6 +631,25 @@ export async function registerGradebookRoutes(
     }
   });
 
+  /** PRC-M265: download the persisted report-card artifact (staff only, tenant-scoped). */
+  fastify.get(`${prefix}/report-cards/:id/download`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireStaffRead(request, reply)) return;
+    try {
+      const { id } = request.params as { id: string };
+      const file = await service.downloadReportCard(tenantId, id);
+      return reply
+        .header('Content-Type', file.contentType)
+        .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+        .header('X-Checksum-SHA256', String(file.job.metadata.checksumSha256 ?? ''))
+        .header('X-Content-Type-Options', 'nosniff')
+        .send(file.body);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   fastify.get(`${prefix}/transcripts`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;

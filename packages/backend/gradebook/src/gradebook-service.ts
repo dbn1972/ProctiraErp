@@ -54,6 +54,11 @@ import {
   verifyBoardExportDownloadToken,
   type BoardExportSignedDownload,
 } from './signed-download.js';
+import {
+  escapeReportCardHtml,
+  readReportCardArtifact,
+  writeReportCardArtifact,
+} from './report-card-artifact.js';
 import { transcriptArtifactRoot, buildTranscriptArtifacts, persistTranscriptArtifacts, transcriptArtifactPaths } from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
@@ -185,8 +190,41 @@ export class GradebookService {
     return this.repo.listExportJobs(tenantId, 'REPORT_CARD');
   }
 
-  getReportCardJob(tenantId: string, id: string) {
-    return this.repo.getExportJob(tenantId, id);
+  async getReportCardJob(tenantId: string, id: string) {
+    const job = await this.repo.getExportJob(tenantId, id);
+    // Only REPORT_CARD jobs are served here (other job types carry other payloads).
+    return job && job.jobType === 'REPORT_CARD' ? job : null;
+  }
+
+  /** PRC-M265: authorised download of a persisted report-card artifact. */
+  async downloadReportCard(
+    tenantId: string,
+    jobId: string,
+  ): Promise<{ job: ExportJobEntity; filename: string; contentType: string; body: Buffer }> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+      throw new NotFoundError('Report card job not found');
+    }
+    const job = await this.getReportCardJob(tenantId, jobId);
+    if (!job) throw new NotFoundError('Report card job not found');
+    if (job.status !== 'SUCCEEDED') {
+      throw new BusinessRuleError(`Report card job is ${job.status}; download needs SUCCEEDED`);
+    }
+    let body: Buffer;
+    try {
+      body = readReportCardArtifact(tenantId, jobId);
+    } catch {
+      throw new NotFoundError('Report card artifact missing');
+    }
+    const checksum = createHash('sha256').update(body).digest('hex');
+    if (checksum !== job.metadata.checksumSha256) {
+      throw new BusinessRuleError('Report card artifact checksum mismatch');
+    }
+    return {
+      job,
+      filename: `report-card-${jobId}.html`,
+      contentType: 'text/html; charset=utf-8',
+      body,
+    };
   }
 
   getTranscript(tenantId: string, id: string) {
@@ -696,6 +734,10 @@ export class GradebookService {
     input: CreateReportCardJobInput,
     user?: { id?: string; sub?: string },
   ): Promise<ExportJobEntity> {
+    // PRC-M265: the board must exist in this tenant (404, not an FK 400/500).
+    if (!(await this.repo.getBoard(tenantId, input.boardId))) {
+      throw new NotFoundError('Board not found');
+    }
     const now = nowIso();
     let job = await this.repo.createExportJob({
       id: randomUUID(),
@@ -728,28 +770,43 @@ export class GradebookService {
       })) ?? job;
 
     try {
-      const entries = await this.repo.listGradeEntries(tenantId, {
-        studentId: input.studentId,
-      });
+      // PRC-M265: only PUBLISHED grades, restricted to the requested period.
+      const published = (
+        await this.repo.listGradeEntries(tenantId, { studentId: input.studentId })
+      ).filter((row) => isGradePublished(row.metadata, row.publishedAt));
+      let entries = published;
+      if (input.academicPeriodId) {
+        const sectionIds = [...new Set(published.map((e) => e.sectionId).filter(Boolean))];
+        const inPeriod = new Set<string>();
+        for (const sid of sectionIds) {
+          const section = await this.repo.getSection(tenantId, sid as string);
+          if (section?.academicPeriodId === input.academicPeriodId) inPeriod.add(section.id);
+        }
+        entries = published.filter((e) => e.sectionId != null && inPeriod.has(e.sectionId));
+      }
       const snapshots = await this.repo.listGpaSnapshots(tenantId, input.studentId);
-      const latest = snapshots[0] ?? null;
+      const latest = input.academicPeriodId
+        ? (snapshots.find((s) => s.academicPeriodId === input.academicPeriodId) ?? null)
+        : (snapshots[0] ?? null);
+      const esc = escapeReportCardHtml;
       const html = [
         '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Report Card</title></head><body>',
         `<h1>Report Card</h1>`,
-        `<p>Student: ${input.studentId}</p>`,
-        `<p>Period: ${input.academicPeriodId ?? 'n/a'}</p>`,
-        `<p>Weighted GPA: ${latest?.weightedGpa ?? 'n/a'}</p>`,
-        `<p>Unweighted GPA: ${latest?.unweightedGpa ?? 'n/a'}</p>`,
+        `<p>Student: ${esc(input.studentId)}</p>`,
+        `<p>Period: ${esc(input.academicPeriodId ?? 'n/a')}</p>`,
+        `<p>Weighted GPA: ${esc(latest?.weightedGpa ?? 'n/a')}</p>`,
+        `<p>Unweighted GPA: ${esc(latest?.unweightedGpa ?? 'n/a')}</p>`,
         `<ul>${entries
           .map(
             (e) =>
-              `<li>${e.assessmentCode ?? 'course'}: ${e.numericScore ?? e.letterGrade ?? '—'}</li>`,
+              `<li>${esc(e.assessmentCode ?? 'course')}: ${esc(e.numericScore ?? e.letterGrade ?? '—')}</li>`,
           )
           .join('')}</ul>`,
         `</body></html>`,
       ].join('');
       const checksum = createHash('sha256').update(html).digest('hex');
-      const artifactUri = `memory://report-cards/${job.id}.html`;
+      // PRC-M265: persist before reporting SUCCEEDED; a write failure marks the job FAILED.
+      const artifactUri = writeReportCardArtifact(tenantId, job.id, html);
       const finished = nowIso();
       job =
         (await this.repo.updateExportJob(tenantId, job.id, {
