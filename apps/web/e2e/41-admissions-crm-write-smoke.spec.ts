@@ -485,6 +485,19 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     expect(seatBefore.available).toBeGreaterThan(0);
     const filledBefore = seatBefore.filled;
 
+    // PRC-H079: a staff-supplied invoice that is not this application's offer-fee
+    // invoice is refused at create time (no swapping in another paid invoice).
+    const foreignInvoiceRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers`, {
+      headers: headers(),
+      data: {
+        applicationId,
+        classId,
+        feeAmount: 15_000,
+        offerFeeInvoiceId: '00000000-0000-4000-8000-000000000079',
+      },
+    });
+    expect(foreignInvoiceRes.status(), await foreignInvoiceRes.text()).toBe(422);
+
     const offerRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers`, {
       headers: headers(),
       data: { applicationId, classId, feeAmount: 15_000 },

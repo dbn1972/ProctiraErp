@@ -73,6 +73,7 @@ describe('ScholarshipNettingForm (PRC-H020)', () => {
       disbursementId: 'disb-paid',
       invoiceId: '',
       currency: 'INR',
+      idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
     expect(sent).not.toHaveProperty('amount');
   });

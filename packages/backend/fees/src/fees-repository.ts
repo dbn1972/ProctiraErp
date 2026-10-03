@@ -292,9 +292,18 @@ export interface RecordPaymentOnInvoiceSettlement {
  * Carries amounts and before/after status only (no PII).
  */
 export interface FeesMoneyAuditEvent {
-  kind: 'refund' | 'credit_note' | 'write_off' | 'void' | 'concession_approve';
+  kind:
+    | 'refund'
+    | 'credit_note'
+    | 'write_off'
+    | 'void'
+    | 'concession_approve'
+    | 'concession_reject'
+    | 'scholarship_netting'
+    | 'scholarship_netting_reversal';
   entityId: string;
-  invoiceId: string;
+  /** Null when no invoice was touched (credit reserved / rejected without a target). */
+  invoiceId: string | null;
   amountCents: number;
   beforeStatus: string;
   afterStatus: string;

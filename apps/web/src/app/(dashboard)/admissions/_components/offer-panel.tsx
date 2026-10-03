@@ -183,7 +183,7 @@ function OfferRow({
   onAccept: (paymentRef: string) => void;
 }) {
   const [confirm, setConfirm] = useState<'send' | 'accept' | 'decline' | null>(null);
-  const [paymentRef, setPaymentRef] = useState('SANDBOX-PAY');
+  const [paymentRef, setPaymentRef] = useState('');
 
   return (
     <li
@@ -220,14 +220,13 @@ function OfferRow({
               setConfirm('accept');
             }}
           >
-            <FormField id={`pay-${offer.id}`} label="Payment ref">
+            <FormField id={`pay-${offer.id}`} label="Payment reference (optional)">
               <Input
                 id={`pay-${offer.id}`}
                 name="paymentRef"
                 data-testid="payment-ref"
-                required
                 disabled={!hydrated || pending}
-                defaultValue="SANDBOX-PAY"
+                defaultValue=""
               />
             </FormField>
             <Button

@@ -110,6 +110,17 @@ export type CreateOfferFeeInvoice = (input: {
  */
 export type AssertOfferFeePaid = (input: { tenantId: string; invoiceId: string }) => Promise<void>;
 
+/**
+ * Verifies that a staff-supplied offer-fee invoice belongs to this tenant and
+ * application (PRC-H079). Returns false when the invoice is unknown, belongs to
+ * another student/application, or is not an admissions offer-fee invoice.
+ */
+export type VerifyOfferFeeInvoiceOwnership = (input: {
+  tenantId: string;
+  applicationId: string;
+  invoiceId: string;
+}) => Promise<boolean>;
+
 export type ReconcileOfferResources = (input: {
   tenantId: string;
   applicationId: string;
@@ -130,6 +141,7 @@ export class AdmissionsPipelineService {
     /** Optional CRM waitlist used to promote the next applicant when a seat frees. */
     private readonly crm?: AdmissionsCrmStore,
     private readonly reconcileOfferResources?: ReconcileOfferResources,
+    private readonly verifyOfferFeeInvoiceOwnership?: VerifyOfferFeeInvoiceOwnership,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -402,6 +414,23 @@ export class AdmissionsPipelineService {
       classId: input.classId ?? null,
     };
     const offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
+    if (offerFeeInvoiceId) {
+      // PRC-H079: a staff-supplied invoice must be this application's own offer-fee
+      // invoice; otherwise another student's paid invoice could satisfy acceptance.
+      // No verifier wired -> fail closed (the invoice is raised server-side at send).
+      const owned = this.verifyOfferFeeInvoiceOwnership
+        ? await this.verifyOfferFeeInvoiceOwnership({
+            tenantId,
+            applicationId: application.id,
+            invoiceId: offerFeeInvoiceId,
+          })
+        : false;
+      if (!owned) {
+        throw new BusinessRuleError(
+          'offerFeeInvoiceId does not belong to this application; omit it to raise the offer fee invoice on send',
+        );
+      }
+    }
     const feeAmount = input.feeAmount ?? 0;
     const feeCurrency = input.feeCurrency ?? 'INR';
     const record: OfferRecord = {

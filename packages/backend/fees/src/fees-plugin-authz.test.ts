@@ -279,15 +279,47 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
       expect(response.statusCode).not.toBe(403);
     });
   });
-  // PRC-L560: adversarial deny proofs. These depend on the authz fixes tracked as
-  // PRC-C005 (scope=parent escalation) and PRC-M511 (parent pay-IDOR), which are
-  // outside this batch; convert each todo to a real assertion when those land.
-  describe('adversarial deny proofs (pending PRC-C005 / PRC-M511)', () => {
-    it.todo('PRC-C005: parent GET /fees/payments?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/ledger/trial-balance?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/reports/dues?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/receipts/:otherChildReceipt?scope=parent -> 404');
-    it.todo('PRC-C005: parent GET /fees/reminders/overdue?scope=parent -> 403');
+  // PRC-L560: adversarial deny proofs for PRC-C005 (scope=parent escalation) — the
+  // read scope is role-derived, so a parent appending ?scope=parent gains nothing.
+  describe('adversarial deny proofs: PRC-C005 scope=parent escalation', () => {
+    for (const url of [
+      '/fees/payments?scope=parent',
+      '/fees/ledger/trial-balance?scope=parent',
+      '/fees/reports/dues?scope=parent',
+      '/fees/reminders/overdue?scope=parent',
+    ]) {
+      it(`parent GET ${url} -> 403`, async () => {
+        app = await buildFeesApp(['parent'], { linkedStudentIds: [STUDENT_ID] });
+        const response = await app.inject({ method: 'GET', url });
+        expect(response.statusCode).toBe(403);
+        expect(response.json().code).toBe('FORBIDDEN');
+      });
+    }
+    it('parent GET /fees/receipts/:otherChildReceipt?scope=parent -> 404', async () => {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+      const otherInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(),
+        title: 'Other child fee',
+        amountCents: 7000,
+      });
+      const otherPaid = await service.recordPayment(TENANT_ID, 'staff', {
+        invoiceId: otherInvoice.id,
+      });
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'GET',
+        url: `/fees/receipts/${otherPaid.receipt.id}?scope=parent`,
+      });
+      expect(response.statusCode).toBe(404);
+      // No receipt payload leaks (only the generic not-found envelope).
+      expect(response.json()).not.toHaveProperty('receipt');
+      expect(JSON.stringify(response.json())).not.toContain(otherInvoice.id);
+    });
+  });
+  // PRC-M511 (parent pay-IDOR) is not fixed yet: parents hold 'payment.record' and
+  // POST /fees/invoices/:id/pay has no guardian-link check. Convert when it lands.
+  describe('adversarial deny proofs (pending PRC-M511)', () => {
     it.todo('PRC-M511: parent POST /fees/invoices/:unlinkedInvoice/pay -> 404, no rows');
     it.todo('PRC-M511: parent payerUserId is overridden with JWT sub');
     it.todo('PRC-M511: parent method=cash is rejected');

@@ -5,7 +5,7 @@
  * DATABASE_URL is set; otherwise in-memory. Mounted on api-gateway at `/fees`.
  */
 
-export { feesPlugin } from './fees-plugin.js';
+export { feesPlugin, buildSystemMoneyAuditSink } from './fees-plugin.js';
 export type { FeesPluginOptions, ParentFeeBinding } from './fees-plugin.js';
 
 export {
