@@ -21,6 +21,7 @@ import '../notifications/local_notifications.dart';
 import '../notifications/notification_router.dart';
 import '../router/app_router.dart';
 import '../storage/cache_crypto.dart';
+import '../storage/captured_document_store.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -63,6 +64,10 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     secureStorage,
   );
   getIt.registerSingleton<CacheCrypto>(cacheCrypto);
+  final CapturedDocumentStore capturedDocuments = CapturedDocumentStore(
+    crypto: cacheCrypto,
+  );
+  getIt.registerSingleton<CapturedDocumentStore>(capturedDocuments);
 
   final AppDatabase database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
@@ -197,6 +202,8 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
         // PRC-H016: captured student documents upload as bytes.
         SyncEntityType.student: StudentDocumentSyncDispatcher(
           getIt<StudentApi>(),
+          readFile: capturedDocuments.open,
+          deleteFile: capturedDocuments.discard,
         ),
       },
     );
@@ -299,6 +306,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
     tenantProvider: tenantProvider,
+    purgeLocalFiles: capturedDocuments.purgeAll,
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

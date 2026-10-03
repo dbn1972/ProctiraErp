@@ -109,7 +109,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     SelectedStudentStore? selectedStudent,
     PushDeviceLifecycle? push,
     TenantProvider? tenantProvider,
+    Future<void> Function()? purgeLocalFiles,
   })  : _storage = secureStorage,
+        _purgeLocalFiles = purgeLocalFiles,
         _tenantProvider = tenantProvider,
         _push = push,
         _database = database,
@@ -128,6 +130,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SelectedStudentStore? _selectedStudent;
   final PushDeviceLifecycle? _push;
   final TenantProvider? _tenantProvider;
+
+  /// Deletes on-device files holding user data (captured documents,
+  /// PRC-M046).
+  final Future<void> Function()? _purgeLocalFiles;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -239,6 +245,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final AppDatabase? database = _database;
     if (database != null) {
       await database.purgeAllUserData();
+    }
+    final Future<void> Function()? purgeFiles = _purgeLocalFiles;
+    if (purgeFiles != null) {
+      try {
+        await purgeFiles();
+      } catch (_) {
+        // Local logout must still complete.
+      }
     }
   }
 }
