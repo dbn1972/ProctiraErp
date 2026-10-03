@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
+import '../../../core/student/student_cache_sync.dart';
 import '../../../core/sync/student_document_dispatcher.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_models.dart';
@@ -64,6 +65,10 @@ class StudentRepository {
   final CacheCrypto _cacheCrypto;
   final StudentApi? _studentApi;
   final DateTime Function() _now;
+  late final StudentCacheSync _cacheSync = StudentCacheSync(
+    cacheCrypto: _cacheCrypto,
+    now: _now,
+  );
 
   /// Write one student into the encrypted offline cache (no sync enqueue).
   Future<void> cacheStudent(Student student) async {
@@ -88,29 +93,45 @@ class StudentRepository {
     final Database db = await _database.database;
 
     List<CachedStudent> results = await _queryCache(db, tenantId, query, limit);
-    if (results.isEmpty && seedFromApi && _studentApi != null) {
+    final bool cacheEmpty =
+        results.isEmpty && await _cacheIsEmpty(db, tenantId);
+    if (cacheEmpty && seedFromApi && _studentApi != null) {
       try {
-        final List<Student> remote = await _studentApi.listStudents(
-          pageSize: limit,
-        );
-        if (remote.isNotEmpty) {
-          await db.transaction((Transaction txn) async {
-            for (final Student s in remote) {
-              await txn.insert(
-                'students_cache',
-                await _toCacheRow(tenantId, s),
-                conflictAlgorithm: ConflictAlgorithm.replace,
-              );
-            }
-          });
-          results = await _queryCache(db, tenantId, query, limit);
-        }
-      } on ApiException {
-        // Network failure: return whatever we have locally.
+        await refreshFromServer();
+        results = await _queryCache(db, tenantId, query, limit);
+      } on ApiException catch (error) {
+        // Offline: serve the (empty) cache. Auth/permission/server errors
+        // must surface instead of looking like "no students" (PRC-M043).
+        if (!isConnectivityFailure(error)) rethrow;
       }
     }
 
     return results;
+  }
+
+  /// Pull every page of students from the server and replace this tenant's
+  /// cache (PRC-M042): new students become searchable, removed ones drop
+  /// out. Throws [ApiException] on failure; callers decide how to surface.
+  /// Returns the number of students now cached.
+  Future<int> refreshFromServer() async {
+    final StudentApi? api = _studentApi;
+    if (api == null) return 0;
+    final String tenantId = _requireTenantId();
+    final Database db = await _database.database;
+    final List<Student> remote = await _cacheSync.fetchAll(api);
+    await _cacheSync.replaceScope(db, tenantId: tenantId, remote: remote);
+    return remote.length;
+  }
+
+  Future<bool> _cacheIsEmpty(Database db, String tenantId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'students_cache',
+      columns: <String>['id'],
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[tenantId],
+      limit: 1,
+    );
+    return rows.isEmpty;
   }
 
   Future<CachedStudent?> getStudent(String id) async {
@@ -218,32 +239,8 @@ class StudentRepository {
     return decoded.sublist(0, limit);
   }
 
-  Future<Map<String, Object?>> _toCacheRow(String tenantId, Student s) async {
-    final String payloadJson = jsonEncode(<String, dynamic>{
-      'id': s.id,
-      'firstName': s.firstName,
-      'middleName': s.middleName,
-      'lastName': s.lastName,
-      'nationalId': s.nationalId,
-      'dateOfBirth': s.dateOfBirth,
-      'gender': s.gender,
-      'institutionId': s.institutionId,
-      'createdAt': s.createdAt,
-      'updatedAt': s.updatedAt,
-    });
-    return <String, Object?>{
-      'id': s.id,
-      'tenant_id': tenantId,
-      'institution_id': s.institutionId,
-      'full_name': await _cacheCrypto.encrypt(s.fullName),
-      'national_id': await _cacheCrypto.encryptNullable(s.nationalId),
-      'grade': null,
-      'class_name': null,
-      'payload': await _cacheCrypto.encrypt(payloadJson),
-      'updated_at': _now().millisecondsSinceEpoch,
-      'version': s.version,
-    };
-  }
+  Future<Map<String, Object?>> _toCacheRow(String tenantId, Student s) =>
+      _cacheSync.cacheRow(tenantId, s);
 
   Future<CachedStudent> _fromCacheRow(Map<String, Object?> row) async {
     final String payloadRaw = await _cacheCrypto.decrypt(

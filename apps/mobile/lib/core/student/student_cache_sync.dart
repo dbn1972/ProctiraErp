@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../api/pagination.dart';
+import '../errors/offline_fallback.dart';
 import '../storage/cache_crypto.dart';
 
 /// Shared remote -> `students_cache` refresh used by the attendance roster and
@@ -154,10 +155,4 @@ class StudentCacheSync {
 
 /// True when [error] means "could not reach the server" (offline, timeout),
 /// as opposed to an authorisation or validation rejection that must surface.
-bool isConnectivityFailure(Object error) {
-  if (error is TransientApiException) {
-    final int? status = error.statusCode;
-    return status == null;
-  }
-  return false;
-}
+bool isConnectivityFailure(Object error) => isOfflineError(error);
