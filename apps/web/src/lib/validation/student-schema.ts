@@ -10,16 +10,9 @@
  * `defaultValues`.
  */
 import { z } from 'zod';
+import { boundedRecord, isoDate, isoDateOptional, pastIsoDate } from './zod-helpers';
 
-const isoDate = z
-  .string()
-  .min(1, 'Date is required')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
 
-const isoDateOptional = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format')
-  .or(z.literal(''));
 
 export const contactSchema = z.object({
   type: z.string().min(1, 'Contact type is required').max(50),
@@ -46,14 +39,14 @@ export const identityDocumentSchema = z.object({
 export const studentFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long'),
   lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long'),
-  dateOfBirth: isoDate,
+  dateOfBirth: pastIsoDate,
   gender: z.string().min(1, 'Gender is required').max(20),
   nationalId: z.string().max(50).or(z.literal('')),
   nationality: z.string().max(100).or(z.literal('')),
-  contacts: z.array(contactSchema),
-  guardians: z.array(guardianSchema),
-  identityDocuments: z.array(identityDocumentSchema),
-  customData: z.record(z.string(), z.unknown()),
+  contacts: z.array(contactSchema).max(20, 'At most 20 contacts'),
+  guardians: z.array(guardianSchema).max(10, 'At most 10 guardians'),
+  identityDocuments: z.array(identityDocumentSchema).max(20, 'At most 20 identity documents'),
+  customData: boundedRecord(100),
 });
 
 export type StudentFormValues = z.infer<typeof studentFormSchema>;
