@@ -82,9 +82,19 @@ export async function previewAudienceAction(
 ): Promise<CommunicationActionState> {
   try {
     const preview = await previewCampaignAudience(audienceJson);
+    // PRC-M074: only a live count is data. The fixed-base estimator is not a
+    // recipient number and must not be shown as a headline figure.
+    if (preview.source !== 'live') {
+      return {
+        status: 'success',
+        message:
+          'Estimate unavailable — a live recipient count is not available for this audience.',
+        honestyNote: preview.honestyNote,
+      };
+    }
     return {
       status: 'success',
-      message: `Estimated ${preview.estimatedRecipients} recipients.`,
+      message: `${preview.estimatedRecipients} recipients (live count).`,
       estimatedRecipients: preview.estimatedRecipients,
       honestyNote: preview.honestyNote,
     };

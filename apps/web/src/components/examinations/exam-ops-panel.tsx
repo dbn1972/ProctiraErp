@@ -41,6 +41,7 @@ import type {
   ExamOpsSession,
   Examination,
 } from '@/lib/api/examinations';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
@@ -86,6 +87,7 @@ export function ExamOpsPanel({
   const hydrated = useHydrated();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<ActionState | null>(null);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
 
   const run = (fn: () => Promise<ActionState>) => {
     startTransition(async () => {
@@ -265,13 +267,34 @@ export function ExamOpsPanel({
           </div>
           <Button
             size="sm"
-            onClick={() => run(() => generateSeatingAction(examination.id))}
+            onClick={() => {
+              // Replacing a persisted plan can invalidate issued admit cards (PRC-M060).
+              if (seats.length > 0) {
+                setConfirmRegenerate(true);
+                return;
+              }
+              run(() => generateSeatingAction(examination.id));
+            }}
             disabled={isPending}
             data-testid="generate-seating"
           >
             {isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
             {seats.length > 0 ? 'Regenerate' : 'Generate seating'}
           </Button>
+          <ConfirmActionDialog
+            open={confirmRegenerate}
+            onOpenChange={setConfirmRegenerate}
+            title="Regenerate seating plan?"
+            description={`This replaces the current plan of ${seats.length} seats. Admit cards already issued with the old seat or room numbers will no longer match and must be reissued.`}
+            confirmLabel="Regenerate plan"
+            destructive
+            pending={isPending}
+            testId="regenerate-seating-dialog"
+            onConfirm={() => {
+              setConfirmRegenerate(false);
+              run(() => generateSeatingAction(examination.id));
+            }}
+          />
         </CardHeader>
         <CardContent>
           {seats.length === 0 ? (
