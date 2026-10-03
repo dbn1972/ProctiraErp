@@ -31,7 +31,9 @@ import type {
   AnalysisBreakdown,
   ScoreDistributionBucket,
   AcademicRecordUpdate,
+  CandidateSubjectResult,
 } from './result-repository.js';
+import { fingerprintCandidates } from './result-repository.js';
 
 /** Marks entry payload (see RecordMarksSchema). */
 export interface RecordMarksInput {
@@ -237,7 +239,10 @@ export class ResultPublicationService {
     };
 
     // Save publication result
-    await this.resultRepository.savePublicationResult(publicationResult);
+    // PRC-M239: reject the publish (409) if marks changed after the snapshot above.
+    await this.resultRepository.savePublicationResult(publicationResult, {
+      candidatesFingerprint: fingerprintCandidates(storedCandidates),
+    });
 
     // Requirement 10.4: Update student academic records
     const academicUpdates: AcademicRecordUpdate[] = gradeResults.map((gr) => ({
@@ -490,9 +495,9 @@ export class ResultPublicationService {
       }
       const current = existingByStudent.get(entry.studentId);
       const candidateId = current?.id ?? randomUUID();
-      const results = new Map(
-        (current?.subjectResults ?? []).map((r) => [r.subjectId, r] as const),
-      );
+      // PRC-M239: send only this entry's subjects; the repository merges them per
+      // subject into the locked stored row (no stale-snapshot overwrite).
+      const results = new Map<string, CandidateSubjectResult>();
       const seenSubjects = new Set<string>();
       entry.marks.forEach((mark, markIndex) => {
         if (seenSubjects.has(mark.subjectId)) {
@@ -544,7 +549,8 @@ export class ResultPublicationService {
       throw new ValidationError('Marks entry failed validation', errors);
     }
 
-    await this.resultRepository.upsertCandidates(tenantId, upserts);
+    // PRC-M239: published-check + per-subject merge happen atomically under a lock.
+    await this.resultRepository.mergeCandidateMarks(tenantId, examinationId, upserts);
     return { candidateCount: upserts.length, subjectResultCount };
   }
 
