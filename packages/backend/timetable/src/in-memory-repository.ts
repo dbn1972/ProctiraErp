@@ -251,6 +251,32 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
+  /** PRC-M397: all-or-nothing; restores both maps on any failure. */
+  async insertClonedTimetable(
+    tenantId: string,
+    sections: SectionEntity[],
+    meetings: SectionMeetingEntity[],
+  ): Promise<void> {
+    const sectionSnapshot = new Map(this.sections);
+    const meetingSnapshot = new Map(this.meetings);
+    try {
+      for (const row of sections) {
+        if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+        await this.createSection(row);
+      }
+      for (const row of meetings) {
+        if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+        await this.createMeeting(row);
+      }
+    } catch (error) {
+      this.sections.clear();
+      for (const [k, v] of sectionSnapshot) this.sections.set(k, v);
+      this.meetings.clear();
+      for (const [k, v] of meetingSnapshot) this.meetings.set(k, v);
+      throw error;
+    }
+  }
+
   async updateMeeting(
     tenantId: string,
     id: string,
