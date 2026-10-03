@@ -637,7 +637,13 @@
     "rubricsNew": "নতুন রুব্রিক",
     "rubricsEmptyTitle": "এখনও কোনো রুব্রিক নেই",
     "rubricsEmptyBody": "প্রবন্ধ মূল্যায়নের জন্য একটি রুব্রিক তৈরি করুন।",
-    "rubricsAnySubject": "যেকোনো বিষয়"
+    "rubricsAnySubject": "যেকোনো বিষয়",
+    "searchStudents": "শিক্ষার্থী খুঁজুন",
+    "searchStudentsHint": "নামের অন্তত ২টি অক্ষর লিখুন, অথবা শিক্ষার্থী ID পেস্ট করুন।",
+    "studentsLoadFailed": "শিক্ষার্থীদের লোড করা যায়নি। আবার চেষ্টা করুন।",
+    "noStudentsMatch": "এই অনুসন্ধানের সাথে কোনো শিক্ষার্থী মেলেনি।",
+    "searchingStudents": "খোঁজা হচ্ছে…",
+    "studentResultsCount": "{count, plural, one {#জন শিক্ষার্থী পাওয়া গেছে} other {#জন শিক্ষার্থী পাওয়া গেছে}}"
   },
   "health": {
     "title": "স্বাস্থ্য রেকর্ড",

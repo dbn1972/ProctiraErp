@@ -637,7 +637,13 @@
     "rubricsNew": "புதிய அளவுகோல்",
     "rubricsEmptyTitle": "இன்னும் அளவுகோல்கள் இல்லை",
     "rubricsEmptyBody": "கட்டுரைகளை மதிப்பிட ஒரு அளவுகோலை உருவாக்குங்கள்.",
-    "rubricsAnySubject": "எந்தப் பாடமும்"
+    "rubricsAnySubject": "எந்தப் பாடமும்",
+    "searchStudents": "மாணவர்களைத் தேடு",
+    "searchStudentsHint": "பெயரின் குறைந்தது 2 எழுத்துகளைத் தட்டச்சு செய்யவும், அல்லது மாணவர் ID-ஐ ஒட்டவும்.",
+    "studentsLoadFailed": "மாணவர்களை ஏற்ற முடியவில்லை. மீண்டும் முயலவும்.",
+    "noStudentsMatch": "இந்தத் தேடலுடன் எந்த மாணவரும் பொருந்தவில்லை.",
+    "searchingStudents": "தேடுகிறது…",
+    "studentResultsCount": "{count, plural, one {# மாணவர் கண்டறியப்பட்டார்} other {# மாணவர்கள் கண்டறியப்பட்டனர்}}"
   },
   "health": {
     "title": "சுகாதார பதிவுகள்",

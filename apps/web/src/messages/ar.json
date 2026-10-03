@@ -637,7 +637,13 @@
     "rubricsNew": "سلّم تقدير جديد",
     "rubricsEmptyTitle": "لا توجد سلالم تقدير بعد",
     "rubricsEmptyBody": "أنشئ سلّم تقدير لتقييم المقالات.",
-    "rubricsAnySubject": "أي مادة"
+    "rubricsAnySubject": "أي مادة",
+    "searchStudents": "ابحث عن الطلاب",
+    "searchStudentsHint": "اكتب حرفين على الأقل من الاسم، أو الصق معرّف الطالب.",
+    "studentsLoadFailed": "تعذّر تحميل الطلاب. حاول مرة أخرى.",
+    "noStudentsMatch": "لا يوجد طلاب يطابقون هذا البحث.",
+    "searchingStudents": "جارٍ البحث…",
+    "studentResultsCount": "{count, plural, one {تم العثور على طالب واحد} other {تم العثور على # طالب}}"
   },
   "health": {
     "title": "السجلات الصحية",

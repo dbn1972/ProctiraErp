@@ -637,7 +637,13 @@
     "rubricsNew": "नवीन रुब्रिक",
     "rubricsEmptyTitle": "अद्याप रुब्रिक नाहीत",
     "rubricsEmptyBody": "निबंधांचे मूल्यांकन करण्यासाठी रुब्रिक तयार करा.",
-    "rubricsAnySubject": "कोणताही विषय"
+    "rubricsAnySubject": "कोणताही विषय",
+    "searchStudents": "विद्यार्थी शोधा",
+    "searchStudentsHint": "नावाची किमान 2 अक्षरे टाइप करा, किंवा विद्यार्थी ID पेस्ट करा.",
+    "studentsLoadFailed": "विद्यार्थी लोड होऊ शकले नाहीत. पुन्हा प्रयत्न करा.",
+    "noStudentsMatch": "या शोधाशी कोणताही विद्यार्थी जुळत नाही.",
+    "searchingStudents": "शोधत आहे…",
+    "studentResultsCount": "{count, plural, one {# विद्यार्थी सापडला} other {# विद्यार्थी सापडले}}"
   },
   "health": {
     "title": "आरोग्य नोंदी",

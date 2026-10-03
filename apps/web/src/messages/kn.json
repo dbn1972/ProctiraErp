@@ -637,7 +637,13 @@
     "rubricsNew": "ಹೊಸ ರೂಬ್ರಿಕ್",
     "rubricsEmptyTitle": "ಇನ್ನೂ ರೂಬ್ರಿಕ್‌ಗಳಿಲ್ಲ",
     "rubricsEmptyBody": "ಪ್ರಬಂಧಗಳನ್ನು ಮೌಲ್ಯಮಾಪನ ಮಾಡಲು ರೂಬ್ರಿಕ್ ರಚಿಸಿ.",
-    "rubricsAnySubject": "ಯಾವುದೇ ವಿಷಯ"
+    "rubricsAnySubject": "ಯಾವುದೇ ವಿಷಯ",
+    "searchStudents": "ವಿದ್ಯಾರ್ಥಿಗಳನ್ನು ಹುಡುಕಿ",
+    "searchStudentsHint": "ಹೆಸರಿನ ಕನಿಷ್ಠ 2 ಅಕ್ಷರಗಳನ್ನು ಟೈಪ್ ಮಾಡಿ, ಅಥವಾ ವಿದ್ಯಾರ್ಥಿ ID ಅಂಟಿಸಿ.",
+    "studentsLoadFailed": "ವಿದ್ಯಾರ್ಥಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "noStudentsMatch": "ಈ ಹುಡುಕಾಟಕ್ಕೆ ಯಾವುದೇ ವಿದ್ಯಾರ್ಥಿ ಹೊಂದಿಕೆಯಾಗುವುದಿಲ್ಲ.",
+    "searchingStudents": "ಹುಡುಕಲಾಗುತ್ತಿದೆ…",
+    "studentResultsCount": "{count, plural, one {# ವಿದ್ಯಾರ್ಥಿ ಕಂಡುಬಂದರು} other {# ವಿದ್ಯಾರ್ಥಿಗಳು ಕಂಡುಬಂದರು}}"
   },
   "health": {
     "title": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು",
