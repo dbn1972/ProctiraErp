@@ -213,6 +213,11 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   }
 
   async createTranscript(row: TranscriptIssuanceEntity) {
+    // Mirrors UNIQUE (tenant_id, student_id, version) (PRC-M267).
+    const dup = [...this.transcripts.values()].some(
+      (t) => t.tenantId === row.tenantId && t.studentId === row.studentId && t.version === row.version,
+    );
+    if (dup) throw new ConflictError('Transcript version already issued; retry');
     this.transcripts.set(row.id, row);
     return row;
   }

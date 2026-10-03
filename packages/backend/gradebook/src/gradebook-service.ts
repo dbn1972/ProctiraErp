@@ -54,7 +54,7 @@ import {
   verifyBoardExportDownloadToken,
   type BoardExportSignedDownload,
 } from './signed-download.js';
-import { transcriptArtifactRoot, writeTranscriptPdfLite } from './transcript-artifact.js';
+import { transcriptArtifactRoot, buildTranscriptArtifacts, persistTranscriptArtifacts, transcriptArtifactPaths } from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
   id: string;
@@ -792,6 +792,10 @@ export class GradebookService {
     if (input.gpaSnapshotId && !snapshot) {
       throw new NotFoundError(`GPA snapshot ${input.gpaSnapshotId} not found`);
     }
+    // PRC-M267: a transcript may only carry the student's own GPA snapshot.
+    if (snapshot && snapshot.studentId !== input.studentId) {
+      throw new BusinessRuleError('GPA snapshot does not belong to this student');
+    }
 
     const nextVersion = (await this.repo.getLatestTranscriptVersion(tenantId, input.studentId)) + 1;
     const now = nowIso();
@@ -814,7 +818,10 @@ export class GradebookService {
       tenantId,
       institutionId,
     });
-    const artifacts = writeTranscriptPdfLite({
+    // PRC-M267: build bytes in memory, insert the row (UNIQUE version -> 409),
+    // and only then write files, so a lost version race leaves no orphan files.
+    const artifacts = transcriptArtifactPaths(tenantId, input.studentId, nextVersion);
+    const built = buildTranscriptArtifacts({
       tenantId,
       studentId: input.studentId,
       version: nextVersion,
@@ -825,6 +832,7 @@ export class GradebookService {
       checksumSha256: checksum,
       signature,
     });
+    const pdfSha256 = createHash('sha256').update(built.pdf).digest('hex');
     const artifactUri = artifacts.pdfPath;
 
     const row = await this.repo.createTranscript({
@@ -845,6 +853,7 @@ export class GradebookService {
         pdfLitePath: artifacts.pdfLitePath,
         jsonPath: artifacts.jsonPath,
         artifactKind: 'pdf',
+        pdfSha256,
         signatureAlg: material.algorithm,
         signature,
         signedAt: now,
@@ -858,6 +867,7 @@ export class GradebookService {
       createdAt: now,
       updatedAt: now,
     });
+    persistTranscriptArtifacts(artifacts, built);
     this.recordAudit({
       tenantId,
       action: 'transcript.issue',
