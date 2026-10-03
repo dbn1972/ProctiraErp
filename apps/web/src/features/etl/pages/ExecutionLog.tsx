@@ -6,8 +6,8 @@
  *   - Detailed row-level success/error viewer for a specific execution
  *
  * Wired to the ETL Service API (Task 60A.6 / Task 23):
- *   - GET /api/v1/etl/pipelines/:pipelineId/executions
- *   - GET /api/v1/etl/executions/:executionId
+ *   - GET /api/v1/pipelines/:pipelineId/executions
+ *   - GET /api/v1/pipelines/:pipelineId/executions/:executionId
  *
  * Requirements: 14.3, 14.6
  */
@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { etlPaths } from '../etl-api-paths';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -137,7 +138,7 @@ export default function ExecutionLog() {
       params.set('pageSize', '20');
 
       const result = await browserGatewayFetch<ExecutionListResponse>(
-        `/etl/pipelines/${pipelineId}/executions?${params.toString()}`,
+        etlPaths.executions(pipelineId, params),
       );
       setExecutions(result.data);
       setTotalPages(result.meta.totalPages);
@@ -153,22 +154,28 @@ export default function ExecutionLog() {
   }, [pipelineId, page]);
 
   // Fetch execution detail
-  const fetchExecutionDetail = useCallback(async (execId: string) => {
-    setIsLoadingDetail(true);
-    setError(null);
-    try {
-      const result = await browserGatewayFetch<ExecutionDetail>(`/etl/executions/${execId}`);
-      setSelectedExecution(result);
-    } catch (err) {
-      if (err instanceof BrowserGatewayError) {
-        setError(err.message);
-      } else {
-        setError('Failed to load execution details');
+  const fetchExecutionDetail = useCallback(
+    async (execId: string) => {
+      if (!pipelineId) return;
+      setIsLoadingDetail(true);
+      setError(null);
+      try {
+        const result = await browserGatewayFetch<ExecutionDetail>(
+          etlPaths.execution(pipelineId, execId),
+        );
+        setSelectedExecution(result);
+      } catch (err) {
+        if (err instanceof BrowserGatewayError) {
+          setError(err.message);
+        } else {
+          setError('Failed to load execution details');
+        }
+      } finally {
+        setIsLoadingDetail(false);
       }
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, []);
+    },
+    [pipelineId],
+  );
 
   useEffect(() => {
     fetchExecutions();

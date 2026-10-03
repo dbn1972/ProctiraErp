@@ -2,8 +2,8 @@
  * PipelineList — displays all ETL pipelines with status, schedule, and execution info.
  *
  * Wired to the ETL Service API (Task 60A.6 / Task 23):
- *   - GET /api/v1/etl/pipelines
- *   - DELETE /api/v1/etl/pipelines/:id
+ *   - GET /api/v1/pipelines
+ *   - DELETE /api/v1/pipelines/:id
  *   - POST /api/v1/etl/pipelines/:id/execute (trigger manual run)
  *
  * Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6
@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { etlPaths } from '../etl-api-paths';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -128,9 +129,7 @@ export default function PipelineList() {
       params.set('page', String(page));
       params.set('pageSize', '20');
 
-      const result = await browserGatewayFetch<PipelineListResponse>(
-        `/etl/pipelines?${params.toString()}`,
-      );
+      const result = await browserGatewayFetch<PipelineListResponse>(etlPaths.pipelines(params));
       setPipelines(result.data);
       setTotalPages(result.meta.totalPages);
       setTotal(result.meta.total);
@@ -151,7 +150,7 @@ export default function PipelineList() {
 
   const handleTriggerRun = async (pipelineId: string) => {
     try {
-      await browserGatewayFetch(`/etl/pipelines/${pipelineId}/execute`, {
+      await browserGatewayFetch(etlPaths.execute(pipelineId), {
         method: 'POST',
       });
       // Refresh list to show updated status
@@ -168,7 +167,7 @@ export default function PipelineList() {
   const handleDelete = async (pipelineId: string) => {
     if (!window.confirm('Are you sure you want to delete this pipeline?')) return;
     try {
-      await browserGatewayFetch(`/etl/pipelines/${pipelineId}`, {
+      await browserGatewayFetch(etlPaths.pipeline(pipelineId), {
         method: 'DELETE',
       });
       fetchPipelines();
