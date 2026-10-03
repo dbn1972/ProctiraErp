@@ -113,7 +113,11 @@ describe('refreshAccessToken single-flight (PRC-M493)', () => {
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
     try {
-      const results = await Promise.all([refreshAccessToken(), refreshAccessToken(), refreshAccessToken()]);
+      const results = await Promise.all([
+        refreshAccessToken(),
+        refreshAccessToken(),
+        refreshAccessToken(),
+      ]);
       expect(results).toEqual([true, true, true]);
       expect(calls).toBe(1);
       await refreshAccessToken();

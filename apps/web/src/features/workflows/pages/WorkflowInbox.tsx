@@ -322,13 +322,13 @@ export default function WorkflowInbox() {
           <table className="w-full text-sm" data-testid="workflow-inbox-table">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">Entity</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Current State</th>
+                <th className="px-4 py-3 text-start font-medium">Entity</th>
+                <th className="px-4 py-3 text-start font-medium">Type</th>
+                <th className="px-4 py-3 text-start font-medium">Current State</th>
                 <th className="px-4 py-3 text-center font-medium">Priority</th>
                 <th className="px-4 py-3 text-center font-medium">SLA</th>
-                <th className="px-4 py-3 text-left font-medium">Assigned</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-start font-medium">Assigned</th>
+                <th className="px-4 py-3 text-end font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -370,7 +370,7 @@ export default function WorkflowInbox() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatDate(item.createdAt)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-end">
                       <a
                         href={`/app/workflows/${item.id}`}
                         className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"

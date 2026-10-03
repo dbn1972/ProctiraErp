@@ -262,9 +262,12 @@ export async function generateInstalments(
 }
 
 export function listInstalmentsResult(structureId: string): Promise<ListResult<FeeInstalment>> {
-  return fetchList<FeeInstalment>(`/fees/structures/${encodeURIComponent(structureId)}/instalments`, {
-    next: { revalidate: 0 },
-  });
+  return fetchList<FeeInstalment>(
+    `/fees/structures/${encodeURIComponent(structureId)}/instalments`,
+    {
+      next: { revalidate: 0 },
+    },
+  );
 }
 
 export async function listInstalments(structureId: string): Promise<FeeInstalment[]> {
@@ -426,10 +429,13 @@ export async function resolveReconciliationException(
 }
 
 export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${encodeURIComponent(invoiceId)}/pay`, {
-    method: 'POST',
-    json: { method: 'sandbox' },
-  });
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: { method: 'sandbox' },
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 
@@ -588,10 +594,13 @@ export async function addReminderSuppression(input: {
 }
 
 export async function removeReminderSuppression(id: string): Promise<void> {
-  const result = await gatewayFetch<null>(`/fees/reminders/suppressions/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<null>(
+    `/fees/reminders/suppressions/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+      throwOnError: false,
+    },
+  );
   if (result.status >= 400) {
     throw new GatewayError({
       status: result.status,

@@ -12,8 +12,6 @@
 import { z } from 'zod';
 import { boundedRecord, isoDate, isoDateOptional, pastIsoDate } from './zod-helpers';
 
-
-
 export const contactSchema = z.object({
   type: z.string().min(1, 'Contact type is required').max(50),
   value: z.string().min(1, 'Contact value is required').max(255),

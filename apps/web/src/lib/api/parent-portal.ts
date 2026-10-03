@@ -459,9 +459,12 @@ export async function createThread(
 }
 
 export function listMessagesResult(threadId: string): Promise<ListResult<Message>> {
-  return fetchList<Message>(`/parent-portal/messages/threads/${encodeURIComponent(threadId)}/messages`, {
-    next: { revalidate: 0 },
-  });
+  return fetchList<Message>(
+    `/parent-portal/messages/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      next: { revalidate: 0 },
+    },
+  );
 }
 
 export async function listMessages(threadId: string): Promise<Message[]> {
@@ -514,10 +517,13 @@ export async function decideConsent(
   id: string,
   status: 'approved' | 'denied',
 ): Promise<ConsentRequest> {
-  const result = await gatewayFetch<ConsentRequest>(`/parent-portal/consents/${encodeURIComponent(id)}/decide`, {
-    method: 'POST',
-    json: { status },
-  });
+  const result = await gatewayFetch<ConsentRequest>(
+    `/parent-portal/consents/${encodeURIComponent(id)}/decide`,
+    {
+      method: 'POST',
+      json: { status },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -651,10 +657,13 @@ export async function acceptGuardianOffer(
   id: string,
   input: { paymentRef: string; offerFeeInvoiceId?: string },
 ): Promise<ParentAdmissionOffer> {
-  const result = await gatewayFetch<ParentAdmissionOffer>(`/parent-portal/offers/${encodeURIComponent(id)}/accept`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<ParentAdmissionOffer>(
+    `/parent-portal/offers/${encodeURIComponent(id)}/accept`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,

@@ -483,7 +483,12 @@ describe('branding actor is derived server-side (PRC-M490)', () => {
         slug: 'actor-school',
         plan: 'professional',
         region: 'us-east-1',
-        admin: { firstName: 'A', lastName: 'B', email: 'a@actor.example', password: 'SecureP@ss123' },
+        admin: {
+          firstName: 'A',
+          lastName: 'B',
+          email: 'a@actor.example',
+          password: 'SecureP@ss123',
+        },
       },
     });
     const tenantId = created.json().id as string;

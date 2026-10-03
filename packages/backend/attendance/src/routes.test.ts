@@ -318,5 +318,4 @@ describe('Attendance Routes', () => {
       expect(response.statusCode).toBe(403);
     });
   });
-
 });

@@ -24,7 +24,8 @@ type Config = (p: { requestLocale: Promise<string | undefined> }) => Promise<{
   timeZone: string;
   messages: Record<string, unknown>;
 }>;
-const run = () => (requestConfig as unknown as Config)({ requestLocale: Promise.resolve(undefined) });
+const run = () =>
+  (requestConfig as unknown as Config)({ requestLocale: Promise.resolve(undefined) });
 beforeEach(() => {
   cookieValues.clear();
   headerValues.clear();

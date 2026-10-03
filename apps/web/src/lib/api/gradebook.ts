@@ -102,8 +102,7 @@ export interface GradingScale {
 }
 
 export type GradebookLoadResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string; status?: number };
+  { ok: true; data: T } | { ok: false; error: string; code?: string; status?: number };
 
 function mapError(error: unknown): { error: string; code?: string; status?: number } {
   if (error instanceof GatewayError) {
@@ -380,9 +379,12 @@ export async function createBoardExportJob(input: {
 
 export async function getBoardExportJob(id: string): Promise<GradebookLoadResult<BoardExportJob>> {
   try {
-    const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${encodeURIComponent(id)}`, {
-      next: { revalidate: 0 },
-    });
+    const result = await gatewayFetch<BoardExportJob>(
+      `/gradebook/board-exports/${encodeURIComponent(id)}`,
+      {
+        next: { revalidate: 0 },
+      },
+    );
     if (!result.data) {
       return { ok: false, error: 'Board export job not found', status: 404 };
     }
@@ -415,10 +417,13 @@ export async function transitionGradeEntry(
   id: string,
   action: GradeWorkflowAction,
 ): Promise<GradeEntry> {
-  const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${encodeURIComponent(id)}/transition`, {
-    method: 'POST',
-    json: { action },
-  });
+  const result = await gatewayFetch<GradeEntry>(
+    `/gradebook/entries/${encodeURIComponent(id)}/transition`,
+    {
+      method: 'POST',
+      json: { action },
+    },
+  );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,

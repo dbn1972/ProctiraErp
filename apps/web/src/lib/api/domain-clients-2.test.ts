@@ -47,10 +47,18 @@ describe('getExaminationResultsView', () => {
                   { subjectId: 'e', score: 40 },
                 ],
               },
-              { id: 'c2', studentId: 's2', centerId: null, subjectResults: [{ subjectId: 'm', score: 50 }] },
+              {
+                id: 'c2',
+                studentId: 's2',
+                centerId: null,
+                subjectResults: [{ subjectId: 'm', score: 50 }],
+              },
             ],
           })
-        : ok({ publishedAt: '2025-02-01', gradeResults: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }] }),
+        : ok({
+            publishedAt: '2025-02-01',
+            gradeResults: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }],
+          }),
     );
     const view = await getExaminationResultsView(exam);
     expect(view.published).toBe(true);
@@ -98,10 +106,17 @@ describe('health getHealthRecordResult', () => {
     gatewayFetch.mockResolvedValueOnce(fail(404));
     await expect(getHealthRecordResult('s1')).resolves.toMatchObject({ ok: false, status: 404 });
     gatewayFetch.mockResolvedValueOnce(fail(403));
-    await expect(getHealthRecordResult('s1')).resolves.toMatchObject({ ok: false, status: 403, kind: 'denied' });
+    await expect(getHealthRecordResult('s1')).resolves.toMatchObject({
+      ok: false,
+      status: 403,
+      kind: 'denied',
+    });
   });
   it('returns the record on success', async () => {
     gatewayFetch.mockResolvedValueOnce(ok({ studentId: 's1' }));
-    await expect(getHealthRecordResult('s1')).resolves.toMatchObject({ ok: true, record: { studentId: 's1' } });
+    await expect(getHealthRecordResult('s1')).resolves.toMatchObject({
+      ok: true,
+      record: { studentId: 's1' },
+    });
   });
 });

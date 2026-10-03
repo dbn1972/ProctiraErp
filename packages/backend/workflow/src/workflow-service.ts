@@ -20,15 +20,22 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+
+import type { EscalationService } from './escalation-service.js';
 import {
   filterVisibleInstances,
   isAssignee,
   type TransitionActor,
   type VisibilityOptions,
 } from './instance-visibility.js';
-
-export { isAssignee, type TransitionActor } from './instance-visibility.js';
-
+import type {
+  CreateWorkflowDefinitionInput,
+  UpdateWorkflowDefinitionInput,
+  CreateWorkflowInstanceInput,
+  TransitionRequestInput,
+  WorkflowStateInput,
+  WorkflowTransitionInput,
+} from './schemas.js';
 import type {
   WorkflowRepository,
   WorkflowDefinitionEntity,
@@ -38,15 +45,8 @@ import type {
   WorkflowInstanceStatus,
   TransitionAuditEntity,
 } from './workflow-repository.js';
-import type {
-  CreateWorkflowDefinitionInput,
-  UpdateWorkflowDefinitionInput,
-  CreateWorkflowInstanceInput,
-  TransitionRequestInput,
-  WorkflowStateInput,
-  WorkflowTransitionInput,
-} from './schemas.js';
-import type { EscalationService } from './escalation-service.js';
+
+export { isAssignee, type TransitionActor } from './instance-visibility.js';
 
 /**
  * Service handling workflow engine business logic.
@@ -429,7 +429,10 @@ export class WorkflowService {
     const CHUNK = 500;
     const all: WorkflowInstanceEntity[] = [];
     for (let page = 1; all.length < MAX_SCAN; page += 1) {
-      const chunk = await this.repository.listInstances(tenantId, filter, { page, pageSize: CHUNK });
+      const chunk = await this.repository.listInstances(tenantId, filter, {
+        page,
+        pageSize: CHUNK,
+      });
       all.push(...chunk.data);
       if (chunk.data.length < CHUNK || page >= chunk.meta.totalPages) break;
     }

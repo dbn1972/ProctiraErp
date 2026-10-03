@@ -32,7 +32,10 @@ afterEach(() => {
 });
 function deletesSession(res: Response): boolean {
   const cookies = (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie();
-  return cookies.some((c) => /^(access_token|refresh_token)=;/.test(c) || /Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(c));
+  return cookies.some(
+    (c) =>
+      /^(access_token|refresh_token)=;/.test(c) || /Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(c),
+  );
 }
 describe('middleware refresh single-flight (PRC-M493)', () => {
   it('5 parallel requests with an expired token make exactly one refresh call and keep the session', async () => {

@@ -227,19 +227,25 @@ export async function createAssignment(input: CreateAssignmentInput): Promise<Lm
 }
 
 export async function publishAssignment(id: string): Promise<LmsAssignment> {
-  const result = await gatewayFetch<LmsAssignment>(`/lms/assignments/${encodeURIComponent(id)}/publish`, {
-    method: 'POST',
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<LmsAssignment>(
+    `/lms/assignments/${encodeURIComponent(id)}/publish`,
+    {
+      method: 'POST',
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to publish assignment');
   return result.data;
 }
 
 export async function closeAssignment(id: string): Promise<LmsAssignment> {
-  const result = await gatewayFetch<LmsAssignment>(`/lms/assignments/${encodeURIComponent(id)}/close`, {
-    method: 'POST',
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<LmsAssignment>(
+    `/lms/assignments/${encodeURIComponent(id)}/close`,
+    {
+      method: 'POST',
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to close assignment');
   return result.data;
 }
@@ -256,11 +262,14 @@ export async function gradeSubmission(
   submissionId: string,
   input: GradeSubmissionInput,
 ): Promise<LmsSubmission> {
-  const result = await gatewayFetch<LmsSubmission>(`/lms/submissions/${encodeURIComponent(submissionId)}/grade`, {
-    method: 'POST',
-    json: input,
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<LmsSubmission>(
+    `/lms/submissions/${encodeURIComponent(submissionId)}/grade`,
+    {
+      method: 'POST',
+      json: input,
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to grade submission');
   return result.data;
 }
@@ -314,11 +323,14 @@ export async function recordPracticeAttempt(
   studentId: string,
   input: { skillId: string; correct: boolean; responseTimeMs?: number },
 ): Promise<SkillMastery> {
-  const result = await gatewayFetch<SkillMastery>(`/lms/pal/students/${encodeURIComponent(studentId)}/attempts`, {
-    method: 'POST',
-    json: input,
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<SkillMastery>(
+    `/lms/pal/students/${encodeURIComponent(studentId)}/attempts`,
+    {
+      method: 'POST',
+      json: input,
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to record attempt');
   return result.data;
 }
@@ -491,10 +503,13 @@ export async function uploadAssignmentFile(
 }
 
 export async function getDiscussion(id: string): Promise<DiscussionThread | null> {
-  const result = await gatewayFetch<DiscussionThread>(`/lms/discussions/${encodeURIComponent(id)}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<DiscussionThread>(
+    `/lms/discussions/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data ?? null;
 }
 
@@ -524,21 +539,27 @@ export async function createDiscussionPost(
   threadId: string,
   body: string,
 ): Promise<{ id: string }> {
-  const result = await gatewayFetch<{ id: string }>(`/lms/discussions/${encodeURIComponent(threadId)}/posts`, {
-    method: 'POST',
-    json: { body },
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<{ id: string }>(
+    `/lms/discussions/${encodeURIComponent(threadId)}/posts`,
+    {
+      method: 'POST',
+      json: { body },
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to post');
   return result.data;
 }
 
 export async function lockDiscussion(threadId: string, locked: boolean): Promise<DiscussionThread> {
-  const result = await gatewayFetch<DiscussionThread>(`/lms/discussions/${encodeURIComponent(threadId)}/lock`, {
-    method: 'POST',
-    json: { locked },
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<DiscussionThread>(
+    `/lms/discussions/${encodeURIComponent(threadId)}/lock`,
+    {
+      method: 'POST',
+      json: { locked },
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to lock discussion');
   return result.data;
 }
@@ -626,10 +647,13 @@ export interface QuizAnalytics {
 }
 
 export async function getQuizAnalytics(assignmentId: string): Promise<QuizAnalytics | null> {
-  const result = await gatewayFetch<QuizAnalytics>(`/lms/assignments/${encodeURIComponent(assignmentId)}/analytics`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<QuizAnalytics>(
+    `/lms/assignments/${encodeURIComponent(assignmentId)}/analytics`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data ?? null;
 }
 
@@ -692,11 +716,14 @@ export async function addLessonResource(
   lessonId: string,
   input: { kind: 'link' | 'file' | 'video'; title: string; url?: string },
 ): Promise<{ id: string }> {
-  const result = await gatewayFetch<{ id: string }>(`/lms/lessons/${encodeURIComponent(lessonId)}/resources`, {
-    method: 'POST',
-    json: input,
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<{ id: string }>(
+    `/lms/lessons/${encodeURIComponent(lessonId)}/resources`,
+    {
+      method: 'POST',
+      json: input,
+      throwOnError: false,
+    },
+  );
   if (!result.data) failed(result, 'Failed to add resource');
   return result.data;
 }

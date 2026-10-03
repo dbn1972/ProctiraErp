@@ -22,9 +22,9 @@ vi.mock('../../campus-ops-actions', () => ({
   returnBarcodeAction: (...a: unknown[]) => actions.returnBarcodeAction(...a),
 }));
 import { CirculationDesk } from './circulation-desk';
-const items = [
-  { id: 'item-1', title: 'Atlas', available: 2, copies: 2 },
-] as unknown as Parameters<typeof CirculationDesk>[0]['items'];
+const items = [{ id: 'item-1', title: 'Atlas', available: 2, copies: 2 }] as unknown as Parameters<
+  typeof CirculationDesk
+>[0]['items'];
 beforeEach(() => {
   for (const fn of Object.values(actions)) {
     fn.mockReset();

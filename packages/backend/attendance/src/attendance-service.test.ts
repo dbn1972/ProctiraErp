@@ -698,7 +698,10 @@ describe('AttendanceService', () => {
       );
       expect(result.recorded).toHaveLength(1);
       expect(result.errors).toEqual([
-        expect.objectContaining({ studentId: outsider, message: expect.stringContaining('not enrolled') }),
+        expect.objectContaining({
+          studentId: outsider,
+          message: expect.stringContaining('not enrolled'),
+        }),
       ]);
     });
   });

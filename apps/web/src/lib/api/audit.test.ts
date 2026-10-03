@@ -37,7 +37,11 @@ afterEach(() => {
 describe('audit API client (PRC-M576)', () => {
   it('builds the list URL with backend filter names', () => {
     expect(
-      buildAuditEntriesPath({ entityType: 'student', dateFrom: '2026-01-01', dateTo: '2026-01-31' }),
+      buildAuditEntriesPath({
+        entityType: 'student',
+        dateFrom: '2026-01-01',
+        dateTo: '2026-01-31',
+      }),
     ).toBe('/audit-logs?entityType=student&startDate=2026-01-01&endDate=2026-01-31');
     expect(buildAuditEntriesPath()).toBe('/audit-logs');
   });

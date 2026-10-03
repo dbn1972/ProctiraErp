@@ -441,7 +441,9 @@ describe('<MobileAttendanceForm> — explicit marking (PRC-M574)', () => {
     });
     expect(submit).not.toHaveBeenCalled();
     act(() => {
-      fireEvent.click(screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`));
+      fireEvent.click(
+        screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`),
+      );
     });
     // One row still unmarked -> still disabled.
     expect(screen.getByTestId('mobile-attendance-submit').hasAttribute('disabled')).toBe(true);
@@ -465,6 +467,8 @@ describe('<MobileAttendanceForm> — explicit marking (PRC-M574)', () => {
   it('class and period identifiers are read-only', () => {
     render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
     expect(screen.getByTestId('mobile-attendance-class-input').hasAttribute('readonly')).toBe(true);
-    expect(screen.getByTestId('mobile-attendance-period-input').hasAttribute('readonly')).toBe(true);
+    expect(screen.getByTestId('mobile-attendance-period-input').hasAttribute('readonly')).toBe(
+      true,
+    );
   });
 });

@@ -210,10 +210,13 @@ export async function listExaminations(): Promise<Examination[]> {
 
 /** Fetch a single examination by ID. */
 export async function getExamination(id: string): Promise<Examination | null> {
-  const result = await gatewayFetch<ExaminationApiRecord>(`/examinations/${encodeURIComponent(id)}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<ExaminationApiRecord>(
+    `/examinations/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data ? normalizeExamination(result.data) : null;
 }
 
@@ -501,10 +504,13 @@ export async function createExamSession(
     centerId?: string;
   },
 ): Promise<ExamOpsSession> {
-  const result = await gatewayFetch<ExamOpsSession>(`/examinations/${encodeURIComponent(examinationId)}/sessions`, {
-    method: 'POST',
-    json: input,
-  });
+  const result = await gatewayFetch<ExamOpsSession>(
+    `/examinations/${encodeURIComponent(examinationId)}/sessions`,
+    {
+      method: 'POST',
+      json: input,
+    },
+  );
   if (!result.data) throw new Error('Empty response from examination-service');
   return result.data;
 }

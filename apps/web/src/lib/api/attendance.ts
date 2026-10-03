@@ -132,11 +132,14 @@ export async function getClassRoster(
 }
 
 export async function getAttendanceConfig(institutionId: string): Promise<AttendanceConfig | null> {
-  const result = await gatewayFetch<AttendanceConfig>(`/attendance/config/${encodeURIComponent(institutionId)}`, {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 60 },
-  });
+  const result = await gatewayFetch<AttendanceConfig>(
+    `/attendance/config/${encodeURIComponent(institutionId)}`,
+    {
+      method: 'GET',
+      throwOnError: false,
+      next: { revalidate: 60 },
+    },
+  );
   return result.ok ? result.data : null;
 }
 

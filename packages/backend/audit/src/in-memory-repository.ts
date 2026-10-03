@@ -4,6 +4,7 @@
  * Test implementation of the AuditRepository interface.
  * Stores audit log entries in memory for unit and property-based testing.
  */
+import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 import type {
   AuditRepository,
   AuditLogEntry,
@@ -14,7 +15,6 @@ import type {
   ArchivalResult,
   ChainVerification,
 } from './audit-repository.js';
-import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 
 /**
  * In-memory implementation of AuditRepository for testing purposes.

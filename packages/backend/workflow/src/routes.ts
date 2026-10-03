@@ -26,7 +26,6 @@ import {
   type InstanceSlaStatus,
   type RestrictedEntityTypes,
 } from './instance-visibility.js';
-import type { TransitionActor, WorkflowService } from './workflow-service.js';
 import {
   CreateWorkflowDefinitionSchema,
   UpdateWorkflowDefinitionSchema,
@@ -48,6 +47,7 @@ import type {
   WorkflowInstanceEntity,
   TransitionAuditEntity,
 } from './workflow-repository.js';
+import type { TransitionActor, WorkflowService } from './workflow-service.js';
 
 /**
  * Options for registering workflow routes.

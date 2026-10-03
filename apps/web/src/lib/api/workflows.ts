@@ -69,10 +69,13 @@ export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
 }
 
 export async function getWorkflowDefinition(id: string): Promise<WorkflowDefinition | null> {
-  const result = await gatewayFetch<WorkflowDefinition>(`/workflows/definitions/${encodeURIComponent(id)}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<WorkflowDefinition>(
+    `/workflows/definitions/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data;
 }
 

@@ -497,8 +497,7 @@ export function MobileAttendanceForm({
   // PRC-M574: roster must belong to the selected class (no cross-class POST).
   const rosterMatchesClass =
     roster.length > 0 && rosterClassIds.size === 1 && rosterClassIds.has(classId);
-  const canSubmit =
-    !isSubmitting && rows.length > 0 && unmarkedCount === 0 && rosterMatchesClass;
+  const canSubmit = !isSubmitting && rows.length > 0 && unmarkedCount === 0 && rosterMatchesClass;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 

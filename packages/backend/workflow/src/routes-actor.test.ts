@@ -12,7 +12,13 @@ const definition = {
   entityType: 'leave_request',
   states: [
     { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'role', assigneeId: 'teacher' },
-    { id: 'review', name: 'Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'principal' },
+    {
+      id: 'review',
+      name: 'Review',
+      type: 'INTERMEDIATE',
+      assigneeType: 'role',
+      assigneeId: 'principal',
+    },
     { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'principal' },
   ],
   transitions: [
@@ -37,7 +43,12 @@ beforeEach(async () => {
 const as = (user: string, roles: string) => ({ 'x-test-user': user, 'x-test-roles': roles });
 async function startInstance(): Promise<string> {
   const def = (
-    await app.inject({ method: 'POST', url: '/workflows', payload: definition, headers: as('admin-1', 'admin') })
+    await app.inject({
+      method: 'POST',
+      url: '/workflows',
+      payload: definition,
+      headers: as('admin-1', 'admin'),
+    })
   ).json();
   const inst = await app.inject({
     method: 'POST',
@@ -68,9 +79,17 @@ describe('workflow transition actor (PRC-M490)', () => {
   });
   it('records the JWT subject as actor even if the body claims another id', async () => {
     const id = await startInstance();
-    const res = await transition(id, 'submit', as('teacher-1', 'teacher'), { actorId: 'principal-9' });
+    const res = await transition(id, 'submit', as('teacher-1', 'teacher'), {
+      actorId: 'principal-9',
+    });
     expect(res.statusCode).toBe(200);
-    const audit = (await app.inject({ method: 'GET', url: `/workflows/instances/${id}/audit`, headers: as('teacher-1', 'teacher') })).json();
+    const audit = (
+      await app.inject({
+        method: 'GET',
+        url: `/workflows/instances/${id}/audit`,
+        headers: as('teacher-1', 'teacher'),
+      })
+    ).json();
     expect(audit.data[0].actorId).toBe('teacher-1');
   });
   it('two approvals by the same user do not satisfy requiredApprovals=2', async () => {

@@ -42,7 +42,9 @@ describe('fees client — money mutations (PRC-M489)', () => {
     const [path, init] = gatewayFetch.mock.calls[0]!;
     expect(path).toBe('/fees/invoices');
     expect(init).toMatchObject({ method: 'POST', json: { amountCents: 125050 } });
-    expect(Number.isInteger((init as { json: { amountCents: number } }).json.amountCents)).toBe(true);
+    expect(Number.isInteger((init as { json: { amountCents: number } }).json.amountCents)).toBe(
+      true,
+    );
   });
   it('refundInvoice encodes the id and sends integer cents with the reason', async () => {
     gatewayFetch.mockResolvedValueOnce(ok({ id: 'r-1', amountCents: 500 }));

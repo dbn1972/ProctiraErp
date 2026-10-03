@@ -56,7 +56,7 @@ export function maskInstance(
   restricted: RestrictedEntityTypes = DEFAULT_RESTRICTED_ENTITY_TYPES,
 ): WorkflowInstanceEntity {
   if (!restricted[instance.entityType] || !instance.metadata) return instance;
-  const meta = instance.metadata as Record<string, unknown>;
+  const meta = instance.metadata;
   const safe: Record<string, unknown> = {};
   for (const key of SAFE_METADATA_KEYS) if (key in meta) safe[key] = meta[key];
   return { ...instance, metadata: safe } as WorkflowInstanceEntity;

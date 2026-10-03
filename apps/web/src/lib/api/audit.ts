@@ -139,9 +139,10 @@ export function buildAuditEntriesPath(filters: AuditEntriesFilter = {}): string 
 export async function listAuditEntries(
   filters: AuditEntriesFilter = {},
 ): Promise<AuditEntriesResponse> {
-  const result = await browserGatewayFetch<{ data: AuditLogWireEntry[]; meta: AuditPaginationMeta }>(
-    buildAuditEntriesPath(filters),
-  );
+  const result = await browserGatewayFetch<{
+    data: AuditLogWireEntry[];
+    meta: AuditPaginationMeta;
+  }>(buildAuditEntriesPath(filters));
   return { data: result.data.map(toAuditEntry), meta: result.meta };
 }
 

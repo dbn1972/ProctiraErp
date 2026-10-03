@@ -515,10 +515,13 @@ export async function verifyStaffQualification(
   verified: boolean,
   documentRef?: string,
 ): Promise<StaffQualification> {
-  const result = await gatewayFetch<StaffQualification>(`/staff/qualifications/${encodeURIComponent(id)}/verify`, {
-    method: 'POST',
-    json: { verified, documentRef },
-  });
+  const result = await gatewayFetch<StaffQualification>(
+    `/staff/qualifications/${encodeURIComponent(id)}/verify`,
+    {
+      method: 'POST',
+      json: { verified, documentRef },
+    },
+  );
   if (!result.data) throw new Error('Empty response from staff-service');
   return result.data;
 }

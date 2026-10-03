@@ -20,11 +20,7 @@ vi.mock('@/lib/api/dashboards', () => ({
   fetchParentStudentDashboard: vi.fn(),
 }));
 
-import {
-  useBoardAdminDashboardData,
-  useSchoolDashboard,
-  useStateDashboardData,
-} from '../api';
+import { useBoardAdminDashboardData, useSchoolDashboard, useStateDashboardData } from '../api';
 import { DashboardScopeError } from '../api/queries';
 
 afterEach(() => {

@@ -40,11 +40,15 @@ describe('zod helpers (PRC-M494)', () => {
 describe('student schema', () => {
   it('rejects a date of birth tomorrow', () => {
     const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
-    expect(studentFormSchema.safeParse({ ...baseStudent, dateOfBirth: tomorrow }).success).toBe(false);
+    expect(studentFormSchema.safeParse({ ...baseStudent, dateOfBirth: tomorrow }).success).toBe(
+      false,
+    );
     expect(studentFormSchema.safeParse(baseStudent).success).toBe(true);
   });
   it('rejects 2025-02-31 and unbounded customData', () => {
-    expect(studentFormSchema.safeParse({ ...baseStudent, dateOfBirth: '2015-02-31' }).success).toBe(false);
+    expect(studentFormSchema.safeParse({ ...baseStudent, dateOfBirth: '2015-02-31' }).success).toBe(
+      false,
+    );
     const big = Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`k${i}`, i]));
     expect(studentFormSchema.safeParse({ ...baseStudent, customData: big }).success).toBe(false);
   });
@@ -78,7 +82,8 @@ describe('student photo upload', () => {
       studentPhotoUploadSchema.safeParse({ contentBase64: threeMb, mimeType: 'image/png' }).success,
     ).toBe(false);
     expect(
-      studentPhotoUploadSchema.safeParse({ contentBase64: btoa('png'), mimeType: 'image/png' }).success,
+      studentPhotoUploadSchema.safeParse({ contentBase64: btoa('png'), mimeType: 'image/png' })
+        .success,
     ).toBe(true);
   });
 });

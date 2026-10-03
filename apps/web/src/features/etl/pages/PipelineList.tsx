@@ -246,14 +246,14 @@ export default function PipelineList() {
           <table className="w-full text-sm" data-testid="pipeline-list-table">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Source</th>
-                <th className="px-4 py-3 text-left font-medium">Destination</th>
+                <th className="px-4 py-3 text-start font-medium">Name</th>
+                <th className="px-4 py-3 text-start font-medium">Source</th>
+                <th className="px-4 py-3 text-start font-medium">Destination</th>
                 <th className="px-4 py-3 text-center font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Schedule</th>
-                <th className="px-4 py-3 text-left font-medium">Last Run</th>
-                <th className="px-4 py-3 text-left font-medium">Next Run</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-start font-medium">Schedule</th>
+                <th className="px-4 py-3 text-start font-medium">Last Run</th>
+                <th className="px-4 py-3 text-start font-medium">Next Run</th>
+                <th className="px-4 py-3 text-end font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -296,7 +296,7 @@ export default function PipelineList() {
                   <td className="px-4 py-3 text-muted-foreground">
                     {formatDate(pipeline.nextRunAt)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-end">
                     <div className="flex justify-end gap-1">
                       <button
                         onClick={() => handleTriggerRun(pipeline.id)}

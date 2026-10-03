@@ -12,7 +12,6 @@
  * - 21.5: Configurable retention with automated archival of expired entries.
  */
 import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
-import type { PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {

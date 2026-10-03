@@ -354,7 +354,11 @@ describe('GET /fees/invoices?studentId (PRC-M487)', () => {
     const repository = new InMemoryFeesRepository();
     const service = new FeesService(repository);
     const other = uuid();
-    await service.createInvoice(TENANT_ID, 'staff', { studentId: other, title: 'X', amountCents: 1 });
+    await service.createInvoice(TENANT_ID, 'staff', {
+      studentId: other,
+      title: 'X',
+      amountCents: 1,
+    });
     app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
     const response = await app.inject({ method: 'GET', url: `/fees/invoices?studentId=${other}` });
     expect(response.statusCode).toBe(200);

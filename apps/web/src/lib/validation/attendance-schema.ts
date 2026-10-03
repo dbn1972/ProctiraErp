@@ -10,7 +10,6 @@ import { isoDate, todayInTimeZone } from './zod-helpers';
 
 const uuid = z.string().uuid('Must be a valid UUID');
 
-
 export const attendanceStatusSchema = z.enum([
   'PRESENT',
   'ABSENT',

@@ -195,10 +195,13 @@ export async function listStudentVaccinationsResult(
 }
 
 export async function getHealthRecord(studentId: string): Promise<HealthRecord | null> {
-  const result = await gatewayFetch<HealthRecord>(`/health/records/${encodeURIComponent(studentId)}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<HealthRecord>(
+    `/health/records/${encodeURIComponent(studentId)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data;
 }
 

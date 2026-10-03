@@ -139,7 +139,9 @@ describe('gatewayFetch auth fallbacks and failures (PRC-M489)', () => {
     mockHeaderGet.mockImplementation((name: string) =>
       name === 'x-tenant-id' ? 'tenant-from-header' : null,
     );
-    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    fetchMock.mockResolvedValueOnce(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
     const { gatewayFetch } = await import('./gateway');
     await gatewayFetch('/students');
     const headers = fetchMock.mock.calls[0]![1]!.headers as Headers;
@@ -162,9 +164,16 @@ describe('gatewayFetch auth fallbacks and failures (PRC-M489)', () => {
     expect(res).toMatchObject({ ok: false, status: 0, error: { code: 'NETWORK_ERROR' } });
   });
   it('401 with a non-JSON body yields GATEWAY_ERROR rather than data', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401, statusText: 'Unauthorized' }));
+    fetchMock.mockResolvedValueOnce(
+      new Response('nope', { status: 401, statusText: 'Unauthorized' }),
+    );
     const { gatewayFetch } = await import('./gateway');
     const res = await gatewayFetch('/students', { throwOnError: false });
-    expect(res).toMatchObject({ ok: false, status: 401, data: null, error: { code: 'GATEWAY_ERROR' } });
+    expect(res).toMatchObject({
+      ok: false,
+      status: 401,
+      data: null,
+      error: { code: 'GATEWAY_ERROR' },
+    });
   });
 });
