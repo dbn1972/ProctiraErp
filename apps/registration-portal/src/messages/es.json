@@ -91,7 +91,15 @@
     "fixFieldErrors": "Corrige los campos resaltados antes de enviar.",
     "trackingMissingTitle": "Este navegador no tiene tu número de seguimiento",
     "trackingMissingBody": "Si lo guardaste, abre Seguimiento e introdúcelo con la fecha de nacimiento del estudiante. Si no lo guardaste, contacta la oficina de admisiones de la escuela. Esta página no puede recuperarlo.",
-    "schoolNameUnavailable": "No se pudo cargar el nombre de la escuela"
+    "schoolNameUnavailable": "No se pudo cargar el nombre de la escuela",
+    "invalidNumber": "Introduce un número válido.",
+    "outOfRange": "El valor está fuera del rango permitido.",
+    "tooShort": "El valor es demasiado corto.",
+    "tooLong": "El valor es demasiado largo.",
+    "invalidFormat": "El valor no tiene el formato requerido.",
+    "copyTrackingNumber": "Copiar número de seguimiento",
+    "trackingNumberCopied": "Número de seguimiento copiado",
+    "copyFailed": "No se pudo copiar; selecciona el número manualmente."
   },
   "documents": {
     "title": "Subir documentos",
@@ -110,7 +118,8 @@
     "remove": "Eliminar",
     "reuploadHint": "vuelva a cargar",
     "reuploadRequired": "Debe volver a cargar {fileName} antes de enviar",
-    "noneRequired": "No se requieren documentos para esta solicitud."
+    "noneRequired": "No se requieren documentos para esta solicitud.",
+    "uploadLabel": "Subir {label}"
   },
   "institutions": {
     "title": "Buscar escuelas",
@@ -128,7 +137,8 @@
     "resultsCount": "{count} escuelas encontradas",
     "serviceUnavailableTitle": "Servicio no disponible temporalmente",
     "serviceUnavailableMessage": "No pudimos cargar las escuelas en este momento. Vuelve a intentarlo en unos instantes.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "loadingMap": "Cargando mapa…"
   },
   "tracking": {
     "title": "Consulte su solicitud",
