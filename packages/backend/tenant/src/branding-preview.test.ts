@@ -109,6 +109,12 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
 
     app = Fastify();
     await registerTenantRoutes(app, { tenantService: service });
+    // PRC-M390: the actor comes from the authenticated user, simulated here
+    // by mapping an `x-actor-id` header onto request.user.sub.
+    app.addHook('onRequest', async (req) => {
+      const actor = req.headers['x-actor-id'];
+      if (typeof actor === 'string') Object.assign(req, { user: { sub: actor } });
+    });
     await registerBrandingRoutes(app, {
       tenantService: service,
       getTenantId: (req: FastifyRequest) => req.headers['x-tenant-id'] as string | undefined,
@@ -131,7 +137,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       method: 'POST',
       url: '/tenant/branding/publish',
       // PRC-H097: publish now requires branding:edit — act as the admin test user.
-      headers: { 'x-tenant-id': tenantId, 'x-test-user': 'admin' },
+      headers: { 'x-tenant-id': tenantId, 'x-test-user': 'admin', 'x-actor-id': PUBLISHER_ALICE },
       payload: { tokens: publishedTokens, publishedBy: PUBLISHER_ALICE },
     });
     expect(publishRes.statusCode).toBe(201);
@@ -146,6 +152,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       headers: {
         'x-tenant-id': tenantId,
         'x-test-user': asUser,
+        'x-actor-id': savedBy,
       },
       payload: { tokens, savedBy },
     });
@@ -177,7 +184,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/draft',
-        headers: { 'x-tenant-id': tenantId },
+        headers: { 'x-tenant-id': tenantId, 'x-actor-id': EDITOR_BOB },
         payload: { tokens: draftTokens, savedBy: EDITOR_BOB },
       });
       expect(res.statusCode).toBe(403);
@@ -405,6 +412,10 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
         new RecordingAdminProvisioner(),
       );
       await registerTenantRoutes(closedApp, { tenantService: closedService });
+      closedApp.addHook('onRequest', async (req) => {
+        const actor = req.headers['x-actor-id'];
+        if (typeof actor === 'string') Object.assign(req, { user: { sub: actor } });
+      });
       await registerBrandingRoutes(closedApp, {
         tenantService: closedService,
         getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
@@ -422,7 +433,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       await closedApp.inject({
         method: 'POST',
         url: '/tenant/branding/publish',
-        headers: { 'x-tenant-id': closedTenantId },
+        headers: { 'x-tenant-id': closedTenantId, 'x-actor-id': PUBLISHER_ALICE },
         payload: { tokens: publishedTokens, publishedBy: PUBLISHER_ALICE },
       });
 
@@ -431,7 +442,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       const draftRes = await closedApp.inject({
         method: 'POST',
         url: '/tenant/branding/draft',
-        headers: { 'x-tenant-id': closedTenantId, 'x-test-user': 'admin' },
+        headers: { 'x-tenant-id': closedTenantId, 'x-test-user': 'admin', 'x-actor-id': EDITOR_BOB },
         payload: { tokens: draftTokens, savedBy: EDITOR_BOB },
       });
       expect(draftRes.statusCode).toBe(403);

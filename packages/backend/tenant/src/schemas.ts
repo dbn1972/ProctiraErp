@@ -317,13 +317,14 @@ export type AddDomainInput = Static<typeof AddDomainSchema>;
  */
 export const PublishBrandingSchema = Type.Object({
   tokens: ThemeTokensSchema,
-  publishedBy: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'UUID of the user publishing the revision',
-  }),
 });
 
-export type PublishBrandingInput = Static<typeof PublishBrandingSchema>;
+/**
+ * PRC-M390: the actor is never taken from the body — routes inject the
+ * authenticated JWT subject. Any client-sent `publishedBy` is ignored.
+ */
+export type PublishBrandingBody = Static<typeof PublishBrandingSchema>;
+export type PublishBrandingInput = PublishBrandingBody & { publishedBy: string };
 
 /**
  * Schema for `POST /api/v1/tenant/branding/rollback`.
@@ -337,13 +338,11 @@ export const RollbackBrandingSchema = Type.Object({
     minimum: 1,
     description: 'The revision number to roll back to (must be a prior revision for the tenant)',
   }),
-  publishedBy: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'UUID of the user performing the rollback (recorded on the new audit row)',
-  }),
 });
 
-export type RollbackBrandingInput = Static<typeof RollbackBrandingSchema>;
+export type RollbackBrandingBody = Static<typeof RollbackBrandingSchema>;
+/** PRC-M390: `publishedBy` = authenticated actor, injected by the route. */
+export type RollbackBrandingInput = RollbackBrandingBody & { publishedBy: string };
 
 // ─── Branding Draft Schemas (Task 58.3) ──────────────────────────────────────
 
@@ -359,13 +358,11 @@ export type RollbackBrandingInput = Static<typeof RollbackBrandingSchema>;
  */
 export const SaveBrandingDraftSchema = Type.Object({
   tokens: ThemeTokensSchema,
-  savedBy: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'UUID of the user saving the draft',
-  }),
 });
 
-export type SaveBrandingDraftInput = Static<typeof SaveBrandingDraftSchema>;
+export type SaveBrandingDraftBody = Static<typeof SaveBrandingDraftSchema>;
+/** PRC-M390: `savedBy` = authenticated actor, injected by the route. */
+export type SaveBrandingDraftInput = SaveBrandingDraftBody & { savedBy: string };
 
 /**
  * Response payload for tenant branding draft reads / writes.
