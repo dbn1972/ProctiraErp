@@ -288,14 +288,22 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(await repo.findTenantById('')).toBeNull();
   });
 
-  it('refuses to resolve a tenants row whose status is outside the lifecycle union', async () => {
-    // tenants.status is varchar(20) with no CHECK constraint. Casting an unknown
-    // value into the union would make every gate read it as "not decommissioned,
-    // not suspended" — reporting an undescribable tenant as a safe one.
+  it('rejects a tenants status outside the lifecycle set at the database (PRC-H099)', async () => {
+    // db/sql/114 adds tenants_status_check. Before it, tenants.status was a bare
+    // varchar(20) and an unknown value could be written; the repository still
+    // refuses to resolve such a row, but the write itself must now fail.
+    await expect(
+      asPlatformAdmin((c) =>
+        c.query(`UPDATE tenants SET status = 'zombie' WHERE id = $1`, [NEIGHBOUR_TENANT]),
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'tenants_status_check' });
+    expect(await repo.findTenantById(NEIGHBOUR_TENANT)).not.toBeNull();
+    // The provisioner's terminal failure state is accepted.
     await asPlatformAdmin((c) =>
-      c.query(`UPDATE tenants SET status = 'zombie' WHERE id = $1`, [NEIGHBOUR_TENANT]),
+      c.query(`UPDATE tenants SET status = 'provisioning_failed' WHERE id = $1`, [
+        NEIGHBOUR_TENANT,
+      ]),
     );
-    expect(await repo.findTenantById(NEIGHBOUR_TENANT)).toBeNull();
     await asPlatformAdmin((c) =>
       c.query(`UPDATE tenants SET status = 'active' WHERE id = $1`, [NEIGHBOUR_TENANT]),
     );
