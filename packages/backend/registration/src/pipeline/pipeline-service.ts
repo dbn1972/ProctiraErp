@@ -2,9 +2,9 @@ import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AdmissionsCrmStore } from '../admissions-crm-store.js';
-import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
 import { dateOfBirthErrors, parseTimestamp } from '../input-validation.js';
 import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
+import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
 import {
@@ -480,26 +480,30 @@ export class AdmissionsPipelineService {
       expiresAt = parseTimestamp(input.expiresAt);
       if (!expiresAt || expiresAt.getTime() <= Date.now()) {
         throw new ValidationError('Invalid offer expiry', [
-          { field: 'expiresAt', rule: 'format', message: 'expiresAt must be a future ISO timestamp' },
+          {
+            field: 'expiresAt',
+            rule: 'format',
+            message: 'expiresAt must be a future ISO timestamp',
+          },
         ]);
       }
     }
     await this.assertSeatAvailable(tenantId, placement);
     const now = new Date();
     const document = buildOfferDocument({
-        offerId: uuidv4(),
-        tenantId,
-        applicationId: application.id,
-        firstName: application.firstName,
-        lastName: application.lastName,
-        institutionId: placement.institutionId,
-        academicPeriodId: placement.academicPeriodId,
-        gradeId: placement.gradeId,
-        quota: placement.quota,
-        feeAmount,
-        feeCurrency,
-        issuedAt: now.toISOString(),
-        classId: input.classId ?? null,
+      offerId: uuidv4(),
+      tenantId,
+      applicationId: application.id,
+      firstName: application.firstName,
+      lastName: application.lastName,
+      institutionId: placement.institutionId,
+      academicPeriodId: placement.academicPeriodId,
+      gradeId: placement.gradeId,
+      quota: placement.quota,
+      feeAmount,
+      feeCurrency,
+      issuedAt: now.toISOString(),
+      classId: input.classId ?? null,
     });
     const offerFeeInvoiceId = null;
     const record: OfferRecord = {

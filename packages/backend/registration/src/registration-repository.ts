@@ -6,15 +6,11 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 import type { ListPage } from './pagination.js';
+import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
 export type RegistrationStatus =
-  | 'pending'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'waitlisted';
+  'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
 
 export interface RegistrationEntity {
   id: string;
@@ -108,7 +104,10 @@ export interface InstitutionFilterOptions {
 /** Derive filter options from active institutions (sorted, de-duplicated). */
 export function institutionFilterOptionsFrom(
   rows: Array<
-    Pick<RegistrationInstitution, 'typeId' | 'typeName' | 'areaId' | 'areaName' | 'availableGrades'> & {
+    Pick<
+      RegistrationInstitution,
+      'typeId' | 'typeName' | 'areaId' | 'areaName' | 'availableGrades'
+    > & {
       status: string;
     }
   >,

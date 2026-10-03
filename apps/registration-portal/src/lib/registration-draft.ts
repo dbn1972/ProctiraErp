@@ -57,14 +57,14 @@ export const LAST_TRACKING_NUMBER_KEY = 'registration:lastTrackingNumber';
 export function hasApplicantData(draft: PersistedRegistrationDraft): boolean {
   return Boolean(
     draft.firstName ||
-      draft.lastName ||
-      draft.dateOfBirth ||
-      draft.gender ||
-      draft.guardianName ||
-      draft.guardianPhone ||
-      draft.guardianEmail ||
-      Object.keys(draft.customFields).length > 0 ||
-      draft.documents.length > 0,
+    draft.lastName ||
+    draft.dateOfBirth ||
+    draft.gender ||
+    draft.guardianName ||
+    draft.guardianPhone ||
+    draft.guardianEmail ||
+    Object.keys(draft.customFields).length > 0 ||
+    draft.documents.length > 0,
   );
 }
 

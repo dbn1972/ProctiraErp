@@ -149,10 +149,10 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
       );
       const row = (head.rows as Record<string, unknown>[])[0];
       if (!row) return null;
-      await client.query(`DELETE FROM admission_waitlist_entries WHERE id = $1 AND tenant_id = $2`, [
-        row.id,
-        tenantId,
-      ]);
+      await client.query(
+        `DELETE FROM admission_waitlist_entries WHERE id = $1 AND tenant_id = $2`,
+        [row.id, tenantId],
+      );
       return mapWaitlist(row);
     });
   }
@@ -165,7 +165,7 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
           RETURNING id`,
         [tenantId, applicationId],
       );
-      return (result.rows as unknown[]).length > 0;
+      return result.rows.length > 0;
     });
   }
 

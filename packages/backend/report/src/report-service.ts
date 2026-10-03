@@ -18,8 +18,8 @@
  */
 import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { escapeCsv } from './generators.js';
 
+import { escapeCsv } from './generators.js';
 import type {
   ReportRepository,
   ReportJobEntity,
@@ -145,7 +145,11 @@ export class ReportService {
     // W2-JOB-13: return the in-flight job when the client supplies a dedupe key.
     const dedupeKey = input.dedupeKey?.trim() || null;
     if (dedupeKey) {
-      const existing = await this.repository.findActiveJobByDedupeKey(tenantId, dedupeKey, new Date());
+      const existing = await this.repository.findActiveJobByDedupeKey(
+        tenantId,
+        dedupeKey,
+        new Date(),
+      );
       if (existing) return existing;
     }
 
@@ -197,9 +201,7 @@ export class ReportService {
       throw new NotFoundError(`Report job '${jobId}' not found`);
     }
     if (job.status !== 'queued') {
-      throw new BusinessRuleError(
-        `Report job cannot be cancelled (current status: ${job.status})`,
-      );
+      throw new BusinessRuleError(`Report job cannot be cancelled (current status: ${job.status})`);
     }
     const updated = await this.repository.updateJob(jobId, tenantId, {
       status: 'cancelled',
@@ -221,12 +223,7 @@ export class ReportService {
     userContext: ReportUserContext,
     asOf: Date = new Date(),
   ): Promise<ReportJobEntity> {
-    const claimed = await this.repository.claimQueuedJob(
-      job.tenantId,
-      job.id,
-      5 * 60_000,
-      asOf,
-    );
+    const claimed = await this.repository.claimQueuedJob(job.tenantId, job.id, 5 * 60_000, asOf);
     if (!claimed) {
       const current = await this.repository.getJobById(job.tenantId, job.id);
       if (current?.status === 'cancelled') {

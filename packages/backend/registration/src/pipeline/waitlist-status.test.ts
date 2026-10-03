@@ -80,7 +80,11 @@ describe('PRC-M329 waitlist follows application status', () => {
     const offered = await application('Offered');
     const stale = await application('Stale');
     // Entry left behind by a legacy path; application was approved directly.
-    await crm.enqueueWaitlist({ tenantId: TENANT, applicationId: stale, institutionId: INSTITUTION });
+    await crm.enqueueWaitlist({
+      tenantId: TENANT,
+      applicationId: stale,
+      institutionId: INSTITUTION,
+    });
     await apps.updateStatus(stale, 'approved', undefined, TENANT);
     const offer = await pipeline.createOffer(TENANT, { applicationId: offered });
     await pipeline.sendOffer(TENANT, offer.id);

@@ -1,9 +1,5 @@
 /** Server-side fail-closed loaders for the public registration wizard. */
-import {
-  getFormConfiguration,
-  RegistrationApiError,
-  type FormConfiguration,
-} from './api';
+import { getFormConfiguration, RegistrationApiError, type FormConfiguration } from './api';
 import { serverTransport } from './gateway';
 import { isValidInstitutionId } from './validation';
 

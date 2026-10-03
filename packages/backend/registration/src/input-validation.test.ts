@@ -87,9 +87,7 @@ describe('PRC-M333 registration input validation', () => {
   it("field pattern violated -> 400 with rule 'pattern'", async () => {
     const errors = validateCustomFields([{ fieldId: 'aadhaar', value: '12ab' }], form);
     expect(errors.map((e) => e.rule)).toContain('pattern');
-    expect(validateCustomFields([{ fieldId: 'aadhaar', value: '123456789012' }], form)).toEqual(
-      [],
-    );
+    expect(validateCustomFields([{ fieldId: 'aadhaar', value: '123456789012' }], form)).toEqual([]);
     await expect(
       service().submitRegistration(
         TENANT,

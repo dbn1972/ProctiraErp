@@ -35,7 +35,14 @@ describe('PRC-M337 decline promotion + bounded lists', () => {
     const store = new InMemoryAdmissionsPipelineStore();
     const apps = new InMemoryRegistrationRepository();
     const crm = new InMemoryAdmissionsCrmStore();
-    const service = new AdmissionsPipelineService(store, apps, undefined, undefined, undefined, crm);
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      undefined,
+      undefined,
+      undefined,
+      crm,
+    );
     await service.upsertSeat(TENANT, {
       institutionId: INSTITUTION,
       academicPeriodId: PERIOD,

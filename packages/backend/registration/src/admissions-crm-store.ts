@@ -199,7 +199,9 @@ export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
         row.status === 'booked',
     );
     if (existing) return existing;
-    const slot = this.slots.find((row) => row.id === input.slotId && row.tenantId === input.tenantId);
+    const slot = this.slots.find(
+      (row) => row.id === input.slotId && row.tenantId === input.tenantId,
+    );
     if (!slot || slot.status !== 'open') {
       throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
     }

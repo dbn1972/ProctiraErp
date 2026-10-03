@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+
 import { isReportDemoDataEnabled, ReportDataUnavailableError } from './providers.js';
 
 export type DashboardRole = 'board' | 'principal' | 'teacher' | 'staff' | 'parent';
@@ -83,7 +84,12 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
         value: '—',
         hint: 'Current enrolments',
       },
-      { id: 'staff-notifications', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
+      {
+        id: 'staff-notifications',
+        title: 'Open invoices',
+        value: '—',
+        hint: 'Fee invoices still open',
+      },
     ],
   },
   parent: {
@@ -228,7 +234,11 @@ async function count(client: PgQueryable, sql: string, values: unknown[] = []): 
 }
 
 /** Exact bigint sum as a decimal string (PRC-M345: no ::int overflow). */
-async function sumBigint(client: PgQueryable, sql: string, values: unknown[] = []): Promise<string> {
+async function sumBigint(
+  client: PgQueryable,
+  sql: string,
+  values: unknown[] = [],
+): Promise<string> {
   const { rows } = await client.query(sql, values);
   const raw = (rows[0] as { n?: unknown } | undefined)?.n;
   const str = raw === null || raw === undefined ? '0' : String(raw);

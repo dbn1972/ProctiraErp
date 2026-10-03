@@ -82,7 +82,9 @@ describe('PRC-M056 directory pagination + server search', () => {
       meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
     });
     render(<InstitutionMap initialInstitutions={[school(1)]} initialTotal={1} />);
-    fireEvent.change(screen.getByLabelText('searchPlaceholder'), { target: { value: 'School 201' } });
+    fireEvent.change(screen.getByLabelText('searchPlaceholder'), {
+      target: { value: 'School 201' },
+    });
     await act(async () => {
       vi.advanceTimersByTime(350);
     });

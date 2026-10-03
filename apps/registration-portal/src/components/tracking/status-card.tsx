@@ -83,8 +83,6 @@ export function StatusCard({ status }: { status: RegistrationStatus }) {
         <Row label={t('status')} value={t(variant.labelKey)} />
       </dl>
 
-
-
       <Link href="/" className="btn-secondary w-full justify-center">
         {tCommon('home')}
       </Link>

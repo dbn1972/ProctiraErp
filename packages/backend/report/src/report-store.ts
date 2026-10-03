@@ -77,11 +77,7 @@ export interface ReportStore {
    * Claim due schedules. When `tenantId` is provided only that tenant's
    * schedules are claimed (PRC-M340: HTTP-triggered run-due is tenant-scoped).
    */
-  claimDueSchedules(
-    now: Date,
-    leaseMs: number,
-    tenantId?: string,
-  ): Promise<ReportScheduleRecord[]>;
+  claimDueSchedules(now: Date, leaseMs: number, tenantId?: string): Promise<ReportScheduleRecord[]>;
 
   insertRun(record: ReportRunRecord): Promise<ReportRunRecord>;
   updateRun(

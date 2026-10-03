@@ -189,9 +189,7 @@ export function InstitutionMap({
             onChange={(v) => setFilter('gradeId', v)}
           />
         </div>
-        <p className="mt-4 text-xs text-gray-500">
-          {t('resultsCount', { count: String(total) })}
-        </p>
+        <p className="mt-4 text-xs text-gray-500">{t('resultsCount', { count: String(total) })}</p>
       </div>
 
       {loadError ? (
@@ -269,7 +267,12 @@ export function InstitutionMap({
       )}
       {hasMore && !loadError ? (
         <div className="text-center">
-          <button type="button" className="btn-secondary" onClick={() => void loadMore()} disabled={loading}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void loadMore()}
+            disabled={loading}
+          >
             {t('loadMore')}
           </button>
         </div>

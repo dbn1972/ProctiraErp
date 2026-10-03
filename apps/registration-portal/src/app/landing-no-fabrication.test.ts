@@ -16,7 +16,7 @@ describe('PRC-M052 landing page has no fabricated figures', () => {
   });
 
   it('does not render an unconditional admissions-open badge or stats bar', () => {
-    expect(source).not.toContain("stats.open");
+    expect(source).not.toContain('stats.open');
     expect(source).not.toContain('StatsBar');
   });
 });

@@ -154,14 +154,11 @@ declare module 'fastify' {
 const SUBMISSION_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
 function tooManyRequests(reply: FastifyReply, retryAfterSeconds: number) {
-  return reply
-    .status(429)
-    .header('retry-after', String(retryAfterSeconds))
-    .send({
-      code: 'TOO_MANY_REQUESTS',
-      message: 'Too many attempts. Please wait and try again.',
-      statusCode: 429,
-    });
+  return reply.status(429).header('retry-after', String(retryAfterSeconds)).send({
+    code: 'TOO_MANY_REQUESTS',
+    message: 'Too many attempts. Please wait and try again.',
+    statusCode: 429,
+  });
 }
 
 function publicTenantId(request: FastifyRequest): string {
@@ -231,7 +228,8 @@ export async function registerRegistrationRoutes(
   const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
   const submitChallenge = {
     required:
-      options.submitChallenge?.required ?? process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1',
+      options.submitChallenge?.required ??
+      process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1',
     verify: options.submitChallenge?.verify,
   };
   if (process.env.NODE_ENV === 'production' && defaultTenantId) {
@@ -334,7 +332,9 @@ export async function registerRegistrationRoutes(
             statusCode: 503,
           });
         }
-        const ok = await submitChallenge.verify({ token, ip: request.ip, tenantId }).catch(() => false);
+        const ok = await submitChallenge
+          .verify({ token, ip: request.ip, tenantId })
+          .catch(() => false);
         if (!ok) {
           return reply.status(400).send({
             code: 'CHALLENGE_FAILED',
@@ -426,7 +426,10 @@ export async function registerRegistrationRoutes(
           if (!throttle.statusFailures.check(trackingKey).allowed) {
             // Alerting signal: repeated no-match lookups for one tracking number.
             request.log.warn(
-              { event: 'registration.status.lockout', trackingNumber: paramsResult.data.trackingNumber },
+              {
+                event: 'registration.status.lockout',
+                trackingNumber: paramsResult.data.trackingNumber,
+              },
               'Registration status lookup locked after repeated failures',
             );
           }
@@ -593,7 +596,9 @@ export async function registerRegistrationRoutes(
    */
   fastify.get(`${prefix}/institution-filters`, async function filterOptionsHandler(request, reply) {
     try {
-      const options = await registrationService.getInstitutionFilterOptions(publicTenantId(request));
+      const options = await registrationService.getInstitutionFilterOptions(
+        publicTenantId(request),
+      );
       return reply.status(200).send(options);
     } catch (error: unknown) {
       if (error instanceof AppError) {

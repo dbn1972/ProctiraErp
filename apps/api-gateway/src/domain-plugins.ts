@@ -355,7 +355,12 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
  * admissions invoice for that application, for exactly the offer fee.
  */
 export function assertOfferFeeInvoiceMatchesOffer(
-  invoice: { createdBy?: string | null; description?: string | null; amountCents: number; currency: string },
+  invoice: {
+    createdBy?: string | null;
+    description?: string | null;
+    amountCents: number;
+    currency: string;
+  },
   offer: { applicationId: string; expectedAmount: number; expectedCurrency: string },
 ): void {
   if (

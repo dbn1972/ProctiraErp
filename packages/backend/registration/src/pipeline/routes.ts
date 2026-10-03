@@ -2,8 +2,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
 import { parseListPage } from '../pagination.js';
+import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
 
 import type { AdmissionsPipelineService } from './pipeline-service.js';
 import {
@@ -101,7 +101,9 @@ export async function registerAdmissionsPipelineRoutes(
     if (!tenantId) return;
     try {
       // PRC-M337: bounded page (limit <= 200).
-      return reply.status(200).send(await service.listEnquiries(tenantId, parseListPage(request.query)));
+      return reply
+        .status(200)
+        .send(await service.listEnquiries(tenantId, parseListPage(request.query)));
     } catch (error) {
       return sendError(reply, error);
     }

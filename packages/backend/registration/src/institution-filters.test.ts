@@ -19,12 +19,51 @@ async function build() {
   const repo = new InMemoryRegistrationRepository();
   const base = { tenantId: TENANT, latitude: null, longitude: null, address: null };
   repo.seedInstitutions([
-    { ...base, id: INST_A, name: 'Alpha Primary', code: 'A', typeId: PRIMARY, typeName: 'Primary', areaId: 'n', areaName: 'North', status: 'ACTIVE', availableGrades: ['1', '2'] },
-    { ...base, id: INST_B, name: 'Beta High', code: 'B', typeId: SECONDARY, typeName: 'Secondary', areaId: 's', areaName: 'South', status: 'ACTIVE', availableGrades: ['9'] },
-    { ...base, id: '55555555-5555-4555-8555-555555555555', name: 'Closed', code: 'C', typeId: 'gone', typeName: 'Gone', areaId: 'x', areaName: 'X', status: 'INACTIVE' },
+    {
+      ...base,
+      id: INST_A,
+      name: 'Alpha Primary',
+      code: 'A',
+      typeId: PRIMARY,
+      typeName: 'Primary',
+      areaId: 'n',
+      areaName: 'North',
+      status: 'ACTIVE',
+      availableGrades: ['1', '2'],
+    },
+    {
+      ...base,
+      id: INST_B,
+      name: 'Beta High',
+      code: 'B',
+      typeId: SECONDARY,
+      typeName: 'Secondary',
+      areaId: 's',
+      areaName: 'South',
+      status: 'ACTIVE',
+      availableGrades: ['9'],
+    },
+    {
+      ...base,
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Closed',
+      code: 'C',
+      typeId: 'gone',
+      typeName: 'Gone',
+      areaId: 'x',
+      areaName: 'X',
+      status: 'INACTIVE',
+    },
   ]);
   repo.seedFormConfigurations([
-    { id: '66666666-6666-4666-8666-666666666666', tenantId: TENANT, institutionId: INST_A, version: 1, publishedAt: '2026-01-01T00:00:00.000Z', fields: [] },
+    {
+      id: '66666666-6666-4666-8666-666666666666',
+      tenantId: TENANT,
+      institutionId: INST_A,
+      version: 1,
+      publishedAt: '2026-01-01T00:00:00.000Z',
+      fields: [],
+    },
   ]);
   const app = Fastify();
   await registerRegistrationRoutes(app, {

@@ -22,14 +22,19 @@ import {
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { dateOfBirthErrors, isRealIsoDate, matchesConfiguredPattern, parseTimestamp } from './input-validation.js';
-import type { ListPage } from './pagination.js';
 
 import {
   InMemoryAdmissionsCrmStore,
   type AdmissionsCrmStore,
   type WaitlistEntry,
 } from './admissions-crm-store.js';
+import {
+  dateOfBirthErrors,
+  isRealIsoDate,
+  matchesConfiguredPattern,
+  parseTimestamp,
+} from './input-validation.js';
+import type { ListPage } from './pagination.js';
 import type {
   InstitutionFilterOptions,
   RegistrationRepository,
@@ -255,10 +260,7 @@ export function validateCustomFields(
 }
 
 /** PRC-M333: returns a message when `value` does not fit the configured field type. */
-function customFieldTypeError(
-  type: string,
-  value: string | number | boolean,
-): string | null {
+function customFieldTypeError(type: string, value: string | number | boolean): string | null {
   switch (type) {
     case 'number':
       return typeof value === 'number' && Number.isFinite(value) ? null : 'must be a number';

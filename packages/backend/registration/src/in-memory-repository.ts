@@ -4,6 +4,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
+import { sliceForPage, type ListPage } from './pagination.js';
 import {
   institutionFilterOptionsFrom,
   type InstitutionFilterOptions,
@@ -20,7 +21,6 @@ import {
   type TenantFormConfiguration,
 } from './registration-repository.js';
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
-import { sliceForPage, type ListPage } from './pagination.js';
 
 export interface InMemoryInstitution {
   id: string;
