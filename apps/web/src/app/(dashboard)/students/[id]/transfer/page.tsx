@@ -13,15 +13,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Clock3,
-  FileText,
-  GraduationCap,
-  Shield,
-  UserRound,
-} from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, HelpCircle } from 'lucide-react';
 
 import {
   Button,
@@ -33,7 +25,14 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { listAreas, listInstitutions } from '@/lib/api/institutions';
-import { getStudent, getStudentEnrollments } from '@/lib/api/students';
+import {
+  getStudent,
+  getStudentEnrollments,
+  readStudentConsents,
+  readStudentDiscipline,
+} from '@/lib/api/students';
+import { listInvoicesResult } from '@/lib/api/fees';
+import { buildTransferChecklist, type TransferChecklistItem } from './_components/transfer-checklist';
 
 import { TransferForm } from './_components/transfer-form';
 import { loadPlacementDirectories } from '../../_components/load-student-placement';
@@ -52,180 +51,60 @@ interface PageProps {
 
 /* ──────────────────────────────────────────────── Transfer checklist ── */
 
-const CHECKLIST_ITEMS = [
-  {
-    icon: FileText,
-    label: 'Academic records retrieved',
-    done: true,
-    note: 'Transcripts available in document store',
-  },
-  {
-    icon: Shield,
-    label: 'No outstanding discipline action',
-    done: true,
-    note: 'Last review: clean record',
-  },
-  {
-    icon: GraduationCap,
-    label: 'All fees settled',
-    done: false,
-    note: 'Pending: term 2 balance',
-  },
-  {
-    icon: UserRound,
-    label: 'Parent / guardian consent captured',
-    done: false,
-    note: 'Required before submission',
-  },
-  {
-    icon: FileText,
-    label: 'Destination school vacancy confirmed',
-    done: false,
-    note: 'Select destination to verify',
-  },
-] as const;
+const STATE_ICON = { done: CheckCircle2, outstanding: AlertTriangle, unknown: HelpCircle } as const;
+const STATE_TEXT = { done: 'Done', outstanding: 'Outstanding', unknown: 'Not checked' } as const;
 
-function TransferChecklist() {
-  const done = CHECKLIST_ITEMS.filter((i) => i.done).length;
-  const total = CHECKLIST_ITEMS.length;
-
+/** PRC-M483: live checklist; no static "done" data. */
+function TransferChecklist({ items }: { items: TransferChecklistItem[] }) {
+  const done = items.filter((i) => i.state === 'done').length;
   return (
-    <Card>
+    <Card data-testid="transfer-checklist">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold">Transfer checklist</CardTitle>
         <CardDescription className="text-xs">
-          Sample checklist — not loaded from this student&apos;s live records. {done}/{total} sample
-          items marked complete.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 pb-5">
-        {CHECKLIST_ITEMS.map((item) => (
-          <div
-            key={item.label}
-            className={cn(
-              'flex items-start gap-3 rounded-lg border px-3 py-2.5 text-xs',
-              item.done
-                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
-                : 'border-border bg-muted/40',
-            )}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                'mt-0.5 shrink-0',
-                item.done ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
-              )}
-            >
-              {item.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-            </span>
-            <div className="min-w-0">
-              <p
-                className={cn(
-                  'font-medium leading-snug',
-                  item.done ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {item.label}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{item.note}</p>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ──────────────────────────────────────────────── Approval chain ── */
-
-const APPROVAL_STEPS = [
-  {
-    role: 'School registrar',
-    action: 'Initial review & documentation check',
-    status: 'done' as const,
-  },
-  {
-    role: 'School principal',
-    action: 'Academic record approval',
-    status: 'active' as const,
-  },
-  {
-    role: 'District education officer',
-    action: 'Cross-school transfer authorisation',
-    status: 'upcoming' as const,
-  },
-  {
-    role: 'Destination school',
-    action: 'Admission confirmation',
-    status: 'upcoming' as const,
-  },
-] as const;
-
-const STATUS_STYLES: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
-  done: 'bg-primary text-primary-foreground',
-  active: 'bg-primary/20 text-primary ring-4 ring-primary/10',
-  upcoming: 'bg-muted text-muted-foreground',
-};
-
-const STATUS_LABEL: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
-  done: 'Completed',
-  active: 'In progress',
-  upcoming: 'Upcoming',
-};
-
-const STATUS_PILL: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
-  done: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  active: 'bg-primary/10 text-primary',
-  upcoming: 'bg-muted text-muted-foreground',
-};
-
-function ApprovalChain() {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">Approval chain</CardTitle>
-        <CardDescription className="text-xs">
-          Example sequence. Live status is recorded after you submit a transfer.
+          From this student&apos;s records. {done}/{items.length} complete.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-5">
-        <ol className="space-y-0">
-          {APPROVAL_STEPS.map((step, i) => (
-            <li key={step.role} className="flex gap-3">
-              {/* dot + connector */}
-              <div className="flex flex-col items-center">
-                <span
+        <ul className="space-y-3">
+          {items.map((item) => {
+            const Icon = STATE_ICON[item.state];
+            return (
+              <li
+                key={item.key}
+                data-testid={`transfer-check-${item.key}`}
+                data-state={item.state}
+                className={cn(
+                  'flex items-start gap-3 rounded-lg border px-3 py-2.5 text-xs',
+                  item.state === 'done'
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+                    : item.state === 'outstanding'
+                      ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+                      : 'border-border bg-muted/40',
+                )}
+              >
+                <Icon
                   aria-hidden="true"
                   className={cn(
-                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
-                    STATUS_STYLES[step.status],
+                    'mt-0.5 h-4 w-4 shrink-0',
+                    item.state === 'done'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : item.state === 'outstanding'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-muted-foreground',
                   )}
-                >
-                  {i + 1}
-                </span>
-                {i < APPROVAL_STEPS.length - 1 && (
-                  <span aria-hidden="true" className="mt-1 h-8 w-px bg-border" />
-                )}
-              </div>
-
-              {/* text */}
-              <div className={cn('pb-5 pt-0.5', i === APPROVAL_STEPS.length - 1 && 'pb-0')}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-semibold leading-none text-foreground">{step.role}</p>
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      STATUS_PILL[step.status],
-                    )}
-                  >
-                    {STATUS_LABEL[step.status]}
-                  </span>
+                />
+                <div className="min-w-0">
+                  <p className="font-medium leading-snug text-foreground">
+                    {item.label}
+                    <span className="sr-only">: {STATE_TEXT[item.state]}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{item.note}</p>
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">{step.action}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+              </li>
+            );
+          })}
+        </ul>
       </CardContent>
     </Card>
   );
@@ -236,18 +115,28 @@ function ApprovalChain() {
 export default async function StudentTransferPage(props: PageProps) {
   const params = await props.params;
   const studentId = params.id;
-  const [student, enrollments, institutions, areas] = await Promise.all([
-    getStudent(studentId),
-    getStudentEnrollments(studentId),
-    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
-    listAreas(),
-  ]);
+  const [student, enrollments, institutions, areas, invoicesResult, discipline, consents] =
+    await Promise.all([
+      getStudent(studentId),
+      getStudentEnrollments(studentId),
+      listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+      listAreas(),
+      listInvoicesResult('staff', { studentId }),
+      readStudentDiscipline(studentId),
+      readStudentConsents(studentId),
+    ]);
 
   if (!student) {
     notFound();
   }
 
   const activeEnrollments = enrollments.filter((e) => e.status === 'ENROLLED');
+  const checklist = buildTransferChecklist({
+    invoices: invoicesResult.ok ? invoicesResult.items : null,
+    discipline,
+    consents,
+  });
+  const pendingChecks = checklist.filter((item) => item.state !== 'done');
   const directories = await loadPlacementDirectories(
     [
       ...enrollments.map((entry) => entry.institutionId),
@@ -314,7 +203,18 @@ export default async function StudentTransferPage(props: PageProps) {
                 Source enrollment, destination, effective date, and reason.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {pendingChecks.length > 0 && activeEnrollments.length > 0 ? (
+                <div
+                  role="status"
+                  data-testid="transfer-checklist-warning"
+                  className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  {pendingChecks.length} checklist item{pendingChecks.length === 1 ? ' is' : 's are'}{' '}
+                  not complete ({pendingChecks.map((item) => item.label).join('; ')}). Resolve
+                  {pendingChecks.length === 1 ? ' it' : ' them'} or record why before submitting.
+                </div>
+              ) : null}
               {activeEnrollments.length === 0 ? (
                 <div className="space-y-3" data-testid="transfer-needs-enroll">
                   <p className="text-sm text-muted-foreground">
@@ -363,8 +263,7 @@ export default async function StudentTransferPage(props: PageProps) {
 
         {/* ── Sidebar ── */}
         <aside className="flex flex-col gap-5" aria-label="Transfer details sidebar">
-          <TransferChecklist />
-          <ApprovalChain />
+          <TransferChecklist items={checklist} />
         </aside>
       </div>
     </section>
