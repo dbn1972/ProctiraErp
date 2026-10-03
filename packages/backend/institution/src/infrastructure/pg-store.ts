@@ -17,6 +17,7 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
+import { BusinessRuleError } from '@proctira/common';
 import { requireTenantId } from '../tenant-context.js';
 
 import type { InfrastructureTypeValue } from './schemas.js';
@@ -27,6 +28,26 @@ import type {
   InfrastructureStore,
   RepairRequestRecord,
 } from './service.js';
+
+interface RepairRow {
+  id: string;
+  institution_id: string;
+  infrastructure_id: string;
+  summary: string;
+  status: 'open' | 'closed';
+  created_at: Date | string;
+}
+
+function toRepairRecord(row: RepairRow): RepairRequestRecord {
+  return {
+    id: row.id,
+    institutionId: row.institution_id,
+    infrastructureId: row.infrastructure_id,
+    summary: row.summary,
+    status: row.status,
+    createdAt: new Date(row.created_at),
+  };
+}
 
 /** Pool surface we need (real pg.Pool, or a test double with `query`). */
 export type InfrastructurePool = PgQueryable & { connect?: unknown; end?: () => Promise<void> };
@@ -263,6 +284,49 @@ export class PgInfrastructureStore implements InfrastructureStore {
         status: row.status,
         createdAt: new Date(row.created_at),
       };
+    });
+  }
+
+  async findRepairRequest(id: string): Promise<RepairRequestRecord | null> {
+    return this.run(async (client, tenantId) => {
+      const { rows } = await client.query(
+        `SELECT * FROM institution_repair_requests WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id],
+      );
+      const row = rows[0] as RepairRow | undefined;
+      return row ? toRepairRecord(row) : null;
+    });
+  }
+
+  /**
+   * PRC-L124: conditional status UPDATE. The runtime role currently holds
+   * append-only (SELECT, INSERT) on this table; until the grant/status-event
+   * migration lands the UPDATE is denied (42501) and surfaces as an explicit
+   * business-rule error instead of a 500.
+   */
+  async updateRepairRequestStatus(
+    id: string,
+    fromStatus: RepairRequestRecord['status'],
+    toStatus: RepairRequestRecord['status'],
+  ): Promise<RepairRequestRecord | null> {
+    return this.run(async (client, tenantId) => {
+      try {
+        const { rows } = await client.query(
+          `UPDATE institution_repair_requests SET status = $4
+            WHERE tenant_id = $1 AND id = $2 AND status = $3
+            RETURNING *`,
+          [tenantId, id, fromStatus, toStatus],
+        );
+        const row = rows[0] as RepairRow | undefined;
+        return row ? toRepairRecord(row) : null;
+      } catch (err) {
+        if ((err as { code?: string }).code === '42501') {
+          throw new BusinessRuleError(
+            'Closing repair requests is not enabled in this deployment yet',
+          );
+        }
+        throw err;
+      }
     });
   }
 

@@ -144,6 +144,21 @@ export const CreateRepairRequestSchema = Type.Object(
 
 export type CreateRepairRequestInput = Static<typeof CreateRepairRequestSchema>;
 
+/** PRC-L124: close / reopen a repair request (institution-bound, closed status set). */
+export const UpdateRepairRequestSchema = Type.Object(
+  {
+    institutionId: Type.String({ pattern: UuidPattern, maxLength: 36 }),
+    status: Type.Union([Type.Literal('open'), Type.Literal('closed')]),
+  },
+  { additionalProperties: false },
+);
+
+export type UpdateRepairRequestInput = Static<typeof UpdateRepairRequestSchema>;
+
+export const RepairRequestParamsSchema = Type.Object({
+  id: Type.String({ pattern: UuidPattern, maxLength: 36, description: 'Repair request UUID' }),
+});
+
 export const InfrastructureParamsSchema = Type.Object({
   id: Type.String({ pattern: UuidPattern, description: 'Infrastructure item UUID' }),
 });

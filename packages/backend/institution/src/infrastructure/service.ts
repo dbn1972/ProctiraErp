@@ -10,7 +10,12 @@
  * @module infrastructure/service
  * @requirements 5.6
  */
-import { NotFoundError, BusinessRuleError, type PaginatedResult } from '@proctira/common';
+import {
+  NotFoundError,
+  BusinessRuleError,
+  ConflictError,
+  type PaginatedResult,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -70,6 +75,17 @@ export interface InfrastructureStore {
   hasChildren(id: string): Promise<boolean>;
   createRepairRequest(record: RepairRequestRecord): Promise<RepairRequestRecord>;
   listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]>;
+  /** PRC-L124: tenant-scoped lookup of one repair request. */
+  findRepairRequest(id: string): Promise<RepairRequestRecord | null>;
+  /**
+   * PRC-L124: set a repair request's status. Conditional on `fromStatus` so a
+   * concurrent close/reopen cannot be lost; returns null when it did not match.
+   */
+  updateRepairRequestStatus(
+    id: string,
+    fromStatus: RepairRequestRecord['status'],
+    toStatus: RepairRequestRecord['status'],
+  ): Promise<RepairRequestRecord | null>;
 }
 
 export interface RepairRequestRecord {
@@ -534,6 +550,33 @@ export class InfrastructureService {
 
   listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
     return this.store.listRepairRequests(institutionId);
+  }
+  /**
+   * PRC-L124: close (or reopen) a repair request. 404 when it does not belong
+   * to the given institution (no cross-institution probing); 409 when it is
+   * already in the requested status or changed concurrently.
+   */
+  async setRepairRequestStatus(input: {
+    id: string;
+    institutionId: string;
+    status: RepairRequestRecord['status'];
+  }): Promise<RepairRequestRecord> {
+    const existing = await this.store.findRepairRequest(input.id);
+    if (!existing || existing.institutionId !== input.institutionId) {
+      throw new NotFoundError('Repair request not found');
+    }
+    if (existing.status === input.status) {
+      throw new ConflictError(`Repair request is already ${input.status}`);
+    }
+    const updated = await this.store.updateRepairRequestStatus(
+      input.id,
+      existing.status,
+      input.status,
+    );
+    if (!updated) {
+      throw new ConflictError('Repair request was modified concurrently; reload and retry');
+    }
+    return updated;
   }
 
   // ─── Condition Options Management ────────────────────────────────────────────
