@@ -108,7 +108,15 @@ export type CreateOfferFeeInvoice = (input: {
  * payment: payment state is set only by the verified PSP webhook / callback
  * path. A client `paymentRef` is informational and is not passed (PRC-H079).
  */
-export type AssertOfferFeePaid = (input: { tenantId: string; invoiceId: string }) => Promise<void>;
+export type AssertOfferFeePaid = (input: {
+  tenantId: string;
+  invoiceId: string;
+  /** PRC-M327: the invoice must belong to this application/offer and match the fee. */
+  applicationId: string;
+  offerId: string;
+  expectedAmount: number;
+  expectedCurrency: string;
+}) => Promise<void>;
 
 export type ReconcileOfferResources = (input: {
   tenantId: string;
@@ -375,6 +383,17 @@ export class AdmissionsPipelineService {
   }
 
   async createOffer(tenantId: string, input: CreateOfferDto) {
+    // PRC-M327: offer-fee invoices are server-owned (raised at send). A client
+    // supplied invoice id could reference another applicant's paid invoice.
+    if (input.offerFeeInvoiceId !== undefined) {
+      throw new ValidationError('offerFeeInvoiceId cannot be supplied by the client', [
+        {
+          field: 'offerFeeInvoiceId',
+          rule: 'forbidden',
+          message: 'The offer-fee invoice is raised by the server when the offer is sent',
+        },
+      ]);
+    }
     const application = await this.requireApplication(tenantId, input.applicationId);
     const placement = await this.store.getPlacement(tenantId, application.id);
     if (!placement) {
@@ -401,7 +420,7 @@ export class AdmissionsPipelineService {
       }),
       classId: input.classId ?? null,
     };
-    const offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
+    const offerFeeInvoiceId = null;
     const feeAmount = input.feeAmount ?? 0;
     const feeCurrency = input.feeCurrency ?? 'INR';
     const record: OfferRecord = {
@@ -440,6 +459,10 @@ export class AdmissionsPipelineService {
     }
     await this.assertSeatAvailable(tenantId, offer);
     let offerFeeInvoiceId = offer.offerFeeInvoiceId;
+    if (!offerFeeInvoiceId && offer.feeAmount > 0 && !this.createOfferFeeInvoice) {
+      // PRC-M327: fail closed — a fee offer without an invoice could never be paid.
+      throw new ConflictError('Offer fee invoicing is not configured; cannot send a fee offer');
+    }
     if (!offerFeeInvoiceId && offer.feeAmount > 0 && this.createOfferFeeInvoice) {
       const application = await this.requireApplication(tenantId, offer.applicationId);
       const invoice = await this.createOfferFeeInvoice({
@@ -482,17 +505,15 @@ export class AdmissionsPipelineService {
     if (effective.status === 'expired') {
       throw new BusinessRuleError('Offer has expired');
     }
-    if (effective.status !== 'sent' && effective.status !== 'draft') {
-      throw new BusinessRuleError(`Cannot accept an offer in '${effective.status}' status`);
+    // PRC-M327: only a sent offer can be accepted (drafts were never issued).
+    if (effective.status !== 'sent') {
+      throw new ConflictError(`Cannot accept an offer in '${effective.status}' status`);
     }
     if (effective.feeAmount > 0) {
       // PRC-H079: a fee-bearing offer is accepted only against a verified paid
       // invoice raised at send time. No invoice / no verifier -> fail closed.
-      if (effective.status !== 'sent') {
-        throw new BusinessRuleError('An offer with a fee must be sent before it can be accepted');
-      }
       if (!effective.offerFeeInvoiceId || !this.assertOfferFeePaid) {
-        throw new BusinessRuleError(
+        throw new ConflictError(
           'Offer fee payment cannot be verified; acceptance is blocked until the fee is paid',
         );
       }
@@ -500,8 +521,15 @@ export class AdmissionsPipelineService {
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
 
-    if (effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
-      await this.assertOfferFeePaid({ tenantId, invoiceId: effective.offerFeeInvoiceId });
+    if (effective.feeAmount > 0 && effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
+      await this.assertOfferFeePaid({
+        tenantId,
+        invoiceId: effective.offerFeeInvoiceId,
+        applicationId: effective.applicationId,
+        offerId: effective.id,
+        expectedAmount: effective.feeAmount,
+        expectedCurrency: effective.feeCurrency,
+      });
     }
 
     let enrolledStudentId = effective.enrolledStudentId;
