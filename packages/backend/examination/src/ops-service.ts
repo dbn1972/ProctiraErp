@@ -127,6 +127,21 @@ export interface MarksPairView {
   resolved: boolean;
 }
 
+/** PRC-M230: reject marks above the subject's maximum score (422). */
+function assertMarksWithinSubject(
+  exam: { subjects: ReadonlyArray<{ id: string; maxScore: number }> },
+  subjectId: string,
+  marks: number,
+  field: string,
+): void {
+  const subject = exam.subjects.find((s) => s.id === subjectId);
+  if (subject && marks > subject.maxScore) {
+    throw new BusinessRuleError(
+      `${field} (${marks}) exceeds the subject maximum score (${subject.maxScore})`,
+    );
+  }
+}
+
 export class ExamOpsService {
   private readonly store: ExamOpsStore;
   private readonly examinations: ExaminationRepository;
@@ -524,8 +539,12 @@ export class ExamOpsService {
       }
     }
 
+    // PRC-M230: marks are bounded by the subject maximum.
+    assertMarksWithinSubject(exam, input.subjectId, input.marks, 'marks');
+
     const first = pair.find((e) => e.entryNo === 1);
-    const tolerance = input.tolerance ?? this.varianceTolerance;
+    // PRC-M230: server-side tolerance only — any client-supplied value is ignored.
+    const tolerance = this.varianceTolerance;
     let varianceFlag = false;
     if (input.entryNo === 2 && first) {
       varianceFlag = Math.abs(first.marks - input.marks) > tolerance;
@@ -569,10 +588,11 @@ export class ExamOpsService {
     input: ResolveMarksInput,
     actor: ExamOpsActor,
   ): Promise<MarksPairView> {
-    await this.requireExam(tenantId, examinationId);
+    const exam = await this.requireExam(tenantId, examinationId);
     if (!isModeratorRole(actor.roles)) {
       throw new AppError('Resolving marks variance requires a moderator role', 'FORBIDDEN', 403);
     }
+    assertMarksWithinSubject(exam, input.subjectId, input.finalMarks, 'finalMarks');
     const pair = await this.store.findMarksPair(
       tenantId,
       examinationId,
@@ -716,7 +736,7 @@ export class ExamOpsService {
     input: CompleteReevaluationInput,
     actor: ExamOpsActor,
   ): Promise<ExamReevaluationRecord> {
-    await this.requireExam(tenantId, examinationId);
+    const exam = await this.requireExam(tenantId, examinationId);
     const existing = await this.store.findReevaluation(tenantId, requestId);
     if (!existing || existing.examinationId !== examinationId) {
       throw new NotFoundError(`Re-evaluation request '${requestId}' not found`);
@@ -724,6 +744,7 @@ export class ExamOpsService {
     if (existing.status !== 'assigned') {
       throw new BusinessRuleError(`Cannot complete a re-evaluation in '${existing.status}' status`);
     }
+    assertMarksWithinSubject(exam, existing.subjectId, input.revisedMarks, 'revisedMarks');
     // PRC-H057: write revised marks back (and re-publish) before marking the
     // request completed, so a failure leaves it retryable in 'assigned'.
     const writeBack = await this.writeBackFinalMarks(
