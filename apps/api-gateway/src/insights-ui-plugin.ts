@@ -28,6 +28,7 @@ import {
   seedBoardSummaryForTests,
   type BoardSummary,
 } from './board-summary.js';
+import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { createInsightsUiStore, type InsightsUiStore } from './insights-ui-pg-store.js';
 
 export type { BoardSummary };
@@ -45,7 +46,24 @@ export interface InsightsUiPluginOptions {
   store?: InsightsUiStore;
   /** Force in-memory store even when DATABASE_URL is set (unit tests). */
   forceMemory?: boolean;
+  /**
+   * PRC-M196: serve the fixed demo indicators/geo features and accept demo import jobs.
+   * Default: shouldSeedDemoData() (off in production and whenever DATABASE_URL is set).
+   */
+  demoData?: boolean;
 }
+
+/**
+ * PRC-M196: indicators/geo features are not computed from tenant data yet and import jobs have
+ * no worker. Outside demo mode the routes say so explicitly instead of serving shared,
+ * fabricated rows to every tenant or accepting jobs that would stay QUEUED forever.
+ */
+const NOT_CONNECTED_META = {
+  source: 'not_connected',
+  connected: false,
+  message: 'The data warehouse is not connected for this tenant yet.',
+} as const;
+const DEMO_META = { source: 'demo', connected: false, demo: true } as const;
 
 export const insightsUiPlugin = fp(
   async function insightsUiPluginImpl(
@@ -53,6 +71,7 @@ export const insightsUiPlugin = fp(
     options: InsightsUiPluginOptions = {},
   ) {
     const store = options.store ?? createInsightsUiStore({ forceMemory: options.forceMemory });
+    const demoData = options.demoData ?? shouldSeedDemoData();
 
     // G-809: board rollup (schools, enrolment, attendance, fees, LMS).
     // Unknown boardId → zeros with 200 (never 404).
@@ -101,7 +120,8 @@ export const insightsUiPlugin = fp(
     );
 
     fastify.get('/data-warehouse/indicators', async (_request, reply) => {
-      return reply.send({ data: await store.listIndicators() });
+      if (!demoData) return reply.send({ data: [], meta: NOT_CONNECTED_META });
+      return reply.send({ data: await store.listIndicators(), meta: DEMO_META });
     });
 
     fastify.get('/data-warehouse/import/jobs', async (request, reply) => {
@@ -110,6 +130,14 @@ export const insightsUiPlugin = fp(
     });
 
     fastify.post('/data-warehouse/import/jobs', async (request, reply) => {
+      if (!demoData) {
+        return reply.status(501).send({
+          code: 'DW_IMPORT_NOT_CONNECTED',
+          message:
+            'Warehouse imports are not processed yet: no import worker is connected, so the job was not accepted.',
+          statusCode: 501,
+        });
+      }
       const tenantId = resolveTenantId(request);
       const body = (request.body ?? {}) as {
         source?: 'EXCEL' | 'CSV' | 'DATABASE';
@@ -136,7 +164,8 @@ export const insightsUiPlugin = fp(
     });
 
     fastify.get('/data-warehouse/map/features', async (_request, reply) => {
-      return reply.send({ data: await store.listGeoFeatures() });
+      if (!demoData) return reply.send({ data: [], meta: NOT_CONNECTED_META });
+      return reply.send({ data: await store.listGeoFeatures(), meta: DEMO_META });
     });
   },
   { name: 'insights-ui-aggregates', fastify: '5.x' },

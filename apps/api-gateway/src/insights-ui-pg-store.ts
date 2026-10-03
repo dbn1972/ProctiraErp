@@ -11,6 +11,8 @@ import {
 } from '@proctira/database';
 import type pg from 'pg';
 
+import { shouldSeedDemoData } from './demo-seed-policy.js';
+
 import {
   seedGeoFeatures,
   seedIndicators,
@@ -219,6 +221,9 @@ export class PgInsightsUiStore implements InsightsUiStore {
         ],
       );
     }
+    // PRC-M196: the fixed indicators / demo school are demo data, never production rows in
+    // these shared (non-tenant) tables.
+    if (!shouldSeedDemoData()) return;
     for (const ind of seedIndicators()) {
       await this.pool.query(
         `INSERT INTO insights_ui_indicators
