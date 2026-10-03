@@ -1172,10 +1172,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Pg when DATABASE_URL (db/sql/007_communication_schema.sql); else in-memory.
       // G-604: sandbox delivery adapter + local audit trail on send/dispatch.
       const repository = createCommunicationRepository();
+      const commsParentRepo = createParentPortalRepository();
       await scope.register(communicationPlugin, {
         repository,
         deliveryAdapter: createDeliveryAdapterFromEnv(),
         prefix: '/communication',
+        // PRC-M188: guardians may acknowledge circulars only for linked students.
+        recipientBinding: {
+          listLinkedRecipientIds: async (tenantId, actorId) => {
+            const links = await commsParentRepo.listChildLinksForParent(tenantId, actorId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },

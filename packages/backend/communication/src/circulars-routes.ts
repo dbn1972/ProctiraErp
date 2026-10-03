@@ -25,12 +25,21 @@ import {
   type DeliveryLogQuery,
 } from './circular-schemas.js';
 
-import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
+import {
+  communicationActorId,
+  enforceCommunicationRouteAccess,
+} from './communication-http-guard.js';
 import type { CircularsService } from './circulars-service.js';
+
+/** Resolves identities the caller may acknowledge for besides itself (PRC-M188). */
+export interface CircularRecipientBinding {
+  listLinkedRecipientIds(tenantId: string, actorId: string): Promise<string[]>;
+}
 
 export interface CircularRoutesOptions {
   circularsService: CircularsService;
   prefix?: string;
+  recipientBinding?: CircularRecipientBinding;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -143,7 +152,7 @@ export async function registerCircularRoutes(
   fastify: FastifyInstance,
   options: CircularRoutesOptions,
 ): Promise<void> {
-  const { circularsService, prefix = '/communication' } = options;
+  const { circularsService, prefix = '/communication', recipientBinding } = options;
 
   // W1-SEC-02: package RBAC — staff CRM fail-closed; circular ack allowed for authenticated users.
   fastify.addHook('preHandler', async (request, reply) => {
@@ -270,12 +279,28 @@ export async function registerCircularRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      // PRC-M188: bind the ack to the verified session, never to a body claim.
+      const actorId = communicationActorId(request);
+      if (!actorId) {
+        return reply
+          .status(403)
+          .send({ code: 'FORBIDDEN', message: 'Forbidden', statusCode: 403 });
+      }
+      const recipientId = bodyResult.data.recipientId ?? actorId;
+      if (recipientId !== actorId) {
+        const linked = recipientBinding
+          ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
+          : [];
+        if (!linked.includes(recipientId)) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'You can only acknowledge for yourself or a linked student',
+            statusCode: 403,
+          });
+        }
+      }
       try {
-        const row = await circularsService.ackCircular(
-          tenantId,
-          paramsResult.data.id,
-          bodyResult.data.recipientId,
-        );
+        const row = await circularsService.ackCircular(tenantId, paramsResult.data.id, recipientId);
         return reply.status(200).send(formatCircular(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());

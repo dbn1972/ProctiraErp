@@ -151,7 +151,8 @@ export class CircularsService {
     }
     const ack = await this.store.findAck(tenantId, circularId, recipientId);
     if (!ack) {
-      throw new NotFoundError(`Recipient '${recipientId}' is not on this circular`);
+      // PRC-M188: uniform message — never echo the probed recipient id.
+      throw new NotFoundError('No acknowledgement is pending for you on this circular');
     }
     if (ack.acknowledgedAt) {
       return circular;

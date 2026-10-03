@@ -30,8 +30,13 @@ export const CircularParamsSchema = Type.Object({
 });
 export type CircularParams = Static<typeof CircularParamsSchema>;
 
+/**
+ * PRC-M188: the recipient is resolved from the session. `recipientId` is only
+ * honoured when it is the caller or one of the caller's linked identities
+ * (e.g. a guardian acknowledging for a linked student).
+ */
 export const AckCircularSchema = Type.Object({
-  recipientId: Type.String({ minLength: 1, maxLength: 128 }),
+  recipientId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
 });
 export type AckCircularInput = Static<typeof AckCircularSchema>;
 
