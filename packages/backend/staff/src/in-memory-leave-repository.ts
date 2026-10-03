@@ -3,6 +3,9 @@
  */
 import {
   InsufficientLeaveBalanceError,
+  LeaveBalanceMissingError,
+  LeaveNotPendingError,
+  type DecideLeaveAtomicInput,
   type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
@@ -93,5 +96,43 @@ export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
       throw new InsufficientLeaveBalanceError(leaveType, -deltaDays, available);
     }
     return this.setBalance(tenantId, staffId, leaveType, next);
+  }
+  async decideLeaveAtomically(
+    tenantId: string,
+    leaveId: string,
+    input: DecideLeaveAtomicInput,
+  ): Promise<StaffLeaveEntity | null> {
+    // No await between check and write: atomic on the single JS thread.
+    const index = this.leaves.findIndex((l) => l.id === leaveId && l.tenantId === tenantId);
+    if (index === -1) return null;
+    const leave = this.leaves[index]!;
+    if (leave.status !== 'pending') throw new LeaveNotPendingError(leave.status);
+    let nextBalance: StaffLeaveBalanceEntity | null = null;
+    if (input.debitDays !== null && input.debitDays > 0) {
+      const key = this.balanceKey(tenantId, leave.staffId, leave.leaveType);
+      const current = this.balances.get(key);
+      if (!current) throw new LeaveBalanceMissingError(leave.staffId, leave.leaveType);
+      const next = current.balanceDays - input.debitDays;
+      if (next < 0) {
+        throw new InsufficientLeaveBalanceError(
+          leave.leaveType,
+          input.debitDays,
+          current.balanceDays,
+        );
+      }
+      nextBalance = { ...current, balanceDays: next, updatedAt: new Date() };
+    }
+    const updated: StaffLeaveEntity = {
+      ...leave,
+      status: input.status,
+      decidedBy: input.decidedBy,
+      decidedAt: input.decidedAt,
+      updatedAt: new Date(),
+    };
+    if (nextBalance) {
+      this.balances.set(this.balanceKey(tenantId, leave.staffId, leave.leaveType), nextBalance);
+    }
+    this.leaves[index] = updated;
+    return updated;
   }
 }
