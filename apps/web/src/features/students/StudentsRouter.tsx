@@ -13,7 +13,6 @@ const StudentsDirectory = lazy(() => import('./pages/StudentsDirectory'));
 const StudentEnrollment = lazy(() => import('./pages/StudentEnrollment'));
 const StudentTransfer = lazy(() => import('./pages/StudentTransfer'));
 const StudentRecords = lazy(() => import('./pages/StudentRecords'));
-const StudentBulkImport = lazy(() => import('./pages/StudentBulkImport'));
 
 function RedirectTo({ href }: { href: string }) {
   if (typeof window !== 'undefined') window.location.replace(href);
@@ -43,7 +42,9 @@ export default function StudentsRouter() {
         <Route path="directory" element={<StudentsDirectory />} />
         <Route path="enroll" element={<StudentEnrollment />} />
         <Route path="new" element={<RedirectTo href="/students/new" />} />
-        <Route path="import" element={<StudentBulkImport />} />
+        {/* PRC-M569: the federated wizard called routes/payloads the backend never
+            served; bulk import lives on the App Router page. */}
+        <Route path="import" element={<RedirectTo href="/students/import" />} />
         <Route path="records" element={<StudentRecords />} />
         <Route path=":id/transfer" element={<StudentTransfer />} />
         <Route path=":id/enroll" element={<ProfileEnrollRedirect />} />
