@@ -737,7 +737,11 @@ export async function registerDeveloperPortalRoutes(
           tenantId,
           bodyResult.data,
         );
-        return reply.status(201).send(formatWebhookResponse(webhook));
+        // PRC-M211: a server-generated signing secret is shown exactly once, at creation.
+        return reply.status(201).send({
+          ...formatWebhookResponse(webhook),
+          ...(webhook.signingSecret ? { signingSecret: webhook.signingSecret } : {}),
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
