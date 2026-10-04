@@ -95,13 +95,15 @@ test.describe('Reports catalogue — live chain (E2E_BACKEND_READY)', () => {
       data: { templateId: 'tpl-enrolment-summary', format: 'CSV' },
     });
     expect(create.status(), await create.text()).toBe(201);
-    const run = (await create.json()) as { artifactId: string; sha256: string };
+    const run = (await create.json()) as {
+      artifactId: string;
+      sha256: string;
+      downloadUrl: string;
+    };
     expect(run.sha256).toMatch(/^[0-9a-f]{64}$/);
-
-    const download = await request.get(
-      `${GATEWAY_URL}/api/v1/reports/artifacts/${run.artifactId}/download`,
-      { headers: headers() },
-    );
+    // PRC-C009: downloads require the signed token carried in the generate response's downloadUrl.
+    expect(run.downloadUrl).toContain('token=');
+    const download = await request.get(`${GATEWAY_URL}${run.downloadUrl}`, { headers: headers() });
     expect(download.status()).toBe(200);
     const bytes = Buffer.from(await download.body());
     const digest = createHash('sha256').update(bytes).digest('hex');
@@ -165,12 +167,16 @@ test.describe('Reports catalogue — live chain (E2E_BACKEND_READY)', () => {
       data: { reportKey: 'fee_dues', format: 'csv' },
     });
     expect(create.status(), await create.text()).toBe(201);
-    const run = (await create.json()) as { artifactId: string };
-
-    const denied = await request.get(
-      `${GATEWAY_URL}/api/v1/reports/artifacts/${run.artifactId}/download`,
-      { headers: headers(TENANT_B) },
-    );
-    expect(denied.status()).toBe(404);
+    const run = (await create.json()) as { artifactId: string; downloadUrl: string };
+    // Tenant B cannot even see the artifact metadata (no id probing).
+    const meta = await request.get(`${GATEWAY_URL}/api/v1/reports/artifacts/${run.artifactId}`, {
+      headers: headers(TENANT_B),
+    });
+    expect(meta.status()).toBe(404);
+    // PRC-C009: tenant A's signed token is bound to tenant A, so replaying it as tenant B is refused.
+    const denied = await request.get(`${GATEWAY_URL}${run.downloadUrl}`, {
+      headers: headers(TENANT_B),
+    });
+    expect(denied.status()).toBe(403);
   });
 });
