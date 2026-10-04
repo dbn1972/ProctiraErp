@@ -7,6 +7,7 @@ import { Button } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { payInvoiceStaffAction } from '@/lib/fees/actions';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 
 export function PayInvoiceStaffButton({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
@@ -14,11 +15,14 @@ export function PayInvoiceStaffButton({ invoiceId }: { invoiceId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // PRC-H058: minted when the confirm opens; repeated confirms reuse it.
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   function onConfirmPay() {
+    const key = idempotencyKey ?? generateIdempotencyKey();
     startTransition(async () => {
       setError(null);
-      const result = await payInvoiceStaffAction(invoiceId);
+      const result = await payInvoiceStaffAction(invoiceId, key);
       if (!result.success) {
         setError(result.error);
         return;
@@ -36,7 +40,10 @@ export function PayInvoiceStaffButton({ invoiceId }: { invoiceId: string }) {
         disabled={!hydrated || pending}
         data-testid="staff-pay-invoice"
         data-hydrated={hydrated ? 'true' : 'false'}
-        onClick={() => setConfirmOpen(true)}
+        onClick={() => {
+          setIdempotencyKey(generateIdempotencyKey());
+          setConfirmOpen(true);
+        }}
       >
         {pending ? 'Paying…' : 'Pay (sandbox)'}
       </Button>

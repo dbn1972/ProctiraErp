@@ -67,7 +67,11 @@ export const createOfferFormSchema = z.object({
 
 export const acceptOfferFormSchema = z.object({
   offerId: uuid,
-  paymentRef: z.string().min(1).max(100),
+  /** PRC-H079: informational only; the server verifies the paid fee invoice. */
+  paymentRef: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().min(1).max(100).optional(),
+  ),
   offerFeeInvoiceId: z.string().uuid().optional(),
 });
 

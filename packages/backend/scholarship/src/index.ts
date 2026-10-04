@@ -21,6 +21,18 @@ export { isPlaceholderId } from './application-intake.js';
 
 // Service
 export { ScholarshipService } from './scholarship-service.js';
+export type { FeeOutboxDrainResult } from './scholarship-service.js';
+export {
+  InMemoryScholarshipFeeOutbox,
+  PgScholarshipFeeOutbox,
+  outboxBackoffMs,
+} from './scholarship-fee-outbox.js';
+export type {
+  ScholarshipFeeOutbox,
+  ScholarshipFeeOutboxRow,
+  ScholarshipFeeOutboxEvent,
+  ScholarshipTxClient,
+} from './scholarship-fee-outbox.js';
 export type {
   WorkflowEngineClient,
   ScholarshipServiceOptions,
@@ -54,6 +66,7 @@ export { InMemoryScholarshipRepository } from './in-memory-repository.js';
 
 // Postgres factory (G-204)
 export {
+  createScholarshipFeeOutbox,
   createScholarshipRepository,
   isPgScholarshipEnabled,
 } from './create-scholarship-repository.js';

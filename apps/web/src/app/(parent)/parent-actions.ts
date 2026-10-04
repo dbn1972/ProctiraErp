@@ -107,12 +107,14 @@ export async function payInvoiceAction(invoiceId: string): Promise<ParentActionS
 
 export async function acceptGuardianOfferAction(input: {
   offerId: string;
-  paymentRef: string;
+  paymentRef?: string;
   offerFeeInvoiceId?: string;
 }): Promise<ParentActionState> {
   try {
+    const paymentRef = input.paymentRef?.trim();
     const offer = await acceptGuardianOffer(input.offerId, {
-      paymentRef: input.paymentRef,
+      // PRC-H079: informational only; acceptance is gated on the paid fee invoice.
+      paymentRef: paymentRef ? paymentRef : undefined,
       offerFeeInvoiceId: input.offerFeeInvoiceId,
     });
     revalidatePath('/parent/offers');

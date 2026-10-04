@@ -70,8 +70,19 @@ export const bulkInvoiceFormSchema = z.object({
     .refine((raw) => !raw || isValidIsoDate(raw), { message: 'Due date must be YYYY-MM-DD' }),
 });
 
+/**
+ * PRC-H058: client-minted per-submission key forwarded as the gateway
+ * `Idempotency-Key` header so a double-submit / retried money action is
+ * executed at most once.
+ */
+const idempotencyKeyField = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  .optional();
+
 export const concessionFormSchema = z
   .object({
+    idempotencyKey: idempotencyKeyField,
     studentId: z.string().regex(UUID, 'Student must be a UUID'),
     structureId: z.string().regex(UUID, 'Structure must be a UUID'),
     invoiceId: z.string().regex(UUID).optional().or(z.literal('')),
@@ -103,6 +114,7 @@ export const concessionFormSchema = z
   });
 
 export const refundFormSchema = z.object({
+  idempotencyKey: idempotencyKeyField,
   invoiceId: z.string().regex(UUID, 'Invoice is required'),
   amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
   reason: z.string().min(1, 'Reason is required').max(2000),
@@ -124,6 +136,7 @@ export const resolveReconExceptionFormSchema = z.object({
  * gateway credits the verified paid disbursement amount.
  */
 export const scholarshipNettingFormSchema = z.object({
+  idempotencyKey: idempotencyKeyField,
   studentId: z.string().regex(UUID, 'Student must be a UUID'),
   disbursementId: z.string().min(1, 'Select a paid disbursement').max(200),
   invoiceId: z.string().regex(UUID, 'Invoice must be a UUID').optional().or(z.literal('')),

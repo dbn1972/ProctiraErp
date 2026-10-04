@@ -15,7 +15,16 @@ const INSTITUTION = randomUUID();
 const PERIOD = randomUUID();
 const GRADE = randomUUID();
 
-function setup(opts: { feeHooks?: boolean } = {}) {
+function setup(
+  opts: {
+    feeHooks?: boolean;
+    verifyOwnership?: (input: {
+      tenantId: string;
+      applicationId: string;
+      invoiceId: string;
+    }) => Promise<boolean>;
+  } = {},
+) {
   const store = new InMemoryAdmissionsPipelineStore();
   const apps = new InMemoryRegistrationRepository();
   /** Fake fee ledger: invoiceId -> status. Only `pay()` (the webhook) marks paid. */
@@ -45,7 +54,30 @@ function setup(opts: { feeHooks?: boolean } = {}) {
           }
         }
       : undefined,
+    undefined,
+    undefined,
+    opts.verifyOwnership,
   );
+  async function application() {
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+    const enquiry = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Owner',
+      lastName: 'Check',
+      dateOfBirth: '2013-03-03',
+      guardianName: 'Guardian',
+      guardianPhone: '+91777',
+      guardianEmail: 'guardian@family.test',
+    });
+    return (await service.convertEnquiry(TENANT, enquiry.id)).application;
+  }
   async function sentOffer(feeAmount: number, send = true) {
     await service.upsertSeat(TENANT, {
       institutionId: INSTITUTION,
@@ -77,6 +109,7 @@ function setup(opts: { feeHooks?: boolean } = {}) {
     invoices,
     enrolments,
     sentOffer,
+    application,
     get recordedPayments() {
       return recordedPayments;
     },
@@ -154,5 +187,58 @@ describe('PRC-H079 offer fee payment proof', () => {
     const offer = await ctx.sentOffer(0);
     const accepted = await ctx.service.acceptOffer(TENANT, offer.id, {});
     expect(accepted.status).toBe('accepted');
+  });
+});
+
+describe('PRC-H079 create-time offer invoice ownership', () => {
+  it('rejects a staff-supplied invoice that the verifier says is not this application', async () => {
+    const seen: unknown[] = [];
+    const ctx = setup({
+      verifyOwnership: async (input) => {
+        seen.push(input);
+        return false;
+      },
+    });
+    const app = await ctx.application();
+    const foreign = randomUUID();
+    await expect(
+      ctx.service.createOffer(TENANT, {
+        applicationId: app.id,
+        feeAmount: 500,
+        offerFeeInvoiceId: foreign,
+      }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+    expect(seen).toEqual([{ tenantId: TENANT, applicationId: app.id, invoiceId: foreign }]);
+  });
+
+  it('fails closed when no ownership verifier is wired', async () => {
+    const ctx = setup();
+    const app = await ctx.application();
+    await expect(
+      ctx.service.createOffer(TENANT, {
+        applicationId: app.id,
+        feeAmount: 500,
+        offerFeeInvoiceId: randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+  });
+
+  it("keeps the application's own verified invoice", async () => {
+    const ctx = setup({ verifyOwnership: async () => true });
+    const app = await ctx.application();
+    const own = randomUUID();
+    const offer = await ctx.service.createOffer(TENANT, {
+      applicationId: app.id,
+      feeAmount: 500,
+      offerFeeInvoiceId: own,
+    });
+    expect(offer.offerFeeInvoiceId).toBe(own);
+  });
+
+  it('needs no verifier when the invoice is left to be raised on send', async () => {
+    const ctx = setup();
+    const app = await ctx.application();
+    const offer = await ctx.service.createOffer(TENANT, { applicationId: app.id, feeAmount: 500 });
+    expect(offer.offerFeeInvoiceId).toBeNull();
   });
 });

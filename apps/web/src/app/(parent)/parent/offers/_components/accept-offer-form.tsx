@@ -27,7 +27,7 @@ export function AcceptOfferForm({ offer }: { offer: ParentAdmissionOffer }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [paymentRef, setPaymentRef] = useState('SANDBOX-PAY');
+  const [paymentRef, setPaymentRef] = useState('');
 
   if (offer.status !== 'sent') {
     return null;
@@ -38,7 +38,7 @@ export function AcceptOfferForm({ offer }: { offer: ParentAdmissionOffer }) {
       setError(null);
       const result = await acceptGuardianOfferAction({
         offerId: offer.id,
-        paymentRef: paymentRef.trim(),
+        paymentRef: paymentRef.trim() || undefined,
         offerFeeInvoiceId: offer.offerFeeInvoiceId ?? undefined,
       });
       if (result.status === 'error') {
@@ -62,11 +62,10 @@ export function AcceptOfferForm({ offer }: { offer: ParentAdmissionOffer }) {
         setConfirmOpen(true);
       }}
     >
-      <FormField id={`pay-ref-${offer.id}`} label="Payment reference">
+      <FormField id={`pay-ref-${offer.id}`} label="Payment reference (optional)">
         <Input
           id={`pay-ref-${offer.id}`}
           name="paymentRef"
-          required
           value={paymentRef}
           onChange={(event) => setPaymentRef(event.target.value)}
           disabled={!hydrated || pending}
@@ -81,13 +80,13 @@ export function AcceptOfferForm({ offer }: { offer: ParentAdmissionOffer }) {
         disabled={!hydrated || pending}
         data-testid="parent-accept-offer"
       >
-        {pending ? 'Accepting…' : 'Pay (sandbox) & accept'}
+        {pending ? 'Accepting…' : 'Accept offer'}
       </Button>
       <ConfirmActionDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Accept this offer?"
-        description={`This enrols the student and records payment ${formatFee(offer.feeAmount, offer.feeCurrency)}. Acceptance cannot be undone from the parent portal.`}
+        description={`This enrols the student once the offer fee of ${formatFee(offer.feeAmount, offer.feeCurrency)} has been paid. Acceptance cannot be undone from the parent portal.`}
         confirmLabel="Accept & enrol"
         pending={pending}
         onConfirm={onConfirmAccept}
