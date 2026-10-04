@@ -67,6 +67,8 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
     process.env['ALLOW_IN_MEMORY_FALLBACK'] = '1';
     // W1-ARCH-02: production refuses in-memory rate limits without explicit opt-in.
     process.env['ALLOW_IN_MEMORY_RATE_LIMIT'] = '1';
+    // PRC-M011: headless HS-JWT boot in production needs an explicit opt-in.
+    process.env['ALLOW_LOCAL_HS_AUTH'] = '1';
     delete process.env['REDIS_URL'];
 
     const config: GatewayConfig = {
@@ -98,5 +100,38 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
         tenantSessionRevocationStore: new MemoryTenantSessionRevocationStore(),
       }),
     ).rejects.toThrow(/MFA_EXPOSE_OTP/);
+  });
+});
+
+describe('auth boot policy through buildApp (PRC-M011)', () => {
+  const previous = { ...process.env };
+  afterEach(() => {
+    process.env = { ...previous };
+  });
+  it('refuses to boot in production without Keycloak config', async () => {
+    delete process.env['KEYCLOAK_ISSUER'];
+    delete process.env['KEYCLOAK_CLIENT_ID'];
+    delete process.env['ALLOW_LOCAL_HS_AUTH'];
+    delete process.env['DATABASE_URL'];
+    const config: GatewayConfig = {
+      port: 0,
+      host: '127.0.0.1',
+      env: 'production',
+      rateLimiting: { windowMs: 60000, maxRequests: 100 },
+      cors: { origins: ['https://app.example.com'], methods: ['GET'], credentials: true },
+      jwt: {
+        secret: 'a-very-long-production-grade-secret-value-1234567890',
+        issuer: 'proctira',
+        audience: 'proctira-api',
+        accessTokenExpiresIn: '15m',
+      },
+      tenant: { baseDomain: 'proctira.org', headerName: 'x-tenant-id' },
+      services: {
+        auth: { prefix: '/auth', target: 'http://127.0.0.1:1', healthCheck: '/health' },
+      },
+    };
+    await expect(
+      buildApp({ config, accessTokenRevocationStore: new MemoryAccessTokenRevocationStore() }),
+    ).rejects.toThrow(/Keycloak is not configured/);
   });
 });

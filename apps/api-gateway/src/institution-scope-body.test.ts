@@ -119,6 +119,8 @@ describe('PRC-H004 body institutionId school scope', () => {
       ['GET', `/api/v1/institutions/${SCHOOL_B}`],
       ['PUT', `/api/v1/institutions/${SCHOOL_B}`],
       ['POST', `/api/v1/institutions/${SCHOOL_B}/deactivate`],
+      // PRC-M018: the per-school overview aggregate is scope-gated too.
+      ['GET', `/api/v1/institutions/${SCHOOL_B}/overview`],
     ] as const) {
       const res = await app.inject({
         method,

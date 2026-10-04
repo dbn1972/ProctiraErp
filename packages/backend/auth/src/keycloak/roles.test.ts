@@ -20,17 +20,31 @@ describe('mapKeycloakRoles', () => {
 });
 
 describe('extractKeycloakRoleNames', () => {
-  it('reads realm, resource, and top-level role claims', () => {
-    const names = extractKeycloakRoleNames({
-      roles: ['staff'],
-      realm_access: { roles: ['teacher'] },
-      resource_access: { 'proctira-gateway': { roles: ['admin'] } },
-    });
+  it('reads realm roles and only the configured client roles (PRC-M178)', () => {
+    const names = extractKeycloakRoleNames(
+      {
+        roles: ['staff'],
+        realm_access: { roles: ['teacher'] },
+        resource_access: {
+          'proctira-gateway': { roles: ['admin'] },
+          'other-client': { roles: ['super-admin'] },
+        },
+      },
+      'proctira-gateway',
+    );
+    expect(names.sort()).toEqual(['admin', 'teacher']);
+  });
 
-    expect(names.sort()).toEqual(['admin', 'staff', 'teacher']);
+  it('ignores roles granted on other clients and the top-level roles claim (PRC-M178)', () => {
+    const payload = {
+      roles: ['super-admin'],
+      resource_access: { 'other-client': { roles: ['super-admin', 'admin'] } },
+    };
+    expect(extractKeycloakRoleNames(payload, 'proctira-gateway')).toEqual([]);
+    expect(mapKeycloakRoles(extractKeycloakRoleNames(payload, 'proctira-gateway'))).toEqual([]);
+    expect(extractKeycloakRoleNames(payload)).toEqual([]);
   });
 });
-
 describe('keycloakRoleCatalog', () => {
   it('exposes the six school roles Keycloak manages', () => {
     expect(keycloakRoleCatalog().map((role) => role.roleId)).toEqual([

@@ -65,6 +65,7 @@ describe('Keycloak identity projection (PRC-L283)', () => {
       {
         sub: 'kc-1',
         iss: issuer,
+        azp: 'proctira-gateway',
         exp: now + 600,
         email: 'a@school.in',
         email_verified: true,

@@ -78,6 +78,29 @@ describe('auth control-plane Postgres stores (live)', () => {
     expect(row?.expiresAt).toBeInstanceOf(Date);
   });
 
+  it.skipIf(!pool)('OTP verifyAttempt is atomic across parallel calls (PRC-M177)', async () => {
+    const tenantId = await newTenantId();
+    const mfaToken = randomUUID();
+    const store = new PgOtpChallengeStore(pool!);
+    await store.create({
+      id: randomUUID(),
+      mfaToken,
+      userId: randomUUID(),
+      tenantId,
+      phone: '+911234567890',
+      codeHash: 'x',
+      expiresAt: new Date(Date.now() + 300_000),
+      consumedAt: null,
+      attemptCount: 0,
+      createdAt: new Date(),
+    });
+    const wrong = await Promise.all(
+      Array.from({ length: 20 }, () => store.verifyAttempt(mfaToken, () => false, 5, new Date())),
+    );
+    expect(wrong.filter((o) => o.status === 'mismatch')).toHaveLength(5);
+    expect((await store.findByToken(mfaToken))?.attemptCount).toBe(5);
+  });
+
   it.skipIf(!pool)('Keycloak identities link once and are found on re-login', async () => {
     const store = new PgKeycloakIdentityStore(pool!);
     const tenantId = await newTenantId();

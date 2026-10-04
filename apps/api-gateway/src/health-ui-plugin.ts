@@ -65,6 +65,12 @@ interface JwtUserLike {
   guardianOfStudentIds?: string[];
 }
 
+function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = Number.parseInt(String(raw ?? ''), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 function extractRoleNames(user: JwtUserLike | undefined): string[] {
   if (!user?.roles) return [];
   return user.roles
@@ -413,6 +419,54 @@ export const healthUiPlugin = fp(
       return buildDomainRecords(tenantId, allergies, conditions);
     };
 
+    /**
+     * PRC-M007: the detail route reads only this student's allergy / condition
+     * rows (bounded, paged per-student repository queries) instead of loading
+     * every tenant row and filtering in memory.
+     */
+    const PER_STUDENT_PAGE_SIZE = 200;
+    const PER_STUDENT_MAX_PAGES = 10;
+    const collectStudentRows = async <T>(
+      list: (page: number) => Promise<{ data: T[]; meta: { totalPages: number } }>,
+    ): Promise<T[]> => {
+      const rows: T[] = [];
+      for (let page = 1; page <= PER_STUDENT_MAX_PAGES; page += 1) {
+        const result = await list(page);
+        rows.push(...result.data);
+        if (page >= result.meta.totalPages) break;
+      }
+      return rows;
+    };
+    const liveRecordForStudent = async (
+      tenantId: string,
+      studentId: string,
+    ): Promise<UiHealthRecord | undefined> => {
+      if (!repository) return undefined;
+      if (
+        typeof repository.listAllergiesByStudent !== 'function' ||
+        typeof repository.listConditionsByStudent !== 'function'
+      ) {
+        return (await liveRecords(tenantId)).find((r) => r.studentId === studentId);
+      }
+      const [allergies, conditions] = await Promise.all([
+        collectStudentRows((page) =>
+          repository.listAllergiesByStudent(tenantId, studentId, {
+            page,
+            pageSize: PER_STUDENT_PAGE_SIZE,
+          }),
+        ),
+        collectStudentRows((page) =>
+          repository.listConditionsByStudent(tenantId, studentId, {
+            page,
+            pageSize: PER_STUDENT_PAGE_SIZE,
+          }),
+        ),
+      ]);
+      return buildDomainRecords(tenantId, allergies, conditions).find(
+        (r) => r.studentId === studentId,
+      );
+    };
+
     fastify.get('/health/records', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
       if (!tenantId) return;
@@ -444,7 +498,7 @@ export const healthUiPlugin = fp(
         const { studentId } = request.params;
         try {
           const context = await accessContextOf(request, tenantId);
-          const live = (await liveRecords(tenantId)).find((r) => r.studentId === studentId);
+          const live = await liveRecordForStudent(tenantId, studentId);
           if (live) {
             // Out-of-scope students are indistinguishable from missing ones.
             if ((await filterByStudent([live], tenantId, context)).length === 0) {
@@ -529,20 +583,38 @@ export const healthUiPlugin = fp(
       }
     });
 
-    fastify.get('/health/screenings', async (request, reply) => {
-      const tenantId = assertHealthAccess(request, reply);
-      if (!tenantId) return;
-      const seeded = forTenant(seed.screenings, tenantId);
-      let live: UiScreeningProgram[] = [];
-      if (repository) {
-        const page = await repository.listScreeningPrograms(tenantId, { page: 1, pageSize: 500 });
-        live = page.data.map(mapDomainScreening);
-      }
-      return reply.send({
-        data: mergeById(seeded, live),
-        meta: sourceMeta(repository, live.length, seeded.length),
-      });
-    });
+    // PRC-M007: paged (page / pageSize ≤ 500) with totals, instead of a silent
+    // first-500 cap. `meta.truncated` is true whenever more pages exist.
+    fastify.get<{ Querystring: { page?: string; pageSize?: string } }>(
+      '/health/screenings',
+      async (request, reply) => {
+        const tenantId = assertHealthAccess(request, reply);
+        if (!tenantId) return;
+        const page = clampInt(request.query?.page, 1, 1, 100_000);
+        const pageSize = clampInt(request.query?.pageSize, 100, 1, 500);
+        const seeded = page === 1 ? forTenant(seed.screenings, tenantId) : [];
+        let live: UiScreeningProgram[] = [];
+        let totalItems = 0;
+        let totalPages = 1;
+        if (repository) {
+          const result = await repository.listScreeningPrograms(tenantId, { page, pageSize });
+          live = result.data.map(mapDomainScreening);
+          totalItems = result.meta.totalItems;
+          totalPages = result.meta.totalPages;
+        }
+        return reply.send({
+          data: mergeById(seeded, live),
+          meta: {
+            ...sourceMeta(repository, live.length, seeded.length),
+            page,
+            pageSize,
+            totalItems,
+            totalPages,
+            truncated: page < totalPages,
+          },
+        });
+      },
+    );
   },
   { name: 'health-ui-aggregates', fastify: '5.x' },
 );

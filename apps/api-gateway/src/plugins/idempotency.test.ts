@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import idempotencyPlugin, { InMemoryIdempotencyStore, type RedisClient } from './idempotency.js';
+import idempotencyPlugin, {
+  InMemoryIdempotencyStore,
+  isCacheableIdempotentStatus,
+  type RedisClient,
+} from './idempotency.js';
 
 /**
  * In-memory Redis mock for testing the idempotency plugin.
@@ -26,6 +30,11 @@ function createMockRedis(): RedisClient & {
       // Handle 'EX' ttl argument
       if (args[0] === 'EX' && typeof args[1] === 'number') {
         expiresAt = Date.now() + args[1] * 1000;
+      }
+      // SET ... NX (PRC-M019)
+      if (args.includes('NX')) {
+        const existing = store.get(key);
+        if (existing && !(existing.expiresAt && Date.now() > existing.expiresAt)) return null;
       }
       store.set(key, { value, expiresAt });
       return 'OK';
@@ -208,7 +217,7 @@ describe('idempotencyPlugin', () => {
       // Simulate an in-flight request by setting the lock directly
       const tenantId = 'global';
       const key = 'concurrent-key-1';
-      const lockKey = `idempotency:${tenantId}:${key}:lock`;
+      const lockKey = `idempotency:${tenantId}:anon:${key}:lock`;
       await redis.set(lockKey, 'processing', 'EX', 30);
 
       app.post('/test', async () => {
@@ -345,7 +354,7 @@ describe('idempotencyPlugin', () => {
       });
 
       // Verify the lock was released
-      const lockKey = 'idempotency:global:throw-key-1:lock';
+      const lockKey = 'idempotency:global:anon:throw-key-1:lock';
       const lockValue = await redis.get(lockKey);
       expect(lockValue).toBeNull();
     });
@@ -511,9 +520,10 @@ describe('idempotencyPlugin', () => {
         async get(key: string) {
           return store.get(key) ?? null;
         },
-        async set(key: string, value: string) {
+        async set(key: string, value: string, ...args: unknown[]) {
           // Allow lock acquires; fail the first durable response/body write, then allow marker.
           if (key.endsWith(':lock')) {
+            if (args.includes('NX') && store.has(key)) return null;
             store.set(key, value);
             return 'OK';
           }
@@ -552,7 +562,7 @@ describe('idempotencyPlugin', () => {
       expect(first.headers['x-idempotency-replay']).toBe('pending');
       expect(callCount).toBe(1);
 
-      const cached = store.get('idempotency:global:post-mutation-save-fail');
+      const cached = store.get('idempotency:global:anon:post-mutation-save-fail');
       expect(cached).toBeTruthy();
       expect(JSON.parse(cached!).status).toBe('completed_without_body');
 
@@ -577,8 +587,9 @@ describe('idempotencyPlugin', () => {
         async get(key: string) {
           return store.get(key) ?? null;
         },
-        async set(key: string, value: string) {
+        async set(key: string, value: string, ...args: unknown[]) {
           if (key.endsWith(':lock')) {
+            if (args.includes('NX') && store.has(key)) return null;
             store.set(key, value);
             return 'OK';
           }
@@ -612,7 +623,7 @@ describe('idempotencyPlugin', () => {
       expect(first.headers['x-idempotency-replay']).toBe('unsaved');
       expect(callCount).toBe(1);
       // Lock retained so concurrent/retry hits conflict instead of re-mutating.
-      expect(store.get('idempotency:global:total-write-fail:lock')).toBe('processing');
+      expect(store.get('idempotency:global:anon:total-write-fail:lock')).toBeTruthy();
 
       const retry = await app.inject({
         method: 'POST',
@@ -709,5 +720,177 @@ describe('idempotencyPlugin', () => {
       expect(response2.json().count).toBe(2);
       expect(callCount).toBe(2); // Both executed (different keys)
     });
+  });
+});
+
+describe('idempotency scoping, atomic lock and cacheability (PRC-M010/M019/M020)', () => {
+  let app: FastifyInstance;
+  afterEach(async () => {
+    await app.close();
+  });
+
+  /** Simulates gateway auth + tenant + RBAC onRequest gates ahead of the plugin. */
+  async function build(
+    opts: { requireScope?: boolean; denied?: Set<string>; lockTtlSeconds?: number } = {},
+  ) {
+    app = Fastify();
+    app.decorateRequest('tenantId', '');
+    app.decorateRequest('user', null);
+    app.addHook('onRequest', async (request, reply) => {
+      const sub = request.headers['x-test-user'] as string | undefined;
+      if (sub) {
+        (request as unknown as { user: { sub: string } }).user = { sub };
+        (request as unknown as { tenantId: string }).tenantId = 'tenant-1';
+      }
+      if (sub && opts.denied?.has(sub)) {
+        return reply.status(403).send({ code: 'FORBIDDEN' });
+      }
+    });
+    await app.register(idempotencyPlugin, {
+      storeMode: 'memory',
+      redis: new InMemoryIdempotencyStore(),
+      ...(opts.requireScope !== undefined ? { requireScope: opts.requireScope } : {}),
+      ...(opts.lockTtlSeconds ? { lockTtlSeconds: opts.lockTtlSeconds } : {}),
+    });
+  }
+  const post = (user: string | undefined, key: string, payload: unknown, url = '/things') =>
+    app.inject({
+      method: 'POST',
+      url,
+      headers: { 'idempotency-key': key, ...(user ? { 'x-test-user': user } : {}) },
+      payload: payload as Record<string, unknown>,
+    });
+
+  it('user B replaying user A key gets a fresh execution, never A body (M010)', async () => {
+    await build({ requireScope: true });
+    let n = 0;
+    app.post('/things', async (req) => ({
+      id: ++n,
+      by: (req as unknown as { user: { sub: string } }).user.sub,
+    }));
+    expect((await post('alice', 'k1', { a: 1 })).json()).toEqual({ id: 1, by: 'alice' });
+    const b = await post('bob', 'k1', { a: 1 });
+    expect(b.json()).toEqual({ id: 2, by: 'bob' });
+    expect(b.headers['x-idempotency-replay']).toBeUndefined();
+  });
+
+  it('same key with a different path or body returns 422 IDEMPOTENCY_KEY_REUSED (M010)', async () => {
+    await build({ requireScope: true });
+    let n = 0;
+    app.post('/things', async () => ({ id: ++n }));
+    app.post('/other', async () => ({ id: ++n }));
+    expect((await post('alice', 'k2', { a: 1 })).statusCode).toBe(200);
+    const diffBody = await post('alice', 'k2', { a: 2 });
+    expect(diffBody.statusCode).toBe(422);
+    expect(diffBody.json().code).toBe('IDEMPOTENCY_KEY_REUSED');
+    expect((await post('alice', 'k2', { a: 1 }, '/other')).statusCode).toBe(422);
+    // The identical request still replays.
+    const same = await post('alice', 'k2', { a: 1 });
+    expect(same.headers['x-idempotency-replay']).toBe('true');
+    expect(n).toBe(1);
+  });
+
+  it('a caller the RBAC gate rejects gets 403, not the cached body (M010)', async () => {
+    const denied = new Set<string>();
+    await build({ requireScope: true, denied });
+    app.post('/things', async () => ({ secret: 'payload' }));
+    expect((await post('alice', 'k3', {})).statusCode).toBe(200);
+    denied.add('alice');
+    const replay = await post('alice', 'k3', {});
+    expect(replay.statusCode).toBe(403);
+    expect(replay.body).not.toContain('payload');
+  });
+
+  it('requireScope skips idempotency for requests with no tenant/principal (M010)', async () => {
+    await build({ requireScope: true });
+    let n = 0;
+    app.post('/things', async () => ({ id: ++n }));
+    await post(undefined, 'anon', {});
+    const second = await post(undefined, 'anon', {});
+    expect(second.headers['x-idempotency-replay']).toBeUndefined();
+    expect(n).toBe(2);
+  });
+
+  it('20 concurrent POSTs with the same key run the handler exactly once (M019)', async () => {
+    await build({ requireScope: true });
+    let n = 0;
+    app.post('/things', async () => {
+      n += 1;
+      await new Promise((r) => setTimeout(r, 25));
+      return { id: n };
+    });
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => post('alice', 'k4', { x: 1 })),
+    );
+    expect(n).toBe(1);
+    for (const r of results) expect([200, 409]).toContain(r.statusCode);
+    expect(results.filter((r) => r.statusCode === 200)).toHaveLength(1);
+  });
+
+  it('in-memory store implements SET NX', async () => {
+    const store = new InMemoryIdempotencyStore();
+    expect(await store.set('a', '1', 'EX', 60, 'NX')).toBe('OK');
+    expect(await store.set('a', '2', 'EX', 60, 'NX')).toBeNull();
+    expect(await store.get('a')).toBe('1');
+  });
+
+  it('refreshes the lock while a slow handler runs (M019)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await build({ requireScope: true, lockTtlSeconds: 2 });
+      let n = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      app.post('/things', async () => {
+        n += 1;
+        await gate;
+        return { id: n };
+      });
+      const first = post('alice', 'k5', {});
+      await vi.advanceTimersByTimeAsync(5000); // > lock TTL
+      const dup = await post('alice', 'k5', {});
+      expect(dup.statusCode).toBe(409);
+      release();
+      expect((await first).statusCode).toBe(200);
+      expect(n).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('429 is not cached: retry after the window executes the handler (M020)', async () => {
+    await build({ requireScope: true });
+    let n = 0;
+    app.post('/things', async (_req, reply) => {
+      n += 1;
+      if (n === 1) return reply.status(429).send({ code: 'RATE_LIMITED' });
+      return reply.status(201).send({ ok: true });
+    });
+    expect((await post('alice', 'k6', {})).statusCode).toBe(429);
+    const retry = await post('alice', 'k6', {});
+    expect(retry.statusCode).toBe(201);
+    expect(n).toBe(2);
+  });
+
+  it('403 is not cached: after a role grant the same key succeeds (M020)', async () => {
+    await build({ requireScope: true });
+    let granted = false;
+    app.post('/things', async (_req, reply) =>
+      granted
+        ? reply.status(201).send({ ok: true })
+        : reply.status(403).send({ code: 'FORBIDDEN' }),
+    );
+    expect((await post('alice', 'k7', {})).statusCode).toBe(403);
+    granted = true;
+    expect((await post('alice', 'k7', {})).statusCode).toBe(201);
+  });
+
+  it('classifies cacheable statuses (M020)', () => {
+    for (const code of [200, 201, 204, 400, 404, 409, 422]) {
+      expect(isCacheableIdempotentStatus(code)).toBe(true);
+    }
+    for (const code of [401, 403, 408, 423, 429, 500, 503]) {
+      expect(isCacheableIdempotentStatus(code)).toBe(false);
+    }
   });
 });
