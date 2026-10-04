@@ -119,10 +119,11 @@ test.describe('Reports BI — live chain (E2E_BACKEND_READY)', () => {
     expect(created.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(created.artifactId).toBeTruthy();
 
-    const download = await request.get(
-      `${GATEWAY_URL}/api/v1/reports/artifacts/${created.artifactId}/download`,
-      { headers: headers() },
-    );
+    // PRC-C009: downloads require the signed token carried in the generate response's downloadUrl.
+    expect(created.downloadUrl).toContain('token=');
+    const download = await request.get(`${GATEWAY_URL}${created.downloadUrl}`, {
+      headers: headers(),
+    });
     expect(download.status()).toBe(200);
     const bytes = Buffer.from(await download.body());
     const digest = createHash('sha256').update(bytes).digest('hex');

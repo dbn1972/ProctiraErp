@@ -12,7 +12,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { checkAlertRules } from './observability-alert-rules.mjs';
 
@@ -57,20 +57,24 @@ async function loadYaml() {
   } catch {
     /* fall through */
   }
-  // Any installed js-yaml 4.x in the pnpm store (the pinned patch version drifts with the lockfile).
-  let storeCandidates = [];
+  // js-yaml is not a root dependency, so resolve whichever 4.x copy pnpm installed
+  // (the version moves with security overrides; never hardcode it). Newest first.
+  const pnpmStore = join(root, 'node_modules/.pnpm');
+  let pnpmEntries = [];
   try {
-    const { readdirSync } = await import('node:fs');
-    storeCandidates = readdirSync(new URL('../../node_modules/.pnpm/', import.meta.url))
-      .filter((d) => /^js-yaml@4\./.test(d))
-      .map((d) => `../../node_modules/.pnpm/${d}/node_modules/js-yaml/dist/js-yaml.mjs`);
+    pnpmEntries = readdirSync(pnpmStore)
+      .filter((d) => /^js-yaml@4\.\d+\.\d+$/.test(d))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
   } catch {
     /* no pnpm store */
   }
-  const candidates = [...storeCandidates, '../../node_modules/js-yaml/dist/js-yaml.mjs'];
+  const candidates = [
+    ...pnpmEntries.map((d) => join(pnpmStore, d, 'node_modules/js-yaml/dist/js-yaml.mjs')),
+    join(root, 'node_modules/js-yaml/dist/js-yaml.mjs'),
+  ];
   for (const c of candidates) {
     try {
-      return await import(new URL(c, import.meta.url).href);
+      return await import(pathToFileURL(c).href);
     } catch {
       /* try next */
     }

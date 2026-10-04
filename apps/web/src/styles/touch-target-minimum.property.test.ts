@@ -22,10 +22,13 @@
  * **Validates: Requirements 37.3, 41.3, 41.5**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

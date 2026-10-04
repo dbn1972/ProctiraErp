@@ -5,12 +5,15 @@
  * the usedSlots must never exceed totalSlots. Once all slots are filled,
  * further approvals must be rejected.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ScholarshipService } from '../scholarship-service.js';
 import { InMemoryScholarshipRepository } from '../in-memory-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('Scholarship Service - Slot Allocation Invariant (Property)', () => {
   let service: ScholarshipService;

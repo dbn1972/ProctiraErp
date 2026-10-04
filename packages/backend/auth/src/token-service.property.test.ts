@@ -15,7 +15,7 @@
  * **Validates: Requirements 4.2, 4.5**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { TokenService, InvalidRefreshTokenError } from './token-service.js';
 import type { JwtSigner, RefreshTokenStore } from './token-service.js';
@@ -26,6 +26,9 @@ import {
   MAX_ACCESS_TOKEN_EXPIRES,
   MAX_REFRESH_TOKEN_LIFETIME,
 } from '@proctira/auth';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 
