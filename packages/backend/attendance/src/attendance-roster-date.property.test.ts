@@ -18,7 +18,7 @@
  * **Validates: Requirements 9.7**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { BusinessRuleError } from '@proctira/common';
 
@@ -29,6 +29,9 @@ import type {
   AcademicPeriodInfo,
 } from './attendance-repository.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 
