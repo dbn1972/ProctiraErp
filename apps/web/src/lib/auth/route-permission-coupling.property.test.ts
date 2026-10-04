@@ -28,12 +28,15 @@
  *      - Correct-scope persona (exact required permissions) → allowed
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { featureRegistry, getModulesByScope, type FeatureModule } from '../../featureRegistry';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
