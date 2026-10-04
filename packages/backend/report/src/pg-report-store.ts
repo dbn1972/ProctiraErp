@@ -268,7 +268,11 @@ export class PgReportStore implements ReportStore {
     });
   }
 
-  async claimDueSchedules(now: Date, leaseMs: number): Promise<ReportScheduleRecord[]> {
+  async claimDueSchedules(
+    now: Date,
+    leaseMs: number,
+    tenantId?: string,
+  ): Promise<ReportScheduleRecord[]> {
     await ensureSchema(this.pool);
     const leaseUntil = new Date(now.getTime() + Math.max(1_000, leaseMs));
     return withPlatformScope(this.pool as never, async (client) => {
@@ -278,6 +282,7 @@ export class PgReportStore implements ReportStore {
            SELECT id
              FROM report_schedules
             WHERE enabled AND next_run_at <= $1
+              AND ($3::uuid IS NULL OR tenant_id = $3::uuid)
             ORDER BY next_run_at ASC
             FOR UPDATE SKIP LOCKED
          )
@@ -287,7 +292,7 @@ export class PgReportStore implements ReportStore {
            FROM due
           WHERE s.id = due.id
           RETURNING s.*`,
-        [now, leaseUntil],
+        [now, leaseUntil, tenantId ?? null],
       );
       return (rows as Record<string, unknown>[]).map(mapSchedule);
     });

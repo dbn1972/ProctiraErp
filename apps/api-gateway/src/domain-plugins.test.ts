@@ -8,6 +8,7 @@ import { BusinessRuleError } from '@proctira/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assertOfferFeeInvoiceMatchesOffer,
   assertOfferFeeInvoicePaid,
   assertOfferFeePaidHook,
   verifyOfferFeeInvoiceOwnershipHook,
@@ -123,5 +124,27 @@ describe('verifyOfferFeeInvoiceOwnershipHook (PRC-H079)', () => {
 
   it('rejects an unknown / cross-tenant invoice (404)', async () => {
     await expect(hookWith(new Error('not found'))(input)).resolves.toBe(false);
+  });
+});
+
+describe('assertOfferFeeInvoiceMatchesOffer (PRC-M327)', () => {
+  const APP = '11111111-1111-4111-8111-111111111111';
+  const good = {
+    createdBy: 'admissions-offer',
+    description: `Admission application ${APP}`,
+    amountCents: 150000,
+    currency: 'INR',
+  };
+  const offer = { applicationId: APP, expectedAmount: 1500, expectedCurrency: 'INR' };
+  it('accepts the matching admissions invoice', () => {
+    expect(() => assertOfferFeeInvoiceMatchesOffer(good, offer)).not.toThrow();
+  });
+  it.each([
+    ['foreign application', { ...good, description: 'Admission application other' }],
+    ['non-admissions invoice', { ...good, createdBy: 'staff' }],
+    ['cheaper amount', { ...good, amountCents: 100 }],
+    ['other currency', { ...good, currency: 'USD' }],
+  ])('rejects %s', (_label, invoice) => {
+    expect(() => assertOfferFeeInvoiceMatchesOffer(invoice, offer)).toThrow(/does not match/);
   });
 });

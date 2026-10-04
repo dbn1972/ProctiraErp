@@ -381,7 +381,9 @@ describe('RegistrationService', () => {
       expect(status.trackingNumber).toBe(submission.trackingNumber);
       expect(status.status).toBe('pending');
       expect(status.institutionName).toBe('Springfield Elementary');
-      expect(status.applicantName).toBe('Lisa Simpson');
+      // PRC-M331: only the first-name initial is disclosed.
+      expect(status.applicantName).toBe('L.');
+      expect(status).not.toHaveProperty('remarks');
       expect(status.submittedAt).toBeDefined();
       expect(status.updatedAt).toBeDefined();
     });

@@ -4,7 +4,7 @@
  * `paid` (set only by the verified PSP webhook path); the verifier is read-only.
  */
 import { randomUUID } from 'node:crypto';
-import { BusinessRuleError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, ValidationError } from '@proctira/common';
 import { describe, expect, it } from 'vitest';
 import { InMemoryRegistrationRepository } from '../in-memory-repository.js';
 import { AdmissionsPipelineService } from './pipeline-service.js';
@@ -167,19 +167,89 @@ describe('PRC-H079 offer fee payment proof', () => {
 
   it('fails closed for a fee offer when no fee verifier / invoice is configured', async () => {
     const ctx = setup({ feeHooks: false });
-    const offer = await ctx.sentOffer(1000);
+    // PRC-M327: cannot even be sent without invoicing; accept from draft is 409.
+    await expect(ctx.sentOffer(1000)).rejects.toBeInstanceOf(ConflictError);
+    const draft = (await ctx.store.listOffers(TENANT))[0]!;
     await expect(
-      ctx.service.acceptOffer(TENANT, offer.id, { paymentRef: 'x' }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+      ctx.service.acceptOffer(TENANT, draft.id, { paymentRef: 'x' }),
+    ).rejects.toBeInstanceOf(ConflictError);
     expect(ctx.enrolments).toHaveLength(0);
   });
 
-  it('rejects accepting a fee-bearing offer straight from draft', async () => {
+  it('rejects accepting a fee-bearing offer straight from draft (409)', async () => {
     const ctx = setup();
     const draft = await ctx.sentOffer(1000, false);
     await expect(
       ctx.service.acceptOffer(TENANT, draft.id, { paymentRef: 'x' }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('PRC-M327: rejects accepting a zero-fee draft offer (409)', async () => {
+    const ctx = setup();
+    const draft = await ctx.sentOffer(0, false);
+    await expect(ctx.service.acceptOffer(TENANT, draft.id, {})).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(ctx.enrolments).toHaveLength(0);
+  });
+
+  it('PRC-M327: rejects a client-supplied offerFeeInvoiceId on create (400)', async () => {
+    const ctx = setup();
+    const offer = await ctx.sentOffer(0, false);
+    await expect(
+      ctx.service.createOffer(TENANT, {
+        applicationId: offer.applicationId,
+        feeAmount: 1000,
+        offerFeeInvoiceId: randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('PRC-M327: verifier receives application, offer and expected fee', async () => {
+    const calls: unknown[] = [];
+    const store = new InMemoryAdmissionsPipelineStore();
+    const apps = new InMemoryRegistrationRepository();
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      async () => ({ studentId: randomUUID(), enrollmentId: randomUUID() }),
+      async () => ({ invoiceId: randomUUID() }),
+      async (input) => {
+        calls.push(input);
+      },
+    );
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+    const enquiry = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'A',
+      lastName: 'B',
+      dateOfBirth: '2013-03-03',
+      guardianName: 'G',
+      guardianPhone: '+91777',
+    });
+    const converted = await service.convertEnquiry(TENANT, enquiry.id);
+    const offer = await service.createOffer(TENANT, {
+      applicationId: converted.application.id,
+      feeAmount: 1500,
+    });
+    const sent = await service.sendOffer(TENANT, offer.id);
+    await service.acceptOffer(TENANT, offer.id, {});
+    expect(calls).toEqual([
+      expect.objectContaining({
+        invoiceId: sent.offerFeeInvoiceId,
+        applicationId: converted.application.id,
+        offerId: offer.id,
+        expectedAmount: 1500,
+        expectedCurrency: 'INR',
+      }),
+    ]);
   });
 
   it('a zero-fee offer is accepted without any payment reference', async () => {
