@@ -21,6 +21,12 @@ export interface ReportCardJobProcessor {
   processReportCardJob(tenantId: string, jobId: string): Promise<unknown>;
   /** Re-dispatch orphaned DB rows left by create→publish dual-write crashes. */
   reclaimQueuedJobs?(tenantId: string): Promise<number>;
+  /** PRC-H039: cross-tenant boot reclaim. */
+  reclaimQueuedJobsAllTenants?(): Promise<{
+    tenants: number;
+    reclaimed: number;
+    failedTenants: string[];
+  }>;
 }
 
 export interface ReportCardWorkerOptions {
@@ -28,6 +34,8 @@ export interface ReportCardWorkerOptions {
   processor: ReportCardJobProcessor;
   /** Optional tenant to reclaim orphaned queued jobs on start. */
   reclaimTenantId?: string;
+  /** PRC-H039: reclaim queued jobs for every tenant after the consumer binds. */
+  reclaimAllTenants?: boolean;
   topic?: string;
   groupId?: string;
   logger?: ReportCardWorkerLogger;
@@ -100,6 +108,19 @@ export function createReportCardWorker(options: ReportCardWorkerOptions): Report
       );
       running = true;
       options.logger?.info({ topic }, 'report-card worker started');
+      // PRC-H039: after the queue is bound, re-dispatch rows stranded in
+      // `queued` (publish crash / no consumer in an earlier boot).
+      if (options.reclaimAllTenants && options.processor.reclaimQueuedJobsAllTenants) {
+        try {
+          const r = await options.processor.reclaimQueuedJobsAllTenants();
+          options.logger?.info({ ...r }, 'report-card worker boot reclaim complete');
+        } catch (err) {
+          options.logger?.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            'report-card worker boot reclaim failed',
+          );
+        }
+      }
     },
     async stop() {
       if (!running) return;

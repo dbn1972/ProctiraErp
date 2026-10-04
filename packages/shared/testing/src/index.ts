@@ -36,6 +36,10 @@ export {
   withTestTransaction,
   createTransactionScope,
   seedTestData,
+  // PRC-L497: in-memory multi-board fixture (never persists to a database)
+  seedMultiBoardSchools,
+  assertMultiBoardSeedInvariants,
+  DEFAULT_MULTI_BOARD_PROFILE,
 } from './database/index.js';
 
 export type {
@@ -43,6 +47,10 @@ export type {
   TestDatabaseOptions,
   SeedResult,
   SeedOptions,
+  BoardSchoolSeedSpec,
+  MultiBoardSeedOptions,
+  MultiBoardSeedResult,
+  SchoolSeedBundle,
 } from './database/index.js';
 
 // Fixtures

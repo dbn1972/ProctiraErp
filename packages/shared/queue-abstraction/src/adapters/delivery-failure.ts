@@ -44,6 +44,24 @@ export class DeliveryFailureCounter {
   }
 }
 
+/**
+ * PRC-H086: process-wide failed-delivery observers (e.g. a Prometheus counter
+ * registered by the service bootstrap). Every adapter reports through
+ * {@link reportDeliveryFailure}, so one registration covers all consumers
+ * regardless of where the adapter was constructed.
+ */
+const globalDeliveryFailureObservers = new Set<(event: DeliveryFailureEvent) => void>();
+
+/** Register a process-wide failed-delivery observer; returns an unregister function. */
+export function addDeliveryFailureObserver(
+  observer: (event: DeliveryFailureEvent) => void,
+): () => void {
+  globalDeliveryFailureObservers.add(observer);
+  return () => {
+    globalDeliveryFailureObservers.delete(observer);
+  };
+}
+
 export function resolveMaxRetries(message: QueueMessage | undefined, fallback: number): number {
   const raw = message?.metadata?.maxRetries;
   if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
@@ -100,10 +118,12 @@ export function reportDeliveryFailure(
   } else {
     logger?.warn?.(fields, 'queue delivery failed; retrying');
   }
-  try {
-    onFailure?.(event);
-  } catch {
-    // Observability hooks must never break consumption.
+  for (const observer of [onFailure, ...globalDeliveryFailureObservers]) {
+    try {
+      observer?.(event);
+    } catch {
+      // Observability hooks must never break consumption.
+    }
   }
 }
 

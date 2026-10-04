@@ -64,10 +64,13 @@ import {
   createPublicTenantResolver,
   createTenantRepository,
   tenantLifecyclePlugin,
+  KeycloakTenantAdminProvisioner,
   type TenantAdminProvisioner,
+  type TenantDefaultsSeeder,
 } from '@proctira/backend-tenant';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { loggingPlugin } from '@proctira/logging';
-import { observabilityPlugin } from '@proctira/observability';
+import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
@@ -106,6 +109,7 @@ import paginationCapPlugin from './plugins/pagination-cap.js';
 import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
+import { registerQueueObservability } from './queue-observability.js';
 import { createRateLimitRedisClient, decideRateLimitStore } from './rate-limit-store.js';
 import {
   actionForMethod,
@@ -115,6 +119,7 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
@@ -132,6 +137,12 @@ import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 /** Same factory as domain-plugins — Pg or shared in-memory (W1-SEC-06). */
 const sharedPrivacyRepository = createPrivacyRepository();
 
+/** PRC-H099: configured Keycloak provisioner, or undefined (fail closed upstream). */
+function keycloakAdminProvisionerFromEnv(): TenantAdminProvisioner | undefined {
+  const provisioner = KeycloakTenantAdminProvisioner.fromEnv();
+  return provisioner.configured ? provisioner : undefined;
+}
+
 export interface BuildAppOptions {
   config: GatewayConfig;
   /** Optional trusted public tenant resolver override for composition tests. */
@@ -147,6 +158,8 @@ export interface BuildAppOptions {
   tenantSessionRevocationStore?: TenantSessionRevocationStore;
   /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
   tenantSuspendBlocksAuth?: boolean;
+  /** PRC-H099: override the roles/settings seeder used during tenant creation. */
+  tenantDefaultsSeeder?: TenantDefaultsSeeder;
 }
 
 /**
@@ -246,6 +259,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     serviceName: 'api-gateway',
     ignorePaths: ['/health', '/health/live', '/health/ready'],
   });
+  // PRC-H086: failed queue deliveries → queue_delivery_failures_total on /metrics.
+  registerQueueObservability(app);
+  // PRC-L493: register the gateway's catalog SLO (/slo, metrics-access protected).
+  registerServiceSLO(app, SLO_CATALOG['api-gateway']!);
 
   // 3. Register CORS
   await app.register(cors, {
@@ -550,7 +567,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // can exercise SMS OTP without Keycloak.
   // G-731: MFA_EXPOSE_OTP is a local-dev convenience only — refuse it in production.
   const exposeOtp = process.env['MFA_EXPOSE_OTP'] === 'true';
-  if (exposeOtp && process.env['NODE_ENV'] === 'production') {
+  if (exposeOtp && isProductionNodeEnv(process.env['NODE_ENV'])) {
     throw new Error('MFA_EXPOSE_OTP=true is not allowed when NODE_ENV=production');
   }
 
@@ -979,8 +996,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
-    // PRC-H099: no default provisioner — POST /tenant-lifecycle fails closed without one.
-    adminProvisioner: options.tenantAdminProvisioner,
+    // PRC-H099: Keycloak admin provisioner when KEYCLOAK_ADMIN_* is configured;
+    // otherwise none, so POST /tenant-lifecycle fails closed (422) without writes.
+    adminProvisioner: options.tenantAdminProvisioner ?? keycloakAdminProvisionerFromEnv(),
+    defaultsSeeder: options.tenantDefaultsSeeder ?? createTenantDefaultsSeederFromEnv(),
   });
   // PRC-H008 / PRC-H098: the suspension gate reads tenant status from the same repository the
   // lifecycle writes, and lifecycle transitions invalidate this process's cache immediately.

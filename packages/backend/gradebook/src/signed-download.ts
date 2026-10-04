@@ -15,6 +15,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { createLogger } from '@proctira/logging';
 
 export type BoardExportSignedDownload = {
@@ -116,7 +117,7 @@ export function resetDevTranscriptSigningForTests(): void {
 }
 
 function isProduction(env: NodeJS.ProcessEnv): boolean {
-  return env.NODE_ENV === 'production';
+  return isProductionNodeEnv(env.NODE_ENV);
 }
 
 function ensureEphemeralDevKey(env: NodeJS.ProcessEnv, log: TranscriptSigningLog): string {

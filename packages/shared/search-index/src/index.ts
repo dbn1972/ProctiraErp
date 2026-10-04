@@ -18,7 +18,10 @@ export type {
   SearchIndexConfig,
   SearchIndexHealth,
   LegacySearchDocument,
+  SearchPgPoolLike,
 } from './types.js';
+export { PostgresSearchIndex } from './adapters/postgres-search-index.js';
+export type { SearchPgClient, SearchPgPool } from './adapters/postgres-search-index.js';
 
 export { InMemorySearchIndex, TenantScopedSearchIndex } from './adapters/in-memory-search-index.js';
 export { createSearchIndex, createSearchIndexFromEnv } from './factory.js';

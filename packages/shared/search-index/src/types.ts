@@ -72,12 +72,19 @@ export interface SearchIndexAdapter {
 
 /** Factory configuration — only in-memory is wired in Wave 3. */
 export type SearchIndexConfig =
-  | { adapter: 'memory' }
-  | { adapter: 'postgres'; connectionUrl: string };
+  { adapter: 'memory' } | { adapter: 'postgres'; connectionUrl?: string; pool?: SearchPgPoolLike };
 
 /** Legacy document shape used by tenant-isolation gate simulators. */
 export interface LegacySearchDocument {
   id: string;
   tenantId: string;
   content: string;
+}
+
+/** PRC-L494: minimal pg pool shape the Postgres adapter needs (injected). */
+export interface SearchPgPoolLike {
+  connect(): Promise<{
+    query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+    release(): void;
+  }>;
 }
