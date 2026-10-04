@@ -59,4 +59,57 @@ describe('PgStaffLeaveRepository balance concurrency (live)', () => {
       InsufficientLeaveBalanceError,
     );
   });
+
+  it.skipIf(!live)(
+    'PRC-H091 end to end: bulk opening-balance import then approve annual leave',
+    async () => {
+      const repo = new PgStaffLeaveRepository(pool!);
+      const service = new StaffLeaveService(repo);
+      const tenantId = randomUUID();
+      const staffA = randomUUID();
+      const staffB = randomUUID();
+      await ensurePgTestStaff(pool!, tenantId, staffA);
+      await ensurePgTestStaff(pool!, tenantId, staffB);
+      const exists = async (_t: string, id: string) => id === staffA || id === staffB;
+      // A failing row (unknown staff) writes nothing.
+      await expect(
+        service.importOpeningBalances(
+          tenantId,
+          [
+            { staffId: staffA, leaveType: 'annual', balanceDays: 10 },
+            { staffId: randomUUID(), leaveType: 'annual', balanceDays: 10 },
+          ],
+          exists,
+        ),
+      ).rejects.toThrow(/no balances were written/);
+      expect(await repo.getBalance(tenantId, staffA, 'annual')).toBeNull();
+
+      const imported = await service.importOpeningBalances(
+        tenantId,
+        [
+          { staffId: staffA, leaveType: 'annual', balanceDays: 10 },
+          { staffId: staffB, leaveType: 'sick', balanceDays: 4.5 },
+        ],
+        exists,
+      );
+      expect(imported.imported).toBe(2);
+      const leave = await service.createLeave(tenantId, {
+        staffId: staffA,
+        leaveType: 'annual',
+        startDate: '2026-11-02',
+        endDate: '2026-11-04',
+      });
+      const approved = await service.decideLeave(
+        tenantId,
+        leave.id,
+        { status: 'approved' },
+        'hr-1',
+      );
+      expect(approved.status).toBe('approved');
+      expect((await repo.getBalance(tenantId, staffA, 'annual'))?.balanceDays).toBe(7);
+      expect((await repo.getBalance(tenantId, staffB, 'sick'))?.balanceDays).toBe(4.5);
+      // Tenant isolation: another tenant sees none of these balances.
+      expect(await repo.getBalance(randomUUID(), staffA, 'annual')).toBeNull();
+    },
+  );
 });

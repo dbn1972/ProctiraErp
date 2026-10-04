@@ -38,6 +38,8 @@ import {
   InstitutionScopeParamsSchema,
   CreateConditionOptionSchema,
   CreateRepairRequestSchema,
+  RepairRequestParamsSchema,
+  UpdateRepairRequestSchema,
   type CreateLandInput,
   type CreateBuildingInput,
   type CreateFloorInput,
@@ -149,6 +151,39 @@ export async function registerInfrastructureRoutes(
     try {
       const row = await infrastructureService.logRepairRequest(result.data);
       return reply.status(201).send({
+        id: row.id,
+        institutionId: row.institutionId,
+        infrastructureId: row.infrastructureId,
+        summary: row.summary,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    }
+  });
+  // PRC-L124: close / reopen a repair request.
+  fastify.patch(`${prefix}/repair-requests/:id`, async (request, reply) => {
+    const params = validate(RepairRequestParamsSchema, request.params);
+    const body = validate(UpdateRepairRequestSchema, request.body);
+    if (!params.success || !body.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: [...(params.success ? [] : params.errors), ...(body.success ? [] : body.errors)],
+      });
+    }
+    try {
+      const row = await infrastructureService.setRepairRequestStatus({
+        id: params.data.id,
+        institutionId: body.data.institutionId,
+        status: body.data.status,
+      });
+      return reply.send({
         id: row.id,
         institutionId: row.institutionId,
         infrastructureId: row.infrastructureId,

@@ -22,7 +22,9 @@ export type {
   IdentityDocument,
   StudentFilter,
   StudentRepository as CoreStudentRepository,
+  StudentUpdateOptions,
 } from './student-repository.js';
+export { StaleStudentUpdateError } from './student-repository.js';
 
 // Repository implementations
 export { PrismaStudentRepository } from './prisma-student-repository.js';
