@@ -63,7 +63,12 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
     });
     expect(result.success).toBe(false);
     expect(gatewayFetch).not.toHaveBeenCalled();
-    const pay = await payInvoiceStaffAction(INVOICE, 'not-a-key');
+    const pay = await payInvoiceStaffAction({
+      invoiceId: INVOICE,
+      method: 'cash',
+      amount: 1,
+      idempotencyKey: 'not-a-key',
+    });
     expect(pay.success).toBe(false);
     expect(gatewayFetch).not.toHaveBeenCalled();
   });
@@ -101,7 +106,12 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
 
   it('staff pay forwards the client key', async () => {
     gatewayFetch.mockResolvedValue({ ok: true, status: 201, data: { invoice: { id: INVOICE } } });
-    await payInvoiceStaffAction(INVOICE, KEY);
+    await payInvoiceStaffAction({
+      invoiceId: INVOICE,
+      method: 'cash',
+      amount: 1,
+      idempotencyKey: KEY,
+    });
     expect(gatewayFetch.mock.calls[0]![0]).toBe(`/fees/invoices/${INVOICE}/pay`);
     expect(headerOf(gatewayFetch.mock.calls[0]!)).toBe(KEY);
   });
