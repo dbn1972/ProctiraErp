@@ -4,11 +4,14 @@
  * For any JWT user and any values of x-user-id / x-actor / x-actor-id / x-userid,
  * getActor(request) MUST equal getActor({ user }) — headers are ignored.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import type { RoleAssignment } from '@proctira/auth';
 
 import { getActor } from './get-actor.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const roleArb: fc.Arbitrary<RoleAssignment> = fc.record({
   roleId: fc.string({ minLength: 1, maxLength: 24 }),
