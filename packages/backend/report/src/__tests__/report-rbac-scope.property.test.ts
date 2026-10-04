@@ -5,7 +5,7 @@
  * the requesting user's scope. The data source must filter results
  * to only include rows within the user's accessible area IDs.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,6 +17,9 @@ import type {
   ReportDataResult,
 } from '../report-repository.js';
 import type { AggregationConfig } from '../schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * A mock data source that simulates data from multiple areas.

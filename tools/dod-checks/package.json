@@ -20,10 +20,8 @@
     "lint": "echo 'No-op: dod-checks is JavaScript-only (*.mjs ignored by root ESLint)'",
     "typecheck": "echo 'No-op: dod-checks is JavaScript-only'"
   },
-  "dependencies": {
-    "ts-morph": "^22.0.0"
-  },
   "devDependencies": {
-    "@types/node": "^20.12.0"
+    "@types/node": "^20.12.0",
+    "ts-morph": "^22.0.0"
   }
 }
