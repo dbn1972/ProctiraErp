@@ -50,6 +50,14 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
     invoiceNumber: null,
     structureId: null,
   });
+  // PRC-M327: the hook also needs the offer it is accepting (app-1, 10.00 INR = 1000 cents).
+  const offerOf = {
+    tenantId: 't-1',
+    applicationId: 'app-1',
+    offerId: 'offer-1',
+    expectedAmount: 10,
+    expectedCurrency: 'INR',
+  };
   const readerFor = (status: string) => {
     const getInvoice = vi.fn(async () => invoice(status) as never);
     return { getInvoice, factory: () => ({ getInvoice }) };
@@ -59,7 +67,7 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
     const r = readerFor('open');
     const hook = assertOfferFeePaidHook(r.factory);
     await expect(
-      hook({ tenantId: 't-1', invoiceId: 'inv-1', paymentRef: 'SANDBOX-PAY' }),
+      hook({ ...offerOf, invoiceId: 'inv-1', paymentRef: 'SANDBOX-PAY' }),
     ).rejects.toBeInstanceOf(BusinessRuleError);
     expect(r.getInvoice).toHaveBeenCalledWith('t-1', 'inv-1');
   });
@@ -67,7 +75,7 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
   it('passes a paid invoice', async () => {
     const r = readerFor('paid');
     await expect(
-      assertOfferFeePaidHook(r.factory)({ tenantId: 't-1', invoiceId: 'inv-1' }),
+      assertOfferFeePaidHook(r.factory)({ ...offerOf, invoiceId: 'inv-1' }),
     ).resolves.toBeUndefined();
   });
 
@@ -77,7 +85,7 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
         throw new Error('not found');
       },
     }));
-    await expect(hook({ tenantId: 't-1', invoiceId: 'missing' })).rejects.toThrow('not found');
+    await expect(hook({ ...offerOf, invoiceId: 'missing' })).rejects.toThrow('not found');
   });
 });
 

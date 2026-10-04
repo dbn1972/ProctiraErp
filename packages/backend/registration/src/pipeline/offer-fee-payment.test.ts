@@ -261,24 +261,29 @@ describe('PRC-H079 offer fee payment proof', () => {
 });
 
 describe('PRC-H079 create-time offer invoice ownership', () => {
-  it('rejects a staff-supplied invoice that the verifier says is not this application', async () => {
+  // PRC-M327 (#545) supersedes the H079 create-time ownership check: a client-supplied
+  // offerFeeInvoiceId is refused outright (even one the verifier would accept), so a
+  // foreign paid invoice can never be attached; the invoice is raised server-side on send.
+  it.each([
+    ['the verifier says is not this application', false],
+    ['the verifier says is this application', true],
+  ])('rejects a staff-supplied invoice that %s', async (_label, owned) => {
     const seen: unknown[] = [];
     const ctx = setup({
       verifyOwnership: async (input) => {
         seen.push(input);
-        return false;
+        return owned;
       },
     });
     const app = await ctx.application();
-    const foreign = randomUUID();
     await expect(
       ctx.service.createOffer(TENANT, {
         applicationId: app.id,
         feeAmount: 500,
-        offerFeeInvoiceId: foreign,
+        offerFeeInvoiceId: randomUUID(),
       }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
-    expect(seen).toEqual([{ tenantId: TENANT, applicationId: app.id, invoiceId: foreign }]);
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(seen).toEqual([]);
   });
 
   it('fails closed when no ownership verifier is wired', async () => {
@@ -290,19 +295,7 @@ describe('PRC-H079 create-time offer invoice ownership', () => {
         feeAmount: 500,
         offerFeeInvoiceId: randomUUID(),
       }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
-  });
-
-  it("keeps the application's own verified invoice", async () => {
-    const ctx = setup({ verifyOwnership: async () => true });
-    const app = await ctx.application();
-    const own = randomUUID();
-    const offer = await ctx.service.createOffer(TENANT, {
-      applicationId: app.id,
-      feeAmount: 500,
-      offerFeeInvoiceId: own,
-    });
-    expect(offer.offerFeeInvoiceId).toBe(own);
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('needs no verifier when the invoice is left to be raised on send', async () => {
