@@ -271,17 +271,22 @@ export async function listLessonPlansForUnits(
   }
 }
 
+/**
+ * PRC-H022: lesson-plan writes name the route institution; the gateway authorizes it against the
+ * caller's schools and the curriculum service 404s a plan owned by another institution.
+ */
+function lessonPlanPath(id: string, institutionId: string): string {
+  return `/curriculum/lesson-plans/${encodeURIComponent(id)}?institutionId=${encodeURIComponent(institutionId)}`;
+}
 export async function updateLessonPlan(
   id: string,
+  institutionId: string,
   input: { title?: string; plannedDate?: string | null },
 ): Promise<LessonPlan> {
-  const result = await gatewayFetch<LessonPlan>(
-    `/curriculum/lesson-plans/${encodeURIComponent(id)}`,
-    {
-      method: 'PATCH',
-      json: input,
-    },
-  );
+  const result = await gatewayFetch<LessonPlan>(lessonPlanPath(id, institutionId), {
+    method: 'PATCH',
+    json: input,
+  });
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -292,8 +297,8 @@ export async function updateLessonPlan(
   return result.data;
 }
 
-export async function deleteLessonPlan(id: string): Promise<void> {
-  const result = await gatewayFetch<unknown>(`/curriculum/lesson-plans/${encodeURIComponent(id)}`, {
+export async function deleteLessonPlan(id: string, institutionId: string): Promise<void> {
+  const result = await gatewayFetch<unknown>(lessonPlanPath(id, institutionId), {
     method: 'DELETE',
   });
   if (!result.ok && result.status !== 204) {

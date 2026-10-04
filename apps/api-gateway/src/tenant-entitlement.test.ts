@@ -97,7 +97,9 @@ describe('G-106 suspended-tenant entitlement gate', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp({ config: createTestConfig() });
+    // Mutating-only gate = TENANT_SUSPEND_BLOCK_AUTH=false; the default (block everything) is
+    // covered in tenant-suspension-lifecycle.test.ts (PRC-H008).
+    app = await buildApp({ config: createTestConfig(), tenantSuspendBlocksAuth: false });
     await app.ready();
   });
 

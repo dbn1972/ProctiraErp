@@ -88,10 +88,18 @@ describe('curriculum actions and API path encoding (PRC-L241)', () => {
   });
 
   it('encodes path params in lib/api/curriculum', async () => {
-    await deleteLessonPlan('a/../b').catch(() => undefined);
+    await deleteLessonPlan('a/../b', ID).catch(() => undefined);
     expect(gatewayFetch).toHaveBeenCalledWith(
-      '/curriculum/lesson-plans/a%2F..%2Fb',
+      `/curriculum/lesson-plans/a%2F..%2Fb?institutionId=${ID}`,
       expect.anything(),
+    );
+  });
+  it('lesson-plan actions name the route institution (PRC-H022)', async () => {
+    const PLAN = '22222222-2222-4222-8222-222222222222';
+    await deleteLessonPlanAction(ID, PLAN);
+    expect(gatewayFetch).toHaveBeenCalledWith(
+      `/curriculum/lesson-plans/${PLAN}?institutionId=${ID}`,
+      expect.objectContaining({ method: 'DELETE' }),
     );
   });
 });
