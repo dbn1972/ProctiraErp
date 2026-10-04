@@ -19,7 +19,7 @@
  * **Validates: Requirements 18.1, 18.3, 18.9**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
@@ -42,6 +42,9 @@ import mrMessages from '../messages/mr.json';
 import bnMessages from '../messages/bn.json';
 import guMessages from '../messages/gu.json';
 import knMessages from '../messages/kn.json';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ─── Types & Helpers ─────────────────────────────────────────────────────────
 

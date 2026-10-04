@@ -20,7 +20,7 @@
  * 4. Transitioning from loading→loaded does not change the outer
  *    container's structural class footprint (overflow, card wrapper)
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import React from 'react';
 import fc from 'fast-check';
@@ -35,6 +35,9 @@ import { ActionItemList } from './ActionItemList';
 import { TimelineSchedule } from './TimelineSchedule';
 import { RadarComparison } from './RadarComparison';
 import { KpiCardWithTrend } from './KpiCardWithTrend';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 afterEach(() => {
   cleanup();

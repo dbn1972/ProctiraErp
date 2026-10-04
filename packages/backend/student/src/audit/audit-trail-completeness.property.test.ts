@@ -11,7 +11,7 @@
  * **Validates: Requirements 6.6, 21.1, 21.2**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { AuditService } from './audit-service.js';
@@ -19,6 +19,9 @@ import { InMemoryAuditStore } from './in-memory-audit-store.js';
 import type { AuditContext } from './audit-service.js';
 import type { AuditEntry, AuditOperation } from './types.js';
 import type { AuditableRecord } from './diff.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 

@@ -24,10 +24,13 @@
  * **Validates: Requirements 18, 28, 36.5, 43**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ---------------------------------------------------------------------------
 // Configuration

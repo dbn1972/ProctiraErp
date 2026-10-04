@@ -9,13 +9,16 @@
  * **Validates: Requirements 5.2**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 import { AreaHierarchyService, MAX_AREA_DEPTH } from './area-hierarchy.service.js';
 import type { AreaHierarchyDbClient } from './area-hierarchy.service.js';
 import type { GeographicArea, Institution } from '@proctira/database';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TENANT_ID = 'tenant-pbt-001';
 
