@@ -1,0 +1,1835 @@
+{
+  "description": "Known write routes without a detected audit call (PRC-M410 baseline). New write routes must audit; delete entries as routes gain audit calls.",
+  "entries": [
+    {
+      "file": "packages/backend/admin-dashboard/src/scalability-routes.ts",
+      "route": "POST ${prefix}/cache/flush",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "POST ${prefix}/templates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "PUT ${prefix}/templates/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "DELETE ${prefix}/templates/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "POST ${prefix}/comments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "POST ${prefix}/generate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "POST ${prefix}/generate/bulk",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/report-card-routes.ts",
+      "route": "POST ${prefix}/jobs/:jobId/process",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/result-routes.ts",
+      "route": "POST ${resultsPrefix}/bulk",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/result-routes.ts",
+      "route": "POST ${resultsPrefix}/import",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/routes.ts",
+      "route": "PUT ${gradingSchemesPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/routes.ts",
+      "route": "DELETE ${gradingSchemesPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/assessment/src/routes.ts",
+      "route": "DELETE ${outcomesPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/regularisation",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/regularisation/:id/${decision}",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/leave-requests",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/leave-requests/:id/${decision}",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/devices",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/ops-routes.ts",
+      "route": "POST ${prefix}/ingest",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/routes.ts",
+      "route": "POST ${prefix}/student",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/routes.ts",
+      "route": "POST ${prefix}/student/bulk",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/attendance/src/routes.ts",
+      "route": "POST ${prefix}/staff",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/external-providers/external-auth-routes.ts",
+      "route": "POST ${prefix}/:providerId/callback",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/invite/routes.ts",
+      "route": "POST /admin/users/invite",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/invite/routes.ts",
+      "route": "POST /tenant/users/invite",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/keycloak/routes.ts",
+      "route": "POST ${prefix}/password",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/keycloak/routes.ts",
+      "route": "POST ${prefix}/refresh",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/mfa-routes.ts",
+      "route": "POST ${prefix}/mfa/otp/send",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/mfa-routes.ts",
+      "route": "POST ${prefix}/mfa/otp/resend",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/mfa-routes.ts",
+      "route": "POST ${prefix}/mfa/resend",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/mfa-routes.ts",
+      "route": "POST ${prefix}/mfa/verify",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/routes.ts",
+      "route": "POST ${prefix}/login",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/routes.ts",
+      "route": "POST ${prefix}/refresh",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/auth/src/routes.ts",
+      "route": "POST ${prefix}/logout",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/plans",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "PUT ${prefix}/plans/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/activate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/suspend",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/cancel",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/reactivate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/upgrade",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/subscriptions/:id/downgrade",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/entitlements/check",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/usage/record",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/billing/src/routes.ts",
+      "route": "POST ${prefix}/usage/query",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/circulars-routes.ts",
+      "route": "POST ${prefix}/circulars",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/circulars-routes.ts",
+      "route": "POST ${prefix}/circulars/:id/send",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/circulars-routes.ts",
+      "route": "POST ${prefix}/circulars/:id/ack",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/circulars-routes.ts",
+      "route": "POST ${prefix}/delivery-log/:id/retry",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/routes.ts",
+      "route": "POST ${prefix}/audience/preview",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/routes.ts",
+      "route": "POST ${prefix}/campaigns",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/routes.ts",
+      "route": "POST ${prefix}/emergency",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/communication/src/routes.ts",
+      "route": "POST ${prefix}/emergency/:id/confirm",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "POST ${prefix}/units",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "POST ${prefix}/units/:id/lesson-plans",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "PATCH ${prefix}/lesson-plans/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "DELETE ${prefix}/lesson-plans/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "POST ${prefix}/units/:id/mark-taught",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "DELETE ${prefix}/units/:id/coverage",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "POST ${prefix}/outcomes",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "PATCH ${prefix}/outcomes/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/curriculum/src/routes.ts",
+      "route": "DELETE ${prefix}/outcomes/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/custom-field/src/routes.ts",
+      "route": "POST ${prefix}/definitions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/custom-field/src/routes.ts",
+      "route": "PUT ${prefix}/definitions/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/custom-field/src/routes.ts",
+      "route": "DELETE ${prefix}/definitions/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/custom-field/src/routes.ts",
+      "route": "PUT ${prefix}/values/:entityType/:entityId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/custom-field/src/routes.ts",
+      "route": "DELETE ${prefix}/values/:entityType/:entityId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/data-warehouse/src/routes.ts",
+      "route": "POST ${prefix}/:warehouseId/query",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/etl/src/routes.ts",
+      "route": "PUT ${prefix}/:pipelineId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/etl/src/routes.ts",
+      "route": "DELETE ${prefix}/:pipelineId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/etl/src/routes.ts",
+      "route": "POST ${prefix}/:pipelineId/execute",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/document-routes.ts",
+      "route": "POST ${prefix}/:examinationId/documents/generate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/document-routes.ts",
+      "route": "POST ${prefix}/:examinationId/documents/jobs/:jobId/process",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/sessions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "DELETE ${prefix}/:id/sessions/:sessionId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/sessions/:sessionId/invigilators",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "DELETE ${prefix}/:id/sessions/:sessionId/invigilators/:allocationId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/seating/generate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/seating",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/marks/entries",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/marks/resolve",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/reevaluations",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/reevaluations/:requestId/assign",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/reevaluations/:requestId/complete",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/ops-routes.ts",
+      "route": "POST ${prefix}/:id/reevaluations/:requestId/reject",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/result-routes.ts",
+      "route": "POST ${prefix}/:examinationId/results/publish",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/result-routes.ts",
+      "route": "POST ${prefix}/:examinationId/results/marks",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/result-routes.ts",
+      "route": "POST ${prefix}/:examinationId/results/analysis",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/examination/src/routes.ts",
+      "route": "POST ${prefix}/:id/candidates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/entries/bulk-transition",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/comments-bank",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "PUT ${prefix}/comments-bank/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "DELETE ${prefix}/comments-bank/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/rank/compute",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/credit-rules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/gpa/compute",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/report-cards",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/gradebook/src/routes.ts",
+      "route": "POST ${prefix}/board-exports/:id/signed-download",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "PUT ${prefix}/special-needs/referrals/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "PUT ${prefix}/special-needs/accommodation-plans/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "POST ${prefix}/counselling/sessions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "PUT ${prefix}/counselling/sessions/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "POST ${prefix}/break-glass",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "POST ${prefix}/break-glass/:id/approve",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "POST ${prefix}/break-glass/:id/deny",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/health/src/routes.ts",
+      "route": "POST ${prefix}/incidents",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/mess/plans",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/mess/menu",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/mess/subscriptions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/gate-passes",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/gate-passes/:id/transition",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/gate-passes/:id/${path}",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/fee-structures",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "POST ${prefix}/attendance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/ops-routes.ts",
+      "route": "PUT ${prefix}/attendance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/blocks",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/rooms",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/beds",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/assignments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/leaves",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/leaves/:id/decide",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/visitors",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/hostel/src/routes.ts",
+      "route": "POST ${prefix}/visitors/:id/status",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-calendar/routes.ts",
+      "route": "POST ${prefix}/:id/calendar",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-calendar/routes.ts",
+      "route": "DELETE ${prefix}/:id/calendar/:eventId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-period/academic-period-routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-period/academic-period-routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-period/academic-period-routes.ts",
+      "route": "POST ${prefix}/:id/validate-active",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/academic-period/academic-period-routes.ts",
+      "route": "POST ${prefix}/:id/supersede",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/area-hierarchy/area-hierarchy.routes.ts",
+      "route": "PUT ${prefix}/:areaId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/area-hierarchy/area-hierarchy.routes.ts",
+      "route": "POST ${prefix}/:areaId/move",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/class-routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/class-routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/grade-routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/grade-routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/subject-routes.ts",
+      "route": "PUT ${subjectPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/subject-routes.ts",
+      "route": "DELETE ${subjectPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/education/subject-routes.ts",
+      "route": "DELETE ${institutionSubjectPrefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/repair-requests",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/lands",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/buildings",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/floors",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/rooms",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "POST ${prefix}/condition-options",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/infrastructure/routes.ts",
+      "route": "DELETE ${prefix}/condition-options/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/institution/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/items",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/circulation/checkout",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/circulation/return",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/circulation/renew",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/fines/assess",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "PUT ${prefix}/fines/policy",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/fines/:id/pay",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/items/import-isbn",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/circulation/return-barcode",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/holds",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/library/src/routes.ts",
+      "route": "POST ${prefix}/holds/:id/cancel",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/skills",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/assignments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "PUT ${prefix}/assignments/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/assignments/:id/${action}",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "DELETE ${prefix}/assignments/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/assignments/:id/submissions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/submissions/:id/grade",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/pal/students/:studentId/attempts",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/bank",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/assignments/:id/from-bank",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/assignments/:id/files",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/files/:id/signed-download",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/rubrics",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/submissions/:id/rubric-grade",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/discussions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/discussions/:id/lock",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/discussions/:id/posts",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/discussions/:id/posts/:postId/pin",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/discussions/:id/posts/:postId/hide",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/content",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/lessons",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/lessons/:id/resources",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/modules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/lms/src/routes.ts",
+      "route": "POST ${prefix}/modules/:id/items",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "PATCH ${prefix}/preferences",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "POST ${prefix}/devices",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "DELETE ${prefix}/devices/:deviceId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "POST ${prefix}/send",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "POST ${prefix}/:notificationId/read",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "POST ${prefix}/rules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "PUT ${prefix}/rules/:ruleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "DELETE ${prefix}/rules/:ruleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/notification/src/routes.ts",
+      "route": "POST ${prefix}/templates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/children/links",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/messages/threads",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/messages/threads/:threadId/messages",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/consents",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/consents/:id/decide",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/consents/:id/withdraw",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/consents/:id/supersede",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/fees/plans",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/fees/invoices",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/fees/invoices/:id/void",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/fees/invoices/:id/pay",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/parent-portal/src/routes.ts",
+      "route": "POST ${prefix}/offers/:id/accept",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/plugin/src/routes.ts",
+      "route": "POST ${prefix}/install",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/plugin/src/routes.ts",
+      "route": "POST ${prefix}/installations/:installId/enable",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/plugin/src/routes.ts",
+      "route": "POST ${prefix}/installations/:installId/disable",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/plugin/src/routes.ts",
+      "route": "POST ${prefix}/installations/:installId/uninstall",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "POST ${prefix}/:id/activate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "POST ${prefix}/:id/deactivate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "POST ${prefix}/evaluate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "POST ${prefix}/:id/assignments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/policy/src/routes.ts",
+      "route": "DELETE ${prefix}/:id/assignments/:assignmentId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/privacy/src/routes.ts",
+      "route": "POST ${prefix}/erasure-requests",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/privacy/src/routes.ts",
+      "route": "POST ${prefix}/erasure-requests/:id/transition",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/privacy/src/routes.ts",
+      "route": "POST ${prefix}/erasure-requests/:id/execute",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/privacy/src/routes.ts",
+      "route": "POST ${prefix}/correction-requests/:id/transition",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/enquiries",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "PATCH ${prefix}/enquiries/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/enquiries/:id/follow-ups",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/enquiries/:id/convert",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "PUT ${prefix}/seat-matrix",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/merit-lists",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "PATCH ${prefix}/applications/:id/placement",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/offers",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/offers/:id/send",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/offers/:id/accept",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/pipeline/routes.ts",
+      "route": "POST ${prefix}/offers/:id/decline",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/routes.ts",
+      "route": "POST ${prefix}/language",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/routes.ts",
+      "route": "POST ${prefix}/applications/:id/status",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/routes.ts",
+      "route": "POST ${prefix}/interview-slots",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/registration/src/routes.ts",
+      "route": "POST ${prefix}/interview-bookings",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "POST ${prefix}/generate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "POST ${prefix}/schedules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "POST ${prefix}/schedules/run-due",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "DELETE ${prefix}/schedules/:scheduleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "PATCH ${prefix}/schedules/:scheduleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/catalogue-routes.ts",
+      "route": "POST ${prefix}/schedules/:scheduleId/run",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "POST ${prefix}/generate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "POST ${prefix}/jobs/:jobId/cancel",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "POST ${prefix}/templates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "PUT ${prefix}/templates/:templateId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "DELETE ${prefix}/templates/:templateId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "POST ${prefix}/schedules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "PUT ${prefix}/schedules/:scheduleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/report/src/routes.ts",
+      "route": "DELETE ${prefix}/schedules/:scheduleId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/application-draft-routes.ts",
+      "route": "PUT ${prefix}/applications/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/document-routes.ts",
+      "route": "DELETE ${prefix}/applications/:id/documents/:documentId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/document-routes.ts",
+      "route": "POST ${prefix}/applications/:id/documents/:documentId/verify",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/document-routes.ts",
+      "route": "POST ${prefix}/applications/:id/documents/:documentId/reject",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/document-routes.ts",
+      "route": "POST ${prefix}/applications/:id/submit",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/parent-scholarship-routes.ts",
+      "route": "POST ${prefix}/applications",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/programs",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "PUT ${prefix}/programs/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "DELETE ${prefix}/programs/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/applications",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/applications/:id/approve",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/applications/:id/reject",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/disbursements",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "PUT ${prefix}/disbursements/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/scholarship/src/routes.ts",
+      "route": "POST ${prefix}/compliance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/appraisal-routes.ts",
+      "route": "POST ${prefix}/templates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/appraisal-routes.ts",
+      "route": "POST ${prefix}/:id/submit",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/assignment-routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/assignment-routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/contracts",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "PATCH ${prefix}/contracts/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/qualifications",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/qualifications/:id/verify",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/attendance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/attendance/bulk",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/import/dry-run",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/hr-routes.ts",
+      "route": "POST ${prefix}/import/commit",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/leave-routes.ts",
+      "route": "POST ${prefix}/leaves",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/leave-routes.ts",
+      "route": "POST ${prefix}/leaves/:id/decide",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/leave-routes.ts",
+      "route": "PUT ${prefix}/:id/leave-balances",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/routes.ts",
+      "route": "POST ${prefix}/:id/offboard",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "POST ${prefix}/programs",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "PUT ${prefix}/programs/:programId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "POST ${prefix}/sessions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "POST ${prefix}/attendance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "POST ${prefix}/certifications",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/staff/src/training-routes.ts",
+      "route": "POST ${prefix}/certifications/process-expiry",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/certificates/routes.ts",
+      "route": "POST ${prefix}/:studentId/certificates",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/certificates/routes.ts",
+      "route": "POST ${prefix}/certificates/:id/revoke",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/enrollment/enrollment-routes.ts",
+      "route": "POST ${prefix}/:id/status",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/enrollment/enrollment-routes.ts",
+      "route": "POST ${prefix}/bulk-status",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/enrollment/enrollment-routes.ts",
+      "route": "POST ${prefix}/transfer",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/import/import-routes.ts",
+      "route": "POST ${prefix}/import",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/import/import-routes.ts",
+      "route": "POST ${prefix}/import/validate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/routes.ts",
+      "route": "POST ${prefix}/merge",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "POST ${prefix}/:id/photo",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "POST ${prefix}/:id/siblings",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "DELETE ${prefix}/:id/siblings/:siblingId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "PUT ${prefix}/:id/consents",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "POST ${prefix}/:id/discipline",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "DELETE ${prefix}/:id/discipline/:incidentId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "POST ${prefix}/:id/documents",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/student/src/students-360/routes.ts",
+      "route": "DELETE ${prefix}/:id/documents/:docId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/survey/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/survey/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/survey/src/routes.ts",
+      "route": "POST ${prefix}/distribute",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/survey/src/routes.ts",
+      "route": "POST ${prefix}/:id/remind",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/survey/src/routes.ts",
+      "route": "POST ${prefix}/submit",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/branding-routes.ts",
+      "route": "POST ${prefix}/publish",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/branding-routes.ts",
+      "route": "POST ${prefix}/rollback",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/branding-routes.ts",
+      "route": "POST ${prefix}/draft",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/branding-routes.ts",
+      "route": "DELETE ${prefix}/draft",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/roles-routes.ts",
+      "route": "PATCH ${prefix}/roles/:id/permissions",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "POST ${prefix}/:id/suspend",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "POST ${prefix}/:id/reactivate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "POST ${prefix}/:id/decommission",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "PUT ${prefix}/:id/config",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "POST ${prefix}/:id/domains",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/tenant/src/routes.ts",
+      "route": "DELETE ${prefix}/:id/domains/:domainId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/theme/src/routes.ts",
+      "route": "PUT ${prefix}/:themeId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/theme/src/routes.ts",
+      "route": "POST ${prefix}/:themeId/publish",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/theme/src/routes.ts",
+      "route": "POST ${prefix}/:themeId/rollback",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/rooms",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/sections",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "PUT ${prefix}/sections/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "DELETE ${prefix}/sections/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/sections/:id/enrollments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/sections/:id/enrollments/bulk",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "DELETE ${prefix}/sections/:id/enrollments/:studentId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/teacher-absences",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/timetable/src/routes.ts",
+      "route": "POST ${prefix}/clone-period",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/routes",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "PUT ${prefix}/routes/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "DELETE ${prefix}/routes/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/stops",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "PUT ${prefix}/stops/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "DELETE ${prefix}/stops/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/vehicles",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "PUT ${prefix}/vehicles/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "DELETE ${prefix}/vehicles/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/driver-assignments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "PUT ${prefix}/driver-assignments/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/student-assignments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "PUT ${prefix}/student-assignments/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/vehicles/:vehicleId/gps",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/attendance-on-bus",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/vehicles/:vehicleId/device",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/gps",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/attendance",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/alert-rules",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/alerts/evaluate",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/alerts/:id/acknowledge",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/transport/src/routes.ts",
+      "route": "POST ${prefix}/fee-structures",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/case-routes.ts",
+      "route": "PUT ${prefix}/:caseId",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/case-routes.ts",
+      "route": "POST ${prefix}/:caseId/attachments",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/case-routes.ts",
+      "route": "POST ${prefix}/:caseId/resolve",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/routes.ts",
+      "route": "PUT ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/routes.ts",
+      "route": "DELETE ${prefix}/:id",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/routes.ts",
+      "route": "POST ${prefix}/instances",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    },
+    {
+      "file": "packages/backend/workflow/src/routes.ts",
+      "route": "POST ${prefix}/instances/:instanceId/transition",
+      "reason": "baseline: pre-existing un-audited write route (PRC-M410)"
+    }
+  ]
+}
