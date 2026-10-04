@@ -29,4 +29,21 @@ describe('sanitizeReturnTo', () => {
     expect(sanitizeReturnTo('/%2f%2fevil.example')).toBe('/');
     expect(sanitizeReturnTo('/%5cevil.example')).toBe('/');
   });
+  it('rejects control-character tricks that URL parsers strip (PRC-M064)', () => {
+    for (const raw of [
+      '/\t/evil.com',
+      '/\n/evil.com',
+      '/\r/evil.com',
+      '/%09/evil.com',
+      '/%0a/evil.com',
+      '/%0d/evil.com',
+      '/\u0000/evil.com',
+      '/\u007f/evil.com',
+    ]) {
+      expect(sanitizeReturnTo(raw)).toBe('/');
+    }
+  });
+  it('keeps safe paths with query strings intact', () => {
+    expect(sanitizeReturnTo('/students?page=2&q=a%20b')).toBe('/students?page=2&q=a%20b');
+  });
 });
