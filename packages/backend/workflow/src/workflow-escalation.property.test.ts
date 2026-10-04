@@ -12,7 +12,7 @@
  * Uses fast-check to generate arbitrary workflow definitions with escalation rules
  * and verify escalation behavior across many configurations.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { WorkflowStateType } from '@proctira/common';
 
@@ -25,6 +25,9 @@ import type {
   WorkflowTransitionInput,
   EscalationRuleInput,
 } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TENANT_ID = 'tenant-escalation-pbt-001';
 
