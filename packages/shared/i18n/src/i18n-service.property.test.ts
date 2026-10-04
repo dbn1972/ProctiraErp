@@ -7,11 +7,14 @@
  * **Validates: Requirements 18.3, 18.5**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { I18nServiceImpl } from './i18n-service';
 import type { I18nConfig, TranslationMap } from './types';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 

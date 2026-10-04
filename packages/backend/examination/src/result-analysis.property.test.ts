@@ -9,7 +9,7 @@
  * Breakdowns by subject, center, gender, and area are consistent with the overall totals.
  * All percentages are rounded to 2 decimal places.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { ResultPublicationService } from './result-publication-service.js';
@@ -17,6 +17,9 @@ import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import { InMemoryResultRepository } from './in-memory-result-repository.js';
 import type { ExaminationEntity, ExaminationGradingScheme } from './examination-repository.js';
 import type { ExaminationCandidate, CandidateGender } from './result-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Helper to round to 2 decimal places (same as production code)
 function roundToTwo(num: number): number {

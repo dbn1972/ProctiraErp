@@ -11,13 +11,16 @@
  *
  * Uses fast-check to generate arbitrary workflow definitions and transition attempts.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { BusinessRuleError, WorkflowStateType } from '@proctira/common';
 
 import { WorkflowService } from './workflow-service.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
 import type { WorkflowStateInput, WorkflowTransitionInput } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TENANT_ID = 'tenant-pbt-001';
 

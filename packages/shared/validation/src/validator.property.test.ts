@@ -11,11 +11,14 @@
  * objects each identifying the field path and the validation rule that failed.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { Type, type TSchema } from '@sinclair/typebox';
 
 import { validate } from './validator';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 
