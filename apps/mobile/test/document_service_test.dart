@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proctira_mobile/core/storage/cache_crypto.dart';
+import 'package:proctira_mobile/core/storage/captured_document_store.dart';
 import 'package:proctira_mobile/core/storage/database.dart';
 import 'package:proctira_mobile/core/storage/secure_storage.dart';
 import 'package:proctira_mobile/core/sync/connectivity_monitor.dart';
@@ -66,7 +67,10 @@ void main() {
         syncEngine: engine,
         cacheCrypto: crypto,
       ),
-      storageDir: () async => Directory('${dir.path}/pending_documents'),
+      store: CapturedDocumentStore(
+        crypto: crypto,
+        dir: () async => Directory('${dir.path}/pending_documents'),
+      ),
     );
     return (db: db, engine: engine, svc: svc, dir: dir);
   }
@@ -84,7 +88,8 @@ void main() {
 
     expect(result.queued, isTrue);
     expect(result.filePath, startsWith('${ctx.dir.path}/pending_documents/'));
-    expect(await File(result.filePath).readAsBytes(), <int>[1, 2, 3, 4]);
+    expect(await File(result.filePath).readAsBytes(), isNot(<int>[1, 2, 3, 4]));
+    expect(await picked.exists(), isFalse, reason: 'picker temp deleted');
     final PendingSyncRow row = (await ctx.engine.getPending()).single;
     expect(row.payload['filePath'], result.filePath);
     expect(row.payload['category'], 'birth_certificate');

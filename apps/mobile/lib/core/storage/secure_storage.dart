@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,6 +26,7 @@ class SecureStorage {
   static const String selectedStudentIdKey = 'prefs.selected_student_id';
   static const String selectedStudentNameKey = 'prefs.selected_student_name';
   static const String notificationPrefsKey = 'prefs.notification_local';
+  static const String installationIdKey = 'device.installation_id';
 
   final FlutterSecureStorage _storage;
 
@@ -36,10 +38,21 @@ class SecureStorage {
       return Uint8List.fromList(base64Decode(existing));
     }
     final Uint8List fresh = generateCacheMasterKey();
-    await _storage.write(
-      key: cacheMasterKeyKey,
-      value: base64Encode(fresh),
-    );
+    await _storage.write(key: cacheMasterKeyKey, value: base64Encode(fresh));
+    return fresh;
+  }
+
+  /// Stable random id for this app install, used as the push `deviceId`
+  /// (PRC-M033). Survives logout; it identifies the device, not the user.
+  Future<String> getOrCreateInstallationId() async {
+    final String? existing = await _storage.read(key: installationIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final Random rng = Random.secure();
+    final String fresh = List<String>.generate(
+      16,
+      (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    await _storage.write(key: installationIdKey, value: fresh);
     return fresh;
   }
 
@@ -87,7 +100,10 @@ class SecureStorage {
 
   Future<String?> readTenantName() => _storage.read(key: tenantNameKey);
 
-  Future<void> writeTenant({required String tenantId, String? displayName}) async {
+  Future<void> writeTenant({
+    required String tenantId,
+    String? displayName,
+  }) async {
     await _storage.write(key: tenantIdKey, value: tenantId);
     if (displayName != null) {
       await _storage.write(key: tenantNameKey, value: displayName);

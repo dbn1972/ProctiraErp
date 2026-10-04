@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,8 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/errors/user_error_message.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/storage/cache_crypto.dart';
+import '../../../core/storage/captured_document_store.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/conflict_resolver.dart';
 import '../../../core/sync/student_document_dispatcher.dart';
@@ -39,7 +42,11 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     cacheCrypto: getIt<CacheCrypto>(),
     studentApi: getIt<StudentApi>(),
   );
-  late final DocumentService _service = DocumentService(_repository);
+  late final CapturedDocumentStore _store = getIt<CapturedDocumentStore>();
+  late final DocumentService _service = DocumentService(
+    _repository,
+    store: _store,
+  );
   late final SyncStatusController _syncStatus = EngineSyncStatusController(
     engine: getIt<SyncEngine>(),
     resolver: ConflictResolver(database: getIt<AppDatabase>()),
@@ -55,13 +62,36 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
         imageQuality: 80,
       );
       if (file == null || !mounted) return;
+      _discardPicked();
       setState(() => _picked = file);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Capture failed: $error')));
+      // Never echo picker/platform exception text (PRC-M047).
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userErrorMessage(
+              error,
+              fallback:
+                  "Couldn't capture the photo. Check camera permission and try again.",
+            ),
+          ),
+        ),
+      );
     }
+  }
+
+  /// Delete the unsaved plaintext picker file (PRC-M046).
+  void _discardPicked() {
+    final XFile? previous = _picked;
+    _picked = null;
+    if (previous != null) unawaited(_store.discard(previous.path));
+  }
+
+  @override
+  void dispose() {
+    _discardPicked();
+    super.dispose();
   }
 
   Future<void> _save() async {
@@ -85,13 +115,19 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
           ),
         ),
       );
+      // The service sealed or discarded the picker file; forget it.
+      _picked = null;
       if (result.queued && context.canPop()) {
         context.pop();
       }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.documentSaveFailed}: $error')),
+        SnackBar(
+          content: Text(
+            userErrorMessage(error, fallback: l10n.documentSaveFailed),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -144,7 +180,7 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                                 tooltip: 'Discard',
                                 onPressed: _saving
                                     ? null
-                                    : () => setState(() => _picked = null),
+                                    : () => setState(_discardPicked),
                               ),
                             ),
                           ),
@@ -160,6 +196,7 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                 _SideButton(
                   icon: Icons.photo_library_outlined,
                   label: 'Gallery',
+                  semanticLabel: 'Choose from gallery',
                   color: const Color(0xFF14B8A6),
                   onPressed: _saving
                       ? null
@@ -173,6 +210,7 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                 _SideButton(
                   icon: Icons.refresh,
                   label: 'Retake',
+                  semanticLabel: 'Retake photo',
                   color: const Color(0xFF64748B),
                   onPressed: _saving || picked == null
                       ? null
@@ -344,32 +382,49 @@ class _ShutterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme cs = Theme.of(context).colorScheme;
     final bool enabled = onPressed != null;
-    return GestureDetector(
+    // Named, focusable button rather than a tap-only GestureDetector so
+    // screen readers, switch access and keyboards can capture (PRC-M048).
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: 'Take photo',
+      excludeSemantics: true,
       onTap: onPressed,
-      child: Container(
-        width: 74,
-        height: 74,
-        decoration: BoxDecoration(
-          color: enabled ? cs.primary : cs.onSurface.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: cs.primary.withValues(alpha: enabled ? 0.35 : 0.0),
-            width: 4,
+      child: Material(
+        type: MaterialType.transparency,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          focusColor: cs.primary.withValues(alpha: 0.24),
+          child: Container(
+            width: 74,
+            height: 74,
+            decoration: BoxDecoration(
+              color: enabled
+                  ? cs.primary
+                  : cs.onSurface.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: cs.primary.withValues(alpha: enabled ? 0.35 : 0.0),
+                width: 4,
+              ),
+              boxShadow: enabled
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: cs.primary.withValues(alpha: 0.4),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              Icons.camera_alt_outlined,
+              color: enabled ? cs.onPrimary : cs.onSurfaceVariant,
+              size: 28,
+            ),
           ),
-          boxShadow: enabled
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: cs.primary.withValues(alpha: 0.4),
-                    blurRadius: 22,
-                    offset: const Offset(0, 10),
-                  ),
-                ]
-              : null,
-        ),
-        child: Icon(
-          Icons.camera_alt_outlined,
-          color: enabled ? cs.onPrimary : cs.onSurfaceVariant,
-          size: 28,
         ),
       ),
     );
@@ -381,12 +436,16 @@ class _SideButton extends StatelessWidget {
   const _SideButton({
     required this.icon,
     required this.label,
+    required this.semanticLabel,
     required this.color,
     required this.onPressed,
   });
 
   final IconData icon;
   final String label;
+
+  /// Accessible name announced for the whole control (PRC-M048).
+  final String semanticLabel;
   final Color color;
   final VoidCallback? onPressed;
 
@@ -395,31 +454,40 @@ class _SideButton extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool enabled = onPressed != null;
     final Color tint = enabled ? color : theme.colorScheme.onSurfaceVariant;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: enabled ? 0.12 : 0.06),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.dividerColor),
+    // One merged button node (icon + caption) with a descriptive name.
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: semanticLabel,
+      excludeSemantics: true,
+      onTap: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onPressed,
+            focusColor: tint.withValues(alpha: 0.24),
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: enabled ? 0.12 : 0.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.dividerColor),
+              ),
+              child: Icon(icon, color: tint, size: 22),
             ),
-            child: Icon(icon, color: tint, size: 22),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

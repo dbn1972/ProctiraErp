@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/auth/auth_bloc.dart';
+import '../../../core/auth/session_roles.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/errors/user_error_message.dart';
@@ -146,7 +147,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         email: email ?? '',
         phone: '',
         userId: userId,
-        role: '',
+        role: roleLabel(auth.roles),
       ),
     );
   }

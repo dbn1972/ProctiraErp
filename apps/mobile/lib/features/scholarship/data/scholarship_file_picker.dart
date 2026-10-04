@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -12,7 +14,7 @@ abstract class ScholarshipFilePicker {
 /// Camera and gallery via [ImagePicker]; PDF, JPEG, and PNG files via [FilePicker].
 class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
   DeviceScholarshipFilePicker({ImagePicker? images})
-      : _images = images ?? ImagePicker();
+    : _images = images ?? ImagePicker();
 
   final ImagePicker _images;
 
@@ -28,10 +30,7 @@ class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
         );
       case ScholarshipPickSource.camera:
         return _fromXFile(
-          await _images.pickImage(
-            source: ImageSource.camera,
-            imageQuality: 85,
-          ),
+          await _images.pickImage(source: ImageSource.camera, imageQuality: 85),
         );
       case ScholarshipPickSource.file:
         final List<PlatformFile> files = await FilePicker.pickFiles(
@@ -43,6 +42,10 @@ class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
         }
         final PlatformFile file = files.single;
         final List<int> bytes = await file.readAsBytes();
+        // Bytes are in memory; drop the plugin's cached copy (PRC-M046).
+        try {
+          await FilePicker.clearTemporaryFiles();
+        } catch (_) {}
         return PickedScholarshipFile(
           filename: file.name,
           mimeType: mimeTypeForFilename(file.name),
@@ -56,6 +59,11 @@ class DeviceScholarshipFilePicker implements ScholarshipFilePicker {
       return null;
     }
     final List<int> bytes = await file.readAsBytes();
+    // image_picker hands back a temp copy; delete it so the plaintext scan
+    // does not linger in app cache (PRC-M046).
+    try {
+      await File(file.path).delete();
+    } catch (_) {}
     final String name = file.name.trim().isEmpty ? 'document.jpg' : file.name;
     return PickedScholarshipFile(
       filename: name,
