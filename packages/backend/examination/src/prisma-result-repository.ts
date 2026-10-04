@@ -46,8 +46,11 @@ export class PrismaResultRepository implements ResultRepository {
         examinationId: row.examinationId,
         studentId: row.studentId,
         centerId: row.centerId,
-        gender: row.gender as ExaminationCandidate['gender'],
-        areaId: row.areaId,
+        // PRC-H057: the columns are nullable (NULL = unknown). Until the domain
+        // type carries null, read-side keeps the legacy fallbacks so behaviour is
+        // unchanged; writes still store whatever the caller supplies.
+        gender: (row.gender ?? 'other') as ExaminationCandidate['gender'],
+        areaId: row.areaId ?? row.centerId,
         subjectResults: Array.isArray(row.subjectResults)
           ? (row.subjectResults as unknown as CandidateSubjectResult[])
           : [],
