@@ -7,7 +7,7 @@
  */
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import { actorFromRequest, assertCanReadDocuments } from './document-access.js';
@@ -24,7 +24,7 @@ import {
   InMemoryScholarshipDocumentStore,
   type ScholarshipDocumentStore,
 } from './document-store.js';
-import { institutionIdForStudent } from './parent-links.js';
+import { institutionIdForStudent, linkLookupUnavailable } from './parent-links.js';
 import { CreateApplicationSchema } from './schemas.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
 import { ScholarshipService } from './scholarship-service.js';
@@ -34,6 +34,8 @@ export interface ParentScholarshipRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Server-side institution of record for a student (PRC-L345). */
+  resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
 }
 
 async function actorFor(
@@ -45,14 +47,29 @@ async function actorFor(
   if (resolve && actor.userId) {
     try {
       actor = actorFromRequest(request, await resolve(tenantId, actor.userId));
-    } catch {
-      // JWT linkedStudentIds still apply.
+    } catch (error) {
+      // PRC-L346: do not silently fall back to "no children"; report the outage.
+      request.log.error(
+        { err: error, event: 'scholarship.parent_links.lookup_failed' },
+        'guardian link lookup failed',
+      );
+      throw linkLookupUnavailable('Guardian link lookup is unavailable', error);
     }
   }
   return actor;
 }
 
-const APPLICANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// PRC-L346: any RFC 9562 UUID (v1-v8), not only v4.
+const APPLICANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function sendAppError(reply: FastifyReply, error: unknown) {
+  if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+  throw error;
+}
+function positiveInt(raw: unknown, fallback: number, max: number): number {
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, max);
+}
 
 function ownedIds(actor: ReturnType<typeof actorFromRequest>): string[] {
   return [
@@ -69,6 +86,8 @@ export async function registerParentScholarshipRoutes(
   options: ParentScholarshipRouteOptions,
 ): Promise<void> {
   const { scholarshipService, documentService, resolveLinkedStudentIds } = options;
+  const resolveStudentInstitutionId =
+    options.resolveStudentInstitutionId ?? institutionIdForStudent;
   const prefix = options.prefix ?? '';
 
   fastify.get(`${prefix}/programs`, async (request, reply) => {
@@ -108,28 +127,39 @@ export async function registerParentScholarshipRoutes(
         statusCode: 400,
       });
     }
-    const actor = await actorFor(request, tenantId, resolveLinkedStudentIds);
-    const ids = ownedIds(actor);
-    const rows = [];
-    for (const applicantId of ids) {
-      const page = await scholarshipService.listApplications(
-        tenantId,
-        { applicantId },
-        { page: 1, pageSize: 50, sortBy: 'createdAt', sortOrder: 'desc' },
-      );
-      rows.push(...page.data);
+    let actor;
+    try {
+      actor = await actorFor(request, tenantId, resolveLinkedStudentIds);
+    } catch (error) {
+      return sendAppError(reply, error);
     }
+    const ids = ownedIds(actor);
+    const query = (request.query ?? {}) as { page?: string; pageSize?: string };
+    const page = positiveInt(query.page, 1, 10_000);
+    const pageSize = positiveInt(query.pageSize, 50, 100);
+    if (ids.length === 0) {
+      return reply.send({
+        data: [],
+        meta: { page, pageSize, totalItems: 0, totalPages: 0 },
+      });
+    }
+    // PRC-L346: one query across all owned applicants with real pagination.
+    const result = await scholarshipService.listApplications(
+      tenantId,
+      { applicantIds: ids },
+      { page, pageSize, sortBy: 'createdAt', sortOrder: 'desc' },
+    );
     return reply.send({
-      data: rows.map((application) => ({
+      data: result.data.map((application) => ({
         id: application.id,
         programId: application.programId,
         applicantId: application.applicantId,
         status: application.status,
         submittedAt: application.submittedAt.toISOString(),
       })),
+      meta: result.meta,
     });
   });
-
   fastify.get(`${prefix}/applications/:id`, async (request, reply) => {
     const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
     if (!tenantId) {
@@ -167,8 +197,24 @@ export async function registerParentScholarshipRoutes(
       });
     }
     const raw = (request.body ?? {}) as Record<string, unknown>;
-    if (typeof raw.applicantId === 'string' && typeof raw.institutionId !== 'string') {
-      raw.institutionId = (await institutionIdForStudent(tenantId, raw.applicantId)) ?? undefined;
+    if (typeof raw.applicantId === 'string') {
+      // PRC-L345: the institution comes from the student's enrolment, not the client.
+      let recorded: string | null;
+      try {
+        recorded = await resolveStudentInstitutionId(tenantId, raw.applicantId);
+      } catch (error) {
+        return sendAppError(reply, error);
+      }
+      if (recorded) {
+        if (typeof raw.institutionId === 'string' && raw.institutionId !== recorded) {
+          return reply.status(422).send({
+            code: 'INSTITUTION_MISMATCH',
+            message: "institutionId does not match the student's current enrolment",
+            statusCode: 422,
+          });
+        }
+        raw.institutionId = recorded;
+      }
     }
     const parsed = validate(CreateApplicationSchema, { ...raw, asDraft: true });
     if (!parsed.success) {
@@ -219,6 +265,8 @@ export interface ParentScholarshipPluginOptions {
   documentStore?: ScholarshipDocumentStore;
   documentBlobs?: ScholarshipDocumentBlobStore;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Server-side institution of record for a student (PRC-L345). */
+  resolveStudentInstitutionId?: (tenantId: string, studentId: string) => Promise<string | null>;
 }
 
 export const parentScholarshipPlugin = fp(
@@ -237,6 +285,7 @@ export const parentScholarshipPlugin = fp(
       documentService,
       prefix: options.prefix ?? '',
       resolveLinkedStudentIds: options.resolveLinkedStudentIds,
+      resolveStudentInstitutionId: options.resolveStudentInstitutionId,
     });
   },
   { name: '@proctira/backend-scholarship-parent', fastify: '5.x' },

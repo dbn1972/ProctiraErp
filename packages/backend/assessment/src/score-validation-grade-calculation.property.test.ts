@@ -15,7 +15,7 @@
  * 3. Weighted averages are correctly calculated from individual item scores
  * 4. Grades are correctly assigned based on threshold boundaries
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +29,9 @@ import {
 } from './in-memory-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 import type { GradingSchemeEntity, AssessmentItemEntity } from './assessment-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('Score Validation and Grade Calculation', () => {
   // Feature: proctira-unified-platform, Property 19: Score Validation and Grade Calculation
@@ -107,7 +110,8 @@ describe('Score Validation and Grade Calculation', () => {
                 thresholds.push({
                   grade: grades[i]!,
                   minScore: cursor,
-                  maxScore: cursor + size - 1,
+                  // PRC-H114: the top band closes the range so maxValue itself is graded.
+                  maxScore: i === 0 ? maxValue : cursor + size - 1,
                 });
                 cursor += size;
               }

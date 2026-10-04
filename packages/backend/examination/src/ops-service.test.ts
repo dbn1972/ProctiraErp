@@ -280,7 +280,9 @@ describe('ExamOpsService', () => {
     const audits = await ops.listAudits(TENANT, examId);
     const complete = audits.find((a) => a.action === 'reevaluation.complete');
     expect(complete?.details['delta']).toBe(3);
-    expect(complete?.details['published']).toBe(true);
+    // PRC-H057: no result store wired here, so nothing is (falsely) reported as published.
+    expect(complete?.details['published']).toBeUndefined();
+    expect(complete?.details['republished']).toBe(false);
   });
 
   it('rejects staff overlap across two examinations in the same tenant', async () => {

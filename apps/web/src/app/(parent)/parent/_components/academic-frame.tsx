@@ -4,15 +4,24 @@ import { ChildSwitcher } from './child-switcher';
 import type { ParentChildLink } from '@/lib/api/parent-portal';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
+export type PickChildResult =
+  { child: ParentChildLink; reason: 'ok' } | { child: null; reason: 'no-children' | 'not-linked' };
+
+/**
+ * Resolve the child to show. An explicit `?studentId` that is not one of the
+ * parent's links yields `not-linked` (render `forbidden`) instead of silently
+ * showing the first child (PRC-L063).
+ */
 export function pickChild(
   links: ParentChildLink[],
   requestedId: string | undefined,
-): ParentChildLink | null {
-  if (links.length === 0) return null;
+): PickChildResult {
   if (requestedId) {
-    return links.find((link) => link.studentId === requestedId) ?? links[0] ?? null;
+    const match = links.find((link) => link.studentId === requestedId);
+    return match ? { child: match, reason: 'ok' } : { child: null, reason: 'not-linked' };
   }
-  return links[0] ?? null;
+  const first = links[0];
+  return first ? { child: first, reason: 'ok' } : { child: null, reason: 'no-children' };
 }
 
 export function firstSearchParam(value: string | string[] | undefined): string | undefined {
@@ -36,7 +45,7 @@ export async function AcademicFrame({
   description: string;
   childrenLinks?: ParentChildLink[];
   selectedId?: string;
-  status?: 'ok' | 'empty-children' | 'forbidden' | 'error';
+  status?: 'ok' | 'empty-children' | 'forbidden' | 'not-found' | 'error';
   errorMessage?: string;
   emptyMessage: string;
   hasRows: boolean;
@@ -74,11 +83,13 @@ export async function AcademicFrame({
               ? 'Link a child to see this information.'
               : status === 'forbidden'
                 ? 'This record is not available for your account.'
-                : status === 'error'
-                  ? 'Something went wrong loading this page.'
-                  : hasRows
-                    ? 'Latest information from the school.'
-                    : emptyMessage}
+                : status === 'not-found'
+                  ? 'This record could not be found.'
+                  : status === 'error'
+                    ? 'Something went wrong loading this page.'
+                    : hasRows
+                      ? 'Latest information from the school.'
+                      : emptyMessage}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,6 +100,10 @@ export async function AcademicFrame({
           ) : status === 'forbidden' ? (
             <p className="text-sm text-muted-foreground" role="status">
               You can only view records for students linked to your account.
+            </p>
+          ) : status === 'not-found' ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No record was found. It may not be set up yet for your school.
             </p>
           ) : status === 'error' ? (
             <p className="text-sm text-muted-foreground" role="status">

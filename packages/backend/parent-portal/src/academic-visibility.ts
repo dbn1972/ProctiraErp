@@ -20,6 +20,29 @@ export function isParentVisibleGrade(input: {
   return input.workflowStatus === 'PUBLISHED';
 }
 
+/**
+ * PRC-H074: audience scoping for campaign notices surfaced in the parent/student portal.
+ *
+ * `comms_campaigns.audience_json` describes who a campaign targets (`scope`: all | grade |
+ * hostel | route | custom, with optional grade/hostelId/routeId/ids). The portal notices feed
+ * previously returned EVERY sent campaign for the tenant, so a parent of a class-B student could
+ * read a notice addressed only to class A (or a specific hostel/route/custom recipient list).
+ *
+ * A per-student segment resolver (grade/hostel/route/custom → studentIds) does not yet exist in
+ * this store, so we cannot positively prove membership for a narrowed audience. Until it does,
+ * only genuine tenant-wide broadcasts are visible; any narrower scope is withheld rather than
+ * leaked. This is fail-closed: it can hide a legitimately-targeted notice, but never exposes a
+ * notice to a family outside its audience.
+ */
+export function isCampaignAudienceBroadcast(audienceJson: unknown): boolean {
+  if (audienceJson == null) return true;
+  if (typeof audienceJson !== 'object') return false;
+  const raw = (audienceJson as Record<string, unknown>)['scope'];
+  // Absent scope historically meant "everyone" (see communication estimator default 'all').
+  if (raw == null || raw === '') return true;
+  return String(raw).toLowerCase() === 'all';
+}
+
 export type AcademicSource = 'postgres' | 'none';
 
 export interface AcademicMeta {

@@ -3,7 +3,7 @@
  *
  * Used for unit testing without database dependencies.
  */
-import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError, type PaginationOptions, type PaginatedResult } from '@proctira/common';
 
 import type {
   TrainingProgramEntity,
@@ -132,6 +132,18 @@ export class InMemoryTrainingAttendanceRepository implements TrainingAttendanceR
   async create(
     data: Omit<TrainingAttendanceEntity, 'createdAt'>,
   ): Promise<TrainingAttendanceEntity> {
+    // PRC-L156: mirror the PG unique (tenant_id, session_id, staff_id) constraint.
+    for (const e of this.records.values()) {
+      if (
+        e.tenantId === data.tenantId &&
+        e.sessionId === data.sessionId &&
+        e.staffId === data.staffId
+      ) {
+        throw new ConflictError(
+          `Attendance already recorded for staff '${data.staffId}' at session '${data.sessionId}'`,
+        );
+      }
+    }
     const entity: TrainingAttendanceEntity = { ...data, createdAt: new Date() };
     this.records.set(entity.id, entity);
     return entity;

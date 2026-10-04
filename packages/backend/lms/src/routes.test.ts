@@ -415,6 +415,89 @@ describe('LMS routes', () => {
       const qs = (res.json() as { questions: Array<{ correctOptionIndex: number }> }).questions;
       expect(qs.every((q) => q.correctOptionIndex === -1)).toBe(true);
     });
+    describe('PRC-H069: non-staff, non-student roles are restricted', () => {
+      const parent: Principal = {
+        sub: randomUUID(),
+        roles: [{ roleId: 'parent', roleName: 'Parent', areaId: 'root' }],
+        institutions: [SCHOOL_1],
+      };
+      const unknownRole: Principal = {
+        sub: randomUUID(),
+        roles: [{ roleId: 'unknown-role', roleName: 'Unknown', areaId: 'root' }],
+        institutions: [SCHOOL_1],
+      };
+      async function seedSubmission() {
+        const { quiz } = await createQuiz();
+        const sub = await app.inject({
+          method: 'POST',
+          url: `/lms/assignments/${quiz.id}/submissions`,
+          headers: as(student),
+          payload: {
+            studentId: STUDENT,
+            answers: [{ questionId: quiz.questions[0]!.id, selectedOptionIndex: 0 }],
+          },
+        });
+        expect(sub.statusCode).toBe(201);
+        return { quiz, submission: sub.json() as { id: string } };
+      }
+      it('parent GET assignment has stripped answer key', async () => {
+        const { quiz } = await createQuiz();
+        const res = await app.inject({
+          method: 'GET',
+          url: `/lms/assignments/${quiz.id}`,
+          headers: as(parent),
+        });
+        expect(res.statusCode).toBe(200);
+        const qs = (
+          res.json() as {
+            questions: Array<{ correctOptionIndex: number; payload?: Record<string, unknown> }>;
+          }
+        ).questions;
+        expect(qs.length).toBeGreaterThan(0);
+        expect(qs.every((q) => q.correctOptionIndex === -1)).toBe(true);
+        expect(qs.every((q) => q.payload?.['correctOptionIndex'] === undefined)).toBe(true);
+      });
+      it('parent and unknown roles cannot list submissions (403)', async () => {
+        const { quiz, submission } = await seedSubmission();
+        for (const who of [parent, unknownRole]) {
+          const list = await app.inject({
+            method: 'GET',
+            url: '/lms/submissions',
+            headers: as(who),
+          });
+          expect(list.statusCode).toBe(403);
+          const perAssignment = await app.inject({
+            method: 'GET',
+            url: `/lms/assignments/${quiz.id}/submissions`,
+            headers: as(who),
+          });
+          expect(perAssignment.statusCode).toBe(403);
+          const detail = await app.inject({
+            method: 'GET',
+            url: `/lms/submissions/${submission.id}`,
+            headers: as(who),
+          });
+          expect(detail.statusCode).toBe(404);
+        }
+      });
+      it('parent cannot read another child PAL plan / progress / attempts (403)', async () => {
+        await seedSubmission();
+        for (const path of ['plan', 'progress', 'attempts']) {
+          const res = await app.inject({
+            method: 'GET',
+            url: `/lms/pal/students/${OTHER_STUDENT}/${path}`,
+            headers: as(parent),
+          });
+          expect(res.statusCode).toBe(403);
+          const own = await app.inject({
+            method: 'GET',
+            url: `/lms/pal/students/${STUDENT}/${path}`,
+            headers: as(unknownRole),
+          });
+          expect(own.statusCode).toBe(403);
+        }
+      });
+    });
 
     it('auto-grades, scales to maxScore, and updates mastery + attempts', async () => {
       const { quiz, frac, dec } = await createQuiz();
@@ -654,5 +737,61 @@ describe('LMS routes', () => {
     });
     expect(res.statusCode).toBe(400);
     expect((res.json() as { code: string }).code).toBe('TENANT_REQUIRED');
+  });
+
+  describe('user-supplied URLs (PRC-H024 / PRC-H033)', () => {
+    async function createLesson() {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/lms/lessons',
+        headers: as(teacherSchool1),
+        payload: { scope: 'school', institutionId: SCHOOL_1, title: 'Fractions' },
+      });
+      expect(res.statusCode).toBe(201);
+      return res.json() as { id: string };
+    }
+
+    it.each([
+      'javascript:alert(1)',
+      'JavaScript:alert(1)',
+      'data:text/html,<b>x</b>',
+      'vbscript:x',
+    ])('rejects lesson resource url %s with 400', async (url) => {
+      const lesson = await createLesson();
+      const res = await app.inject({
+        method: 'POST',
+        url: `/lms/lessons/${lesson.id}/resources`,
+        headers: as(teacherSchool1),
+        payload: { kind: 'link', title: 'Evil', url },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('accepts an https lesson resource url', async () => {
+      const lesson = await createLesson();
+      const res = await app.inject({
+        method: 'POST',
+        url: `/lms/lessons/${lesson.id}/resources`,
+        headers: as(teacherSchool1),
+        payload: { kind: 'link', title: 'Khan', url: 'https://example.edu/fractions' },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('rejects a javascript: body on a link content item with 400', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/lms/content',
+        headers: as(teacherSchool1),
+        payload: {
+          scope: 'school',
+          institutionId: SCHOOL_1,
+          title: 'Evil link',
+          kind: 'link',
+          body: 'javascript:alert(1)',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
   });
 });

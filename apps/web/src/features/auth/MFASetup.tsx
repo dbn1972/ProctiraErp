@@ -103,10 +103,31 @@ type EnrolmentState =
   | { status: 'ready'; data: MfaSetupSuccess }
   | { status: 'error'; message: string };
 
+export interface MFASetupViewProps {
+  /** Called after the user acknowledges the backup codes and finishes. */
+  onComplete: () => void;
+  /** Renders the "back to sign in" exit control (router-agnostic). */
+  renderSignInLink: (label: string) => ReactElement;
+}
+
+/**
+ * React Router host wrapper — keeps the SPA feature registry working.
+ * Next.js App Router hosts render {@link MFASetupView} directly so no
+ * router bridge or history patching is needed (PRC-L022).
+ */
 export default function MFASetup(): ReactElement {
+  const navigate = useNavigate();
+  return (
+    <MFASetupView
+      onComplete={() => navigate('/auth/mfa-verify')}
+      renderSignInLink={(label) => <Link to="/auth/signin">{label}</Link>}
+    />
+  );
+}
+
+export function MFASetupView({ onComplete, renderSignInLink }: MFASetupViewProps): ReactElement {
   const { t } = useLanguage();
   const { name: brandName } = useBrand();
-  const navigate = useNavigate();
 
   const [enrolment, setEnrolment] = useState<EnrolmentState>({
     status: 'loading',
@@ -168,7 +189,7 @@ export default function MFASetup(): ReactElement {
             </Alert>
             <div className="flex justify-between">
               <Button variant="outline" asChild>
-                <Link to="/auth/signin">{t('auth.backToSignIn')}</Link>
+                {renderSignInLink(t('auth.backToSignIn'))}
               </Button>
               <Button
                 onClick={() => {
@@ -215,7 +236,7 @@ export default function MFASetup(): ReactElement {
     // that is owned by `<MFAVerify>` (Task 49.5). After the user
     // acknowledges they have stored the backup codes we route them to
     // the verification step where they enter their first 6-digit code.
-    navigate('/auth/mfa-verify');
+    onComplete();
   }
 
   return (
@@ -357,7 +378,7 @@ export default function MFASetup(): ReactElement {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" asChild>
-                <Link to="/auth/signin">{t('auth.backToSignIn')}</Link>
+                {renderSignInLink(t('auth.backToSignIn'))}
               </Button>
               <Button
                 type="button"

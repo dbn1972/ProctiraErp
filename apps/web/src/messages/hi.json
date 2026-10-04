@@ -15,7 +15,9 @@
     "import": "आयात",
     "back": "वापस",
     "next": "अगला",
-    "previous": "पिछला"
+    "previous": "पिछला",
+    "language": "भाषा",
+    "selectLanguage": "भाषा चुनें"
   },
   "nav": {
     "dashboard": "डैशबोर्ड",
@@ -29,11 +31,13 @@
     "examinations": "परीक्षाएं",
     "scholarships": "छात्रवृत्ति",
     "health": "स्वास्थ्य",
+    "parentPortal": "अभिभावक पोर्टल",
     "workflows": "कार्यप्रवाह",
     "dataWarehouse": "डेटा वेयरहाउस",
     "reports": "रिपोर्ट",
     "admin": "प्रशासन",
     "fees": "शुल्क",
+    "notifications": "सूचनाएँ",
     "transport": "Transport",
     "library": "Library",
     "communication": "Communication",
@@ -77,6 +81,7 @@
     "resendEmail": "ईमेल पुनः भेजें",
     "backToSignIn": "साइन इन पर वापस जाएं",
     "passwordResetFailed": "हम रीसेट ईमेल नहीं भेज सके। कृपया पुनः प्रयास करें।",
+    "passwordResetSuccess": "आपका पासवर्ड अपडेट हो गया है। नए पासवर्ड से साइन इन करें।",
     "createNewPassword": "एक नया पासवर्ड बनाएं",
     "createNewPasswordSubtitle": "ऐसा कुछ चुनें जो मजबूत और याद रखने योग्य हो।",
     "updatePassword": "पासवर्ड अपडेट करें",
@@ -465,7 +470,13 @@
     "statusDraft": "ड्राफ़्ट",
     "statusOpen": "आवेदन अवधि खुली",
     "statusClosed": "बंद",
-    "statusArchived": "संग्रहीत"
+    "statusArchived": "संग्रहीत",
+    "statusFilterLabel": "आवेदन स्थिति",
+    "statusFilterAll": "सभी",
+    "statusFilterPending": "लंबित",
+    "statusFilterUnderReview": "समीक्षाधीन",
+    "statusFilterApproved": "स्वीकृत",
+    "statusFilterRejected": "अस्वीकृत"
   },
   "lms": {
     "title": "अधिगम · असाइनमेंट, गृहकार्य और क्विज़",
@@ -620,7 +631,13 @@
     "fieldSkillName": "नाम",
     "fieldPrerequisite": "पूर्वापेक्षा",
     "fieldPrerequisiteHint": "विद्यार्थियों को पहले इसमें निपुण होना होगा",
-    "createSkill": "कौशल बनाएँ"
+    "createSkill": "कौशल बनाएँ",
+    "rubricsTitle": "रूब्रिक",
+    "rubricsSubtitle": "मानदंड × स्तर। असाइनमेंट और निबंध बैंक आइटम से जोड़ें, फिर सबमिशन का मूल्यांकन करें।",
+    "rubricsNew": "नया रूब्रिक",
+    "rubricsEmptyTitle": "अभी कोई रूब्रिक नहीं",
+    "rubricsEmptyBody": "निबंधों के मूल्यांकन के लिए एक रूब्रिक बनाएँ।",
+    "rubricsAnySubject": "कोई भी विषय"
   },
   "health": {
     "title": "स्वास्थ्य रिकॉर्ड",
@@ -711,7 +728,16 @@
     "statusApproved": "स्वीकृत",
     "statusRejected": "अस्वीकृत",
     "statusWaitlisted": "प्रतीक्षा सूची में",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "आवेदक की जन्म तिथि",
+    "dateOfBirthHint": "आवेदन में दी गई जन्म तिथि दर्ज करें। आवेदक के विवरण की सुरक्षा के लिए यह आवश्यक है।",
+    "dateOfBirthRequired": "जन्म तिथि आवश्यक है।",
+    "institution": "विद्यालय",
+    "waitlistPosition": "प्रतीक्षा सूची में स्थान",
+    "remarks": "प्रवेश कार्यालय की टिप्पणियाँ",
+    "interviews": "साक्षात्कार",
+    "interviewsEmpty": "अभी तक कोई साक्षात्कार बुक नहीं किया गया है।",
+    "interviewsBooked": "साक्षात्कार बुक: {count}"
   },
   "settings": {
     "branding": {
@@ -865,5 +891,16 @@
     "managePlans": "योजनाएँ प्रबंधित करें",
     "manageInvoices": "इनवॉइस प्रबंधित करें",
     "viewReceipts": "रसीदें देखें"
+  },
+  "notifications": {
+    "title": "सूचनाएँ",
+    "subtitle": "आपके विद्यालय अलर्ट के लिए ऐप-इनबॉक्स। ईमेल, पुश और SMS प्राथमिकताएँ कभी भी प्रबंधित करें।",
+    "preferences": "प्राथमिकताएँ",
+    "rules": "सूचना नियम",
+    "inbox": "इनबॉक्स",
+    "inboxDescription": "आपके साइन-इन खाते के अलर्ट।",
+    "empty": "अभी कोई सूचना नहीं। ईमेल, पुश या SMS चुनने के लिए प्राथमिकताएँ देखें — और मोबाइल अलर्ट के लिए डिवाइस पंजीकृत करें।",
+    "read": "पढ़ा गया",
+    "unread": "अपठित"
   }
 }

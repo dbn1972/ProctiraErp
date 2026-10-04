@@ -85,7 +85,7 @@ test.describe('Insights & System — inventory smoke (ungated)', () => {
     test(`${route.path} returns 200 with h1`, async ({ page }) => {
       // Public track should not require auth; still fine with cookie present.
       if (route.path === '/track') {
-        await page.route('**/api/v1/registration/applications/**', async (r) => {
+        await page.route('**/api/v1/registrations/*/status**', async (r) => {
           await r.fulfill({
             status: 404,
             contentType: 'application/json',

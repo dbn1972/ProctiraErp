@@ -5,21 +5,39 @@
  * Validates that:
  * - p95 latency < 500ms
  * - Error rate < 1%
+ * - No tenant can read another tenant's student (cross_tenant_leaks == 0)
  *
  * Usage:
- *   k6 run tools/load-test/k6-script.js
+ *   LOAD_TEST_FIXTURES=./fixtures.json k6 run tools/load-test/k6-script.js
  *
  * Environment variables:
- *   BASE_URL — Target API base URL (default: http://localhost:3000)
- *   AUTH_TOKEN — Bearer token for authenticated requests
+ *   BASE_URL           — Target API base URL (default: http://localhost:3000)
+ *   LOAD_TEST_FIXTURES — Path to a JSON document of seeded fixtures (required):
+ *     { "tenants": [ { "name", "token", "institutionId", "classId",
+ *                      "academicPeriodId", "studentIds": [...] }, ... ] }
+ *     At least two tenants, each with its own token and real seeded ids.
+ *   SUMMARY_PATH       — Where to write the JSON summary (default: k6-summary.json)
+ *
+ * PRC-L176: reads must return 200 (404 on a seeded id is a failure), bulk
+ * attendance bodies are asserted, and a second tenant's token must be denied
+ * (403/404) on the first tenant's ids.
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Rate, Trend } from 'k6/metrics';
+import { Counter, Rate, Trend } from 'k6/metrics';
+
+import {
+  buildSummary,
+  bulkAttendanceBodyOk,
+  isCrossTenantDenied,
+  isReadSuccess,
+  validateFixtures,
+} from './lib.js';
 
 // ─── Custom Metrics ──────────────────────────────────────────────────────────
 
 const errorRate = new Rate('errors');
+const crossTenantLeaks = new Counter('cross_tenant_leaks');
 const institutionLatency = new Trend('institution_list_latency', true);
 const studentLatency = new Trend('student_get_latency', true);
 const bulkAttendanceLatency = new Trend('bulk_attendance_latency', true);
@@ -27,7 +45,12 @@ const bulkAttendanceLatency = new Trend('bulk_attendance_latency', true);
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
-const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
+const SUMMARY_PATH = __ENV.SUMMARY_PATH || 'k6-summary.json';
+if (!__ENV.LOAD_TEST_FIXTURES) {
+  throw new Error('LOAD_TEST_FIXTURES is required (seeded per-tenant ids and tokens)');
+}
+// open() is only available in the init context.
+const FIXTURES = validateFixtures(JSON.parse(open(__ENV.LOAD_TEST_FIXTURES)));
 
 export const options = {
   stages: [
@@ -44,41 +67,56 @@ export const options = {
     bulk_attendance_latency: ['p(95)<500'],
     // Error rate must be under 1%
     errors: ['rate<0.01'],
+    // Any cross-tenant read that is not denied fails the run.
+    cross_tenant_leaks: ['count==0'],
   },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function headers() {
-  const h = { 'Content-Type': 'application/json' };
-  if (AUTH_TOKEN) {
-    h['Authorization'] = `Bearer ${AUTH_TOKEN}`;
-  }
-  return h;
+function headers(tenant) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${tenant.token}`,
+  };
 }
 
-/**
- * Generate a random UUID v4 for test data.
- */
-function randomUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+function pick(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+// ─── Lifecycle ───────────────────────────────────────────────────────────────
+
+export function setup() {
+  // Fail fast when a seeded student is not readable by its own tenant.
+  for (const tenant of FIXTURES.tenants) {
+    const res = http.get(`${BASE_URL}/api/v1/students/${tenant.studentIds[0]}`, {
+      headers: headers(tenant),
+      tags: { name: 'setup_fixture_probe' },
+    });
+    if (!isReadSuccess(res.status)) {
+      throw new Error(`fixture probe failed for tenant ${tenant.name}: HTTP ${res.status}`);
+    }
+  }
+  return FIXTURES;
 }
 
 // ─── Scenarios ───────────────────────────────────────────────────────────────
 
-export default function () {
+export default function (fixtures) {
+  const tenantIndex = Math.floor(Math.random() * fixtures.tenants.length);
+  const tenant = fixtures.tenants[tenantIndex];
   const scenario = Math.random();
 
-  if (scenario < 0.4) {
-    testInstitutionList();
-  } else if (scenario < 0.7) {
-    testStudentGet();
+  if (scenario < 0.35) {
+    testInstitutionList(tenant);
+  } else if (scenario < 0.65) {
+    testStudentGet(tenant);
+  } else if (scenario < 0.95) {
+    testBulkAttendance(tenant);
   } else {
-    testBulkAttendance();
+    const foreign = fixtures.tenants[(tenantIndex + 1) % fixtures.tenants.length];
+    testCrossTenantDenied(tenant, foreign);
   }
 
   sleep(0.5 + Math.random() * 1.5); // 0.5–2s think time
@@ -86,18 +124,17 @@ export default function () {
 
 /**
  * GET /api/v1/institutions — Cached endpoint
- * Tests the institution list with cache layer.
  */
-function testInstitutionList() {
+function testInstitutionList(tenant) {
   const res = http.get(`${BASE_URL}/api/v1/institutions?page=1&pageSize=20`, {
-    headers: headers(),
+    headers: headers(tenant),
     tags: { name: 'GET_institutions' },
   });
 
   institutionLatency.add(res.timings.duration);
 
   const success = check(res, {
-    'institutions: status 200': (r) => r.status === 200,
+    'institutions: status 200': (r) => isReadSuccess(r.status),
     'institutions: has data': (r) => {
       try {
         const body = JSON.parse(r.body);
@@ -112,94 +149,87 @@ function testInstitutionList() {
 }
 
 /**
- * GET /api/v1/students/:id — Cached endpoint
- * Tests individual student lookup with cache layer.
+ * GET /api/v1/students/:id — Cached endpoint, seeded ids only.
  */
-function testStudentGet() {
-  // Use a fixed set of student IDs to maximize cache hits
-  const studentIds = [
-    '00000000-0000-4000-8000-000000000001',
-    '00000000-0000-4000-8000-000000000002',
-    '00000000-0000-4000-8000-000000000003',
-    '00000000-0000-4000-8000-000000000004',
-    '00000000-0000-4000-8000-000000000005',
-    '00000000-0000-4000-8000-000000000006',
-    '00000000-0000-4000-8000-000000000007',
-    '00000000-0000-4000-8000-000000000008',
-    '00000000-0000-4000-8000-000000000009',
-    '00000000-0000-4000-8000-000000000010',
-  ];
-
-  const id = studentIds[Math.floor(Math.random() * studentIds.length)];
-  const res = http.get(`${BASE_URL}/api/v1/students/${id}`, {
-    headers: headers(),
+function testStudentGet(tenant) {
+  const res = http.get(`${BASE_URL}/api/v1/students/${pick(tenant.studentIds)}`, {
+    headers: headers(tenant),
     tags: { name: 'GET_student_by_id' },
   });
 
   studentLatency.add(res.timings.duration);
 
-  // Accept 200 (found) or 404 (not found) as valid responses
   const success = check(res, {
-    'student: status 200 or 404': (r) => r.status === 200 || r.status === 404,
+    'student: status 200': (r) => isReadSuccess(r.status),
   });
 
   errorRate.add(!success);
 }
 
 /**
- * POST /api/v1/attendance/student/bulk — Queue-first endpoint
- * Tests bulk attendance submission that goes through the queue.
+ * GET /api/v1/students/:id with another tenant's token — must be 403/404.
  */
-function testBulkAttendance() {
+function testCrossTenantDenied(tenant, foreign) {
+  const res = http.get(`${BASE_URL}/api/v1/students/${pick(tenant.studentIds)}`, {
+    headers: headers(foreign),
+    tags: { name: 'GET_student_cross_tenant' },
+  });
+
+  const denied = check(res, {
+    'cross-tenant: 403 or 404': (r) => isCrossTenantDenied(r.status),
+  });
+  if (!denied) crossTenantLeaks.add(1);
+  errorRate.add(!denied);
+}
+
+/**
+ * POST /api/v1/attendance/student/bulk — Queue-first endpoint, seeded ids only.
+ */
+function testBulkAttendance(tenant) {
   const today = new Date().toISOString().split('T')[0];
-
-  const records = [];
-  const recordCount = 5 + Math.floor(Math.random() * 25); // 5–30 records per request
-
-  for (let i = 0; i < recordCount; i++) {
-    records.push({
-      studentId: randomUUID(),
-      status: ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'][Math.floor(Math.random() * 4)],
-    });
-  }
+  const records = tenant.studentIds.map((studentId) => ({
+    studentId,
+    status: pick(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']),
+  }));
 
   const payload = JSON.stringify({
-    institutionId: randomUUID(),
-    classId: randomUUID(),
-    academicPeriodId: randomUUID(),
+    institutionId: tenant.institutionId,
+    classId: tenant.classId,
+    academicPeriodId: tenant.academicPeriodId,
     date: today,
     records,
   });
 
   const res = http.post(`${BASE_URL}/api/v1/attendance/student/bulk`, payload, {
-    headers: headers(),
+    headers: headers(tenant),
     tags: { name: 'POST_bulk_attendance' },
   });
 
   bulkAttendanceLatency.add(res.timings.duration);
 
-  // Accept 200, 201, or 202 (accepted for async processing)
   const success = check(res, {
-    'bulk attendance: status 2xx': (r) => r.status >= 200 && r.status < 300,
+    'bulk attendance: 201 with every record persisted': (r) =>
+      bulkAttendanceBodyOk(r.status, r.body, records.length),
   });
 
   errorRate.add(!success);
 }
 
-// ─── Lifecycle Hooks ─────────────────────────────────────────────────────────
+// ─── Summary ─────────────────────────────────────────────────────────────────
 
 export function handleSummary(data) {
-  const p95 = data.metrics.http_req_duration.values['p(95)'];
-  const errRate = data.metrics.errors ? data.metrics.errors.values.rate : 0;
+  const summary = buildSummary(data);
+  const p95 = summary.p95Ms ?? NaN;
+  const errRate = summary.errorRate ?? NaN;
 
   console.log('═══════════════════════════════════════════════════════');
   console.log('  ProctiraERP Load Test Summary');
   console.log('═══════════════════════════════════════════════════════');
-  console.log(`  p95 Latency:  ${p95.toFixed(2)}ms (threshold: <500ms) ${p95 < 500 ? '✓' : '✗'}`);
-  console.log(
-    `  Error Rate:   ${(errRate * 100).toFixed(3)}% (threshold: <1%) ${errRate < 0.01 ? '✓' : '✗'}`,
-  );
+  console.log(`  p95 Latency:  ${p95.toFixed(2)}ms (threshold: <500ms)`);
+  console.log(`  Error Rate:   ${(errRate * 100).toFixed(3)}% (threshold: <1%)`);
+  console.log(`  Cross-tenant leaks: ${summary.crossTenantLeaks} (threshold: 0)`);
+  console.log(`  Result: ${summary.passed ? 'PASS' : 'FAIL'}`);
   console.log('═══════════════════════════════════════════════════════');
 
-  return {};
+  return { [SUMMARY_PATH]: JSON.stringify(summary, null, 2) };
 }

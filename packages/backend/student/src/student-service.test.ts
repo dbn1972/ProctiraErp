@@ -296,7 +296,13 @@ describe('StudentService', () => {
       };
       const updated = await service.update(TENANT_ID, created.id, updateInput);
 
-      expect(updated.customData).toEqual({ key1: 'updated', key2: 'new' });
+      // PRC-L365: merge semantics — issued admission number is preserved.
+      expect(updated.customData).toEqual({
+        key1: 'updated',
+        key2: 'new',
+        admissionNo: created.customData['admissionNo'],
+        admissionNumber: created.customData['admissionNo'],
+      });
     });
   });
 
@@ -502,7 +508,9 @@ describe('StudentService', () => {
         );
       });
       await expect(guarded.delete(TENANT_ID, created.id)).rejects.toThrow(BusinessRuleError);
-      await expect(service.getById(TENANT_ID, created.id)).resolves.toMatchObject({ id: created.id });
+      await expect(service.getById(TENANT_ID, created.id)).resolves.toMatchObject({
+        id: created.id,
+      });
     });
   });
 

@@ -29,23 +29,12 @@ class _NotificationPreferencesScreenState
   }
 
   Future<void> _load() async {
-    final String? raw =
-        await getIt<SecureStorage>().readNotificationPreferences();
+    final String? raw = await getIt<SecureStorage>()
+        .readNotificationPreferences();
     if (!mounted || raw == null || raw.isEmpty) {
       return;
     }
-    try {
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is Map) {
-        setState(() {
-          _prefs = LocalNotificationPreferences.fromJson(
-            Map<String, dynamic>.from(decoded),
-          );
-        });
-      }
-    } catch (_) {
-      // Keep defaults when the stored payload is unreadable.
-    }
+    setState(() => _prefs = LocalNotificationPreferences.decode(raw));
   }
 
   void _update(LocalNotificationPreferences next) {
@@ -76,25 +65,16 @@ class _NotificationPreferencesScreenState
                 icon: Icons.notifications_active_outlined,
                 tint: const Color(0xFF4F46E5),
                 title: 'Push notifications',
-                subtitle: 'Receive alerts on your device',
+                subtitle: 'Show alerts on this device while the app is open',
                 value: _prefs.pushEnabled,
                 onChanged: (bool value) =>
                     _update(_prefs.copyWith(pushEnabled: value)),
               ),
               _PrefSwitch(
-                icon: Icons.email_outlined,
-                tint: const Color(0xFF0EA5E9),
-                title: 'Email notifications',
-                subtitle: 'Receive alerts via email',
-                value: _prefs.emailEnabled,
-                onChanged: (bool value) =>
-                    _update(_prefs.copyWith(emailEnabled: value)),
-              ),
-              _PrefSwitch(
                 icon: Icons.inbox_outlined,
                 tint: const Color(0xFF14B8A6),
                 title: 'In-app notifications',
-                subtitle: 'Show in the notification inbox',
+                subtitle: 'Add new alerts to the notification inbox',
                 value: _prefs.inAppEnabled,
                 onChanged: (bool value) =>
                     _update(_prefs.copyWith(inAppEnabled: value)),
@@ -264,8 +244,7 @@ class _PrefSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SwitchListTile(
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       secondary: Container(
         width: 40,
         height: 40,

@@ -40,7 +40,10 @@ describe('ParentPortalService', () => {
     const existing = await repository.listActiveHouseholdIdsForParent(TENANT_A, parentUserId);
     if (!existing.includes(householdId)) {
       try {
-        await service.createHousehold(TENANT_A, { id: householdId, label: `Household ${householdId}` });
+        await service.createHousehold(TENANT_A, {
+          id: householdId,
+          label: `Household ${householdId}`,
+        });
       } catch {
         // household may already exist from a prior call in the same test
       }
@@ -160,6 +163,7 @@ describe('ParentPortalService', () => {
     const CONSENT_VERSION = 'photo-media-v2026-01';
 
     it('requires consentVersion on create and exposes it on read (W1-PRIV-01)', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -177,6 +181,8 @@ describe('ParentPortalService', () => {
     });
 
     it('allows parent to approve a pending consent', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
+
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -188,8 +194,6 @@ describe('ParentPortalService', () => {
 
       expect(consent.status).toBe('pending');
 
-      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
-
       const decided = await service.decideConsent(TENANT_A, PARENT_USER, consent.id, {
         status: 'approved',
       });
@@ -199,6 +203,7 @@ describe('ParentPortalService', () => {
     });
 
     it('rejects deciding a consent for another parent', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -210,6 +215,66 @@ describe('ParentPortalService', () => {
       await expect(
         service.decideConsent(TENANT_A, 'other-parent', consent.id, { status: 'approved' }),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-H073: staff must name a real (parent, student) relationship.
+    it('rejects creating a consent for a guardian not linked to the student', async () => {
+      await expect(
+        service.createConsentRequest(TENANT_A, 'staff-admin', {
+          studentId: STUDENT_ID,
+          parentUserId: 'unlinked-parent',
+          consentType: 'photo_media',
+          title: 'Photo consent',
+          consentVersion: CONSENT_VERSION,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('rejects superseding a consent whose guardian is no longer an active linked guardian', async () => {
+      // Seed an open consent whose parent was never (or is no longer) linked to the student —
+      // the realistic state after a guardian link is removed. Supersede must refuse to re-open it.
+      const orphanId = '00000000-0000-4000-8000-0000000000c1';
+      await repository.createConsent({
+        id: orphanId,
+        tenantId: TENANT_A,
+        studentId: STUDENT_ID,
+        parentUserId: 'delinked-parent',
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        description: '',
+        status: 'approved',
+        consentVersion: CONSENT_VERSION,
+        consentChainId: orphanId,
+        version: 1,
+        supersedesId: null,
+        validFrom: new Date(),
+        createdBy: 'staff-admin',
+      });
+
+      await expect(
+        service.supersedeConsent(TENANT_A, 'staff-admin', orphanId, {
+          consentVersion: 'photo-media-v2026-02',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('allows staff to supersede an active linked consent with a new version', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
+      const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        parentUserId: PARENT_USER,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        consentVersion: CONSENT_VERSION,
+      });
+
+      const next = await service.supersedeConsent(TENANT_A, 'staff-admin', consent.id, {
+        consentVersion: 'photo-media-v2026-02',
+      });
+
+      expect(next.consentVersion).toBe('photo-media-v2026-02');
+      expect(next.supersedesId).toBe(consent.id);
+      expect(next.version).toBe(consent.version + 1);
     });
   });
 
@@ -346,6 +411,42 @@ describe('ParentPortalService', () => {
       await expect(service.payInvoice(TENANT_A, PARENT_USER, invoice.id)).rejects.toThrow(
         BusinessRuleError,
       );
+    });
+
+    // PRC-C001: a self-declared payment must not fabricate a successful settlement.
+    it('refuses to settle via the sandbox in-memory path when provider mode is live', async () => {
+      const prev = process.env['PROVIDER_MODE'];
+      process.env['PROVIDER_MODE'] = 'live';
+      try {
+        const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+          studentId: STUDENT_ID,
+          title: 'Live gate',
+          amountCents: 5000,
+        });
+        await expect(
+          service.payInvoice(TENANT_A, PARENT_USER, invoice.id, { method: 'sandbox' }),
+        ).rejects.toThrow(BusinessRuleError);
+        // Invoice must remain open — no forged 'paid' state.
+        const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
+        expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
+      } finally {
+        if (prev === undefined) delete process.env['PROVIDER_MODE'];
+        else process.env['PROVIDER_MODE'] = prev;
+      }
+    });
+
+    // PRC-C001: non-sandbox methods falsely imply a real PSP settlement — reject them.
+    it('rejects non-sandbox payment methods on the self-declared pay path', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        title: 'Fake card',
+        amountCents: 2000,
+      });
+      await expect(
+        service.payInvoice(TENANT_A, PARENT_USER, invoice.id, {
+          method: 'card' as never,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
     });
   });
 

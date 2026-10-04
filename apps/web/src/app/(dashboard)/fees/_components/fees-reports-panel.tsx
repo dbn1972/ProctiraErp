@@ -13,17 +13,10 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import type { DuesReport } from '@/lib/api/fees';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
-
-function formatAmount(cents: number, locale: string): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 export function FeesReportsPanel({
   report,
@@ -78,8 +71,10 @@ export function FeesReportsPanel({
                       : resolveEntityLabel(row.classId, classLabels, 'Class')}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Open {row.openCount} ({formatAmount(row.openCents, locale)}) · Overdue{' '}
-                    {row.overdueCount} ({formatAmount(row.overdueCents, locale)})
+                    Open {row.openCount} (
+                    {formatAmount(row.openCents, DEFAULT_FEE_CURRENCY, locale)}) · Overdue{' '}
+                    {row.overdueCount} (
+                    {formatAmount(row.overdueCents, DEFAULT_FEE_CURRENCY, locale)})
                   </p>
                 </li>
               ))}
@@ -107,7 +102,7 @@ export function FeesReportsPanel({
                 <li key={row.status} className="py-2" data-testid="dues-status-row">
                   <p className="text-sm text-foreground">
                     {humanizeStatus(row.status)}: {row.count} ·{' '}
-                    {formatAmount(row.amountCents, locale)}
+                    {formatAmount(row.amountCents, DEFAULT_FEE_CURRENCY, locale)}
                   </p>
                 </li>
               ))}

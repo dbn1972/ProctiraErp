@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
 import {
   createBellSchedule,
   createMeeting,
@@ -19,6 +20,7 @@ import {
   markTeacherAbsent,
 } from '@/lib/api/timetable';
 import type { MeetingClash } from '@/lib/timetable/meeting-conflict-label';
+import { bellScheduleInputSchema } from '@/lib/validation/action-input-schema';
 
 export type TimetableActionResult =
   | { ok: true; id: string }
@@ -40,10 +42,7 @@ function fail(error: unknown): TimetableActionResult {
       conflicts: clashList(error.details),
     };
   }
-  return {
-    ok: false,
-    error: error instanceof Error ? error.message : 'Unexpected error',
-  };
+  return { ok: false, error: safeActionErrorMessage(error, 'Unexpected error') };
 }
 
 export async function createBellScheduleAction(input: {
@@ -52,8 +51,12 @@ export async function createBellScheduleAction(input: {
   name: string;
   dayPattern?: string;
 }): Promise<TimetableActionResult> {
+  const parsed = bellScheduleInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid bell schedule' };
+  }
   try {
-    const row = await createBellSchedule(input);
+    const row = await createBellSchedule(parsed.data);
     revalidatePath(`/academic-periods/${input.academicPeriodId}/bell-schedules`);
     return { ok: true, id: row.id };
   } catch (error) {

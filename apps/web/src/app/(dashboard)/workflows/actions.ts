@@ -5,7 +5,11 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
+import {
+  workflowDecisionSchema,
+  workflowDefinitionInputSchema,
+} from '@/lib/validation/action-input-schema';
 import {
   createWorkflowDefinition,
   decideWorkflowApproval,
@@ -21,8 +25,12 @@ export interface WorkflowActionState {
 export async function createWorkflowDefinitionAction(
   input: CreateWorkflowDefinitionInput,
 ): Promise<WorkflowActionState> {
+  const parsed = workflowDefinitionInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid definition' };
+  }
   try {
-    const definition = await createWorkflowDefinition(input);
+    const definition = await createWorkflowDefinition(parsed.data);
     revalidatePath('/workflows');
     revalidatePath(`/workflows/definitions/${definition.id}`);
     return {
@@ -31,13 +39,10 @@ export async function createWorkflowDefinitionAction(
       definitionId: definition.id,
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create definition';
-    return { status: 'error', message };
+    return {
+      status: 'error',
+      message: safeActionErrorMessage(error, 'Failed to create definition'),
+    };
   }
 }
 
@@ -45,6 +50,9 @@ export async function decideWorkflowApprovalAction(
   approvalId: string,
   decision: 'approve' | 'reject',
 ): Promise<WorkflowActionState> {
+  if (!workflowDecisionSchema.safeParse({ approvalId, decision }).success) {
+    return { status: 'error', message: 'Invalid approval decision.' };
+  }
   try {
     await decideWorkflowApproval(approvalId, decision);
     revalidatePath('/workflows/approvals');
@@ -54,12 +62,9 @@ export async function decideWorkflowApprovalAction(
       message: decision === 'approve' ? 'Approved.' : 'Rejected.',
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : `Failed to ${decision} approval`;
-    return { status: 'error', message };
+    return {
+      status: 'error',
+      message: safeActionErrorMessage(error, `Failed to ${decision} approval`),
+    };
   }
 }

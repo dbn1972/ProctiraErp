@@ -88,7 +88,7 @@ export interface LanguageSelectorProps {
  * locale without leaving the current view.
  */
 export function LanguageSelector({ className }: LanguageSelectorProps = {}) {
-  const { locale, setLocale } = useLanguage();
+  const { locale, setLocale, t } = useLanguage();
 
   const currentNative = LOCALE_NATIVE_NAMES[locale] ?? locale;
 
@@ -99,7 +99,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps = {}) {
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Select language"
+          aria-label={t('common.selectLanguage')}
           data-testid="language-selector"
           data-current-locale={locale}
           // Match <ThemeToggle> so the header reads as a coherent cluster
@@ -111,7 +111,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps = {}) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[12rem]">
-        <DropdownMenuLabel>Language</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('common.language')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {LANGUAGE_SELECTOR_LOCALES.map((code) => {
           const native = LOCALE_NATIVE_NAMES[code] ?? code;

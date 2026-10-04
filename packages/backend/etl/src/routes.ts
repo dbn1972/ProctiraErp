@@ -10,23 +10,26 @@
  * GET    /pipelines/:pipelineId/executions       - List executions for a pipeline
  * GET    /pipelines/:pipelineId/executions/:executionId - Get execution details
  */
+import { getActor } from '@proctira/backend-auth';
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { hasEtlAccess } from './etl-access.js';
 import type { ETLService } from './etl-service.js';
 import {
   CreatePipelineSchema,
   UpdatePipelineSchema,
   PipelineParamsSchema,
-  PipelineListQuerySchema,
   type CreatePipelineInput,
   type UpdatePipelineInput,
   type PipelineParams,
   type PipelineListQuery,
   type Pipeline,
   type PipelineExecution,
+  type ExecutionError,
 } from './schemas.js';
+import { redactConnectorSecrets } from './secret-redaction.js';
 
 /**
  * Options for registering ETL routes.
@@ -46,14 +49,31 @@ function formatPipelineResponse(entity: Pipeline) {
     tenantId: entity.tenantId,
     name: entity.name,
     description: entity.description,
-    source: entity.source,
-    destination: entity.destination,
+    // PRC-H050 + PRC-H115: never return stored credentials to the browser.
+    source: redactConnectorSecrets(entity.source),
+    destination: redactConnectorSecrets(entity.destination),
     fieldMappings: entity.fieldMappings,
     schedule: entity.schedule,
     retryPolicy: entity.retryPolicy,
     enabled: entity.enabled,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * PRC-H050 (defense in depth): execution error rows carry the offending *source record* in
+ * `data` — for student/PII sources this is sensitive material. Diagnostics need to know which
+ * row failed and why (row index, field, message), not the raw record, so strip `data` to a
+ * boolean presence flag. This keeps the failure actionable without echoing source PII over the
+ * API even to authorized ETL staff (and stays safe if the route gate ever regresses).
+ */
+function redactExecutionError(error: ExecutionError) {
+  return {
+    row: error.row,
+    field: error.field,
+    message: error.message,
+    hasData: error.data != null,
   };
 }
 
@@ -72,7 +92,7 @@ function formatExecutionResponse(entity: PipelineExecution) {
     transformedCount: entity.transformedCount,
     loadedCount: entity.loadedCount,
     errorCount: entity.errorCount,
-    errors: entity.errors,
+    errors: (entity.errors ?? []).map(redactExecutionError),
     lineage: entity.lineage ?? null,
   };
 }
@@ -92,6 +112,24 @@ export async function registerETLRoutes(
   options: ETLRoutesOptions,
 ): Promise<void> {
   const { etlService, prefix = '/pipelines' } = options;
+
+  /**
+   * PRC-H050: gate every ETL pipeline operation (read and write) behind an ETL/admin role.
+   * The gateway only enforces the coarse `report` resource, which parents/guardians/students/
+   * teachers/generic staff also hold, so without this the connector credentials and execution
+   * error rows returned by the read handlers were reachable by any authenticated tenant user.
+   * Identity/roles come from the verified JWT actor only.
+   */
+  fastify.addHook('preHandler', async function etlAccessGuard(request, reply) {
+    if (!hasEtlAccess(getActor(request).roles)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'ETL pipeline access requires an ETL or admin role',
+        statusCode: 403,
+      });
+    }
+    return undefined;
+  });
 
   /**
    * POST /pipelines
@@ -153,7 +191,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -383,7 +421,7 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query as PipelineListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

@@ -146,24 +146,21 @@ describe('PageErrorBoundary', () => {
     expect(errorUI.getAttribute('aria-live')).toBe('assertive');
   });
 
-  it('shows error details in a collapsible section', () => {
+  it('PRC-L065: never shows the raw error message, only a digest reference', () => {
     function ThrowingComponent(): React.ReactElement {
-      throw new Error('Detailed error message for debugging');
+      throw Object.assign(new Error('SELECT * FROM fee_invoices WHERE tenant_id = 7'), {
+        digest: 'dg-42',
+      });
     }
-
     render(
       <PageErrorBoundary>
         <ThrowingComponent />
       </PageErrorBoundary>,
     );
-
-    // Error details should be present (in a <details> element)
-    expect(screen.getByText('Error details')).toBeDefined();
-
-    // The error message should be in the details
-    expect(screen.getByText('Detailed error message for debugging')).toBeDefined();
+    expect(screen.queryByText(/SELECT/)).toBeNull();
+    expect(screen.queryByText('Error details')).toBeNull();
+    expect(screen.getByTestId('page-error-digest').textContent).toBe('Reference: dg-42');
   });
-
   it('renders custom fallback when provided', () => {
     function ThrowingComponent(): React.ReactElement {
       throw new Error('Custom fallback test');

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
@@ -6,7 +8,9 @@ import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
+import '../../../core/sync/conflict_resolver.dart';
 import '../../../core/sync/sync_engine.dart';
+import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/attendance_repository.dart';
 import 'attendance_geofence_widget.dart';
@@ -45,11 +49,44 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     studentApi: getIt<StudentApi>(),
   );
   late final GeofenceLocator _locator = buildAppGeofenceLocator();
+  late final SyncStatusController _syncStatus = EngineSyncStatusController(
+    engine: getIt<SyncEngine>(),
+    resolver: ConflictResolver(database: getIt<AppDatabase>()),
+  );
+  StreamSubscription<void>? _queueSub;
+  bool _reloadQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep per-row sync state (synced / failed / conflict) current as the
+    // queue drains in the background (PRC-H011).
+    _queueSub = _syncStatus.changes.listen((_) => _reloadQuietly());
+  }
+
+  Future<void> _reloadQuietly() async {
+    if (_roster.isEmpty || _loading || _reloadQueued) return;
+    _reloadQueued = true;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _reloadQueued = false;
+    if (!mounted || _roster.isEmpty) return;
+    try {
+      final List<AttendanceRosterEntry> roster = await _repository.loadRoster(
+        institutionId: _institutionCtrl.text.trim(),
+        classId: _classCtrl.text.trim().isEmpty ? null : _classCtrl.text.trim(),
+        date: _dateString,
+      );
+      if (mounted) setState(() => _roster = roster);
+    } catch (_) {
+      // Keep the current roster; an explicit reload surfaces errors.
+    }
+  }
 
   String get _dateString => DateFormat('yyyy-MM-dd').format(_date);
 
   @override
   void dispose() {
+    _queueSub?.cancel();
     _institutionCtrl.dispose();
     _classCtrl.dispose();
     super.dispose();
@@ -125,20 +162,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _roster = _roster.map((AttendanceRosterEntry e) {
-          if (e.studentId == saved.studentId) {
-            return AttendanceRosterEntry(
-              studentId: e.studentId,
-              studentName: e.studentName,
-              recordId: saved.recordId,
-              status: saved.status,
-              comment: saved.comment,
-              version: saved.version,
-              synced: false,
-            );
-          }
-          return e;
-        }).toList(growable: false);
+        _roster = _roster
+            .map((AttendanceRosterEntry e) {
+              if (e.studentId == saved.studentId) {
+                return AttendanceRosterEntry(
+                  studentId: e.studentId,
+                  studentName: e.studentName,
+                  recordId: saved.recordId,
+                  status: saved.status,
+                  comment: saved.comment,
+                  version: saved.version,
+                  synced: false,
+                  queueStatus: saved.queueStatus,
+                );
+              }
+              return e;
+            })
+            .toList(growable: false);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -148,15 +188,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $error')));
     }
   }
 
   Future<String?> _promptComment(AttendanceRosterEntry entry) async {
-    final TextEditingController ctrl =
-        TextEditingController(text: entry.comment ?? '');
+    final TextEditingController ctrl = TextEditingController(
+      text: entry.comment ?? '',
+    );
     final String? value = await showDialog<String>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
@@ -201,7 +242,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final ColorScheme cs = theme.colorScheme;
 
     final int present = _roster
-        .where((AttendanceRosterEntry e) => e.status == AttendanceStatus.present)
+        .where(
+          (AttendanceRosterEntry e) => e.status == AttendanceStatus.present,
+        )
         .length;
     final int absent = _roster
         .where((AttendanceRosterEntry e) => e.status == AttendanceStatus.absent)
@@ -270,17 +313,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 AttendanceGeofenceWidget(
                   institutionId: _institutionCtrl.text.trim(),
                   locator: _locator,
-                  onCheck: (GeofenceCheck check) =>
-                      _lastCheck = check,
+                  onCheck: (GeofenceCheck check) => _lastCheck = check,
                 ),
               const SizedBox(height: 8),
+              SyncStatusBanner(controller: _syncStatus),
               if (_loadError != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     _loadError!,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: theme.colorScheme.error),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                 ),
               if (_roster.isNotEmpty) ...<Widget>[
@@ -308,22 +352,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     : ListView.separated(
                         itemBuilder: (BuildContext context, int index) =>
                             _RosterRow(
-                          entry: _roster[index],
-                          onMark: (AttendanceStatus status) =>
-                              _mark(_roster[index], status),
-                          onComment: () async {
-                            final String? comment = await _promptComment(
-                              _roster[index],
-                            );
-                            if (comment != null) {
-                              await _mark(
-                                _roster[index],
-                                _roster[index].status ?? AttendanceStatus.present,
-                                comment: comment,
-                              );
-                            }
-                          },
-                        ),
+                              entry: _roster[index],
+                              onMark: (AttendanceStatus status) =>
+                                  _mark(_roster[index], status),
+                              onComment: () async {
+                                final String? comment = await _promptComment(
+                                  _roster[index],
+                                );
+                                if (comment != null) {
+                                  await _mark(
+                                    _roster[index],
+                                    _roster[index].status ??
+                                        AttendanceStatus.present,
+                                    comment: comment,
+                                  );
+                                }
+                              },
+                            ),
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemCount: _roster.length,
                       ),
@@ -389,12 +434,18 @@ class _SummaryHeader extends StatelessWidget {
                     spacing: 14,
                     runSpacing: 4,
                     children: <Widget>[
-                      _countLabel('$present present',
-                          _AttendanceScreenState._presentColor),
-                      _countLabel('$absent absent',
-                          _AttendanceScreenState._absentColor),
                       _countLabel(
-                          '$late late', _AttendanceScreenState._lateColor),
+                        '$present present',
+                        _AttendanceScreenState._presentColor,
+                      ),
+                      _countLabel(
+                        '$absent absent',
+                        _AttendanceScreenState._absentColor,
+                      ),
+                      _countLabel(
+                        '$late late',
+                        _AttendanceScreenState._lateColor,
+                      ),
                       _countLabel('$left left', cs.onSurfaceVariant),
                     ],
                   ),
@@ -408,22 +459,26 @@ class _SummaryHeader extends StatelessWidget {
                           Expanded(
                             flex: (present / denom * 1000).round(),
                             child: const ColoredBox(
-                                color: _AttendanceScreenState._presentColor),
+                              color: _AttendanceScreenState._presentColor,
+                            ),
                           ),
                           Expanded(
                             flex: (absent / denom * 1000).round(),
                             child: const ColoredBox(
-                                color: _AttendanceScreenState._absentColor),
+                              color: _AttendanceScreenState._absentColor,
+                            ),
                           ),
                           Expanded(
                             flex: (late / denom * 1000).round(),
                             child: const ColoredBox(
-                                color: _AttendanceScreenState._lateColor),
+                              color: _AttendanceScreenState._lateColor,
+                            ),
                           ),
                           Expanded(
                             flex: (left / denom * 1000).round(),
                             child: ColoredBox(
-                                color: cs.surfaceContainerHighest),
+                              color: cs.surfaceContainerHighest,
+                            ),
                           ),
                         ],
                       ),
@@ -451,11 +506,7 @@ class _SummaryHeader extends StatelessWidget {
   Widget _countLabel(String text, Color color) {
     return Text(
       text,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: color,
-      ),
+      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
     );
   }
 }
@@ -522,17 +573,10 @@ class _RosterRow extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       Flexible(
-                        child: Text(
-                          entry.status == null
-                              ? 'Not marked'
-                              : entry.synced
-                                  ? 'Synced'
-                                  : 'Saved on device',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: SyncRowStateLabel(
+                          recorded: entry.status != null,
+                          synced: entry.synced,
+                          queueStatus: entry.queueStatus,
                         ),
                       ),
                       if (hasComment) ...<Widget>[
@@ -549,10 +593,7 @@ class _RosterRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _SegmentedAttendance(
-              status: entry.status,
-              onMark: onMark,
-            ),
+            _SegmentedAttendance(status: entry.status, onMark: onMark),
             IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.comment_outlined, size: 18),
@@ -587,12 +628,21 @@ class _SegmentedAttendance extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _segment('P', AttendanceStatus.present,
-              _AttendanceScreenState._presentColor),
           _segment(
-              'A', AttendanceStatus.absent, _AttendanceScreenState._absentColor),
+            'P',
+            AttendanceStatus.present,
+            _AttendanceScreenState._presentColor,
+          ),
           _segment(
-              'L', AttendanceStatus.late, _AttendanceScreenState._lateColor),
+            'A',
+            AttendanceStatus.absent,
+            _AttendanceScreenState._absentColor,
+          ),
+          _segment(
+            'L',
+            AttendanceStatus.late,
+            _AttendanceScreenState._lateColor,
+          ),
         ],
       ),
     );

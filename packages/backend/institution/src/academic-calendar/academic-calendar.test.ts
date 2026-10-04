@@ -30,6 +30,7 @@ async function buildHarness(): Promise<Harness> {
     const header = request.headers['x-tenant-id'];
     (request as unknown as { tenantId: string }).tenantId =
       typeof header === 'string' ? header : TENANT_A;
+    (request as unknown as { user: { sub: string } }).user = { sub: 'calendar-admin' };
   });
   await app.register(institutionPlugin, { repository, academics: deps });
   await app.ready();
@@ -491,12 +492,15 @@ describe('G-905 academic calendar', () => {
         where: { tenantId: TENANT_A, academicPeriodId: target.id },
       });
       expect(targetEnrollments).toHaveLength(2);
-      const retained = targetEnrollments.find((e: { studentId: string }) => e.studentId === retainedId);
-      const promoted = targetEnrollments.find((e: { studentId: string }) => e.studentId === promotedId);
+      const retained = targetEnrollments.find(
+        (e: { studentId: string }) => e.studentId === retainedId,
+      );
+      const promoted = targetEnrollments.find(
+        (e: { studentId: string }) => e.studentId === promotedId,
+      );
       expect(retained?.gradeId).toBe(g7);
       expect(promoted?.gradeId).not.toBe(g7);
     });
-
 
     it('clones sections, promotes students one grade up and is idempotent on re-run', async () => {
       const { institutionId, source, target, g7, g8, classIds } = await seedYearWithSections();

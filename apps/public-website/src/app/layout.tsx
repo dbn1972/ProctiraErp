@@ -4,6 +4,7 @@ import localFont from 'next/font/local';
 import { CookieConsent } from '@/components/cookie-consent';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
+import { getSiteUrl, isIndexable } from '@/lib/seo';
 import '@/styles/globals.css';
 
 /**
@@ -18,8 +19,10 @@ const inter = localFont({
   variable: '--font-sans',
 });
 
+const siteUrl = getSiteUrl();
+const indexable = isIndexable();
 export const metadata: Metadata = {
-  metadataBase: new URL('https://proctira.org'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'ProctiraERP — Education Management Platform',
     template: '%s · ProctiraERP',
@@ -44,7 +47,7 @@ export const metadata: Metadata = {
     description:
       'The open, multi-tenant education management platform for schools, districts, and ministries.',
     locale: 'en_US',
-    url: 'https://proctira.org',
+    url: siteUrl,
   },
   twitter: {
     card: 'summary_large_image',
@@ -52,9 +55,10 @@ export const metadata: Metadata = {
     description:
       'The open, multi-tenant education management platform for schools, districts, and ministries.',
   },
+  // Preview/staging (NEXT_PUBLIC_SITE_ENV != production) builds serve noindex.
   robots: {
-    index: true,
-    follow: true,
+    index: indexable,
+    follow: indexable,
   },
 };
 

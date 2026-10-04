@@ -23,6 +23,43 @@ import type { StaffEntity, StaffFilter, StaffRepository } from './staff-reposito
 
 const PROFILE_KEY = '__profile';
 
+/** PRC-L157: static allowlist of tables holding per-staff HR/payroll history. */
+const STAFF_DEPENDENT_TABLES: ReadonlyArray<readonly [kind: string, table: string]> = [
+  ['payrollLines', 'staff_payroll_lines'],
+  ['contracts', 'staff_contracts'],
+  ['attendance', 'staff_hr_attendance'],
+  ['leaveRequests', 'staff_leave_requests'],
+  ['appraisals', 'hr_appraisals'],
+  ['trainingAttendance', 'hr_training_attendance'],
+  ['certifications', 'hr_certifications'],
+];
+
+/**
+ * Literal COUNT statement per dependent table (PRC-L157). Spelled out rather than
+ * interpolated so the no-runtime-DDL gate (PRC-L386) can prove every raw statement
+ * reaching `$queryRawUnsafe` is static DML.
+ */
+function dependentCountSql(table: string): string {
+  switch (table) {
+    case 'staff_payroll_lines':
+      return 'SELECT COUNT(*)::int AS n FROM staff_payroll_lines WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_contracts':
+      return 'SELECT COUNT(*)::int AS n FROM staff_contracts WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_hr_attendance':
+      return 'SELECT COUNT(*)::int AS n FROM staff_hr_attendance WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'staff_leave_requests':
+      return 'SELECT COUNT(*)::int AS n FROM staff_leave_requests WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_appraisals':
+      return 'SELECT COUNT(*)::int AS n FROM hr_appraisals WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_training_attendance':
+      return 'SELECT COUNT(*)::int AS n FROM hr_training_attendance WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    case 'hr_certifications':
+      return 'SELECT COUNT(*)::int AS n FROM hr_certifications WHERE tenant_id = $1::uuid AND staff_id = $2::uuid';
+    default:
+      throw new Error(`No dependent-count statement for table ${table}`);
+  }
+}
+
 interface ProfileEnvelope {
   contactPhone: string;
   contactEmail: string | null;
@@ -216,6 +253,48 @@ export class PrismaStaffRepository implements StaffRepository {
           totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
         },
       };
+    });
+  }
+
+  /**
+   * PRC-L157: counts rows referencing the staff member in HR/payroll tables. Table names come
+   * from a static allowlist; tables absent in this deployment are skipped via to_regclass so
+   * the check never aborts the transaction.
+   */
+  async countDependents(id: string, tenantId: string): Promise<Record<string, number>> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const counts: Record<string, number> = {};
+      for (const [kind, table] of STAFF_DEPENDENT_TABLES) {
+        const exists = await tx.$queryRawUnsafe<{ present: boolean }[]>(
+          `SELECT to_regclass($1) IS NOT NULL AS present`,
+          `public.${table}`,
+        );
+        if (!exists[0]?.present) continue;
+        const rows = await tx.$queryRawUnsafe<{ n: number }[]>(
+          dependentCountSql(table),
+          tenantId,
+          id,
+        );
+        counts[kind] = Number(rows[0]?.n ?? 0);
+      }
+      return counts;
+    });
+  }
+
+  async findExistingIds(ids: readonly string[], tenantId: string): Promise<string[]> {
+    if (ids.length === 0) return [];
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.staff.findMany({
+        where: { id: { in: [...ids] }, tenantId, deletedAt: null },
+        select: { id: true },
+      })) as { id: string }[];
+      return rows.map((r) => r.id);
+    });
+  }
+
+  async purgeCreated(id: string, tenantId: string): Promise<void> {
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      await tx.staff.deleteMany({ where: { id, tenantId } });
     });
   }
 

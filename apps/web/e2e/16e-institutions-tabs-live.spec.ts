@@ -20,18 +20,26 @@ const MATH = '00000000-0000-4000-8000-00000000a581';
 const GRADE9 = '00000000-0000-4000-8000-00000000a542';
 const TERM = '00000000-0000-4000-8000-00000000a531';
 const CAPTURES = join(process.cwd(), '../../docs/audits/captures/institutions-tabs');
+/**
+ * CI serves `next dev` on a 2-core runner shared with the gateway, Postgres,
+ * Redis and other workers, so a server action (or the `router.refresh()` RSC
+ * render after it) can stall well past the 20s expect default while another
+ * worker's route compiles. Each write waits on its own action response with
+ * this ceiling, then asserts the re-rendered UI with the same ceiling.
+ */
+const ACTION_TIMEOUT = 60_000;
+
+/** Unique per attempt so a retry never matches a row a previous attempt wrote. */
+function stampFor(retry: number) {
+  return `${Date.now().toString(36)}${retry}`;
+}
 
 test.describe('Institution detail tabs — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
   test.setTimeout(300_000);
-  test.beforeAll(() => {
-    cleanupSunriseE2E();
-  });
-  test.afterAll(() => {
-    cleanupSunriseE2E();
-  });
 
   test.beforeEach(async ({ page }) => {
+    mkdirSync(CAPTURES, { recursive: true });
     await setupGatewayTenantSession(page, {
       sub: 'priya-sharma',
       email: 'priya.sharma@school.edu',
@@ -41,22 +49,66 @@ test.describe('Institution detail tabs — Sunrise live', () => {
     });
   });
 
-  test('gradebook, curriculum, and infrastructure writes persist', async ({ page }) => {
-    mkdirSync(CAPTURES, { recursive: true });
-    const stamp = Date.now().toString(36);
-    const score = '77';
-    const assessmentCode = `E2E${stamp.slice(-6)}`;
-    const lesson = `E2E lesson ${stamp}`;
-    const lessonEdited = `${lesson} edited`;
-    const outcome = `M9.${stamp.slice(-4).toUpperCase()}`;
-    const roomName = `E2E Room ${stamp.slice(-4)}`;
-    const repair = `E2E ceiling leak ${stamp}`;
+  // One test per tab: each owns disjoint rows (and cleans only those), so the
+  // tabs can run in parallel workers and a retry re-runs only the failed tab.
+  test('gradebook writes persist', async ({ page }, testInfo) => {
+    cleanupSunriseE2E('gradebook');
+    try {
+      const stamp = stampFor(testInfo.retry);
+      await exerciseGradebook(page, '77', `E2E${stamp.slice(-7)}`);
+    } finally {
+      cleanupSunriseE2E('gradebook');
+    }
+  });
 
-    await exerciseGradebook(page, score, assessmentCode);
-    await exerciseCurriculum(page, lesson, lessonEdited, outcome);
-    await exerciseInfrastructure(page, roomName, repair);
+  test('curriculum writes persist', async ({ page }, testInfo) => {
+    cleanupSunriseE2E('curriculum');
+    try {
+      const stamp = stampFor(testInfo.retry);
+      const lesson = `E2E lesson ${stamp}`;
+      await exerciseCurriculum(
+        page,
+        lesson,
+        `${lesson} edited`,
+        `M9.${stamp.slice(-5).toUpperCase()}`,
+      );
+    } finally {
+      cleanupSunriseE2E('curriculum');
+    }
+  });
+
+  test('infrastructure writes persist', async ({ page }, testInfo) => {
+    cleanupSunriseE2E('infrastructure');
+    try {
+      const stamp = stampFor(testInfo.retry);
+      await exerciseInfrastructure(
+        page,
+        `E2E Room ${stamp.slice(-5)}`,
+        `E2E ceiling leak ${stamp}`,
+      );
+    } finally {
+      cleanupSunriseE2E('infrastructure');
+    }
   });
 });
+
+/**
+ * Runs `trigger` and waits for the Next server action POST it fires on the
+ * current route. The UI assertions that follow then only cover the re-render.
+ */
+async function serverAction(page: Page, trigger: () => Promise<void>) {
+  const path = new URL(page.url()).pathname;
+  const response = page.waitForResponse(
+    async (res) =>
+      res.request().method() === 'POST' &&
+      new URL(res.url()).pathname === path &&
+      (await res.request().headerValue('next-action')) !== null,
+    { timeout: ACTION_TIMEOUT },
+  );
+  await trigger();
+  const res = await response;
+  expect(res.status(), `server action POST ${path}`).toBe(200);
+}
 
 async function waitForShell(page: Page, width: number) {
   await expect(page.getByTestId('header-user-skeleton')).toHaveCount(0);
@@ -147,7 +199,9 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   await page.goto(`/institutions/${MAYUR}/gradebook`, { waitUntil: 'domcontentloaded' });
   const root = page.getByTestId('institution-gradebook').filter({ visible: true });
   await expect(root).toBeVisible();
-  await expect(root).toContainText('Aarav Mehta');
+  // PRC-L041: the default section comes from the active academic period, not
+  // the G9B-MATH seed code; Aarav Mehta is asserted after selecting G9B-MATH.
+  await expect(page.getByTestId('gradebook-section-name').filter({ visible: true })).toBeVisible();
   await expect(root).not.toContainText('db/sql');
   await expect(root).not.toContainText('db/seeds');
   await expect(root.getByText(/^E2E/)).toHaveCount(0);
@@ -208,8 +262,10 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   await student.selectOption({ label: aarav! });
   await gradebook.locator('#assessmentCode').fill(assessmentCode);
   await gradebook.locator('#numericScore').fill(score);
-  await gradebook.getByRole('button', { name: 'Save grade' }).click();
-  await expect(gradebook.getByTestId('grade-save-message')).toContainText(/Grade saved for/);
+  await serverAction(page, () => gradebook.getByRole('button', { name: 'Save grade' }).click());
+  await expect(gradebook.getByTestId('grade-save-message')).toContainText(/Grade saved for/, {
+    timeout: ACTION_TIMEOUT,
+  });
   await expect(gradebook.getByTestId('grade-save-message')).not.toContainText(
     /[0-9a-f]{8}-[0-9a-f]{4}-/i,
   );
@@ -218,21 +274,25 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
     .getByTestId('grade-entry-row')
     .filter({ hasText: assessmentCode })
     .first();
-  await expect(entry).toBeVisible();
-  await clickDom(entry.getByRole('button', { name: 'Submit' }));
-  await expect(entry.getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 30_000 });
-  await clickDom(entry.getByRole('button', { name: 'Approve' }));
-  await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Lock' })).toBeVisible({ timeout: 30_000 });
-  await clickDom(entry.getByRole('button', { name: 'Lock' }));
-  await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Publish' })).toBeVisible({ timeout: 30_000 });
-  await clickDom(entry.getByRole('button', { name: 'Publish' }));
-  await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Unpublish' })).toBeVisible({ timeout: 30_000 });
+  await expect(entry).toBeVisible({ timeout: ACTION_TIMEOUT });
+  await serverAction(page, () => clickDom(entry.getByRole('button', { name: 'Submit' })));
+  for (const [step, next] of [
+    ['Approve', 'Lock'],
+    ['Lock', 'Publish'],
+    ['Publish', 'Unpublish'],
+  ] as const) {
+    await expect(entry.getByRole('button', { name: step })).toBeVisible({
+      timeout: ACTION_TIMEOUT,
+    });
+    await clickDom(entry.getByRole('button', { name: step }));
+    await serverAction(page, () => confirm(page, 'gradebook-workflow-confirm'));
+    await expect(entry.getByRole('button', { name: next })).toBeVisible({
+      timeout: ACTION_TIMEOUT,
+    });
+  }
   await clickDom(entry.getByRole('button', { name: 'Unpublish' }));
-  await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry).toContainText('Draft');
+  await serverAction(page, () => confirm(page, 'gradebook-workflow-confirm'));
+  await expect(entry).toContainText('Draft', { timeout: ACTION_TIMEOUT });
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(
@@ -286,7 +346,7 @@ async function exerciseCurriculum(
   const curriculumForm = page.getByTestId('institution-curriculum').filter({ visible: true });
   await curriculumForm.locator('#unit-code').fill('U1');
   await curriculumForm.locator('#unit-name').fill('Duplicate number systems');
-  await curriculumForm.getByTestId('add-syllabus-unit').click();
+  await serverAction(page, () => curriculumForm.getByTestId('add-syllabus-unit').click());
   await expect(curriculumForm.getByTestId('unit-form-error')).toBeVisible();
   await expect(curriculumForm.getByTestId('outcome-form-error')).toHaveCount(0);
 
@@ -296,14 +356,17 @@ async function exerciseCurriculum(
     .filter({ visible: true });
   const markTaught = unit.getByRole('button', { name: 'Mark taught', exact: true });
   const taughtButton = unit.getByRole('button', { name: 'Taught', exact: true });
+  // Either label is the settled state; `isVisible()` alone does not wait.
+  await expect(markTaught.or(taughtButton)).toBeVisible();
   if (await taughtButton.isVisible()) {
     await clickDom(taughtButton);
-    await confirm(page, 'curriculum-taught-confirm');
-    await expect(markTaught).toBeVisible();
+    await serverAction(page, () => confirm(page, 'curriculum-taught-confirm'));
+    await expect(markTaught).toBeEnabled({ timeout: ACTION_TIMEOUT });
   }
   await clickDom(markTaught);
-  await confirm(page, 'curriculum-taught-confirm');
-  await expect(taughtButton).toBeVisible();
+  await serverAction(page, () => confirm(page, 'curriculum-taught-confirm'));
+  // The label flips only after the follow-up `router.refresh()` render lands.
+  await expect(taughtButton).toBeEnabled({ timeout: ACTION_TIMEOUT });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
   const taught = page
@@ -312,15 +375,17 @@ async function exerciseCurriculum(
     .filter({ visible: true });
   await expect(taught.getByRole('button', { name: 'Taught', exact: true })).toBeVisible();
   await clickDom(taught.getByRole('button', { name: 'Taught', exact: true }));
-  await confirm(page, 'curriculum-taught-confirm');
-  await expect(taught.getByRole('button', { name: 'Mark taught', exact: true })).toBeVisible();
+  await serverAction(page, () => confirm(page, 'curriculum-taught-confirm'));
+  await expect(taught.getByRole('button', { name: 'Mark taught', exact: true })).toBeEnabled({
+    timeout: ACTION_TIMEOUT,
+  });
 
   await taught.locator('input[name="title"]').fill(lesson);
-  await taught.getByRole('button', { name: 'Add lesson' }).click();
-  await expect(taught.getByText(lesson)).toBeVisible();
+  await serverAction(page, () => taught.getByRole('button', { name: 'Add lesson' }).click());
+  await expect(taught.getByText(lesson)).toBeVisible({ timeout: ACTION_TIMEOUT });
   page.once('dialog', (dialog) => dialog.accept(lessonEdited));
-  await taught.getByRole('button', { name: 'Edit' }).click();
-  await expect(taught.getByText(lessonEdited)).toBeVisible();
+  await serverAction(page, () => taught.getByRole('button', { name: 'Edit' }).click());
+  await expect(taught.getByText(lessonEdited)).toBeVisible({ timeout: ACTION_TIMEOUT });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
   const afterLesson = page
@@ -328,14 +393,18 @@ async function exerciseCurriculum(
     .filter({ hasText: 'Coordinate geometry' })
     .filter({ visible: true });
   await expect(afterLesson.getByText(lessonEdited)).toBeVisible();
-  await afterLesson.getByRole('button', { name: 'Remove' }).first().click();
-  await expect(afterLesson.getByText(lessonEdited)).toHaveCount(0);
+  await serverAction(page, () =>
+    afterLesson.getByRole('button', { name: 'Remove' }).first().click(),
+  );
+  await expect(afterLesson.getByText(lessonEdited)).toHaveCount(0, { timeout: ACTION_TIMEOUT });
 
   const curriculum = page.getByTestId('institution-curriculum').filter({ visible: true });
   await curriculum.locator('#lo-code').fill(outcome);
   await curriculum.locator('#lo-statement').fill('E2E outcome statement');
-  await curriculum.getByTestId('add-learning-outcome').click();
-  await expect(curriculum.getByTestId('learning-outcome-list')).toContainText(outcome);
+  await serverAction(page, () => curriculum.getByTestId('add-learning-outcome').click());
+  await expect(curriculum.getByTestId('learning-outcome-list')).toContainText(outcome, {
+    timeout: ACTION_TIMEOUT,
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
   const outcomeList = page
@@ -344,7 +413,8 @@ async function exerciseCurriculum(
     .getByTestId('learning-outcome-list');
   const outcomeRow = outcomeList.locator('li').filter({ hasText: outcome });
   await expect(outcomeRow).toBeVisible();
-  await outcomeRow.getByRole('button', { name: 'Remove' }).click();
+  // Reloading before the delete action responds would abort it.
+  await serverAction(page, () => outcomeRow.getByRole('button', { name: 'Remove' }).click());
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
   await expect(
@@ -378,8 +448,8 @@ async function exerciseInfrastructure(page: Page, roomName: string, repair: stri
   await infra.locator('#room-name').fill(roomName);
   await infra.locator('#room-capacity').fill('12');
   await infra.locator('#room-condition').selectOption('Good');
-  await infra.getByRole('button', { name: 'Add room' }).click();
-  await expect(infra.getByText('Room added.')).toBeVisible();
+  await serverAction(page, () => infra.getByRole('button', { name: 'Add room' }).click());
+  await expect(infra.getByText('Room added.')).toBeVisible({ timeout: ACTION_TIMEOUT });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
   const infraAfter = page.getByTestId('institution-infrastructure').filter({ visible: true });
@@ -389,16 +459,20 @@ async function exerciseInfrastructure(page: Page, roomName: string, repair: stri
   await infraAfter.locator('#edit-name').fill(roomName);
   await infraAfter.locator('#edit-capacity').fill('12');
   await infraAfter.locator('#edit-condition').selectOption('Fair');
-  await infraAfter.getByRole('button', { name: 'Save facility' }).click();
-  await expect(infraAfter.getByText('Facility updated.')).toBeVisible();
+  await serverAction(page, () => infraAfter.getByRole('button', { name: 'Save facility' }).click());
+  await expect(infraAfter.getByText('Facility updated.')).toBeVisible({
+    timeout: ACTION_TIMEOUT,
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
   const infraSaved = page.getByTestId('institution-infrastructure').filter({ visible: true });
   await expect(infraSaved.getByTestId(`facility-${roomName}`)).toContainText('Fair');
 
   await infraSaved.locator('#repair-summary').fill(repair);
-  await infraSaved.getByTestId('submit-repair-request').click();
-  await expect(infraSaved.getByText('Repair request logged.')).toBeVisible();
+  await serverAction(page, () => infraSaved.getByTestId('submit-repair-request').click());
+  await expect(infraSaved.getByText('Repair request logged.')).toBeVisible({
+    timeout: ACTION_TIMEOUT,
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
   await expect(

@@ -10,13 +10,15 @@
  *
  * Wired to the Scholarship Service API (Task 14):
  *   - GET  /api/v1/scholarships/programs (open programs)
- *   - POST /api/v1/scholarships/applications
+ *   - POST /api/v1/scholarships/applications        (create draft, once)
+ *   - PUT  /api/v1/scholarships/applications/:id    (PRC-H031: sync edits before submit)
+ *   - POST /api/v1/scholarships/applications/:id/submit
  *
  * Requirements: 11.2, 11.3
  */
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
@@ -25,6 +27,8 @@ import {
   type UploadedScholarshipDocument,
 } from '../components/document-upload-slots';
 import { missingRequiredDocuments } from '../document-upload';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -79,7 +83,17 @@ const STEPS: { key: Step; label: string }[] = [
 
 /* ------------------------------------------------------------------ Component */
 
-export default function ScholarshipApplication() {
+export interface ScholarshipApplicationProps {
+  /** Students the signed-in staff member may apply for (real directory ids). */
+  applicantOptions?: EntityLabelOption[];
+  /** Institutions the application can be filed under. */
+  institutionOptions?: EntityLabelOption[];
+}
+
+export default function ScholarshipApplication({
+  applicantOptions = [],
+  institutionOptions = [],
+}: ScholarshipApplicationProps = {}) {
   const [currentStep, setCurrentStep] = useState<Step>('program');
   const [programs, setPrograms] = useState<ScholarshipProgramSummary[]>([]);
   const [loadingPrograms, setLoadingPrograms] = useState(true);
@@ -89,6 +103,9 @@ export default function ScholarshipApplication() {
 
   // Form state
   const [selectedProgramId, setSelectedProgramId] = useState('');
+  // PRC-L077: applicant and institution are explicit choices — never a nil UUID.
+  const [applicantId, setApplicantId] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([
     {
       institutionName: '',
@@ -125,9 +142,43 @@ export default function ScholarshipApplication() {
 
   const currentStepIndex = STEPS.findIndex((s) => s.key === currentStep);
 
+  // PRC-H031: one in-flight create at a time, so a double-click on Next cannot
+  // create two drafts.
+  const draftRequest = useRef<Promise<string | null> | null>(null);
+
+  const completedRecords = () =>
+    academicRecords.filter((r) => r.institutionName && r.educationLevel);
+
+  /** PRC-H031: push the wizard's current state onto the existing draft. */
+  const syncDraft = async (id: string): Promise<void> => {
+    await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${id}`, {
+      method: 'PUT',
+      json: {
+        programId: selectedProgramId,
+        academicRecords: completedRecords(),
+        financialInfo,
+        personalStatement,
+      },
+    });
+  };
+
   const ensureDraft = async (): Promise<string | null> => {
     if (draftApplicationId) return draftApplicationId;
-    const records = academicRecords.filter((r) => r.institutionName && r.educationLevel);
+    if (draftRequest.current) return draftRequest.current;
+    const request = createDraft().finally(() => {
+      draftRequest.current = null;
+    });
+    draftRequest.current = request;
+    return request;
+  };
+
+  const createDraft = async (): Promise<string | null> => {
+    const records = completedRecords();
+    // PRC-L077: staff pick a real applicant and institution from the directories.
+    if (!applicantId || !institutionId) {
+      setSubmitError('Choose the applicant and institution before continuing.');
+      return null;
+    }
     if (!selectedProgramId || records.length === 0) {
       setSubmitError('Add at least one academic record before uploading documents.');
       return null;
@@ -136,8 +187,11 @@ export default function ScholarshipApplication() {
       method: 'POST',
       json: {
         programId: selectedProgramId,
-        applicantId: '00000000-0000-4000-8000-000000000000',
-        institutionId: '00000000-0000-4000-8000-000000000000',
+        // PRC-H030: never placeholder ids. These are real directory ids (L077);
+        // the gateway still rejects placeholders and checks tenant membership and
+        // the caller's right to apply for this student.
+        applicantId,
+        institutionId,
         academicRecords: records,
         financialInfo,
         documents: [],
@@ -153,7 +207,12 @@ export default function ScholarshipApplication() {
     const next = STEPS[currentStepIndex + 1];
     if (!next) return;
     if (next.key === 'documents') {
-      void ensureDraft()
+      setSubmitError(null);
+      // Existing draft: sync edits made after it was created (program, GPA, income…).
+      const ready = draftApplicationId
+        ? syncDraft(draftApplicationId).then(() => draftApplicationId)
+        : ensureDraft();
+      void ready
         .then((id) => {
           if (id) setCurrentStep('documents');
         })
@@ -196,6 +255,8 @@ export default function ScholarshipApplication() {
         setSubmitting(false);
         return;
       }
+      // PRC-H031: submit exactly what the Review step shows (incl. the personal statement).
+      await syncDraft(draftId);
       await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${draftId}/submit`, {
         method: 'POST',
         json: {},
@@ -284,7 +345,7 @@ export default function ScholarshipApplication() {
                           </div>
                         )}
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
+                      <div className="text-end text-xs text-muted-foreground">
                         <div>{program.totalSlots - program.usedSlots} slots remaining</div>
                         <div className="font-medium text-foreground">
                           {new Intl.NumberFormat(undefined, {
@@ -301,6 +362,31 @@ export default function ScholarshipApplication() {
           </div>
         )}
 
+        {currentStep === 'program' && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <EntitySearchSelect
+              id="scholarship-applicant"
+              name="applicantId"
+              label="Applicant (student)"
+              options={applicantOptions}
+              defaultValue={applicantId}
+              onValueChange={setApplicantId}
+              required
+              placeholder="Search student…"
+            />
+            <EntitySearchSelect
+              id="scholarship-institution"
+              name="institutionId"
+              label="Institution"
+              options={institutionOptions}
+              defaultValue={institutionId}
+              onValueChange={setInstitutionId}
+              required
+              placeholder="Search institution…"
+              emptyMessage="No institutions loaded. Try again when the institution directory is available."
+            />
+          </div>
+        )}
         {/* Step 2: Academic Records */}
         {currentStep === 'academic' && (
           <div className="space-y-4">
@@ -600,6 +686,12 @@ export default function ScholarshipApplication() {
         )}
       </div>
 
+      {submitError && currentStep !== 'documents' && currentStep !== 'review' ? (
+        <p role="alert" className="text-sm text-destructive">
+          {submitError}
+        </p>
+      ) : null}
+
       {/* Navigation buttons */}
       <div className="flex justify-between pt-4 border-t">
         <button
@@ -623,7 +715,9 @@ export default function ScholarshipApplication() {
           <button
             type="button"
             onClick={goNext}
-            disabled={currentStep === 'program' && !selectedProgramId}
+            disabled={
+              currentStep === 'program' && (!selectedProgramId || !applicantId || !institutionId)
+            }
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm disabled:opacity-50"
           >
             Next

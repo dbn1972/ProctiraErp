@@ -602,6 +602,7 @@ const WAVE9_BATCH3_ROUTES = [
 ] as const;
 
 const WAVE9_BATCH3_INSTITUTION_ROUTES = [
+  `/institutions/${E2E_INSTITUTION_ID}/timetable`,
   `/institutions/${E2E_INSTITUTION_ID}/timetable/generate`,
   `/institutions/${E2E_INSTITUTION_ID}/timetable/substitutions`,
 ] as const;

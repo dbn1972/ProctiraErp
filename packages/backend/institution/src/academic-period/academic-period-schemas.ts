@@ -48,6 +48,29 @@ export const UpdateAcademicPeriodSchema = Type.Object({
 });
 export type UpdateAcademicPeriodDto = Static<typeof UpdateAcademicPeriodSchema>;
 
+/**
+ * PRC-L321: body for POST /academic-periods/:id/supersede — the successor
+ * version's corrected window. `code` defaults to (and must equal) the prior code.
+ */
+// Patterns rather than `format` — @proctira/validation registers no string formats.
+const ISO_DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
+const UUID_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
+export const SupersedeAcademicPeriodSchema = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 100 }),
+    code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+    startDate: Type.String({ pattern: ISO_DATE_PATTERN, description: 'ISO date (YYYY-MM-DD)' }),
+    endDate: Type.String({ pattern: ISO_DATE_PATTERN, description: 'ISO date (YYYY-MM-DD)' }),
+    status: Type.Optional(AcademicPeriodStatus),
+    kind: Type.Optional(AcademicPeriodKind),
+    parentId: Type.Optional(Type.Union([Type.String({ pattern: UUID_PATTERN }), Type.Null()])),
+  },
+  { additionalProperties: false },
+);
+export type SupersedeAcademicPeriodDto = Static<typeof SupersedeAcademicPeriodSchema>;
+
 export const AcademicPeriodResponseSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   tenantId: Type.String({ format: 'uuid' }),

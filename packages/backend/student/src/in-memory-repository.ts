@@ -5,14 +5,32 @@
  * Implements the StudentRepository interface with a simple Map-based store.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 
+import { ADMISSION_NUMBER_CONFLICT, admissionNoOf } from './admission-number.js';
 import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: Map<string, StudentEntity> = new Map();
   private admissionCounters: Map<string, number> = new Map();
 
+  /** Mirrors students_tenant_admission_number_uidx (db/sql/063). */
+  private assertAdmissionNoUnique(
+    tenantId: string,
+    id: string,
+    customData?: Record<string, unknown>,
+  ): void {
+    const no = admissionNoOf(customData);
+    if (!no) return;
+    for (const s of this.students.values()) {
+      if (s.tenantId === tenantId && s.id !== id && admissionNoOf(s.customData) === no) {
+        throw new ConflictError(ADMISSION_NUMBER_CONFLICT);
+      }
+    }
+  }
+
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
+    this.assertAdmissionNoUnique(data.tenantId, data.id, data.customData);
     const now = new Date();
     const entity: StudentEntity = {
       ...data,
@@ -33,6 +51,9 @@ export class InMemoryStudentRepository implements StudentRepository {
       return null;
     }
 
+    if (data.customData !== undefined) {
+      this.assertAdmissionNoUnique(existing.tenantId, existing.id, data.customData);
+    }
     const updated: StudentEntity = {
       ...existing,
       ...data,

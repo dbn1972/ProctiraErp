@@ -5,8 +5,17 @@
  * by the institution plugin and other consumers.
  */
 
-export { TenantScopedAreaHierarchyResolver, toAreaNodes } from './area-hierarchy-resolver.js';
-export type { RegisterableArea } from './area-hierarchy-resolver.js';
+export {
+  TenantScopedAreaHierarchyResolver,
+  toAreaNodes,
+  notifyAreaHierarchyChanged,
+  DEFAULT_AREA_HIERARCHY_TTL_MS,
+} from './area-hierarchy-resolver.js';
+export type {
+  RegisterableArea,
+  AreaHierarchyLoader,
+  TenantScopedAreaHierarchyResolverOptions,
+} from './area-hierarchy-resolver.js';
 export {
   createAreaHierarchyDb,
   inMemoryAreaHierarchyDb,

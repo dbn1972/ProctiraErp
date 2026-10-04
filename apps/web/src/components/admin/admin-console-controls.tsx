@@ -5,7 +5,7 @@
  * buttons): invite user, edit user roles, suspend/reactivate, create/edit/
  * delete custom roles, and save tenant settings.
  */
-import { useMemo, useState, useTransition } from 'react';
+import { cloneElement, isValidElement, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Plus, Trash2, UserMinus, UserPlus } from 'lucide-react';
 
@@ -36,7 +36,14 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { tenantIdentityCopy } from '@/lib/admin/tenant-identity';
 import type { PermissionRef, TenantRole, TenantSettings, TenantUser } from '@/lib/api/admin.server';
 
-function Feedback({ state }: { state: AdminActionState | null }) {
+function Feedback({
+  state,
+  inlineFieldErrors = false,
+}: {
+  state: AdminActionState | null;
+  /** When the form renders field errors under each input, do not repeat them here. */
+  inlineFieldErrors?: boolean;
+}) {
   if (!state || state.status === 'idle') return null;
   return (
     <div className="space-y-1">
@@ -49,6 +56,7 @@ function Feedback({ state }: { state: AdminActionState | null }) {
         {state.message}
       </p>
       {state.fieldErrors &&
+        !inlineFieldErrors &&
         Object.entries(state.fieldErrors).map(([field, message]) => (
           <p key={field} className="text-xs text-destructive">
             {field}: {message}
@@ -503,6 +511,49 @@ function optional(value: FormDataEntryValue | null): string | null {
   return s.length > 0 ? s : null;
 }
 
+/**
+ * One labelled settings input. Wires `aria-invalid` / `aria-describedby` onto the
+ * control so the error (or hint) under it is announced with the field (PRC-L066).
+ */
+export function SettingsField({
+  id,
+  label,
+  error,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  error?: string | undefined;
+  hint?: string | undefined;
+  children: React.ReactNode;
+}) {
+  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
+  const control = isValidElement<{ 'aria-invalid'?: boolean; 'aria-describedby'?: string }>(
+    children,
+  )
+    ? cloneElement(children, {
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': describedBy,
+      })
+    : children;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {control}
+      {error ? (
+        <p id={`${id}-error`} className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -537,15 +588,9 @@ export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
   };
 
   const field = (id: string, label: string, input: React.ReactNode, hint?: string) => (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <SettingsField id={id} label={label} error={state?.fieldErrors?.[id]} hint={hint}>
       {input}
-      {state?.fieldErrors?.[id] ? (
-        <p className="text-xs text-destructive">{state.fieldErrors[id]}</p>
-      ) : hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      ) : null}
-    </div>
+    </SettingsField>
   );
 
   return (
@@ -555,7 +600,7 @@ export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
       className="space-y-6"
       data-hydrated={hydrated ? 'true' : 'false'}
     >
-      <Feedback state={state} />
+      <Feedback state={state} inlineFieldErrors />
       <section className="max-w-[860px] space-y-4 rounded-xl border bg-card p-5">
         <div>
           <h2 className="text-base font-semibold">Identity</h2>

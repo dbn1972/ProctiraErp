@@ -254,6 +254,8 @@ export async function registerExaminationRoutes(
       request: FastifyRequest<{ Querystring: ExaminationListQuery }>,
       reply: FastifyReply,
     ) {
+      // PRC-C004: examination reads are a staff surface, not learner self-service.
+      if (!requireExaminationAction(request, reply, 'exam.read.staff')) return;
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -296,6 +298,8 @@ export async function registerExaminationRoutes(
       request: FastifyRequest<{ Params: ExaminationParams }>,
       reply: FastifyReply,
     ) {
+      // PRC-C004: staff-only read.
+      if (!requireExaminationAction(request, reply, 'exam.read.staff')) return;
       // Validate params
       const paramsResult = validate(ExaminationParamsSchema, request.params);
       if (!paramsResult.success) {
@@ -338,6 +342,8 @@ export async function registerExaminationRoutes(
       request: FastifyRequest<{ Params: ExaminationParams }>,
       reply: FastifyReply,
     ) {
+      // PRC-C004: candidate roster is PII — staff-only read.
+      if (!requireExaminationAction(request, reply, 'exam.read.staff')) return;
       const paramsResult = validate(ExaminationParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({

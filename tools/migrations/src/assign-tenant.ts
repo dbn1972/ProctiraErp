@@ -11,10 +11,12 @@
  * 3. Verifies no rows are left without a tenant assignment
  */
 
-import { Pool, PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
-import { loadConfig } from './config.js';
-import { MigrationConfig, MigrationStepResult } from './types.js';
+
+import type { MigrationConfig, MigrationStepResult } from './types.js';
+import { MIGRATION_UUID_MAP_TABLE } from './types.js';
 
 /** Tables that require tenant_id assignment. */
 const TENANT_SCOPED_TABLES = [
@@ -40,13 +42,13 @@ export async function ensureDefaultTenant(
   tenantSlug: string,
 ): Promise<string> {
   // Check if default tenant already exists
-  const existing = await client.query(
+  const existing = await client.query<{ id: string }>(
     `SELECT id FROM "${targetSchema}"."tenants" WHERE slug = $1`,
     [tenantSlug],
   );
 
   if (existing.rows.length > 0) {
-    return existing.rows[0].id;
+    return existing.rows[0]!.id;
   }
 
   // Create the default tenant
@@ -97,11 +99,11 @@ async function verifyTenantAssignment(
   const orphans: { table: string; orphanedCount: number }[] = [];
 
   for (const table of TENANT_SCOPED_TABLES) {
-    const result = await client.query(
+    const result = await client.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM "${targetSchema}"."${table}"
        WHERE tenant_id IS NULL OR tenant_id = ''`,
     );
-    const count = parseInt(result.rows[0].count, 10);
+    const count = parseInt(result.rows[0]!.count, 10);
     if (count > 0) {
       orphans.push({ table, orphanedCount: count });
     }
@@ -177,7 +179,7 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
 
     // Store the tenant ID in the mapping table for reference
     await client.query(
-      `INSERT INTO migration_uuid_map (legacy_table, legacy_id, new_uuid)
+      `INSERT INTO ${MIGRATION_UUID_MAP_TABLE} (legacy_table, legacy_id, new_uuid)
        VALUES ('_default_tenant', 0, $1::uuid)
        ON CONFLICT (legacy_table, legacy_id) DO UPDATE SET new_uuid = $1::uuid`,
       [tenantId],

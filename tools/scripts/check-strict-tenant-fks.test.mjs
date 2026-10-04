@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit tests for W1-DATA-06 COMPLETE strict tenant FK gate.
+ * Unit tests for W1-DATA-06 strict tenant FK gate.
  * Run with: node --test tools/scripts/check-strict-tenant-fks.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -29,7 +29,7 @@ import {
 } from './check-strict-tenant-fks.mjs';
 
 const APPLY_OK = `#!/usr/bin/env bash
-# W1-DATA-06 COMPLETE defaults
+# W1-DATA-06 defaults
 if [[ -z "\${APPLY_STRICT_FKS+x}" ]]; then
   if [[ "\${CI:-}" == "true" || "\${NODE_ENV:-}" == "production" ]]; then
     APPLY_STRICT_FKS=1

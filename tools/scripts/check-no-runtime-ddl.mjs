@@ -23,7 +23,27 @@ const EXCLUDED_DIRECTORIES = new Set([
 const TEST_FILE = /(?:^|\.)(?:test|spec|live\.test)\.[cm]?[jt]sx?$/;
 const SQL_ASSET_PATH = /(?:^|[\\/])db[\\/]sql[\\/]|\.sql(?:$|[?#])/i;
 const FILE_READ_NAMES = new Set(['readFile', 'readFileSync']);
-const DATABASE_EXECUTION_NAMES = new Set(['query', 'execute', '$executeRaw', '$executeRawUnsafe']);
+// PRC-L386: Prisma $queryRaw*, postgres.js `unsafe` and generic `raw` helpers
+// can carry DDL just like `query`/`execute`.
+const DATABASE_EXECUTION_NAMES = new Set([
+  'query',
+  'execute',
+  '$executeRaw',
+  '$executeRawUnsafe',
+  '$queryRaw',
+  '$queryRawUnsafe',
+  'unsafe',
+  'raw',
+]);
+// Raw-string APIs where SQL text the gate cannot resolve statically is itself
+// an issue (it could be DDL), unless the file is allowlisted with a reason.
+const UNSAFE_RAW_SQL_NAMES = new Set(['$executeRawUnsafe', '$queryRawUnsafe', 'unsafe']);
+export const DYNAMIC_SQL_ALLOWLIST = new Map([
+  [
+    'packages/backend/examination/src/prisma-document-repository.ts',
+    'pg-style `query(text, values)` adapter over Prisma; its callers pass static DML checked at their own call sites',
+  ],
+]);
 const DDL_LITERAL =
   /^\s*(?:CREATE|ALTER|DROP|TRUNCATE|COMMENT\s+ON|GRANT|REVOKE|DO\s+\$|REINDEX|CLUSTER|VACUUM)\b/i;
 
@@ -437,6 +457,9 @@ function objectSqlExpressions(objectLiteral, bindings) {
 
 function expressionReferencesDdl(node, useNode, bindings, seen = new Set()) {
   if (!node) return false;
+  // PRC-L386: `CREATE TABLE ${name}` — an unresolvable span must not hide a
+  // DDL statement whose keyword lives in the static template head.
+  if (ts.isTemplateExpression(node) && containsDdlStatement(node.head.text)) return true;
   if (
     resolveStaticStrings(node, useNode, bindings, new Set(seen)).some((text) =>
       containsDdlStatement(text),
@@ -527,6 +550,16 @@ export function inspectRuntimeSource(source, path = '<source>') {
         expressionReferencesDdl(firstArgument, firstArgument, bindings)
       ) {
         issues.add(`${path}: sends DDL through an application database client`);
+      } else if (
+        names.some((name) => UNSAFE_RAW_SQL_NAMES.has(name)) &&
+        firstArgument &&
+        !DYNAMIC_SQL_ALLOWLIST.has(path) &&
+        !ts.isObjectLiteralExpression(firstArgument) &&
+        resolveStaticStrings(firstArgument, firstArgument, bindings).length === 0
+      ) {
+        issues.add(
+          `${path}: passes unresolvable dynamic SQL to a raw-unsafe database API (allowlist with a reason in DYNAMIC_SQL_ALLOWLIST if it cannot carry DDL)`,
+        );
       }
     }
 

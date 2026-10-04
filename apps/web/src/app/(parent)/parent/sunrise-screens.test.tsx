@@ -39,6 +39,8 @@ vi.mock('@/lib/load-entity-labels', () => ({
   }),
 }));
 
+vi.mock('next-intl/server', () => ({ getLocale: vi.fn(async () => 'en-IN') }));
+
 const listInvoicesResult = vi.fn();
 const listReceiptsResult = vi.fn();
 vi.mock('@/lib/api/fees', () => ({
@@ -211,6 +213,8 @@ describe('Sunrise fees page states', () => {
     expect(screen.getByTestId('parent-remaining-balance')).toHaveTextContent('45,000');
     expect(screen.getByText('1 open invoice')).toBeInTheDocument();
     expect(screen.getByText('Term 1 tuition')).toBeInTheDocument();
+    // 18:30Z is the next calendar day at the school (Asia/Kolkata), not the server's UTC day.
+    expect(screen.getByText(/due 15 Oct 2026/)).toBeInTheDocument();
     expect(screen.getByTestId('parent-pay-button')).toBeInTheDocument();
     expect(screen.getByTestId('parent-instalments-empty')).toHaveTextContent(
       'No instalment schedule yet',
@@ -220,6 +224,38 @@ describe('Sunrise fees page states', () => {
       `/fees/structures/${STRUCTURE}/instalments?scope=parent`,
       expect.anything(),
     );
+  });
+
+  it('shows one remaining balance per currency instead of summing them (PRC-L064)', async () => {
+    listInvoicesResult.mockResolvedValue({
+      ok: true,
+      items: [
+        {
+          id: '00000000-0000-4000-8000-00000000a6f1',
+          studentId: AARAV,
+          title: 'Term 1 tuition',
+          amountCents: 4_500_000,
+          currency: 'INR',
+          status: 'open',
+        },
+        {
+          id: '00000000-0000-4000-8000-00000000a6f2',
+          studentId: AARAV,
+          title: 'Exchange trip',
+          amountCents: 25_000,
+          currency: 'USD',
+          status: 'open',
+        },
+      ],
+    });
+    listReceiptsResult.mockResolvedValue({ ok: true, items: [] });
+
+    render(await ParentFeesPage());
+
+    const balances = screen.getAllByTestId('parent-remaining-balance');
+    expect(balances).toHaveLength(2);
+    expect(balances[0]).toHaveTextContent('₹45,000.00');
+    expect(balances[1]).toHaveTextContent('$250.00');
   });
 
   it('pluralises zero open invoices without a stray space', async () => {

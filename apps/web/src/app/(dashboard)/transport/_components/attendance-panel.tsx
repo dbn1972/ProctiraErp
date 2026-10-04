@@ -36,6 +36,7 @@ export function AttendancePanel({
   } | null;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
 
@@ -63,9 +64,11 @@ export function AttendancePanel({
           data-hydrated={hydrated ? 'true' : 'false'}
           onSubmit={(event) => {
             event.preventDefault();
-            const fd = new FormData(event.currentTarget);
+            const form = event.currentTarget;
+            const fd = new FormData(form);
             startTransition(async () => {
               setError(null);
+              setMessage(null);
               const result = await upsertTripAttendanceAction({
                 routeId: String(fd.get('routeId') ?? ''),
                 tripDate: String(fd.get('tripDate') ?? ''),
@@ -74,7 +77,14 @@ export function AttendancePanel({
                 stopId: String(fd.get('stopId') ?? '') || undefined,
                 status: String(fd.get('status') ?? 'boarded') as 'boarded' | 'alighted' | 'absent',
               });
-              if (result.status === 'error') setError(result.message ?? 'Failed');
+              if (result.status === 'error') {
+                setError(result.message ?? 'Failed');
+                return;
+              }
+              setMessage(result.message ?? 'Attendance saved.');
+              // Keep the trip (route/date/direction) so the next student can be marked.
+              const student = form.elements.namedItem('studentId');
+              if (student instanceof HTMLSelectElement) student.value = '';
             });
           }}
         >
@@ -143,6 +153,11 @@ export function AttendancePanel({
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              {message}
             </p>
           ) : null}
           <Button type="submit" disabled={pending || routes.length === 0}>

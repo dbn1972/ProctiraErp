@@ -15,9 +15,12 @@
  * - Tracks sync position per table for resumability
  */
 
-import { Pool, PoolClient } from 'pg';
-import { MigrationConfig, MigrationStepResult, TableMapping, ColumnMapping } from './types.js';
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
+
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import type { MigrationConfig, MigrationStepResult, TableMapping, ColumnMapping } from './types.js';
+import { MIGRATION_UUID_MAP_TABLE } from './types.js';
 
 /** CDC event types representing data changes. */
 export type CDCOperation = 'INSERT' | 'UPDATE' | 'DELETE';
@@ -126,7 +129,13 @@ export class CDCProducer {
       `);
 
       // Load existing positions
-      const result = await client.query('SELECT * FROM migration_sync_positions');
+      const result = await client.query<{
+        table_name: string;
+        last_synced_at: string;
+        last_legacy_id: number;
+        status: SyncPosition['status'];
+        error_message?: string;
+      }>('SELECT * FROM migration_sync_positions');
       for (const row of result.rows) {
         this.syncPositions.set(row.table_name, {
           table: row.table_name,
@@ -184,7 +193,7 @@ export class CDCProducer {
       const filterClause = mapping.sourceFilter ? `AND ${mapping.sourceFilter}` : '';
 
       // Query for rows modified since last sync
-      const result = await client.query(
+      const result = await client.query<Record<string, unknown>>(
         `SELECT * FROM "${mapping.sourceTable}"
          WHERE "modified" > $1 ${filterClause}
          ORDER BY "modified" ASC, "${mapping.legacyPkColumn}" ASC
@@ -196,7 +205,7 @@ export class CDCProducer {
 
       for (const row of result.rows) {
         sequence++;
-        const legacyId = row[mapping.legacyPkColumn];
+        const legacyId = Number(row[mapping.legacyPkColumn]);
 
         // Determine if this is an INSERT or UPDATE by checking target
         const operation: CDCOperation = await this.determineOperation(client, mapping, legacyId);
@@ -209,7 +218,7 @@ export class CDCProducer {
           targetTable: mapping.targetTable,
           legacyId,
           data: this.mapRowData(row, mapping.columns),
-          sourceTimestamp: row.modified || row.created || new Date().toISOString(),
+          sourceTimestamp: String(row.modified || row.created || new Date().toISOString()),
           capturedAt: new Date().toISOString(),
           sequence,
         };
@@ -377,13 +386,19 @@ export class CDCConsumer {
       await client.query('BEGIN');
 
       for (const event of events) {
+        // Per-event SAVEPOINT: a failed statement aborts the whole PG
+        // transaction, so without it every later event (and the COMMIT)
+        // would silently fail too.
+        await client.query('SAVEPOINT cdc_event');
         try {
           const result = await this.processEvent(client, event);
+          await client.query('RELEASE SAVEPOINT cdc_event');
           results.push(result);
           if (result.status === 'applied') {
             this.processedCount++;
           }
         } catch (error) {
+          await client.query('ROLLBACK TO SAVEPOINT cdc_event');
           this.errorCount++;
           results.push({
             eventId: event.id,
@@ -427,7 +442,7 @@ export class CDCConsumer {
         return {
           eventId: event.id,
           status: 'skipped',
-          error: `Unknown operation: ${event.operation}`,
+          error: `Unknown operation: ${String(event.operation)}`,
         };
     }
   }
@@ -465,8 +480,8 @@ export class CDCConsumer {
   ): Promise<CDCEventResult> {
     if (!event.newId) {
       // Look up the UUID from the legacy ID mapping
-      const lookupResult = await client.query(
-        `SELECT new_uuid FROM migration_uuid_mappings
+      const lookupResult = await client.query<{ new_uuid: string }>(
+        `SELECT new_uuid FROM ${MIGRATION_UUID_MAP_TABLE}
          WHERE legacy_table = $1 AND legacy_id = $2`,
         [event.sourceTable, event.legacyId],
       );
@@ -476,19 +491,19 @@ export class CDCConsumer {
         return this.applyInsert(client, event, schema);
       }
 
-      event.newId = lookupResult.rows[0].new_uuid;
+      event.newId = lookupResult.rows[0]!.new_uuid;
     }
 
     // Apply conflict resolution
     if (this.config.conflictResolution === 'latest_wins') {
       // Check if target has a more recent modification
-      const targetResult = await client.query(
+      const targetResult = await client.query<{ updated_at: string }>(
         `SELECT updated_at FROM "${schema}"."${event.targetTable}" WHERE id = $1`,
         [event.newId],
       );
 
       if (targetResult.rows.length > 0) {
-        const targetUpdatedAt = new Date(targetResult.rows[0].updated_at);
+        const targetUpdatedAt = new Date(targetResult.rows[0]!.updated_at);
         const sourceTimestamp = new Date(event.sourceTimestamp);
         if (targetUpdatedAt > sourceTimestamp) {
           return {
@@ -528,8 +543,8 @@ export class CDCConsumer {
     schema: string,
   ): Promise<CDCEventResult> {
     if (!event.newId) {
-      const lookupResult = await client.query(
-        `SELECT new_uuid FROM migration_uuid_mappings
+      const lookupResult = await client.query<{ new_uuid: string }>(
+        `SELECT new_uuid FROM ${MIGRATION_UUID_MAP_TABLE}
          WHERE legacy_table = $1 AND legacy_id = $2`,
         [event.sourceTable, event.legacyId],
       );
@@ -538,7 +553,7 @@ export class CDCConsumer {
         return { eventId: event.id, status: 'skipped', error: 'No UUID mapping found for delete' };
       }
 
-      event.newId = lookupResult.rows[0].new_uuid;
+      event.newId = lookupResult.rows[0]!.new_uuid;
     }
 
     await client.query(
@@ -596,6 +611,67 @@ export interface CDCBatchResult {
   results: CDCEventResult[];
 }
 
+/** Outcome of one capture+apply cycle for a single table. */
+export interface TableSyncOutcome {
+  captured: number;
+  applied: number;
+  /** Set when any event failed or the cycle threw; position is NOT advanced. */
+  error?: string;
+}
+
+/**
+ * Runs one capture+apply cycle for a table. The sync position is persisted
+ * only after the batch COMMIT succeeded with zero failed events; otherwise the
+ * in-memory position is restored so the failed changes are re-captured.
+ */
+export async function syncTableCycle(
+  producer: Pick<CDCProducer, 'captureChanges' | 'commitPosition'>,
+  consumer: Pick<CDCConsumer, 'processBatch'>,
+  pgPool: Pool,
+  stagingPool: Pool,
+  mapping: TableMapping,
+  position: SyncPosition,
+): Promise<TableSyncOutcome> {
+  const snapshot = { ...position };
+  const restore = (): void => {
+    position.lastSyncedAt = snapshot.lastSyncedAt;
+    position.lastSequence = snapshot.lastSequence;
+    position.lastLegacyId = snapshot.lastLegacyId;
+  };
+  let captured = 0;
+  let applied = 0;
+  try {
+    const events = await producer.captureChanges(stagingPool, mapping);
+    captured = events.length;
+    if (events.length === 0) return { captured, applied };
+
+    const batchResult = await consumer.processBatch(pgPool, events);
+    applied = batchResult.applied;
+    console.log(
+      `[cdc-sync]   ${mapping.sourceTable}: captured=${events.length}, applied=${batchResult.applied}, errors=${batchResult.errors}`,
+    );
+
+    if (batchResult.errors > 0) {
+      restore();
+      const firstError = batchResult.results.find((r) => r.status === 'error')?.error;
+      return {
+        captured,
+        applied,
+        error: `${batchResult.errors} events failed to apply; sync position not advanced${
+          firstError ? ` (first error: ${firstError})` : ''
+        }`,
+      };
+    }
+
+    await producer.commitPosition(pgPool, mapping.sourceTable, position);
+    return { captured, applied };
+  } catch (error) {
+    restore();
+    const message = error instanceof Error ? error.message : String(error);
+    return { captured, applied, error: `CDC sync failed: ${message}` };
+  }
+}
+
 /**
  * Runs the CDC incremental sync as a migration step.
  * This performs a single sync cycle (capture + apply) for all tracked tables.
@@ -641,39 +717,20 @@ export async function runIncrementalSync(
       const position = producer.getSyncPositions().find((p) => p.table === mapping.sourceTable);
       if (!position || position.status !== 'active') continue;
 
-      try {
-        // Capture changes from source
-        const events = await producer.captureChanges(stagingPool, mapping);
-        totalCaptured += events.length;
-
-        if (events.length > 0) {
-          // Apply changes to target
-          const batchResult = await consumer.processBatch(pgPool, events);
-          totalApplied += batchResult.applied;
-
-          if (batchResult.errors > 0) {
-            warnings.push({
-              table: mapping.targetTable,
-              message: `${batchResult.errors} events failed to apply`,
-              count: batchResult.errors,
-            });
-          }
-
-          // Commit sync position
-          await producer.commitPosition(pgPool, mapping.sourceTable, position);
-
-          console.log(
-            `[cdc-sync]   ${mapping.sourceTable}: captured=${events.length}, applied=${batchResult.applied}, errors=${batchResult.errors}`,
-          );
-        }
-
+      const outcome = await syncTableCycle(
+        producer,
+        consumer,
+        pgPool,
+        stagingPool,
+        mapping,
+        position,
+      );
+      totalCaptured += outcome.captured;
+      totalApplied += outcome.applied;
+      if (outcome.error) {
+        errors.push({ table: mapping.sourceTable, message: outcome.error });
+      } else {
         tablesProcessed++;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        errors.push({
-          table: mapping.sourceTable,
-          message: `CDC sync failed: ${message}`,
-        });
       }
     }
 
@@ -683,7 +740,8 @@ export async function runIncrementalSync(
 
     return {
       step: 'incremental_sync',
-      status: errors.length > 0 ? 'warning' : 'success',
+      // Any failed event or table is an error: the run must exit non-zero.
+      status: errors.length > 0 ? 'error' : 'success',
       tablesProcessed,
       rowsProcessed: totalApplied,
       errors,

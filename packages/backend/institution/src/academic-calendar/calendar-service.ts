@@ -10,7 +10,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PrismaClient } from '@proctira/database';
 
 import type { CalendarEventRecord, CalendarStore } from './calendar-store.js';
@@ -49,7 +49,25 @@ export type RolloverExtras = {
     summary: RolloverSummary;
     status: 'completed' | 'dry_run';
   }) => Promise<void>;
+  /**
+   * PRC-L318: look up a completed (non-dry-run) ledger row for an idempotency
+   * key so a replayed request returns the stored summary instead of re-executing.
+   */
+  findCompletedRolloverRun?: (input: {
+    tenantId: string;
+    idempotencyKey: string;
+  }) => Promise<RolloverSummary | null>;
 };
+
+/**
+ * PRC-L318: dry-run previews must not consume the real run's idempotency key
+ * (the ledger is unique on (tenant_id, idempotency_key)), so they are recorded
+ * under a namespaced key.
+ */
+export function ledgerIdempotencyKey(key: string | undefined, dryRun: boolean): string | null {
+  if (!key) return null;
+  return dryRun ? `dry_run:${key}` : key;
+}
 
 export interface AcademicCalendarServiceDeps {
   prisma: PrismaClient;
@@ -163,25 +181,70 @@ export class AcademicCalendarService {
   }
 
   async removeEvent(tenantId: string, periodId: string, eventId: string): Promise<void> {
+    const period = await this.requirePeriod(tenantId, periodId);
     const existing = await this.store.findById(tenantId, eventId);
     if (!existing || existing.academicPeriodId !== periodId) {
       throw new NotFoundError(`Calendar event '${eventId}' not found`);
+    }
+    // PRC-L124: archived periods are read-only (mirrors addEvent).
+    if (period.status === 'archived') {
+      throw new ConflictError('Cannot remove calendar events from an archived period');
     }
     await this.store.delete(tenantId, eventId);
   }
 
   // ─── Rollover ─────────────────────────────────────────────────────────────
 
+  /**
+   * @param actorId authenticated caller (JWT `sub`); recorded on the run ledger
+   *   and passed to every clone hook (PRC-L319).
+   */
   async rollover(
     tenantId: string,
     sourcePeriodId: string,
     dto: RolloverRequestDto,
+    actorId: string,
   ): Promise<RolloverSummary> {
+    if (!actorId?.trim()) {
+      throw new ValidationError('Rollover requires an authenticated actor', [
+        { field: 'actorId', rule: 'required', message: 'Authenticated actor is required' },
+      ]);
+    }
     const dryRun = dto.dryRun ?? true;
+    // PRC-L318: replay of a completed real run returns its stored summary.
+    if (!dryRun && dto.idempotencyKey && this.rolloverExtras?.findCompletedRolloverRun) {
+      const previous = await this.rolloverExtras.findCompletedRolloverRun({
+        tenantId,
+        idempotencyKey: dto.idempotencyKey,
+      });
+      if (previous) {
+        if (
+          previous.sourcePeriodId !== sourcePeriodId ||
+          previous.targetPeriodId !== dto.targetPeriodId
+        ) {
+          throw new ConflictError('Idempotency key was already used for a different rollover');
+        }
+        return previous;
+      }
+    }
     if (dto.targetPeriodId === sourcePeriodId) {
       throw new ValidationError('Target period must differ from the source period', [
         { field: 'targetPeriodId', rule: 'distinct', message: 'Target must differ from source' },
       ]);
+    }
+    // PRC-L320: fail before any write when a requested extra has no wired hook,
+    // instead of reporting success with zero counts.
+    const unavailable = [
+      dto.copyFeeStructures && !this.rolloverExtras?.copyFeeStructures ? 'copyFeeStructures' : null,
+      dto.copyTimetable && !this.rolloverExtras?.copyTimetable ? 'copyTimetable' : null,
+      dto.copyLmsAssignments && !this.rolloverExtras?.copyLmsAssignments
+        ? 'copyLmsAssignments'
+        : null,
+    ].filter((name): name is string => name !== null);
+    if (unavailable.length > 0) {
+      throw new BusinessRuleError(
+        `Rollover extras not available in this deployment: ${unavailable.join(', ')}`,
+      );
     }
     const [source, target] = await Promise.all([
       this.requirePeriod(tenantId, sourcePeriodId),
@@ -368,50 +431,44 @@ export class AcademicCalendarService {
       if (this.rolloverExtras?.copyFeeStructures) {
         summary.feeStructures = await this.rolloverExtras.copyFeeStructures(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.feeStructures = { cloned: 0, source: 0 };
       }
     }
     if (dto.copyTimetable) {
       if (this.rolloverExtras?.copyTimetable) {
         summary.timetable = await this.rolloverExtras.copyTimetable(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.timetable = { sectionsCloned: 0, meetingsCloned: 0 };
       }
     }
     if (dto.copyLmsAssignments) {
       if (this.rolloverExtras?.copyLmsAssignments) {
         summary.lmsAssignments = await this.rolloverExtras.copyLmsAssignments(
           tenantId,
-          'rollover',
+          actorId,
           sourcePeriodId,
           dto.targetPeriodId,
           { dryRun },
         );
-      } else {
-        summary.lmsAssignments = { cloned: 0, source: 0 };
       }
     }
 
     if (this.rolloverExtras?.recordRolloverRun) {
       await this.rolloverExtras.recordRolloverRun({
         tenantId,
-        actorId: 'rollover',
+        actorId,
         sourcePeriodId,
         targetPeriodId: dto.targetPeriodId,
         dryRun,
-        idempotencyKey: dto.idempotencyKey ?? null,
+        idempotencyKey: ledgerIdempotencyKey(dto.idempotencyKey, dryRun),
         request: { ...dto } as unknown as Record<string, unknown>,
         summary,
         status: dryRun ? 'dry_run' : 'completed',

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  evaluateVitestReport,
-  isPgGateFile,
-  summarizeReport,
-} from './assert-vitest-skips.mjs';
+import { evaluateVitestReport, isPgGateFile, summarizeReport } from './assert-vitest-skips.mjs';
 
 const skippedPgReport = {
   testResults: [
@@ -44,9 +40,9 @@ describe('W3-TEST-04 assert-vitest-skips', () => {
   it('detects pg gate file names and excludes live tests', () => {
     expect(isPgGateFile('packages/backend/fees/src/pg-fees-repository.test.ts')).toBe(true);
     expect(isPgGateFile('packages/backend/fees/src/pg-fees-ledger.live.test.ts')).toBe(false);
-    expect(isPgGateFile('packages/backend/student/src/prisma-student-repository.integration.test.ts')).toBe(
-      true,
-    );
+    expect(
+      isPgGateFile('packages/backend/student/src/prisma-student-repository.integration.test.ts'),
+    ).toBe(true);
   });
 
   it('counts skipped pg assertions even when Vitest marks the file passed', () => {
@@ -84,5 +80,30 @@ describe('W3-TEST-04 assert-vitest-skips', () => {
     expect(result.ok).toBe(true);
     expect(result.summary.executed).toBeGreaterThanOrEqual(25);
     expect(result.summary.skipped).toBe(1);
+  });
+});
+
+describe('PRC-L378 ALLOW_TEST_SKIP cannot silence the pg gate', () => {
+  it('CI=true + ALLOW_TEST_SKIP=1 with FORBID_TEST_SKIPS or DATABASE_URL still fails on skips', () => {
+    for (const env of [
+      { CI: 'true', ALLOW_TEST_SKIP: '1', FORBID_TEST_SKIPS: '1', DATABASE_URL: 'postgres://x' },
+      { CI: 'true', ALLOW_TEST_SKIP: '1', DATABASE_URL: 'postgres://x' },
+    ]) {
+      const result = evaluateVitestReport(skippedPgReport, env, {
+        profile: 'pg',
+        minExecuted: 25,
+        maxAllowedSkips: 1,
+      });
+      expect(result.ok).toBe(false);
+    }
+  });
+
+  it('enforces the executed minimum when skips are forbidden even without DATABASE_URL', () => {
+    const result = evaluateVitestReport(
+      { testResults: [] },
+      { FORBID_TEST_SKIPS: '1' },
+      { profile: 'pg', minExecuted: 25, maxAllowedSkips: 1 },
+    );
+    expect(result.errors.join(' ')).toMatch(/executed 0 case\(s\); minimum is 25/);
   });
 });

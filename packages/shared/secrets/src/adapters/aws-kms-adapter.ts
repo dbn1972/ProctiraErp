@@ -57,6 +57,16 @@ export interface AwsSecretsManagerClient {
     CreatedDate?: Date;
     VersionIdsToStages?: Record<string, string[]>;
   }>;
+  /**
+   * Optional (AWS SDK `UpdateSecretVersionStage`). Required only when callers
+   * request `invalidatePrevious` on rotation (PRC-L495).
+   */
+  updateSecretVersionStage?(params: {
+    SecretId: string;
+    VersionStage: string;
+    RemoveFromVersionId?: string;
+    MoveToVersionId?: string;
+  }): Promise<unknown>;
 }
 
 export class AwsKmsSecretAdapter implements SecretManager {
@@ -158,17 +168,46 @@ export class AwsKmsSecretAdapter implements SecretManager {
       );
     }
 
+    // PRC-L495: fail before writing if invalidation was requested but cannot be honoured.
+    if (options.invalidatePrevious && typeof this.client.updateSecretVersionStage !== 'function') {
+      throw new SecretAccessError(
+        `Cannot invalidate previous version of secret '${key}': client lacks updateSecretVersionStage`,
+      );
+    }
+
     const response = await this.client.putSecretValue({
       SecretId: key,
       SecretString: options.newValue,
       VersionStages: ['AWSCURRENT'],
     });
 
-    return {
+    const result: RotateSecretResult = {
       newVersion: response.VersionId ?? 'unknown',
       previousVersion,
       rotatedAt: new Date(),
     };
+
+    if (!options.invalidatePrevious) {
+      return result;
+    }
+    if (!previousVersion || previousVersion === response.VersionId) {
+      return { ...result, previousInvalidated: false };
+    }
+    try {
+      // putSecretValue moves AWSPREVIOUS onto the old version; strip it so the
+      // old value is no longer retrievable by stage.
+      await this.client.updateSecretVersionStage!({
+        SecretId: key,
+        VersionStage: 'AWSPREVIOUS',
+        RemoveFromVersionId: previousVersion,
+      });
+    } catch (error: unknown) {
+      throw new SecretAccessError(
+        `Secret '${key}' rotated to version ${result.newVersion} but invalidating previous version ${previousVersion} failed`,
+        { cause: error },
+      );
+    }
+    return { ...result, previousInvalidated: true };
   }
 
   async healthCheck(): Promise<SecretManagerHealth> {

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   decideInstitutionScope,
   extractInstitutionId,
+  extractInstitutionIds,
+  institutionRecordIdFromParams,
   isBoardOrTenantAdmin,
   isInstitutionInjectionMethod,
   isSchoolBound,
@@ -124,6 +126,31 @@ describe('G-805 institution scope', () => {
     expect(extractInstitutionId({ query: { institutionId: 'a' } })).toBe('a');
     expect(extractInstitutionId({ params: { institution_id: 'b' } })).toBe('b');
     expect(extractInstitutionId({ body: { institutionId: 'c' } })).toBe('c');
+  });
+
+  it('extractInstitutionIds returns every named id across sources and key spellings (PRC-H004)', () => {
+    expect(
+      extractInstitutionIds({
+        query: { institutionId: 'a' },
+        body: { institutionId: 'a', institution_id: 'b' },
+      }),
+    ).toEqual(['a', 'b']);
+    expect(extractInstitutionIds({ body: [{ institutionId: 'x' }] })).toEqual([]);
+  });
+
+  it('scopes /institutions/:id records for school-bound users without injecting', () => {
+    const user = { institutions: ['s1'], roles: ['principal'] };
+    expect(institutionRecordIdFromParams('/api/v1/institutions/s2', { id: 's2' })).toBe('s2');
+    expect(institutionRecordIdFromParams('/api/v1/students/s2', { id: 's2' })).toBeUndefined();
+    expect(decideInstitutionScope(user, '/api/v1/institutions/s2', 's2', 'PUT').action).toBe(
+      'deny',
+    );
+    expect(decideInstitutionScope(user, '/api/v1/institutions/s1', 's1', 'GET').action).toBe(
+      'allow',
+    );
+    expect(decideInstitutionScope(user, '/api/v1/institutions', undefined, 'GET').action).toBe(
+      'allow',
+    );
   });
 });
 

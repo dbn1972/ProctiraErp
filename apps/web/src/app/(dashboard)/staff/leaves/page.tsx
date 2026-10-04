@@ -16,7 +16,11 @@ import { listStaffLeaves } from '@/lib/api/staff';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffOptions } from '@/lib/load-entity-labels';
 import { NewStaffLeaveForm } from './_components/new-staff-leave-form';
-import { StaffLeaveDecisionButtons } from './_components/leave-decision-buttons';
+import {
+  StaffLeaveDecisionButtons,
+  StaffLeaveStatusBadge,
+} from './_components/leave-decision-buttons';
+import { inclusiveLeaveDays } from './_components/leave-days';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,22 +59,37 @@ export default async function StaffLeavesPage() {
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {leaves.map((leave) => (
-                <li
-                  key={leave.id}
-                  className="py-3 first:pt-0 last:pb-0"
-                  data-testid="staff-leave-row"
-                >
-                  <p className="text-sm font-medium text-foreground">
-                    {leave.leaveType} · {leave.startDate} → {leave.endDate}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {resolveEntityLabel(leave.staffId, staffLabels, 'Staff')} · {leave.status}
-                    {leave.reason ? ` · ${leave.reason}` : ''}
-                  </p>
-                  <StaffLeaveDecisionButtons leaveId={leave.id} status={leave.status} />
-                </li>
-              ))}
+              {leaves.map((leave) => {
+                const staffName = resolveEntityLabel(leave.staffId, staffLabels, 'Staff');
+                const days = inclusiveLeaveDays(leave.startDate, leave.endDate);
+                return (
+                  <li
+                    key={leave.id}
+                    className="py-3 first:pt-0 last:pb-0"
+                    data-testid="staff-leave-row"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      {leave.leaveType} · {leave.startDate} → {leave.endDate}
+                      {days !== null ? ` · ${days} day${days === 1 ? '' : 's'}` : ''}
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{staffName}</span>
+                      {leave.status === 'pending' ? (
+                        <StaffLeaveStatusBadge status={leave.status} />
+                      ) : null}
+                      {leave.reason ? <span>· {leave.reason}</span> : null}
+                    </p>
+                    <StaffLeaveDecisionButtons
+                      leaveId={leave.id}
+                      status={leave.status}
+                      staffName={staffName}
+                      leaveType={leave.leaveType}
+                      startDate={leave.startDate}
+                      endDate={leave.endDate}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

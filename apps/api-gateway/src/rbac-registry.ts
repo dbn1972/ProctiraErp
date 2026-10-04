@@ -120,8 +120,12 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
  */
 export const UNMAPPED_API_RESOURCE = '__unmapped__';
 
-/** Paths under /api/v1 that are gateway-owned utilities, not domain resources. */
-export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage']);
+/**
+ * Paths under /api/v1 that are gateway-owned utilities, not domain resources.
+ * PRC-L001: `meta` serves the authenticated API contract (error-code registry,
+ * deprecation policy) and must be readable by every authenticated caller.
+ */
+export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage', 'meta']);
 
 /**
  * G-712: resources any authenticated principal may READ (own-scope filtering
@@ -213,6 +217,8 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
 
   const admin = roles.find((r) => r.roleId === 'admin');
   if (admin) {
+    // PRC-L004: the tenant administrator owns its school/board branding (preview + edit).
+    admin.permissions.push({ resource: 'branding', action: 'manage' });
     for (const perm of CAMPUS_MANAGE) {
       if (
         !admin.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)

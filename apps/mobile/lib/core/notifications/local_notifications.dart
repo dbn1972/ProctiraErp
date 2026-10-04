@@ -12,17 +12,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// configured channel id).
 class LocalNotifications {
   LocalNotifications({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
   bool _initialised = false;
 
   /// Default Android channel used for transactional notifications.
-  static const AndroidNotificationChannel defaultChannel =
-      AndroidNotificationChannel(
+  static const AndroidNotificationChannel
+  defaultChannel = AndroidNotificationChannel(
+    // Channel id kept for existing installs (renaming orphans user settings).
     'openemis_default',
-    'OpenEMIS Notifications',
-    description: 'Real-time alerts from the OpenEMIS platform.',
+    'ProctiraERP Notifications',
+    description: 'Real-time alerts from the ProctiraERP platform.',
     importance: Importance.high,
   );
 
@@ -33,10 +34,10 @@ class LocalNotifications {
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const DarwinInitializationSettings iosSettings =
           DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      );
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          );
       const InitializationSettings settings = InitializationSettings(
         android: androidSettings,
         iOS: iosSettings,
@@ -50,9 +51,10 @@ class LocalNotifications {
       );
       // Register the Android channel so high-importance notifications are
       // surfaced as banners even on Android 13+.
-      final AndroidFlutterLocalNotificationsPlugin? android =
-          _plugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      final AndroidFlutterLocalNotificationsPlugin? android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await android?.createNotificationChannel(defaultChannel);
       _initialised = true;
     } catch (error, stack) {

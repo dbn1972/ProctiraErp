@@ -179,6 +179,20 @@ function PersonalInfoStep({ wizard }: { wizard: Wizard }) {
           <option value="other">Other</option>
         </select>
       </Field>
+      <Field
+        label="National ID (optional)"
+        htmlFor={`${id}-nationalId`}
+        error={findError(wizard.errors, 'nationalId')}
+      >
+        <input
+          id={`${id}-nationalId`}
+          type="text"
+          className="w-full rounded-md border bg-background p-2"
+          value={values.nationalId}
+          onChange={(e) => set({ nationalId: e.target.value })}
+          data-testid="nationalId"
+        />
+      </Field>
     </fieldset>
   );
 }
@@ -271,6 +285,21 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           data-testid="addressLine1"
         />
       </Field>
+      <Field
+        label="Address line 2 (optional)"
+        htmlFor={`${id}-addr2`}
+        error={findError(wizard.errors, 'addressLine2')}
+      >
+        <input
+          id={`${id}-addr2`}
+          type="text"
+          autoComplete="address-line2"
+          className="w-full rounded-md border bg-background p-2"
+          value={values.addressLine2}
+          onChange={(e) => set({ addressLine2: e.target.value })}
+          data-testid="addressLine2"
+        />
+      </Field>
       <Field label="City" htmlFor={`${id}-city`} error={findError(wizard.errors, 'city')}>
         <input
           id={`${id}-city`}
@@ -279,6 +308,21 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           value={values.city}
           onChange={(e) => set({ city: e.target.value })}
           data-testid="city"
+        />
+      </Field>
+      <Field
+        label="Postal code (optional)"
+        htmlFor={`${id}-postal`}
+        error={findError(wizard.errors, 'postalCode')}
+      >
+        <input
+          id={`${id}-postal`}
+          type="text"
+          autoComplete="postal-code"
+          className="w-full rounded-md border bg-background p-2"
+          value={values.postalCode}
+          onChange={(e) => set({ postalCode: e.target.value })}
+          data-testid="postalCode"
         />
       </Field>
       <Field label="Country" htmlFor={`${id}-country`} error={findError(wizard.errors, 'country')}>

@@ -6,7 +6,8 @@ import {
   clearRefreshTokenCookieOptions,
   getAuthServiceUrl,
 } from '@/lib/auth/cookies';
-import { AUTH_COOKIES } from '@/lib/auth/session';
+import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth/session';
+import { resolveTenantForRequest } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/logout
@@ -18,9 +19,16 @@ import { AUTH_COOKIES } from '@/lib/auth/session';
 export async function POST(request: Request): Promise<NextResponse> {
   const jar = await cookies();
   const accessToken = jar.get(AUTH_COOKIES.ACCESS_TOKEN)?.value;
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header. When the
+  // Host does not resolve (localhost / bare domain without a fallback slug) we
+  // fall back to the access token's own tenant claim so upstream revocation
+  // still happens. The claim is read unverified here; that is safe because the
+  // auth service verifies the bearer token and rejects a mismatched tenant.
+  const tenantId =
+    resolveTenantForRequest(request) ??
+    (accessToken ? decodeTokenPayload(accessToken)?.tenantId?.trim() || null : null);
 
-  if (accessToken) {
+  if (accessToken && tenantId) {
     try {
       await fetch(`${getAuthServiceUrl()}/auth/logout`, {
         method: 'POST',

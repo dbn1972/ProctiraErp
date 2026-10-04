@@ -19,8 +19,8 @@
  * - 7.4: Manage training programs, sessions, attendance, and certification tracking
  * - 7.8: Certification expiry and notification triggering
  */
-import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { AppError, ValidationError } from '@proctira/common';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { staffWritePreHandler } from './staff-http-guard.js';
@@ -33,6 +33,9 @@ import {
   TrainingProgramParamsSchema,
   TrainingSessionParamsSchema,
   CertificationParamsSchema,
+  TrainingProgramListQuerySchema,
+  TrainingSessionListQuerySchema,
+  CertificationListQuerySchema,
   type CreateTrainingProgramInput,
   type UpdateTrainingProgramInput,
   type CreateTrainingSessionInput,
@@ -149,6 +152,21 @@ function formatCertificationResponse(entity: {
 }
 
 /**
+ * PRC-L155: PG date/time cast failures (invalid_datetime_format 22007, datetime_field_overflow
+ * 22008, invalid_text_representation 22P02) are client input errors, not 500s.
+ */
+const PG_INPUT_ERROR_CODES = new Set(['22007', '22008', '22P02']);
+
+function toTrainingAppError(error: unknown): AppError | null {
+  if (error instanceof AppError) return error;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && PG_INPUT_ERROR_CODES.has(code)) {
+    return new ValidationError('Invalid date or time value');
+  }
+  return null;
+}
+
+/**
  * Register training routes on a Fastify instance.
  */
 export async function registerTrainingRoutes(
@@ -158,7 +176,7 @@ export async function registerTrainingRoutes(
   const { trainingService, prefix = '/staff/training' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    staffWritePreHandler(request, reply, 'staff.hr.write');
+    if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
   });
 
   // ─── Training Programs ───────────────────────────────────────────────
@@ -195,9 +213,8 @@ export async function registerTrainingRoutes(
         const program = await trainingService.createProgram(tenantId, result.data);
         return reply.status(201).send(formatProgramResponse(program));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -221,9 +238,19 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L154: validate + coerce paging instead of Number(x) || default.
+      const queryResult = validateQuery(TrainingProgramListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await trainingService.listPrograms(tenantId, query.search, { page, pageSize });
       return reply.status(200).send({
@@ -265,9 +292,8 @@ export async function registerTrainingRoutes(
         const program = await trainingService.getProgram(tenantId, paramsResult.data.programId);
         return reply.status(200).send(formatProgramResponse(program));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -319,9 +345,8 @@ export async function registerTrainingRoutes(
         );
         return reply.status(200).send(formatProgramResponse(program));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -361,9 +386,8 @@ export async function registerTrainingRoutes(
         const session = await trainingService.createSession(tenantId, result.data);
         return reply.status(201).send(formatSessionResponse(session));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -401,9 +425,8 @@ export async function registerTrainingRoutes(
         const session = await trainingService.getSession(tenantId, paramsResult.data.sessionId);
         return reply.status(200).send(formatSessionResponse(session));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -437,9 +460,17 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query as { page?: string; pageSize?: string };
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = validateQuery(TrainingSessionListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const page = queryResult.data.page ?? 1;
+      const pageSize = queryResult.data.pageSize ?? 20;
 
       const result = await trainingService.listSessions(tenantId, paramsResult.data.programId, {
         page,
@@ -486,9 +517,8 @@ export async function registerTrainingRoutes(
         const attendance = await trainingService.recordAttendance(tenantId, result.data);
         return reply.status(201).send(formatAttendanceResponse(attendance));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -566,9 +596,8 @@ export async function registerTrainingRoutes(
         const certification = await trainingService.issueCertification(tenantId, result.data);
         return reply.status(201).send(formatCertificationResponse(certification));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -592,9 +621,18 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = validateQuery(CertificationListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await trainingService.listCertifications(
         tenantId,
@@ -647,9 +685,8 @@ export async function registerTrainingRoutes(
         );
         return reply.status(200).send(formatCertificationResponse(cert));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
         throw error;
       }
     },
@@ -672,15 +709,26 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const body = request.body as { asOfDate?: string } | undefined;
+      const body = request.body as { asOfDate?: unknown } | undefined;
       const asOfDate = body?.asOfDate;
+      if (asOfDate !== undefined && typeof asOfDate !== 'string') {
+        const err = new ValidationError('Validation failed', [
+          { field: 'asOfDate', message: 'asOfDate must be a date string', rule: 'type' },
+        ]);
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
 
-      const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate);
-
-      return reply.status(200).send({
-        processedCount: expiredCerts.length,
-        certifications: expiredCerts.map(formatCertificationResponse),
-      });
+      try {
+        const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate);
+        return reply.status(200).send({
+          processedCount: expiredCerts.length,
+          certifications: expiredCerts.map(formatCertificationResponse),
+        });
+      } catch (error: unknown) {
+        const mapped = toTrainingAppError(error);
+        if (mapped) return reply.status(mapped.statusCode).send(mapped.toJSON());
+        throw error;
+      }
     },
   );
 }

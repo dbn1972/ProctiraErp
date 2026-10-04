@@ -21,8 +21,16 @@ describe('UuidSchema', () => {
     expect(Value.Check(UuidSchema, 'not-a-uuid')).toBe(false);
   });
 
-  it('rejects UUID v1 (wrong version digit)', () => {
-    expect(Value.Check(UuidSchema, '550e8400-e29b-11d4-a716-446655440000')).toBe(false);
+  it('accepts v1, v5 and v7 UUIDs (PRC-L357)', () => {
+    expect(Value.Check(UuidSchema, '550e8400-e29b-11d4-a716-446655440000')).toBe(true);
+    expect(Value.Check(UuidSchema, '886313e1-3b8a-5372-9b90-0c9aee199e5d')).toBe(true);
+    expect(Value.Check(UuidSchema, '01890a5d-ac96-774b-bcce-b302099a8057')).toBe(true);
+  });
+
+  it('rejects invalid version digit (0/9) and wrong variant', () => {
+    expect(Value.Check(UuidSchema, '550e8400-e29b-01d4-a716-446655440000')).toBe(false);
+    expect(Value.Check(UuidSchema, '550e8400-e29b-91d4-a716-446655440000')).toBe(false);
+    expect(Value.Check(UuidSchema, '550e8400-e29b-71d4-c716-446655440000')).toBe(false);
   });
 
   it('rejects empty string', () => {

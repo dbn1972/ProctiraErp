@@ -441,25 +441,27 @@ describe('API Gateway', () => {
     });
 
     it('accepts bodyless POST with Content-Type application/json', async () => {
-      // Admin has communication:manage via gateway RBAC campus extensions (G-101)
-      const token = app.jwt.sign(
-        createTestJwtPayload({
-          roles: [
-            {
-              roleId: 'admin',
-              roleName: 'Administrator',
-              areaId: 'root',
-            },
-          ],
-        }),
+      // Admin has communication:manage via gateway RBAC campus extensions (G-101).
+      // PRC-H045: the confirming actor is the JWT subject, and the two confirmers must be distinct
+      // from each other and from the creator — so use three separate admin sessions.
+      const adminRoles = [{ roleId: 'admin', roleName: 'Administrator', areaId: 'root' }];
+      const creatorToken = app.jwt.sign(
+        createTestJwtPayload({ sub: 'emergency-creator', roles: adminRoles }),
       );
+      const confirmer1Token = app.jwt.sign(
+        createTestJwtPayload({ sub: 'emergency-confirmer-1', roles: adminRoles }),
+      );
+      const confirmer2Token = app.jwt.sign(
+        createTestJwtPayload({ sub: 'emergency-confirmer-2', roles: adminRoles }),
+      );
+      const token = confirmer2Token; // the bodyless dispatch is issued by an authorized session
       const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/v1/communication/emergency',
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${creatorToken}`,
           'x-tenant-id': tenantId,
           'content-type': 'application/json',
         },
@@ -468,26 +470,28 @@ describe('API Gateway', () => {
       expect(createRes.statusCode).toBe(201);
       const blast = createRes.json() as { id: string };
 
-      await app.inject({
+      const confirm1 = await app.inject({
         method: 'POST',
         url: `/api/v1/communication/emergency/${blast.id}/confirm`,
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${confirmer1Token}`,
           'x-tenant-id': tenantId,
           'content-type': 'application/json',
         },
-        payload: { actorId: 'actor-1' },
+        payload: {},
       });
-      await app.inject({
+      expect(confirm1.statusCode).toBe(200);
+      const confirm2 = await app.inject({
         method: 'POST',
         url: `/api/v1/communication/emergency/${blast.id}/confirm`,
         headers: {
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${confirmer2Token}`,
           'x-tenant-id': tenantId,
           'content-type': 'application/json',
         },
-        payload: { actorId: 'actor-2' },
+        payload: {},
       });
+      expect(confirm2.statusCode).toBe(200);
 
       const dispatch = await app.inject({
         method: 'POST',

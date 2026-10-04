@@ -653,8 +653,9 @@ describe('TrainingService', () => {
         issuedDate: '2024-01-01',
         expiryDate: '2025-01-01',
       });
+      // PRC-L361: one ACTIVE cert per staff+program, so the second cert belongs to another staff.
       await service.issueCertification(TENANT_ID, {
-        staffId,
+        staffId: uuid(),
         programId,
         certificationName: 'Expiring Cert',
         issuedDate: '2023-01-01',

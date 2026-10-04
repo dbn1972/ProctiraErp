@@ -101,8 +101,10 @@ export class ImportService {
         startedAt: new Date().toISOString(),
       };
 
-      await this.queue.enqueue(tenantId, jobId, fileBuffer, options);
+      // PRC-H092: record `queued` before enqueue so a fast consumer's
+      // processing/completed progress is never overwritten back to `queued`.
       await this.queue.updateProgress(jobId, progress);
+      await this.queue.enqueue(tenantId, jobId, fileBuffer, options);
 
       return progress;
     }
@@ -205,10 +207,7 @@ export class ImportService {
   /**
    * Create a new student record from an import row.
    */
-  private async createStudent(
-    tenantId: string,
-    row: ImportStudentRow,
-  ): Promise<{ id: string }> {
+  private async createStudent(tenantId: string, row: ImportStudentRow): Promise<{ id: string }> {
     const created = await this.repository.create(tenantId, {
       firstName: row.firstName.trim(),
       lastName: row.lastName.trim(),

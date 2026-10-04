@@ -101,9 +101,36 @@ export type EnrollmentHistoryContext = {
   effectiveDate?: Date;
 };
 
+/** Optional compare-and-set guard for `updateEnrollment` (PRC-L160). */
+export interface UpdateEnrollmentOptions {
+  expectedStatus?: EnrollmentEntity['status'];
+}
+
 /**
  * Repository interface for enrollment data access.
  */
+/**
+ * PRC-H094: all writes of a transfer, applied atomically by
+ * {@link EnrollmentRepository.transferEnrollment}.
+ */
+export interface TransferEnrollmentWrite {
+  tenantId: string;
+  sourceEnrollmentId: string;
+  /** Status the source must still hold when the write runs (optimistic guard). */
+  expectedSourceStatus: EnrollmentEntity['status'];
+  sourceUpdate: Pick<EnrollmentEntity, 'status' | 'exitedAt'>;
+  sourceHistory: EnrollmentHistoryContext;
+  destination: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>;
+  destinationHistory: EnrollmentHistoryContext;
+  transfer: Omit<TransferRecordEntity, 'createdAt'>;
+}
+
+export interface TransferEnrollmentResult {
+  sourceEnrollment: EnrollmentEntity;
+  destinationEnrollment: EnrollmentEntity;
+  transferRecord: TransferRecordEntity;
+}
+
 export interface EnrollmentRepository {
   /**
    * When true, Postgres triggers (`trg_enrollments_write_history`) are the
@@ -120,12 +147,17 @@ export interface EnrollmentRepository {
     history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity>;
 
-  /** Update an existing enrollment */
+  /**
+   * Update an existing enrollment. When `options.expectedStatus` is set the
+   * write is conditional (row lock + status predicate): if the row's status
+   * changed concurrently a ConflictError is thrown (PRC-L160).
+   */
   updateEnrollment(
     id: string,
     tenantId: string,
     data: Partial<EnrollmentEntity>,
     history?: EnrollmentHistoryContext,
+    options?: UpdateEnrollmentOptions,
   ): Promise<EnrollmentEntity | null>;
 
   /** Find an enrollment by ID within a tenant */
@@ -170,6 +202,13 @@ export interface EnrollmentRepository {
   /** Load one transfer in the caller's tenant. Null when the id is absent or belongs to another tenant. */
   getTransferById(tenantId: string, transferId: string): Promise<TransferRecordDetail | null>;
 
+  /**
+   * PRC-H094: mark source TRANSFERRED, insert the destination enrollment and the
+   * transfer record (plus history) in ONE transaction — all-or-nothing. Rejects
+   * (without writing) when the destination class does not belong to the tenant,
+   * destination institution, grade and academic period.
+   */
+  transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult>;
   /** Look up an institution by ID (for transfer validation) */
   findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null>;
 }

@@ -72,10 +72,26 @@ test.describe('Communication — live campaign create (E2E_BACKEND_READY)', () =
     const name = `E2E campaign ${Date.now()}`;
     await page.getByLabel(/^name/i).fill(name);
     await page.getByLabel(/message body/i).fill('Created by campus live write smoke.');
-    await page.getByRole('button', { name: /create campaign/i }).click();
 
-    await expect(page).toHaveURL(/\/communication\/campaigns/, { timeout: 20_000 });
-    await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+    // CI serves `next dev`: the create action can sit at "Saving…" for well
+    // over 10s while another worker's route compiles. Wait on the action POST
+    // itself, then on the redirect to the list (`?created=<id>`). The old
+    // `/\/communication\/campaigns/` URL check already matched `/new`, so it
+    // never waited for the redirect at all.
+    const createAction = page.waitForResponse(
+      async (res) =>
+        res.request().method() === 'POST' &&
+        new URL(res.url()).pathname === '/communication/campaigns/new' &&
+        (await res.request().headerValue('next-action')) !== null,
+      { timeout: 45_000 },
+    );
+    await page.getByRole('button', { name: /create campaign/i }).click();
+    expect((await createAction).status()).toBe(200);
+
+    await expect(page).toHaveURL(/\/communication\/campaigns\?created=[^&]+/, {
+      timeout: 30_000,
+    });
+    await expect(page.getByText(name)).toBeVisible({ timeout: 20_000 });
   });
 });
 
@@ -99,7 +115,8 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     await page.getByLabel(/acknowledge dual confirm/i).check();
     await page.getByRole('button', { name: /draft blast/i }).click();
 
-    await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
+    // The draft Server Action plus refresh can exceed 15s on a loaded CI runner.
+    await expect(page.getByText(reason)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/pending_confirm/i).first()).toBeVisible();
   });
 
@@ -115,11 +132,13 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     expect(createRes.status()).toBe(201);
     const blast = await createRes.json();
 
+    // PRC-H045: two-person control — the creator (officer-a) may not confirm, so two
+    // other officers provide the dual confirmation.
     const first = await request.post(
       `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
       {
-        headers: gatewayAuthHeaders('officer-a'),
-        data: { actorId: 'officer-a' },
+        headers: gatewayAuthHeaders('officer-b'),
+        data: {},
       },
     );
     expect(first.status()).toBe(200);
@@ -128,8 +147,8 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     const second = await request.post(
       `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
       {
-        headers: gatewayAuthHeaders('officer-b'),
-        data: { actorId: 'officer-b' },
+        headers: gatewayAuthHeaders('officer-c'),
+        data: {},
       },
     );
     expect(second.status()).toBe(200);

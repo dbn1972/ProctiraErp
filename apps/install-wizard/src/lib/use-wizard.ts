@@ -70,7 +70,7 @@ export function useWizard(): UseWizardReturn {
   const [steps, setSteps] = useState<StepState[]>(INITIAL_STEPS);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-  const currentStep = steps[currentStepIndex]!.id;
+  const currentStep = steps[currentStepIndex].id;
   const totalSteps = steps.length;
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === steps.length - 1;

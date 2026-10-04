@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import {
   accessTokenCookieOptions,
   getAuthServiceUrl,
+  mfaChallengeCookieOptions,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/login
@@ -14,8 +16,9 @@ import { AUTH_COOKIES } from '@/lib/auth/session';
  * so they are never exposed to client-side JavaScript.
  *
  * If the auth-service signals that MFA is required, we return
- * `{ requiresMfa: true, mfaToken }` without setting any session cookies –
- * the client then redirects to /mfa.
+ * `{ requiresMfa: true }` without setting any session cookies. The challenge
+ * token is stored in a short-lived httpOnly cookie scoped to /api/auth/mfa
+ * so it never appears in the /mfa URL (PRC-L024).
  */
 export async function POST(request: Request): Promise<NextResponse> {
   let body: { email?: string; password?: string };
@@ -30,7 +33,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
 
   let upstream: Response;
   try {
@@ -73,10 +80,19 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // MFA challenge required – do not set tokens yet.
   if (data.requiresMfa) {
-    return NextResponse.json({
-      requiresMfa: true,
-      mfaToken: data.mfaToken,
-    });
+    if (!data.mfaToken) {
+      return NextResponse.json(
+        { message: 'MFA challenge missing from response.' },
+        { status: 502 },
+      );
+    }
+    const mfaResponse = NextResponse.json({ requiresMfa: true });
+    mfaResponse.cookies.set(
+      AUTH_COOKIES.MFA_CHALLENGE,
+      data.mfaToken,
+      mfaChallengeCookieOptions(undefined, request),
+    );
+    return mfaResponse;
   }
 
   if (!data.tokens) {

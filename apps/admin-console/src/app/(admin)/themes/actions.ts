@@ -11,7 +11,9 @@ export async function themeDecisionAction(formData: FormData): Promise<void> {
   const action = String(formData.get('action') ?? '') as 'approve' | 'reject';
   const reason = String(formData.get('reason') ?? '');
   if (!id || !action) return;
-  await themeAction(id, action, reason);
+  const result = await themeAction(id, action, reason);
+  // PRC-H002: surface failed writes (incl. unreachable gateway) instead of silently revalidating.
+  if (!result.ok) throw new Error(result.error ?? 'Theme decision failed.');
   revalidatePath('/themes');
   revalidatePath(`/themes/${id}`);
 }

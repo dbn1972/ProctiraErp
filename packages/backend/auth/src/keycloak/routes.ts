@@ -5,6 +5,7 @@ import {
   revokeAccessTokenIdentifiers,
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
+import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 
 import {
   identityInputFromClaims,
@@ -12,8 +13,14 @@ import {
   type KeycloakIdentityStore,
   type LinkedKeycloakUser,
 } from './identity.js';
+import { PasswordLoginThrottle, type PasswordThrottleOptions } from './password-throttle.js';
 import { keycloakRoleCatalog } from './roles.js';
-import { decodeJwt, type KeycloakAuthConfig } from './verify.js';
+import {
+  KeycloakJwksClient,
+  decodeJwt,
+  verifyKeycloakAccessToken,
+  type KeycloakAuthConfig,
+} from './verify.js';
 
 export type KeycloakRouteConfig = KeycloakAuthConfig & {
   clientSecret?: string;
@@ -26,7 +33,21 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * exists for tests and explicit DI.
    */
   revocationStore?: AccessTokenRevocationStore;
+  /**
+   * Per-account + per-IP failed-attempt limiter for POST /password (PRC-H043).
+   * Pass options to tune, or a prebuilt instance to share/inspect in tests.
+   */
+  passwordThrottle?: PasswordLoginThrottle | PasswordThrottleOptions;
+  /** Tenant repository used by GET /tenants for real name/slug/status (PRC-L084). */
+  tenantDirectory?: TenantDirectoryReader;
+  /** Upper bound for logout denylist entries in seconds (PRC-L282). Default 3600. */
+  maxRevocationTtlSeconds?: number;
+  /** JWKS client used to verify tokens presented at logout (tests/DI). */
+  jwksClient?: KeycloakJwksClient;
 };
+
+const DEFAULT_MAX_REVOCATION_TTL_SECONDS = 3600;
+const MAX_REVOCATION_ID_LENGTH = 256;
 
 type IssuedTokens = {
   accessToken: string;
@@ -77,11 +98,7 @@ function authorizeUrl(config: KeycloakRouteConfig, state: string): string {
   return url.toString();
 }
 
-function logoutUrl(
-  config: KeycloakRouteConfig,
-  redirect?: string,
-  idTokenHint?: string,
-): string {
+function logoutUrl(config: KeycloakRouteConfig, redirect?: string, idTokenHint?: string): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`);
   url.searchParams.set('client_id', config.clientId);
   if (redirect) url.searchParams.set('post_logout_redirect_uri', redirect);
@@ -109,62 +126,63 @@ function readHeaderOrQuery(
   return undefined;
 }
 
-/**
- * Extract denylist identifiers from a Keycloak JWT without signature verify.
- * Logout must denylist before IdP redirect even when JWKS is briefly unavailable.
- */
-function revocationClaimsFromJwt(token: string): {
-  jti?: string;
-  sessionId?: string;
-  ttlSeconds?: number;
-} | null {
-  try {
-    const { payload } = decodeJwt(token);
-    const jti = payload.jti?.trim() || undefined;
-    const sessionId = payload.sid?.trim() || jti || undefined;
-    const now = Math.floor(Date.now() / 1000);
-    const ttlSeconds =
-      typeof payload.exp === 'number' && payload.exp > now ? payload.exp - now : undefined;
-    if (!jti && !sessionId) return null;
-    return { jti, sessionId, ttlSeconds };
-  } catch {
-    return null;
-  }
+type RevocationClaims = { jti?: string; sessionId?: string; ttlSeconds?: number };
+
+function boundedId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed && trimmed.length <= MAX_REVOCATION_ID_LENGTH ? trimmed : undefined;
+}
+
+function revocationClaimsFromPayload(payload: {
+  jti?: unknown;
+  sid?: unknown;
+  exp?: unknown;
+}): RevocationClaims | null {
+  const jti = boundedId(payload.jti);
+  const sessionId = boundedId(payload.sid) ?? jti;
+  const now = Math.floor(Date.now() / 1000);
+  const ttlSeconds =
+    typeof payload.exp === 'number' && payload.exp > now ? payload.exp - now : undefined;
+  if (!jti && !sessionId) return null;
+  return { jti, sessionId, ttlSeconds };
 }
 
 /**
- * W1-SEC-09: denylist presented access (and refresh, when JWT) jti/sid before
- * redirecting to the IdP end-session endpoint — same path as POST /auth/logout.
+ * W1-SEC-09 / PRC-L282: denylist presented tokens before redirecting to the IdP
+ * end-session endpoint. The endpoint is unauthenticated, so the access token's
+ * RS256 signature, issuer and expiry are verified first; forged/unsigned tokens
+ * never create denylist entries. The refresh token (realm-HMAC, not verifiable
+ * here) only contributes its jti when it belongs to the verified session. TTLs
+ * are capped so callers cannot pin arbitrarily long Redis keys.
  */
 async function revokePresentedTokensBeforeIdpLogout(
   store: AccessTokenRevocationStore | undefined,
   tokens: { accessToken?: string; refreshToken?: string },
+  verify: (token: string) => Promise<{ jti?: unknown; sid?: unknown; exp?: unknown } | null>,
+  maxTtlSeconds: number,
 ): Promise<void> {
-  if (!store) return;
+  if (!store || !tokens.accessToken) return;
 
-  let ttl = defaultAccessTokenRevocationTtlSeconds();
-  if (tokens.accessToken) {
-    const claims = revocationClaimsFromJwt(tokens.accessToken);
-    if (claims) {
-      if (claims.ttlSeconds != null) {
-        ttl = defaultAccessTokenRevocationTtlSeconds(claims.ttlSeconds);
-      }
-      await revokeAccessTokenIdentifiers(
-        store,
-        { jti: claims.jti, sessionId: claims.sessionId },
-        ttl,
-      );
+  const payload = await verify(tokens.accessToken);
+  if (!payload) return;
+  const access = revocationClaimsFromPayload(payload);
+  if (!access) return;
+
+  const ttl = defaultAccessTokenRevocationTtlSeconds(
+    Math.min(access.ttlSeconds ?? maxTtlSeconds, maxTtlSeconds),
+  );
+  await revokeAccessTokenIdentifiers(store, { jti: access.jti, sessionId: access.sessionId }, ttl);
+
+  if (tokens.refreshToken && access.sessionId) {
+    let refresh: RevocationClaims | null = null;
+    try {
+      refresh = revocationClaimsFromPayload(decodeJwt(tokens.refreshToken).payload);
+    } catch {
+      refresh = null;
     }
-  }
-
-  if (tokens.refreshToken) {
-    const claims = revocationClaimsFromJwt(tokens.refreshToken);
-    if (claims) {
-      await revokeAccessTokenIdentifiers(
-        store,
-        { jti: claims.jti, sessionId: claims.sessionId },
-        ttl,
-      );
+    if (refresh?.jti && refresh.sessionId === access.sessionId) {
+      await revokeAccessTokenIdentifiers(store, { jti: refresh.jti }, ttl);
     }
   }
 }
@@ -174,6 +192,25 @@ export async function registerKeycloakAuthRoutes(
   config: KeycloakRouteConfig,
   prefix = '/api/v1/auth',
 ): Promise<void> {
+  const logoutJwks = config.jwksClient ?? new KeycloakJwksClient(config.jwksUri);
+  const maxRevocationTtlSeconds =
+    config.maxRevocationTtlSeconds && config.maxRevocationTtlSeconds > 0
+      ? config.maxRevocationTtlSeconds
+      : DEFAULT_MAX_REVOCATION_TTL_SECONDS;
+  const verifyForLogout = async (token: string) => {
+    try {
+      await verifyKeycloakAccessToken(token, config, logoutJwks);
+      // Signature/issuer/expiry verified; read raw jti/sid from the same token.
+      return decodeJwt(token).payload;
+    } catch {
+      return null;
+    }
+  };
+  const passwordThrottle =
+    config.passwordThrottle instanceof PasswordLoginThrottle
+      ? config.passwordThrottle
+      : new PasswordLoginThrottle(config.passwordThrottle);
+
   fastify.get(
     `${prefix}/login`,
     async (
@@ -304,6 +341,17 @@ export async function registerKeycloakAuthRoutes(
         });
       }
 
+      // PRC-H043: refuse before contacting Keycloak when the account or source IP
+      // has exceeded its failed-attempt budget.
+      const throttle = passwordThrottle.check(username, request.ip);
+      if (!throttle.allowed) {
+        return reply.status(429).header('retry-after', String(throttle.retryAfterSeconds)).send({
+          code: 'TOO_MANY_ATTEMPTS',
+          message: 'Too many failed sign-in attempts. Try again later.',
+          statusCode: 429,
+        });
+      }
+
       const body = new URLSearchParams({
         grant_type: 'password',
         client_id: config.clientId,
@@ -323,12 +371,17 @@ export async function registerKeycloakAuthRoutes(
       );
 
       if (!tokenResponse.ok) {
+        // Only credential rejections count; IdP outages (5xx) must not lock users out.
+        if (tokenResponse.status === 400 || tokenResponse.status === 401) {
+          passwordThrottle.recordFailure(username, request.ip);
+        }
         return reply.status(401).send({
           code: 'INVALID_CREDENTIALS',
           message: 'Invalid email or password',
           statusCode: 401,
         });
       }
+      passwordThrottle.recordSuccess(username);
 
       const tokens = (await tokenResponse.json()) as {
         access_token: string;
@@ -475,7 +528,12 @@ export async function registerKeycloakAuthRoutes(
         (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
           .accessTokenRevocationStore;
 
-      await revokePresentedTokensBeforeIdpLogout(store, { accessToken, refreshToken });
+      await revokePresentedTokensBeforeIdpLogout(
+        store,
+        { accessToken, refreshToken },
+        verifyForLogout,
+        maxRevocationTtlSeconds,
+      );
 
       return reply.redirect(
         logoutUrl(config, request.query.redirect ?? config.webOrigin, idTokenHint),
@@ -496,8 +554,8 @@ export async function registerKeycloakAuthRoutes(
 
   /**
    * GET /auth/tenants — personal tenant directory for the signed-in user.
-   * Claim-based on main (no Prisma User model). Optional identityStore may
-   * still project Keycloak subjects onto an in-memory membership map.
+   * Name/slug/status come from the tenant repository when `tenantDirectory`
+   * is wired (PRC-L084); unknown tenants are omitted.
    */
   fastify.get(`${prefix}/tenants`, async (request: FastifyRequest, reply: FastifyReply) => {
     await fastify.authenticate(request, reply);
@@ -508,20 +566,9 @@ export async function registerKeycloakAuthRoutes(
       tenantId?: string;
       preferred_username?: string;
     };
-    const claimTenantId = user.tenantId;
-    if (claimTenantId) {
-      return reply.status(200).send({
-        data: [
-          {
-            id: claimTenantId,
-            name: claimTenantId,
-            slug: claimTenantId,
-            status: 'active',
-          },
-        ],
-      });
-    }
-    return reply.status(200).send({ data: [] });
+    return reply.status(200).send({
+      data: await resolveTenantDirectory(user.tenantId, config.tenantDirectory),
+    });
   });
 
   fastify.get(`${prefix}/roles`, async (_request, reply) => {

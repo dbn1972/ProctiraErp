@@ -66,6 +66,14 @@ else
   if grep -qE 'newTag:\s*latest\b' "$COMPONENT"; then
     die_msg "image-tag component must not use newTag latest"
   fi
+  # PRC-L181: allowlist immutable forms only — sha-<gitsha>, semver, or the
+  # sha-pending placeholder CI rewrites; `digest:` pins are always accepted.
+  bad_tags="$(grep -nE '^\s+newTag:' "$COMPONENT" \
+    | grep -vE "newTag:[[:space:]]*['\"]?(sha-pending|sha-[0-9a-f]{7,40}|v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)['\"]?[[:space:]]*(#.*)?$" || true)"
+  if [[ -n "$bad_tags" ]]; then
+    die_msg "image-tag newTag must be sha-<gitsha>, semver, or sha-pending (or use digest:):"
+    echo "$bad_tags" >&2
+  fi
 fi
 
 # --- 2) Helm (when present): no tag: latest / :latest ----------------------

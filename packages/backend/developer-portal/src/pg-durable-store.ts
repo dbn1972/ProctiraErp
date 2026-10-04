@@ -282,6 +282,19 @@ export class PgDeveloperPortalDurableStore {
     });
   }
 
+  async listActiveWebhooksForTenant(tenantId: string): Promise<WebhookEntity[]> {
+    // RLS-scoped via withPgTenant; tenant_id predicate kept as defence in depth.
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_webhooks
+         WHERE tenant_id = $1 AND active = true
+         ORDER BY created_at ASC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapWebhook(row as Record<string, unknown>));
+    });
+  }
+
   async updateWebhook(
     id: string,
     updates: Partial<

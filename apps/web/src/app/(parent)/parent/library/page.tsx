@@ -1,5 +1,7 @@
+import { getLocale } from 'next-intl/server';
 import { requireSession } from '@/lib/auth/server';
-import { listChildren } from '@/lib/api/parent-portal';
+import { formatSchoolDate } from '@/lib/fees/parent-display';
+import { listChildrenResult } from '@/lib/api/parent-portal';
 import {
   listLibraryHoldsResult,
   listLibraryLoansResult,
@@ -7,6 +9,7 @@ import {
 } from '@/lib/api/library';
 import type { ListFailureKind, ListResult } from '@/lib/api/list-result';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +35,29 @@ export default async function ParentLibraryPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireSession();
+  const locale = await getLocale();
   const params = await searchParams;
   const q = firstSearchParam(params.q) ?? '';
-  const children = await listChildren();
-  const child = pickChild(children, firstSearchParam(params.studentId));
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    // PRC-L062: a failed lookup is not the same as a family with no links.
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Library"
+        description="Search the catalogue and see your child's loans and holds."
+        testId="parent-library"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No catalogue results."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
+  const { child, reason: childReason } = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
     return (
@@ -43,7 +65,7 @@ export default async function ParentLibraryPage({
         title="Library"
         description="Search the catalogue and see your child's loans and holds."
         testId="parent-library"
-        status="empty-children"
+        status={childReason === 'not-linked' ? 'forbidden' : 'empty-children'}
         emptyMessage="No catalogue results."
         hasRows={false}
       >
@@ -125,7 +147,7 @@ export default async function ParentLibraryPage({
                 <li key={loan.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">{loan.status}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    due {loan.dueAt.slice(0, 10)}
+                    due {formatSchoolDate(loan.dueAt, locale)}
                   </p>
                 </li>
               ))}

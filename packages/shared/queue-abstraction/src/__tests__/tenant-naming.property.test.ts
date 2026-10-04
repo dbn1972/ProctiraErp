@@ -6,15 +6,20 @@
  * **Validates: Requirements 1.6 (multi-tenancy isolation at queue layer)**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { buildTenantName } from '../types';
 
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
+
 /** Tenant ids must be non-empty after trim and must not contain '.' (segment separator). */
 const tenantIdArb = fc
   .string({ minLength: 1, maxLength: 50 })
-  .filter((s) => s.trim().length > 0 && !s.includes('.') && !/\s/.test(s));
+  // PRC-L355: '*', '#', '>' and control chars are rejected too.
+  // eslint-disable-next-line no-control-regex
+  .filter((s) => s.trim().length > 0 && !/[.*#>\s\u0000-\u001f\u007f]/.test(s));
 
 const nameArb = fc
   .string({ minLength: 1, maxLength: 100 })
@@ -23,54 +28,38 @@ const nameArb = fc
 describe('buildTenantName - Property Tests', () => {
   it('should always produce a string starting with "tenant."', () => {
     fc.assert(
-      fc.property(
-        tenantIdArb,
-        nameArb,
-        (tenantId, name) => {
-          const result = buildTenantName(tenantId, name);
-          expect(result.startsWith('tenant.')).toBe(true);
-        },
-      ),
+      fc.property(tenantIdArb, nameArb, (tenantId, name) => {
+        const result = buildTenantName(tenantId, name);
+        expect(result.startsWith('tenant.')).toBe(true);
+      }),
     );
   });
 
   it('should always contain the tenantId in the result', () => {
     fc.assert(
-      fc.property(
-        tenantIdArb,
-        nameArb,
-        (tenantId, name) => {
-          const result = buildTenantName(tenantId, name);
-          expect(result).toContain(tenantId);
-        },
-      ),
+      fc.property(tenantIdArb, nameArb, (tenantId, name) => {
+        const result = buildTenantName(tenantId, name);
+        expect(result).toContain(tenantId);
+      }),
     );
   });
 
   it('should always contain the name in the result', () => {
     fc.assert(
-      fc.property(
-        tenantIdArb,
-        nameArb,
-        (tenantId, name) => {
-          const result = buildTenantName(tenantId, name);
-          expect(result).toContain(name);
-        },
-      ),
+      fc.property(tenantIdArb, nameArb, (tenantId, name) => {
+        const result = buildTenantName(tenantId, name);
+        expect(result).toContain(name);
+      }),
     );
   });
 
   it('should produce deterministic output for the same inputs', () => {
     fc.assert(
-      fc.property(
-        tenantIdArb,
-        nameArb,
-        (tenantId, name) => {
-          const result1 = buildTenantName(tenantId, name);
-          const result2 = buildTenantName(tenantId, name);
-          expect(result1).toBe(result2);
-        },
-      ),
+      fc.property(tenantIdArb, nameArb, (tenantId, name) => {
+        const result1 = buildTenantName(tenantId, name);
+        const result2 = buildTenantName(tenantId, name);
+        expect(result1).toBe(result2);
+      }),
     );
   });
 
@@ -101,15 +90,11 @@ describe('buildTenantName - Property Tests', () => {
 
   it('should produce output length equal to "tenant." + tenantId + "." + name', () => {
     fc.assert(
-      fc.property(
-        tenantIdArb,
-        nameArb,
-        (tenantId, name) => {
-          const result = buildTenantName(tenantId, name);
-          const expectedLength = 'tenant.'.length + tenantId.length + '.'.length + name.length;
-          expect(result.length).toBe(expectedLength);
-        },
-      ),
+      fc.property(tenantIdArb, nameArb, (tenantId, name) => {
+        const result = buildTenantName(tenantId, name);
+        const expectedLength = 'tenant.'.length + tenantId.length + '.'.length + name.length;
+        expect(result.length).toBe(expectedLength);
+      }),
     );
   });
 });

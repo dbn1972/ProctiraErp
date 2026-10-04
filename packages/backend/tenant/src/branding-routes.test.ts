@@ -23,6 +23,7 @@ import { InMemoryTenantRepository } from './in-memory-repository.js';
 import { registerTenantRoutes } from './routes.js';
 import { registerBrandingRoutes } from './branding-routes.js';
 import type { CreateTenantInput, ThemeTokens } from './schemas.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
   let app: FastifyInstance;
@@ -67,7 +68,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
 
   beforeEach(async () => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
 
     // Build a fresh tenant once per test and let the branding handler
     // resolve the active tenant id from a custom resolver that reads the
@@ -78,6 +79,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     await registerBrandingRoutes(app, {
       tenantService: service,
       getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
+      // PRC-H097: publish/rollback now require branding:edit. These round-trip tests act as an
+      // authorized brander; grant the permission unless the request opts out via
+      // x-deny-branding-edit (used by the authorization tests below).
+      hasPermission: (req, permission) =>
+        permission === 'branding:edit' && req.headers['x-deny-branding-edit'] !== '1',
     });
     await app.ready();
 
@@ -121,6 +127,42 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       url: '/tenant/branding',
       headers: { 'x-tenant-id': tenantId },
     });
+
+  // ─── PRC-H097: publish/rollback require branding:edit ─────────────────────
+
+  describe('PRC-H097 publish/rollback authorization', () => {
+    it('denies publish without branding:edit (403)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/tenant/branding/publish',
+        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        payload: { tokens: tokensV1, publishedBy: PUBLISHER_ALICE },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN');
+      // No revision was appended.
+      expect((await listVersions()).json().data).toHaveLength(0);
+    });
+
+    it('denies rollback without branding:edit (403)', async () => {
+      // Seed one published revision as an authorized brander.
+      expect((await publish(tokensV1)).statusCode).toBe(201);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/tenant/branding/rollback',
+        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        payload: { revision: 1, publishedBy: PUBLISHER_BOB },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN');
+    });
+
+    it('allows publish/rollback with branding:edit', async () => {
+      expect((await publish(tokensV1)).statusCode).toBe(201);
+      expect((await publish(tokensV2)).statusCode).toBe(201);
+      expect((await rollback(1)).statusCode).toBe(201);
+    });
+  });
 
   // ─── Publish flow ───────────────────────────────────────────────────────
 

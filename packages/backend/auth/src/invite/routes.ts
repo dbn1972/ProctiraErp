@@ -5,16 +5,21 @@
  * POST /tenant/users/invite
  * GET  /tenants/mine
  *
- * Tenant directory is JWT-claim based on main (no Prisma User model).
+ * Tenant directory resolves name/slug/status via the tenant repository when
+ * wired (PRC-L084); otherwise it falls back to the JWT claim.
  */
 import { AppError } from '@proctira/common';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
+import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 
 import type { InviteService } from './invite-service.js';
 import { validateInviteUserInput, type InviteUserInput } from './schemas.js';
 
 export interface InviteRoutesOptions {
   inviteService: InviteService;
+  /** Tenant repository used to report real name/slug/status (PRC-L084). */
+  tenantDirectory?: TenantDirectoryReader;
 }
 
 function requireTenant(request: FastifyRequest, reply: FastifyReply): string | undefined {
@@ -124,7 +129,11 @@ async function handleInvite(
 /**
  * Claim-based tenant directory (no Prisma User / UserIdentity on main).
  */
-async function listMyTenants(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+async function listMyTenants(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  tenantDirectory: TenantDirectoryReader | undefined,
+): Promise<void> {
   const user = request.user as { sub?: string; email?: string; tenantId?: string } | undefined;
   if (!user?.sub && !user?.email && !user?.tenantId) {
     reply.status(401).send({
@@ -136,9 +145,7 @@ async function listMyTenants(request: FastifyRequest, reply: FastifyReply): Prom
   }
 
   const tenantId = user.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
-  reply.status(200).send({
-    data: tenantId ? [{ id: tenantId, name: tenantId, slug: tenantId, status: 'active' }] : [],
-  });
+  reply.status(200).send({ data: await resolveTenantDirectory(tenantId, tenantDirectory) });
 }
 
 export async function registerInviteAndTenantDirectoryRoutes(
@@ -162,6 +169,6 @@ export async function registerInviteAndTenantDirectoryRoutes(
   );
 
   fastify.get('/tenants/mine', async (request, reply) => {
-    await listMyTenants(request, reply);
+    await listMyTenants(request, reply, options.tenantDirectory);
   });
 }

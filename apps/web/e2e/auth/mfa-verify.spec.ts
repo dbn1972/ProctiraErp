@@ -25,7 +25,8 @@ import { expect, test } from '@playwright/test';
 import { mockMfaVerify } from './helpers';
 import { runAxe } from '../helpers/axe';
 
-const MFA_URL = '/mfa?token=mfa-challenge-token-xyz';
+// PRC-L024: the challenge token rides in an httpOnly cookie, never the URL.
+const MFA_URL = '/mfa';
 
 test.describe('auth — MFA verify', () => {
   test('paste-spread fills all six digit boxes in order', async ({ page }) => {
@@ -105,10 +106,7 @@ test.describe('auth — MFA verify', () => {
     await page.getByRole('button', { name: /^verify$/i }).click();
 
     await expect.poll(() => verifyBody).not.toBeNull();
-    expect(verifyBody).toMatchObject({
-      mfaToken: 'mfa-challenge-token-xyz',
-      code: '482917',
-    });
+    expect(verifyBody).toEqual({ code: '482917' });
   });
 
   test('invalid code surfaces the upstream message and clears the boxes', async ({ page }) => {

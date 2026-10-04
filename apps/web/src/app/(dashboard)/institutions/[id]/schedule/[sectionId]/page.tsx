@@ -4,6 +4,7 @@
  * Route: /institutions/[id]/schedule/[sectionId]
  */
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 import { Card, CardContent } from '@proctira/ui/components';
 
@@ -61,6 +62,9 @@ export default async function SectionRosterPage(props: PageProps) {
   }
 
   const section = sectionResult.data;
+  // PRC-H022: the route institution is an authorization boundary, not display
+  // context — a section owned by another institution must not render here.
+  if (section.institutionId !== institutionId) notFound();
   const enrollments = section.enrollments ?? [];
   const meetings = section.meetings ?? [];
   const active = enrollments.filter((e) => e.status === 'ENROLLED');
@@ -290,7 +294,14 @@ export default async function SectionRosterPage(props: PageProps) {
                         </div>
                       </td>
                       <td className="py-2 text-xs">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${
+                            e.status === 'ENROLLED'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                          data-status={e.status}
+                        >
                           {e.status === 'ENROLLED'
                             ? 'Enrolled'
                             : e.status === 'WITHDRAWN'

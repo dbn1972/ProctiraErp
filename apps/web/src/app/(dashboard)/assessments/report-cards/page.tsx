@@ -17,6 +17,18 @@ import { listInstitutions } from '@/lib/institutions/api';
 
 export const dynamic = 'force-dynamic';
 
+function formatJobType(jobType: string): string {
+  const label = jobType.replace(/[_-]+/g, ' ').trim().toLowerCase();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : 'Report card';
+}
+
+function formatJobDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+}
+
 export default async function AssessmentReportCardsPage() {
   const [institutions, jobsResult] = await Promise.all([
     listInstitutions({ pageSize: 50 }).catch(() => ({
@@ -139,9 +151,12 @@ export default async function AssessmentReportCardsPage() {
           ) : (
             <ul className="space-y-1 text-sm" data-testid="report-card-jobs">
               {jobs.slice(0, 20).map((job) => (
-                <li key={job.id}>
-                  {job.status}
-                  {job.artifactUri ? ` · ${job.artifactUri}` : ''}
+                // Never render `artifactUri`: it is a storage path / signed URL
+                // and there is no authorised download route yet (PRC-L030).
+                <li key={job.id} data-testid="report-card-job">
+                  {formatJobType(job.jobType)} · {job.status} ·{' '}
+                  <time dateTime={job.createdAt}>{formatJobDate(job.createdAt)}</time>
+                  {job.artifactUri ? ' · Artifact ready' : ''}
                 </li>
               ))}
             </ul>

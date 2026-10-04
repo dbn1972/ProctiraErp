@@ -65,22 +65,22 @@ void main() {
       'id': 'stu-1',
       'tenant_id': 'tenant-a',
       'institution_id': 'inst-1',
-      'full_name': 'Ada Lovelace',
+      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
       'national_id': 'A1',
       'grade': null,
       'class_name': null,
-      'payload': '{}',
+      'payload': await ctx.crypto.encrypt('{}'),
       'updated_at': 1,
     });
     await raw.insert('students_cache', <String, Object?>{
       'id': 'stu-2',
       'tenant_id': 'tenant-a',
       'institution_id': 'inst-2',
-      'full_name': 'Grace Hopper',
+      'full_name': await ctx.crypto.encrypt('Grace Hopper'),
       'national_id': 'A2',
       'grade': null,
       'class_name': null,
-      'payload': '{}',
+      'payload': await ctx.crypto.encrypt('{}'),
       'updated_at': 1,
     });
 
@@ -112,11 +112,11 @@ void main() {
       'id': 'stu-1',
       'tenant_id': 'tenant-a',
       'institution_id': 'inst-1',
-      'full_name': 'Ada Lovelace',
+      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
       'national_id': 'A1',
       'grade': null,
       'class_name': null,
-      'payload': '{}',
+      'payload': await ctx.crypto.encrypt('{}'),
       'updated_at': 1,
     });
 
@@ -164,6 +164,8 @@ void main() {
     );
     expect(after.first.status, AttendanceStatus.present);
     expect(after.first.recordId, isNotNull);
+    // PRC-H011: the roster knows the mark is still queued.
+    expect(after.first.queueStatus, SyncStatus.pending);
 
     await ctx.db.close();
   });
@@ -177,11 +179,11 @@ void main() {
       'id': 'stu-1',
       'tenant_id': 'tenant-a',
       'institution_id': 'inst-1',
-      'full_name': 'Ada Lovelace',
+      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
       'national_id': 'A1',
       'grade': null,
       'class_name': null,
-      'payload': '{}',
+      'payload': await ctx.crypto.encrypt('{}'),
       'updated_at': 1,
     });
 

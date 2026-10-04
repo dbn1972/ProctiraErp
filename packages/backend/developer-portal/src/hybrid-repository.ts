@@ -128,6 +128,11 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.listWebhooks(filter, page, pageSize);
   }
 
+  listActiveWebhooksForTenant(tenantId: string): Promise<WebhookEntity[]> {
+    if (this.durable) return this.durable.listActiveWebhooksForTenant(tenantId);
+    return this.memory.listActiveWebhooksForTenant(tenantId);
+  }
+
   updateWebhook(
     id: string,
     updates: Partial<

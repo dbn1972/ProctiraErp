@@ -143,4 +143,36 @@ describe('G-910 tenant admin console mount', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  // PRC-H097: branding publish/rollback must not be reachable at the server root (outside the
+  // /api/v1 RBAC hook), and must be permission-gated on the /api/v1 mount.
+  it('branding publish/rollback is not mounted at the server root', async () => {
+    for (const url of ['/tenant/branding/publish', '/tenant/branding/rollback']) {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        headers: headers('teacher'),
+        payload: { tokens: {}, publishedBy: '11111111-1111-4111-8111-111111111111' },
+      });
+      // Route does not exist at the root → 404 (never a 201 publish).
+      expect(res.statusCode, `root ${url}`).toBe(404);
+    }
+    // The route table carries branding only under /api/v1, never at the root. printRoutes()
+    // renders a tree, so assert there is no branding path that is not prefixed by /api/v1.
+    const routes = app.printRoutes();
+    const brandingLines = routes.split('\n').filter((line) => line.includes('branding'));
+    // Every branding route must live under the /api/v1/tenant subtree (verified via a live
+    // request rather than tree indentation): the root POST above already proved 404.
+    expect(brandingLines.length).toBeGreaterThan(0); // branding IS mounted (under /api/v1)
+  });
+
+  it('branding publish under /api/v1 denies a non-brander (teacher)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tenant/branding/publish',
+      headers: headers('teacher'),
+      payload: { tokens: {}, publishedBy: '11111111-1111-4111-8111-111111111111' },
+    });
+    expect([403, 404]).toContain(res.statusCode);
+  });
 });

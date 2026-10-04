@@ -6,15 +6,21 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
+import '../../../core/sync/conflict_resolver.dart';
+import '../../../core/sync/student_document_dispatcher.dart';
 import '../../../core/sync/sync_engine.dart';
+import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/document_service.dart';
 import '../data/student_repository.dart';
 
 /// Screen that lets the user capture a document via camera or pick one from
-/// the gallery, then queue it for sync against a student record.
+/// the gallery. The scan is saved on device and uploaded (bytes) to
+/// `POST /students/:id/documents` by the sync engine (PRC-H016); failed
+/// uploads are surfaced by [SyncStatusBanner].
 class DocumentCaptureScreen extends StatefulWidget {
   const DocumentCaptureScreen({super.key, required this.studentId});
 
@@ -34,10 +40,14 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     studentApi: getIt<StudentApi>(),
   );
   late final DocumentService _service = DocumentService(_repository);
+  late final SyncStatusController _syncStatus = EngineSyncStatusController(
+    engine: getIt<SyncEngine>(),
+    resolver: ConflictResolver(database: getIt<AppDatabase>()),
+  );
 
   XFile? _picked;
+  String _category = 'other';
   bool _saving = false;
-
   Future<void> _capture(ImageSource source) async {
     try {
       final XFile? file = await _picker.pickImage(
@@ -48,28 +58,30 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
       setState(() => _picked = file);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Capture failed: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Capture failed: $error')));
     }
   }
 
   Future<void> _save() async {
     final XFile? picked = _picked;
     if (picked == null) return;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     setState(() => _saving = true);
     try {
       final DocumentUploadResult result = await _service.uploadCapturedDocument(
         studentId: widget.studentId,
         filePath: picked.path,
+        category: _category,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             result.queued
-                ? 'Document queued for sync'
-                : 'Student not in cache; document not queued',
+                ? l10n.documentSavedSnack
+                : result.rejectedReason ?? l10n.documentStudentMissing,
           ),
         ),
       );
@@ -79,7 +91,7 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to queue document: $error')),
+        SnackBar(content: Text('${l10n.documentSaveFailed}: $error')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -91,18 +103,19 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme cs = theme.colorScheme;
     final XFile? picked = _picked;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan document'),
-      ),
+      appBar: AppBar(title: const Text('Scan document')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: <Widget>[
+            SyncStatusBanner(controller: _syncStatus),
             Text(
               'Student: ${widget.studentId}',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             // Viewfinder / preview card.
@@ -123,8 +136,11 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                               color: Colors.black54,
                               shape: const CircleBorder(),
                               child: IconButton(
-                                icon: const Icon(Icons.close,
-                                    color: Colors.white, size: 20),
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                                 tooltip: 'Discard',
                                 onPressed: _saving
                                     ? null
@@ -145,12 +161,14 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                   icon: Icons.photo_library_outlined,
                   label: 'Gallery',
                   color: const Color(0xFF14B8A6),
-                  onPressed:
-                      _saving ? null : () => _capture(ImageSource.gallery),
+                  onPressed: _saving
+                      ? null
+                      : () => _capture(ImageSource.gallery),
                 ),
                 _ShutterButton(
-                  onPressed:
-                      _saving ? null : () => _capture(ImageSource.camera),
+                  onPressed: _saving
+                      ? null
+                      : () => _capture(ImageSource.camera),
                 ),
                 _SideButton(
                   icon: Icons.refresh,
@@ -162,7 +180,26 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: InputDecoration(
+                labelText: l10n.documentType,
+                prefixIcon: const Icon(Icons.badge_outlined),
+              ),
+              items: <DropdownMenuItem<String>>[
+                for (final String c in kStudentDocumentCategories)
+                  DropdownMenuItem<String>(
+                    value: c,
+                    child: Text(l10n.documentCategory(c)),
+                  ),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (String? value) =>
+                        setState(() => _category = value ?? 'other'),
+            ),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: picked == null || _saving ? null : _save,
               icon: _saving
@@ -172,15 +209,17 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.cloud_upload_outlined),
-              label: Text(_saving ? 'Queuing…' : 'Queue for sync'),
+              label: Text(
+                _saving ? l10n.documentSaving : l10n.documentSaveAndUpload,
+              ),
             ),
             const SizedBox(height: 14),
             Text(
-              'Scans are stored on device and upload automatically when you '
-              'are back online.',
+              l10n.documentUploadHelp,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -216,8 +255,11 @@ class _Viewfinder extends StatelessWidget {
               child: DottedBorderBox(
                 color: const Color(0xFF10B981),
                 child: const Center(
-                  child: Icon(Icons.description_outlined,
-                      size: 56, color: Colors.white24),
+                  child: Icon(
+                    Icons.description_outlined,
+                    size: 56,
+                    color: Colors.white24,
+                  ),
                 ),
               ),
             ),
@@ -281,10 +323,7 @@ class _DashedRectPainter extends CustomPainter {
     for (final metric in path.computeMetrics()) {
       double dist = 0;
       while (dist < metric.length) {
-        canvas.drawPath(
-          metric.extractPath(dist, dist + dash),
-          paint,
-        );
+        canvas.drawPath(metric.extractPath(dist, dist + dash), paint);
         dist += dash + gap;
       }
     }
@@ -376,8 +415,9 @@ class _SideButton extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );

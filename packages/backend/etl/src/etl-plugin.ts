@@ -7,8 +7,8 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { PipelineRepository } from './pipeline-repository.js';
 import { ETLService, type ETLServiceConfig } from './etl-service.js';
+import type { PipelineRepository } from './pipeline-repository.js';
 import { registerETLRoutes } from './routes.js';
 
 /**
@@ -52,10 +52,15 @@ export const etlPlugin = fp(
     // Decorate fastify with the ETL service
     fastify.decorate('etlService', etlService);
 
-    // Register ETL routes
-    await registerETLRoutes(fastify, {
-      etlService,
-      prefix,
+    // Register ETL routes in an encapsulated child context. This plugin is
+    // fastify-plugin wrapped (so `etlService` decorates the host), which would
+    // otherwise leak the PRC-H050 role guard (a preHandler hook) onto every
+    // host route — e.g. the etl-worker's /health probes answered 403.
+    await fastify.register(async (routesScope) => {
+      await registerETLRoutes(routesScope, {
+        etlService,
+        prefix,
+      });
     });
   },
   {

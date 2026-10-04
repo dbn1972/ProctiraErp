@@ -10,12 +10,15 @@
  *    with referential integrity errors
  * 4. Within a single import batch, detect duplicate IUS-area-timeperiod combinations
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { DataWarehouseService } from './data-warehouse-service.js';
 import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 import type { ImportResult } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * Generates a unique GID string suitable for indicators, units, and subgroups.

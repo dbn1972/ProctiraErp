@@ -8,12 +8,17 @@ import { BoardExportTriggerForm } from '@/components/examinations/board-export-t
 import { listBoardExportJobs, listBoardPacks, listGradebookBoards } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/api/institutions';
 import { formatCodeNameLabel } from '@/lib/entity-label';
+import { requireSession } from '@/lib/auth/server';
+import { canModerateGrades } from '@/lib/gradebook-roles';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BoardExportsPage() {
+  const session = await requireSession('/examinations/board-exports');
+  // PRC-L237: only registrar/admin roles may generate packs (gradebook board_export.create).
+  const canExport = canModerateGrades(session.user.roles);
   const [packs, boards, jobs, institutions, studentOptions] = await Promise.all([
     listBoardPacks(),
     listGradebookBoards(),
@@ -29,11 +34,15 @@ export default async function BoardExportsPage() {
   }));
 
   const apiDown = !packs.ok || !boards.ok || !jobs.ok;
-  const errorMsg = [packs, boards, jobs]
-    .filter((r) => !r.ok)
-    .map((r) => (!r.ok ? r.error : ''))
-    .filter(Boolean)
-    .join(' · ');
+  if (apiDown) {
+    // Detail stays in server logs; the banner shows generic copy only.
+    const detail = [packs, boards, jobs]
+      .map((r) => (!r.ok ? r.error : ''))
+      .filter(Boolean)
+      .join(' · ');
+    // eslint-disable-next-line no-console
+    console.error('[board-exports] gateway load failed:', detail || 'unknown error');
+  }
 
   return (
     <section aria-labelledby="board-exports-heading" className="space-y-6">
@@ -63,8 +72,8 @@ export default async function BoardExportsPage() {
           className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
           role="status"
         >
-          Board export API unavailable: {errorMsg || 'gateway error'}. Ensure{' '}
-          <code className="text-xs">DATABASE_URL</code> and SIS schema seeds are applied.
+          Board export data could not be loaded right now. Try again later or contact your
+          administrator if this continues.
         </div>
       ) : null}
 
@@ -91,10 +100,21 @@ export default async function BoardExportsPage() {
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Generate pack</h2>
-        <BoardExportTriggerForm
-          institutionOptions={institutionOptions}
-          studentOptions={studentOptions}
-        />
+        {canExport ? (
+          <BoardExportTriggerForm
+            institutionOptions={institutionOptions}
+            studentOptions={studentOptions}
+            boardOptions={
+              packs.ok
+                ? packs.data.map((pack) => ({ code: pack.code, label: pack.code }))
+                : undefined
+            }
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground" role="note">
+            Generating board packs requires a registrar or administrator role.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -148,8 +168,21 @@ export default async function BoardExportsPage() {
                       </td>
                       <td className="px-3 py-2">
                         {job.status === 'SUCCEEDED' ? (
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {job.artifactUri?.split('/').slice(-2).join('/') ?? '—'}
+                          <span className="flex flex-wrap gap-3">
+                            <a
+                              href={`/api/examinations/board-exports/${encodeURIComponent(job.id)}/download?format=pack`}
+                              className="font-medium text-primary underline-offset-4 hover:underline"
+                              download
+                            >
+                              Pack<span className="sr-only"> for {boardCode} export</span>
+                            </a>
+                            <a
+                              href={`/api/examinations/board-exports/${encodeURIComponent(job.id)}/download?format=csv`}
+                              className="font-medium text-primary underline-offset-4 hover:underline"
+                              download
+                            >
+                              Marksheet CSV<span className="sr-only"> for {boardCode} export</span>
+                            </a>
                           </span>
                         ) : (
                           '—'

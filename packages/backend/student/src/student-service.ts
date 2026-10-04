@@ -10,12 +10,23 @@
  *         contacts, guardians, and nationality. Name and date of birth are mandatory.
  * - 6.5: Support Custom_Fields to extend student profiles via JSONB custom_data column
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import { admissionNoOf } from './admission-number.js';
+import { dateOfBirthError } from './date-of-birth.js';
 import type { CreateStudentInput, MergeStudentsInput, UpdateStudentInput } from './schemas.js';
+import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+
+function assertValidDateOfBirth(value: string): void {
+  const message = dateOfBirthError(value);
+  if (message) {
+    throw new ValidationError('Validation failed', [
+      { field: 'body.dateOfBirth', rule: 'format', message },
+    ]);
+  }
+}
 
 export type ReassignEnrollments = (input: {
   tenantId: string;
@@ -41,7 +52,15 @@ export class StudentService {
     private readonly repository: StudentRepository,
     private readonly reassignEnrollments?: ReassignEnrollments,
     private readonly assertDestructiveDeleteAllowed?: AssertDestructiveDeleteAllowed,
-  ) {}
+  ) {
+    // PRC-L502: never fail open on legal hold in production — soft-delete and
+    // merge would otherwise skip the privacy gate silently.
+    if (process.env['NODE_ENV'] === 'production' && !assertDestructiveDeleteAllowed) {
+      throw new Error(
+        'StudentService requires assertDestructiveDeleteAllowed (legal-hold gate) in production',
+      );
+    }
+  }
 
   /**
    * Create a new student.
@@ -52,6 +71,7 @@ export class StudentService {
    * @throws ConflictError if national ID already exists for this tenant
    */
   async create(tenantId: string, input: CreateStudentInput): Promise<StudentEntity> {
+    assertValidDateOfBirth(input.dateOfBirth);
     // Check national ID uniqueness within tenant if provided
     if (input.nationalId) {
       const existingByNationalId = await this.repository.findByNationalId(
@@ -114,6 +134,7 @@ export class StudentService {
    * @throws ConflictError if national ID uniqueness violated
    */
   async update(tenantId: string, id: string, input: UpdateStudentInput): Promise<StudentEntity> {
+    if (input.dateOfBirth !== undefined) assertValidDateOfBirth(input.dateOfBirth);
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Student with id '${id}' not found`);
@@ -154,7 +175,27 @@ export class StudentService {
     }
     if (input.identityDocuments !== undefined)
       updateData.identityDocuments = input.identityDocuments;
-    if (input.customData !== undefined) updateData.customData = input.customData;
+    if (input.customData !== undefined) {
+      // PRC-L365: PATCH semantics for custom fields; the issued admission number
+      // survives updates that omit it, and both aliases stay in sync.
+      const mergedCustom: Record<string, unknown> = {
+        ...(existing.customData ?? {}),
+        ...input.customData,
+      };
+      const explicitNo =
+        'admissionNo' in input.customData
+          ? input.customData['admissionNo']
+          : input.customData['admissionNumber'];
+      const admissionNo =
+        typeof explicitNo === 'string' && explicitNo.trim()
+          ? explicitNo.trim()
+          : admissionNoOf(existing.customData);
+      if (admissionNo) {
+        mergedCustom['admissionNo'] = admissionNo;
+        mergedCustom['admissionNumber'] = admissionNo;
+      }
+      updateData.customData = mergedCustom;
+    }
 
     const updated = await this.repository.update(id, tenantId, updateData);
     if (!updated) {

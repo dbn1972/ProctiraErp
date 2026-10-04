@@ -7,11 +7,42 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Readable } from 'node:stream';
 
+import { AppError } from '@proctira/common';
 import {
   createStorageAdapter,
   type StorageAdapter,
   type StorageAdapterConfig,
 } from '@proctira/storage';
+
+/** PRC-L163: short-lived signed URLs for child documents/photos (5 minutes). */
+export const SIGNED_URL_TTL_SECONDS = 300;
+
+/**
+ * PRC-L163: storage backend failure (not a missing object). Surfaces as 502
+ * instead of being masked as 404. Message carries no object key (PII-safe).
+ */
+export class StudentBlobStorageError extends AppError {
+  constructor(message = 'Document storage is unavailable') {
+    super(message, 'STORAGE_UNAVAILABLE', 502);
+  }
+}
+
+/** True when the adapter error means "object does not exist". */
+export function isBlobNotFound(err: unknown): boolean {
+  const e = err as {
+    code?: string;
+    name?: string;
+    message?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  return (
+    e?.code === 'ENOENT' ||
+    e?.name === 'NoSuchKey' ||
+    e?.name === 'NotFound' ||
+    e?.$metadata?.httpStatusCode === 404 ||
+    (typeof e?.message === 'string' && e.message.startsWith('Object not found'))
+  );
+}
 
 export interface StudentBlobStore {
   put(key: string, data: Buffer, contentType: string, tenantId: string): Promise<string>;
@@ -53,8 +84,9 @@ export class LocalDiskStudentBlobStore implements StudentBlobStore {
   async get(key: string): Promise<Buffer | null> {
     try {
       return await readFile(this.pathFor(key));
-    } catch {
-      return null;
+    } catch (err) {
+      if (isBlobNotFound(err)) return null;
+      throw new StudentBlobStorageError();
     }
   }
 }
@@ -75,12 +107,13 @@ export class StorageAdapterStudentBlobStore implements StudentBlobStore {
     try {
       const stream = await this.adapter.download(key);
       return await streamToBuffer(stream);
-    } catch {
-      return null;
+    } catch (err) {
+      if (isBlobNotFound(err)) return null;
+      throw new StudentBlobStorageError();
     }
   }
 
-  async getSignedUrl(key: string, expiresIn = 3600): Promise<string | null> {
+  async getSignedUrl(key: string, expiresIn = SIGNED_URL_TTL_SECONDS): Promise<string | null> {
     try {
       return await this.adapter.getSignedUrl(key, expiresIn);
     } catch {

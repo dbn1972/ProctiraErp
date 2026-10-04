@@ -81,6 +81,7 @@ describe('parent scholarship routes', () => {
       documentStore: documents,
       documentBlobs: blobs,
       resolveLinkedStudentIds: async () => [CHILD],
+      resolveStudentInstitutionId: async () => INSTITUTION,
     });
     await app.ready();
 
@@ -97,6 +98,13 @@ describe('parent scholarship routes', () => {
       payload: { ...body, applicantId: CHILD },
     });
     expect(own.statusCode).toBe(201);
+    // PRC-L345: a client-chosen institution that differs from the enrolment is refused.
+    const wrongInstitution = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: CHILD, institutionId: OTHER },
+    });
+    expect(wrongInstitution.statusCode).toBe(422);
 
     const other = await app.inject({
       method: 'POST',
@@ -113,5 +121,73 @@ describe('parent scholarship routes', () => {
     const ids = (list.json().data as Array<{ applicantId: string }>).map((row) => row.applicantId);
     expect(ids).toContain(CHILD);
     expect(ids).not.toContain(OTHER);
+  });
+
+  it('PRC-L346: link lookup failure returns 503 and v7 UUID child sees own applications', async () => {
+    const repository = new InMemoryScholarshipRepository();
+    const V7_CHILD = '01890a5d-ac96-774b-bcce-b302099a8057';
+    const program = await repository.createProgram({
+      id: '00000000-0000-4000-8000-0000000000e1',
+      tenantId: TENANT,
+      name: 'Grant',
+      status: 'open',
+    } as never);
+    await repository.createApplication({
+      id: '00000000-0000-4000-8000-0000000000e2',
+      submittedAt: new Date(),
+      tenantId: TENANT,
+      programId: (program as { id: string }).id,
+      applicantId: V7_CHILD,
+      institutionId: INSTITUTION,
+      status: 'draft',
+    } as never);
+    const build = async (resolve: () => Promise<string[]>) => {
+      const instance = Fastify({ logger: false });
+      instance.decorateRequest('tenantId', '');
+      instance.addHook('onRequest', async (request) => {
+        (request as { tenantId?: string }).tenantId = TENANT;
+        (request as { user?: unknown }).user = {
+          sub: 'parent-1',
+          roles: [{ roleId: 'parent', roleName: 'Parent' }],
+          linkedStudentIds: [],
+        };
+      });
+      await instance.register(parentScholarshipPlugin, {
+        repository,
+        prefix: '/p',
+        documentStore: new InMemoryScholarshipDocumentStore(),
+        documentBlobs: new InMemoryScholarshipDocumentBlobStore(),
+        resolveLinkedStudentIds: resolve,
+        resolveStudentInstitutionId: async () => INSTITUTION,
+      });
+      await instance.ready();
+      return instance;
+    };
+    app = await build(async () => {
+      throw new Error('connection refused');
+    });
+    const down = await app.inject({ method: 'GET', url: '/p/applications' });
+    expect(down.statusCode).toBe(503);
+    const downCreate = await app.inject({
+      method: 'POST',
+      url: '/p/applications',
+      payload: {
+        applicantId: V7_CHILD,
+        programId: '00000000-0000-4000-8000-0000000000e1',
+        institutionId: INSTITUTION,
+        academicRecords: [{ institutionName: 'School', educationLevel: 'secondary' }],
+        financialInfo: {},
+        documents: [],
+      },
+    });
+    expect(downCreate.statusCode).toBe(503);
+    await app.close();
+    app = await build(async () => [V7_CHILD]);
+    const ok = await app.inject({ method: 'GET', url: '/p/applications?pageSize=10' });
+    expect(ok.statusCode).toBe(200);
+    expect((ok.json().data as Array<{ applicantId: string }>).map((r) => r.applicantId)).toEqual([
+      V7_CHILD,
+    ]);
+    expect(ok.json().meta.pageSize).toBe(10);
   });
 });

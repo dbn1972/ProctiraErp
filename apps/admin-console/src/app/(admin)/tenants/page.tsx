@@ -125,7 +125,7 @@ export default async function TenantsPage({
                   <TableCell className="capitalize">{tenant.plan}</TableCell>
                   <TableCell className="font-mono text-xs">{tenant.region}</TableCell>
                   <TableCell className="text-end tabular-nums">
-                    {tenant.activeUsers.toLocaleString()}
+                    {tenant.activeUsers?.toLocaleString() ?? '—'}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {formatDate(tenant.createdAt)}

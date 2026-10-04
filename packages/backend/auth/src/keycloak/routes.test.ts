@@ -50,6 +50,7 @@ describe('Keycloak auth routes', () => {
       JSON.stringify({
         sub: 'kc-admin',
         email: 'admin@proctira.in',
+        email_verified: true,
         name: 'India Admin',
         tenant_slug: 'india',
       }),

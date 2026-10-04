@@ -8,18 +8,13 @@
  *  - least-privilege mode (scope tags)
  *  - audit trail for every state transition
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-constants';
 export type { BreakGlassUseCase } from './break-glass-constants';
 
 export type BreakGlassStatus =
-  | 'pending_approval'
-  | 'approved'
-  | 'active'
-  | 'expired'
-  | 'revoked'
-  | 'denied';
+  'pending_approval' | 'approved' | 'active' | 'expired' | 'revoked' | 'denied';
 
 export interface BreakGlassRequest {
   id: string;
@@ -37,11 +32,34 @@ export interface BreakGlassRequest {
   durationMinutes: number;
   status: BreakGlassStatus;
   createdAt: string;
+  /** Verified JWT subject of the requester (set by the gateway, PRC-H003). */
+  requesterSub?: string;
   /** Approver email, if approved. */
   approver?: string;
+  /** Verified JWT subject of the approver (set by the gateway, PRC-H003). */
+  approverSub?: string;
   approvedAt?: string;
   /** ISO timestamp at which the grant expires. */
   expiresAt?: string;
+}
+
+/**
+ * PRC-H003: an active grant for this operator on this tenant, still inside its window.
+ * Matches on the verified subject when the gateway provides it (email only for legacy rows).
+ */
+export function hasActiveBreakGlassGrant(
+  requests: BreakGlassRequest[],
+  tenantId: string | undefined,
+  operator: { sub: string; email?: string | null },
+  now: Date = new Date(),
+): boolean {
+  if (!tenantId) return false;
+  return requests.some((request) => {
+    if (request.status !== 'active' || request.targetTenantId !== tenantId) return false;
+    if (!request.expiresAt || Date.parse(request.expiresAt) <= now.getTime()) return false;
+    if (request.requesterSub) return request.requesterSub === operator.sub;
+    return !!operator.email && request.requester.toLowerCase() === operator.email.toLowerCase();
+  });
 }
 
 const STUB_REQUESTS: BreakGlassRequest[] = [
@@ -132,20 +150,8 @@ export async function createBreakGlassRequest(
   if (response.ok && response.data) {
     return { ok: true, request: response.data };
   }
-  if (response.status === 0) {
-    const stub: BreakGlassRequest = {
-      id: `bg_${Math.random().toString(36).slice(2, 8)}`,
-      requester: 'current-user@proctira.org',
-      targetTenantId: input.targetTenantId,
-      scope: input.scope,
-      justification: input.justification,
-      useCase: input.useCase,
-      durationMinutes: input.durationMinutes,
-      status: 'pending_approval',
-      createdAt: new Date().toISOString(),
-    };
-    return { ok: true, request: stub };
-  }
+  // PRC-H002: never fabricate a request (id, requester) when the gateway is unreachable.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return { ok: false, error: response.error?.message ?? 'Submission failed.' };
 }
 
@@ -153,12 +159,18 @@ export async function decideBreakGlassRequest(
   id: string,
   decision: 'approve' | 'deny' | 'revoke',
   reason: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; code?: string }> {
   const response = await gatewayFetch<unknown>(`/break-glass/${id}/${decision}`, {
     method: 'POST',
     json: { reason },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
-  return { ok: false, error: response.error?.message ?? 'Action failed.' };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
+  // PRC-H003: keep the gateway's policy code (SELF_APPROVAL_FORBIDDEN, INVALID_STATE, ...).
+  return {
+    ok: false,
+    error: response.error?.message ?? 'Action failed.',
+    code: response.error?.code,
+  };
 }

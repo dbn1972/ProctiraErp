@@ -28,6 +28,7 @@ import {
 } from './in-memory-repository.js';
 import { ResultService } from './result-service.js';
 import { MAX_COMMENT_LENGTH } from './report-card-schemas.js';
+import { anyIdReportCardDirectory } from './report-card-test-directory.js';
 
 describe('ReportCardService', () => {
   let service: ReportCardService;
@@ -75,6 +76,7 @@ describe('ReportCardService', () => {
       new InMemoryAssessmentItemRepository(),
       mockPublisher,
       mockPdfGenerator,
+      { directory: anyIdReportCardDirectory },
     );
   });
 
@@ -508,6 +510,7 @@ describe('ReportCardService', () => {
         new InMemoryAssessmentItemRepository(),
         null, // no publisher
         mockPdfGenerator,
+        { directory: anyIdReportCardDirectory },
       );
 
       const template = await syncService.createTemplate(tenantId, {

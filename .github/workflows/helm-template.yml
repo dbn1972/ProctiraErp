@@ -32,6 +32,9 @@ on:
       - 'docs/audits/SEC_W1_SEC_07_COMPLETE.md'
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
+      - 'tools/scripts/check-deploy-workflow-contract.mjs'
+      - 'tools/scripts/check-deploy-workflow-contract.test.mjs'
+      - 'tools/scripts/check-workflow-step-contracts.mjs'
       - 'tools/scripts/check-no-latest-image-tags.sh'
       # W1-OPS-09 — rollback runbook + COMPLETE evidence
       - 'docs/runbooks/deploy-rollback.md'
@@ -84,6 +87,9 @@ on:
       - 'docs/audits/SEC_W1_SEC_07_COMPLETE.md'
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
+      - 'tools/scripts/check-deploy-workflow-contract.mjs'
+      - 'tools/scripts/check-deploy-workflow-contract.test.mjs'
+      - 'tools/scripts/check-workflow-step-contracts.mjs'
       - 'tools/scripts/check-no-latest-image-tags.sh'
       - 'docs/runbooks/deploy-rollback.md'
       - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
@@ -133,6 +139,18 @@ jobs:
         with:
           version: 'v3.14.0'
 
+      # PRC-L182: deploy-secrets-gate-check parses deploy.yml via the `yaml` package.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '10.33.2'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Unit-test deploy workflow contract
+        run: node --test tools/scripts/check-deploy-workflow-contract.test.mjs
       - name: Lint + template charts (deploy path check)
         run: |
           ./tools/scripts/helm-template-check.sh

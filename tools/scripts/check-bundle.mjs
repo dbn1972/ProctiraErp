@@ -265,6 +265,46 @@ export async function evaluateRoutes({
   return out;
 }
 
+/**
+ * PRC-L384: decide whether absent routes fail the gate. Zero resolved routes
+ * always fails (the manifest no longer maps our canonical routes, so nothing
+ * was measured). In CI any absent canonical route fails.
+ */
+export function absentRouteFailures(reports, { ci = false } = {}) {
+  const absent = reports.filter((r) => !r.present);
+  if (reports.length > 0 && absent.length === reports.length) return absent;
+  return ci ? absent : [];
+}
+
+/** Default allowed growth over the recorded baseline (5%). */
+export const BASELINE_TOLERANCE = 0.05;
+
+/**
+ * PRC-L384: compare present routes with a recorded baseline. Returns the
+ * routes whose gzip total grew beyond `tolerance` (fraction) and routes that
+ * the baseline does not know (cannot be compared, so they fail closed).
+ */
+export function compareToBaseline(reports, baseline, tolerance = BASELINE_TOLERANCE) {
+  const byRoute = new Map((baseline?.routes ?? []).map((r) => [r.canonical, r]));
+  const regressions = [];
+  for (const r of reports) {
+    if (!r.present) continue;
+    const base = byRoute.get(r.canonical);
+    if (!base || !base.present || !Number.isFinite(base.totalGzipBytes)) {
+      regressions.push({ canonical: r.canonical, reason: 'missing from baseline' });
+      continue;
+    }
+    const limit = Math.floor(base.totalGzipBytes * (1 + tolerance));
+    if (r.totalGzipBytes > limit) {
+      regressions.push({
+        canonical: r.canonical,
+        reason: `grew ${(((r.totalGzipBytes - base.totalGzipBytes) / base.totalGzipBytes) * 100).toFixed(1)}% over baseline (${base.totalGzipBytes} → ${r.totalGzipBytes} B)`,
+      });
+    }
+  }
+  return regressions;
+}
+
 // ============================================================================
 // Build directory bootstrap
 // ============================================================================
@@ -319,6 +359,8 @@ function parseArgs(argv) {
     noBuild: false,
     baseline: false,
     baselinePath: DEFAULT_BASELINE_PATH,
+    compareBaseline: false,
+    baselineTolerance: BASELINE_TOLERANCE,
     json: false,
     quiet: false,
   };
@@ -340,6 +382,15 @@ function parseArgs(argv) {
     } else if (arg.startsWith('--baseline-path=')) {
       const v = arg.slice('--baseline-path='.length);
       args.baselinePath = isAbsolute(v) ? v : resolve(process.cwd(), v);
+    } else if (arg === '--compare-baseline') {
+      args.compareBaseline = true;
+    } else if (arg.startsWith('--baseline-tolerance=')) {
+      const v = Number(arg.slice('--baseline-tolerance='.length));
+      if (!Number.isFinite(v) || v < 0) {
+        console.error(`Invalid --baseline-tolerance: ${arg.slice('--baseline-tolerance='.length)}`);
+        process.exit(2);
+      }
+      args.baselineTolerance = v;
     } else if (arg === '--json') {
       args.json = true;
     } else if (arg === '--quiet') {
@@ -375,6 +426,10 @@ function printHelp() {
       '  --no-build               Fail (instead of skip) when .next/ is missing',
       '  --baseline               Record current sizes (writes baseline JSON, always passes)',
       '  --baseline-path=<path>   Override the baseline JSON path',
+      '  --compare-baseline       Fail when a route grows beyond the baseline tolerance',
+      '  --baseline-tolerance=<f> Allowed growth fraction for --compare-baseline (default 0.05)',
+      '',
+      'Absent routes: zero resolved routes always fails; in CI any absent route fails.',
       '  --json                   Emit a JSON report on stdout instead of pretty text',
       '  --quiet                  Suppress per-chunk output',
       '  -h, --help               Show this help',
@@ -551,12 +606,38 @@ async function main() {
     }
   }
 
-  // Exit code policy: a route that is fully absent (no manifest keys
-  // resolved) is a WARNING — Requirement 39 AC 1 only binds the routes
-  // present in the build. A route that is present but over-budget is a
-  // FAILURE.
+  // Exit code policy: a route that is present but over-budget is a FAILURE.
+  // Absent routes are a local WARNING only when at least one route resolved;
+  // see absentRouteFailures (PRC-L384) for the fail-closed cases.
   const overBudget = reports.filter((r) => r.present && !r.passes);
   const absent = reports.filter((r) => !r.present);
+  // PRC-L384: absent routes fail closed (all absent, or any absent in CI).
+  const absentFailures = absentRouteFailures(reports, { ci: process.env.CI === 'true' });
+  if (absentFailures.length > 0) {
+    console.error(
+      `\n❌ check-bundle: ${absentFailures.length} canonical route(s) absent from the manifest: ${absentFailures.map((r) => r.canonical).join(', ')}`,
+    );
+    console.error('   Update DEFAULT_ROUTES manifest keys if the routes moved.');
+    process.exit(1);
+  }
+  if (args.compareBaseline) {
+    let baseline;
+    try {
+      const fsp = await import('node:fs/promises');
+      baseline = JSON.parse(await fsp.readFile(args.baselinePath, 'utf8'));
+    } catch (err) {
+      console.error(`check-bundle: cannot read baseline ${args.baselinePath}: ${err.message}`);
+      process.exit(2);
+    }
+    const regressions = compareToBaseline(reports, baseline, args.baselineTolerance);
+    if (regressions.length > 0) {
+      console.error(
+        `\n❌ check-bundle: ${regressions.length} route(s) regressed vs baseline (tolerance ${(args.baselineTolerance * 100).toFixed(1)}%)`,
+      );
+      for (const r of regressions) console.error(`   • ${r.canonical}: ${r.reason}`);
+      process.exit(1);
+    }
+  }
   if (overBudget.length === 0) {
     if (!args.quiet && !args.json) {
       const absentNote = absent.length > 0 ? ` (${absent.length} absent route(s) skipped)` : '';

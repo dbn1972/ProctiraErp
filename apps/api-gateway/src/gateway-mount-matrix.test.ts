@@ -52,10 +52,7 @@ function packagesExportingFastifyPlugin(): string[] {
     let files: string[] = [];
     try {
       files = readdirSync(srcDir).filter(
-        (name) =>
-          name.endsWith('-plugin.ts') ||
-          name === 'plugin.ts' ||
-          name === 'index.ts',
+        (name) => name.endsWith('-plugin.ts') || name === 'plugin.ts' || name === 'index.ts',
       );
     } catch {
       continue;
@@ -229,6 +226,14 @@ describe('G-702 — every mounted prefix has an RBAC resource mapping (default-d
   it('returns the default-deny sentinel for unknown segments', () => {
     expect(resourceForApiPath('/api/v1/definitely-not-mapped/1')).toBe(UNMAPPED_API_RESOURCE);
     expect(resourceForApiPath('/api/v1/services')).toBeUndefined();
+    // PRC-L001: apiContractPlugin prefixes are gateway utilities (authenticated, no domain RBAC).
+    for (const path of [
+      '/api/v1/meta/error-codes',
+      '/api/v1/meta/deprecation-policy',
+      '/api/v1/meta/deprecated-example',
+    ]) {
+      expect(resourceForApiPath(path), path).toBeUndefined();
+    }
     expect(Object.keys(PATH_RESOURCE_MAP).length).toBeGreaterThan(30);
   });
 

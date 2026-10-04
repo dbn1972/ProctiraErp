@@ -16,7 +16,8 @@ import {
   gatewayFetch,
   getSessionContext,
 } from './gateway';
-import { clampPageSize } from './pagination';
+import { MAX_API_PAGE_SIZE, clampPageSize } from './pagination';
+import { MAX_AUTO_PAGES, gatewayFetchAllPages } from './gateway-all-pages';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -316,12 +317,43 @@ export async function createEnrollment(input: CreateEnrollmentInput): Promise<En
   return result.data;
 }
 
+export type EnrollmentLookupResult =
+  { ok: true; enrollments: EnrollmentEntry[] } | { ok: false; status: number };
+
+/**
+ * Enrollment lookup that distinguishes "no enrollments" from "lookup failed"
+ * so callers can report failures instead of silently dropping a student
+ * (PRC-L247).
+ */
+export async function getStudentEnrollmentsResult(
+  studentId: string,
+): Promise<EnrollmentLookupResult> {
+  // PRC-L074: follow meta.totalPages instead of truncating at one page; any
+  // failed page is a failed lookup (a partial list would drop enrollments).
+  const enrollments: EnrollmentEntry[] = [];
+  try {
+    for (let page = 1; page <= MAX_AUTO_PAGES; page += 1) {
+      const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta?: StudentListMeta }>(
+        `/enrollments?studentId=${encodeURIComponent(studentId)}&page=${page}&pageSize=${MAX_API_PAGE_SIZE}`,
+        { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+      );
+      if (!result.ok || !result.data) return { ok: false, status: result.status };
+      // A failed page already returned above; this only appends real rows.
+      if (Array.isArray(result.data.data)) enrollments.push(...result.data.data);
+      const totalPages = result.data.meta?.totalPages;
+      if (!totalPages || page >= totalPages) break;
+    }
+    return { ok: true, enrollments };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
 export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
-  const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
-    `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  return gatewayFetchAllPages<EnrollmentEntry>(
+    `/enrollments?studentId=${encodeURIComponent(studentId)}`,
+    { next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data : [];
 }
 
 export async function getEnrollmentHistory(studentId: string): Promise<EnrollmentHistoryEntry[]> {
@@ -402,15 +434,10 @@ export async function bulkUpdateEnrollmentStatus(
 /* ---------------------------------------------------------- Custom Fields */
 
 export async function getStudentCustomFields(): Promise<CustomFieldDefinition[]> {
-  const result = await gatewayFetch<{
-    data: CustomFieldDefinition[];
-    meta?: StudentListMeta;
-  }>('/custom-fields?entityType=student&isActive=true&pageSize=100', {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 60 },
-  });
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+  return gatewayFetchAllPages<CustomFieldDefinition>(
+    '/custom-fields?entityType=student&isActive=true',
+    { next: { revalidate: 60 } },
+  );
 }
 
 /* ----------------------------------------------------------- Bulk Import */
@@ -423,9 +450,28 @@ export interface BulkImportRequest {
   async?: boolean;
 }
 
+/** Mirrors the student import route limit (MAX_IMPORT_FILE_SIZE, 50 MB). */
+export const MAX_STUDENT_IMPORT_BYTES = 50 * 1024 * 1024;
+
+/** Decoded byte size of a base64 payload (ignores padding). */
+export function base64DecodedSize(base64: string): number {
+  const trimmed = base64.replace(/\s/g, '');
+  const padding = trimmed.endsWith('==') ? 2 : trimmed.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding);
+}
+
+/** Returns a user-facing error when the import file exceeds the gateway limit. */
+export function validateBulkImportSize(fileBase64: string): string | null {
+  return base64DecodedSize(fileBase64) > MAX_STUDENT_IMPORT_BYTES
+    ? 'The import file is larger than 50 MB. Split it into smaller files and try again.'
+    : null;
+}
+
 export async function submitBulkImport(
   request: BulkImportRequest,
 ): Promise<ImportResult | ImportProgress> {
+  const sizeError = validateBulkImportSize(request.fileBase64);
+  if (sizeError) throw new Error(sizeError);
   const result = await gatewayFetch<ImportResult | ImportProgress>('/students/import', {
     method: 'POST',
     json: {
@@ -527,20 +573,30 @@ export async function uploadStudentPhoto(
   return result.data;
 }
 
+/** Timeout for the photo existence probe; the profile page must not hang on it. */
+export const STUDENT_PHOTO_PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Checks whether a student has a stored photo without downloading it.
+ * Uses HEAD (Fastify exposes HEAD for every GET route), a bounded timeout,
+ * and cancels any body a proxy might still attach.
+ */
 export async function studentHasPhoto(studentId: string): Promise<boolean> {
   const { tenantId, accessToken } = await getSessionContext();
   try {
     const response = await fetch(
-      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${studentId}/photo`,
+      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${encodeURIComponent(studentId)}/photo`,
       {
-        method: 'GET',
+        method: 'HEAD',
         headers: {
           'X-Tenant-ID': tenantId,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(STUDENT_PHOTO_PROBE_TIMEOUT_MS),
       },
     );
+    await response.body?.cancel().catch(() => undefined);
     return response.ok;
   } catch {
     return false;

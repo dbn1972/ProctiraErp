@@ -9,6 +9,7 @@ import {
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/refresh
@@ -26,7 +27,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'No refresh token present.' }, { status: 401 });
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
 
   let upstream: Response;
   try {

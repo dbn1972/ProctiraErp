@@ -31,7 +31,14 @@ const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
 >(({ className, variant, ...props }, ref) => (
-  <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
+  <div
+    ref={ref}
+    // Only errors interrupt (assertive role=alert); info/success/warning are polite
+    // role=status. Callers can still override with an explicit `role` prop.
+    role={variant === 'destructive' ? 'alert' : 'status'}
+    className={cn(alertVariants({ variant }), className)}
+    {...props}
+  />
 ));
 Alert.displayName = 'Alert';
 

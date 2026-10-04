@@ -7,6 +7,7 @@ import { Footer } from '@/components/layout/footer';
 import { StatusCard } from '@/components/tracking/status-card';
 import { TrackingForm } from '@/components/tracking/tracking-form';
 import { checkApplicationStatus } from '@/lib/api';
+import { serverTransport } from '@/lib/gateway';
 import { TRACK_DOB_COOKIE } from '@/lib/track-lookup';
 import { isValidDateOfBirth, isValidTrackingNumber } from '@/lib/validation';
 
@@ -39,7 +40,7 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
   let result: Awaited<ReturnType<typeof checkApplicationStatus>> = null;
   if (valid) {
     try {
-      result = await checkApplicationStatus(trackingNumber, dob);
+      result = await checkApplicationStatus(trackingNumber, dob, serverTransport);
     } catch {
       result = null;
     }

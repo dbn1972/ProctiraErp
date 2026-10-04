@@ -5,6 +5,7 @@ import {
   RegistrationApiError,
   type FormConfiguration,
 } from './api';
+import { serverTransport } from './gateway';
 import { MAX_PUBLIC_PAGE_SIZE } from './pagination';
 import { isValidInstitutionId } from './validation';
 
@@ -26,7 +27,7 @@ export async function loadFormConfiguration(
   }
 
   try {
-    const configuration = await getFormConfiguration(institutionId);
+    const configuration = await getFormConfiguration(institutionId, serverTransport);
     if (configuration.institutionId !== institutionId || configuration.version < 1) {
       return { status: 'unavailable' };
     }
@@ -48,7 +49,10 @@ export async function lookupInstitutionName(institutionId: string): Promise<stri
   try {
     let page = 1;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const response = await getInstitutions({ page, pageSize: MAX_PUBLIC_PAGE_SIZE });
+      const response = await getInstitutions(
+        { page, pageSize: MAX_PUBLIC_PAGE_SIZE },
+        serverTransport,
+      );
       const match = response.data.find((row) => row.id === institutionId);
       const name = match?.name?.trim();
       if (name) return name;

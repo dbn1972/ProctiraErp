@@ -44,6 +44,13 @@ export type GradeThresholdInput = Static<typeof GradeThresholdSchema>;
  * Grading scheme schema for examination creation.
  */
 export const ExaminationGradingSchemeSchema = Type.Object({
+  id: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description:
+        'Existing grading scheme UUID (update only; preserved when supplied, generated when omitted)',
+    }),
+  ),
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Grading scheme name' }),
   minScore: Type.Number({ minimum: 0, description: 'Minimum possible score' }),
   maxScore: Type.Number({ minimum: 1, description: 'Maximum possible score' }),
@@ -60,6 +67,13 @@ export type ExaminationGradingSchemeInput = Static<typeof ExaminationGradingSche
  * Subject schema for examination creation.
  */
 export const ExaminationSubjectSchema = Type.Object({
+  id: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description:
+        'Existing subject UUID (update only; preserved when supplied, generated when omitted)',
+    }),
+  ),
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Subject name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Subject code' }),
   maxScore: Type.Number({ minimum: 1, description: 'Maximum score for this subject' }),
@@ -77,6 +91,13 @@ export type ExaminationSubjectInput = Static<typeof ExaminationSubjectSchema>;
  * Center schema for examination creation.
  */
 export const ExaminationCenterSchema = Type.Object({
+  id: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description:
+        'Existing center UUID (update only; preserved when supplied, generated when omitted)',
+    }),
+  ),
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Center name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Center code' }),
   institutionId: Type.String({
@@ -92,6 +113,13 @@ export type ExaminationCenterInput = Static<typeof ExaminationCenterSchema>;
  * Session schema for examination scheduling.
  */
 export const ExaminationSessionSchema = Type.Object({
+  id: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description:
+        'Existing session UUID (update only; preserved when supplied, generated when omitted)',
+    }),
+  ),
   subjectId: Type.String({
     pattern: UUID_PATTERN,
     description: 'Subject UUID for this session',

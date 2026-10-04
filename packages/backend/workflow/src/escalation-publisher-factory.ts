@@ -25,7 +25,28 @@ export interface EscalationPublisherHandle {
   adapter: QueueAdapter;
   outboxStore: OutboxStore;
   relay: OutboxRelay;
+  /** PRC-H110: fresh (unconnected) adapter on the same backend for the worker. */
+  createConsumerAdapter(): QueueAdapter;
   disconnect(): Promise<void>;
+}
+
+function buildAdapterFromEnv(
+  backend: string | undefined,
+  rabbitUrl: string | undefined,
+): QueueAdapter {
+  if (backend) {
+    return createQueueAdapterFromEnv();
+  }
+  return createQueueAdapter({
+    backend: 'rabbitmq',
+    rabbitmq: {
+      url: rabbitUrl!,
+      exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
+      exchangeType: 'topic',
+      deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
+      durable: true,
+    },
+  });
 }
 
 /**
@@ -40,22 +61,7 @@ export async function createEscalationPublisherFromEnv(): Promise<EscalationPubl
     return null;
   }
 
-  let adapter: QueueAdapter;
-  if (backend) {
-    adapter = createQueueAdapterFromEnv();
-  } else {
-    adapter = createQueueAdapter({
-      backend: 'rabbitmq',
-      rabbitmq: {
-        url: rabbitUrl!,
-        exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
-        exchangeType: 'topic',
-        deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
-        durable: true,
-      },
-    });
-  }
-
+  const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
 
   const pool = getSharedPgPool();
@@ -77,6 +83,7 @@ export async function createEscalationPublisherFromEnv(): Promise<EscalationPubl
     adapter,
     outboxStore,
     relay,
+    createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: async () => {
       await relay.stop();
       await adapter.disconnect();

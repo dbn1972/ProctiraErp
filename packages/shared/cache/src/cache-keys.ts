@@ -7,7 +7,7 @@
  * W1-SEC-11: builders fail closed when tenantId is missing/blank.
  */
 
-import { assertTenantId } from './tenant-scope.js';
+import { assertSafeKeySegment, assertTenantId } from './tenant-scope.js';
 
 /**
  * Build a tenant-scoped entity key.
@@ -20,6 +20,8 @@ export function tenantKey(tenantId: string, entity: string, id: string): string 
   if (!entity?.trim() || !id?.trim()) {
     throw new Error('cache.tenantKey: entity and id must not be empty');
   }
+  assertSafeKeySegment(tenantId.trim(), 'tenantId', 'cache.tenantKey');
+  assertSafeKeySegment(entity.trim(), 'entity', 'cache.tenantKey');
   return `t:${tenantId.trim()}:${entity.trim()}:${id.trim()}`;
 }
 
@@ -34,6 +36,8 @@ export function configKey(tenantId: string, configType: string): string {
   if (!configType?.trim()) {
     throw new Error('cache.configKey: configType must not be empty');
   }
+  assertSafeKeySegment(tenantId.trim(), 'tenantId', 'cache.configKey');
+  assertSafeKeySegment(configType.trim(), 'configType', 'cache.configKey');
   return `cfg:${tenantId.trim()}:${configType.trim()}`;
 }
 
@@ -51,5 +55,7 @@ export function listKey(tenantId: string, entity: string, hash: string): string 
   if (!entity?.trim() || !hash?.trim()) {
     throw new Error('cache.listKey: entity and hash must not be empty');
   }
+  assertSafeKeySegment(tenantId.trim(), 'tenantId', 'cache.listKey');
+  assertSafeKeySegment(entity.trim(), 'entity', 'cache.listKey');
   return `lst:${tenantId.trim()}:${entity.trim()}:${hash.trim()}`;
 }

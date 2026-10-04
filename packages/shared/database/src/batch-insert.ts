@@ -14,11 +14,39 @@
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
+import { withTenantTransaction, type TenantTransactionClient } from './tenant-transaction.js';
+
 export interface BatchInsertOptions {
   /** Number of records per batch (default: 100) */
   batchSize?: number;
   /** Whether to skip duplicate records (default: false) */
   skipDuplicates?: boolean;
+  /**
+   * Tenant to bind (`app.tenant_id` GUC) for the transaction so RLS governs the
+   * inserts. Required for tenant-owned tables under FORCE RLS (PRC-L491).
+   */
+  tenantId?: string;
+}
+
+/** Options for {@link batchInsertRaw}. */
+export interface BatchInsertRawOptions {
+  /** Tenant to bind for the transaction (see {@link BatchInsertOptions.tenantId}). */
+  tenantId?: string;
+}
+
+/**
+ * Runs all batches in ONE interactive transaction so a failure in any batch rolls
+ * back the earlier ones (PRC-L491). Binds the tenant GUC when `tenantId` is given.
+ */
+function inSingleTransaction<T>(
+  prisma: PrismaClient,
+  tenantId: string | undefined,
+  fn: (tx: TenantTransactionClient) => Promise<T>,
+): Promise<T> {
+  if (tenantId !== undefined) {
+    return withTenantTransaction(prisma, tenantId, fn);
+  }
+  return prisma.$transaction(fn);
 }
 
 /**
@@ -26,7 +54,7 @@ export interface BatchInsertOptions {
  *
  * Uses Prisma's built-in createMany which generates efficient
  * multi-row INSERT statements under the hood, avoiding the overhead
- * of individual create calls.
+ * of individual create calls. All batches share one transaction (atomic).
  *
  * @param prisma - PrismaClient instance
  * @param model - Prisma model name (e.g., 'student', 'enrollment')
@@ -46,27 +74,21 @@ export async function batchInsert<T extends Record<string, unknown>>(
   const batchSize = opts.batchSize ?? 100;
   const skipDuplicates = opts.skipDuplicates ?? false;
 
-  let totalInserted = 0;
-
-  // Process records in batches
-  for (let i = 0; i < records.length; i += batchSize) {
-    const batch = records.slice(i, i + batchSize);
-
-    // Use Prisma's $transaction with raw SQL for maximum performance
-    const result = await (
-      prisma as unknown as Record<
-        string,
-        { createMany: (args: unknown) => Promise<{ count: number }> }
-      >
-    )[model]!.createMany({
-      data: batch,
-      skipDuplicates,
-    });
-
-    totalInserted += result.count;
-  }
-
-  return totalInserted;
+  return inSingleTransaction(prisma, opts.tenantId, async (tx) => {
+    const delegate = (
+      tx as unknown as Record<string, { createMany: (args: unknown) => Promise<{ count: number }> }>
+    )[model];
+    if (!delegate || typeof delegate.createMany !== 'function') {
+      throw new Error(`batchInsert: unknown Prisma model "${model}"`);
+    }
+    let totalInserted = 0;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const result = await delegate.createMany({ data: batch, skipDuplicates });
+      totalInserted += result.count;
+    }
+    return totalInserted;
+  });
 }
 
 /**
@@ -78,6 +100,7 @@ export async function batchInsert<T extends Record<string, unknown>>(
  * @param columns - Column names to insert
  * @param records - Array of value arrays matching column order
  * @param batchSize - Records per batch (default: 100)
+ * @param options - Optional tenant binding; all batches run in one transaction
  * @returns Total number of records inserted
  */
 export async function batchInsertRaw(
@@ -86,6 +109,7 @@ export async function batchInsertRaw(
   columns: string[],
   records: unknown[][],
   batchSize = 100,
+  options: BatchInsertRawOptions = {},
 ): Promise<number> {
   if (records.length === 0) return 0;
 
@@ -93,32 +117,26 @@ export async function batchInsertRaw(
   const safeTable = sanitizeIdentifier(table);
   const safeColumns = columns.map(sanitizeIdentifier);
 
-  let totalInserted = 0;
-
-  for (let i = 0; i < records.length; i += batchSize) {
-    const batch = records.slice(i, i + batchSize);
-
-    // Build parameterized INSERT statement
-    const columnList = safeColumns.join(', ');
-    const placeholders = batch
-      .map(
-        (_, rowIdx) =>
-          `(${safeColumns.map((_, colIdx) => `$${rowIdx * safeColumns.length + colIdx + 1}`).join(', ')})`,
-      )
-      .join(', ');
-
-    const values = batch.flat();
-
-    const query = Prisma.raw(`INSERT INTO "${safeTable}" (${columnList}) VALUES ${placeholders}`);
-
-    // Assign values to the raw query
-    (query as unknown as { values: unknown[] }).values = values;
-
-    const result = await prisma.$executeRaw(query);
-    totalInserted += result;
+  for (const row of records) {
+    if (row.length !== safeColumns.length) {
+      throw new Error(
+        `batchInsertRaw: row has ${row.length} values, expected ${safeColumns.length}`,
+      );
+    }
   }
 
-  return totalInserted;
+  const head = Prisma.raw(`INSERT INTO "${safeTable}" (${safeColumns.join(', ')}) VALUES `);
+
+  return inSingleTransaction(prisma, options.tenantId, async (tx) => {
+    let totalInserted = 0;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      // Tagged Prisma.sql keeps every value a bound parameter (no internals patching).
+      const rows = Prisma.join(batch.map((row) => Prisma.sql`(${Prisma.join(row)})`));
+      totalInserted += await tx.$executeRaw(Prisma.sql`${head}${rows}`);
+    }
+    return totalInserted;
+  });
 }
 
 /**

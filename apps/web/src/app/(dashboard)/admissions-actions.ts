@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -22,6 +23,7 @@ import {
 import {
   acceptOfferFormSchema,
   createEnquiryFormSchema,
+  createInterviewSlotFormSchema,
   createOfferFormSchema,
   followupFormSchema,
   generateMeritFormSchema,
@@ -34,6 +36,32 @@ export interface AdmissionsActionState {
   status: 'idle' | 'success' | 'error';
   message?: string;
   id?: string;
+}
+
+const uuid = z.string().uuid();
+const APPLICATION_STATUSES = [
+  'pending',
+  'under_review',
+  'approved',
+  'rejected',
+  'waitlisted',
+] as const;
+const updateStatusSchema = z.object({
+  id: uuid,
+  status: z.enum(APPLICATION_STATUSES),
+  remarks: z.string().trim().max(2000).optional(),
+});
+const createSlotSchema = z.object({
+  institutionId: uuid,
+  startsAt: z.string().datetime({ offset: true }),
+  endsAt: z.string().datetime({ offset: true }),
+  capacity: z.number().int().min(1).max(10_000).optional(),
+  location: z.string().trim().max(200).optional(),
+});
+const bookInterviewSchema = z.object({ slotId: uuid, applicationId: uuid });
+
+function invalid(error: z.ZodError, fallback: string): AdmissionsActionState {
+  return { status: 'error', message: error.issues[0]?.message ?? fallback };
 }
 
 function fail(error: unknown, fallback: string): AdmissionsActionState {
@@ -53,10 +81,13 @@ export async function updateApplicationStatusAction(input: {
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
   remarks?: string;
 }): Promise<AdmissionsActionState> {
+  const parsed = updateStatusSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, 'Invalid status update');
+  const { id, status, remarks } = parsed.data;
   try {
-    await updateApplicationStatus(input.id, input.status, input.remarks);
+    await updateApplicationStatus(id, status, remarks);
     revalidatePath('/admissions');
-    return { status: 'success', message: `Status set to ${input.status}.`, id: input.id };
+    return { status: 'success', message: `Status set to ${status}.`, id };
   } catch (error) {
     return fail(error, 'Failed to update status');
   }
@@ -69,8 +100,14 @@ export async function createInterviewSlotAction(input: {
   capacity?: number;
   location?: string;
 }): Promise<AdmissionsActionState> {
+  // Boundary schema (uuid institution, offset datetimes) then the form rules
+  // from PRC-L23x (end after start, bounded capacity).
+  const base = createSlotSchema.safeParse(input);
+  if (!base.success) return invalid(base.error, 'Invalid interview slot');
+  const parsed = createInterviewSlotFormSchema.safeParse(base.data);
+  if (!parsed.success) return invalid(parsed.error, 'Invalid slot');
   try {
-    const slot = await createInterviewSlot(input);
+    const slot = await createInterviewSlot(parsed.data);
     revalidatePath('/admissions');
     return { status: 'success', message: 'Interview slot created.', id: slot.id };
   } catch (error) {
@@ -82,8 +119,10 @@ export async function bookInterviewAction(input: {
   slotId: string;
   applicationId: string;
 }): Promise<AdmissionsActionState> {
+  const parsed = bookInterviewSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, 'Invalid interview booking');
   try {
-    const booking = await bookInterview(input);
+    const booking = await bookInterview(parsed.data);
     revalidatePath('/admissions');
     return { status: 'success', message: 'Interview booked.', id: booking.id };
   } catch (error) {
@@ -139,6 +178,8 @@ export async function addFollowupAction(input: unknown): Promise<AdmissionsActio
 }
 
 export async function convertEnquiryAction(id: string): Promise<AdmissionsActionState> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return { status: 'error', message: 'Invalid enquiry id' };
   try {
     const result = await convertEnquiry(id);
     revalidatePath('/admissions');
@@ -223,6 +264,9 @@ export async function sendOfferAction(
   offerId: string,
   applicationId: string,
 ): Promise<AdmissionsActionState> {
+  if (!uuid.safeParse(offerId).success || !uuid.safeParse(applicationId).success) {
+    return { status: 'error', message: 'Invalid offer id' };
+  }
   try {
     const offer = await sendAdmissionOffer(offerId);
     revalidatePath(`/admissions/${applicationId}`);
@@ -258,6 +302,9 @@ export async function declineOfferAction(
   offerId: string,
   applicationId: string,
 ): Promise<AdmissionsActionState> {
+  if (!uuid.safeParse(offerId).success || !uuid.safeParse(applicationId).success) {
+    return { status: 'error', message: 'Invalid offer id' };
+  }
   try {
     const offer = await declineAdmissionOffer(offerId);
     revalidatePath(`/admissions/${applicationId}`);

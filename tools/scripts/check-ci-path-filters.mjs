@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseDocument } from 'yaml';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CI_WORKFLOW = join(ROOT, '.github/workflows/ci.yml');
@@ -19,7 +20,7 @@ const CI_WORKFLOW = join(ROOT, '.github/workflows/ci.yml');
 
 /**
  * Expected path → filter buckets that must include the path (dorny globs).
- * Jobs required after those buckets flip are documented in the COMPLETE audit.
+ * Jobs required after those buckets flip are documented in the W1-OPS-05 audit pack.
  */
 export const PATH_FILTER_MATRIX = [
   {
@@ -45,9 +46,7 @@ export const PATH_FILTER_MATRIX = [
     buckets: ['backend'],
     // shared covered by tools/** (dorny prefix match); backend needs the
     // explicit glob so SQL apply / aggregate helpers trip integration.
-    triggers: [
-      'integration-test / backend chain (SQL apply helpers, aggregate, bootstrap)',
-    ],
+    triggers: ['integration-test / backend chain (SQL apply helpers, aggregate, bootstrap)'],
   },
   {
     path: 'tools/dod-checks/**',
@@ -62,9 +61,7 @@ export const PATH_FILTER_MATRIX = [
   {
     path: 'docs/**',
     buckets: ['shared'],
-    triggers: [
-      'lint / typecheck / unit / build / dod / tenant-isolation (no silent skip)',
-    ],
+    triggers: ['lint / typecheck / unit / build / dod / tenant-isolation (no silent skip)'],
   },
   {
     path: 'infrastructure/**',
@@ -88,55 +85,59 @@ export const PATH_FILTER_MATRIX = [
 
 /**
  * Extract dorny/paths-filter bucket → path globs from ci.yml detect-changes.
+ * PRC-L179: parsed with a YAML parser (workflow, then the `filters: |` string)
+ * so re-indentation or quote style changes cannot silently drop buckets.
  * @param {string} yaml
  * @returns {Record<string, string[]>}
  */
 export function parseDetectChangeFilters(yaml) {
-  const marker = 'id: filter';
-  const start = yaml.indexOf(marker);
-  if (start < 0) {
+  const doc = parseDocument(yaml, { uniqueKeys: false });
+  if (doc.errors.length > 0) {
+    throw new Error(`ci.yml is not valid YAML: ${doc.errors[0].message}`);
+  }
+  const workflow = doc.toJS();
+  const steps = workflow?.jobs?.['detect-changes']?.steps;
+  if (!Array.isArray(steps)) {
+    throw new Error('detect-changes job with steps not found in ci.yml');
+  }
+  const step = steps.find((s) => s && s.id === 'filter');
+  if (!step) {
     throw new Error('detect-changes dorny filter step (id: filter) not found');
   }
-
-  // Capture the `filters: |` block until the next top-level job key or blank
-  // section outside the indented filter body.
-  const after = yaml.slice(start);
-  const filtersMatch = after.match(/\n\s+filters:\s*\|\s*\n([\s\S]*?)(?=\n  [a-zA-Z-]+:|\n# ---|\njobs:)/);
-  if (!filtersMatch) {
-    // Fallback: take until next job-level `name:` at column 2 after detect-changes.
-    const alt = after.match(/\n\s+filters:\s*\|\s*\n([\s\S]*?)\n  # -+/);
-    if (!alt) {
-      throw new Error('Unable to locate dorny filters: | block under detect-changes');
-    }
-    return parseFilterBody(alt[1]);
+  const filters = step.with?.filters;
+  if (typeof filters !== 'string' || filters.trim() === '') {
+    throw new Error('detect-changes filter step has no `with.filters` block');
   }
-  return parseFilterBody(filtersMatch[1]);
+  return parseFilterBody(filters);
 }
-
 /**
+ * Parse a dorny `filters` YAML body into bucket → glob list. Fails closed on
+ * invalid YAML or non-string globs.
  * @param {string} body
  * @returns {Record<string, string[]>}
  */
 export function parseFilterBody(body) {
+  const doc = parseDocument(body);
+  if (doc.errors.length > 0) {
+    throw new Error(`dorny filters block is not valid YAML: ${doc.errors[0].message}`);
+  }
+  const parsed = doc.toJS();
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('dorny filters block must be a mapping of bucket → globs');
+  }
   /** @type {Record<string, string[]>} */
   const buckets = {};
-  let current = null;
-  for (const rawLine of body.split('\n')) {
-    const line = rawLine.replace(/\t/g, '    ');
-    const bucketMatch = line.match(/^\s{12}([a-z0-9_]+):\s*$/);
-    if (bucketMatch) {
-      current = bucketMatch[1];
-      buckets[current] = buckets[current] ?? [];
-      continue;
+  for (const [bucket, globs] of Object.entries(parsed)) {
+    const list = Array.isArray(globs) ? globs : [globs];
+    for (const g of list) {
+      if (typeof g !== 'string') {
+        throw new Error(`dorny bucket ${bucket} has non-string glob entry`);
+      }
     }
-    const pathMatch = line.match(/^\s{14}-\s+'([^']+)'\s*$/);
-    if (pathMatch && current) {
-      buckets[current].push(pathMatch[1]);
-    }
+    buckets[bucket] = list;
   }
   return buckets;
 }
-
 /**
  * @param {Record<string, string[]>} buckets
  * @param {typeof PATH_FILTER_MATRIX} matrix
@@ -166,13 +167,13 @@ export function evaluateJobIfs(yaml) {
   const requiredSnippets = [
     {
       id: 'lint-infra',
-      needle: 'needs.detect-changes.outputs.infra-changed == \'true\'',
+      needle: "needs.detect-changes.outputs.infra-changed == 'true'",
       context: 'lint',
     },
     {
       id: 'integration-infra',
       needle:
-        'needs.detect-changes.outputs.has-backend-changes == \'true\' || needs.detect-changes.outputs.has-shared-changes == \'true\' || needs.detect-changes.outputs.infra-changed == \'true\'',
+        "needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' || needs.detect-changes.outputs.infra-changed == 'true'",
       context: 'integration-test',
     },
     {

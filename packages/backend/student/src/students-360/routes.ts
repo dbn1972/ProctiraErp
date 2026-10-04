@@ -23,12 +23,23 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { StudentParamsSchema } from '../schemas.js';
+import {
+  isDisciplineStaff,
+  isMedicalStaff,
+  isRegistrarOrAdmin,
+  isStudentReadStaff,
+  resolveStudentReadScope,
+  type StudentPortalBinding,
+} from '../student-portal-access.js';
 
 import {
   CreateDisciplineSchema,
   CreateSiblingSchema,
   DocumentParamsSchema,
   HeatmapQuerySchema,
+  LIST_PAGE_DEFAULT_LIMIT,
+  LIST_PAGE_MAX_LIMIT,
+  ListPageQuerySchema,
   SetConsentSchema,
   UploadDocumentSchema,
   UploadPhotoSchema,
@@ -52,6 +63,8 @@ import type {
 export interface Students360RoutesOptions {
   service: Students360Service;
   prefix?: string;
+  /** PRC-C011: portal ownership binding (guardian/parent → children, student → self). */
+  studentBinding?: StudentPortalBinding;
 }
 
 function tenantOf(request: FastifyRequest): string | null {
@@ -63,11 +76,57 @@ function actorOf(request: FastifyRequest): string {
   return user?.sub ?? user?.userId ?? 'system';
 }
 
+function rolesOf(request: FastifyRequest): unknown {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+  return user?.roles ?? [];
+}
+
+function forbid(reply: FastifyReply, message = 'Forbidden') {
+  return reply.status(403).send({ code: 'FORBIDDEN', message, statusCode: 403 });
+}
+
+function notFoundStudent(reply: FastifyReply) {
+  return reply
+    .status(404)
+    .send({ code: 'NOT_FOUND', message: 'Student not found', statusCode: 404 });
+}
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
   throw error;
+}
+
+/**
+ * PRC-L367: RFC 6266/5987 Content-Disposition — ASCII fallback plus UTF-8
+ * `filename*`, so non-Latin1 names never break the header (Node ERR_INVALID_CHAR).
+ */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** PRC-L368: parse ?limit&offset (limit clamped to 1..100). Returns null when invalid. */
+function parseListPage(query: unknown): { limit: number; offset: number } | null {
+  const q = validate(ListPageQuerySchema, query ?? {});
+  if (!q.success) return null;
+  const limit = q.data.limit === undefined ? LIST_PAGE_DEFAULT_LIMIT : Number(q.data.limit);
+  const offset = q.data.offset === undefined ? 0 : Number(q.data.offset);
+  if (limit < 1 || limit > LIST_PAGE_MAX_LIMIT) return null;
+  return { limit, offset };
+}
+
+function invalidPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${LIST_PAGE_MAX_LIMIT} and offset a non-negative integer`,
+    statusCode: 400,
+  });
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -135,14 +194,120 @@ function formatDocument(row: DocumentRecord) {
   };
 }
 
+/** Route body limits sized to the upload schemas (base64 maxLength + JSON envelope headroom). */
+export const PHOTO_UPLOAD_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+export const DOCUMENT_UPLOAD_BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
 export async function registerStudents360Routes(
   fastify: FastifyInstance,
   options: Students360RoutesOptions,
 ): Promise<void> {
-  const { service, prefix = '/students' } = options;
+  const { service, prefix = '/students', studentBinding } = options;
+
+  /**
+   * PRC-C011: central authorization for every students-360 route. These routes were previously
+   * open to any authenticated caller. Rules:
+   *  - all routes require the caller to be able to read the target student (staff, or a portal
+   *    owner via the binding); otherwise 403 (no scope) / 404 (not their student).
+   *  - mutations (POST/PUT/DELETE) require staff — portal owners are read-only here.
+   *  - sensitive sub-resources: documents require medical/registrar staff (or the owning
+   *    guardian for read); discipline writes require discipline staff; consents writes require
+   *    registrar/admin. (Per-route refinement below the ownership gate.)
+   */
+  // The students-360 sub-resource path segments this hook governs. studentPlugin is
+  // fastify-plugin-wrapped, so this hook would otherwise also run against sibling student-domain
+  // routes (certificates, enrollment, import) where `:id` is NOT a student id. Restrict it to the
+  // 360 URL shapes so the ownership gate cannot drift onto unrelated routes.
+  const STUDENTS_360_SEGMENTS = [
+    '/photo',
+    '/id-card.pdf',
+    '/siblings',
+    '/consents',
+    '/discipline',
+    '/attendance-heatmap',
+    '/documents',
+  ];
+  // Classify by the *matched route pattern*, not the raw request URL. The gateway mounts this
+  // plugin under `/api/v1`, so a `request.url.startsWith(prefix)` test never matched in
+  // production and the whole gate was skipped. The route pattern also ignores query strings and
+  // percent-encoding (Fastify routes on the decoded path), same as staff `hr-routes.ts`.
+  const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const STUDENTS_360_ROUTE = new RegExp(
+    `${escapeRegExp(prefix)}/:id(?:${STUDENTS_360_SEGMENTS.map(escapeRegExp).join('|')})(?:/|$)`,
+  );
+  const routePathOf = (request: FastifyRequest): string =>
+    request.routeOptions.url ?? request.url.split('?')[0] ?? request.url;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    // HEAD is served by Fastify's auto-HEAD route from the GET handler, so it is a read and must
+    // pass the same gate (otherwise document filename/type/size leak without an ownership check).
+    if (method === 'OPTIONS') return;
+
+    // Only govern students-360 routes; defer everything else (certificates, enrollment, import,
+    // base roster) to their own gates.
+    const routePath = routePathOf(request);
+    if (!STUDENTS_360_ROUTE.test(routePath)) return;
+
+    const tenantId = tenantOf(request);
+    if (!tenantId) return; // handler returns TENANT_REQUIRED
+
+    // The student id is the first :id path segment for every 360 route.
+    const studentId = (request.params as { id?: string } | undefined)?.id;
+    if (!studentId) return; // let the handler's schema validation produce 400
+
+    const roles = rolesOf(request);
+    const staff = isStudentReadStaff(roles);
+
+    // Mutations are staff-only.
+    const isWrite =
+      method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    if (isWrite && !staff) {
+      forbid(reply, 'Forbidden: portal roles cannot modify student records');
+      return;
+    }
+
+    // Ownership: staff pass; portal readers must own the target student.
+    if (!staff) {
+      const scope = await resolveStudentReadScope(
+        roles,
+        actorOf(request),
+        tenantId,
+        studentBinding,
+      );
+      if (scope.kind === 'denied') {
+        forbid(reply, 'Forbidden: role cannot read student records');
+        return;
+      }
+      if (scope.kind === 'self' && !scope.studentIds.has(studentId)) {
+        notFoundStudent(reply);
+        return;
+      }
+    }
+
+    // Sensitive sub-resources: student documents may contain medical/legal records and are
+    // restricted to medical/registrar staff — no portal reader and no non-medical staff.
+    const url = routePath;
+    if (url.includes('/documents') && !isMedicalStaff(roles)) {
+      forbid(reply, 'Forbidden: student documents require registrar/nurse/admin');
+      return;
+    }
+    // Consent writes require registrar/admin.
+    if (url.includes('/consents') && isWrite && !isRegistrarOrAdmin(roles)) {
+      forbid(reply, 'Forbidden: consents require registrar/admin');
+      return;
+    }
+    // Discipline writes require discipline staff.
+    if (url.includes('/discipline') && isWrite && !isDisciplineStaff(roles)) {
+      forbid(reply, 'Forbidden: discipline requires teacher/registrar/admin');
+      return;
+    }
+  });
 
   fastify.post(
     `${prefix}/:id/photo`,
+    // PRC-H096: base64 photo payloads (schema max 2.8M chars) exceed Fastify's 1 MiB default.
+    { bodyLimit: PHOTO_UPLOAD_BODY_LIMIT_BYTES },
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: UploadPhotoDto }>,
       reply: FastifyReply,
@@ -206,6 +371,7 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {
@@ -401,9 +567,21 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const rows = await service.listDiscipline(tenantId, params.data.id);
-        return reply.status(200).send({ data: rows.map(formatDiscipline) });
+        // PRC-C011: a portal reader (owning guardian/student) only sees incidents explicitly
+        // marked visibleToParent; staff discipline roles see all. The filter is applied in the
+        // store so PRC-L368 pagination totals never count hidden incidents.
+        const result = await service.listDiscipline(tenantId, params.data.id, page, {
+          visibleToParentOnly: !isDisciplineStaff(rolesOf(request)),
+        });
+        return reply.status(200).send({
+          data: result.data.map(formatDiscipline),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
@@ -520,6 +698,8 @@ export async function registerStudents360Routes(
 
   fastify.post(
     `${prefix}/:id/documents`,
+    // PRC-H096: base64 document payloads (schema max 14M chars) exceed Fastify's 1 MiB default.
+    { bodyLimit: DOCUMENT_UPLOAD_BODY_LIMIT_BYTES },
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: UploadDocumentDto }>,
       reply: FastifyReply,
@@ -572,9 +752,17 @@ export async function registerStudents360Routes(
           errors: params.errors,
         });
       }
+      const page = parseListPage(request.query);
+      if (!page) return invalidPage(reply);
       try {
-        const docs = await service.listDocuments(tenantId, params.data.id);
-        return reply.status(200).send(docs.map(formatDocument));
+        const result = await service.listDocuments(tenantId, params.data.id, page);
+        // PRC-L368: consistent { data, total, limit, offset } envelope (was a bare array).
+        return reply.status(200).send({
+          data: result.data.map(formatDocument),
+          total: result.total,
+          limit: page.limit,
+          offset: page.offset,
+        });
       } catch (error) {
         return sendError(reply, error);
       }
@@ -583,10 +771,7 @@ export async function registerStudents360Routes(
 
   fastify.get(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);
@@ -610,7 +795,8 @@ export async function registerStudents360Routes(
         return reply
           .status(200)
           .header('content-type', mimeType)
-          .header('content-disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`)
+          .header('content-disposition', attachmentDisposition(fileName))
+          .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-store')
           .send(bytes);
       } catch (error) {
@@ -621,10 +807,7 @@ export async function registerStudents360Routes(
 
   fastify.delete(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);

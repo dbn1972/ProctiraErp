@@ -407,14 +407,6 @@ export function listChildrenResult(): Promise<ListResult<ParentChildLink>> {
   return fetchList<ParentChildLink>('/parent-portal/children', { next: { revalidate: 0 } });
 }
 
-export async function listChildren(): Promise<ParentChildLink[]> {
-  const result = await gatewayFetch<{ data: ParentChildLink[] }>('/parent-portal/children', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
-}
-
 export async function linkChild(input: LinkChildInput): Promise<ParentChildLink> {
   const result = await gatewayFetch<ParentChildLink>('/parent-portal/children/links', {
     method: 'POST',
@@ -600,9 +592,12 @@ export async function listReceipts(scope: 'parent' | 'staff' = 'parent'): Promis
   return result.data?.data ?? [];
 }
 
+// PRC-C001: the parent pay endpoint performs no PSP verification, so the client may only
+// request the honest 'sandbox' method. Real settlement (upi/card/cash) must go through a
+// verified payment provider on the fee ledger, never a caller-declared method here.
 export async function payInvoice(
   id: string,
-  method: 'sandbox' | 'upi' | 'card' | 'cash' = 'sandbox',
+  method: 'sandbox' = 'sandbox',
 ): Promise<{ invoice: FeeInvoice; payment: FeePayment; receipt: FeeReceipt }> {
   const result = await gatewayFetch<{
     invoice: FeeInvoice;

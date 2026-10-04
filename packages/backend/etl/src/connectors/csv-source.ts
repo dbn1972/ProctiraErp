@@ -5,13 +5,15 @@
  * Supports configurable delimiter, header row, and encoding.
  */
 import type { CsvSourceConfig } from '../schemas.js';
+
+import { assertInlineContentWithinCap, assertNoHostFilePath } from './file-source-policy.js';
 import type { SourceConnector, ExtractionResult, DataRow } from './types.js';
 
 export class CsvSourceConnector implements SourceConnector {
   constructor(private readonly config: CsvSourceConfig) {}
 
   async extract(): Promise<ExtractionResult> {
-    const content = await this.getContent();
+    const content = this.getContent();
     if (!content) {
       return { rows: [], totalCount: 0 };
     }
@@ -21,27 +23,27 @@ export class CsvSourceConnector implements SourceConnector {
   }
 
   async validate(): Promise<{ valid: boolean; error?: string }> {
-    if (!this.config.filePath && !this.config.fileContent) {
-      return { valid: false, error: 'Either filePath or fileContent is required' };
+    // PRC-C003: reject any host filePath; tenant pipelines must supply inline content.
+    try {
+      assertNoHostFilePath(this.config.filePath);
+    } catch (error) {
+      return {
+        valid: false,
+        error: error instanceof Error ? error.message : 'Invalid file source',
+      };
+    }
+    if (!this.config.fileContent) {
+      return { valid: false, error: 'Inline fileContent is required' };
     }
     return { valid: true };
   }
 
-  private async getContent(): Promise<string | null> {
+  private getContent(): string | null {
+    // PRC-C003: never read a tenant-supplied host path. Inline content only, size-capped.
+    assertNoHostFilePath(this.config.filePath);
     if (this.config.fileContent) {
+      assertInlineContentWithinCap(Buffer.byteLength(this.config.fileContent, 'utf-8'));
       return this.config.fileContent;
-    }
-    if (this.config.filePath) {
-      // In production, read from filesystem or object storage
-      // For now, return null to indicate file not available in this context
-      const { readFile } = await import('node:fs/promises');
-      try {
-        return await readFile(this.config.filePath, {
-          encoding: (this.config.encoding ?? 'utf-8') as BufferEncoding,
-        });
-      } catch {
-        return null;
-      }
     }
     return null;
   }

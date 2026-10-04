@@ -6,6 +6,7 @@
  * already-decoded payload from `getSession()` / `/api/auth/session`.
  */
 
+import { permissionsForRoles } from './role-permissions';
 import type { TokenPayload } from './session';
 
 export type AuthScopeLevel = 'country' | 'state' | 'district' | 'board' | 'school';
@@ -84,12 +85,14 @@ export function scopeFromTokenPayload(payload: TokenPayload): AuthUserScope {
 
 /** Builds the AuthUser DTO from a verified/decoded session JWT payload. */
 export function authUserFromTokenPayload(payload: TokenPayload): AuthUserFromToken {
+  const roles = rolesFromTokenPayload(payload);
   return {
     id: payload.sub,
     email: payload.email,
     name: payload.displayName?.trim() || payload.email,
-    roles: rolesFromTokenPayload(payload),
-    permissions: [],
+    roles,
+    // PRC-H028: JWTs carry no permission claims; derive nav grants from roles.
+    permissions: permissionsForRoles(roles),
     scope: scopeFromTokenPayload(payload),
     tenant_id: payload.tenantId,
   };

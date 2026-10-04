@@ -19,7 +19,7 @@ const ADMIN_ROLES = [
   'school-admin',
 ] as const;
 
-const LMS_STAFF_ROLES = [
+export const LMS_STAFF_ROLES = [
   'teacher',
   'instructor',
   'faculty',
@@ -64,11 +64,7 @@ export function assertLmsAccess(
   opts?: { hasUser?: boolean },
 ): void {
   if (!hasLmsAccess(roles, action, opts)) {
-    throw new AppError(
-      `Forbidden: role cannot perform LMS action ${action}`,
-      'FORBIDDEN',
-      403,
-    );
+    throw new AppError(`Forbidden: role cannot perform LMS action ${action}`, 'FORBIDDEN', 403);
   }
 }
 

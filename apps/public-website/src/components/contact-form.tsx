@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +10,23 @@ import {
 } from '@/lib/contact-validation';
 
 type Status = 'idle' | 'submitting' | 'success' | 'error';
+
+/** Field order used to pick the first invalid control to focus. */
+export const CONTACT_FIELD_ORDER = ['name', 'email', 'organization', 'message'] as const;
+
+export function firstInvalidField(
+  errors: ContactFieldErrors,
+): (typeof CONTACT_FIELD_ORDER)[number] | null {
+  return CONTACT_FIELD_ORDER.find((field) => Boolean(errors[field])) ?? null;
+}
+
+export function errorSummary(errors: ContactFieldErrors): string {
+  const count = CONTACT_FIELD_ORDER.filter((field) => Boolean(errors[field])).length;
+  if (count === 0) return '';
+  return count === 1
+    ? 'Please fix 1 field before sending.'
+    : `Please fix ${count} fields before sending.`;
+}
 
 const FIELD_BASE =
   'mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ' +
@@ -26,6 +43,17 @@ export function ContactForm() {
   const [status, setStatus] = useState<Status>('idle');
   const [errors, setErrors] = useState<ContactFieldErrors>({});
   const [serverMessage, setServerMessage] = useState<string>('');
+  // Bumped on each failed client validation so focus moves even if errors repeat.
+  const [focusRequest, setFocusRequest] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (focusRequest === 0) return;
+    const field = firstInvalidField(errors);
+    if (!field) return;
+    const control = formRef.current?.elements.namedItem(field);
+    if (control instanceof HTMLElement) control.focus();
+  }, [focusRequest, errors]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,6 +70,7 @@ export function ContactForm() {
     if (!result.ok) {
       setErrors(result.errors);
       setStatus('idle');
+      setFocusRequest((n) => n + 1);
       return;
     }
 
@@ -73,7 +102,18 @@ export function ContactForm() {
   const submitting = status === 'submitting';
 
   return (
-    <form noValidate className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
+    <form
+      ref={formRef}
+      noValidate
+      aria-label="Contact form"
+      className="space-y-5"
+      onSubmit={(event) => void handleSubmit(event)}
+    >
+      {/* Announced once per failed submit; field errors are linked via aria-describedby. */}
+      <div role="alert" className="text-sm font-medium text-destructive empty:hidden">
+        {errorSummary(errors)}
+      </div>
+
       {/* Honeypot — hidden from users; bots that fill it are rejected. */}
       <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
         <label htmlFor="website">Website</label>

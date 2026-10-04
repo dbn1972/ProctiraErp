@@ -17,6 +17,15 @@
  * see `packages/backend/fees/src/money-cents.ts`. Division by 100 happens here so
  * no call site re-implements it.
  */
+
+/**
+ * Currency for fee aggregates whose API rows carry no currency (dues report,
+ * reconciliation rows). Mirrors the `?? 'INR'` default in
+ * `packages/backend/fees/src/fees-service.ts`; create forms omit currency so the
+ * server (or the selected plan / invoice) decides.
+ */
+export const DEFAULT_FEE_CURRENCY = 'INR';
+
 export function formatAmount(cents: number, currency: string, locale: string): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',

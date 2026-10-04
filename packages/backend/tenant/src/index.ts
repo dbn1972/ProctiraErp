@@ -19,7 +19,11 @@ export type { TenantPluginOptions } from './tenant-plugin.js';
 
 // Service
 export { TenantService } from './tenant-service.js';
-export type { DestructiveDeleteGuard } from './tenant-service.js';
+export type {
+  DestructiveDeleteGuard,
+  TenantAdminProvisioner,
+  TenantAdminProvisioningRequest,
+} from './tenant-service.js';
 
 // Repository
 export type {

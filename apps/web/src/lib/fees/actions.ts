@@ -25,6 +25,7 @@ import {
   bulkInvoiceFormSchema,
   concessionFormSchema,
   feeStructureFormSchema,
+  parseStudentIdList,
   reconciliationFormSchema,
   refundFormSchema,
   reminderSendFormSchema,
@@ -48,8 +49,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZod(error: {
   flatten: () => { fieldErrors: Record<string, string[] | undefined> };
@@ -96,7 +96,6 @@ export async function createFeeStructureAction(
       amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
-      currency: 'INR',
     });
     if (parsed.data.partCount && parsed.data.partCount > 1) {
       await generateInstalments(structure.id, parsed.data.partCount);
@@ -115,10 +114,7 @@ export async function bulkInvoiceAction(
   if (!parsed.success) {
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
-  const studentIds = (parsed.data.studentIds ?? '')
-    .split(/[\s,]+/)
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const studentIds = parseStudentIdList(parsed.data.studentIds);
   try {
     const result = await bulkInvoiceStructure(parsed.data.structureId, {
       classId: parsed.data.classId || undefined,
@@ -246,7 +242,6 @@ export async function applyScholarshipNettingAction(
     const result = await applyScholarshipNetting({
       studentId: parsed.data.studentId,
       disbursementId: parsed.data.disbursementId.trim(),
-      amountCents: majorUnitsToCents(parsed.data.amount),
       invoiceId: parsed.data.invoiceId || undefined,
       currency: parsed.data.currency || undefined,
     });

@@ -8,6 +8,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { z } from 'zod';
 
 import {
   createGradingScheme,
@@ -192,27 +193,43 @@ export interface BulkResultsActionInput {
   }>;
 }
 
+/** Mirrors the assessment service's 5,000-row limit for bulk entry/import. */
+const MAX_BULK_RESULT_ROWS = 5000;
+const bulkResultsSchema = z.object({
+  subjectId: z.string().uuid('Subject is invalid.'),
+  academicPeriodId: z.string().uuid('Academic period is invalid.'),
+  results: z
+    .array(
+      z.object({
+        studentId: z.string().uuid('Student id is invalid.'),
+        assessmentItemId: z.string().uuid('Assessment item is invalid.'),
+        score: z.number().finite('Score must be a finite number.'),
+      }),
+    )
+    .min(1, 'No score entries supplied.')
+    .max(MAX_BULK_RESULT_ROWS, `At most ${MAX_BULK_RESULT_ROWS} results per save.`),
+});
+
+function parseBulkResultsInput(
+  input: BulkResultsActionInput,
+): { ok: true; data: z.infer<typeof bulkResultsSchema> } | { ok: false; message: string } {
+  if (!input?.subjectId || !input.academicPeriodId) {
+    return { ok: false, message: 'Subject and academic period are required.' };
+  }
+  const parsed = bulkResultsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid results.' };
+  }
+  return { ok: true, data: parsed.data };
+}
+
 export async function submitBulkResultsAction(
   input: BulkResultsActionInput,
 ): Promise<ActionState<BulkResultEntryResponse>> {
-  if (!input.subjectId || !input.academicPeriodId) {
-    return {
-      status: 'error',
-      message: 'Subject and academic period are required.',
-    };
-  }
-  if (input.results.length === 0) {
-    return {
-      status: 'error',
-      message: 'No score entries supplied.',
-    };
-  }
+  const parsed = parseBulkResultsInput(input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
-    const response = await enterBulkResults({
-      subjectId: input.subjectId,
-      academicPeriodId: input.academicPeriodId,
-      results: input.results,
-    });
+    const response = await enterBulkResults(parsed.data);
     revalidatePath('/assessments/results');
     return {
       status: 'success',
@@ -227,23 +244,13 @@ export async function submitBulkResultsAction(
 export async function importResultsFromExcelAction(
   input: BulkResultsActionInput,
 ): Promise<ActionState<BulkResultEntryResponse>> {
-  if (!input.subjectId || !input.academicPeriodId) {
-    return {
-      status: 'error',
-      message: 'Subject and academic period are required.',
-    };
-  }
-  if (input.results.length === 0) {
-    return {
-      status: 'error',
-      message: 'No score entries supplied.',
-    };
-  }
+  const parsed = parseBulkResultsInput(input);
+  if (!parsed.ok) return { status: 'error', message: parsed.message };
   try {
     const response = await importResultsFromExcel({
-      subjectId: input.subjectId,
-      academicPeriodId: input.academicPeriodId,
-      rows: input.results,
+      subjectId: parsed.data.subjectId,
+      academicPeriodId: parsed.data.academicPeriodId,
+      rows: parsed.data.results,
     });
     revalidatePath('/assessments/results');
     return {

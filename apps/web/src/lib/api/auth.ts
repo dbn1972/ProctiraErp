@@ -229,14 +229,16 @@ export interface MfaSetupSuccess {
 
 /** Discriminated result union the screen consumes. */
 export type MfaSetupResult =
-  | { kind: 'ok'; data: MfaSetupSuccess }
-  | { kind: 'error'; message: string };
+  { kind: 'ok'; data: MfaSetupSuccess } | { kind: 'error'; message: string };
 
 /**
  * Initiates TOTP enrolment for the currently signed-in user. Posts to
- * the local Next.js route handler that proxies the upstream contract;
- * falls back to a deterministic mock when the route is not yet wired so
- * the screen remains usable in local development and CI.
+ * the local Next.js route handler that proxies the upstream contract.
+ *
+ * PRC-H019: a missing route (404) or network failure is an error — never a
+ * client-generated secret. The mock payload is only returned when the caller
+ * explicitly opts in via {@link isMfaMockAllowed} (dev/test flag), which is
+ * always refused when `NODE_ENV === 'production'`.
  */
 export async function setupMfa(
   options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
@@ -260,15 +262,23 @@ export async function setupMfa(
     if ((err as { name?: string })?.name === 'AbortError') {
       return { kind: 'error', message: 'aborted' };
     }
-    // Network-level failure: route handler not deployed yet, dev server
-    // offline, etc. Surface a deterministic mock so the screen stays
-    // demoable; once the route exists this branch is bypassed.
-    return { kind: 'ok', data: buildMockSetupPayload() };
+    if (isMfaMockAllowed()) {
+      return { kind: 'ok', data: buildMockSetupPayload() };
+    }
+    return {
+      kind: 'error',
+      message: 'MFA enrolment service is unavailable. Please try again later.',
+    };
   }
 
   if (response.status === 404) {
-    // Route not registered yet. Same rationale as the network-error case.
-    return { kind: 'ok', data: buildMockSetupPayload() };
+    if (isMfaMockAllowed()) {
+      return { kind: 'ok', data: buildMockSetupPayload() };
+    }
+    return {
+      kind: 'error',
+      message: 'MFA enrolment is not available for this account yet.',
+    };
   }
 
   if (!response.ok) {
@@ -308,6 +318,16 @@ export async function setupMfa(
 }
 
 // ─── MFA mock payload generator ─────────────────────────────────────────────
+/**
+ * The client-side mock enrolment payload is a dev/test affordance only. It
+ * requires the explicit `NEXT_PUBLIC_MFA_SETUP_MOCK=true` flag and is refused
+ * outright in production builds, so a fake secret can never be shown to a
+ * real user (PRC-H019).
+ */
+export function isMfaMockAllowed(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  return process.env.NEXT_PUBLIC_MFA_SETUP_MOCK === 'true';
+}
 
 /**
  * RFC 4648 Base32 alphabet used for both the shared secret and the

@@ -6,6 +6,7 @@
  *
  * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
  */
+import type { QueueAdapter } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -19,6 +20,7 @@ import {
   createReportCardArtifactStore,
   type ReportCardArtifactStore,
 } from './report-card-artifact-store.js';
+import { createReportCardDirectory, type ReportCardDirectory } from './report-card-directory.js';
 import { ReportCardPdfGenerator } from './report-card-pdf-generator.js';
 import type {
   ReportCardTemplateRepository,
@@ -29,6 +31,7 @@ import type {
 import { registerReportCardRoutes } from './report-card-routes.js';
 import { ReportCardService } from './report-card-service.js';
 import type { TaskQueuePublisher, PdfGenerator } from './report-card-service.js';
+import { createReportCardWorker, type ReportCardWorker } from './report-card-worker.js';
 import type { AssessmentResultRepository } from './result-repository.js';
 import { registerResultRoutes } from './result-routes.js';
 import { ResultService } from './result-service.js';
@@ -56,10 +59,22 @@ export interface AssessmentPluginOptions {
   reportCardJobRepository?: ReportCardJobRepository;
   /** Task queue publisher for background processing (RabbitMQ) */
   taskQueuePublisher?: TaskQueuePublisher;
+  /**
+   * PRC-H039: queue adapter (dedicated connection) the in-process report-card
+   * worker consumes from. Started on onReady, stopped on onClose. When a
+   * publisher is configured without a worker queue, jobs are also processed
+   * inline so they never stay `queued` with no consumer.
+   */
+  reportCardWorkerQueue?: QueueAdapter;
   /** PDF generator implementation (defaults to the pdf-lite ReportCardPdfGenerator) */
   pdfGenerator?: PdfGenerator;
   /** Where generated PDFs are kept for download (defaults from env: filesystem) */
   reportCardArtifactStore?: ReportCardArtifactStore;
+  /**
+   * PRC-H036: student/subject/period name resolver for report cards. Defaults to
+   * the Postgres directory when a shared pool exists; `null` disables it (jobs fail).
+   */
+  reportCardDirectory?: ReportCardDirectory | null;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -78,6 +93,7 @@ declare module 'fastify' {
     assessmentService: AssessmentService;
     resultService?: ResultService;
     reportCardService?: ReportCardService;
+    reportCardWorker?: ReportCardWorker;
   }
 }
 
@@ -96,8 +112,10 @@ export const assessmentPlugin = fp(
       institutionBrandingRepository,
       reportCardJobRepository,
       taskQueuePublisher,
+      reportCardWorkerQueue,
       pdfGenerator,
       reportCardArtifactStore,
+      reportCardDirectory,
       gradingSchemesPrefix = '/grading-schemes',
       assessmentItemsPrefix = '/assessment-items',
       outcomesPrefix = '/outcomes',
@@ -148,6 +166,15 @@ export const assessmentPlugin = fp(
       reportCardJobRepository &&
       resultService
     ) {
+      // PRC-H039: only publish when a consumer is registered; otherwise jobs
+      // would stay `queued` forever, so fall back to inline processing.
+      const effectivePublisher =
+        taskQueuePublisher && reportCardWorkerQueue ? taskQueuePublisher : null;
+      if (taskQueuePublisher && !reportCardWorkerQueue) {
+        fastify.log.warn(
+          'report-card queue publisher configured without a consumer; processing inline',
+        );
+      }
       const reportCardService = new ReportCardService(
         reportCardTemplateRepository,
         teacherCommentRepository,
@@ -155,17 +182,38 @@ export const assessmentPlugin = fp(
         reportCardJobRepository,
         resultService,
         assessmentItemRepository,
-        taskQueuePublisher ?? null,
+        effectivePublisher,
         pdfGenerator ?? new ReportCardPdfGenerator(),
         {
           artifactStore: reportCardArtifactStore ?? createReportCardArtifactStore(),
           resultRepository,
-          // Without a queue there is no worker, so finish the job in-request.
-          processInline: !taskQueuePublisher,
+          directory:
+            reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory,
+          // Without a queue consumer there is no worker, so finish the job in-request.
+          processInline: !effectivePublisher,
         },
       );
 
       fastify.decorate('reportCardService', reportCardService);
+      if (effectivePublisher && reportCardWorkerQueue) {
+        const worker = createReportCardWorker({
+          queue: reportCardWorkerQueue,
+          processor: reportCardService,
+          logger: {
+            info: (obj, msg) => fastify.log.info(obj, msg),
+            error: (obj, msg) => fastify.log.error(obj, msg),
+          },
+        });
+        fastify.decorate('reportCardWorker', worker);
+        // Consumer binds its work queue before the server accepts traffic, so
+        // mandatory dispatch (PRC-H087) always finds a bound queue.
+        fastify.addHook('onReady', async () => {
+          await worker.start();
+        });
+        fastify.addHook('onClose', async () => {
+          await worker.stop();
+        });
+      }
 
       await registerReportCardRoutes(fastify, {
         reportCardService,

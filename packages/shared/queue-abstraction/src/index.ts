@@ -33,7 +33,19 @@ export { buildTenantName } from './types';
 
 // Adapter implementations
 export { KafkaAdapter } from './adapters/kafka-adapter';
-export { RabbitMQAdapter } from './adapters/rabbitmq-adapter';
+export { RabbitMQAdapter, deadLetterQueueName } from './adapters/rabbitmq-adapter';
+export type { RabbitMQAdapterRuntimeOptions } from './adapters/rabbitmq-adapter';
+export {
+  DEFAULT_MAX_RETRIES,
+  DeliveryFailureCounter,
+  decideDisposition,
+  withIncrementedRetry,
+} from './adapters/delivery-failure';
+export type {
+  DeliveryFailureDisposition,
+  DeliveryFailureEvent,
+  QueueConsumerLogger,
+} from './adapters/delivery-failure';
 export { SQSAdapter } from './adapters/sqs-adapter';
 export {
   InMemoryDurableQueueAdapter,
@@ -105,7 +117,10 @@ export {
   assertTenantId,
   assertTenantScopedQueueName,
   assertTenantScopedSubscribeTopic,
+  assertSafeTenantSegment,
   isTenantScopedQueueName,
+  messageTenantMatchesRoute,
+  tenantFromScopedName,
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedQueueTopics,
 } from './tenant-scope';

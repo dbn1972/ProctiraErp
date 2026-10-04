@@ -4,6 +4,7 @@ import '../../../core/di/injector.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/enrollment_repository.dart';
+import '../../../core/errors/user_error_message.dart';
 
 /// Lists every enrollment row known locally for the given student as a
 /// vertical timeline, grouped by academic period. Renders without network.
@@ -39,68 +40,80 @@ class _EnrollmentHistoryScreenState extends State<EnrollmentHistoryScreen> {
       body: SafeArea(
         child: FutureBuilder<Map<String, List<EnrollmentEntry>>>(
           future: _future,
-          builder: (BuildContext context,
-              AsyncSnapshot<Map<String, List<EnrollmentEntry>>> snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return _StateMessage(
-                icon: Icons.error_outline,
-                title: 'Something went wrong',
-                message: '${snapshot.error}',
-              );
-            }
-            final Map<String, List<EnrollmentEntry>> grouped =
-                snapshot.data ?? const <String, List<EnrollmentEntry>>{};
-            if (grouped.isEmpty) {
-              return const _StateMessage(
-                icon: Icons.timeline_outlined,
-                title: 'No enrollment records',
-                message:
-                    'No history cached for this student. Connect to the '
-                    'network and refresh to populate the timeline.',
-              );
-            }
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<Map<String, List<EnrollmentEntry>>> snapshot,
+              ) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return _StateMessage(
+                    icon: Icons.error_outline,
+                    title: 'Something went wrong',
+                    message: userErrorMessage(snapshot.error!),
+                  );
+                }
+                final Map<String, List<EnrollmentEntry>> grouped =
+                    snapshot.data ?? const <String, List<EnrollmentEntry>>{};
+                if (grouped.isEmpty) {
+                  return const _StateMessage(
+                    icon: Icons.timeline_outlined,
+                    title: 'No enrollment records',
+                    message:
+                        'No history cached for this student. Connect to the '
+                        'network and refresh to populate the timeline.',
+                  );
+                }
 
-            // Flatten to a single chronological list while keeping period
-            // labels as inline markers.
-            final List<Widget> items = <Widget>[];
-            final List<MapEntry<String, List<EnrollmentEntry>>> periods =
-                grouped.entries.toList(growable: false);
-            for (int p = 0; p < periods.length; p++) {
-              final MapEntry<String, List<EnrollmentEntry>> period = periods[p];
-              items.add(Padding(
-                padding: EdgeInsets.only(top: p == 0 ? 0 : 22, bottom: 12),
-                child: Text(
-                  period.key,
-                  style: theme.textTheme.titleMedium,
-                ),
-              ));
-              for (int i = 0; i < period.value.length; i++) {
-                final bool isLastOverall =
-                    p == periods.length - 1 && i == period.value.length - 1;
-                items.add(_TimelineTile(
-                  entry: period.value[i],
-                  isLast: isLastOverall,
-                ));
-              }
-            }
+                // Flatten to a single chronological list while keeping period
+                // labels as inline markers.
+                final List<Widget> items = <Widget>[];
+                final List<MapEntry<String, List<EnrollmentEntry>>> periods =
+                    grouped.entries.toList(growable: false);
+                for (int p = 0; p < periods.length; p++) {
+                  final MapEntry<String, List<EnrollmentEntry>> period =
+                      periods[p];
+                  items.add(
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: p == 0 ? 0 : 22,
+                        bottom: 12,
+                      ),
+                      child: Text(
+                        period.key,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                  );
+                  for (int i = 0; i < period.value.length; i++) {
+                    final bool isLastOverall =
+                        p == periods.length - 1 && i == period.value.length - 1;
+                    items.add(
+                      _TimelineTile(
+                        entry: period.value[i],
+                        isLast: isLastOverall,
+                      ),
+                    );
+                  }
+                }
 
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-              children: <Widget>[
-                ...items,
-                const SizedBox(height: 20),
-                Text(
-                  'Records reflect the locally cached student registry.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            );
-          },
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                  children: <Widget>[
+                    ...items,
+                    const SizedBox(height: 20),
+                    Text(
+                      'Records reflect the locally cached student registry.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                );
+              },
         ),
       ),
     );
@@ -204,8 +217,9 @@ class _TimelineTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             _title,
-                            style: theme.textTheme.bodyLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         if (entry.status != null &&
@@ -218,8 +232,9 @@ class _TimelineTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       _meta,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -249,8 +264,10 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label.toUpperCase(),
-        style: theme.textTheme.labelSmall
-            ?.copyWith(color: color, fontWeight: FontWeight.w800),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -279,14 +296,18 @@ class _StateMessage extends StatelessWidget {
           children: <Widget>[
             Icon(icon, size: 48, color: cs.onSurfaceVariant),
             const SizedBox(height: 16),
-            Text(title, textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),

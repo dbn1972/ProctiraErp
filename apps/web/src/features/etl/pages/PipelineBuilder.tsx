@@ -175,6 +175,13 @@ const INITIAL_FORM_DATA: PipelineFormData = {
   },
 };
 
+/**
+ * PRC-H115: placeholder the ETL API returns for stored secrets and accepts on
+ * update as "keep the saved value" (mirrors REDACTED_SECRET in
+ * packages/backend/etl/src/secret-redaction.ts).
+ */
+const REDACTED_SECRET = '__REDACTED__';
+
 /* ------------------------------------------------------------------ Component */
 
 export default function PipelineBuilder() {
@@ -186,6 +193,8 @@ export default function PipelineBuilder() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PRC-H115: whether the loaded pipeline has a stored (redacted) credential.
+  const [savedSecrets, setSavedSecrets] = useState({ source: false, destination: false });
 
   // Load existing pipeline for editing
   const loadPipeline = useCallback(async () => {
@@ -202,16 +211,22 @@ export default function PipelineBuilder() {
       else if (result.schedule === '0 0 * * *') schedulePreset = 'daily';
       else if (result.schedule === '0 0 * * 1') schedulePreset = 'weekly';
 
+      setSavedSecrets({
+        source: Boolean(result.source.connectionString),
+        destination: Boolean(result.destination.connectionString),
+      });
       setFormData({
         name: result.name,
         source: {
           type: result.source.type as SourceType,
-          connectionString: result.source.connectionString,
+          // PRC-H115: stored credentials are never loaded into the browser
+          // form; leaving the field blank keeps the saved value.
+          connectionString: '',
           query: result.source.query,
         },
         destination: {
           type: result.destination.type as DestinationType,
-          connectionString: result.destination.connectionString,
+          connectionString: '',
           table: result.destination.table,
         },
         fieldMappings: result.fieldMappings.map((m) => ({
@@ -316,10 +331,23 @@ export default function PipelineBuilder() {
     setIsSaving(true);
     setError(null);
 
+    // PRC-H115: when editing, a blank credential field means "keep saved".
+    // The API replaces source/destination wholesale and only restores values
+    // sent as the redaction placeholder, so echo the placeholder for a saved
+    // secret; omit the key only when nothing was stored.
+    const keepSavedSecret = <T extends { connectionString: string }>(
+      config: T,
+      hasSaved: boolean,
+    ) => {
+      if (!isEditing || config.connectionString) return config;
+      if (hasSaved) return { ...config, connectionString: REDACTED_SECRET };
+      const { connectionString: _omit, ...rest } = config;
+      return rest;
+    };
     const payload = {
       name: formData.name,
-      source: formData.source,
-      destination: formData.destination,
+      source: keepSavedSecret(formData.source, savedSecrets.source),
+      destination: keepSavedSecret(formData.destination, savedSecrets.destination),
       fieldMappings: formData.fieldMappings
         .filter((m) => m.sourceField && m.destinationField)
         .map((m) => ({
@@ -423,9 +451,15 @@ export default function PipelineBuilder() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Connection String / URL</label>
+              <label htmlFor="etl-source-connection" className="block text-sm font-medium mb-1">
+                Connection String / URL
+              </label>
               <input
-                type="text"
+                id="etl-source-connection"
+                type="password"
+                autoComplete="new-password"
+                spellCheck={false}
+                aria-describedby={isEditing ? 'etl-source-connection-hint' : undefined}
                 value={formData.source.connectionString}
                 onChange={(e) => handleSourceChange('connectionString', e.target.value)}
                 placeholder={
@@ -435,10 +469,15 @@ export default function PipelineBuilder() {
                       ? 'https://api.example.com/data'
                       : '/path/to/file'
                 }
-                required
+                required={!isEditing}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 aria-label="Source connection string"
               />
+              {isEditing ? (
+                <p id="etl-source-connection-hint" className="mt-1 text-xs text-muted-foreground">
+                  Saved credentials are hidden. Leave blank to keep them, or enter a new value.
+                </p>
+              ) : null}
             </div>
           </div>
           <div>
@@ -480,16 +519,33 @@ export default function PipelineBuilder() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Connection String / URL</label>
+              <label
+                htmlFor="etl-destination-connection"
+                className="block text-sm font-medium mb-1"
+              >
+                Connection String / URL
+              </label>
               <input
-                type="text"
+                id="etl-destination-connection"
+                type="password"
+                autoComplete="new-password"
+                spellCheck={false}
+                aria-describedby={isEditing ? 'etl-destination-connection-hint' : undefined}
                 value={formData.destination.connectionString}
                 onChange={(e) => handleDestinationChange('connectionString', e.target.value)}
                 placeholder="postgresql://user:pass@host:5432/db"
-                required
+                required={!isEditing}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 aria-label="Destination connection string"
               />
+              {isEditing ? (
+                <p
+                  id="etl-destination-connection-hint"
+                  className="mt-1 text-xs text-muted-foreground"
+                >
+                  Saved credentials are hidden. Leave blank to keep them, or enter a new value.
+                </p>
+              ) : null}
             </div>
           </div>
           <div>
@@ -530,10 +586,10 @@ export default function PipelineBuilder() {
             <table className="w-full text-sm" data-testid="field-mapping-grid">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-3 py-2 text-left font-medium">Source Field</th>
-                  <th className="px-3 py-2 text-left font-medium">Destination Field</th>
-                  <th className="px-3 py-2 text-left font-medium">Transformation</th>
-                  <th className="px-3 py-2 text-left font-medium">Config</th>
+                  <th className="px-3 py-2 text-start font-medium">Source Field</th>
+                  <th className="px-3 py-2 text-start font-medium">Destination Field</th>
+                  <th className="px-3 py-2 text-start font-medium">Transformation</th>
+                  <th className="px-3 py-2 text-start font-medium">Config</th>
                   <th className="px-3 py-2 text-center font-medium w-16" />
                 </tr>
               </thead>

@@ -8,10 +8,16 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  request as httpRequest,
+  type Server,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import serviceRouter, { isServicePrefixExcluded } from './service-router.js';
+import serviceRouter, { buildUpstreamUrl, isServicePrefixExcluded } from './service-router.js';
 
 interface CapturedRequest {
   method: string;
@@ -179,5 +185,76 @@ describe('service-router proxy', () => {
       expect.objectContaining({ name: 'students', prefix: '/api/v1/students' }),
     );
     await app.close();
+  });
+});
+
+describe('PRC-L528 service-router rejects path traversal', () => {
+  // light-my-request (inject) normalises URLs with WHATWG URL (dot segments, backslashes), so
+  // traversal is exercised over a real socket where the raw request-target reaches Fastify.
+  let app: FastifyInstance;
+  let gatewayPort = 0;
+  const rawGet = (path: string) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = httpRequest(
+        { host: '127.0.0.1', port: gatewayPort, path, method: 'GET' },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () =>
+            resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
+          );
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  beforeAll(async () => {
+    app = await buildGateway(upstreamUrl);
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    gatewayPort = (app.server.address() as AddressInfo).port;
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  for (const url of [
+    '/api/v1/students/../admin',
+    '/api/v1/students/a/../../admin',
+    '/api/v1/students/./x',
+    '/api/v1/students/%2e%2e/admin',
+    '/api/v1/students/..%2fadmin',
+    '/api/v1/students/..%2Fadmin',
+    '/api/v1/students/..%5cadmin',
+    '/api/v1/students/%252e%252e/admin',
+    '/api/v1/students/a\\..\\admin',
+  ]) {
+    it(`${url} → 400, upstream not called`, async () => {
+      captured = [];
+      const res = await rawGet(url);
+      expect(res.status, res.body).toBe(400);
+      expect(captured).toHaveLength(0);
+    });
+  }
+
+  it('ordinary nested paths and queries are still forwarded', async () => {
+    captured = [];
+    const res = await rawGet('/api/v1/students/a/b..c/d?x=1');
+    expect(res.status).toBe(200);
+    expect(captured[0]?.url).toBe('/students/a/b..c/d?x=1');
+  });
+
+  it('buildUpstreamUrl keeps the pathname under the route prefix', () => {
+    const route = { target: 'http://upstream.local', prefix: '/students' };
+    expect(buildUpstreamUrl(route, 'a/b', '/api/v1/students/a/b', '?q=1')).toBe(
+      'http://upstream.local/students/a/b?q=1',
+    );
+    expect(buildUpstreamUrl(route, '', '/api/v1/students', '')).toBe(
+      'http://upstream.local/students',
+    );
+    expect(buildUpstreamUrl(route, '../admin', '/api/v1/students/../admin', '')).toBeNull();
+    // A decoded '?' or '#' cannot smuggle a new query/fragment upstream.
+    expect(buildUpstreamUrl(route, 'a?b', '/api/v1/students/a%3Fb', '')).toBe(
+      'http://upstream.local/students/a%3Fb',
+    );
   });
 });

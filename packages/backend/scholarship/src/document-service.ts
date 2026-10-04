@@ -145,12 +145,17 @@ export class ScholarshipDocumentService {
       );
   }
 
-  async downloadDescriptor(tenantId: string, documentId: string, expiresInSeconds?: number) {
+  async downloadDescriptor(
+    tenantId: string,
+    documentId: string,
+    options: { expiresInSeconds?: number; userId?: string } = {},
+  ) {
     const row = await this.requireRow(tenantId, documentId);
-    const ttl = expiresInSeconds ?? this.deps.signedUrlTtlSeconds ?? 120;
+    const ttl = options.expiresInSeconds ?? this.deps.signedUrlTtlSeconds ?? 120;
     const signed = signDocumentDownloadToken({
       tenantId,
       documentId: row.id,
+      sub: options.userId ?? '',
       expiresInSeconds: ttl,
     });
     let url = `/api/v1/scholarships/document-downloads?token=${encodeURIComponent(signed.token)}`;

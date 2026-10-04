@@ -6,7 +6,13 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { safeActionErrorMessage } from '@/lib/api/action-error';
+import {
+  driverAssignmentInputSchema,
+  transportRouteInputSchema,
+  transportVehicleInputSchema,
+} from '@/lib/validation/action-input-schema';
+import { feeBandSchema, type FeeBandInput } from './_components/fee-band-schema';
 import {
   createDriverAssignment,
   createStudentAssignment,
@@ -41,20 +47,18 @@ const uuid = z.string().uuid();
 const hm = z.string().regex(/^\d{2}:\d{2}$/);
 
 function fail(error: unknown, fallback: string): TransportActionState {
-  const message =
-    error instanceof GatewayError
-      ? error.message
-      : error instanceof Error
-        ? error.message
-        : fallback;
-  return { status: 'error', message };
+  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
 }
 
 export async function createTransportRouteAction(
   input: CreateTransportRouteInput,
 ): Promise<TransportActionState> {
+  const parsed = transportRouteInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid route' };
+  }
   try {
-    const route = await createTransportRoute(input);
+    const route = await createTransportRoute(parsed.data);
     revalidatePath('/transport');
     revalidatePath('/transport/routes');
     revalidatePath(`/transport/routes/${route.id}`);
@@ -67,8 +71,12 @@ export async function createTransportRouteAction(
 export async function createTransportVehicleAction(
   input: CreateTransportVehicleInput,
 ): Promise<TransportActionState> {
+  const parsed = transportVehicleInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid vehicle' };
+  }
   try {
-    const vehicle = await createTransportVehicle(input);
+    const vehicle = await createTransportVehicle(parsed.data);
     revalidatePath('/transport');
     revalidatePath('/transport/vehicles');
     return { status: 'success', message: 'Vehicle created.', vehicleId: vehicle.id };
@@ -84,8 +92,15 @@ export async function createDriverAssignmentAction(input: {
   startDate: string;
   endDate?: string;
 }): Promise<TransportActionState> {
+  const parsed = driverAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'Invalid driver assignment',
+    };
+  }
   try {
-    const row = await createDriverAssignment(input);
+    const row = await createDriverAssignment(parsed.data);
     revalidatePath('/transport/assignments');
     return { status: 'success', message: 'Driver assignment created.', assignmentId: row.id };
   } catch (error) {
@@ -231,11 +246,6 @@ export async function ingestGpsPingAction(
   }
 }
 
-export async function refreshLiveMapAction(): Promise<TransportActionState> {
-  revalidatePath('/transport/live');
-  return { status: 'success', message: 'Live map refreshed.' };
-}
-
 const attendanceSchema = z.object({
   routeId: uuid,
   tripDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -314,18 +324,8 @@ export async function acknowledgeAlertAction(id: string): Promise<TransportActio
   }
 }
 
-const feeBandSchema = z.object({
-  name: z.string().min(1).max(255),
-  routeId: uuid.optional(),
-  stopId: uuid.optional(),
-  minDistanceKm: z.number().min(0).optional(),
-  maxDistanceKm: z.number().min(0).optional(),
-  amountCents: z.number().int().min(0),
-  currency: z.string().length(3).optional(),
-});
-
 export async function createTransportFeeStructureAction(
-  input: z.infer<typeof feeBandSchema>,
+  input: FeeBandInput,
 ): Promise<TransportActionState> {
   const parsed = feeBandSchema.safeParse({
     ...input,
@@ -336,11 +336,13 @@ export async function createTransportFeeStructureAction(
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid fee band' };
   }
   try {
-    await createTransportFeeStructure(parsed.data);
+    const band = await createTransportFeeStructure(parsed.data);
     revalidatePath('/transport/fees');
     return {
       status: 'success',
-      message: 'Fee band created (Fees category=transport when G-903 is wired).',
+      message: band.feesStructureId
+        ? 'Fee band created and linked to Fees.'
+        : 'Fee band created but not linked to Fees — assigned students will not be invoiced until Fees is connected.',
     };
   } catch (error) {
     return fail(error, 'Failed to create fee band');

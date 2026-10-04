@@ -4,7 +4,7 @@
 import Link from 'next/link';
 
 import { requireSession } from '@/lib/auth/server';
-import { listInvoicesResult } from '@/lib/api/fees';
+import { listInvoicesResult, listNettableScholarshipDisbursementsResult } from '@/lib/api/fees';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { ScholarshipNettingForm } from '../_components/scholarship-netting-form';
 
@@ -12,9 +12,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function FeesScholarshipNettingPage() {
   await requireSession();
-  const [studentOptions, invoicesResult] = await Promise.all([
+  const [studentOptions, invoicesResult, disbursementsResult] = await Promise.all([
     loadStudentOptions(),
     listInvoicesResult('staff'),
+    listNettableScholarshipDisbursementsResult(),
   ]);
   const invoiceOptions = invoicesResult.ok
     ? invoicesResult.items.map((invoice) => ({
@@ -44,6 +45,8 @@ export default async function FeesScholarshipNettingPage() {
       </div>
       <ScholarshipNettingForm
         studentOptions={studentOptions}
+        disbursements={disbursementsResult.ok ? disbursementsResult.items : []}
+        disbursementsFailed={!disbursementsResult.ok}
         invoiceOptions={invoiceOptions}
         invoiceDirectoryFailed={!invoicesResult.ok}
       />

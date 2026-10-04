@@ -4,6 +4,7 @@
  * Registers developer portal service routes and decorators on a Fastify instance.
  * Provides the developer portal service as a decorator for other plugins to use.
  */
+import type { QueueAdapter } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -11,9 +12,20 @@ import type { DeveloperPortalExtendedRepository } from './developer-portal-repos
 import {
   DeveloperPortalService,
   type DeveloperPortalServiceConfig,
+  type WebhookHttpFetch,
   DEFAULT_CONFIG,
 } from './developer-portal-service.js';
+import type { WebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
 import { registerDeveloperPortalRoutes } from './routes.js';
+import {
+  createWebhookDeliveryWorker,
+  type WebhookDeliveryWorker,
+} from './webhook-delivery-worker.js';
+import {
+  createWebhookEventFanOutSubscriber,
+  type WebhookEventFanOutSubscriber,
+} from './webhook-event-fanout.js';
+import type { WebhookReplayStore } from './webhook-signature.js';
 
 /**
  * Options for the developer portal plugin.
@@ -24,13 +36,24 @@ export interface DeveloperPortalPluginOptions {
   /** Service configuration (optional, uses defaults) */
   config?: Partial<DeveloperPortalServiceConfig>;
   /** Durable webhook delivery publisher (W2-JOB-07) */
-  deliveryPublisher?: import('./queue-webhook-delivery-publisher.js').WebhookDeliveryPublisher;
+  deliveryPublisher?: WebhookDeliveryPublisher;
   /**
    * W1-SEC-08 replay store for inbound webhook signature verification.
    * Gateway should inject Redis-backed store in production via
    * {@link createWebhookReplayStoreFromEnv}.
    */
-  replayStore?: import('./webhook-signature.js').WebhookReplayStore | null;
+  replayStore?: WebhookReplayStore | null;
+  /**
+   * PRC-H046: dedicated queue adapter the in-process webhook delivery worker
+   * consumes from (started onReady, stopped onClose).
+   */
+  deliveryWorkerQueue?: QueueAdapter;
+  /** PRC-H046: domain event types fanned out to matching tenant webhooks. */
+  fanOutEvents?: readonly string[];
+  /** PRC-H046: adapter factory for fan-out subscriptions (one per event). */
+  createFanOutQueue?: () => QueueAdapter;
+  /** Outbound HTTP client override (tests). */
+  httpFetch?: WebhookHttpFetch;
   /** Route prefix (default: '/developer') */
   prefix?: string;
 }
@@ -39,6 +62,8 @@ export interface DeveloperPortalPluginOptions {
 declare module 'fastify' {
   interface FastifyInstance {
     developerPortalService: DeveloperPortalService;
+    webhookDeliveryWorker?: WebhookDeliveryWorker;
+    webhookFanOut?: WebhookEventFanOutSubscriber;
   }
 }
 
@@ -50,16 +75,66 @@ export const developerPortalPlugin = fp(
     fastify: FastifyInstance,
     options: DeveloperPortalPluginOptions,
   ) {
-    const { repository, config = {}, deliveryPublisher, replayStore, prefix = '/developer' } = options;
+    const {
+      repository,
+      config = {},
+      deliveryPublisher,
+      replayStore,
+      deliveryWorkerQueue,
+      fanOutEvents = [],
+      createFanOutQueue,
+      httpFetch,
+      prefix = '/developer',
+    } = options;
 
     // Merge config with defaults
     const fullConfig: DeveloperPortalServiceConfig = { ...DEFAULT_CONFIG, ...config };
 
     // Create service instance
-    const service = new DeveloperPortalService(repository, fullConfig, { deliveryPublisher, replayStore });
+    const service = new DeveloperPortalService(repository, fullConfig, {
+      deliveryPublisher,
+      replayStore,
+      httpFetch,
+    });
 
     // Decorate fastify with the service
     fastify.decorate('developerPortalService', service);
+
+    // PRC-H046: webhook delivery consumer + event fan-out producer.
+    const logger = {
+      info: (obj: Record<string, unknown>, msg: string) => fastify.log.info(obj, msg),
+      error: (obj: Record<string, unknown>, msg: string) => fastify.log.error(obj, msg),
+    };
+    const lifecycle: Array<{ start(): Promise<void>; stop(): Promise<void> }> = [];
+    if (deliveryPublisher && deliveryWorkerQueue) {
+      const worker = createWebhookDeliveryWorker({
+        queue: deliveryWorkerQueue,
+        processor: service,
+        logger,
+      });
+      fastify.decorate('webhookDeliveryWorker', worker);
+      lifecycle.push(worker);
+    } else if (deliveryPublisher) {
+      fastify.log.warn('webhook delivery publisher configured without a consumer');
+    }
+    if (fanOutEvents.length > 0 && createFanOutQueue) {
+      const fanOut = createWebhookEventFanOutSubscriber({
+        events: fanOutEvents,
+        createQueue: createFanOutQueue,
+        processor: service,
+        logger,
+      });
+      fastify.decorate('webhookFanOut', fanOut);
+      lifecycle.push(fanOut);
+    }
+    if (lifecycle.length > 0) {
+      fastify.addHook('onReady', async () => {
+        for (const item of lifecycle) await item.start();
+      });
+      fastify.addHook('onClose', async () => {
+        for (const item of [...lifecycle].reverse()) await item.stop();
+      });
+    }
 
     // Register routes
     await registerDeveloperPortalRoutes(fastify, { service, prefix });

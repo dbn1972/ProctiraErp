@@ -4,6 +4,7 @@ import { InstitutionMap } from '@/components/institutions/institution-map';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { getInstitutions, type InstitutionFilters, type InstitutionLocation } from '@/lib/api';
+import { serverTransport } from '@/lib/gateway';
 import { MAX_PUBLIC_PAGE_SIZE } from '@/lib/pagination';
 
 export default async function SchoolsPage({
@@ -18,7 +19,10 @@ export default async function SchoolsPage({
   let institutions: InstitutionLocation[] = [];
   let initialError = false;
   try {
-    const response = await getInstitutions({ ...initialFilters, pageSize: MAX_PUBLIC_PAGE_SIZE });
+    const response = await getInstitutions(
+      { ...initialFilters, pageSize: MAX_PUBLIC_PAGE_SIZE },
+      serverTransport,
+    );
     institutions = response.data;
   } catch {
     initialError = true;

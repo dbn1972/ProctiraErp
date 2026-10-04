@@ -9,7 +9,7 @@ import { Kafka } from 'kafkajs';
 import type { DomainEvent } from '../types';
 
 import type { KafkaConfig } from './config';
-import { DEFAULT_KAFKA_CONFIG, buildTenantTopic } from './config';
+import { DEFAULT_KAFKA_CONFIG, assertKafkaConfigSecure, buildTenantTopic } from './config';
 
 export class KafkaEventProducer {
   private kafka: Kafka;
@@ -18,6 +18,7 @@ export class KafkaEventProducer {
 
   constructor(config: KafkaConfig) {
     const mergedConfig = { ...DEFAULT_KAFKA_CONFIG, ...config };
+    assertKafkaConfigSecure(mergedConfig);
 
     this.kafka = new Kafka({
       clientId: mergedConfig.clientId,

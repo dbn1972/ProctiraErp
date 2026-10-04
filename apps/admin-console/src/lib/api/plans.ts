@@ -1,7 +1,7 @@
 /**
  * Plans + entitlements API client.
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
 
 export interface Plan {
   id: string;
@@ -107,7 +107,8 @@ export async function updatePlanEntitlements(
     json: { entitlements: input.entitlements },
   });
   if (response.ok) return { ok: true };
-  if (response.status === 0) return { ok: true };
+  // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
+  if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
   return {
     ok: false,
     error: response.error?.message ?? 'Failed to update entitlements.',

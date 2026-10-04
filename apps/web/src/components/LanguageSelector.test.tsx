@@ -28,10 +28,14 @@ import { LanguageProvider, type TranslationMap } from '@/providers/LanguageProvi
 
 // Stub dynamic imports the provider triggers when ensureCatalog runs.
 vi.mock('@/messages/en.json', () => ({
-  default: { common: { save: 'Save' } } as TranslationMap,
+  default: {
+    common: { save: 'Save', language: 'Language', selectLanguage: 'Select language' },
+  } as TranslationMap,
 }));
 vi.mock('@/messages/hi.json', () => ({
-  default: { common: { save: 'सहेजें' } } as TranslationMap,
+  default: {
+    common: { save: 'सहेजें', language: 'भाषा', selectLanguage: 'भाषा चुनें' },
+  } as TranslationMap,
 }));
 vi.mock('@/messages/ar.json', () => ({
   default: { common: { save: 'حفظ' } } as TranslationMap,
@@ -49,7 +53,12 @@ function Harness({ initialLocale = 'en', children }: HarnessProps) {
     <LanguageProvider
       initialLocale={initialLocale}
       messagesByLocale={{
-        en: { common: { save: 'Save' } } as TranslationMap,
+        en: {
+          common: { save: 'Save', language: 'Language', selectLanguage: 'Select language' },
+        } as TranslationMap,
+        hi: {
+          common: { save: 'सहेजें', language: 'भाषा', selectLanguage: 'भाषा चुनें' },
+        } as TranslationMap,
       }}
     >
       {children}
@@ -65,7 +74,7 @@ function Harness({ initialLocale = 'en', children }: HarnessProps) {
  * synthetic pointer-capture chain Radix listens for on real devices).
  */
 function openMenu() {
-  const trigger = screen.getByRole('button', { name: 'Select language' });
+  const trigger = screen.getByTestId('language-selector');
   act(() => {
     trigger.focus();
     fireEvent.keyDown(trigger, { key: ' ', code: 'Space' });
@@ -219,9 +228,7 @@ describe('<LanguageSelector> — selection (Requirement 18 AC 7)', () => {
     );
 
     // Initially English.
-    expect(
-      screen.getByRole('button', { name: 'Select language' }).getAttribute('data-current-locale'),
-    ).toBe('en');
+    expect(screen.getByTestId('language-selector').getAttribute('data-current-locale')).toBe('en');
 
     openMenu();
     const hindiItem = screen
@@ -242,9 +249,7 @@ describe('<LanguageSelector> — selection (Requirement 18 AC 7)', () => {
     // After selection, the trigger reflects the new locale. We re-query
     // the DOM because Radix re-renders the trigger element when the menu
     // closes (the `data-state` attribute flips closed → open → closed).
-    expect(
-      screen.getByRole('button', { name: 'Select language' }).getAttribute('data-current-locale'),
-    ).toBe('hi');
+    expect(screen.getByTestId('language-selector').getAttribute('data-current-locale')).toBe('hi');
   });
 
   it('updates document.documentElement.dir when switching to the RTL pilot (ar)', () => {
@@ -295,5 +300,15 @@ describe('<LanguageSelector> — selection (Requirement 18 AC 7)', () => {
     // The provider chooses a brand-aware key. With no <BrandConfigProvider>
     // mounted in this harness, it falls back to `proctira-language`.
     expect(window.localStorage.getItem('proctira-language')).toBe('ta');
+  });
+
+  it('PRC-L065: trigger aria-label comes from the active locale catalogue', () => {
+    render(
+      <Harness initialLocale="hi">
+        <LanguageSelector />
+      </Harness>,
+    );
+    expect(screen.getByRole('button', { name: 'भाषा चुनें' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select language' })).not.toBeInTheDocument();
   });
 });

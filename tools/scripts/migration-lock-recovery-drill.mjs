@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * W1-DATA-17 COMPLETE — lock-contention recovery drill.
+ * W1-DATA-17 — lock-contention recovery drill.
  *
  * Proves: when apply-sql hits lock_timeout mid-file, the ledger does **not**
  * record the file; after the blocker releases, re-running apply-sql resumes
@@ -14,13 +14,7 @@
  * Exit 0 on pass; exit 1 on failure; exit 2 when DB required but missing.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -34,10 +28,7 @@ const applySqlPath = join(repoRoot, 'tools/scripts/apply-sql.sh');
  * @param {string[]} argv
  */
 export function parseDrillArgs(argv) {
-  let url =
-    process.env.MIGRATOR_DATABASE_URL?.trim() ||
-    process.env.DATABASE_URL?.trim() ||
-    '';
+  let url = process.env.MIGRATOR_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
   let skipIfNoDb = false;
   for (const arg of argv) {
     if (arg === '--skip-if-no-db') skipIfNoDb = true;
@@ -90,7 +81,13 @@ export function runApplySql(env) {
 export function holdAccessExclusive(url, table) {
   const child = spawn(
     'psql',
-    [url, '-v', 'ON_ERROR_STOP=1', '-c', `BEGIN; LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(120);`],
+    [
+      url,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `BEGIN; LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(120);`,
+    ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
   return child;
@@ -208,16 +205,17 @@ UPDATE ${table} SET recovered = true;
       holder = null;
     }
     // Ensure lock released even if SIGTERM left a backend.
-    psqlFn(url, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND query ILIKE '%LOCK TABLE ${table}%';`);
+    psqlFn(
+      url,
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND query ILIKE '%LOCK TABLE ${table}%';`,
+    );
     await delay(delayMs);
 
     const resume = runApplyFn(env);
     if (resume.status !== 0) {
       return {
         ok: false,
-        issues: [
-          `resume apply failed after lock release: ${resume.stderr}\n${resume.stdout}`,
-        ],
+        issues: [`resume apply failed after lock release: ${resume.stderr}\n${resume.stdout}`],
       };
     }
     if (!/Applying .*001_w1_data17_lock_probe\.sql/.test(resume.stdout)) {
@@ -234,14 +232,13 @@ UPDATE ${table} SET recovered = true;
     if (ledgerAfter.status !== 0 || ledgerAfter.stdout !== '1') {
       return {
         ok: false,
-        issues: [`ledger missing ${migrationName} after successful resume (got ${ledgerAfter.stdout})`],
+        issues: [
+          `ledger missing ${migrationName} after successful resume (got ${ledgerAfter.stdout})`,
+        ],
       };
     }
 
-    const col = psqlFn(
-      url,
-      `SELECT recovered FROM ${table} WHERE id = 1`,
-    );
+    const col = psqlFn(url, `SELECT recovered FROM ${table} WHERE id = 1`);
     if (col.status !== 0 || col.stdout !== 't') {
       return {
         ok: false,

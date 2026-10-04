@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import {
   accessTokenCookieOptions,
   getAuthServiceUrl,
+  mfaChallengeCookieOptions,
+  readRequestCookie,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/mfa/verify
@@ -20,12 +23,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const { mfaToken, code } = body;
-  if (!mfaToken || !code) {
+  const { code } = body;
+  // PRC-L024: the challenge normally arrives via the httpOnly cookie set by
+  // /api/auth/login; an explicit body token is still accepted for SPA hosts.
+  const mfaToken =
+    body.mfaToken?.trim() || readRequestCookie(request, AUTH_COOKIES.MFA_CHALLENGE) || '';
+  if (!mfaToken) {
+    return NextResponse.json(
+      { message: 'Your verification session expired. Please sign in again.' },
+      { status: 401 },
+    );
+  }
+  if (!code) {
     return NextResponse.json({ message: 'Verification code is required.' }, { status: 400 });
   }
 
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
+  if (!tenantId) {
+    return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
+  }
 
   let upstream: Response;
   try {
@@ -59,6 +76,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const response = NextResponse.json({ success: true });
+  response.cookies.set(AUTH_COOKIES.MFA_CHALLENGE, '', mfaChallengeCookieOptions(0, request));
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.tokens.accessToken,

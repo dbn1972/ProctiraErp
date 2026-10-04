@@ -12,7 +12,11 @@ export type GradebookAction =
   | 'report_card.create'
   | 'transcript.issue'
   | 'credit_rule.write'
-  | 'board_export.create';
+  | 'board_export.create'
+  // PRC-C006/C007: staff read of gradebook surfaces (grades, GPA, ranks, transcripts, audits,
+  // board exports, report cards). Read routes previously had no domain role check, so any
+  // tenant user could read all grades/transcripts and download board-export PII.
+  | 'grade.read.staff';
 
 const ADMIN_ROLES = ['admin', 'super-admin', 'system_admin', 'principal', 'school_admin'] as const;
 
@@ -25,6 +29,10 @@ const REGISTRAR_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
+// Staff who may read gradebook surfaces: teachers + registrar/exam officers + admins.
+// Portal roles (parent/student/guardian) are NOT here; their access is self-scoped separately.
+const READ_STAFF_ROLES = [...new Set<string>([...TEACHER_ROLES, ...REGISTRAR_ROLES])] as const;
+
 const ACTION_ROLES: Record<GradebookAction, readonly string[]> = {
   'grade.entry': TEACHER_ROLES,
   'grade.moderate': REGISTRAR_ROLES,
@@ -33,6 +41,7 @@ const ACTION_ROLES: Record<GradebookAction, readonly string[]> = {
   'transcript.issue': REGISTRAR_ROLES,
   'credit_rule.write': REGISTRAR_ROLES,
   'board_export.create': REGISTRAR_ROLES,
+  'grade.read.staff': READ_STAFF_ROLES,
 };
 
 export function normalizeRoles(roles: unknown): string[] {

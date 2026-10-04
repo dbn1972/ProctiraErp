@@ -1,0 +1,48 @@
+{
+  "data": [
+    {
+      "id": "0b7f3a52-7c1e-4f0a-9d7e-111111111111",
+      "tenantId": "0b7f3a52-7c1e-4f0a-9d7e-000000000001",
+      "name": "Merit Scholarship 2026",
+      "description": null,
+      "applicationStartDate": "2026-01-01",
+      "applicationEndDate": "2099-03-31",
+      "totalSlots": 50,
+      "usedSlots": 3,
+      "amountPerRecipient": 25000,
+      "amountPerRecipientCents": 2500000,
+      "currency": "INR",
+      "disbursementFrequency": "annual",
+      "eligibility": {
+        "minGPA": 3.2,
+        "requiredDocuments": ["transcript", "income_certificate"]
+      },
+      "status": "open",
+      "academicPeriodId": null,
+      "fundingSourceId": null,
+      "createdAt": "2025-12-01T08:00:00.000Z",
+      "updatedAt": "2025-12-02T08:00:00.000Z"
+    },
+    {
+      "id": "0b7f3a52-7c1e-4f0a-9d7e-222222222222",
+      "tenantId": "0b7f3a52-7c1e-4f0a-9d7e-000000000001",
+      "name": "Sports Grant",
+      "description": "For state-level athletes",
+      "applicationStartDate": "2025-01-01",
+      "applicationEndDate": "2025-02-28",
+      "totalSlots": 10,
+      "usedSlots": 10,
+      "amountPerRecipient": 10000.5,
+      "amountPerRecipientCents": 1000050,
+      "currency": "INR",
+      "disbursementFrequency": "one_time",
+      "eligibility": {},
+      "status": "closed",
+      "academicPeriodId": null,
+      "fundingSourceId": null,
+      "createdAt": "2024-12-01T08:00:00.000Z",
+      "updatedAt": "2025-03-01T08:00:00.000Z"
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 2, "totalPages": 1 }
+}

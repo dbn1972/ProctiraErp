@@ -37,6 +37,8 @@ export { createStorageAdapter } from './factory.js';
 export {
   buildTenantKey,
   buildTenantPrefix,
+  assertSafeTenantSegment,
+  assertSafeObjectPath,
   extractTenantId,
   validateTenantOwnership,
   TenantScopeError,

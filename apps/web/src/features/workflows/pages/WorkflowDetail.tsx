@@ -17,6 +17,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { useAuth } from '@/providers/AuthProvider';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 
@@ -128,6 +129,8 @@ function getStateTypeColor(type: WorkflowState['type']): string {
 export default function WorkflowDetail() {
   const { instanceId } = useParams<{ instanceId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const actorId = user?.id ?? null;
 
   const [instance, setInstance] = useState<WorkflowInstance | null>(null);
   const [definition, setDefinition] = useState<WorkflowDefinition | null>(null);
@@ -201,6 +204,10 @@ export default function WorkflowDetail() {
    */
   const handleTransition = async (action: string) => {
     if (!instanceId) return;
+    if (!actorId) {
+      setTransitionError('Your session has expired. Sign in again to act on this request.');
+      return;
+    }
     setIsTransitioning(true);
     setTransitionError(null);
     setTransitionSuccess(null);
@@ -212,7 +219,7 @@ export default function WorkflowDetail() {
           method: 'POST',
           json: {
             action,
-            actorId: 'current-user', // In production, resolved from auth context
+            actorId,
             comments: comments || undefined,
           },
         },
@@ -426,7 +433,7 @@ export default function WorkflowDetail() {
                   <button
                     key={transition.id}
                     onClick={() => setPendingAction(transition.action)}
-                    disabled={isTransitioning}
+                    disabled={isTransitioning || !actorId}
                     className={buttonClass}
                     aria-label={`${humanizeStatus(transition.action)} — transition to ${getStateName(transition.toStateId)}`}
                   >

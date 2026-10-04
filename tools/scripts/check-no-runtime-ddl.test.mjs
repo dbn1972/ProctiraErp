@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 import {
+  DYNAMIC_SQL_ALLOWLIST,
   evaluateNoRuntimeDdl,
   evaluateRuntimeSchemaVersion,
   inspectRuntimeSource,
@@ -105,6 +106,39 @@ test('scans runtime src and excludes test infrastructure', () => {
   assert.equal(report.ok, false);
   assert.equal(report.issues.length, 1);
   assert.match(report.issues[0], /repository\.ts/);
+});
+
+test('PRC-L386: Prisma $queryRaw* / unsafe APIs and dynamic DDL templates are rejected', () => {
+  for (const source of [
+    "await tx.$queryRawUnsafe('ALTER TABLE t ADD c int')\n",
+    'await tx.$queryRaw`DROP TABLE t`\n',
+    "await sql.unsafe('CREATE INDEX i ON t (c)')\n",
+    'const n = getName(); await db.query(`CREATE TABLE ${n} (id int)`)\n',
+  ]) {
+    const issues = inspectRuntimeSource(source, 'packages/backend/x/src/repo.ts');
+    assert.ok(
+      issues.some((issue) => /DDL/.test(issue)),
+      `expected DDL issue for: ${source}`,
+    );
+  }
+});
+
+test('PRC-L386: unresolvable SQL to raw-unsafe APIs fails unless allowlisted', () => {
+  const source =
+    'export async function run(tx, text: string) { return tx.$queryRawUnsafe(text) }\n';
+  const issues = inspectRuntimeSource(source, 'packages/backend/x/src/repo.ts');
+  assert.ok(issues.some((issue) => /unresolvable dynamic SQL/.test(issue)));
+  for (const path of DYNAMIC_SQL_ALLOWLIST.keys()) {
+    assert.deepEqual(inspectRuntimeSource(source, path), []);
+  }
+  // Static DML stays allowed.
+  assert.deepEqual(
+    inspectRuntimeSource(
+      "await tx.$queryRawUnsafe('SELECT * FROM t WHERE id = $1', id)\n",
+      'packages/backend/x/src/repo.ts',
+    ),
+    [],
+  );
 });
 
 test('fails when the runtime schema marker lags the latest non-seed migration', () => {

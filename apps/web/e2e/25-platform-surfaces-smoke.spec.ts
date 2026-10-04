@@ -96,7 +96,9 @@ test.describe('Platform surfaces — inventory smoke (ungated)', () => {
 
   for (const surface of SURFACES) {
     test(`${surface.id} renders its shell with a session (offline-tolerant)`, async ({ page }) => {
-      await setupFakeTenantSession(page);
+      // PRC-L034: /billing and /audit-logs layouts require platform read, so
+      // the shell is rendered for the platform administrator persona.
+      await setupFakeTenantSession(page, { roles: PLATFORM_ROLES });
       await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
       // `next start` briefly streams an unhydrated duplicate outside <main>
       // during the client swap, sometimes more than once before settling.
@@ -147,7 +149,10 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
         },
       },
     });
-    expect(created.status(), await created.text()).toBe(201);
+    // PRC-H099: without a configured tenant-admin provisioner the gateway fails
+    // closed (422) and writes no tenant record, so the slug stays unused.
+    expect(created.status(), await created.text()).toBe(422);
+    expect(await created.text()).toContain('Tenant admin provisioning is not configured');
 
     const entityId = `g727-${stamp}`;
     const recorded = await request.post(`${GATEWAY_URL}/api/v1/audit-logs`, {
@@ -184,9 +189,9 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
     await expect(rows.first().getByText('status', { exact: true })).toBeVisible();
 
     await page.goto(`/tenant-lifecycle?search=g727-${stamp}`, { waitUntil: 'domcontentloaded' });
-    const tenantRows = page.getByTestId('tenant-row');
-    await expect(tenantRows).toHaveCount(1);
-    await expect(tenantRows.first()).toContainText(`g727-${stamp}`);
+    await expect(page.getByTestId('tenant-lifecycle-page')).toBeVisible();
+    // The refused create left no half-provisioned tenant behind.
+    await expect(page.getByTestId('tenant-row')).toHaveCount(0);
   });
 
   test('tenant admin is told platform access is required instead of an empty table', async ({
@@ -194,8 +199,10 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
   }) => {
     await signedSession(page, TENANT_ADMIN_ROLES, `tenant-admin-e2e-${Date.now()}`);
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('audit-logs-page')).toBeVisible();
-    await expect(page.getByTestId('platform-forbidden-notice')).toBeVisible();
+    // PRC-L034: the /audit-logs layout stops tenant admins (no platform read)
+    // with an explicit access-denied notice before any empty table renders.
+    await expect(page.getByTestId('route-access-denied')).toBeVisible();
+    await expect(page.getByTestId('audit-logs-page')).toHaveCount(0);
     await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
   });
 });
