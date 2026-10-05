@@ -599,7 +599,7 @@ describe('Infrastructure Routes', () => {
 
       const response = await app.inject({
         method: 'PUT',
-        url: `/infrastructure/${land.id}`,
+        url: `/infrastructure/${land.id}?institutionId=${institutionId}`,
         payload: { name: 'New Name', capacity: 9999 },
       });
 
@@ -629,6 +629,21 @@ describe('Infrastructure Routes', () => {
       });
       expect(same.statusCode).toBe(200);
     });
+    it('requires the owning institutionId on update (PRC-H022)', async () => {
+      const landRes = await app.inject({
+        method: 'POST',
+        url: '/infrastructure/lands',
+        payload: { name: 'Unscoped land', institutionId, capacity: 10, condition: 'Good' },
+      });
+      const land = JSON.parse(landRes.body);
+      const response = await app.inject({
+        method: 'PUT',
+        url: `/infrastructure/${land.id}`,
+        payload: { name: 'No scope' },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('INSTITUTION_REQUIRED');
+    });
   });
 
   describe('DELETE /infrastructure/:id', () => {
@@ -642,7 +657,7 @@ describe('Infrastructure Routes', () => {
 
       const response = await app.inject({
         method: 'DELETE',
-        url: `/infrastructure/${land.id}`,
+        url: `/infrastructure/${land.id}?institutionId=${institutionId}`,
       });
 
       expect(response.statusCode).toBe(204);
@@ -670,10 +685,28 @@ describe('Infrastructure Routes', () => {
 
       const response = await app.inject({
         method: 'DELETE',
-        url: `/infrastructure/${land.id}`,
+        url: `/infrastructure/${land.id}?institutionId=${institutionId}`,
       });
 
       expect(response.statusCode).toBe(422);
+    });
+
+    it('rejects a delete without, or with a foreign, institutionId (PRC-H022)', async () => {
+      const landRes = await app.inject({
+        method: 'POST',
+        url: '/infrastructure/lands',
+        payload: { name: 'Keep me', institutionId, capacity: 10, condition: 'Good' },
+      });
+      const land = JSON.parse(landRes.body);
+      const missing = await app.inject({ method: 'DELETE', url: `/infrastructure/${land.id}` });
+      expect(missing.statusCode).toBe(400);
+      const foreign = await app.inject({
+        method: 'DELETE',
+        url: `/infrastructure/${land.id}?institutionId=87654321-4321-4321-8321-cba987654321`,
+      });
+      expect(foreign.statusCode).toBe(404);
+      const stillThere = await app.inject({ method: 'GET', url: `/infrastructure/${land.id}` });
+      expect(stillThere.statusCode).toBe(200);
     });
   });
 

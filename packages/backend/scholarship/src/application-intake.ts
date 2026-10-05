@@ -7,7 +7,7 @@
  * are rejected, and — when a student lookup is configured — the applicant must be a
  * student of the caller's tenant.
  */
-import { ValidationError } from '@proctira/common';
+import { AppError, ValidationError } from '@proctira/common';
 import type { FastifyRequest } from 'fastify';
 
 import { actorFromRequest, type ScholarshipActor } from './document-access.js';
@@ -99,4 +99,47 @@ export async function resolveApplicationSubject(input: {
     ]);
   }
   return { applicantId, institutionId };
+}
+
+/** PRC-L345: record lookup for the attributes that drive eligibility and reporting. */
+export type ApplicantAttributesLookup = (
+  tenantId: string,
+  studentId: string,
+) => Promise<{ areaId: string | null; gender: 'male' | 'female' | 'other' | null } | null>;
+
+/**
+ * PRC-L345: `areaId` and `gender` drive program eligibility and utilization reports, so they come
+ * from the student record, never the client. A client value that contradicts the record is a 422;
+ * a value the record cannot confirm (no record / attribute unset / no lookup) is dropped.
+ */
+export async function deriveApplicantAttributes(input: {
+  tenantId: string;
+  applicantId: string;
+  claimed: { areaId?: string; gender?: string };
+  lookup?: ApplicantAttributesLookup;
+}): Promise<{ areaId?: string; gender?: 'male' | 'female' | 'other' }> {
+  const record = input.lookup ? await input.lookup(input.tenantId, input.applicantId) : null;
+  const mismatched: string[] = [];
+  if (input.claimed.areaId && record?.areaId && input.claimed.areaId !== record.areaId) {
+    mismatched.push('areaId');
+  }
+  if (input.claimed.gender && record?.gender && input.claimed.gender !== record.gender) {
+    mismatched.push('gender');
+  }
+  if (mismatched.length > 0) {
+    throw new AppError(
+      `${mismatched.join(' and ')} does not match the student record`,
+      'APPLICANT_ATTRIBUTE_MISMATCH',
+      422,
+      mismatched.map((field) => ({
+        field,
+        rule: 'record_mismatch',
+        message: `${field} must match the student record`,
+      })),
+    );
+  }
+  return {
+    ...(record?.areaId ? { areaId: record.areaId } : {}),
+    ...(record?.gender ? { gender: record.gender } : {}),
+  };
 }
