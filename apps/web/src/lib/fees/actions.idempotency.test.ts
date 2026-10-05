@@ -110,6 +110,7 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
       invoiceId: INVOICE,
       method: 'cash',
       amount: '10',
+      reference: 'RB-0042',
       idempotencyKey: KEY,
     });
     expect(gatewayFetch.mock.calls[0]![0]).toBe(`/fees/invoices/${INVOICE}/pay`);
@@ -119,6 +120,7 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
       method: 'cash',
       amountCents: 1000,
       idempotencyKey: KEY,
+      reference: 'RB-0042',
     });
   });
 });
