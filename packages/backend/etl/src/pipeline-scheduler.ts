@@ -198,36 +198,54 @@ export function cronMatchesDate(
 ): boolean {
   const cron = parseCronExpression(cronExpression);
   if (!cron) return false;
-  const t = wallClock(date, timezone);
-  if (!cron.minutes.has(t.minute) || !cron.hours.has(t.hour) || !cron.months.has(t.month)) {
-    return false;
-  }
+  return matchesWallClock(cron, wallClock(date, timezone));
+}
+
+/** Month + day-of-month/day-of-week check (Vixie OR when both day fields are restricted). */
+function dayMatches(cron: ParsedCron, t: WallClock): boolean {
+  if (!cron.months.has(t.month)) return false;
   const domOk = cron.daysOfMonth.has(t.day);
   const dowOk = cron.daysOfWeek.has(t.weekday);
   if (cron.domRestricted && cron.dowRestricted) return domOk || dowOk;
   return domOk && dowOk;
 }
 
+function matchesWallClock(cron: ParsedCron, t: WallClock): boolean {
+  return cron.minutes.has(t.minute) && cron.hours.has(t.hour) && dayMatches(cron, t);
+}
+
 /**
  * Calculates the next run time for a cron expression after a given date.
- * Searches forward minute-by-minute (wall clock in `timezone`) up to 366 days.
+ * Searches forward (wall clock in `timezone`) up to 366 days. In UTC there is
+ * no DST, so non-matching days and hours are skipped whole; other zones are
+ * scanned minute-by-minute so DST transitions cannot skip a matching minute.
  */
 export function getNextRunTime(
   cronExpression: string,
   after: Date,
   timezone: string = 'UTC',
 ): Date | null {
-  if (!parseCronExpression(cronExpression)) return null;
-  const maxIterations = 366 * 24 * 60; // 1 year of minutes
+  const cron = parseCronExpression(cronExpression);
+  if (!cron) return null;
   const candidate = new Date(after.getTime());
   // Start from the next minute
   candidate.setUTCSeconds(0, 0);
   candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
+  const limit = candidate.getTime() + 366 * 24 * 60 * 60_000; // 1 year of minutes
 
-  for (let i = 0; i < maxIterations; i++) {
-    if (cronMatchesDate(cronExpression, candidate, timezone)) {
-      return candidate;
+  while (candidate.getTime() < limit) {
+    const t = wallClock(candidate, timezone);
+    if (timezone === 'UTC') {
+      if (!dayMatches(cron, t)) {
+        candidate.setUTCHours(24, 0, 0, 0); // next UTC midnight
+        continue;
+      }
+      if (!cron.hours.has(t.hour)) {
+        candidate.setUTCMinutes(60, 0, 0); // next UTC hour
+        continue;
+      }
     }
+    if (matchesWallClock(cron, t)) return candidate;
     candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
   }
 

@@ -96,6 +96,48 @@ describe('cron matching (PRC-M228)', () => {
     expect(() => new PipelineScheduler({ timezone: 'Mars/Olympus' })).toThrow();
   });
 
+  it('property: UTC day/hour skipping agrees with a minute-by-minute scan', () => {
+    // getNextRunTime skips whole non-matching UTC days and hours; compare it
+    // with a brute-force scan over a 7-day horizon (bounded for speed).
+    const horizonMin = 7 * 24 * 60;
+    const field = (min: number, max: number) =>
+      fc.oneof(
+        fc.constant('*'),
+        fc.integer({ min, max }).map(String),
+        fc
+          .tuple(fc.integer({ min, max }), fc.integer({ min, max }))
+          .map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`),
+        fc.integer({ min: 2, max: 9 }).map((st) => `*/${st}`),
+      );
+    fc.assert(
+      fc.property(
+        field(0, 59),
+        field(0, 23),
+        field(1, 31),
+        field(0, 7),
+        fc.integer({ min: 0, max: 2 * 365 * 24 * 60 * 60 }),
+        (mi, h, dom, dow, offsetSec) => {
+          const expr = `${mi} ${h} ${dom} * ${dow}`;
+          const after = new Date(Date.UTC(2026, 0, 1) + offsetSec * 1000);
+          const probe = new Date(after.getTime());
+          probe.setUTCSeconds(0, 0);
+          let brute: string | null = null;
+          for (let i = 0; i < horizonMin; i++) {
+            probe.setUTCMinutes(probe.getUTCMinutes() + 1);
+            if (cronMatchesDate(expr, probe)) {
+              brute = probe.toISOString();
+              break;
+            }
+          }
+          const next = getNextRunTime(expr, after);
+          if (brute) expect(next?.toISOString()).toBe(brute);
+          else if (next) expect(next.getTime()).toBeGreaterThan(probe.getTime());
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
   it('property: next run matches and no earlier minute matches', () => {
     const field = (min: number, max: number) =>
       fc.oneof(

@@ -96,6 +96,15 @@ describe('connector secrets at rest (PRC-M224)', () => {
     expect(() => cipher.open(OTHER, sealed)).toThrow();
   });
 
+  it('rejects a truncated authentication tag', () => {
+    const cipher = new AesGcmConnectorSecretCipher(randomBytes(32));
+    const [prefix, version, iv, tag, data] = cipher.seal(TENANT, 'x').split(':');
+    // Keep only the first 4 bytes of the 16-byte tag.
+    const shortTag = Buffer.from(tag!, 'base64').subarray(0, 4).toString('base64');
+    const truncated = [prefix, version, iv, shortTag, data].join(':');
+    expect(() => cipher.open(TENANT, truncated)).toThrow('Malformed connector secret ciphertext');
+  });
+
   it('production without a key refuses to store secrets (503)', async () => {
     const { pool } = fakePool();
     const cipher = createConnectorSecretCipher({ NODE_ENV: 'production' } as NodeJS.ProcessEnv);

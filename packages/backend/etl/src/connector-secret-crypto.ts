@@ -19,6 +19,9 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:
 import { AppError } from '@proctira/common';
 
 const PREFIX = 'etlsec:v1:';
+/** GCM nonce and authentication-tag sizes; a shorter tag is rejected on open. */
+const IV_BYTES = 12;
+const AUTH_TAG_BYTES = 16;
 const SECRET_KEYS = new Set(['password', 'connectionString']);
 const SECRET_MAP_KEYS = new Set(['authConfig']);
 
@@ -58,8 +61,10 @@ export class AesGcmConnectorSecretCipher implements ConnectorSecretCipher {
   }
 
   seal(tenantId: string, plaintext: string): string {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.keyFor(tenantId), iv);
+    const iv = randomBytes(IV_BYTES);
+    const cipher = createCipheriv('aes-256-gcm', this.keyFor(tenantId), iv, {
+      authTagLength: AUTH_TAG_BYTES,
+    });
     cipher.setAAD(Buffer.from(tenantId, 'utf8'));
     const data = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -72,13 +77,18 @@ export class AesGcmConnectorSecretCipher implements ConnectorSecretCipher {
     if (!ivB64 || !tagB64 || dataB64 === undefined) {
       throw new Error('Malformed connector secret ciphertext');
     }
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      this.keyFor(tenantId),
-      Buffer.from(ivB64, 'base64'),
-    );
+    const iv = Buffer.from(ivB64, 'base64');
+    const tag = Buffer.from(tagB64, 'base64');
+    // Pin the tag length: without it GCM accepts truncated tags, which weakens
+    // forgery resistance (Semgrep gcm-no-tag-length).
+    if (iv.length !== IV_BYTES || tag.length !== AUTH_TAG_BYTES) {
+      throw new Error('Malformed connector secret ciphertext');
+    }
+    const decipher = createDecipheriv('aes-256-gcm', this.keyFor(tenantId), iv, {
+      authTagLength: AUTH_TAG_BYTES,
+    });
     decipher.setAAD(Buffer.from(tenantId, 'utf8'));
-    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    decipher.setAuthTag(tag);
     return Buffer.concat([
       decipher.update(Buffer.from(dataB64, 'base64')),
       decipher.final(),
