@@ -61,3 +61,66 @@ export function linkLookupUnavailable(message: string, cause: unknown): AppError
   (error as AppError & { cause?: unknown }).cause = cause;
   return error;
 }
+
+/** PRC-L345: applicant attributes that drive eligibility and reporting, read from the record. */
+export interface ApplicantRecordAttributes {
+  institutionId: string | null;
+  /** Area of the student's current enrolment institution. */
+  areaId: string | null;
+  gender: 'male' | 'female' | 'other' | null;
+}
+
+/** Maps a stored student gender to the scholarship enum; unknown values are null, not 'other'. */
+export function normalizeRecordGender(raw: unknown): ApplicantRecordAttributes['gender'] {
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim().toLowerCase();
+  if (value === 'male' || value === 'm') return 'male';
+  if (value === 'female' || value === 'f') return 'female';
+  if (value === 'other' || value === 'o') return 'other';
+  return null;
+}
+
+/**
+ * PRC-L345: the student's gender and current enrolment institution/area from Postgres (RLS).
+ * Null when no database is configured or the student is unknown in this tenant; an outage is a
+ * 503, never "no attributes".
+ */
+export async function applicantAttributesForStudent(
+  tenantId: string,
+  studentId: string,
+): Promise<ApplicantRecordAttributes | null> {
+  const pool = getSharedScholarshipPool();
+  if (!pool || !studentId) return null;
+  try {
+    return await withPgTenant(pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT s.gender,
+                e.institution_id::text AS institution_id,
+                i.area_id::text AS area_id
+           FROM students s
+           LEFT JOIN LATERAL (
+             SELECT institution_id
+               FROM enrollments
+              WHERE student_id = s.id
+              ORDER BY enrolled_at DESC NULLS LAST
+              LIMIT 1
+           ) e ON true
+           LEFT JOIN institutions i ON i.id = e.institution_id
+          WHERE s.id = $1
+            AND s.deleted_at IS NULL
+          LIMIT 1`,
+        [studentId],
+      );
+      const row = result.rows[0] as
+        { gender?: unknown; institution_id?: unknown; area_id?: unknown } | undefined;
+      if (!row) return null;
+      return {
+        institutionId: typeof row.institution_id === 'string' ? row.institution_id : null,
+        areaId: typeof row.area_id === 'string' ? row.area_id : null,
+        gender: normalizeRecordGender(row.gender),
+      };
+    });
+  } catch (error) {
+    throw linkLookupUnavailable('Student record lookup is unavailable', error);
+  }
+}

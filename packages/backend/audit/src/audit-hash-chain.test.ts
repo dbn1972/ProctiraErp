@@ -184,3 +184,36 @@ describe('AuditService.runRetentionSweep + scheduler', () => {
     expect(scheduler.running).toBe(false);
   });
 });
+
+describe('ChainVerifier streaming (PRC-M085)', () => {
+  it('matches verifyEntrySequence when fed page by page, clean and tampered', async () => {
+    const { ChainVerifier } = await import('./audit-hash.js');
+    const repo = new InMemoryAuditRepository();
+    const rows: AuditLogEntry[] = [];
+    for (let i = 0; i < 7; i++) rows.push(await repo.create(input()));
+    const stream = (entries: AuditLogEntry[]) => {
+      const v = new ChainVerifier(TENANT);
+      // pages of 3, carrying prev_hash across page boundaries
+      for (let i = 0; i < entries.length; i += 3) {
+        if (!entries.slice(i, i + 3).every((e) => v.push(e))) break;
+      }
+      const last = entries[entries.length - 1]!;
+      return v.finish(0, { seq: last.chainSeq ?? 0, hash: last.entryHash ?? null });
+    };
+    const clean = stream(rows);
+    const batch = verifyEntrySequence(TENANT, rows);
+    expect({ ...clean, verifiedAt: '' }).toEqual({ ...batch, verifiedAt: '' });
+    expect(clean.valid).toBe(true);
+    expect(clean.checkedEntries).toBe(7);
+
+    const tampered = rows.map((r, i) => (i === 4 ? { ...r, afterValues: { name: 'forged' } } : r));
+    const t = stream(tampered);
+    expect(t.valid).toBe(false);
+    expect(t.brokenAt?.chainSeq).toBe(5);
+    expect(t.checkedEntries).toBe(4);
+    expect({ ...t, verifiedAt: '' }).toEqual({
+      ...verifyEntrySequence(TENANT, tampered),
+      verifiedAt: '',
+    });
+  });
+});

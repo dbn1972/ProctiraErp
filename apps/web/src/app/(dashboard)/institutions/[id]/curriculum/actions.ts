@@ -156,7 +156,7 @@ export async function updateLessonPlanAction(
   const v = updateLessonPlanSchema.safeParse({ institutionId, ...values });
   if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
-    const row = await updateLessonPlan(v.data.id, {
+    const row = await updateLessonPlan(v.data.id, v.data.institutionId, {
       title: v.data.title,
       plannedDate: v.data.plannedDate || null,
     });
@@ -174,7 +174,7 @@ export async function deleteLessonPlanAction(
   const v = curriculumIdSchema.safeParse({ institutionId, id });
   if (!v.success) return { ok: false, error: firstIssue(v.error) };
   try {
-    await deleteLessonPlan(id);
+    await deleteLessonPlan(v.data.id, v.data.institutionId);
     revalidateCurriculum(institutionId);
     return { ok: true, id };
   } catch (error) {

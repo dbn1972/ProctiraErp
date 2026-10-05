@@ -1,11 +1,9 @@
-import 'dart:convert';
-
 import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/api/pagination.dart';
 import '../../../core/storage/cache_crypto.dart';
+import '../../../core/student/student_cache_sync.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_models.dart';
@@ -39,6 +37,66 @@ class AttendanceRosterEntry {
   SyncStatus? queueStatus;
 }
 
+/// Outcome of an explicit attendance submit (PRC-M038).
+class AttendanceSubmitSummary {
+  const AttendanceSubmitSummary({
+    required this.synced,
+    required this.failed,
+    required this.conflicted,
+    required this.stillQueued,
+  });
+
+  final int synced;
+  final int failed;
+  final int conflicted;
+
+  /// Ops still in the queue after the flush (offline or retrying).
+  final int stillQueued;
+
+  bool get allSent => failed == 0 && conflicted == 0 && stillQueued == 0;
+
+  /// Short, user-facing description of the result.
+  String describe() {
+    if (allSent) {
+      return synced == 0
+          ? 'All attendance is already submitted.'
+          : 'Submitted $synced attendance ${synced == 1 ? 'mark' : 'marks'}.';
+    }
+    final List<String> parts = <String>[
+      if (synced > 0) '$synced submitted',
+      if (stillQueued > 0) '$stillQueued waiting to sync',
+      if (failed > 0) '$failed failed',
+      if (conflicted > 0) '$conflicted need review',
+    ];
+    return 'Attendance: ${parts.join(', ')}.';
+  }
+}
+
+/// Roster plus refresh status, so the screen can show stale/error states
+/// instead of an unexplained empty list (PRC-M032).
+class RosterLoadResult {
+  const RosterLoadResult({
+    required this.entries,
+    this.knownClasses = const <String>[],
+    this.refreshed = false,
+    this.refreshError,
+  });
+
+  final List<AttendanceRosterEntry> entries;
+
+  /// Distinct class labels present in the cached roster (PRC-M031).
+  final List<String> knownClasses;
+
+  /// True when the roster was refreshed from the server on this load.
+  final bool refreshed;
+
+  /// Failure from the network refresh, if any. Entries are cached data.
+  final Object? refreshError;
+
+  /// Cached rows are being shown because the refresh failed.
+  bool get isStale => refreshError != null;
+}
+
 /// Wraps the SQLite cache + [SyncEngine] for the attendance feature.
 class AttendanceRepository {
   AttendanceRepository({
@@ -66,19 +124,67 @@ class AttendanceRepository {
   final StudentApi? _studentApi;
   final Uuid _uuid;
   final DateTime Function() _now;
+  late final StudentCacheSync _cacheSync = StudentCacheSync(
+    cacheCrypto: _cacheCrypto,
+    now: _now,
+  );
 
-  /// Build the roster for a class on a given date.
+  /// Build the roster for a class on a given date (entries only).
   ///
-  /// Reads from `students_cache` first; if the cache is empty AND a
-  /// [StudentApi] is wired in AND the device is online, the API is queried
-  /// and the rows are seeded into the cache for future offline use.
+  /// See [loadRosterWithStatus] for the refresh/error semantics.
   Future<List<AttendanceRosterEntry>> loadRoster({
     required String institutionId,
     String? classId,
     required String date,
+    bool refresh = true,
+  }) async {
+    final RosterLoadResult result = await loadRosterWithStatus(
+      institutionId: institutionId,
+      classId: classId,
+      date: date,
+      refresh: refresh,
+    );
+    return result.entries;
+  }
+
+  /// Build the roster and report whether the network refresh succeeded.
+  ///
+  /// When [refresh] is true and a [StudentApi] is wired in, every page of
+  /// the institution's students is fetched (PRC-M032) and the cache scope is
+  /// replaced, so new students appear and removed ones disappear. A refresh
+  /// failure never hides cached rows, but it is returned in
+  /// [RosterLoadResult.refreshError] instead of being swallowed.
+  ///
+  /// [classId] filters on the cached `class_name` (case-insensitive), which
+  /// is populated from the student payload (PRC-M031).
+  Future<RosterLoadResult> loadRosterWithStatus({
+    required String institutionId,
+    String? classId,
+    required String date,
+    bool refresh = true,
   }) async {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
+
+    Object? refreshError;
+    bool refreshed = false;
+    final StudentApi? api = _studentApi;
+    if (refresh && api != null) {
+      try {
+        final ({List<Student> students, bool complete}) remote =
+            await _cacheSync.fetchAll(api, institutionId: institutionId);
+        await _cacheSync.replaceScope(
+          db,
+          tenantId: tenantId,
+          institutionId: institutionId,
+          remote: remote.students,
+          prune: remote.complete,
+        );
+        refreshed = true;
+      } on ApiException catch (error) {
+        refreshError = error;
+      }
+    }
 
     List<Map<String, Object?>> rows = await db.query(
       'students_cache',
@@ -87,51 +193,46 @@ class AttendanceRepository {
       orderBy: 'full_name ASC',
     );
 
-    if (rows.isEmpty && _studentApi != null) {
-      try {
-        // pageSize must not exceed the gateway ceiling. A root-level preHandler in
-        // apps/api-gateway/src/plugins/pagination-cap.ts validates page/pageSize on
-        // every GET against PAGINATION_DEFAULTS.MAX_PAGE_SIZE (100) and rejects
-        // anything larger with 400 VALIDATION_ERROR. This asked for 200, so the
-        // request always failed — and because the `on ApiException` below swallows
-        // it, the offline roster cache never seeded and the attendance screen showed
-        // an empty roster it attributed to an empty cache.
-        final List<Student> remote = await _studentApi.listStudents(
-          institutionId: institutionId,
-          pageSize: kMaxApiPageSize,
-        );
-        if (remote.isNotEmpty) {
-          await db.transaction((Transaction txn) async {
-            for (final Student student in remote) {
-              await txn.insert(
-                'students_cache',
-                await _studentCacheRow(tenantId, student),
-                conflictAlgorithm: ConflictAlgorithm.replace,
-              );
-            }
-          });
-          rows = await db.query(
-            'students_cache',
-            where: 'tenant_id = ? AND institution_id = ?',
-            whereArgs: <Object>[tenantId, institutionId],
-            orderBy: 'full_name ASC',
-          );
-        }
-      } on ApiException {
-        // Ignore network errors; the screen falls back to whatever cache we
-        // have (which may still be empty).
-      }
-    }
+    final List<String> classes =
+        rows
+            .map((Map<String, Object?> row) => row['class_name'] as String?)
+            .whereType<String>()
+            .where((String c) => c.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
-    if (classId != null && classId.isNotEmpty) {
+    if (classId != null && classId.trim().isNotEmpty) {
+      final String wanted = classId.trim().toLowerCase();
       rows = rows
           .where((Map<String, Object?> row) {
             final String? cls = row['class_name'] as String?;
-            return cls == classId;
+            return cls != null && cls.trim().toLowerCase() == wanted;
           })
           .toList(growable: false);
     }
 
+    return RosterLoadResult(
+      entries: await _mergeMarks(
+        db,
+        tenantId: tenantId,
+        institutionId: institutionId,
+        date: date,
+        rows: rows,
+      ),
+      knownClasses: classes,
+      refreshed: refreshed,
+      refreshError: refreshError,
+    );
+  }
+
+  Future<List<AttendanceRosterEntry>> _mergeMarks(
+    Database db, {
+    required String tenantId,
+    required String institutionId,
+    required String date,
+    required List<Map<String, Object?>> rows,
+  }) async {
     final List<Map<String, Object?>> existing = await db.query(
       'attendance_offline',
       where: 'tenant_id = ? AND institution_id = ? AND attendance_date = ?',
@@ -263,34 +364,18 @@ class AttendanceRepository {
     );
   }
 
-  Future<Map<String, Object?>> _studentCacheRow(
-    String tenantId,
-    Student student,
-  ) async {
-    final String payload = jsonEncode(<String, dynamic>{
-      'id': student.id,
-      'firstName': student.firstName,
-      'middleName': student.middleName,
-      'lastName': student.lastName,
-      'dateOfBirth': student.dateOfBirth,
-      'gender': student.gender,
-      'nationalId': student.nationalId,
-      'institutionId': student.institutionId,
-      'createdAt': student.createdAt,
-      'updatedAt': student.updatedAt,
-    });
-    return <String, Object?>{
-      'id': student.id,
-      'tenant_id': tenantId,
-      'institution_id': student.institutionId,
-      'full_name': await _cacheCrypto.encrypt(student.fullName),
-      'national_id': await _cacheCrypto.encryptNullable(student.nationalId),
-      'grade': null,
-      'class_name': null,
-      'payload': await _cacheCrypto.encrypt(payload),
-      'updated_at': _now().millisecondsSinceEpoch,
-      'version': student.version,
-    };
+  /// Flush queued marks to the server now (PRC-M038) and report what is
+  /// still waiting so the screen can say so instead of silently reloading.
+  Future<AttendanceSubmitSummary> submitPending() async {
+    final String tenantId = _requireTenantId();
+    final SyncFlushResult flush = await _syncEngine.flushPending();
+    final int pending = await _syncEngine.pendingCount(tenantId: tenantId);
+    return AttendanceSubmitSummary(
+      synced: flush.synced,
+      failed: flush.failed + flush.parked,
+      conflicted: flush.conflicted,
+      stillQueued: pending,
+    );
   }
 
   String _requireTenantId() {

@@ -39,6 +39,7 @@ import type {
   ThemeTokens,
   DomainResponse,
 } from './schemas.js';
+import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type {
   TenantEntity,
   DomainEntity,
@@ -47,6 +48,7 @@ import type {
   TenantFilter,
   TenantRepository,
 } from './tenant-repository.js';
+import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 const logger = createLogger({ name: 'tenant-service' });
 
@@ -80,6 +82,8 @@ export class TenantService {
     private readonly repository: TenantRepository,
     private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
     private readonly adminProvisioner?: TenantAdminProvisioner,
+    /** PRC-H099: seeds built-in roles + default settings before the admin. */
+    private readonly defaultsSeeder?: TenantDefaultsSeeder,
   ) {}
 
   /**
@@ -154,6 +158,7 @@ export class TenantService {
 
     // Merge user-provided config with defaults
     const config = this.mergeConfig(defaultConfig, input.config);
+    this.assertValidTimezone(config.locale?.timezone, 'config.locale.timezone');
 
     const tenant = await this.repository.createTenant({
       id: uuidv4(),
@@ -177,6 +182,8 @@ export class TenantService {
 
     let adminUserId: string;
     try {
+      // PRC-H099: roles/settings first, then the admin — all-or-nothing.
+      await this.defaultsSeeder?.seedTenantDefaults(tenant);
       ({ adminUserId } = await adminProvisioner.provisionTenantAdmin({
         tenantId: tenant.id,
         slug: tenant.slug,
@@ -190,7 +197,20 @@ export class TenantService {
         'Tenant admin provisioning failed; removing never-active tenant record',
       );
       try {
-        await this.repository.deleteTenant(tenant.id);
+        await this.defaultsSeeder?.removeTenantDefaults?.(tenant.id);
+      } catch (cleanupError) {
+        logger.error(
+          { tenantId: tenant.id, err: cleanupError },
+          'Failed to remove seeded tenant defaults after provisioning failure',
+        );
+      }
+      try {
+        // Hard-discard the never-active row when supported so the slug is free.
+        if (this.repository.discardProvisioningTenant) {
+          await this.repository.discardProvisioningTenant(tenant.id);
+        } else {
+          await this.repository.deleteTenant(tenant.id);
+        }
       } catch (cleanupError) {
         logger.error(
           { tenantId: tenant.id, err: cleanupError },
@@ -481,6 +501,10 @@ export class TenantService {
       throw new BusinessRuleError('Cannot modify configuration of a decommissioned tenant');
     }
 
+    // PRC-L358: an invalid zone would silently resolve to UTC at runtime; reject it on write.
+    if (input.locale !== undefined) {
+      this.assertValidTimezone(input.locale.timezone, 'locale.timezone');
+    }
     const updatedConfig = this.mergeConfig(tenant.config, input);
 
     const updated = await this.applyUpdate(id, {
@@ -489,6 +513,12 @@ export class TenantService {
 
     logger.info({ tenantId: id }, 'Tenant configuration updated');
     return updated;
+  }
+
+  /** PRC-L358: reject a non-IANA tenant timezone on admin create/update. */
+  private assertValidTimezone(value: unknown, field: string): void {
+    const error = tenantTimezoneFieldError(value, field);
+    if (error) throw new ValidationError('Validation failed', [error]);
   }
 
   /**

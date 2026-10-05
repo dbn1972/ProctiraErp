@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { notFound } from 'next/navigation';
 
 import { getApplicationBundle } from '@/lib/api/admissions';
@@ -36,6 +37,7 @@ export default async function AdmissionApplicationPage({
           {application.trackingNumber} · {application.status} · {application.institutionName}
         </p>
       </div>
+      <LookupLoadError failed={lookups.errors} />
       <AdmissionsChrome current="/admissions">
         <div className="space-y-6">
           <PlacementPanel bundle={bundle} periods={lookups.periods} grades={lookups.grades} />

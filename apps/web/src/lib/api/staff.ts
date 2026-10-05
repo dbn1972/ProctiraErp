@@ -193,8 +193,24 @@ export async function listStaff(filters: StaffListFilters = {}): Promise<StaffLi
   return result.data;
 }
 
+/**
+ * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
+ * failed read is distinguishable from an institution with no staff.
+ */
+export async function listAllStaffResult(maxPages = 4): Promise<ListResult<Staff>> {
+  const rows: Staff[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchList<Staff>(`/staff?page=${page}&pageSize=100`, {
+      next: { revalidate: 0 },
+    });
+    if (!batch.ok) return batch;
+    rows.push(...batch.items);
+    if (batch.items.length < 100) break;
+  }
+  return { ok: true, items: rows };
+}
 export async function getStaff(id: string): Promise<Staff | null> {
-  const result = await gatewayFetch<Staff>(`/staff/${id}`, {
+  const result = await gatewayFetch<Staff>(`/staff/${encodeURIComponent(id)}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -212,7 +228,7 @@ export async function createStaff(input: CreateStaffInput): Promise<Staff> {
 }
 
 export async function updateStaff(id: string, input: UpdateStaffInput): Promise<Staff> {
-  const result = await gatewayFetch<Staff>(`/staff/${id}`, {
+  const result = await gatewayFetch<Staff>(`/staff/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });
@@ -221,7 +237,7 @@ export async function updateStaff(id: string, input: UpdateStaffInput): Promise<
 }
 
 export async function deleteStaff(id: string): Promise<void> {
-  await gatewayFetch<void>(`/staff/${id}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/staff/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /* ------------------------------------------------------------- Assignments */
@@ -269,7 +285,7 @@ export async function listAppraisalTemplates(): Promise<AppraisalTemplate[]> {
 
 export async function getAppraisalTemplate(templateId: string): Promise<AppraisalTemplate | null> {
   const result = await gatewayFetch<AppraisalTemplate>(
-    `/staff/appraisals/templates/${templateId}`,
+    `/staff/appraisals/templates/${encodeURIComponent(templateId)}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
   return result.ok ? result.data : null;
@@ -360,7 +376,7 @@ export async function decideStaffLeave(
   id: string,
   status: 'approved' | 'rejected',
 ): Promise<StaffLeave> {
-  const result = await gatewayFetch<StaffLeave>(`/staff/leaves/${id}/decide`, {
+  const result = await gatewayFetch<StaffLeave>(`/staff/leaves/${encodeURIComponent(id)}/decide`, {
     method: 'POST',
     json: { status },
   });
@@ -515,10 +531,13 @@ export async function verifyStaffQualification(
   verified: boolean,
   documentRef?: string,
 ): Promise<StaffQualification> {
-  const result = await gatewayFetch<StaffQualification>(`/staff/qualifications/${id}/verify`, {
-    method: 'POST',
-    json: { verified, documentRef },
-  });
+  const result = await gatewayFetch<StaffQualification>(
+    `/staff/qualifications/${encodeURIComponent(id)}/verify`,
+    {
+      method: 'POST',
+      json: { verified, documentRef },
+    },
+  );
   if (!result.data) throw new Error('Empty response from staff-service');
   return result.data;
 }

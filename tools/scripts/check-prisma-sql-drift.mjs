@@ -785,8 +785,16 @@ export function buildSqlCatalog(sqlText, opts = {}) {
       entry.columns.set(colName, { type: '', nullable: true, defaultExpr: null });
     }
     const col = entry.columns.get(colName);
-    if (/\bSET\s+NOT\s+NULL\b/i.test(action)) col.nullable = false;
-    if (/\bDROP\s+NOT\s+NULL\b/i.test(action)) col.nullable = true;
+    // nullabilityAltered: an explicit SET/DROP NOT NULL, which must survive the
+    // cross-layer merge (a placeholder column created here is otherwise "unknown").
+    if (/\bSET\s+NOT\s+NULL\b/i.test(action)) {
+      col.nullable = false;
+      col.nullabilityAltered = true;
+    }
+    if (/\bDROP\s+NOT\s+NULL\b/i.test(action)) {
+      col.nullable = true;
+      col.nullabilityAltered = true;
+    }
     const def = action.match(/\bSET\s+DEFAULT\s+((?:'[^']*'|"[^"]*"|\([^\)]*\)|[^\s;]+))/i);
     if (def) col.defaultExpr = def[1].trim();
     if (/\bDROP\s+DEFAULT\b/i.test(action)) col.defaultExpr = null;
@@ -867,8 +875,14 @@ function mergeCatalogs(target, source) {
         const d = dst.columns.get(col);
         if (!d.type && meta.type) d.type = meta.type;
         // Prefer NOT NULL / defaults from later layers — source already applied in order within layer;
-        // when merging layers we take the stricter nullability and any default.
-        if (meta.nullable === false) d.nullable = false;
+        // when merging layers we take the stricter nullability and any default, EXCEPT that an
+        // explicit ALTER COLUMN … SET/DROP NOT NULL in the later layer wins: layers merge in apply
+        // order (prisma migrate deploy, then db/sql), so e.g. db/sql/098's DROP NOT NULL on
+        // staff_assignments.subject_id is the live state, not the Prisma migration's NOT NULL.
+        if (meta.nullabilityAltered) {
+          d.nullable = meta.nullable;
+          d.nullabilityAltered = true;
+        } else if (meta.nullable === false) d.nullable = false;
         if (meta.defaultExpr && !d.defaultExpr) d.defaultExpr = meta.defaultExpr;
         if (meta.type && d.type && meta.type !== d.type) {
           // keep existing; type drift caught vs Prisma

@@ -302,7 +302,15 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     function setup(privateKeyPem: string, store: MemoryAccessTokenRevocationStore) {
       const now = Math.floor(Date.now() / 1000);
       const accessToken = signRs256(
-        { sub: 'kc-user', iss: issuer, jti: 'jti-a', sid: 'sid-m499', exp: now + 300 },
+        {
+          sub: 'kc-user',
+          iss: issuer,
+          azp: 'proctira-gateway',
+          jti: 'jti-a',
+          sid: 'sid-m499',
+          iat: now,
+          exp: now + 300,
+        },
         privateKeyPem,
       );
       const refreshToken = unsigned({
@@ -322,11 +330,18 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
       const { accessToken, refreshToken } = setup(privateKeyPem, store);
       const app = Fastify();
       apps.push(app);
+      // POST /logout is authenticated (PRC-L282): the bearer is verified by the plugin.
+      await app.register(keycloakAuthPlugin, {
+        config: routeConfigBase,
+        revocationStore: store,
+        excludePaths: ['/api/v1/auth/logout'],
+      });
       await registerKeycloakAuthRoutes(app, {
         ...routeConfigBase,
         revocationStore: store,
         ssoSessionMaxSeconds: 7200,
       });
+      await app.ready();
 
       const out = await app.inject({
         method: 'POST',
@@ -389,5 +404,119 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
       });
       expect(r2.statusCode).toBe(401);
     });
+  });
+});
+
+describe('POST /logout — authenticated logout (PRC-L282)', () => {
+  const apps: Array<ReturnType<typeof Fastify>> = [];
+
+  afterEach(async () => {
+    await Promise.all(apps.splice(0).map((app) => app.close()));
+    vi.restoreAllMocks();
+  });
+
+  function setup() {
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const jwk = publicKey.export({ format: 'jwk' });
+    const privateKeyPem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/protocol/openid-connect/certs')) {
+        return new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('', { status: 204 });
+    });
+    return { privateKeyPem, fetchMock };
+  }
+
+  async function buildApp(store: MemoryAccessTokenRevocationStore) {
+    const app = Fastify();
+    apps.push(app);
+    await app.register(keycloakAuthPlugin, {
+      config: routeConfigBase,
+      revocationStore: store,
+      excludePaths: ['/api/v1/auth/logout'],
+    });
+    await registerKeycloakAuthRoutes(app, { ...routeConfigBase, revocationStore: store });
+    await app.ready();
+    return app;
+  }
+
+  it('requires a verified bearer: anonymous and forged tokens get 401 and write nothing', async () => {
+    setup();
+    const store = new MemoryAccessTokenRevocationStore();
+    const revoke = vi.spyOn(store, 'revoke');
+    const app = await buildApp(store);
+    const now = Math.floor(Date.now() / 1000);
+    const forged = [
+      toBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' })),
+      toBase64Url(JSON.stringify({ sub: 'x', iss: issuer, jti: 'j', sid: 's', exp: now + 9e6 })),
+      'sig',
+    ].join('.');
+
+    const anonymous = await app.inject({ method: 'POST', url: '/api/v1/auth/logout', payload: {} });
+    expect(anonymous.statusCode).toBe(401);
+    const forgedRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { authorization: `Bearer ${forged}` },
+      payload: {},
+    });
+    expect(forgedRes.statusCode).toBe(401);
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  it('denylists the session, takes the refresh token from the body and ends the IdP session', async () => {
+    const { privateKeyPem, fetchMock } = setup();
+    const store = new MemoryAccessTokenRevocationStore();
+    const app = await buildApp(store);
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = signRs256(
+      {
+        sub: 'kc-user',
+        iss: issuer,
+        azp: 'proctira-gateway',
+        jti: 'jti-post',
+        sid: 'sid-post',
+        iat: now,
+        exp: now + 600,
+      },
+      privateKeyPem,
+    );
+    const refreshToken = [
+      toBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
+      toBase64Url(JSON.stringify({ jti: 'jti-post-refresh', sid: 'sid-post', exp: now + 3600 })),
+      'sig',
+    ].join('.');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { refreshToken },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().loggedOut).toBe(true);
+    expect(res.json().endSessionUrl).toContain('/protocol/openid-connect/logout');
+    expect(await store.isRevoked('jti', 'jti-post')).toBe(true);
+    expect(await store.isRevoked('sid', 'sid-post')).toBe(true);
+    expect(await store.isRevoked('jti', 'jti-post-refresh')).toBe(true);
+    const idpLogout = fetchMock.mock.calls.find(
+      (call) =>
+        String(call[0]).endsWith('/protocol/openid-connect/logout') &&
+        (call[1] as RequestInit | undefined)?.method === 'POST',
+    );
+    expect(String((idpLogout?.[1] as RequestInit).body)).toContain('refresh_token=');
+
+    // The revoked bearer cannot be replayed against the endpoint.
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {},
+    });
+    expect(replay.statusCode).toBe(401);
   });
 });

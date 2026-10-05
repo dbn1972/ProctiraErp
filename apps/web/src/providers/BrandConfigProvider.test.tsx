@@ -23,6 +23,7 @@ import {
   BRAND_CACHE_TTL_MS,
   BRAND_ENDPOINT,
   clearBrandCache,
+  defaultBrandFetcher,
   fetchBrandCached,
   injectBrandCSSVariables,
   normalizeBrandResponse,
@@ -256,18 +257,35 @@ describe('BrandConfigProvider — fallback when API fails (Requirement 43.4)', (
     expect(readTenantVar('--tenant-primary')).toBe(DEFAULT_BRAND.primary_color);
   });
 
-  it('default fetcher returns DEFAULT_BRAND when global fetch returns non-ok', async () => {
+  it('default fetcher on 5xx: safe default painted, error set, nothing cached (PRC-M158)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('upstream broken', { status: 503 }));
-
     const { result } = renderHook(() => useBrand(), {
       wrapper: ({ children }) => <BrandConfigProvider>{children}</BrandConfigProvider>,
     });
-
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fetchSpy).toHaveBeenCalledWith(BRAND_ENDPOINT, expect.any(Object));
     expect(result.current.brand).toEqual(DEFAULT_BRAND);
+    expect(result.current.error?.message).toMatch(/503/);
+    expect(_peekBrandCache()).toBeNull();
+  });
+
+  it('500 then 200 within the TTL returns the real brand (PRC-M158)', async () => {
+    const real = { ...DEFAULT_BRAND, name: 'Acme School', slug: 'acme', shortName: 'acme' };
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('down', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(real), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    await expect(fetchBrandCached(defaultBrandFetcher)).rejects.toThrow(/500/);
+    const brand = await fetchBrandCached(defaultBrandFetcher);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(brand.name).toBe('Acme School');
   });
 });
 

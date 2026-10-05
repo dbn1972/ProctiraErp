@@ -86,7 +86,8 @@ export function OfferPanel({
               createOfferAction({
                 applicationId: application.id,
                 classId: String(fd.get('classId') ?? ''),
-                feeAmount: Number(fd.get('feeAmount') || 0),
+                // PRC-M149: blank fee stays undefined; schema enforces 2 dp + bound.
+                feeAmount: fd.get('feeAmount') || undefined,
               }),
             );
           }}
@@ -117,6 +118,8 @@ export function OfferPanel({
               name="feeAmount"
               type="number"
               min={0}
+              step="0.01"
+              inputMode="decimal"
               defaultValue={0}
               data-testid="offer-fee"
               disabled={!hydrated || pending}

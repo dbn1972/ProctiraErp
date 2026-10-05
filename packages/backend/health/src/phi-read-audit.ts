@@ -7,6 +7,7 @@
  */
 
 import { AppError, ErrorCode } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
 
@@ -25,7 +26,7 @@ function truthy(value: string | undefined): boolean {
 }
 
 export function isProductionEnv(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
-  return (nodeEnv ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(nodeEnv);
 }
 
 /** Explicit operator escape hatch — must never be set in normal production. */
@@ -36,9 +37,7 @@ export function isPhiAuditDegradeAllowed(env: NodeJS.ProcessEnv = process.env): 
 /**
  * Whether missing/throwing PHI auditor must fail the read (fail closed).
  */
-export function shouldFailClosedOnPhiAudit(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
+export function shouldFailClosedOnPhiAudit(env: NodeJS.ProcessEnv = process.env): boolean {
   return isProductionEnv(env.NODE_ENV) && !isPhiAuditDegradeAllowed(env);
 }
 

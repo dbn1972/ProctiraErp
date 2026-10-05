@@ -32,7 +32,9 @@ import type {
   StudentBulkWrite,
   StudentBulkWriteResult,
   StudentRepository,
+  StudentUpdateOptions,
 } from './student-repository.js';
+import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
 
 /** Reserved key under `custom_data` that holds structured profile fields. */
 const PROFILE_KEY = '__profile';
@@ -218,9 +220,10 @@ export class PrismaStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
     try {
-      return await this.updateInTx(id, tenantId, data);
+      return await this.updateInTx(id, tenantId, data, options);
     } catch (err) {
       rethrowUniqueViolation(
         err,
@@ -233,9 +236,10 @@ export class PrismaStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, (tx) =>
-      this.updateWith(tx, id, tenantId, data),
+      this.updateWith(tx, id, tenantId, data, options),
     );
   }
 
@@ -244,13 +248,29 @@ export class PrismaStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
+    if (options?.expectedUpdatedAt) {
+      // PRC-L365: lock the row so the precondition check and the write are
+      // atomic against a concurrent update in another transaction.
+      await tx.$queryRaw`
+        SELECT 1 FROM students
+         WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+         FOR UPDATE
+      `;
+    }
     {
       const existingRow = (await tx.student.findFirst({
         where: { id, tenantId, deletedAt: null },
       })) as StudentRow | null;
       if (!existingRow) {
         return null;
+      }
+      if (
+        options?.expectedUpdatedAt &&
+        !updatedAtMatches(existingRow.updatedAt, options.expectedUpdatedAt)
+      ) {
+        throw new StaleStudentUpdateError(id);
       }
 
       // Merge the partial update over the current entity, ignoring immutable
@@ -391,6 +411,9 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   }
   if (filter.search) {
     where.OR = nameOrNationalIdMatch(filter.search);
+  }
+  if (filter.ids) {
+    where.id = { in: filter.ids };
   }
   if (filter.institutionId) {
     where.enrollments = {

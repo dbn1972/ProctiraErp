@@ -11,6 +11,7 @@ import '../../features/notifications/data/local_notification_preferences.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import 'local_notifications.dart';
 import 'notification_router.dart';
+import 'push_device_lifecycle.dart';
 
 /// Type of incoming push notification event used by [FcmService.deepLinks].
 enum FcmDeepLinkSource { messageOpened, initialMessage }
@@ -46,7 +47,7 @@ Future<void> openemisFcmBackgroundHandler(RemoteMessage message) async {
 ///   inbox) and to [LocalNotifications] when the app is in the foreground.
 /// - Expose a stream of deep-link routes so the router layer can navigate
 ///   when the user taps a notification.
-class FcmService {
+class FcmService implements PushDeviceLifecycle {
   FcmService({
     required NotificationDeviceApi deviceApi,
     required NotificationRepository repository,
@@ -59,6 +60,8 @@ class FcmService {
     Stream<RemoteMessage>? onMessage,
     Stream<RemoteMessage>? onMessageOpenedApp,
     void Function(BackgroundMessageHandler handler)? registerBackgroundHandler,
+    Future<String> Function()? installationId,
+    Duration registrationRetryBase = const Duration(seconds: 2),
   }) : _deviceApi = deviceApi,
        _onMessageOverride = onMessage,
        _onMessageOpenedAppOverride = onMessageOpenedApp,
@@ -69,7 +72,9 @@ class FcmService {
        _localNotifications = localNotifications,
        _messagingOverride = messaging,
        _firebaseInitialiser = firebaseInitialiser,
-       _firebaseOptions = firebaseOptions;
+       _firebaseOptions = firebaseOptions,
+       _installationId = installationId,
+       _retryBase = registrationRetryBase;
 
   final NotificationDeviceApi _deviceApi;
   final NotificationRepository _repository;
@@ -85,8 +90,22 @@ class FcmService {
   final Stream<RemoteMessage>? _onMessageOpenedAppOverride;
   final void Function(BackgroundMessageHandler handler)?
   _registerBackgroundHandler;
+
+  /// Stable per-install id used as `deviceId` (PRC-M033). Falls back to the
+  /// token only when no provider is wired (tests / legacy).
+  final Future<String> Function()? _installationId;
+  final Duration _retryBase;
+
   bool _started = false;
   String? _token;
+
+  /// Registration only happens while a user is signed in (PRC-M033).
+  bool _authenticated = false;
+
+  /// Device id the backend currently knows, so logout can unregister it.
+  String? _registeredDeviceId;
+
+  static const int _maxRegistrationAttempts = 3;
 
   /// Last retrieved FCM token (null if Firebase is not configured or
   /// permission was denied).
@@ -129,12 +148,14 @@ class FcmService {
       );
 
       _token = await messaging.getToken();
-      if (_token != null && _token!.isNotEmpty) {
+      // Before login there is no user to bind the device to; the
+      // AuthBloc calls [onAuthenticated] once a session exists.
+      if (_authenticated && _token != null && _token!.isNotEmpty) {
         await _registerDevice(_token!);
       }
       messaging.onTokenRefresh.listen((String token) async {
         _token = token;
-        await _registerDevice(token);
+        if (_authenticated) await _registerDevice(token);
       });
     } catch (error) {
       // Token retrieval can fail on simulators / when APNs is unavailable.
@@ -171,20 +192,77 @@ class FcmService {
   final StreamController<FcmDeepLink> _deepLinkController =
       StreamController<FcmDeepLink>.broadcast();
 
+  @visibleForTesting
+  set debugToken(String? value) => _token = value;
+
+  @override
+  Future<void> onAuthenticated() async {
+    _authenticated = true;
+    String? token = _token;
+    if ((token == null || token.isEmpty) &&
+        (_started || _messagingOverride != null)) {
+      // [onLoggingOut] deleted the token and [start] will not run again in
+      // this process, so a later sign-in must fetch a fresh one itself.
+      try {
+        token = await (_messagingOverride ?? FirebaseMessaging.instance)
+            .getToken();
+        _token = token;
+      } catch (error) {
+        debugPrint('FCM token retrieval failed: $error');
+      }
+    }
+    if (token != null && token.isNotEmpty) {
+      await _registerDevice(token);
+    }
+    // Otherwise [start] registers once it obtains a token.
+  }
+
+  @override
+  Future<void> onLoggingOut() async {
+    _authenticated = false;
+    final String? deviceId = _registeredDeviceId;
+    if (deviceId != null) {
+      try {
+        await _deviceApi.unregisterDevice(deviceId: deviceId);
+      } catch (error) {
+        debugPrint('Device unregistration failed: $error');
+      }
+      _registeredDeviceId = null;
+    }
+    if (_started || _messagingOverride != null) {
+      try {
+        await (_messagingOverride ?? FirebaseMessaging.instance).deleteToken();
+      } catch (error) {
+        debugPrint('FCM token deletion failed: $error');
+      }
+    }
+    _token = null;
+  }
+
   Future<void> _registerDevice(String token) async {
-    try {
-      final String platform = Platform.isIOS
-          ? 'ios'
-          : Platform.isAndroid
-          ? 'android'
-          : 'other';
-      await _deviceApi.registerDevice(
-        deviceToken: token,
-        platform: platform,
-        deviceId: token, // until a stable installation id is wired in
-      );
-    } catch (error) {
-      debugPrint('Device registration failed: $error');
+    final String platform = Platform.isIOS
+        ? 'ios'
+        : Platform.isAndroid
+        ? 'android'
+        : 'other';
+    final Future<String> Function()? idProvider = _installationId;
+    final String deviceId = idProvider != null ? await idProvider() : token;
+    for (int attempt = 1; attempt <= _maxRegistrationAttempts; attempt++) {
+      if (!_authenticated) return;
+      try {
+        await _deviceApi.registerDevice(
+          deviceToken: token,
+          platform: platform,
+          deviceId: deviceId,
+        );
+        _registeredDeviceId = deviceId;
+        return;
+      } catch (error) {
+        debugPrint('Device registration attempt $attempt failed: $error');
+        if (attempt < _maxRegistrationAttempts) {
+          await Future<void>.delayed(_retryBase * (1 << (attempt - 1)));
+        }
+      }
     }
   }
 

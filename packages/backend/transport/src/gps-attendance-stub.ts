@@ -34,10 +34,32 @@ export interface BusAttendanceEvent {
   recordedAt: Date;
 }
 
+/**
+ * PRC-M444: hard caps so the sandbox store cannot grow without bound. Oldest entries are
+ * evicted first (ring-buffer semantics).
+ */
+export const GPS_STUB_MAX_PINGS = 5_000;
+export const BUS_ATTENDANCE_STUB_MAX_EVENTS = 5_000;
+
+function pushCapped<T>(list: T[], item: T, max: number): void {
+  list.push(item);
+  if (list.length > max) list.splice(0, list.length - max);
+}
+
 /** In-process GPS + bus-attendance store (tenant-scoped). */
 export class GpsAttendanceStubStore {
   private readonly pings: GpsPing[] = [];
   private readonly attendance: BusAttendanceEvent[] = [];
+
+  constructor(
+    private readonly maxPings: number = GPS_STUB_MAX_PINGS,
+    private readonly maxEvents: number = BUS_ATTENDANCE_STUB_MAX_EVENTS,
+  ) {}
+
+  /** Number of retained pings (diagnostics / tests). */
+  get pingCount(): number {
+    return this.pings.length;
+  }
 
   recordGpsPing(input: {
     tenantId: string;
@@ -58,7 +80,7 @@ export class GpsAttendanceStubStore {
       speedKph: input.speedKph ?? null,
       headingDeg: input.headingDeg ?? null,
     };
-    this.pings.push(ping);
+    pushCapped(this.pings, ping, this.maxPings);
     return ping;
   }
 
@@ -89,7 +111,7 @@ export class GpsAttendanceStubStore {
       eventType: input.eventType,
       recordedAt: input.recordedAt ?? new Date(),
     };
-    this.attendance.push(event);
+    pushCapped(this.attendance, event, this.maxEvents);
     return event;
   }
 

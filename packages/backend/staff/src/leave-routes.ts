@@ -9,11 +9,13 @@ import { ListPageQuerySchema, pageMeta, toPageWindow } from './hr-schemas.js';
 import {
   CreateStaffLeaveSchema,
   DecideStaffLeaveSchema,
+  ImportStaffLeaveBalancesSchema,
   SetStaffLeaveBalanceSchema,
   StaffLeaveBalanceParamsSchema,
   StaffLeaveParamsSchema,
   type CreateStaffLeaveInput,
   type DecideStaffLeaveInput,
+  type ImportStaffLeaveBalancesInput,
   type SetStaffLeaveBalanceInput,
   type StaffLeaveBalanceParams,
   type StaffLeaveParams,
@@ -293,6 +295,69 @@ export async function registerStaffLeaveRoutes(
           body.data.balanceDays,
         );
         return reply.status(200).send(formatBalance(balance));
+      },
+    );
+
+    /**
+     * PRC-H091: bulk opening-balance import (all-or-nothing). Any duplicate row or staff
+     * missing from the tenant rejects the batch with 400 and writes nothing. `dryRun`
+     * validates only. Accrual policy (monthly job vs annual grant) is a separate decision;
+     * this endpoint seeds/overwrites absolute balances.
+     */
+    fastify.post(
+      `${prefix}/leave-balances/import`,
+      async function importLeaveBalancesHandler(
+        request: FastifyRequest<{ Body: ImportStaffLeaveBalancesInput }>,
+        reply: FastifyReply,
+      ) {
+        if (!requireStaffAction(request, reply, 'staff.hr.write')) return reply;
+        const body = validate(ImportStaffLeaveBalancesSchema, request.body);
+        if (!body.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: body.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) {
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await leaveService.importOpeningBalances(
+            tenantId,
+            body.data.rows,
+            staffExists,
+            { dryRun: body.data.dryRun },
+          );
+          // eslint-disable-next-line no-console
+          console.info(
+            JSON.stringify({
+              msg: 'staff.leave_balances.import',
+              tenantId,
+              actorId: getActorId(request),
+              rows: body.data.rows.length,
+              imported: result.imported,
+              dryRun: result.dryRun,
+            }),
+          );
+          return reply.status(200).send({
+            dryRun: result.dryRun,
+            rows: body.data.rows.length,
+            imported: result.imported,
+            data: result.balances.map(formatBalance),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
       },
     );
   }

@@ -108,6 +108,24 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('PRC-M039: copy does not promise pay/reply/respond', (
+    WidgetTester tester,
+  ) async {
+    await _pump(
+      tester,
+      ParentHomeScreen(
+        repository: _FakeParentPortal(children: <LinkedChild>[_amina]),
+      ),
+    );
+    expect(
+      find.textContaining(
+        RegExp('pay|sandbox|Two-way|respond', caseSensitive: false),
+      ),
+      findsNothing,
+    );
+    expect(find.text('View invoices and balances'), findsOneWidget);
+  });
+
   testWidgets('parent home shows an empty state', (WidgetTester tester) async {
     await _pump(tester, ParentHomeScreen(repository: _FakeParentPortal()));
 

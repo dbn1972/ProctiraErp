@@ -3,7 +3,13 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listInvoicesResult, listReceiptsResult } from '@/lib/api/fees';
+import { FEE_LIST_PAGE_SIZE, listInvoicesResult, listReceiptsPageResult } from '@/lib/api/fees';
+import {
+  buildHref,
+  PlatformPagination,
+  readPage,
+  type SearchParams,
+} from '@/components/platform/PlatformSurfaceState';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 
@@ -13,11 +19,17 @@ import { formatAmount } from '../_components/format-amount';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FeesReceiptsPage() {
+export default async function FeesReceiptsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
   await requireSession();
   const locale = await getLocale();
+  const page = readPage((await searchParams) ?? {});
+  // PRC-M477: one server-side page of receipts instead of the whole history.
   const [receiptsResult, invoicesResult] = await Promise.all([
-    listReceiptsResult('staff'),
+    listReceiptsPageResult({ page, pageSize: FEE_LIST_PAGE_SIZE }),
     listInvoicesResult('staff'),
   ]);
   if (!receiptsResult.ok) {
@@ -38,6 +50,12 @@ export default async function FeesReceiptsPage() {
     );
   }
   const receipts = receiptsResult.items;
+  const pageMeta = {
+    page: receiptsResult.meta?.page ?? page,
+    pageSize: receiptsResult.meta?.pageSize ?? FEE_LIST_PAGE_SIZE,
+    totalItems: receiptsResult.meta?.totalItems ?? receipts.length,
+    totalPages: receiptsResult.meta?.totalPages ?? 1,
+  };
   const invoices = invoicesResult.ok ? invoicesResult.items : [];
   const invoiceLabels = new Map(
     invoices.map((invoice) => [
@@ -59,10 +77,12 @@ export default async function FeesReceiptsPage() {
         <CardHeader>
           <CardTitle className="text-base">Receipts</CardTitle>
           <CardDescription>
-            {receipts.length === 0 ? 'No receipts yet.' : `${receipts.length} receipt(s).`}
+            {pageMeta.totalItems === 0
+              ? 'No receipts yet.'
+              : `${pageMeta.totalItems.toLocaleString()} receipt(s).`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {receipts.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               Receipts appear when a parent completes sandbox payment on an open invoice.
@@ -85,6 +105,11 @@ export default async function FeesReceiptsPage() {
               ))}
             </ul>
           )}
+          <PlatformPagination
+            meta={pageMeta}
+            hrefFor={(p) => buildHref('/fees/receipts', { page: p })}
+            itemLabel="receipts"
+          />
         </CardContent>
       </Card>
     </div>

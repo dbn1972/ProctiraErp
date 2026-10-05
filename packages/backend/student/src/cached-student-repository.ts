@@ -15,6 +15,7 @@ import type {
   StudentEntity,
   StudentFilter,
   StudentRepository,
+  StudentUpdateOptions,
 } from './student-repository.js';
 
 /** TTL for student entity cache (5 minutes) */
@@ -49,8 +50,9 @@ export class CachedStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
-    const result = await this.delegate.update(id, tenantId, data);
+    const result = await this.delegate.update(id, tenantId, data, options);
     if (result && this.cache) {
       // Invalidate cached entry on update
       const key = tenantKey(tenantId, 'student', id);

@@ -84,8 +84,9 @@ export function EnquiryPanel({
                   dateOfBirth: String(fd.get('dateOfBirth') ?? ''),
                   guardianName: String(fd.get('guardianName') ?? ''),
                   guardianPhone: String(fd.get('guardianPhone') ?? ''),
-                  interviewScore: Number(fd.get('interviewScore') || 0),
-                  testScore: Number(fd.get('testScore') || 0),
+                  // PRC-M149: blank scores stay undefined (excluded from merit), never 0.
+                  interviewScore: fd.get('interviewScore') || undefined,
+                  testScore: fd.get('testScore') || undefined,
                 }),
               );
             }}

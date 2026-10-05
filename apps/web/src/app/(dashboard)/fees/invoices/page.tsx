@@ -1,10 +1,19 @@
 /**
  * Staff invoices (Server Component).
  */
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlansResult, listInvoicesResult } from '@/lib/api/fees';
+import { FEE_LIST_PAGE_SIZE, listFeePlansResult, listInvoicesPageResult } from '@/lib/api/fees';
+import {
+  buildHref,
+  PlatformPagination,
+  readPage,
+  readParam,
+  type SearchParams,
+} from '@/components/platform/PlatformSurfaceState';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { isSandboxPaymentEnabled } from '@/lib/fees/validation';
 import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -19,18 +28,39 @@ import { formatAmount } from '../_components/format-amount';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FeesInvoicesPage() {
+const INVOICE_STATUSES = ['open', 'overdue', 'paid', 'void', 'written_off'] as const;
+export default async function FeesInvoicesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
   await requireSession();
   const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  const page = readPage(params);
+  const statusParam = readParam(params, 'status');
+  const status = INVOICE_STATUSES.find((s) => s === statusParam);
+  // PRC-M477: one server-side page (<=50 rows) instead of the whole ledger.
   const [plansResult, invoicesResult, studentOptions] = await Promise.all([
     listFeePlansResult(),
-    listInvoicesResult('staff'),
+    listInvoicesPageResult({ page, pageSize: FEE_LIST_PAGE_SIZE, status }),
     loadStudentOptions(),
   ]);
+  const pageMeta = invoicesResult.ok
+    ? {
+        page: invoicesResult.meta?.page ?? page,
+        pageSize: invoicesResult.meta?.pageSize ?? FEE_LIST_PAGE_SIZE,
+        totalItems: invoicesResult.meta?.totalItems ?? invoicesResult.items.length,
+        totalPages: invoicesResult.meta?.totalPages ?? 1,
+      }
+    : null;
   const plans = plansResult.ok ? plansResult.items : [];
   const invoices = invoicesResult.ok ? invoicesResult.items : [];
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
+  // PRC-M065 / PRC-M089: sandbox is offered only when explicitly enabled and
+  // never in production; the server action re-checks the same gate.
+  const staffSandboxPayments = isSandboxPaymentEnabled();
 
   return (
     <div className="space-y-6 p-6">
@@ -49,12 +79,28 @@ export default async function FeesInvoicesPage() {
           <CardDescription>
             {!invoicesResult.ok
               ? 'Invoices could not be loaded.'
-              : invoices.length === 0
-                ? 'No invoices yet.'
-                : `${invoices.length} invoice(s).`}
+              : (pageMeta?.totalItems ?? 0) === 0
+                ? status
+                  ? `No ${status} invoices.`
+                  : 'No invoices yet.'
+                : `${(pageMeta?.totalItems ?? invoices.length).toLocaleString()} invoice(s)${status ? ` (${status})` : ''}.`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <nav aria-label="Filter invoices by status" className="flex flex-wrap gap-2 text-sm">
+            {[undefined, ...INVOICE_STATUSES].map((value) => (
+              <Link
+                key={value ?? 'all'}
+                href={buildHref('/fees/invoices', { status: value })}
+                aria-current={value === status ? 'page' : undefined}
+                className={`rounded-md border px-3 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  value === status ? 'border-primary bg-primary/10 font-medium' : 'border-input'
+                }`}
+              >
+                {value ? humanizeStatus(value) : 'All'}
+              </Link>
+            ))}
+          </nav>
           {!invoicesResult.ok ? (
             <ListLoadFailure
               kind={invoicesResult.kind}
@@ -85,7 +131,11 @@ export default async function FeesInvoicesPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (
-                      <PayInvoiceStaffButton invoiceId={invoice.id} currency={invoice.currency} />
+                      <PayInvoiceStaffButton
+                        invoiceId={invoice.id}
+                        currency={invoice.currency}
+                        sandboxEnabled={staffSandboxPayments}
+                      />
                     ) : null}
                     {invoice.status === 'open' && invoice.structureId ? (
                       <ConcessionDialog
@@ -102,6 +152,13 @@ export default async function FeesInvoicesPage() {
               ))}
             </ul>
           )}
+          {pageMeta ? (
+            <PlatformPagination
+              meta={pageMeta}
+              hrefFor={(p) => buildHref('/fees/invoices', { status, page: p })}
+              itemLabel="invoices"
+            />
+          ) : null}
         </CardContent>
       </Card>
     </div>

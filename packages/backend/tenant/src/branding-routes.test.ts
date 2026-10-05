@@ -492,3 +492,55 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     });
   });
 });
+
+// PRC-M490: publisher/saver is the JWT subject, not the client-supplied id.
+describe('branding actor is derived server-side (PRC-M490)', () => {
+  it('records request.user.sub as publishedBy even when the body claims another user', async () => {
+    const JWT_USER = '33333333-3333-4333-8333-333333333333';
+    const CLAIMED = '44444444-4444-4444-8444-444444444444';
+    const repository = new InMemoryTenantRepository();
+    const service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
+    const app = Fastify();
+    app.addHook('onRequest', async (req) => {
+      (req as typeof req & { user: unknown }).user = { sub: JWT_USER, roles: ['admin'] };
+    });
+    await registerTenantRoutes(app, { tenantService: service });
+    await registerBrandingRoutes(app, {
+      tenantService: service,
+      getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
+      hasPermission: () => true,
+    });
+    await app.ready();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/tenants',
+      payload: {
+        name: 'Actor School',
+        slug: 'actor-school',
+        plan: 'professional',
+        region: 'us-east-1',
+        admin: {
+          firstName: 'A',
+          lastName: 'B',
+          email: 'a@actor.example',
+          password: 'SecureP@ss123',
+        },
+      },
+    });
+    const tenantId = created.json().id as string;
+    const tokens = {
+      '--tenant-primary': 'hsl(222, 47%, 31%)',
+      '--tenant-accent': 'hsl(174, 62%, 40%)',
+      '--tenant-logo': 'url("/cdn/t/logo.svg")',
+    } as ThemeTokens;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/tenant/branding/publish',
+      headers: { 'x-tenant-id': tenantId },
+      payload: { tokens, publishedBy: CLAIMED },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().publishedBy).toBe(JWT_USER);
+    await app.close();
+  });
+});

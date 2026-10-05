@@ -48,3 +48,24 @@ export const SetStaffLeaveBalanceSchema = Type.Object(
   { additionalProperties: false },
 );
 export type SetStaffLeaveBalanceInput = Static<typeof SetStaffLeaveBalanceSchema>;
+/** PRC-H091: bulk opening-balance import (all-or-nothing). */
+export const MAX_LEAVE_BALANCE_IMPORT_ROWS = 2000;
+export const ImportStaffLeaveBalancesSchema = Type.Object(
+  {
+    rows: Type.Array(
+      Type.Object(
+        {
+          staffId: Type.String({ pattern: UUID_PATTERN }),
+          leaveType: Type.Union(BALANCE_LEAVE_TYPES.map((t) => Type.Literal(t))),
+          balanceDays: Type.Number({ minimum: 0, maximum: 366, multipleOf: 0.5 }),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: MAX_LEAVE_BALANCE_IMPORT_ROWS },
+    ),
+    /** Validate only (staff existence, duplicates); write nothing. */
+    dryRun: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type ImportStaffLeaveBalancesInput = Static<typeof ImportStaffLeaveBalancesSchema>;

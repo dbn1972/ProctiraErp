@@ -34,11 +34,12 @@ class ScholarshipDocumentSlotView {
   }
 }
 
-typedef ScholarshipDocumentUploader = Future<void> Function(
-  String documentType,
-  PickedScholarshipFile file,
-  void Function(double progress) onProgress,
-);
+typedef ScholarshipDocumentUploader =
+    Future<void> Function(
+      String documentType,
+      PickedScholarshipFile file,
+      void Function(double progress) onProgress,
+    );
 
 /// Per-type document slots. Picking validates locally, then uploads with progress.
 class ScholarshipDocumentUploadController extends ChangeNotifier {
@@ -73,8 +74,8 @@ class ScholarshipDocumentUploadController extends ChangeNotifier {
       missingRequiredScholarshipDocuments(requiredTypes, uploadedTypes);
 
   bool get hasSlotErrors => requiredTypes.any(
-        (String type) => slot(type).phase == ScholarshipDocumentSlotPhase.error,
-      );
+    (String type) => slot(type).phase == ScholarshipDocumentSlotPhase.error,
+  );
 
   Future<void> pickAndUpload(String type, ScholarshipPickSource source) async {
     if (slot(type).phase == ScholarshipDocumentSlotPhase.uploading) {
@@ -130,10 +131,7 @@ class ScholarshipDocumentUploadController extends ChangeNotifier {
 }
 
 class ScholarshipDocumentUploadPanel extends StatelessWidget {
-  const ScholarshipDocumentUploadPanel({
-    super.key,
-    required this.controller,
-  });
+  const ScholarshipDocumentUploadPanel({super.key, required this.controller});
 
   final ScholarshipDocumentUploadController controller;
 

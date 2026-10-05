@@ -31,7 +31,10 @@ import { anyIdReportCardDirectory } from './report-card-test-directory.js';
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const INSTITUTION_ID = '22222222-2222-4222-8222-222222222222';
 
-async function buildApp(withWorker: boolean) {
+async function buildApp(
+  withWorker: boolean,
+  jobRepo: InMemoryReportCardJobRepository = new InMemoryReportCardJobRepository(),
+) {
   const store = new InMemoryDurableQueueStore();
   const publisherQueue = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
   await publisherQueue.connect();
@@ -61,7 +64,7 @@ async function buildApp(withWorker: boolean) {
     reportCardTemplateRepository: new InMemoryReportCardTemplateRepository(),
     teacherCommentRepository: new InMemoryTeacherCommentRepository(),
     institutionBrandingRepository: brandingRepo,
-    reportCardJobRepository: new InMemoryReportCardJobRepository(),
+    reportCardJobRepository: jobRepo,
     taskQueuePublisher: new QueueReportCardPublisher(publisherQueue),
     reportCardWorkerQueue: withWorker ? workerQueue : undefined,
     pdfGenerator: {
@@ -136,6 +139,35 @@ describe('PRC-H039 report-card worker wiring', () => {
     expect(app.reportCardWorker).toBeUndefined();
     const jobId = await generate(app);
     expect(await pollStatus(app, jobId, 200)).toBe('completed');
+  });
+
+  it('boot reclaims queued jobs across tenants once the consumer is registered', async () => {
+    const jobRepo = new InMemoryReportCardJobRepository();
+    const tenants = [TENANT_ID, '55555555-5555-4555-8555-555555555555'];
+    for (const [i, tenantId] of tenants.entries()) {
+      await jobRepo.create({
+        id: `6666666${i}-6666-4666-8666-666666666666`,
+        tenantId,
+        studentId: '33333333-3333-4333-8333-333333333333',
+        academicPeriodId: '44444444-4444-4444-8444-444444444444',
+        templateId: '77777777-7777-4777-8777-777777777777',
+        institutionId: INSTITUTION_ID,
+        status: 'queued',
+        errorMessage: null,
+        outputUrl: null,
+      });
+    }
+    expect(await jobRepo.listTenantIdsWithStatus('queued')).toEqual(tenants);
+    const built = await buildApp(true, jobRepo);
+    app = built.app;
+    expect(app.reportCardWorker?.running).toBe(true);
+    const started = Date.now();
+    while ((await jobRepo.listTenantIdsWithStatus('queued')).length > 0) {
+      if (Date.now() - started > 3000) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    // Each stranded job was re-dispatched and consumed under its own tenant.
+    expect(await jobRepo.listTenantIdsWithStatus('queued')).toEqual([]);
   });
 
   it('stops the worker on close (graceful shutdown)', async () => {

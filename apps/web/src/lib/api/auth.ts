@@ -250,10 +250,11 @@ export async function setupMfa(
     response = await fetcher(MFA_SETUP_ENDPOINT, {
       method: 'POST',
       credentials: 'include',
-      headers: {
+      // PRC-M485: /api/* POSTs must echo the double-submit CSRF token.
+      headers: withCsrfHeader({
         Accept: 'application/json',
         'Content-Type': 'application/json',
-      },
+      }),
       body: '{}',
       cache: 'no-store',
       ...(options.signal ? { signal: options.signal } : {}),

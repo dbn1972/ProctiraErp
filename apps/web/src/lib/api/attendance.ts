@@ -133,11 +133,14 @@ export async function getClassRoster(
 }
 
 export async function getAttendanceConfig(institutionId: string): Promise<AttendanceConfig | null> {
-  const result = await gatewayFetch<AttendanceConfig>(`/attendance/config/${institutionId}`, {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 60 },
-  });
+  const result = await gatewayFetch<AttendanceConfig>(
+    `/attendance/config/${encodeURIComponent(institutionId)}`,
+    {
+      method: 'GET',
+      throwOnError: false,
+      next: { revalidate: 60 },
+    },
+  );
   return result.ok ? result.data : null;
 }
 
@@ -170,10 +173,25 @@ export async function calculateAttendancePercentage(
   return result.ok ? result.data : null;
 }
 
+/**
+ * PRC-M082: explicit, audited export. POST so the gateway mutation audit
+ * trail records actor + scope + range; returns the computed report.
+ */
+export async function exportAttendanceReport(
+  input: AttendancePercentageInput,
+): Promise<(AttendancePercentageResult & { exportedAt?: string }) | null> {
+  const result = await gatewayFetch<AttendancePercentageResult & { exportedAt?: string }>(
+    '/attendance/reports/export',
+    { method: 'POST', json: input },
+  );
+  return result.data ?? null;
+}
+
 export interface RegularisationRequest {
   id: string;
   attendanceId: string;
   studentId: string;
+  classId?: string;
   toStatus: string;
   fromStatus: string;
   status: string;
@@ -184,6 +202,7 @@ export interface RegularisationRequest {
 export interface LeaveRequest {
   id: string;
   studentId: string;
+  classId?: string;
   fromDate: string;
   toDate: string;
   status: string;
@@ -198,12 +217,11 @@ export async function listRegularisations(): Promise<ListResult<RegularisationRe
 }
 
 export async function createRegularisation(input: {
-  attendanceId: string;
+  /** PRC-M081: resolved server-side from student + class + date. */
   studentId: string;
   institutionId: string;
   classId: string;
   attendanceDate: string;
-  fromStatus: string;
   toStatus: StudentAttendanceStatus;
   reason?: string;
 }): Promise<RegularisationRequest> {
@@ -221,7 +239,7 @@ export async function decideRegularisation(
   decisionNote?: string,
 ): Promise<RegularisationRequest> {
   const result = await gatewayFetch<RegularisationRequest>(
-    `/attendance/regularisation/${encodeURIComponent(id)}/${decision}`,
+    `/attendance/regularisation/${encodeURIComponent(id)}/${encodeURIComponent(decision)}`,
     { method: 'POST', json: { decisionNote } },
   );
   if (!result.data) throw new Error('Empty regularisation decision');
@@ -259,7 +277,7 @@ export async function decideLeaveRequest(
   decisionNote?: string,
 ): Promise<LeaveRequest> {
   const result = await gatewayFetch<LeaveRequest>(
-    `/attendance/leave-requests/${encodeURIComponent(id)}/${decision}`,
+    `/attendance/leave-requests/${encodeURIComponent(id)}/${encodeURIComponent(decision)}`,
     { method: 'POST', json: { decisionNote } },
   );
   if (!result.data) throw new Error('Empty leave decision');

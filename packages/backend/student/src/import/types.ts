@@ -228,11 +228,21 @@ export interface ImportQueue {
     options: ImportOptions,
   ): Promise<void>;
 
-  /** Get the progress of an import job */
-  getProgress(jobId: string): Promise<ImportProgress | null>;
+  /** Get the progress of an import job (PRC-H092: tenant-scoped). */
+  getProgress(tenantId: string, jobId: string): Promise<ImportProgress | null>;
 
-  /** Update the progress of an import job */
-  updateProgress(jobId: string, progress: Partial<ImportProgress>): Promise<void>;
+  /** Update the progress of an import job (PRC-H092: tenant-scoped). */
+  updateProgress(tenantId: string, jobId: string, progress: Partial<ImportProgress>): Promise<void>;
+}
+
+/**
+ * PRC-H092: progress/result persistence for import jobs, keyed by
+ * (tenantId, jobId) so a poll from any gateway instance sees the same state
+ * and a job id from one tenant never resolves for another.
+ */
+export interface ImportProgressStore {
+  get(tenantId: string, jobId: string): Promise<ImportProgress | null>;
+  update(tenantId: string, jobId: string, progress: Partial<ImportProgress>): Promise<void>;
 }
 
 /** Maximum file size for import (50MB) */

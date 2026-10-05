@@ -27,6 +27,8 @@ const fastifyRoot = resolvePkg('fastify');
 export default defineConfig({
   resolve: {
     alias: {
+      // PRC-L579 subpath must precede the package alias.
+      '@proctira/common/node-env': path.join(repo, 'packages/shared/common/src/node-env.ts'),
       '@proctira/common': path.join(repo, 'packages/shared/common/src/index.ts'),
       '@proctira/database': path.join(repo, 'packages/shared/database/src/index.ts'),
       '@proctira/validation': path.join(repo, 'packages/shared/validation/src/index.ts'),

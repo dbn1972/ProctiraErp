@@ -278,6 +278,8 @@ describe('healthUiPlugin', () => {
         studentId: STUDENT,
         allergies: ['Peanuts'],
         chronicConditions: ['Asthma'],
+        // PRC-M088: no id fragment masquerading as a name.
+        studentName: '',
       });
 
       const detail = await app.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
@@ -516,6 +518,32 @@ describe('healthUiPlugin', () => {
       expect(counsellorRows.data[0]!.topic).toBe('Family bereavement');
     });
 
+    it('PRC-M476: a no-show session is reported as NO_SHOW, not CANCELLED/SCHEDULED', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await repository.createCounsellingSession({
+        id: '9c000000-0000-4000-8000-0000000000a2',
+        tenantId: TENANT,
+        studentId: STUDENT,
+        counsellorId: 'counsellor-1',
+        sessionDate: '2026-02-02',
+        sessionType: 'individual',
+        reason: 'Follow-up',
+        caseNotes: null,
+        outcome: null,
+        followUpRequired: false,
+        followUpDate: null,
+        status: 'no-show',
+      });
+      const counsellor = await appAs(repository, {
+        roles: [{ roleId: 'counsellor', roleName: 'COUNSELLOR', areaId: 'area-1' }],
+      });
+      const rows = (
+        await counsellor.inject({ method: 'GET', url: '/health/counselling' })
+      ).json() as { data: Array<{ id: string; status: string }> };
+      const noShow = rows.data.find((r) => r.id === '9c000000-0000-4000-8000-0000000000a2');
+      expect(noShow?.status).toBe('NO_SHOW');
+    });
     it('cross-tenant: the other tenant sees none of these rows', async () => {
       const repository = new InMemoryHealthRepository();
       await seedDomain(repository);

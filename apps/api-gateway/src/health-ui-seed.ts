@@ -46,11 +46,16 @@ export interface UiCounsellingSession {
   id: string;
   tenantId: string;
   studentId: string;
+  /** Empty when the health schema has no name (PRC-M088: never an id fragment). */
   studentName: string;
+  counsellorId?: string;
   counsellorName: string;
+  /** e.g. individual / group / crisis — schedule metadata, not the PHI reason. */
+  sessionType?: string;
   sessionDate: string;
   topic: string;
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  /** PRC-M476: domain status carried through (incl. NO_SHOW); unknown values pass as-is. */
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & NonNullable<unknown>);
 }
 
 export interface UiScreeningProgram {

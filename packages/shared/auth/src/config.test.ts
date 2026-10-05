@@ -154,14 +154,14 @@ describe('createAuthConfig', () => {
 
   it('should accept an explicit/env JWT secret in production', () => {
     process.env['NODE_ENV'] = 'production';
-    process.env['JWT_SECRET'] = 'a-long-random-production-secret';
+    process.env['JWT_SECRET'] = 'a-long-random-production-secret-0123456789';
 
     const config = createAuthConfig();
-    expect(config.jwt.secret).toBe('a-long-random-production-secret');
+    expect(config.jwt.secret).toBe('a-long-random-production-secret-0123456789');
   });
 
   it('should not use the known default secret outside production', () => {
-    delete process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'development'; // PRC-L579: dev fallback only for development/test
     delete process.env['JWT_SECRET'];
 
     const config = createAuthConfig();
