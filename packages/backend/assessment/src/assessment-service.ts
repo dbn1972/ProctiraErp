@@ -208,8 +208,10 @@ export class AssessmentService {
    * - Number of items does not exceed 50
    * - All item weights sum to exactly 100%
    * - Each item's minScore < maxScore
-   * - Each item's score range is within grading scheme bounds
    * - All referenced outcome IDs exist
+   *
+   * PRC-M162: item ranges are raw marks (e.g. 0–50) and are normalised to the
+   * scheme range when grading, so they are intentionally NOT bounded by the scheme.
    *
    * Requirement 8.2: Up to 50 items, weights sum to 100%
    * Requirement 8.3: Reject if weights don't sum to 100%
@@ -369,6 +371,8 @@ export class AssessmentService {
    * - All threshold scores are within [minValue, maxValue]
    * - Each threshold's minScore <= maxScore
    * - No overlapping thresholds
+   * - No gap wider than one mark between bands, and (when `requireCoverage`) the
+   *   bands start at minValue and end at maxValue (PRC-H114 / PRC-M162)
    */
   private validateThresholds(
     thresholds: GradeThreshold[],

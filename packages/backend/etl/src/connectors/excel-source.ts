@@ -11,7 +11,12 @@
 import type { ExcelSourceConfig } from '../schemas.js';
 
 import { assertInlineContentWithinCap, assertNoHostFilePath } from './file-source-policy.js';
-import type { SourceConnector, ExtractionResult, DataRow } from './types.js';
+import {
+  ConnectorNotImplementedError,
+  type SourceConnector,
+  type ExtractionResult,
+  type DataRow,
+} from './types.js';
 
 export class ExcelSourceConnector implements SourceConnector {
   constructor(private readonly config: ExcelSourceConfig) {}
@@ -22,9 +27,9 @@ export class ExcelSourceConnector implements SourceConnector {
       return { rows: [], totalCount: 0 };
     }
 
-    // Parse the Excel file
-    const rows = this.parseExcel(buffer);
-    return { rows, totalCount: rows.length };
+    // PRC-M222: no workbook parser is bundled; never report an empty "success".
+    void buffer;
+    throw new ConnectorNotImplementedError('excel source');
   }
 
   async validate(): Promise<{ valid: boolean; error?: string }> {
@@ -40,7 +45,8 @@ export class ExcelSourceConnector implements SourceConnector {
     if (!this.config.fileContent) {
       return { valid: false, error: 'Inline fileContent is required' };
     }
-    return { valid: true };
+    // PRC-M222: parsing is not implemented, so the configuration cannot run.
+    return { valid: false, error: 'The excel source connector is not implemented yet' };
   }
 
   private getFileBuffer(): Buffer | null {
@@ -56,10 +62,10 @@ export class ExcelSourceConnector implements SourceConnector {
 
   /**
    * Parse Excel buffer into data rows.
-   * This is a placeholder that returns empty rows.
-   * In production, use 'xlsx' or 'exceljs' library.
+   * PRC-M222: not implemented (needs an approved xlsx/exceljs dependency); throws.
    */
   parseExcel(_buffer: Buffer): DataRow[] {
+    throw new ConnectorNotImplementedError('excel source');
     // Production implementation would:
     // 1. Parse the workbook from buffer
     // 2. Select sheet by name or index
@@ -71,6 +77,5 @@ export class ExcelSourceConnector implements SourceConnector {
     // const sheetName = this.config.sheetName ?? workbook.SheetNames[this.config.sheetIndex ?? 0];
     // const sheet = workbook.Sheets[sheetName];
     // const jsonData = XLSX.utils.sheet_to_json(sheet, { header: hasHeader ? undefined : 1 });
-    return [];
   }
 }
