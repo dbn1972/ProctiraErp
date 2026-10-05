@@ -214,6 +214,7 @@ export const assessmentPlugin = fp(
         const worker = createReportCardWorker({
           queue: reportCardWorkerQueue,
           processor: reportCardService,
+          reclaimAllTenants: true,
           logger: {
             info: (obj, msg) => fastify.log.info(obj, msg),
             error: (obj, msg) => fastify.log.error(obj, msg),

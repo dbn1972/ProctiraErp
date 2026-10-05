@@ -8,6 +8,8 @@
  */
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 export type PhiEnvelopeProviderKind = 'kms' | 'env-hmac' | 'local-stub';
 
 export interface PhiCryptoScope {
@@ -58,12 +60,12 @@ function envFlag(name: string, env: NodeJS.ProcessEnv): boolean {
 }
 
 export function plaintextPhiAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.NODE_ENV !== 'production') return true;
+  if (!isProductionNodeEnv(env.NODE_ENV)) return true;
   return envFlag('ALLOW_PLAINTEXT_PHI', env);
 }
 
 export function isProductionEnv(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.NODE_ENV === 'production';
+  return isProductionNodeEnv(env.NODE_ENV);
 }
 
 function parseMasterKeyMaterial(raw: string): Buffer {

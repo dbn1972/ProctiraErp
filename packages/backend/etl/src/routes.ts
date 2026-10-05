@@ -16,7 +16,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { listDestinationConnections } from './connectors/connection-registry.js';
-import { hasEtlAccess } from './etl-access.js';
+import { hasEtlAccess, hasEtlManageAccess } from './etl-access.js';
 import type { ETLService } from './etl-service.js';
 import {
   CreatePipelineSchema,
@@ -44,15 +44,18 @@ export interface ETLRoutesOptions {
 /**
  * Format a pipeline entity for API response.
  */
-function formatPipelineResponse(entity: Pipeline) {
+function formatPipelineResponse(entity: Pipeline, canManage = true) {
   return {
     id: entity.id,
     tenantId: entity.tenantId,
     name: entity.name,
     description: entity.description,
     // PRC-H050 + PRC-H115: never return stored credentials to the browser.
-    source: redactConnectorSecrets(entity.source),
-    destination: redactConnectorSecrets(entity.destination),
+    // PRC-H115: connector config (even redacted) requires etl.manage.
+    source: canManage ? redactConnectorSecrets(entity.source) : { type: entity.source.type },
+    destination: canManage
+      ? redactConnectorSecrets(entity.destination)
+      : { type: entity.destination.type },
     fieldMappings: entity.fieldMappings,
     schedule: entity.schedule,
     retryPolicy: entity.retryPolicy,
@@ -101,6 +104,12 @@ function formatExecutionResponse(entity: PipelineExecution) {
 /**
  * Extract tenant ID from request.
  */
+/** PRC-H115: caller holds etl.manage (role or explicit permission claim). */
+function canManageEtl(request: FastifyRequest): boolean {
+  const user = (request as FastifyRequest & { user?: { permissions?: unknown } }).user;
+  return hasEtlManageAccess(getActor(request).roles, user?.permissions);
+}
+
 function getTenantId(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
 }
@@ -126,6 +135,19 @@ export async function registerETLRoutes(
       return reply.status(403).send({
         code: 'FORBIDDEN',
         message: 'ETL pipeline access requires an ETL or admin role',
+        statusCode: 403,
+      });
+    }
+    // PRC-H115: writes (create/update pipeline config) require etl.manage.
+    const method = request.method.toUpperCase();
+    const routeUrl = request.routeOptions?.url ?? request.url.split('?')[0] ?? '';
+    const isPipelineWrite =
+      (method === 'POST' && routeUrl.endsWith(prefix)) ||
+      (method === 'PUT' && routeUrl.endsWith(`${prefix}/:pipelineId`));
+    if (isPipelineWrite && !canManageEtl(request)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Managing ETL pipeline configuration requires etl.manage',
         statusCode: 403,
       });
     }
@@ -218,7 +240,7 @@ export async function registerETLRoutes(
       );
 
       return reply.status(200).send({
-        data: result.data.map(formatPipelineResponse),
+        data: result.data.map((p) => formatPipelineResponse(p, canManageEtl(request))),
         meta: {
           page,
           pageSize,
@@ -260,7 +282,7 @@ export async function registerETLRoutes(
 
       try {
         const pipeline = await etlService.getPipeline(tenantId, paramsResult.data.pipelineId);
-        return reply.status(200).send(formatPipelineResponse(pipeline));
+        return reply.status(200).send(formatPipelineResponse(pipeline, canManageEtl(request)));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

@@ -12,6 +12,7 @@
  */
 import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { v4 as uuidv4 } from 'uuid';
 
 import { admissionNoOf } from './admission-number.js';
@@ -61,7 +62,7 @@ export class StudentService {
   ) {
     // PRC-L502: never fail open on legal hold in production — soft-delete and
     // merge would otherwise skip the privacy gate silently.
-    if (process.env['NODE_ENV'] === 'production' && !assertDestructiveDeleteAllowed) {
+    if (isProductionNodeEnv(process.env['NODE_ENV']) && !assertDestructiveDeleteAllowed) {
       throw new Error(
         'StudentService requires assertDestructiveDeleteAllowed (legal-hold gate) in production',
       );

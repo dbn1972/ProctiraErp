@@ -175,53 +175,65 @@ class NotificationRepository {
   }
 
   /// List every cached notification scoped to the current tenant (most
-  /// recent first).
+  /// recent first). Without an active tenant nothing is returned: a null
+  /// scope must never widen to every tenant's rows (PRC-M036).
   Future<List<CachedNotification>> listAll({String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return const <CachedNotification>[];
     final Database db = await _database.database;
-    final String? scope = tenantId ?? _tenantProvider.tenantId;
     final List<Map<String, Object?>> rows = await db.query(
       'notifications_cache',
-      where: scope == null ? null : 'tenant_id = ?',
-      whereArgs: scope == null ? null : <Object>[scope],
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[scope],
       orderBy: 'received_at DESC, id ASC',
     );
     return rows.map(CachedNotification.fromDb).toList(growable: false);
   }
 
-  /// Mark a specific notification as read. Returns the number of rows
-  /// affected (`0` when the id is unknown).
-  Future<int> markRead(String id) async {
+  /// Mark a specific notification of the current tenant as read. Returns
+  /// the number of rows affected (`0` when the id is unknown, belongs to
+  /// another tenant, or no tenant is active).
+  Future<int> markRead(String id, {String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return 0;
     final Database db = await _database.database;
     return db.update(
       'notifications_cache',
       <String, Object?>{'read': 1},
-      where: 'id = ?',
-      whereArgs: <Object>[id],
+      where: 'id = ? AND tenant_id = ?',
+      whereArgs: <Object>[id, scope],
     );
   }
 
   /// Mark every cached notification (within the current tenant) as read.
   Future<int> markAllRead({String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return 0;
     final Database db = await _database.database;
-    final String? scope = tenantId ?? _tenantProvider.tenantId;
     return db.update(
       'notifications_cache',
       <String, Object?>{'read': 1},
-      where: scope == null ? null : 'tenant_id = ?',
-      whereArgs: scope == null ? null : <Object>[scope],
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[scope],
     );
   }
 
   /// Delete every cached notification for the current tenant. Returns the
   /// number of rows removed.
   Future<int> deleteAll({String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return 0;
     final Database db = await _database.database;
-    final String? scope = tenantId ?? _tenantProvider.tenantId;
     return db.delete(
       'notifications_cache',
-      where: scope == null ? null : 'tenant_id = ?',
-      whereArgs: scope == null ? null : <Object>[scope],
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[scope],
     );
+  }
+
+  String? _scope(String? override) {
+    final String? scope = override ?? _tenantProvider.tenantId;
+    return (scope == null || scope.isEmpty) ? null : scope;
   }
 
   /// Persist an FCM-delivered notification. Uses `messageId` as the primary

@@ -10,7 +10,7 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   AppDatabase({String? overridePath}) : _overridePath = overridePath;
 
-  static const int schemaVersion = 7;
+  static const int schemaVersion = 8;
   static const String _dbFileName = 'openemis_mobile.db';
 
   final String? _overridePath;
@@ -36,7 +36,11 @@ class AppDatabase {
         await _applyMigrations(db, fromVersion: 0, toVersion: version);
       },
       onUpgrade: (Database db, int oldVersion, int newVersion) async {
-        await _applyMigrations(db, fromVersion: oldVersion, toVersion: newVersion);
+        await _applyMigrations(
+          db,
+          fromVersion: oldVersion,
+          toVersion: newVersion,
+        );
       },
     );
   }
@@ -112,18 +116,14 @@ class AppDatabase {
     if (fromVersion < 2 && toVersion >= 2) {
       // Track the server `version` (updatedAt) on every queued op so the
       // sync engine can send `If-Match` and surface 409 conflicts.
-      await db.execute(
-        'ALTER TABLE pending_sync ADD COLUMN base_version TEXT',
-      );
+      await db.execute('ALTER TABLE pending_sync ADD COLUMN base_version TEXT');
       await db.execute(
         "ALTER TABLE pending_sync ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'",
       );
       await db.execute(
         'ALTER TABLE attendance_offline ADD COLUMN version TEXT',
       );
-      await db.execute(
-        'ALTER TABLE students_cache ADD COLUMN version TEXT',
-      );
+      await db.execute('ALTER TABLE students_cache ADD COLUMN version TEXT');
 
       // Conflicted rows the user must reconcile manually. Stored separately
       // so the queue can keep draining unrelated work without blocking on a
@@ -219,12 +219,16 @@ class AppDatabase {
         await db.execute(
           'ALTER TABLE institutions_cache ADD COLUMN latitude REAL',
         );
-      } catch (_) {/* column already present */}
+      } catch (_) {
+        /* column already present */
+      }
       try {
         await db.execute(
           'ALTER TABLE institutions_cache ADD COLUMN longitude REAL',
         );
-      } catch (_) {/* column already present */}
+      } catch (_) {
+        /* column already present */
+      }
     }
     if (fromVersion < 6 && toVersion >= 6) {
       // W2-MOB-01: wipe plaintext child PII caches and ensure the health
@@ -271,6 +275,51 @@ class AppDatabase {
         'ON pending_sync(tenant_id, idempotency_key)',
       );
     }
+    if (fromVersion < 8 && toVersion >= 8) {
+      // PRC-M035 / PRC-M562: the examination and assessment repositories
+      // wrote to tables that were never created, so caching failed and the
+      // offline fallback threw. Payloads are sealed with CacheCrypto; only
+      // non-sensitive lookup keys are plaintext. All three tables are in
+      // [_userDataTables] so logout purges them.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS examinations_cache (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          student_id TEXT NOT NULL,
+          exam_date TEXT,
+          status TEXT,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, student_id, id)
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS examination_results_cache (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          student_id TEXT NOT NULL,
+          examination_id TEXT,
+          payload TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, student_id, id)
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS assessment_results_cache (
+          id TEXT NOT NULL,
+          tenant_id TEXT NOT NULL,
+          student_id TEXT NOT NULL,
+          subject_name TEXT,
+          period_name TEXT,
+          score REAL,
+          max_score REAL,
+          grade TEXT,
+          remarks TEXT,
+          assessed_at TEXT,
+          payload TEXT NOT NULL,
+          cached_at INTEGER,
+          PRIMARY KEY (tenant_id, student_id, id)
+        )
+      ''');
+    }
   }
 
   /// Wipe every offline cache / queue table that may hold prior-user or
@@ -294,6 +343,9 @@ class AppDatabase {
     'institutions_cache',
     'enrollments_cache',
     'health_records_cache',
+    'examinations_cache',
+    'examination_results_cache',
+    'assessment_results_cache',
   ];
 
   Future<void> close() async {

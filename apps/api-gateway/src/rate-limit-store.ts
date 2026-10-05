@@ -4,6 +4,7 @@
  * Prefer Redis when REDIS_URL is set so counters are shared across gateway
  * replicas. Refuse silent multi-replica in-memory limiting in production.
  */
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import Redis from 'ioredis';
 
 export type RateLimitStoreEnv = {
@@ -14,8 +15,7 @@ export type RateLimitStoreEnv = {
 };
 
 export type RateLimitStoreDecision =
-  | { mode: 'redis'; redisUrl: string }
-  | { mode: 'memory'; reason: string };
+  { mode: 'redis'; redisUrl: string } | { mode: 'memory'; reason: string };
 
 function truthy(value: string | undefined): boolean {
   if (!value) return false;
@@ -37,7 +37,7 @@ export function decideRateLimitStore(env: RateLimitStoreEnv = process.env): Rate
     return { mode: 'redis', redisUrl };
   }
 
-  if (env.NODE_ENV === 'production' && !truthy(env.ALLOW_IN_MEMORY_RATE_LIMIT)) {
+  if (isProductionNodeEnv(env.NODE_ENV) && !truthy(env.ALLOW_IN_MEMORY_RATE_LIMIT)) {
     throw new Error(
       'REDIS_URL is required for cluster-wide rate limiting in production (W1-ARCH-02). ' +
         'Set REDIS_URL, or set ALLOW_IN_MEMORY_RATE_LIMIT=1 only for explicit single-replica emergency.',
@@ -46,10 +46,9 @@ export function decideRateLimitStore(env: RateLimitStoreEnv = process.env): Rate
 
   return {
     mode: 'memory',
-    reason:
-      env.NODE_ENV === 'production'
-        ? 'ALLOW_IN_MEMORY_RATE_LIMIT=1 (single-replica emergency)'
-        : 'REDIS_URL unset (dev/test process-local store)',
+    reason: isProductionNodeEnv(env.NODE_ENV)
+      ? 'ALLOW_IN_MEMORY_RATE_LIMIT=1 (single-replica emergency)'
+      : 'REDIS_URL unset (dev/test process-local store)',
   };
 }
 

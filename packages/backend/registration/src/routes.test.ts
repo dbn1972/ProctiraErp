@@ -330,7 +330,7 @@ describe('Registration Routes', () => {
     it('mints sessions with randomBytes(16) and refuses client-chosen ids (W1-SEC-05)', () => {
       const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'routes.ts'), 'utf8');
       expect(src).toMatch(/randomBytes\s*\(\s*16\s*\)/);
-      expect(src).toMatch(/NODE_ENV === 'production'/);
+      expect(src).toMatch(/isProductionNodeEnv\(process\.env\.NODE_ENV\)/);
       expect(src).not.toMatch(/Math\.random\s*\(/);
     });
 

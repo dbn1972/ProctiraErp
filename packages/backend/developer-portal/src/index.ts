@@ -42,6 +42,7 @@ export {
 export type {
   DeveloperPortalServiceConfig,
   WebhookHttpFetch,
+  WebhookSigningSecretResolver,
   WebhookReplayStore,
   WebhookSignatureParts,
   WebhookSignedHeaders,
@@ -52,7 +53,10 @@ export type {
 } from './developer-portal-service.js';
 
 // Durable webhook delivery spine (W2-JOB-07)
-export { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
+export {
+  OutboxWebhookDeliveryPublisher,
+  QueueWebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
 export type {
   WebhookDeliveryJobPayload,
   WebhookDeliveryPublisher,

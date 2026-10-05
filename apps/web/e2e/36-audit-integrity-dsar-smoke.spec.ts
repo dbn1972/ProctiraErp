@@ -104,6 +104,8 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
 
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
     // PRC-M085: verification is an explicit action, not part of page load.
+    // Wait for hydration so the click reaches the handler (not the SSR markup).
+    await expect(page.getByTestId('chain-verify')).toHaveAttribute('data-hydrated', 'true');
     await page.getByTestId('chain-verify').click();
     await expect(page.getByTestId('chain-integrity')).toHaveAttribute('data-valid', 'true');
   });
