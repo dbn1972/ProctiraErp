@@ -349,7 +349,10 @@ export class NotificationService {
 
     const template = await this.repository.getTemplateById(tenantId, notification.templateId);
     if (!template) {
-      await this.handleDeliveryFailure(notification, `Template '${notification.templateId}' not found`);
+      await this.handleDeliveryFailure(
+        notification,
+        `Template '${notification.templateId}' not found`,
+      );
       return true;
     }
 
@@ -469,6 +472,7 @@ export class NotificationService {
       pageSize?: number;
       status?: DeliveryStatus;
       channel?: DeliveryChannel;
+      unread?: 'true' | 'false';
     },
   ): Promise<PaginatedNotifications> {
     return this.repository.getUserNotifications(tenantId, userId, {
@@ -476,6 +480,7 @@ export class NotificationService {
       pageSize: options.pageSize ?? 20,
       status: options.status,
       channel: options.channel,
+      unreadOnly: options.unread === 'true',
     });
   }
 

@@ -94,6 +94,9 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     if (options.channel) {
       filtered = filtered.filter((n) => n.channel === options.channel);
     }
+    if (options.unreadOnly) {
+      filtered = filtered.filter((n) => n.readAt == null);
+    }
 
     // Sort by createdAt descending
     filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

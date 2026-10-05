@@ -11,8 +11,10 @@
  *   `student-create` for new students or `student-edit-<studentId>`
  *   for an edit, so closing the browser, losing power, or losing
  *   connectivity does not result in data loss for the in-progress
- *   form. The draft is hydrated on mount, flushed on submit, and
- *   cleared on a successful save.
+ *   form. PRC-M119: the key is scoped to user + tenant, drafts expire
+ *   after 24 h, identity numbers/contact details are never stored, a
+ *   found draft is offered for restore (stale edit drafts discarded),
+ *   and all drafts are purged on sign-out / session end.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Plus, Trash2, User } from 'lucide-react';
@@ -45,6 +47,8 @@ import {
 } from '@proctira/ui/components';
 import type { CustomFieldDefinition } from '@/lib/api/students';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
+import { useAuth } from '@/providers/AuthProvider';
+import { isDraftStale, mergeDraftOverRecord, sanitizeStudentDraft } from './student-draft';
 import { studentFormSchema, type StudentFormValues } from '@/lib/validation/student-schema';
 import { createStudentAction, updateStudentAction, type ActionState } from '../actions';
 
@@ -53,6 +57,8 @@ interface StudentFormProps {
   studentId?: string;
   initialValues: StudentFormValues;
   customFields: CustomFieldDefinition[];
+  /** Edit mode: the record's `updatedAt`; older drafts are discarded. */
+  recordUpdatedAt?: string;
 }
 
 const GENDER_OPTIONS = [
@@ -75,7 +81,13 @@ const DOCUMENT_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-export function StudentForm({ mode, studentId, initialValues, customFields }: StudentFormProps) {
+export function StudentForm({
+  mode,
+  studentId,
+  initialValues,
+  customFields,
+  recordUpdatedAt,
+}: StudentFormProps) {
   const router = useRouter();
   const [serverState, setServerState] = useState<ActionState<{ studentId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -96,11 +108,18 @@ export function StudentForm({ mode, studentId, initialValues, customFields }: St
   // are debounced inside the hook to 30 s, flushed on submit, and
   // cleared on a successful response so the next visit starts clean.
   const draftFormId = mode === 'create' ? 'student-create' : `student-edit-${studentId ?? ''}`;
-  const draft = useDraftAutosave<StudentFormValues>(draftFormId);
-
+  // PRC-M119: the draft is owned by this user + tenant (fail closed until the
+  // session is known), expires after 24 h, and never stores identity numbers
+  // or contact details.
+  const { user } = useAuth();
+  const draft = useDraftAutosave<StudentFormValues>(draftFormId, undefined, {
+    scope: user ? { userId: user.id, tenantId: user.tenant_id } : null,
+    requireScope: true,
+    sanitize: sanitizeStudentDraft,
+  });
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
-    defaultValues: draft.values ?? initialValues,
+    defaultValues: initialValues,
     mode: 'onBlur',
   });
   const {
@@ -120,20 +139,36 @@ export function StudentForm({ mode, studentId, initialValues, customFields }: St
   // effect; if a draft exists we replace the server-supplied
   // `initialValues` with it so the user can pick up where they left
   // off without manually re-entering anything.
+  // PRC-M119: a found draft is offered (not silently applied); a draft older
+  // than the record's last update is discarded.
   const hasHydratedDraftRef = useRef<boolean>(false);
+  const [draftOffer, setDraftOffer] = useState<{
+    values: StudentFormValues;
+    savedAt: string;
+  } | null>(null);
   useEffect(() => {
     if (hasHydratedDraftRef.current) return;
-    if (draft.values !== null) {
-      reset(draft.values);
-      hasHydratedDraftRef.current = true;
+    if (draft.values === null) return;
+    hasHydratedDraftRef.current = true;
+    if (mode === 'edit' && isDraftStale(draft.savedAt, recordUpdatedAt)) {
+      draft.clear();
+      return;
     }
-  }, [draft.values, reset]);
+    setDraftOffer({ values: draft.values, savedAt: draft.savedAt ?? '' });
+  }, [draft, mode, recordUpdatedAt]);
+  function restoreDraft() {
+    if (draftOffer) reset(mergeDraftOverRecord(initialValues, draftOffer.values));
+    setDraftOffer(null);
+  }
+  function discardDraft() {
+    draft.clear();
+    setDraftOffer(null);
+  }
 
   // Persist every form mutation. `watch()` with no arguments emits on
   // any field change; the autosave hook itself debounces to 30 s so
-  // this stays cheap. We deliberately persist the entire shape so
-  // partially-completed nested arrays (contacts, guardians, identity
-  // documents) survive a refresh.
+  // this stays cheap. Nested arrays survive a refresh, minus the
+  // sensitive values stripped by `sanitizeStudentDraft`.
   useEffect(() => {
     const subscription = watch((values) => {
       draft.save(values as StudentFormValues);
@@ -190,6 +225,37 @@ export function StudentForm({ mode, studentId, initialValues, customFields }: St
       className="space-y-6"
       aria-busy={isPending}
     >
+      {draftOffer ? (
+        <div
+          role="region"
+          aria-label="Unsaved draft"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-4 py-3 text-sm"
+          data-testid="student-draft-offer"
+        >
+          <p>
+            An unsaved draft from{' '}
+            <time dateTime={draftOffer.savedAt}>
+              {new Date(draftOffer.savedAt).toLocaleString()}
+            </time>{' '}
+            was found. Identity numbers and contact details are not kept in drafts and must be
+            re-entered.
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" className="min-h-11" onClick={restoreDraft}>
+              Restore draft
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              onClick={discardDraft}
+            >
+              Discard
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {serverState?.status === 'error' && serverState.message && (
         <div
           className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"

@@ -31,24 +31,18 @@ test.describe('ETL pipelines — shell (ungated)', () => {
     await setupPipelinesSession(page);
   });
 
-  test('/pipelines renders create form and heading', async ({ page }) => {
+  test('/pipelines renders heading and withholds the create form without connections', async ({
+    page,
+  }) => {
     const response = await page.goto('/pipelines', { waitUntil: 'domcontentloaded' });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /etl pipelines/i })).toBeVisible();
-    await expect(page.getByTestId('create-pipeline-form')).toBeVisible();
+    // PRC-M109: no gateway here, so destination connections cannot load and the create
+    // form is replaced by an explicit alert (never a form that can only fail).
+    await expect(page.getByTestId('etl-connections-error')).toBeVisible();
+    await expect(page.getByTestId('create-pipeline-form')).toHaveCount(0);
     // Prefer the in-page CTA — sidebar also has a "Data Warehouse" nav link.
     await expect(page.getByRole('link', { name: /data warehouse indicators/i })).toBeVisible();
-  });
-
-  test('/pipelines rejects empty name client-side', async ({ page }) => {
-    await page.goto('/pipelines', { waitUntil: 'domcontentloaded' });
-    await page.getByLabel(/pipeline name/i).fill('');
-    await page.getByRole('button', { name: /create pipeline/i }).click();
-    // HTML required attribute or our setError — either is acceptable honesty.
-    const nativeInvalid = await page.getByLabel(/pipeline name/i).evaluate((el) => {
-      return (el as HTMLInputElement).validity.valueMissing;
-    });
-    expect(nativeInvalid || (await page.getByRole('alert').count()) > 0).toBeTruthy();
   });
 });
 
@@ -61,9 +55,30 @@ test.describe('ETL pipelines — live create (E2E_BACKEND_READY)', () => {
     await setupPipelinesLiveSession(page);
   });
 
+  /** PRC-M109: the form exists only when the server registers a destination connection. */
+  async function openCreateForm(page: Page): Promise<void> {
+    await page.goto('/pipelines', { waitUntil: 'domcontentloaded' });
+    const form = page.getByTestId('create-pipeline-form');
+    const noConnections = page.getByTestId('etl-no-connections');
+    await expect(form.or(noConnections)).toBeVisible();
+    test.skip(
+      (await noConnections.count()) > 0,
+      'No ETL_DESTINATION_CONNECTIONS configured on this gateway; create form is withheld',
+    );
+  }
+  test('rejects empty name client-side', async ({ page }) => {
+    await openCreateForm(page);
+    await page.getByLabel(/pipeline name/i).fill('');
+    await page.getByRole('button', { name: /create pipeline/i }).click();
+    // HTML required attribute or our setError — either is acceptable honesty.
+    const nativeInvalid = await page.getByLabel(/pipeline name/i).evaluate((el) => {
+      return (el as HTMLInputElement).validity.valueMissing;
+    });
+    expect(nativeInvalid || (await page.getByRole('alert').count()) > 0).toBeTruthy();
+  });
   test('creates a pipeline and lists it', async ({ page }) => {
     const name = `E2E Pipeline ${Date.now()}`;
-    await page.goto('/pipelines', { waitUntil: 'domcontentloaded' });
+    await openCreateForm(page);
     await page.getByLabel(/pipeline name/i).fill(name);
     await page.getByRole('button', { name: /create pipeline/i }).click();
     await expect(page.getByText(name)).toBeVisible({ timeout: 20_000 });

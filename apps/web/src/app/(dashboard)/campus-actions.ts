@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { libraryDueAtError } from '@/lib/validation/library-due-date';
 import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   createHostel,
@@ -159,6 +160,9 @@ export async function checkoutLibraryItemAction(input: {
     // PRC-L047: the form sends a wall-clock date; resolve in tenant TZ.
     // Input validated by both L033 and L241 schemas is what reaches the gateway.
     const dueAt = await toTenantUtcIso(v.data.dueAt);
+    // PRC-M104: past / over-policy due dates are refused before the gateway.
+    const dueError = dueAt ? libraryDueAtError(dueAt) : null;
+    if (dueError) return { status: 'error', message: dueError };
     const loan = await checkoutLibraryItem({ ...v.data, dueAt });
     revalidatePath('/library');
     revalidatePath('/library/circulation');

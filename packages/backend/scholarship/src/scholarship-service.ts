@@ -36,6 +36,12 @@ import type {
   FinancialInfo,
   EligibilityCriteria,
 } from './schemas.js';
+import {
+  outboxBackoffMs,
+  type ScholarshipFeeOutbox,
+  type ScholarshipFeeOutboxEvent,
+  type ScholarshipFeeOutboxRow,
+} from './scholarship-fee-outbox.js';
 import type {
   ScholarshipProgramEntity,
   ScholarshipApplicationEntity,
@@ -175,6 +181,22 @@ export interface ScholarshipServiceOptions {
     amountCents: number;
     currency: string;
   }) => Promise<void>;
+  /**
+   * PRC-H084: transactional outbox for the fee hooks. When provided and
+   * `isAvailable()`, the status write and an outbox row commit together and
+   * the hook is dispatched from the outbox (retried by `drainFeeOutbox`).
+   * When absent / table missing, the legacy hook-with-compensation path runs.
+   */
+  feeOutbox?: ScholarshipFeeOutbox;
+  /** Attempts before an outbox row is dead-lettered (`failed`). Default 8. */
+  feeOutboxMaxAttempts?: number;
+}
+
+export interface FeeOutboxDrainResult {
+  processed: number;
+  done: number;
+  retried: number;
+  failed: number;
 }
 
 /**
@@ -184,6 +206,10 @@ export class ScholarshipService {
   private readonly defaultWorkflowId: string;
   private readonly onDisbursementPaid?: ScholarshipServiceOptions['onDisbursementPaid'];
   private readonly onDisbursementReversed?: ScholarshipServiceOptions['onDisbursementReversed'];
+  private readonly feeOutbox?: ScholarshipFeeOutbox;
+  private readonly feeOutboxMaxAttempts: number;
+  /** Tenants with outbox rows awaiting retry (in-process hint for the drain worker). */
+  private readonly feeOutboxRetryTenants = new Set<string>();
 
   constructor(
     private readonly repository: ScholarshipRepository,
@@ -193,6 +219,8 @@ export class ScholarshipService {
     this.defaultWorkflowId = options?.defaultWorkflowId ?? 'scholarship_approval';
     this.onDisbursementPaid = options?.onDisbursementPaid;
     this.onDisbursementReversed = options?.onDisbursementReversed;
+    this.feeOutbox = options?.feeOutbox;
+    this.feeOutboxMaxAttempts = Math.max(1, options?.feeOutboxMaxAttempts ?? 8);
   }
 
   // ─── Program Operations ──────────────────────────────────────────────────
@@ -797,6 +825,38 @@ export class ScholarshipService {
       updateData.transactionReference = input.transactionReference;
     if (input.notes !== undefined) updateData.notes = input.notes;
 
+    // PRC-H084: paid / un-paid transitions are delivered to fees via the outbox
+    // (status + outbox row in one transaction) when it is available.
+    const outboxEvent: ScholarshipFeeOutboxEvent | null =
+      nextStatus === 'paid' && existing.paymentStatus !== 'paid' && this.onDisbursementPaid
+        ? 'disbursement.paid'
+        : existing.paymentStatus === 'paid' && nextStatus !== 'paid' && this.onDisbursementReversed
+          ? 'disbursement.reversed'
+          : null;
+    if (outboxEvent && this.feeOutbox && (await this.feeOutbox.isAvailable())) {
+      const outbox = this.feeOutbox;
+      let enqueued: ScholarshipFeeOutboxRow | null = null;
+      const updatedTx = await this.repository.updateDisbursement(
+        id,
+        tenantId,
+        updateData,
+        async (tx) => {
+          enqueued = await outbox.enqueue(tx, {
+            tenantId,
+            disbursementId: id,
+            event: outboxEvent,
+          });
+        },
+      );
+      if (!updatedTx) {
+        throw new NotFoundError(`Disbursement with id '${id}' not found`);
+      }
+      assertMajorMatchesCents(updatedTx.amount, updatedTx.amountCents);
+      // Best-effort immediate delivery; a failure stays pending for the retry worker.
+      if (enqueued) await this.dispatchFeeOutboxRowInOrder(enqueued);
+      return updatedTx;
+    }
+
     const updated = await this.repository.updateDisbursement(id, tenantId, updateData);
     if (!updated) {
       throw new NotFoundError(`Disbursement with id '${id}' not found`);
@@ -879,6 +939,186 @@ export class ScholarshipService {
     }
 
     return updated;
+  }
+
+  /**
+   * PRC-H084 immediate delivery that preserves per-disbursement ordering: when an
+   * older row for the same disbursement is still open (pending, or dead-lettered
+   * `failed`), the new row is left pending for the drain instead of overtaking it.
+   * Never throws; a failed ordering lookup also defers to the drain.
+   */
+  private async dispatchFeeOutboxRowInOrder(
+    row: ScholarshipFeeOutboxRow,
+  ): Promise<'done' | 'retry' | 'failed' | 'deferred'> {
+    const outbox = this.feeOutbox;
+    if (!outbox) return 'retry';
+    let olderOpen: boolean;
+    try {
+      olderOpen = (await outbox.listOpenForDisbursement(row.tenantId, row.disbursementId)).some(
+        (r) => r.id !== row.id,
+      );
+    } catch {
+      olderOpen = true;
+    }
+    if (olderOpen) {
+      this.feeOutboxRetryTenants.add(row.tenantId);
+      return 'deferred';
+    }
+    return this.dispatchFeeOutboxRow(row);
+  }
+
+  /**
+   * PRC-H084: deliver one outbox row to the fee hook. Never throws: success marks
+   * the row done; failure records the attempt with backoff, dead-lettering after
+   * `feeOutboxMaxAttempts`. Hooks are disbursementId-idempotent, so a replay of
+   * an already-applied row nets once.
+   *
+   * The row's event is checked against the disbursement's CURRENT status: a
+   * `disbursement.paid` row for a disbursement that is no longer `paid` (e.g.
+   * cancelled while the paid row was pending / dead-lettered) is marked done as a
+   * no-op so it can never net after the reversal; likewise a
+   * `disbursement.reversed` row never runs while the disbursement is `paid`.
+   */
+  async dispatchFeeOutboxRow(
+    row: ScholarshipFeeOutboxRow,
+    now: Date = new Date(),
+  ): Promise<'done' | 'retry' | 'failed'> {
+    const outbox = this.feeOutbox;
+    if (!outbox) return 'retry';
+    try {
+      const disbursement = await this.repository.findDisbursementById(
+        row.disbursementId,
+        row.tenantId,
+      );
+      const application = disbursement
+        ? await this.repository.findApplicationById(disbursement.applicationId, row.tenantId)
+        : null;
+      // Superseded rows: the event no longer matches the current status -> no-op.
+      const superseded =
+        !!disbursement &&
+        (row.event === 'disbursement.paid'
+          ? disbursement.paymentStatus !== 'paid'
+          : disbursement.paymentStatus === 'paid');
+      if (disbursement && application && !superseded) {
+        const program = await this.repository.findProgramById(application.programId, row.tenantId);
+        const currency = program?.currency ?? 'INR';
+        if (row.event === 'disbursement.paid') {
+          if (!this.onDisbursementPaid) throw new Error('onDisbursementPaid hook not configured');
+          await this.onDisbursementPaid({
+            tenantId: row.tenantId,
+            disbursementId: disbursement.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amount: disbursement.amount,
+            amountCents: disbursement.amountCents,
+            currency,
+          });
+        } else {
+          if (!this.onDisbursementReversed) {
+            throw new Error('onDisbursementReversed hook not configured');
+          }
+          await this.onDisbursementReversed({
+            tenantId: row.tenantId,
+            disbursementId: disbursement.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amountCents: disbursement.amountCents,
+            currency,
+          });
+        }
+      }
+      await outbox.markDone(row.tenantId, row.id);
+      return 'done';
+    } catch (error: unknown) {
+      const attempt = row.attempts + 1;
+      const dead = attempt >= this.feeOutboxMaxAttempts;
+      await outbox.markAttemptFailed(
+        row.tenantId,
+        row.id,
+        errorMessage(error),
+        new Date(now.getTime() + outboxBackoffMs(attempt)),
+        dead ? 'failed' : 'pending',
+      );
+      if (!dead) this.feeOutboxRetryTenants.add(row.tenantId);
+      return dead ? 'failed' : 'retry';
+    }
+  }
+
+  /**
+   * PRC-H084 retry worker: deliver due pending rows oldest-first. A disbursement
+   * whose earlier row fails in this pass is skipped so paid/reversed stay ordered.
+   */
+  async drainFeeOutbox(
+    tenantId: string,
+    options: { now?: Date; limit?: number } = {},
+  ): Promise<FeeOutboxDrainResult> {
+    const result: FeeOutboxDrainResult = { processed: 0, done: 0, retried: 0, failed: 0 };
+    if (!this.feeOutbox || !(await this.feeOutbox.isAvailable())) return result;
+    const now = options.now ?? new Date();
+    const blocked = new Set<string>();
+    for (const row of await this.feeOutbox.listDue(tenantId, now, options.limit ?? 100)) {
+      if (blocked.has(row.disbursementId)) continue;
+      result.processed += 1;
+      const outcome = await this.dispatchFeeOutboxRow(row, now);
+      if (outcome === 'done') result.done += 1;
+      else {
+        blocked.add(row.disbursementId);
+        if (outcome === 'failed') result.failed += 1;
+        else result.retried += 1;
+      }
+    }
+    // Keep the retry hint while any row is still pending (incl. not yet due).
+    const stillPending = (await this.feeOutbox.listOpen(tenantId, 500)).some(
+      (r) => r.status === 'pending',
+    );
+    if (!stillPending) this.feeOutboxRetryTenants.delete(tenantId);
+    return result;
+  }
+
+  /** PRC-H084: drain every tenant with in-process retry work (interval worker). */
+  async drainFeeOutboxRetries(now: Date = new Date()): Promise<FeeOutboxDrainResult> {
+    const total: FeeOutboxDrainResult = { processed: 0, done: 0, retried: 0, failed: 0 };
+    for (const tenantId of [...this.feeOutboxRetryTenants]) {
+      const r = await this.drainFeeOutbox(tenantId, { now });
+      total.processed += r.processed;
+      total.done += r.done;
+      total.retried += r.retried;
+      total.failed += r.failed;
+    }
+    return total;
+  }
+
+  /** PRC-H084 reconcile view: undelivered (pending + dead-lettered) outbox rows. */
+  async listOpenFeeOutbox(tenantId: string, limit = 100): Promise<ScholarshipFeeOutboxRow[]> {
+    if (!this.feeOutbox || !(await this.feeOutbox.isAvailable())) return [];
+    return this.feeOutbox.listOpen(tenantId, limit);
+  }
+
+  /**
+   * PRC-H084 replay: requeue dead-lettered rows (one, or all for the tenant) and
+   * drain immediately. Idempotent hooks guarantee a replay nets once.
+   */
+  async replayFeeOutbox(
+    tenantId: string,
+    options: { id?: string; now?: Date } = {},
+  ): Promise<FeeOutboxDrainResult> {
+    const outbox = this.feeOutbox;
+    if (!outbox || !(await outbox.isAvailable())) {
+      return { processed: 0, done: 0, retried: 0, failed: 0 };
+    }
+    const now = options.now ?? new Date();
+    const rows = options.id
+      ? [await outbox.findById(tenantId, options.id)].filter(
+          (r): r is ScholarshipFeeOutboxRow => r !== null,
+        )
+      : await outbox.listOpen(tenantId, 500);
+    if (options.id && rows.length === 0) {
+      throw new NotFoundError(`Fee outbox row '${options.id}' not found`);
+    }
+    for (const row of rows) {
+      if (row.status !== 'done') await outbox.requeue(tenantId, row.id, now);
+    }
+    return this.drainFeeOutbox(tenantId, { now });
   }
 
   /**

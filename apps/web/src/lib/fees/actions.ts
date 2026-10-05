@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { majorUnitsToCents } from '@proctira/common';
+import { generateIdempotencyKey, isValidIdempotencyKey } from '@/lib/sync/idempotencyKey';
 import { validateReconciliationCsv } from './reconciliation-csv';
 import { GatewayError } from '@/lib/api/gateway';
 import {
@@ -174,18 +175,21 @@ export async function applyConcessionAction(
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
   try {
-    const result = await applyConcession({
-      studentId: parsed.data.studentId,
-      structureId: parsed.data.structureId,
-      invoiceId: parsed.data.invoiceId || undefined,
-      kind: parsed.data.kind,
-      percent: parsed.data.kind === 'percent' ? parsed.data.percent : undefined,
-      amountCents:
-        parsed.data.kind === 'amount' && parsed.data.amount != null
-          ? majorUnitsToCents(parsed.data.amount)
-          : undefined,
-      reason: parsed.data.reason,
-    });
+    const result = await applyConcession(
+      {
+        studentId: parsed.data.studentId,
+        structureId: parsed.data.structureId,
+        invoiceId: parsed.data.invoiceId || undefined,
+        kind: parsed.data.kind,
+        percent: parsed.data.kind === 'percent' ? parsed.data.percent : undefined,
+        amountCents:
+          parsed.data.kind === 'amount' && parsed.data.amount != null
+            ? majorUnitsToCents(parsed.data.amount)
+            : undefined,
+        reason: parsed.data.reason,
+      },
+      { idempotencyKey: parsed.data.idempotencyKey ?? generateIdempotencyKey() },
+    );
     refreshFees();
     return { success: true, data: { discountCents: result.discountCents } };
   } catch (error) {
@@ -201,10 +205,15 @@ export async function refundInvoiceAction(
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
   try {
-    const refund = await refundInvoice(parsed.data.invoiceId, {
-      amountCents: majorUnitsToCents(parsed.data.amount),
-      reason: parsed.data.reason,
-    });
+    // PRC-H058: replay-safe — the gateway executes one refund per key.
+    const refund = await refundInvoice(
+      parsed.data.invoiceId,
+      {
+        amountCents: majorUnitsToCents(parsed.data.amount),
+        reason: parsed.data.reason,
+      },
+      { idempotencyKey: parsed.data.idempotencyKey ?? generateIdempotencyKey() },
+    );
     refreshFees();
     return { success: true, data: { id: refund.id } };
   } catch (error) {
@@ -225,6 +234,10 @@ export async function payInvoiceStaffAction(
       error: parsed.error.issues[0]?.message ?? 'Validation failed',
       fieldErrors: flattenZod(parsed.error),
     };
+  }
+  // PRC-H058: the key is also the gateway Idempotency-Key header (UUID v4).
+  if (!isValidIdempotencyKey(parsed.data.idempotencyKey)) {
+    return { success: false, error: 'Invalid idempotency key' };
   }
   if (parsed.data.method === 'sandbox' && !isSandboxPaymentEnabled()) {
     return {
@@ -306,12 +319,15 @@ export async function applyScholarshipNettingAction(
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
   }
   try {
-    const result = await applyScholarshipNetting({
-      studentId: parsed.data.studentId,
-      disbursementId: parsed.data.disbursementId.trim(),
-      invoiceId: parsed.data.invoiceId || undefined,
-      currency: parsed.data.currency || undefined,
-    });
+    const result = await applyScholarshipNetting(
+      {
+        studentId: parsed.data.studentId,
+        disbursementId: parsed.data.disbursementId.trim(),
+        invoiceId: parsed.data.invoiceId || undefined,
+        currency: parsed.data.currency || undefined,
+      },
+      { idempotencyKey: parsed.data.idempotencyKey ?? generateIdempotencyKey() },
+    );
     refreshFees();
     return { success: true, data: result };
   } catch (error) {

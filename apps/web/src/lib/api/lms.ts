@@ -5,6 +5,7 @@
  * FR-LMS-001…015, FR-PAL-001…015.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 import { MAX_API_PAGE_SIZE } from './pagination';
 
 export type LmsScope = 'board' | 'school';
@@ -177,9 +178,11 @@ export interface AssignmentListFilter {
   boardId?: string;
   subject?: string;
   search?: string;
+  /** PRC-M107: server-side class filter (assignment grade level). */
+  gradeLevel?: string;
+  page?: number;
   pageSize?: number;
 }
-
 function toQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -206,6 +209,19 @@ export async function listAssignments(filter: AssignmentListFilter = {}): Promis
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
+}
+
+/**
+ * PRC-M107: one page of assignments with its pagination meta, keeping a
+ * failed read distinct from an empty page.
+ */
+export async function listAssignmentsPage(
+  filter: AssignmentListFilter = {},
+): Promise<ListResult<LmsAssignment>> {
+  return fetchList<LmsAssignment>(
+    `/lms/assignments${toQuery({ ...filter, page: filter.page ?? 1, pageSize: filter.pageSize ?? 20 })}`,
+    { next: { revalidate: 0 } },
+  );
 }
 
 export async function getAssignment(id: string): Promise<LmsAssignment | null> {
@@ -438,11 +454,13 @@ export async function createBankQuestion(input: {
 }
 
 export async function listRubrics(): Promise<LmsRubric[]> {
-  const result = await gatewayFetch<{ data: LmsRubric[] }>('/lms/rubrics?pageSize=100', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listRubricsResult();
+  return result.ok ? result.items : [];
+}
+
+/** PRC-M113: keeps a failed rubric read distinct from "no rubrics". */
+export async function listRubricsResult(): Promise<ListResult<LmsRubric>> {
+  return fetchList<LmsRubric>('/lms/rubrics?pageSize=100', { next: { revalidate: 0 } });
 }
 
 export async function getRubric(id: string): Promise<LmsRubric | null> {
@@ -515,7 +533,8 @@ export async function getDiscussion(id: string): Promise<DiscussionThread | null
 
 export async function listDiscussions(classKey?: string): Promise<DiscussionThread[]> {
   const result = await gatewayFetch<{ data: DiscussionThread[] }>(
-    `/lms/discussions${toQuery({ classKey, pageSize: 50 })}`,
+    // PRC-M108: posts are embedded, so the page needs no per-thread fetch.
+    `/lms/discussions${toQuery({ classKey, pageSize: 50, include: 'posts' })}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
@@ -686,10 +705,14 @@ export async function getLesson(id: string): Promise<LmsLesson | null> {
 }
 
 export async function listLessons(): Promise<LmsLesson[]> {
-  const result = await gatewayFetch<{ data: LmsLesson[] }>('/lms/lessons?pageSize=100', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  // PRC-M108: resources are embedded, so the page needs no per-lesson fetch.
+  const result = await gatewayFetch<{ data: LmsLesson[] }>(
+    '/lms/lessons?pageSize=100&include=resources',
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data?.data ?? [];
 }
 

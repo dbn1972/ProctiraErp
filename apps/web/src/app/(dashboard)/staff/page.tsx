@@ -13,7 +13,7 @@
  *   Subjects (tags), School, Status pill, icon-button actions
  */
 import Link from 'next/link';
-import { Eye, MoreVertical, Pencil, Plus } from 'lucide-react';
+import { Eye, Pencil, Plus } from 'lucide-react';
 
 import { listInstitutions } from '@/lib/api/institutions';
 import { listStaff, type StaffListFilters } from '@/lib/api/staff';
@@ -59,6 +59,8 @@ function readNum(
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
+
+const STAFF_TYPES = ['ALL', 'TEACHING', 'NON_TEACHING', 'ON_LEAVE'] as const;
 
 const KNOWN_POSITIONS = [
   'Teacher',
@@ -266,9 +268,6 @@ function StaffRow({ member }: { member: StaffMember }) {
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -283,8 +282,12 @@ export default async function StaffListPage(props: PageProps) {
   const institutionId = readStr(searchParams, 'institutionId');
   const position = readStr(searchParams, 'position');
   const status = readStr(searchParams, 'status', 'ALL');
-  const type = (readStr(searchParams, 'type', 'ALL') || 'ALL') as
-    'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
+  const rawType = readStr(searchParams, 'type', 'ALL');
+  const type: NonNullable<StaffListFilters['type']> = STAFF_TYPES.includes(
+    rawType as (typeof STAFF_TYPES)[number],
+  )
+    ? (rawType as (typeof STAFF_TYPES)[number])
+    : 'ALL';
 
   const filters: StaffListFilters = {
     page: readNum(searchParams, 'page', 1),
@@ -298,6 +301,8 @@ export default async function StaffListPage(props: PageProps) {
   if (institutionId) filters.institutionId = institutionId;
   if (position) filters.position = position;
   if (status && status !== 'ALL') filters.status = status as StaffListFilters['status'];
+  // PRC-M120: the tab really filters the list (server-side).
+  if (type !== 'ALL') filters.type = type;
 
   const [staffResponse, institutions] = await Promise.all([
     listStaff(filters),
@@ -345,7 +350,8 @@ export default async function StaffListPage(props: PageProps) {
       </div>
 
       {/* ── Type tabs ── */}
-      <StaffTypeTabs activeType={type} counts={{ ALL: totalAll }} />
+      {/* Count only on the active tab: it is the total for the current filters. */}
+      <StaffTypeTabs activeType={type} counts={{ [type]: totalAll }} />
 
       {/* ── Filter bar ── */}
       <div className="py-1">

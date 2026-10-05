@@ -52,7 +52,12 @@ export interface FeesLedgerPort {
   listInvoices(tenantId: string): Promise<unknown[]>;
   listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<unknown[]>;
   getInvoice(tenantId: string, invoiceId: string): Promise<{ studentId: string }>;
-  voidInvoice(tenantId: string, invoiceId: string): Promise<unknown>;
+  /** PRC-H058: FeesService.voidInvoice — status check, void and reversal journal in one invoice lock. */
+  voidInvoice(
+    tenantId: string,
+    invoiceId: string,
+    options?: { actorId?: string | null; reason?: string | null },
+  ): Promise<unknown>;
   recordPayment(
     tenantId: string,
     actorId: string,
@@ -747,11 +752,25 @@ export class ParentPortalService {
     return this.repository.listInvoicesForTenant(tenantId);
   }
 
-  async voidInvoice(tenantId: string, invoiceId: string) {
+  async voidInvoice(
+    tenantId: string,
+    invoiceId: string,
+    options: { actorId?: string | null; reason?: string | null } = {},
+  ) {
     if (this.fees) {
-      return this.fees.voidInvoice(tenantId, invoiceId) as unknown as NonNullable<
-        Awaited<ReturnType<ParentPortalRepository['updateInvoice']>>
-      >;
+      // PRC-H058: the shared fees ledger locks the invoice and posts the reversal
+      // journal in the same transaction as the status change, attributed to the actor.
+      return this.fees.voidInvoice(tenantId, invoiceId, {
+        actorId: options.actorId ?? null,
+        reason: options.reason ?? null,
+      }) as unknown as NonNullable<Awaited<ReturnType<ParentPortalRepository['updateInvoice']>>>;
+    }
+    // PRC-H058: the legacy repository path has no ledger, lock or reversal journal;
+    // voiding money there would desync AR. Fail closed outside dev/test.
+    if (process.env.NODE_ENV === 'production') {
+      throw new BusinessRuleError(
+        'Invoice void requires the fees ledger; the parent-portal fallback store cannot reverse journals',
+      );
     }
     const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
     if (!invoice) {

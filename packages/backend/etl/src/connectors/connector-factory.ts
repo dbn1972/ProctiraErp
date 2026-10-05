@@ -5,6 +5,7 @@
  */
 import type { DataSourceConfig, DataDestinationConfig } from '../schemas.js';
 
+import { resolveDestinationConnection } from './connection-registry.js';
 import { CsvSourceConnector } from './csv-source.js';
 import { RestApiDestinationConnector } from './rest-api-destination.js';
 import { RestApiSourceConnector } from './rest-api-source.js';
@@ -50,6 +51,22 @@ export function createDestinationConnector(config: DataDestinationConfig): Desti
       throw new ConnectorNotImplementedError('postgresql destination');
     case 'rest_api':
       return new RestApiDestinationConnector(config);
+    case 'connection': {
+      // PRC-M109: resolve the server-managed connection; unknown ids fail closed.
+      const resolved = resolveDestinationConnection(config);
+      if (!resolved) {
+        const error = `Unknown destination connection: ${config.connectionId}`;
+        return {
+          validate: async () => ({ valid: false, error }),
+          load: async () => {
+            throw new Error(error);
+          },
+        };
+      }
+      // Known ids delegate to the concrete destination type, so they inherit its
+      // runtime status (PRC-M222: postgresql destination currently fails closed, 501).
+      return createDestinationConnector(resolved);
+    }
     default: {
       const _exhaustive: never = config;
       throw new Error(`Unsupported destination type: ${(config as { type: string }).type}`);

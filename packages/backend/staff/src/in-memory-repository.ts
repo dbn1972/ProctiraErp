@@ -7,6 +7,7 @@
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+import { matchesStaffType } from './staff-type.js';
 
 export class InMemoryStaffRepository implements StaffRepository {
   private staff: Map<string, StaffEntity> = new Map();
@@ -74,6 +75,14 @@ export class InMemoryStaffRepository implements StaffRepository {
     }
     if (filter.position) {
       items = items.filter((entity) => entity.position === filter.position);
+    }
+    if (filter.staffType) {
+      const type = filter.staffType;
+      items = items.filter((entity) => matchesStaffType(entity.position, type));
+    }
+    if (filter.ids) {
+      const ids = filter.ids;
+      items = items.filter((entity) => ids.has(entity.id));
     }
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();

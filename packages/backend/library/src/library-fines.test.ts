@@ -9,6 +9,25 @@ import { LibraryService } from './library-service.js';
 
 const TENANT = '550e8400-e29b-41d4-a716-446655440000';
 const STUDENT = '55555555-5555-4555-8555-555555555555';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PRC-M104: checkout refuses past due dates, so check out with a valid future
+ * due date and then backdate the stored loan to make it overdue.
+ */
+async function checkoutOverdue(
+  repo: InMemoryLibraryRepository,
+  service: LibraryService,
+  itemId: string,
+) {
+  const loan = await service.checkout(TENANT, {
+    itemId,
+    studentId: STUDENT,
+    dueAt: new Date(Date.now() + 14 * DAY_MS).toISOString(),
+  });
+  await repo.updateLoan(loan.id, TENANT, { dueAt: new Date(Date.now() - 30 * DAY_MS) });
+  return loan;
+}
 
 describe('LibraryService.assessFine (G-603 / G-916)', () => {
   it('posts an overdue fine invoice to the fees ledger when wired', async () => {
@@ -17,11 +36,7 @@ describe('LibraryService.assessFine (G-603 / G-916)', () => {
     const service = new LibraryService(repo, ledger);
 
     const item = await service.createItem(TENANT, { title: 'Algorithms', copies: 1 });
-    const loan = await service.checkout(TENANT, {
-      itemId: item.id,
-      studentId: STUDENT,
-      dueAt: '2020-01-01T00:00:00.000Z',
-    });
+    const loan = await checkoutOverdue(repo, service, item.id);
 
     const assessed = await service.assessFine(TENANT, 'librarian-1', {
       loanId: loan.id,
@@ -37,13 +52,10 @@ describe('LibraryService.assessFine (G-603 / G-916)', () => {
   });
 
   it('still records a local fine when the fees ledger is not configured', async () => {
-    const service = new LibraryService(new InMemoryLibraryRepository(), null);
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
     const item = await service.createItem(TENANT, { title: 'Local Fine', copies: 1 });
-    const loan = await service.checkout(TENANT, {
-      itemId: item.id,
-      studentId: STUDENT,
-      dueAt: '2020-01-01T00:00:00.000Z',
-    });
+    const loan = await checkoutOverdue(repo, service, item.id);
     const assessed = await service.assessFine(TENANT, 'librarian-1', {
       loanId: loan.id,
       amountCents: 200,

@@ -47,6 +47,8 @@ export interface ScholarshipPluginOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
   /** PRC-H030: tenant-scoped student existence check for application subjects. */
   applicantExists?: ApplicantStudentLookup;
+  /** PRC-H084: outbox retry-drain interval (ms). 0 disables. Default 30s. */
+  feeOutboxDrainIntervalMs?: number;
   /** PRC-L345: student-record areaId/gender lookup (defaults to Postgres). */
   resolveApplicantAttributes?: ApplicantAttributesLookup;
   /** PRC-L344: shared single-use store for document download links. */
@@ -92,6 +94,25 @@ export const scholarshipPlugin = fp(
 
     // Decorate fastify with the scholarship service
     fastify.decorate('scholarshipService', scholarshipService);
+    // PRC-H084: outbox retry worker (in-process); replay/reconcile via /fee-outbox routes.
+    const drainMs = options.feeOutboxDrainIntervalMs ?? 30_000;
+    if (serviceOptions?.feeOutbox && drainMs > 0) {
+      let draining = false;
+      const timer = setInterval(() => {
+        if (draining) return;
+        draining = true;
+        scholarshipService
+          .drainFeeOutboxRetries()
+          .catch((error: unknown) =>
+            fastify.log.warn({ err: error }, 'scholarship fee outbox drain failed'),
+          )
+          .finally(() => {
+            draining = false;
+          });
+      }, drainMs);
+      timer.unref?.();
+      fastify.addHook('onClose', async () => clearInterval(timer));
+    }
 
     // Register scholarship routes
     await registerScholarshipRoutes(fastify, {

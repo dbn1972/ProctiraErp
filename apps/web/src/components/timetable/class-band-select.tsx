@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 /** Class filter beside the week-grid / list toggle. Options are class bands, never ids. */
 export function ClassBandSelect(props: {
   value: string;
-  bands: string[];
+  options: Array<{ value: string; label: string }>;
   preserve?: Record<string, string | undefined>;
 }) {
   const router = useRouter();
@@ -28,9 +28,9 @@ export function ClassBandSelect(props: {
         }}
       >
         <option value="all">All sections</option>
-        {props.bands.map((band) => (
-          <option key={band} value={band}>
-            Class {band}
+        {props.options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>

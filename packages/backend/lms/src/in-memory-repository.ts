@@ -576,6 +576,16 @@ export class InMemoryLmsRepository implements LmsRepository {
       );
   }
 
+  async listDiscussionPostsFor(
+    tenantId: string,
+    discussionIds: string[],
+  ): Promise<DiscussionPostEntity[]> {
+    const out: DiscussionPostEntity[] = [];
+    for (const id of new Set(discussionIds))
+      out.push(...(await this.listDiscussionPosts(tenantId, id)));
+    return out;
+  }
+
   async setPostPinned(
     tenantId: string,
     postId: string,
@@ -639,6 +649,16 @@ export class InMemoryLmsRepository implements LmsRepository {
     list.push(entity);
     this.lessonResources.set(data.lessonId, list);
     return entity;
+  }
+
+  async listLessonResourcesFor(
+    tenantId: string,
+    lessonIds: string[],
+  ): Promise<LessonResourceEntity[]> {
+    const out: LessonResourceEntity[] = [];
+    for (const id of new Set(lessonIds))
+      out.push(...(await this.listLessonResources(tenantId, id)));
+    return out;
   }
 
   async listLessonResources(tenantId: string, lessonId: string): Promise<LessonResourceEntity[]> {

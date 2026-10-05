@@ -1174,6 +1174,20 @@ VALUES
 ON CONFLICT (id) DO UPDATE
 SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, updated_at = now();
 
+-- PRC-M101: meetings and substitutions only accept staff with an ACTIVE
+-- assignment at the institution. These Mayur Vihar class teachers already
+-- teach seeded Mayur Vihar meetings, so give them that assignment.
+INSERT INTO staff_assignments (
+  id, tenant_id, staff_id, institution_id, subject_id, class_id, role,
+  allocation_percentage, start_date, status
+)
+VALUES
+  ('00000000-0000-4000-8000-00000000a5a4', '00000000-0000-4000-8000-00000000a501', '00000000-0000-4000-8000-00000000a594', '00000000-0000-4000-8000-00000000a551', NULL, NULL, 'class_teacher', 100, DATE '2026-04-01', 'ACTIVE'),
+  ('00000000-0000-4000-8000-00000000a5a5', '00000000-0000-4000-8000-00000000a501', '00000000-0000-4000-8000-00000000a595', '00000000-0000-4000-8000-00000000a551', NULL, NULL, 'class_teacher', 100, DATE '2026-04-01', 'ACTIVE'),
+  ('00000000-0000-4000-8000-00000000a5a6', '00000000-0000-4000-8000-00000000a501', '00000000-0000-4000-8000-00000000a596', '00000000-0000-4000-8000-00000000a551', NULL, NULL, 'class_teacher', 100, DATE '2026-04-01', 'ACTIVE'),
+  ('00000000-0000-4000-8000-00000000a5a7', '00000000-0000-4000-8000-00000000a501', '00000000-0000-4000-8000-00000000a597', '00000000-0000-4000-8000-00000000a551', NULL, NULL, 'class_teacher', 100, DATE '2026-04-01', 'ACTIVE')
+ON CONFLICT (id) DO NOTHING;
+
 -- Named homerooms keep their original ids so existing attendance rows still join.
 UPDATE classes
 SET grade_id = '00000000-0000-4000-8000-00000000a542',
