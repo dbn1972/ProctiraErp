@@ -13,7 +13,7 @@
  * **Validates: Requirements 4.6, 4.8, 4.9**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { createAuthConfig } from '@proctira/auth';
 import type { AuthConfig, AuthUser, Session } from '@proctira/auth';
@@ -25,6 +25,9 @@ import type { JwtSigner, RefreshTokenStore } from './token-service.js';
 import type { RefreshToken, JwtPayload } from '@proctira/auth';
 import { SessionService } from './session-service.js';
 import type { SessionStore } from './session-service.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 

@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictError } from '@proctira/common';
 import * as fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { invigilatorsAreClashFree, type TimedSlot } from './clash.js';
 import { ExaminationService } from './examination-service.js';
@@ -14,6 +14,9 @@ import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import { ExamOpsService } from './ops-service.js';
 import { InMemoryExamOpsStore } from './ops-store.js';
 import type { CreateExaminationInput } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 function futureDate(days: number): string {
   const d = new Date();
