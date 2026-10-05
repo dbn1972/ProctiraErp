@@ -43,6 +43,10 @@ export const DYNAMIC_SQL_ALLOWLIST = new Map([
     'packages/backend/examination/src/prisma-document-repository.ts',
     'pg-style `query(text, values)` adapter over Prisma; its callers pass static DML checked at their own call sites',
   ],
+  [
+    'packages/backend/staff/src/prisma-staff-repository.ts',
+    'PRC-L153/L246 pg-style `executor.query(text, values)` on the tenant-bound staff transaction; its only caller (pg-hr-ops-store insertContract) passes static parameterised DML checked at its own call site',
+  ],
 ]);
 const DDL_LITERAL =
   /^\s*(?:CREATE|ALTER|DROP|TRUNCATE|COMMENT\s+ON|GRANT|REVOKE|DO\s+\$|REINDEX|CLUSTER|VACUUM)\b/i;

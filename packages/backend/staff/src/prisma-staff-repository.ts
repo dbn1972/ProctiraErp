@@ -158,6 +158,10 @@ async function createStaffRow(
   return toEntity(row);
 }
 
+/** Interactive-transaction limits for {@link PrismaStaffRepository.withTransaction}. */
+const STAFF_TX_MAX_WAIT_MS = 10_000;
+const STAFF_TX_TIMEOUT_MS = 120_000;
+
 export class PrismaStaffRepository implements StaffRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -165,22 +169,31 @@ export class PrismaStaffRepository implements StaffRepository {
     tenantId: string,
     fn: (scope: StaffTransactionScope) => Promise<T>,
   ): Promise<T> {
-    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      const scope: StaffTransactionScope = {
-        create: async (data) => {
-          if (data.tenantId !== tenantId) {
-            throw new Error('Staff transaction scope is bound to a different tenant');
-          }
-          return createStaffRow(tx, data);
-        },
-        executor: {
-          query: async (text, values = []) => ({
-            rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
-          }),
-        },
-      };
-      return fn(scope);
-    });
+    return withTenantTransaction(
+      this.prisma,
+      tenantId,
+      async (tx) => {
+        const scope: StaffTransactionScope = {
+          create: async (data) => {
+            if (data.tenantId !== tenantId) {
+              throw new Error('Staff transaction scope is bound to a different tenant');
+            }
+            return createStaffRow(tx, data);
+          },
+          executor: {
+            // Allowlisted in check-no-runtime-ddl (DYNAMIC_SQL_ALLOWLIST): callers pass static,
+            // parameterised DML (pg-hr-ops-store insertContract).
+            query: async (text, values = []) => ({
+              rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
+            }),
+          },
+        };
+        return fn(scope);
+      },
+      // allOrNothing imports hold one interactive transaction across every row; Prisma's 5s
+      // default would roll back large files with P2028.
+      { maxWait: STAFF_TX_MAX_WAIT_MS, timeout: STAFF_TX_TIMEOUT_MS },
+    );
   }
   async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) =>
