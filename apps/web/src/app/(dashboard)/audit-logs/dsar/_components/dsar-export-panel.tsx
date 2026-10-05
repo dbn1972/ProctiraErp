@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { EmptyState } from '@/components/page';
+import { useHydrated } from '@/hooks/useHydrated';
 import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 import { buildDsarPackageAction, type DsarExportResult } from '../actions';
@@ -47,8 +48,11 @@ function downloadJson(filename: string, json: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Revoke after the browser has started the download (sync revoke can cancel it).
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function DsarExportPanel({
@@ -61,6 +65,10 @@ export function DsarExportPanel({
   const [subjectId, setSubjectId] = useState(defaultSubjectId);
   const [result, setResult] = useState<DsarExportResult | null>(null);
   const [pending, startTransition] = useTransition();
+  // Before hydration the form has no submit handler and would fall back to a
+  // native GET (which only pre-fills the field), so keep "Build package"
+  // disabled until React is attached.
+  const hydrated = useHydrated();
   const pack = result?.status === 'ok' ? result.pack : null;
   const labels = result?.labels ?? {};
 
@@ -71,8 +79,11 @@ export function DsarExportPanel({
           <form
             className="flex flex-col gap-3 sm:flex-row sm:items-end"
             aria-label="DSAR lookup"
+            data-testid="dsar-form"
+            data-hydrated={hydrated ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault();
+              if (pending) return;
               startTransition(async () => {
                 setResult(await buildDsarPackageAction(subjectId));
               });
@@ -105,7 +116,7 @@ export function DsarExportPanel({
             </div>
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || !hydrated}
               className="h-9 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               data-testid="dsar-run"
             >

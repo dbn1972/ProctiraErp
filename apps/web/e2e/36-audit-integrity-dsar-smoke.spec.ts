@@ -137,6 +137,15 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(created.status(), await created.text()).toBe(201);
 
     await page.goto('/audit-logs/dsar', { waitUntil: 'domcontentloaded' });
+    // PRC-M084: "Build package" is a client-side server action. Clicking before
+    // hydration falls back to a native GET that only pre-fills the field, so
+    // wait for the form to hydrate (count+attribute retried together because
+    // `next start` can briefly stream an unhydrated duplicate).
+    const dsarForm = page.getByTestId('dsar-form');
+    await expect(async () => {
+      await expect(dsarForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(dsarForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     // Free-text subject field (any actor id). Directory names are suggestions only.
     await page.getByTestId('dsar-subject-input').fill(subject);
     await page.getByTestId('dsar-run').click();
