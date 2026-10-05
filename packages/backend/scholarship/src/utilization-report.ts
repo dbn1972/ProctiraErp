@@ -6,6 +6,7 @@
  * the PG and in-memory implementations stay in parity.
  */
 import { majorUnitsNumberFromCents } from '@proctira/common';
+
 import type { UtilizationReportData, UtilizationReportFilter } from './scholarship-repository.js';
 
 export type UtilizationGroupBy = NonNullable<UtilizationReportFilter['groupBy']>;
