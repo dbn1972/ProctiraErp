@@ -212,6 +212,9 @@ export interface TransportFeeStructureEntity {
 
 export type TransportFeeLinkStatus = 'invoiced' | 'pending' | 'skipped';
 
+/** PRC-M439: prefix of the retry lease marker stored in transport_fee_links.reason. */
+export const FEE_LINK_LEASE_PREFIX = 'retry-lease:';
+
 export interface TransportFeeLinkEntity {
   id: string;
   tenantId: string;
@@ -330,6 +333,11 @@ export interface TransportRepository {
   ingestGpsPing(
     data: Omit<GpsPingEntity, 'createdAt'>,
   ): Promise<{ ping: GpsPingEntity; duplicate: boolean }>;
+  /** PRC-M446: idempotent batch insert in one transaction (all rows share one tenant). */
+  ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>>;
   listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]>;
   listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]>;
 
@@ -361,4 +369,31 @@ export interface TransportRepository {
     assignmentId: string,
     tenantId: string,
   ): Promise<TransportFeeLinkEntity | null>;
+  /** PRC-M439: attach the Fees structure id after the local band row exists. */
+  setTransportFeeStructureFeesId(
+    id: string,
+    tenantId: string,
+    feesStructureId: string,
+  ): Promise<TransportFeeStructureEntity | null>;
+  /**
+   * PRC-M439: atomically lease up to `limit` pending fee links (status='pending' and no live
+   * lease). The lease is stored in `reason` as `retry-lease:<token>:<expiresEpochMs>`.
+   */
+  claimPendingFeeLinks(
+    tenantId: string,
+    leaseToken: string,
+    leaseExpiresAt: Date,
+    limit: number,
+  ): Promise<TransportFeeLinkEntity[]>;
+  /**
+   * PRC-M439: settle a pending link. When `leaseToken` is given the update applies only while
+   * that lease is still held (exactly-once invoicing); returns null when the guard fails.
+   */
+  settleFeeLink(
+    id: string,
+    tenantId: string,
+    patch: { status: TransportFeeLinkStatus; feesInvoiceId: string | null; reason: string | null },
+    leaseToken?: string,
+  ): Promise<TransportFeeLinkEntity | null>;
+  countPendingFeeLinks(tenantId: string): Promise<number>;
 }

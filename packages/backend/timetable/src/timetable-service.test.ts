@@ -414,7 +414,7 @@ describe('TimetableService', () => {
     const sub = await service.createSubstitution(tenantId, {
       sectionMeetingId: meeting.id,
       substituteStaffId: staffB,
-      substitutionDate: '2026-09-09',
+      substitutionDate: '2026-09-07',
     });
     expect(await service.listSubstitutions(tenantB)).toEqual([]);
     expect(await service.getSubstitution(tenantB, sub.id)).toBeNull();
