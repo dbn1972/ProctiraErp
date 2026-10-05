@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { NotFoundError, ValidationError } from '@proctira/common';
+import { getSharedPgPool } from '@proctira/database';
 
 import type { ReportBlobStore } from './blob-store.js';
 import {
@@ -19,7 +20,11 @@ import {
   type RoleDashboard,
 } from './dashboards.js';
 import { contentTypeFor, filenameFor, generateReportBytes, sha256Hex } from './generators.js';
-import { fetchCatalogueTable } from './providers.js';
+import {
+  fetchCatalogueTable,
+  MAX_CATALOGUE_REPORT_ROWS,
+  ReportDataUnavailableError,
+} from './providers.js';
 import type {
   ReportArtifactRecord,
   ReportRunRecord,
@@ -27,10 +32,7 @@ import type {
   ReportStore,
   ScheduleCadence,
 } from './report-store.js';
-import {
-  InMemoryScheduleDelivery,
-  type ScheduleDeliveryPort,
-} from './schedule-delivery.js';
+import { InMemoryScheduleDelivery, type ScheduleDeliveryPort } from './schedule-delivery.js';
 import { computeNextRunAt } from './scheduler.js';
 import { createReportDownloadToken } from './signed-download.js';
 
@@ -38,7 +40,7 @@ export const REPORT_SCHEDULE_LEASE_MS = 15 * 60_000;
 export const REPORT_SCHEDULE_RETRY_MS = 5 * 60_000;
 
 /** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
-export const MAX_CATALOGUE_REPORT_ROWS = 25_000;
+export { MAX_CATALOGUE_REPORT_ROWS };
 
 export interface GenerateInput {
   reportKey?: string;
@@ -293,22 +295,44 @@ export class CatalogueService {
     tenantId: string,
     roles: Array<{ roleId?: string; roleName?: string }> | undefined,
     queryRole?: string | null,
+    userId?: string | null,
   ): Promise<RoleDashboard> {
     const role = resolveDashboardRole(roles, queryRole);
-    const agg = await loadDashboardAggregates(tenantId);
-    return buildRoleDashboard(role, valuesForRole(role, agg));
+    try {
+      const agg = await loadDashboardAggregates(tenantId, { role, userId: userId ?? null });
+      return {
+        ...buildRoleDashboard(role, valuesForRole(role, agg)),
+        // No pool here means explicit demo mode (otherwise loadDashboardAggregates threw).
+        dataStatus: getSharedPgPool() ? 'live' : 'demo',
+      };
+    } catch (error: unknown) {
+      // PRC-M344: never show fabricated numbers — cards stay '—' and are flagged.
+      if (error instanceof ReportDataUnavailableError) {
+        return { ...buildRoleDashboard(role), dataStatus: 'unavailable' };
+      }
+      throw error;
+    }
   }
 
-  /** Job-runner entry: execute every enabled schedule whose next_run_at <= now. */
-  async runDue(now = new Date()): Promise<{ due: number; completed: number; failed: number }> {
-    return this.tickDueSchedules(now);
+  /**
+   * HTTP entry: execute the caller tenant's enabled schedules whose
+   * next_run_at <= now. PRC-M340: never claims other tenants' schedules; the
+   * cross-tenant sweep is reserved for the in-process scheduler tick.
+   */
+  async runDue(
+    tenantId: string,
+    now = new Date(),
+  ): Promise<{ due: number; completed: number; failed: number }> {
+    if (!tenantId) throw new ValidationError('tenantId is required', []);
+    return this.tickDueSchedules(now, tenantId);
   }
 
   async tickDueSchedules(
     now = new Date(),
+    tenantId?: string,
   ): Promise<{ due: number; completed: number; failed: number; delivered: number }> {
     // W2-JOB-08: claim (lease) before work so concurrent replicas do not double-run.
-    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS);
+    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS, tenantId);
     let completed = 0;
     let failed = 0;
     let delivered = 0;

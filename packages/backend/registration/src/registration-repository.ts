@@ -6,14 +6,11 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
+import type { ListPage } from './pagination.js';
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
 export type RegistrationStatus =
-  | 'pending'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'waitlisted';
+  'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
 
 export interface RegistrationEntity {
   id: string;
@@ -97,6 +94,41 @@ export interface TenantFormConfiguration extends FormConfiguration {
   tenantId: string;
 }
 
+/** PRC-M051/M056: distinct filter options across a tenant's active institutions. */
+export interface InstitutionFilterOptions {
+  types: Array<{ id: string; name: string }>;
+  areas: Array<{ id: string; name: string }>;
+  grades: string[];
+}
+
+/** Derive filter options from active institutions (sorted, de-duplicated). */
+export function institutionFilterOptionsFrom(
+  rows: Array<
+    Pick<
+      RegistrationInstitution,
+      'typeId' | 'typeName' | 'areaId' | 'areaName' | 'availableGrades'
+    > & {
+      status: string;
+    }
+  >,
+): InstitutionFilterOptions {
+  const types = new Map<string, string>();
+  const areas = new Map<string, string>();
+  const grades = new Set<string>();
+  for (const row of rows) {
+    if (row.status !== 'ACTIVE') continue;
+    if (row.typeId && row.typeName) types.set(row.typeId, row.typeName);
+    if (row.areaId && row.areaName) areas.set(row.areaId, row.areaName);
+    for (const grade of row.availableGrades ?? []) grades.add(grade);
+  }
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  return {
+    types: [...types].map(([id, name]) => ({ id, name })).sort(byName),
+    areas: [...areas].map(([id, name]) => ({ id, name })).sort(byName),
+    grades: [...grades].sort(),
+  };
+}
+
 export interface InstitutionLocationFilter {
   areaId?: string;
   typeId?: string;
@@ -145,13 +177,20 @@ export interface RegistrationRepository {
 
   findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;
 
-  listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
+  /** With `page`, returns up to `page.limit + 1` rows (PRC-M337). */
+  listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]>;
 
+  /**
+   * Update status. When `expectedStatus` is given the write only applies if the
+   * current status still equals it (PRC-M334 optimistic concurrency); otherwise
+   * null is returned.
+   */
   updateStatus(
     id: string,
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null>;
 
   /** Latest or explicitly selected published configuration for this institution. */
@@ -163,6 +202,8 @@ export interface RegistrationRepository {
 
   /** Tenant-scoped authoritative institution lookup (active or inactive). */
   findInstitution(tenantId: string, institutionId: string): Promise<RegistrationInstitution | null>;
+  /** PRC-M051/M056: type / area / grade options for the public directory. */
+  getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions>;
 
   getInstitutionLocations(
     tenantId: string,
