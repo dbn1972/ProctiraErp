@@ -24,7 +24,7 @@ import {
 import { ResultsControls } from '@/components/examinations/exam-ops-controls';
 import { getExamination, getExaminationResultsView } from '@/lib/api/examinations';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { loadStudentOptions, withStudentLabels } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -44,7 +44,11 @@ export default async function ExaminationResultsPage(props: PageProps) {
     getExaminationResultsView(examination),
     loadStudentOptions(),
   ]);
-  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  // PRC-M083: result rows beyond the first directory page are resolved by id.
+  const studentLabels = await withStudentLabels(
+    new Map(studentOptions.map((option) => [option.id, option.label])),
+    view.rows.map((row) => row.studentId),
+  );
 
   return (
     <Card>

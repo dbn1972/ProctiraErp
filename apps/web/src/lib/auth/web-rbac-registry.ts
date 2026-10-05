@@ -19,18 +19,34 @@ const EXAMINATION_READ_ROLE_IDS = ['teacher', 'staff', 'student'] as const;
 
 /** Gateway CAMPUS_MANAGE / STAFF_READS subset used by dashboard domain guards. */
 const DOMAIN_GRANTS: Record<string, Permission[]> = {
-  admin: [{ resource: 'communication', action: 'manage' }],
+  admin: [
+    { resource: 'communication', action: 'manage' },
+    // PRC-M480: gateway CAMPUS_MANAGE subset behind dashboard write-route guards.
+    { resource: 'lms', action: 'manage' },
+    { resource: 'library', action: 'manage' },
+  ],
   principal: [
     { resource: 'communication', action: 'manage' },
     { resource: 'report', action: 'manage' },
+    { resource: 'lms', action: 'manage' },
+    { resource: 'library', action: 'manage' },
   ],
   teacher: [
     { resource: 'communication', action: 'read' },
     { resource: 'report', action: 'read' },
+    // G-801 (gateway): teachers author and grade LMS work.
+    { resource: 'lms', action: 'create' },
+    { resource: 'lms', action: 'read' },
+    { resource: 'lms', action: 'update' },
+    { resource: 'lms', action: 'delete' },
+    { resource: 'lms', action: 'list' },
+    { resource: 'library', action: 'read' },
   ],
   staff: [
     { resource: 'communication', action: 'read' },
     { resource: 'report', action: 'read' },
+    { resource: 'lms', action: 'read' },
+    { resource: 'library', action: 'read' },
   ],
 };
 

@@ -8,6 +8,8 @@
  */
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
+import type { ResultStudentDirectory } from './result-service.js';
+
 export interface ReportCardDirectory {
   /** Full display name, or null when the student does not exist in the tenant. */
   findStudentName(tenantId: string, studentId: string): Promise<string | null>;
@@ -17,8 +19,24 @@ export interface ReportCardDirectory {
   findAcademicPeriodName(tenantId: string, academicPeriodId: string): Promise<string | null>;
 }
 
-export class PgReportCardDirectory implements ReportCardDirectory {
+export class PgReportCardDirectory implements ReportCardDirectory, ResultStudentDirectory {
   constructor(private readonly pool: PgQueryable & { connect?: () => Promise<unknown> }) {}
+
+  /** PRC-M161: single tenant-scoped IN query; deleted students do not count. */
+  async findExistingStudentIds(
+    tenantId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT id::text AS id FROM students
+          WHERE tenant_id::text = $1 AND id::text = ANY($2::text[]) AND deleted_at IS NULL`,
+        [tenantId, [...studentIds]],
+      );
+      return new Set((result.rows as Array<{ id: string }>).map((r) => r.id));
+    });
+  }
 
   async findStudentName(tenantId: string, studentId: string): Promise<string | null> {
     return withPgTenant(this.pool, tenantId, async (client) => {
@@ -64,7 +82,7 @@ export class PgReportCardDirectory implements ReportCardDirectory {
 }
 
 /** Test / dev directory keyed by tenant. */
-export class InMemoryReportCardDirectory implements ReportCardDirectory {
+export class InMemoryReportCardDirectory implements ReportCardDirectory, ResultStudentDirectory {
   private readonly students = new Map<string, string>();
   private readonly subjects = new Map<string, string>();
   private readonly periods = new Map<string, string>();
@@ -85,6 +103,12 @@ export class InMemoryReportCardDirectory implements ReportCardDirectory {
   async findStudentName(tenantId: string, studentId: string): Promise<string | null> {
     return this.students.get(`${tenantId}:${studentId}`) ?? null;
   }
+  async findExistingStudentIds(
+    tenantId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>> {
+    return new Set(studentIds.filter((id) => this.students.has(`${tenantId}:${id}`)));
+  }
   async findSubjectNames(
     tenantId: string,
     subjectIds: readonly string[],
@@ -102,7 +126,7 @@ export class InMemoryReportCardDirectory implements ReportCardDirectory {
 }
 
 /** Postgres directory when a shared pool is configured; otherwise null (jobs fail explicitly). */
-export function createReportCardDirectory(databaseUrl?: string): ReportCardDirectory | null {
+export function createReportCardDirectory(databaseUrl?: string): PgReportCardDirectory | null {
   const pool = getSharedPgPool(databaseUrl);
   return pool ? new PgReportCardDirectory(pool) : null;
 }

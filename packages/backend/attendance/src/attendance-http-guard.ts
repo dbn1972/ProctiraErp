@@ -36,16 +36,17 @@ export function requireAttendanceAction(
  * Map HTTP method + path to a coarse attendance action.
  * Returns null for device ingest (authenticated via device API key, not staff roles).
  */
-export function attendanceActionForRequest(
-  method: string,
-  url: string,
-): AttendanceAction | null {
+export function attendanceActionForRequest(method: string, url: string): AttendanceAction | null {
   const path = url.split('?')[0] ?? url;
   if (path.endsWith('/ingest') || path.includes('/ingest')) {
     return null;
   }
   const upper = method.toUpperCase();
   if (upper === 'GET' || upper === 'HEAD' || upper === 'OPTIONS') {
+    return 'attendance.read';
+  }
+  // PRC-M082: audited report export is a read despite being a POST.
+  if (upper === 'POST' && path.endsWith('/reports/export')) {
     return 'attendance.read';
   }
   if (

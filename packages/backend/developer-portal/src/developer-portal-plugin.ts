@@ -13,6 +13,7 @@ import {
   DeveloperPortalService,
   type DeveloperPortalServiceConfig,
   type WebhookHttpFetch,
+  type WebhookSigningSecretResolver,
   DEFAULT_CONFIG,
 } from './developer-portal-service.js';
 import type { WebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
@@ -54,6 +55,8 @@ export interface DeveloperPortalPluginOptions {
   createFanOutQueue?: () => QueueAdapter;
   /** Outbound HTTP client override (tests). */
   httpFetch?: WebhookHttpFetch;
+  /** PRC-H046: decrypted signing-secret resolver for queued deliveries. */
+  signingSecretResolver?: WebhookSigningSecretResolver;
   /** Route prefix (default: '/developer') */
   prefix?: string;
 }
@@ -84,6 +87,7 @@ export const developerPortalPlugin = fp(
       fanOutEvents = [],
       createFanOutQueue,
       httpFetch,
+      signingSecretResolver,
       prefix = '/developer',
     } = options;
 
@@ -95,6 +99,7 @@ export const developerPortalPlugin = fp(
       deliveryPublisher,
       replayStore,
       httpFetch,
+      signingSecretResolver,
     });
 
     // Decorate fastify with the service

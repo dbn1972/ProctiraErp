@@ -33,8 +33,8 @@ import { isUuidLike, resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
 import { KindPill, ScopePill, StatusPill, SubmissionPill } from '../../_components/badges';
-import { loadCriterionOptions } from '../../_components/criterion-options';
 import { AssignmentLifecycle } from '../../_components/assignment-lifecycle';
+import { canWrite } from '@/lib/auth/route-write-guard';
 import { AssignmentFileForm, RubricGradeForm } from '../../_components/depth-grade-forms';
 import { GradeSubmissionForm } from '../../_components/grade-submission-form';
 
@@ -77,7 +77,12 @@ export default async function AssignmentDetailPage({
   const { id } = await params;
   if (!isUuidLike(id)) notFound();
 
-  const [t, assignment] = await Promise.all([getTranslations('lms'), getAssignment(id)]);
+  const [t, assignment, canManage] = await Promise.all([
+    getTranslations('lms'),
+    getAssignment(id),
+    // PRC-M480: lifecycle and grading controls only for roles the gateway lets write LMS.
+    canWrite('lms', 'update'),
+  ]);
   if (!assignment) notFound();
 
   // Learners get 403 on the roster; treat as "no roster" rather than an error.
@@ -93,7 +98,6 @@ export default async function AssignmentDetailPage({
   );
   const rubricId = essayQuestion?.payload?.rubricId;
   const rubric: LmsRubric | null = rubricId ? await getRubric(rubricId).catch(() => null) : null;
-  const criterionOptions = await loadCriterionOptions(rubric);
   const graded = submissions.filter((s) => s.status === 'graded' || s.status === 'returned');
   const average =
     graded.length > 0 ? graded.reduce((sum, s) => sum + (s.score ?? 0), 0) / graded.length : null;
@@ -128,7 +132,7 @@ export default async function AssignmentDetailPage({
               {assignment.gradeLevel ? ` · ${t('grade', { grade: assignment.gradeLevel })}` : ''}
             </p>
           </div>
-          <AssignmentLifecycle id={assignment.id} status={assignment.status} />
+          {canManage ? <AssignmentLifecycle id={assignment.id} status={assignment.status} /> : null}
         </div>
       </div>
 
@@ -330,20 +334,25 @@ export default async function AssignmentDetailPage({
                         ) : null}
                       </TableCell>
                       <TableCell className="pe-4">
-                        <GradeSubmissionForm
-                          assignmentId={assignment.id}
-                          submissionId={s.id}
-                          maxScore={assignment.maxScore}
-                          initialScore={s.score}
-                          initialFeedback={s.feedback}
-                        />
-                        <RubricGradeForm
-                          assignmentId={assignment.id}
-                          submissionId={s.id}
-                          questionId={essayQuestion?.id}
-                          rubric={rubric}
-                          criterionOptions={criterionOptions}
-                        />
+                        {canManage ? (
+                          <>
+                            <GradeSubmissionForm
+                              assignmentId={assignment.id}
+                              submissionId={s.id}
+                              maxScore={assignment.maxScore}
+                              initialScore={s.score}
+                              initialFeedback={s.feedback}
+                            />
+                            <RubricGradeForm
+                              assignmentId={assignment.id}
+                              submissionId={s.id}
+                              questionId={essayQuestion?.id}
+                              rubric={rubric}
+                            />
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

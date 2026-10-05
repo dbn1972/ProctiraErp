@@ -18,6 +18,7 @@ import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/li
 import { getStudent, listStudents, type Student } from '@/lib/api/students';
 import {
   listClassRanks,
+  listCreditRules,
   listCommentsBank,
   listGradeEntries,
   listGradebookSections,
@@ -51,16 +52,28 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const canSubmit = canSubmitGrades(roles);
   const canModerate = canModerateGrades(roles);
 
-  const [sectionsResult, scalesResult, jobsResult, studentsResult, commentsResult, periods, today] =
-    await Promise.all([
-      listGradebookSections({ institutionId }),
-      listGradingScales(),
-      listReportCardJobs(),
-      listStudents({ pageSize: 100 }),
-      listCommentsBank({ institutionId }),
-      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-      getTenantToday(),
-    ]);
+  const [
+    sectionsResult,
+    scalesResult,
+    jobsResult,
+    studentsResult,
+    commentsResult,
+    periods,
+    today,
+    creditRulesResult,
+  ] = await Promise.all([
+    listGradebookSections({ institutionId }),
+    listGradingScales(),
+    listReportCardJobs(),
+    listStudents({ pageSize: 100 }),
+    listCommentsBank({ institutionId }),
+    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    getTenantToday(),
+    listCreditRules(),
+  ]);
+  const creditRuleOptions = creditRulesResult.ok
+    ? creditRulesResult.data.map((rule) => ({ code: rule.code, name: rule.name }))
+    : [];
 
   const apiError = !sectionsResult.ok
     ? sectionsResult.error
@@ -184,6 +197,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 defaultStudentId={defaultStudentId}
                 studentOptions={studentOptions}
                 comments={comments}
+                creditRuleOptions={creditRuleOptions}
               />
             </CardContent>
           </Card>
@@ -270,7 +284,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                             className="text-sm font-semibold text-primary"
                             data-testid={`report-card-link-${job.id}`}
                           >
-                            PDF
+                            {/* PRC-M094: no PDF exists yet — preview only. */}
+                            Preview
                           </Link>
                         ) : null}
                         {job.status === 'FAILED' ? (

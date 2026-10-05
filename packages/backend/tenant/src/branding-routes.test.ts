@@ -76,6 +76,12 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     // the gateway middleware in production.
     app = Fastify();
     await registerTenantRoutes(app, { tenantService: service });
+    // PRC-M390: the actor comes from the authenticated user, simulated here
+    // by mapping an `x-actor-id` header onto request.user.sub.
+    app.addHook('onRequest', async (req) => {
+      const actor = req.headers['x-actor-id'];
+      if (typeof actor === 'string') Object.assign(req, { user: { sub: actor } });
+    });
     await registerBrandingRoutes(app, {
       tenantService: service,
       getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
@@ -102,7 +108,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     app.inject({
       method: 'POST',
       url: '/tenant/branding/publish',
-      headers: { 'x-tenant-id': tenantId },
+      headers: { 'x-tenant-id': tenantId, 'x-actor-id': publishedBy },
       payload: { tokens, publishedBy },
     });
 
@@ -110,7 +116,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     app.inject({
       method: 'POST',
       url: '/tenant/branding/rollback',
-      headers: { 'x-tenant-id': tenantId },
+      headers: { 'x-tenant-id': tenantId, 'x-actor-id': publishedBy },
       payload: { revision, publishedBy },
     });
 
@@ -135,7 +141,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/publish',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_ALICE,
+        },
         payload: { tokens: tokensV1, publishedBy: PUBLISHER_ALICE },
       });
       expect(res.statusCode).toBe(403);
@@ -150,7 +160,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/rollback',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_BOB,
+        },
         payload: { revision: 1, publishedBy: PUBLISHER_BOB },
       });
       expect(res.statusCode).toBe(403);
@@ -178,10 +192,32 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       expect(response.json().code).toBe('TENANT_REQUIRED');
     });
 
-    it('returns 400 when publishedBy is not a UUID', async () => {
-      const response = await publish(tokensV1, 'not-a-uuid');
-      expect(response.statusCode).toBe(400);
-      expect(response.json().code).toBe('VALIDATION_ERROR');
+    it('PRC-M390: body publishedBy is ignored; stored actor is the JWT sub', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/tenant/branding/publish',
+        headers: { 'x-tenant-id': tenantId, 'x-actor-id': PUBLISHER_ALICE },
+        payload: { tokens: tokensV1, publishedBy: PUBLISHER_BOB },
+      });
+      expect(response.statusCode).toBe(201);
+      expect(response.json().publishedBy).toBe(PUBLISHER_ALICE);
+    });
+
+    it('PRC-M390: no authenticated user -> 401 on publish, rollback and draft save', async () => {
+      for (const [url, payload] of [
+        ['/tenant/branding/publish', { tokens: tokensV1, publishedBy: PUBLISHER_BOB }],
+        ['/tenant/branding/rollback', { revision: 1, publishedBy: PUBLISHER_BOB }],
+        ['/tenant/branding/draft', { tokens: tokensV1, savedBy: PUBLISHER_BOB }],
+      ] as const) {
+        const res = await app.inject({
+          method: 'POST',
+          url,
+          headers: { 'x-tenant-id': tenantId },
+          payload,
+        });
+        expect(res.statusCode, url).toBe(401);
+      }
+      expect((await listVersions()).json().data).toHaveLength(0);
     });
 
     it('appends rows with monotonically increasing revision numbers', async () => {
@@ -454,5 +490,57 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const after = (await listVersions()).json().data.length;
       expect(after).toBe(before);
     });
+  });
+});
+
+// PRC-M490: publisher/saver is the JWT subject, not the client-supplied id.
+describe('branding actor is derived server-side (PRC-M490)', () => {
+  it('records request.user.sub as publishedBy even when the body claims another user', async () => {
+    const JWT_USER = '33333333-3333-4333-8333-333333333333';
+    const CLAIMED = '44444444-4444-4444-8444-444444444444';
+    const repository = new InMemoryTenantRepository();
+    const service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
+    const app = Fastify();
+    app.addHook('onRequest', async (req) => {
+      (req as typeof req & { user: unknown }).user = { sub: JWT_USER, roles: ['admin'] };
+    });
+    await registerTenantRoutes(app, { tenantService: service });
+    await registerBrandingRoutes(app, {
+      tenantService: service,
+      getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
+      hasPermission: () => true,
+    });
+    await app.ready();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/tenants',
+      payload: {
+        name: 'Actor School',
+        slug: 'actor-school',
+        plan: 'professional',
+        region: 'us-east-1',
+        admin: {
+          firstName: 'A',
+          lastName: 'B',
+          email: 'a@actor.example',
+          password: 'SecureP@ss123',
+        },
+      },
+    });
+    const tenantId = created.json().id as string;
+    const tokens = {
+      '--tenant-primary': 'hsl(222, 47%, 31%)',
+      '--tenant-accent': 'hsl(174, 62%, 40%)',
+      '--tenant-logo': 'url("/cdn/t/logo.svg")',
+    } as ThemeTokens;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/tenant/branding/publish',
+      headers: { 'x-tenant-id': tenantId },
+      payload: { tokens, publishedBy: CLAIMED },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().publishedBy).toBe(JWT_USER);
+    await app.close();
   });
 });

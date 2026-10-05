@@ -65,6 +65,8 @@ export function CirculationDesk({
             barcode,
             patronUserId,
             studentId: studentId || undefined,
+            // PRC-M573: the due date applies to barcode checkouts too.
+            dueAt: dueAt || undefined,
           })
         : await checkoutLibraryItemAction({
             itemId,

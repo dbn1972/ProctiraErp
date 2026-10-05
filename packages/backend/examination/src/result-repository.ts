@@ -9,11 +9,28 @@
  * - 10.5: Handle incomplete result data (skip, flag, continue)
  * - 10.8: Provide result analysis (pass rate, mean score, score distribution)
  */
+import { createHash } from 'node:crypto';
 
 /**
  * Gender type for candidates.
  */
-export type CandidateGender = 'male' | 'female' | 'other';
+export type CandidateGender = 'male' | 'female' | 'other' | 'unknown';
+
+/**
+ * PRC-M240: examination_candidates.area_id is NOT NULL, so an unresolved area is
+ * stored as this nil-UUID sentinel and reported as the 'unknown' bucket — never
+ * defaulted to the exam centre.
+ */
+export const UNKNOWN_AREA_ID = '00000000-0000-0000-0000-000000000000';
+
+/** PRC-M240: map a student-record gender value onto the analysis buckets. */
+export function normalizeCandidateGender(raw: string | null | undefined): CandidateGender {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (v === 'm' || v === 'male') return 'male';
+  if (v === 'f' || v === 'female') return 'female';
+  if (v === 'o' || v === 'other' || v === 'non-binary' || v === 'nonbinary') return 'other';
+  return 'unknown';
+}
 
 /**
  * A candidate's result for a single subject in an examination.
@@ -150,9 +167,27 @@ export interface ResultRepository {
    * (examinationId, studentId); replaces subjectResults for those candidates.
    */
   upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void>;
+  /**
+   * PRC-M239: marks entry. In ONE tenant transaction, under a row lock on the
+   * examination: reject if results are published, then merge each candidate's
+   * subject results per subject into the stored row (concurrent entries for
+   * different subjects of the same student are both kept).
+   */
+  mergeCandidateMarks(
+    tenantId: string,
+    examinationId: string,
+    candidates: ExaminationCandidate[],
+  ): Promise<void>;
 
   /** Save publication result */
-  savePublicationResult(result: PublicationResult): Promise<void>;
+  /**
+   * PRC-M239: with `candidatesFingerprint`, the save locks the examination and
+   * fails with 409 if marks changed since the snapshot the result was built from.
+   */
+  savePublicationResult(
+    result: PublicationResult,
+    options?: { candidatesFingerprint?: string },
+  ): Promise<void>;
 
   /** Get publication result for an examination */
   getPublicationResult(examinationId: string, tenantId: string): Promise<PublicationResult | null>;
@@ -165,4 +200,32 @@ export interface ResultRepository {
 
   /** Get result analysis for an examination */
   getResultAnalysis(examinationId: string, tenantId: string): Promise<ResultAnalysis | null>;
+}
+
+/** PRC-M239: marks are locked once results are published. */
+export const MARKS_LOCKED_MESSAGE =
+  'Results are already published for this examination; marks are locked';
+
+/** PRC-M239: per-subject merge (incoming subjects replace stored ones). */
+export function mergeSubjectResults(
+  stored: CandidateSubjectResult[],
+  incoming: CandidateSubjectResult[],
+  candidateId: string,
+): CandidateSubjectResult[] {
+  const bySubject = new Map(stored.map((r) => [r.subjectId, { ...r, candidateId }] as const));
+  for (const r of incoming) bySubject.set(r.subjectId, { ...r, candidateId });
+  return [...bySubject.values()];
+}
+
+/** PRC-M239: order-independent fingerprint of the candidate marks snapshot. */
+export function fingerprintCandidates(candidates: ExaminationCandidate[]): string {
+  const normalized = [...candidates]
+    .map((c) => ({
+      s: c.studentId,
+      r: [...c.subjectResults]
+        .map((r) => [r.subjectId, r.score, r.isComplete] as const)
+        .sort((a, b) => a[0].localeCompare(b[0])),
+    }))
+    .sort((a, b) => a.s.localeCompare(b.s));
+  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }

@@ -12,7 +12,7 @@ import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import type { GeographicArea, Institution } from '@proctira/database';
 
-import { notifyAreaHierarchyChanged } from './area-hierarchy-resolver.js';
+import { publishAreaHierarchyChanged } from './area-hierarchy-resolver.js';
 
 /** Maximum allowed nesting depth for area hierarchy */
 export const MAX_AREA_DEPTH = 10;
@@ -182,7 +182,7 @@ export class AreaHierarchyService {
         rgt,
       },
     });
-    notifyAreaHierarchyChanged(tenantId);
+    await publishAreaHierarchyChanged(tenantId);
 
     return area;
   }
@@ -313,7 +313,7 @@ export class AreaHierarchyService {
     const updated = await this.db.geographicArea.findUnique({
       where: { id: areaId },
     });
-    notifyAreaHierarchyChanged(tenantId);
+    await publishAreaHierarchyChanged(tenantId);
 
     return updated!;
   }

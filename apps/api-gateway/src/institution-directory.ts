@@ -6,6 +6,7 @@
  * Missing tables or no database return nulls — never fabricated counts.
  * Board labels come only from `boards`, never from geographic area names.
  */
+import { isSchoolBoundPrincipal, principalInstitutions } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -212,6 +213,33 @@ export async function loadInstitutionDirectoryContext(
   return context;
 }
 
+/**
+ * PRC-H004 (fix step 6): a school-bound caller only sees its own schools' rows, and the
+ * tenant-wide KPIs are recomputed from those rows so other schools' totals do not leak.
+ */
+export function scopeDirectoryContextToInstitutions(
+  context: InstitutionDirectoryContext,
+  allowed: readonly string[],
+): InstitutionDirectoryContext {
+  const allowedSet = new Set(allowed);
+  const schools: Record<string, InstitutionDirectorySchool> = {};
+  for (const [id, school] of Object.entries(context.schools)) {
+    if (allowedSet.has(id)) schools[id] = { ...school };
+  }
+  const rows = Object.values(schools);
+  const sum = (values: Array<number | null>): number =>
+    values.reduce<number>((total, value) => total + (value ?? 0), 0);
+  return {
+    ...context,
+    studentsEnrolled:
+      context.studentsEnrolled === null ? null : sum(rows.map((row) => row.studentCount)),
+    reportingToday:
+      context.reportingToday === null
+        ? null
+        : rows.filter((row) => row.attendancePercent !== null).length,
+    schools,
+  };
+}
 export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): void {
   fastify.get(
     '/institutions/directory-context',
@@ -237,6 +265,13 @@ export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): vo
         const context = await withPgTenant(pool, tenantId, (client) =>
           loadInstitutionDirectoryContext(tenantId, client),
         );
+        const user = (request as FastifyRequest & { user?: unknown }).user as
+          Parameters<typeof isSchoolBoundPrincipal>[0] | undefined;
+        if (isSchoolBoundPrincipal(user)) {
+          return reply
+            .status(200)
+            .send(scopeDirectoryContextToInstitutions(context, principalInstitutions(user)));
+        }
         return reply.status(200).send(context);
       } catch (error) {
         // PRC-M009: a DB failure is a 503 with a log line, not an empty 200.

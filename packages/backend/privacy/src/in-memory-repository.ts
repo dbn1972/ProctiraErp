@@ -1,3 +1,7 @@
+import {
+  CORRECTION_VALUE_REDACTED,
+  NON_TERMINAL_ANONYMIZATION_JOB_STATUSES,
+} from './privacy-repository.js';
 import type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -5,7 +9,9 @@ import type {
   LegalHoldEntity,
   ListPage,
   PrivacyRepository,
+  ReleaseStalledErasureResult,
   TenantOffboardJobEntity,
+  StuckPrivacyJobRef,
 } from './privacy-repository.js';
 
 export class InMemoryPrivacyRepository implements PrivacyRepository {
@@ -101,6 +107,75 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
+  async startErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null> {
+    const idx = this.erasures.findIndex((e) => e.id === requestId && e.tenantId === tenantId);
+    if (idx < 0) return null;
+    const before = this.erasures[idx]!;
+    if (before.status !== 'approved') return null;
+    const erasure: ErasureRequestEntity = {
+      ...before,
+      status: 'in_progress',
+      reviewedBy: patch.reviewedBy,
+      statusReason: patch.statusReason,
+      updatedAt: new Date(),
+    };
+    this.erasures[idx] = erasure;
+    try {
+      const created = await this.createAnonymizationJob(job);
+      return { erasure, job: created };
+    } catch (error) {
+      // Transaction semantics: roll the status flip back.
+      this.erasures[idx] = before;
+      throw error;
+    }
+  }
+
+  async releaseStalledErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    staleBefore: Date,
+  ): Promise<ReleaseStalledErasureResult> {
+    // Synchronous body: no await between check and write, so it is atomic for this store.
+    const idx = this.erasures.findIndex((e) => e.id === requestId && e.tenantId === tenantId);
+    if (idx < 0 || this.erasures[idx]!.status !== 'in_progress') {
+      return { outcome: 'not_in_progress' };
+    }
+    const open = this.anonymizationJobs.filter(
+      (j) =>
+        j.tenantId === tenantId &&
+        j.erasureRequestId === requestId &&
+        NON_TERMINAL_ANONYMIZATION_JOB_STATUSES.includes(j.status),
+    );
+    const live = open.find((j) => (j.startedAt ?? j.createdAt).getTime() > staleBefore.getTime());
+    if (live) return { outcome: 'live_job', jobId: live.id };
+    const now = new Date();
+    for (const job of open) {
+      const jobIdx = this.anonymizationJobs.indexOf(job);
+      this.anonymizationJobs[jobIdx] = {
+        ...job,
+        status: 'failed',
+        statusReason: 'Stalled run released for retry; job fenced',
+        completedAt: now,
+        updatedAt: now,
+      };
+    }
+    const erasure: ErasureRequestEntity = {
+      ...this.erasures[idx]!,
+      status: 'approved',
+      reviewedBy: patch.reviewedBy,
+      statusReason: patch.statusReason,
+      updatedAt: now,
+    };
+    this.erasures[idx] = erasure;
+    return { outcome: 'released', erasure, failedJobIds: open.map((j) => j.id) };
+  }
+
   async findErasureRequestById(id: string, tenantId: string) {
     return this.erasures.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }
@@ -149,6 +224,27 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
+  async redactCorrectionValuesForSubject(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<number> {
+    let touched = 0;
+    this.corrections = this.corrections.map((c) => {
+      if (c.tenantId !== tenantId || c.subjectType !== subjectType || c.subjectId !== subjectId) {
+        return c;
+      }
+      touched += 1;
+      return {
+        ...c,
+        currentValue: null,
+        requestedValue: CORRECTION_VALUE_REDACTED,
+        updatedAt: new Date(),
+      };
+    });
+    return touched;
+  }
+
   async findCorrectionRequestById(id: string, tenantId: string) {
     return this.corrections.find((c) => c.id === id && c.tenantId === tenantId) ?? null;
   }
@@ -178,10 +274,12 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
         'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
+    options?: { expectedStatus?: AnonymizationJobEntity['status'] },
   ): Promise<AnonymizationJobEntity | null> {
     const idx = this.anonymizationJobs.findIndex((j) => j.id === id && j.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.anonymizationJobs[idx]!;
+    if (options?.expectedStatus && existing.status !== options.expectedStatus) return null;
     const updated: AnonymizationJobEntity = {
       ...existing,
       status: data.status ?? existing.status,
@@ -198,6 +296,18 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async findAnonymizationJobById(id: string, tenantId: string) {
     return this.anonymizationJobs.find((j) => j.id === id && j.tenantId === tenantId) ?? null;
+  }
+
+  async listStuckQueuedJobs(olderThan: Date, limit: number): Promise<StuckPrivacyJobRef[]> {
+    const refs: StuckPrivacyJobRef[] = [
+      ...this.anonymizationJobs
+        .filter((j) => j.status === 'queued' && j.updatedAt < olderThan)
+        .map((j) => ({ kind: 'anonymization' as const, id: j.id, tenantId: j.tenantId })),
+      ...this.offboardJobs
+        .filter((j) => j.status === 'queued' && j.updatedAt < olderThan)
+        .map((j) => ({ kind: 'offboard' as const, id: j.id, tenantId: j.tenantId })),
+    ];
+    return refs.slice(0, limit);
   }
 
   async listAnonymizationJobs(tenantId: string) {

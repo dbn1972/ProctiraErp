@@ -6,7 +6,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
-import type { StudentRecord, StudentRepository } from './types.js';
+import type { ImportBulkOps, StudentRecord, StudentRepository } from './types.js';
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: StudentRecord[] = [];
@@ -78,7 +78,6 @@ export class InMemoryStudentRepository implements StudentRepository {
     return updated;
   }
 
-
   async delete(tenantId: string, id: string): Promise<boolean> {
     const idx = this.students.findIndex((s) => s.id === id && s.tenantId === tenantId);
     if (idx === -1) return false;
@@ -104,5 +103,19 @@ export class InMemoryStudentRepository implements StudentRepository {
   /** Helper: clear all records */
   clear(): void {
     this.students = [];
+  }
+
+  /** PRC-M384: all-or-nothing batch; restores prior state on any failure. */
+  async bulkImport(tenantId: string, ops: ImportBulkOps): Promise<{ createdIds: string[] }> {
+    const snapshot = this.students.map((s) => ({ ...s }));
+    try {
+      const createdIds: string[] = [];
+      for (const data of ops.creates) createdIds.push((await this.create(tenantId, data)).id);
+      for (const { id, data } of ops.updates) await this.update(tenantId, id, data);
+      return { createdIds };
+    } catch (error) {
+      this.students = snapshot;
+      throw error;
+    }
   }
 }

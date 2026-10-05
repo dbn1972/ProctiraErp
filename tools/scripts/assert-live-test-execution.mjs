@@ -6,6 +6,8 @@
  * - DATABASE_URL is required but missing
  * - any *.live.test.ts / rls-live case was skipped under CI
  * - executed (non-skipped) live cases are below LIVE_TEST_MIN_EXECUTED (default 10)
+ * - PRC-L499: a suite named in LIVE_TEST_REQUIRED_FILES (comma-separated path suffixes)
+ *   is absent from the report or executed zero cases
  *
  * Usage:
  *   node tools/scripts/assert-live-test-execution.mjs path/to/vitest-report.json
@@ -40,6 +42,33 @@ export function isLiveTestFile(file = '') {
  * @param {unknown} report Vitest JSON reporter payload
  * @returns {{ executed: number, skipped: number, files: string[] }}
  */
+/**
+ * PRC-L499: per-file executed counts so CI can require specific suites (e.g. the staff
+ * live-PG suites) to have run, not just a global minimum.
+ * @returns {Map<string, number>}
+ */
+export function executedByLiveFile(report) {
+  const out = new Map();
+  const testResults = Array.isArray(report?.testResults) ? report.testResults : [];
+  for (const file of testResults) {
+    const name = String(file?.name ?? '').replace(/\\/g, '/');
+    if (!isLiveTestFile(name)) continue;
+    const assertions = Array.isArray(file?.assertionResults) ? file.assertionResults : [];
+    const executed = assertions.filter(
+      (a) => !['skipped', 'pending', 'todo'].includes(String(a?.status ?? '')),
+    ).length;
+    out.set(name, (out.get(name) ?? 0) + executed);
+  }
+  return out;
+}
+
+export function parseRequiredLiveFiles(raw = '') {
+  return String(raw)
+    .split(',')
+    .map((s) => s.trim().replace(/\\/g, '/'))
+    .filter(Boolean);
+}
+
 export function summarizeLiveTests(report) {
   const files = [];
   let executed = 0;
@@ -98,6 +127,20 @@ export function evaluateLiveReport(
     errors.push(
       `Live suites executed ${summary.executed} case(s); minimum is ${minExecuted} (W3-TEST-03)`,
     );
+  }
+
+  const required = parseRequiredLiveFiles(env.LIVE_TEST_REQUIRED_FILES);
+  if (required.length > 0) {
+    const byFile = executedByLiveFile(report);
+    for (const suffix of required) {
+      const matches = [...byFile.entries()].filter(([name]) => name.endsWith(suffix));
+      const executed = matches.reduce((n, [, c]) => n + c, 0);
+      if (matches.length === 0) {
+        errors.push(`Required live suite '${suffix}' is missing from the report (PRC-L499)`);
+      } else if (executed === 0) {
+        errors.push(`Required live suite '${suffix}' executed 0 case(s) (PRC-L499)`);
+      }
+    }
   }
 
   return { ok: errors.length === 0, errors, summary, minExecuted };

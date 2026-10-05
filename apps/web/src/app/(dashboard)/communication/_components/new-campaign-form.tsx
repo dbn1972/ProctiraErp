@@ -32,6 +32,18 @@ const SCOPES = [
   { value: 'route', label: 'Transport route' },
 ] as const;
 
+/**
+ * PRC-M075: a scoped audience must name its target. Leaving grade/hostel/route
+ * blank used to widen the send to every grade/hostel/route.
+ */
+export function audienceTargetError(scope: string, fd: FormData): string | null {
+  const value = (key: string) => String(fd.get(key) ?? '').trim();
+  if (scope === 'grade' && !value('grade')) return 'Enter the grade for a grade audience.';
+  if (scope === 'hostel' && !value('hostelId')) return 'Choose a hostel for a hostel audience.';
+  if (scope === 'route' && !value('routeId')) return 'Choose a route for a route audience.';
+  return null;
+}
+
 export function NewCampaignForm({
   createdBy,
   hostelOptions,
@@ -64,7 +76,7 @@ export function NewCampaignForm({
   function buildAudience(fd: FormData): Record<string, unknown> {
     const audience: Record<string, unknown> = { scope };
     if (scope === 'grade') {
-      audience['grade'] = String(fd.get('grade') ?? '').trim() || 'all';
+      audience['grade'] = String(fd.get('grade') ?? '').trim();
     }
     if (scope === 'hostel') {
       const hostelId = String(fd.get('hostelId') ?? '').trim();
@@ -82,6 +94,12 @@ export function NewCampaignForm({
     const form = event.currentTarget.form;
     if (!form) return;
     const fd = new FormData(form);
+    const scopeError = audienceTargetError(scope, fd);
+    if (scopeError) {
+      setError(scopeError);
+      setPreviewText(null);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       const result = await previewAudienceAction(buildAudience(fd));
@@ -106,6 +124,11 @@ export function NewCampaignForm({
     }
     if (channels.length === 0) {
       setError('Select at least one channel.');
+      return;
+    }
+    const scopeError = audienceTargetError(scope, fd);
+    if (scopeError) {
+      setError(scopeError);
       return;
     }
 
@@ -186,7 +209,7 @@ export function NewCampaignForm({
             </select>
           </FormField>
           {scope === 'grade' ? (
-            <FormField id="campaign-grade" label="Grade">
+            <FormField id="campaign-grade" label="Grade" required>
               <Input id="campaign-grade" name="grade" placeholder="10" className="h-11 min-h-11" />
             </FormField>
           ) : null}
@@ -196,7 +219,7 @@ export function NewCampaignForm({
               name="hostelId"
               label="Hostel"
               options={hostelOptions}
-              emptyMessage="No hostels yet. Create one under Hostel, or leave this audience for the whole tenant."
+              emptyMessage="No hostels yet. Create one under Hostel, or choose a different audience."
             />
           ) : null}
           {scope === 'route' ? (
@@ -205,7 +228,7 @@ export function NewCampaignForm({
               name="routeId"
               label="Route"
               options={routeOptions}
-              emptyMessage="No transport routes yet. Create one under Transport, or leave this audience for the whole tenant."
+              emptyMessage="No transport routes yet. Create one under Transport, or choose a different audience."
             />
           ) : null}
           <FormField id="campaign-body" label="Message body">

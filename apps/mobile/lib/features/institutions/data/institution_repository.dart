@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/api/pagination.dart';
+
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -43,7 +45,9 @@ class CachedInstitution {
       try {
         final dynamic v = jsonDecode(raw);
         if (v is Map<String, dynamic>) decoded = v;
-      } catch (_) {/* ignore */}
+      } catch (_) {
+        /* ignore */
+      }
     }
     return CachedInstitution(
       id: row['id'] as String,
@@ -72,10 +76,10 @@ class InstitutionRepository {
     required TenantProvider tenantProvider,
     InstitutionApi? api,
     DateTime Function() now = _defaultNow,
-  })  : _database = database,
-        _tenantProvider = tenantProvider,
-        _api = api,
-        _now = now;
+  }) : _database = database,
+       _tenantProvider = tenantProvider,
+       _api = api,
+       _now = now;
 
   static DateTime _defaultNow() => DateTime.now();
 
@@ -84,13 +88,16 @@ class InstitutionRepository {
   final InstitutionApi? _api;
   final DateTime Function() _now;
 
+  /// Cached institutions of the active tenant. Without a tenant nothing is
+  /// returned; a null scope never widens to all tenants (PRC-M036).
   Future<List<CachedInstitution>> list({String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return const <CachedInstitution>[];
     final Database db = await _database.database;
-    final String? scope = tenantId ?? _tenantProvider.tenantId;
     final List<Map<String, Object?>> rows = await db.query(
       'institutions_cache',
-      where: scope == null ? null : 'tenant_id = ?',
-      whereArgs: scope == null ? null : <Object>[scope],
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[scope],
       orderBy: 'name ASC',
     );
     return rows.map(CachedInstitution.fromDb).toList(growable: false);
@@ -101,8 +108,7 @@ class InstitutionRepository {
   /// the cache, and returned. Network errors are swallowed so the caller
   /// receives `null` rather than crashing.
   Future<CachedInstitution?> findById(String id, {String? tenantId}) async {
-    final CachedInstitution? cached =
-        await _readById(id, tenantId: tenantId);
+    final CachedInstitution? cached = await _readById(id, tenantId: tenantId);
     if (cached != null) return cached;
 
     final InstitutionApi? api = _api;
@@ -118,20 +124,68 @@ class InstitutionRepository {
     return _readById(id, tenantId: tenantId);
   }
 
-  Future<CachedInstitution?> _readById(
-    String id, {
-    String? tenantId,
-  }) async {
+  Future<CachedInstitution?> _readById(String id, {String? tenantId}) async {
+    final String? scope = _scope(tenantId);
+    if (scope == null) return null;
     final Database db = await _database.database;
-    final String? scope = tenantId ?? _tenantProvider.tenantId;
     final List<Map<String, Object?>> rows = await db.query(
       'institutions_cache',
-      where: scope == null ? 'id = ?' : 'tenant_id = ? AND id = ?',
-      whereArgs: scope == null ? <Object>[id] : <Object>[scope, id],
+      where: 'tenant_id = ? AND id = ?',
+      whereArgs: <Object>[scope, id],
       limit: 1,
     );
     if (rows.isEmpty) return null;
     return CachedInstitution.fromDb(rows.first);
+  }
+
+  String? _scope(String? override) {
+    final String? scope = override ?? _tenantProvider.tenantId;
+    return (scope == null || scope.isEmpty) ? null : scope;
+  }
+
+  /// Page through the institutions list until exhausted and replace this
+  /// tenant's cache with the result (PRC-M037). Throws on API failure so the
+  /// screen can show an error with retry instead of an empty state.
+  Future<int> refreshAll({
+    int pageSize = kMaxApiPageSize,
+    int maxPages = 50,
+  }) async {
+    final InstitutionApi? api = _api;
+    final String? tenantId = _scope(null);
+    if (api == null || tenantId == null) return 0;
+    final List<Institution> all = <Institution>[];
+    bool complete = false;
+    for (int page = 1; page <= maxPages; page++) {
+      final List<Institution> batch = await api.listInstitutions(
+        page: page,
+        pageSize: pageSize,
+      );
+      all.addAll(batch);
+      if (batch.length < pageSize) {
+        complete = true;
+        break;
+      }
+    }
+    final Database db = await _database.database;
+    await db.transaction((Transaction txn) async {
+      // Hitting [maxPages] with a full last page means rows may remain on
+      // the server: upsert only, never drop rows that were not fetched.
+      if (complete) {
+        await txn.delete(
+          'institutions_cache',
+          where: 'tenant_id = ?',
+          whereArgs: <Object>[tenantId],
+        );
+      }
+      for (final Institution i in all) {
+        await txn.insert(
+          'institutions_cache',
+          _row(tenantId, i),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+    return all.length;
   }
 
   Future<void> upsert(Institution institution) async {
@@ -140,31 +194,34 @@ class InstitutionRepository {
     if (tenantId == null) return;
     await db.insert(
       'institutions_cache',
-      <String, Object?>{
-        'id': institution.id,
-        'tenant_id': tenantId,
-        'name': institution.name,
-        'code': institution.code,
-        'area_id': institution.areaId,
-        'type': institution.type,
-        'sector': institution.sector,
-        'ownership': institution.ownership,
-        'status': institution.status,
-        'payload': jsonEncode(<String, dynamic>{
-          'id': institution.id,
-          'name': institution.name,
-          'code': institution.code,
-          'areaId': institution.areaId,
-          'type': institution.type,
-          'sector': institution.sector,
-          'ownership': institution.ownership,
-          'status': institution.status,
-          'createdAt': institution.createdAt,
-          'updatedAt': institution.updatedAt,
-        }),
-        'updated_at': _now().millisecondsSinceEpoch,
-      },
+      _row(tenantId, institution),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  Map<String, Object?> _row(String tenantId, Institution i) =>
+      <String, Object?>{
+        'id': i.id,
+        'tenant_id': tenantId,
+        'name': i.name,
+        'code': i.code,
+        'area_id': i.areaId,
+        'type': i.type,
+        'sector': i.sector,
+        'ownership': i.ownership,
+        'status': i.status,
+        'payload': jsonEncode(<String, dynamic>{
+          'id': i.id,
+          'name': i.name,
+          'code': i.code,
+          'areaId': i.areaId,
+          'type': i.type,
+          'sector': i.sector,
+          'ownership': i.ownership,
+          'status': i.status,
+          'createdAt': i.createdAt,
+          'updatedAt': i.updatedAt,
+        }),
+        'updated_at': _now().millisecondsSinceEpoch,
+      };
 }

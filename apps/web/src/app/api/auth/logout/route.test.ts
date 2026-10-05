@@ -81,3 +81,19 @@ describe('POST /api/auth/logout tenant for upstream revocation', () => {
     expect(cleared).toMatch(/refresh_token=;/);
   });
 });
+
+describe('POST /api/auth/logout upstream contract (PRC-L282)', () => {
+  it('calls the gateway authenticated POST logout with the refresh token in the body', async () => {
+    vi.stubEnv('GATEWAY_URL', 'http://gateway.internal:3200');
+    cookieValues.set('access_token', token({ sub: 'u', tenantId: 'acme' }));
+    cookieValues.set('refresh_token', 'refresh-abc');
+    const res = await POST(logoutRequest('acme.proctira.io'));
+    expect(res.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://gateway.internal:3200/api/v1/auth/logout');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['Authorization']).toMatch(/^Bearer /);
+    expect(JSON.parse(String(init.body))).toEqual({ refreshToken: 'refresh-abc' });
+    expect(url).not.toContain('refresh_token=');
+  });
+});

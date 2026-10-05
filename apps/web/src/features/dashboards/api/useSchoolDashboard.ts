@@ -4,9 +4,10 @@
  *
  * Returns a TanStack-Query-shaped `{ data, isLoading, error }` envelope.
  * Calls `GET /api/v1/dashboards/school/:institutionId` via the browser
- * gateway client. Falls back to mock data when the API is unavailable.
+ * gateway client. Failures are surfaced as `error` (PRC-M577).
  */
 
+import { DashboardScopeError } from './queries';
 import { useEffect, useRef, useState } from 'react';
 
 import { fetchSchoolDashboard } from '@/lib/api/dashboards';
@@ -69,7 +70,7 @@ const MOCK_DATA: SchoolDashboardData = {
 
 /**
  * Hook returning the dashboard data for the principal's institution.
- * Calls the real API and falls back to mock data on failure.
+ * Calls the real API; failures are surfaced as `error` (PRC-M577).
  */
 export function useSchoolDashboard(
   institutionId?: string,
@@ -85,16 +86,18 @@ export function useSchoolDashboard(
 
     (async () => {
       try {
-        const result = await fetchSchoolDashboard(idRef.current ?? 'current', controller.signal);
+        // PRC-M578: the backend cannot resolve 'current'; require a real id.
+        if (!idRef.current) throw new DashboardScopeError('institution');
+        const result = await fetchSchoolDashboard(idRef.current, controller.signal);
         if (!cancelled) {
           setData(result);
           setError(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          // Fall back to mock data so the UI remains functional
-          setData(MOCK_DATA);
-          setError(null);
+          // PRC-M577: surface the real failure; never substitute sample data.
+          setData(undefined);
+          setError(err instanceof Error ? err : new Error('Dashboard unavailable'));
         }
       }
     })();
@@ -107,7 +110,7 @@ export function useSchoolDashboard(
 
   return {
     data,
-    isLoading: data === undefined,
+    isLoading: data === undefined && error === null,
     error,
   };
 }

@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 
 import type { AuditOperation } from '@proctira/backend-audit';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import type { FastifyRequest } from 'fastify';
 
 import { resourceForApiPath } from './rbac-registry.js';
@@ -293,7 +294,7 @@ export function isAtomicMutationAuditPath(pathname: string): boolean {
  * Non-production may set ALLOW_MUTATION_AUDIT_DEGRADE=1 for local tooling.
  */
 export function isMutationAuditDegradeAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  if ((env.NODE_ENV ?? '').toLowerCase() === 'production') return false;
+  if (isProductionNodeEnv(env.NODE_ENV)) return false;
   return truthy(env.ALLOW_MUTATION_AUDIT_DEGRADE);
 }
 
@@ -308,7 +309,7 @@ export function shouldFailClosedOnMutationAuditFailure(options: {
   const env = options.env ?? process.env;
   if (isMutationAuditDegradeAllowed(env)) return false;
   if (!isSecuritySensitiveMutationPath(options.path)) return false;
-  return (env.NODE_ENV ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(env.NODE_ENV);
 }
 
 export const MUTATION_AUDIT_UNAVAILABLE_BODY = {

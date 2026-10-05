@@ -11,6 +11,8 @@
  *   - otherwise → throw at config load (fail-closed)
  */
 
+import { isProductionNodeEnv } from './node-env.js';
+
 export type ProviderDeliveryMode = 'sandbox' | 'live';
 
 export interface ProviderModeEnv {
@@ -30,9 +32,7 @@ function truthy(value: string | undefined): boolean {
 }
 
 /** Snapshot env into a typed bag (avoids unsafe ProcessEnv default params). */
-export function readProviderModeEnv(
-  source?: Record<string, string | undefined>,
-): ProviderModeEnv {
+export function readProviderModeEnv(source?: Record<string, string | undefined>): ProviderModeEnv {
   const env = source ?? {
     NODE_ENV: process.env['NODE_ENV'],
     PROVIDER_MODE: process.env['PROVIDER_MODE'],
@@ -77,7 +77,7 @@ export function resolveProviderDeliveryMode(
     );
   }
 
-  const isProduction = env.NODE_ENV === 'production';
+  const isProduction = isProductionNodeEnv(env.NODE_ENV);
   if (isProduction && !isSandboxProvidersExplicitlyAllowed(env)) {
     throw new Error(
       `[providers] ${domain}: sandbox/test providers are not allowed as the silent ` +

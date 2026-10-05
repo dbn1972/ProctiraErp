@@ -9,7 +9,14 @@ import type { CacheClient } from '@proctira/cache';
 import { reviveDates, tenantKey } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import type {
+  StudentBulkWrite,
+  StudentBulkWriteResult,
+  StudentEntity,
+  StudentFilter,
+  StudentRepository,
+  StudentUpdateOptions,
+} from './student-repository.js';
 
 /** TTL for student entity cache (5 minutes) */
 const STUDENT_TTL_SECONDS = 300;
@@ -18,7 +25,22 @@ export class CachedStudentRepository implements StudentRepository {
   constructor(
     private readonly delegate: StudentRepository,
     private readonly cache?: CacheClient,
-  ) {}
+  ) {
+    const bulk = delegate.bulkWrite?.bind(delegate);
+    if (bulk) {
+      this.bulkWrite = async (tenantId, ops) => {
+        const result = await bulk(tenantId, ops);
+        if (this.cache) {
+          for (const { id } of ops.updates)
+            await this.cache.del(tenantKey(tenantId, 'student', id));
+        }
+        return result;
+      };
+    }
+  }
+
+  /** PRC-M384: only exposed when the delegate is transactional. */
+  readonly bulkWrite?: (tenantId: string, ops: StudentBulkWrite) => Promise<StudentBulkWriteResult>;
 
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     return this.delegate.create(data);
@@ -28,8 +50,9 @@ export class CachedStudentRepository implements StudentRepository {
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
   ): Promise<StudentEntity | null> {
-    const result = await this.delegate.update(id, tenantId, data);
+    const result = await this.delegate.update(id, tenantId, data, options);
     if (result && this.cache) {
       // Invalidate cached entry on update
       const key = tenantKey(tenantId, 'student', id);

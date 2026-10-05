@@ -112,12 +112,10 @@ export interface ExamOpsAuditRecord {
 }
 
 export type GuardedSessionResult =
-  | { ok: true; session: ExamSessionRecord }
-  | { ok: false; conflicts: AllocationConflict[] };
+  { ok: true; session: ExamSessionRecord } | { ok: false; conflicts: AllocationConflict[] };
 
 export type GuardedInvigilatorResult =
-  | { ok: true; allocation: ExamInvigilatorRecord }
-  | { ok: false; conflicts: AllocationConflict[] };
+  { ok: true; allocation: ExamInvigilatorRecord } | { ok: false; conflicts: AllocationConflict[] };
 
 export interface ExamOpsStore {
   createSession(record: ExamSessionRecord): Promise<ExamSessionRecord>;
@@ -148,11 +146,15 @@ export interface ExamOpsStore {
     examinationId: string,
     seats: ExamSeatingRecord[],
   ): Promise<ExamSeatingRecord[]>;
-  /** W3-RACE-01: delete + insert under seating lock. */
+  /**
+   * W3-RACE-01: delete + insert under seating lock. PRC-M238: with `sessionId`
+   * only that session's seats are replaced; other sessions are kept.
+   */
   replaceSeatingGuarded(
     tenantId: string,
     examinationId: string,
     seats: ExamSeatingRecord[],
+    sessionId?: string | null,
   ): Promise<ExamSeatingRecord[]>;
   listSeating(tenantId: string, examinationId: string): Promise<ExamSeatingRecord[]>;
 
@@ -187,6 +189,20 @@ export interface ExamOpsStore {
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+/** PRC-M238: seats per multi-row INSERT (14 params each, well under the 65535 bind limit). */
+export const SEATING_INSERT_CHUNK = 1000;
+
+/**
+ * PRC-M238: exam_seating is UNIQUE (tenant_id, examination_id, candidate_id), so a
+ * candidate cannot hold seats in two sessions until per-session uniqueness lands.
+ */
+function seatingSessionConflict(candidateId: string | null): ConflictError {
+  return new ConflictError(
+    `Candidate ${candidateId ?? ''} already has a seat in another session of this examination; ` +
+      'regenerate exam-wide seating instead',
+  );
 }
 
 export class InMemoryExamOpsStore implements ExamOpsStore {
@@ -328,11 +344,31 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
     tenantId: string,
     examinationId: string,
     seats: ExamSeatingRecord[],
+    sessionId?: string | null,
   ): Promise<ExamSeatingRecord[]> {
     const lockKey = seatingLockKey(tenantId, examinationId);
-    return this.allocationMutex.run(lockKey, async () =>
-      this.replaceSeating(tenantId, examinationId, seats),
-    );
+    return this.allocationMutex.run(lockKey, async () => {
+      if (!sessionId) return this.replaceSeating(tenantId, examinationId, seats);
+      // PRC-M238: session-scoped replace; mirror UNIQUE (tenant, exam, candidate).
+      for (const [id, row] of this.seating) {
+        if (
+          row.tenantId === tenantId &&
+          row.examinationId === examinationId &&
+          row.sessionId === sessionId
+        ) {
+          this.seating.delete(id);
+        }
+      }
+      const taken = new Set(
+        [...this.seating.values()]
+          .filter((r) => r.tenantId === tenantId && r.examinationId === examinationId)
+          .map((r) => r.candidateId),
+      );
+      const clash = seats.find((s) => taken.has(s.candidateId));
+      if (clash) throw seatingSessionConflict(clash.candidateId);
+      for (const seat of seats) this.seating.set(seat.id, clone(seat));
+      return seats.map((s) => clone(s));
+    });
   }
 
   async listSeating(tenantId: string, examinationId: string): Promise<ExamSeatingRecord[]> {
@@ -910,24 +946,32 @@ export class PgExamOpsStore implements ExamOpsStore {
     tenantId: string,
     examinationId: string,
     seats: ExamSeatingRecord[],
+    sessionId?: string | null,
   ): Promise<ExamSeatingRecord[]> {
     return this.run(tenantId, async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         seatingLockKey(tenantId, examinationId),
       ]);
-      await client.query(`DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`, [
-        tenantId,
-        examinationId,
-      ]);
+      // PRC-M238: a session-scoped regenerate only replaces that session's seats.
+      if (sessionId) {
+        await client.query(
+          `DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2 AND session_id = $3`,
+          [tenantId, examinationId, sessionId],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`,
+          [tenantId, examinationId],
+        );
+      }
+      // PRC-M238: multi-row INSERT in chunks (one round-trip per chunk, not per seat).
       const saved: ExamSeatingRecord[] = [];
-      for (const seat of seats) {
-        const { rows } = await client.query(
-          `INSERT INTO exam_seating
-             (id, tenant_id, examination_id, session_id, candidate_id, student_id, student_name,
-              roll_number, center_id, center_name, room_number, seat_number, subject_names, generated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-           RETURNING *`,
-          [
+      for (let i = 0; i < seats.length; i += SEATING_INSERT_CHUNK) {
+        const chunk = seats.slice(i, i + SEATING_INSERT_CHUNK);
+        const params: unknown[] = [];
+        const tuples = chunk.map((seat) => {
+          const base = params.length;
+          params.push(
             seat.id,
             seat.tenantId,
             seat.examinationId,
@@ -942,9 +986,25 @@ export class PgExamOpsStore implements ExamOpsStore {
             seat.seatNumber,
             seat.subjectNames,
             seat.generatedAt,
-          ],
-        );
-        saved.push(toSeating(rows[0] as SeatingRow));
+          );
+          return `(${Array.from({ length: 14 }, (_, k) => `$${base + k + 1}`).join(',')})`;
+        });
+        try {
+          const { rows } = await client.query(
+            `INSERT INTO exam_seating
+               (id, tenant_id, examination_id, session_id, candidate_id, student_id, student_name,
+                roll_number, center_id, center_name, room_number, seat_number, subject_names, generated_at)
+             VALUES ${tuples.join(',')}
+             RETURNING *`,
+            params,
+          );
+          saved.push(...(rows as SeatingRow[]).map(toSeating));
+        } catch (error: unknown) {
+          if (sessionId && (error as { code?: string }).code === '23505') {
+            throw seatingSessionConflict(null);
+          }
+          throw error;
+        }
       }
       return saved;
     });

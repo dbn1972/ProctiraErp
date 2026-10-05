@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/errors/offline_data_banner.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/student/student_route.dart';
 import '../../students/presentation/student_picker.dart';
@@ -51,16 +52,15 @@ class _AssessmentResultsView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Semantics(
-          header: true,
-          child: Text(l10n.assessments),
-        ),
+        title: Semantics(header: true, child: Text(l10n.assessments)),
       ),
       body: BlocBuilder<AssessmentBloc, AssessmentState>(
         builder: (BuildContext context, AssessmentState state) {
           return Column(
             children: <Widget>[
               // Filter bar
+              if (state.status == AssessmentStatus.loaded && state.fromCache)
+                const OfflineDataBanner(),
               if (state.status == AssessmentStatus.loaded)
                 _FilterBar(state: state),
               // Content
@@ -87,8 +87,8 @@ class _AssessmentResultsView extends StatelessWidget {
           message: state.errorMessage ?? l10n.error,
           onRetry: () {
             context.read<AssessmentBloc>().add(
-                  AssessmentResultsRequested(studentId: state.studentId),
-                );
+              AssessmentResultsRequested(studentId: state.studentId),
+            );
           },
         );
       case AssessmentStatus.loaded:
@@ -120,11 +120,11 @@ class _FilterBar extends StatelessWidget {
               options: state.subjects,
               onSelected: (String? value) {
                 context.read<AssessmentBloc>().add(
-                      AssessmentFilterChanged(
-                        subject: value,
-                        period: state.selectedPeriod,
-                      ),
-                    );
+                  AssessmentFilterChanged(
+                    subject: value,
+                    period: state.selectedPeriod,
+                  ),
+                );
               },
             ),
           if (state.periods.isNotEmpty)
@@ -134,11 +134,11 @@ class _FilterBar extends StatelessWidget {
               options: state.periods,
               onSelected: (String? value) {
                 context.read<AssessmentBloc>().add(
-                      AssessmentFilterChanged(
-                        subject: state.selectedSubject,
-                        period: value,
-                      ),
-                    );
+                  AssessmentFilterChanged(
+                    subject: state.selectedSubject,
+                    period: value,
+                  ),
+                );
               },
             ),
         ],
@@ -174,11 +174,13 @@ class _FilterChip extends StatelessWidget {
             height: 48,
             child: Text('All ${label}s'),
           ),
-          ...options.map((String option) => PopupMenuItem<String?>(
-                value: option,
-                height: 48,
-                child: Text(option),
-              )),
+          ...options.map(
+            (String option) => PopupMenuItem<String?>(
+              value: option,
+              height: 48,
+              child: Text(option),
+            ),
+          ),
         ],
         child: Chip(
           label: Text(value ?? 'All ${label}s'),
@@ -280,7 +282,9 @@ class _ResultsList extends StatelessWidget {
       }
     }
     final bool hasAverage = totalMax > 0;
-    final double averagePercent = hasAverage ? (totalScore / totalMax) * 100 : 0;
+    final double averagePercent = hasAverage
+        ? (totalScore / totalMax) * 100
+        : 0;
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -293,8 +297,7 @@ class _ResultsList extends StatelessWidget {
             totalMax: totalMax,
           );
         }
-        final AssessmentResult result =
-            results[index - (hasAverage ? 1 : 0)];
+        final AssessmentResult result = results[index - (hasAverage ? 1 : 0)];
         return _ResultCard(result: result);
       },
     );
@@ -351,7 +354,9 @@ class _AverageHeader extends StatelessWidget {
                   ),
                   Text(
                     '${percent.toStringAsFixed(1)}%',
-                    style: theme.textTheme.headlineSmall?.copyWith(color: color),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: color,
+                    ),
                   ),
                 ],
               ),
@@ -381,8 +386,7 @@ class _ResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool hasPercent =
-        result.maxScore != null && result.maxScore! > 0;
+    final bool hasPercent = result.maxScore != null && result.maxScore! > 0;
     final double percent = hasPercent ? result.percentage : 0;
 
     return Semantics(
@@ -457,7 +461,8 @@ class _ResultCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (result.remarks != null && result.remarks!.isNotEmpty) ...<Widget>[
+              if (result.remarks != null &&
+                  result.remarks!.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 10),
                 Text(
                   result.remarks!,
@@ -543,11 +548,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: theme.colorScheme.error,
-            ),
+            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
               message,
@@ -562,9 +563,7 @@ class _ErrorView extends StatelessWidget {
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
                 label: Text(AppLocalizations.of(context).retry),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(48, 48),
-                ),
+                style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
               ),
             ),
           ],
@@ -605,7 +604,9 @@ class _EmptyView extends StatelessWidget {
             Text(
               'Assessment results will appear here once published by your institution.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.7,
+                ),
               ),
               textAlign: TextAlign.center,
             ),

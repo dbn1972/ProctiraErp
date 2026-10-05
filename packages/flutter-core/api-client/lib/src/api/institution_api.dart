@@ -9,6 +9,27 @@ class InstitutionApi extends BaseApi {
 
   static const String _basePath = '/api/v1/institutions';
 
+  /// One page of institutions visible to the caller (PRC-M037).
+  Future<List<Institution>> listInstitutions({
+    int page = 1,
+    int pageSize = 100,
+  }) async {
+    final Response<dynamic> response = await request<dynamic>(
+      _basePath,
+      method: 'GET',
+      queryParameters: <String, dynamic>{'page': page, 'pageSize': pageSize},
+    );
+    final Object? body = response.data;
+    final Object? data = body is Map<String, dynamic> ? body['data'] : body;
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(Institution.fromJson)
+          .toList(growable: false);
+    }
+    return const <Institution>[];
+  }
+
   Future<Institution> fetchInstitution(String id) async {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/$id',
@@ -33,9 +54,9 @@ class InstitutionApi extends BaseApi {
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+      return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
     }
     return const <Map<String, dynamic>>[];
   }
@@ -50,17 +71,15 @@ class InstitutionApi extends BaseApi {
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic> && body['data'] is List) {
-      return (body['data'] as List)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+      return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
     }
     return const <Map<String, dynamic>>[];
   }
 
   /// Fetch contact information for an institution.
-  Future<Map<String, dynamic>> fetchContactInfo(
-    String institutionId,
-  ) async {
+  Future<Map<String, dynamic>> fetchContactInfo(String institutionId) async {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/$institutionId/contact',
       method: 'GET',

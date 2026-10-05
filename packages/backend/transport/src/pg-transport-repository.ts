@@ -36,6 +36,7 @@ import type {
   VehicleFilter,
   VehicleStatus,
 } from './transport-repository.js';
+import { FEE_LINK_LEASE_PREFIX } from './transport-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -305,6 +306,34 @@ export class PgTransportRepository implements TransportRepository {
     );
   }
 
+  /**
+   * PRC-M448: `UPDATE ... SET <only provided columns>, updated_at = now()` in one statement.
+   * Column map values may carry a `::type` cast suffix. Undefined fields are left untouched.
+   */
+  private async partialUpdate(
+    tenantId: string,
+    table: string,
+    id: string,
+    data: Record<string, unknown>,
+    columns: Record<string, string>,
+  ): Promise<Record<string, unknown> | null> {
+    const sets: string[] = [];
+    const values: unknown[] = [id, tenantId];
+    for (const [key, spec] of Object.entries(columns)) {
+      if (data[key] === undefined) continue;
+      const [column = spec, cast] = spec.split('::');
+      values.push(data[key]);
+      sets.push(`${column} = $${values.length}${cast ? `::${cast}` : ''}`);
+    }
+    sets.push('updated_at = now()');
+    const result = await this.query(
+      tenantId,
+      `UPDATE ${table} SET ${sets.join(', ')} WHERE id = $1 AND tenant_id = $2 RETURNING *`,
+      values,
+    );
+    return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureTransportSchema(this.pool);
   }
@@ -353,52 +382,28 @@ export class PgTransportRepository implements TransportRepository {
     data: Partial<TransportRouteEntity>,
   ): Promise<TransportRouteEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findRouteById(id, tenantId);
-    if (!existing) return null;
-    const merged: TransportRouteEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const result = await this.query(
+    // PRC-M448: single-statement partial UPDATE of only the provided fields, so concurrent
+    // edits to different fields no longer revert each other.
+    const row = await this.partialUpdate(
       tenantId,
-      `UPDATE transport_routes SET
-        name = $3,
-        description = $4,
-        status = $5,
-        start_location = $6,
-        end_location = $7,
-        distance_km = $8,
-        estimated_duration_minutes = $9,
-        operating_days = $10,
-        departure_time = $11,
-        return_time = $12,
-        institution_id = $13,
-        updated_at = $14
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.name,
-        merged.description,
-        merged.status,
-        merged.startLocation,
-        merged.endLocation,
-        merged.distanceKm,
-        merged.estimatedDurationMinutes,
-        merged.operatingDays,
-        merged.departureTime,
-        merged.returnTime,
-        merged.institutionId,
-        merged.updatedAt,
-      ],
+      'transport_routes',
+      id,
+      data as Record<string, unknown>,
+      {
+        name: 'name',
+        description: 'description',
+        status: 'status',
+        startLocation: 'start_location',
+        endLocation: 'end_location',
+        distanceKm: 'distance_km',
+        estimatedDurationMinutes: 'estimated_duration_minutes',
+        operatingDays: 'operating_days',
+        departureTime: 'departure_time',
+        returnTime: 'return_time',
+        institutionId: 'institution_id',
+      },
     );
-    if (!result.rows[0]) return null;
-    return mapRouteRow(result.rows[0] as Record<string, unknown>);
+    return row ? mapRouteRow(row) : null;
   }
 
   async findRouteById(id: string, tenantId: string): Promise<TransportRouteEntity | null> {
@@ -507,44 +512,24 @@ export class PgTransportRepository implements TransportRepository {
     data: Partial<RouteStopEntity>,
   ): Promise<RouteStopEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findStopById(id, tenantId);
-    if (!existing) return null;
-    const merged: RouteStopEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const result = await this.query(
+    // PRC-M448: single-statement partial UPDATE of only the provided fields, so concurrent
+    // edits to different fields no longer revert each other.
+    const row = await this.partialUpdate(
       tenantId,
-      `UPDATE transport_stops SET
-        route_id = $3,
-        name = $4,
-        latitude = $5,
-        longitude = $6,
-        stop_order = $7,
-        pickup_time = $8,
-        dropoff_time = $9,
-        updated_at = $10
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.routeId,
-        merged.name,
-        merged.latitude,
-        merged.longitude,
-        merged.stopOrder,
-        merged.pickupTime,
-        merged.dropoffTime,
-        merged.updatedAt,
-      ],
+      'transport_stops',
+      id,
+      data as Record<string, unknown>,
+      {
+        routeId: 'route_id',
+        name: 'name',
+        latitude: 'latitude',
+        longitude: 'longitude',
+        stopOrder: 'stop_order',
+        pickupTime: 'pickup_time',
+        dropoffTime: 'dropoff_time',
+      },
     );
-    if (!result.rows[0]) return null;
-    return mapStopRow(result.rows[0] as Record<string, unknown>);
+    return row ? mapStopRow(row) : null;
   }
 
   async findStopById(id: string, tenantId: string): Promise<RouteStopEntity | null> {
@@ -620,46 +605,25 @@ export class PgTransportRepository implements TransportRepository {
     data: Partial<VehicleEntity>,
   ): Promise<VehicleEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findVehicleById(id, tenantId);
-    if (!existing) return null;
-    const merged: VehicleEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const result = await this.query(
+    // PRC-M448: single-statement partial UPDATE of only the provided fields, so concurrent
+    // edits to different fields no longer revert each other.
+    const row = await this.partialUpdate(
       tenantId,
-      `UPDATE transport_vehicles SET
-        registration_number = $3,
-        make = $4,
-        model = $5,
-        year = $6,
-        capacity = $7,
-        status = $8,
-        insurance_expiry = $9,
-        last_service_date = $10,
-        updated_at = $11
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.registrationNumber,
-        merged.make,
-        merged.model,
-        merged.year,
-        merged.capacity,
-        merged.status,
-        merged.insuranceExpiry,
-        merged.lastServiceDate,
-        merged.updatedAt,
-      ],
+      'transport_vehicles',
+      id,
+      data as Record<string, unknown>,
+      {
+        registrationNumber: 'registration_number',
+        make: 'make',
+        model: 'model',
+        year: 'year',
+        capacity: 'capacity',
+        status: 'status',
+        insuranceExpiry: 'insurance_expiry',
+        lastServiceDate: 'last_service_date',
+      },
     );
-    if (!result.rows[0]) return null;
-    return mapVehicleRow(result.rows[0] as Record<string, unknown>);
+    return row ? mapVehicleRow(row) : null;
   }
 
   async findVehicleById(id: string, tenantId: string): Promise<VehicleEntity | null> {
@@ -784,42 +748,23 @@ export class PgTransportRepository implements TransportRepository {
     data: Partial<DriverAssignmentEntity>,
   ): Promise<DriverAssignmentEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findDriverAssignmentById(id, tenantId);
-    if (!existing) return null;
-    const merged: DriverAssignmentEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const result = await this.query(
+    // PRC-M448: single-statement partial UPDATE of only the provided fields, so concurrent
+    // edits to different fields no longer revert each other.
+    const row = await this.partialUpdate(
       tenantId,
-      `UPDATE transport_driver_assignments SET
-        vehicle_id = $3,
-        driver_id = $4,
-        route_id = $5,
-        start_date = $6::date,
-        end_date = $7::date,
-        is_active = $8,
-        updated_at = $9
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.vehicleId,
-        merged.driverId,
-        merged.routeId,
-        merged.startDate,
-        merged.endDate,
-        merged.isActive,
-        merged.updatedAt,
-      ],
+      'transport_driver_assignments',
+      id,
+      data as Record<string, unknown>,
+      {
+        vehicleId: 'vehicle_id',
+        driverId: 'driver_id',
+        routeId: 'route_id',
+        startDate: 'start_date::date',
+        endDate: 'end_date::date',
+        isActive: 'is_active',
+      },
     );
-    if (!result.rows[0]) return null;
-    return mapDriverAssignmentRow(result.rows[0] as Record<string, unknown>);
+    return row ? mapDriverAssignmentRow(row) : null;
   }
 
   async findDriverAssignmentById(
@@ -940,42 +885,23 @@ export class PgTransportRepository implements TransportRepository {
     data: Partial<StudentRouteAssignmentEntity>,
   ): Promise<StudentRouteAssignmentEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findStudentAssignmentById(id, tenantId);
-    if (!existing) return null;
-    const merged: StudentRouteAssignmentEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const result = await this.query(
+    // PRC-M448: single-statement partial UPDATE of only the provided fields, so concurrent
+    // edits to different fields no longer revert each other.
+    const row = await this.partialUpdate(
       tenantId,
-      `UPDATE transport_student_assignments SET
-        student_id = $3,
-        route_id = $4,
-        stop_id = $5,
-        start_date = $6::date,
-        end_date = $7::date,
-        is_active = $8,
-        updated_at = $9
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.studentId,
-        merged.routeId,
-        merged.stopId,
-        merged.startDate,
-        merged.endDate,
-        merged.isActive,
-        merged.updatedAt,
-      ],
+      'transport_student_assignments',
+      id,
+      data as Record<string, unknown>,
+      {
+        studentId: 'student_id',
+        routeId: 'route_id',
+        stopId: 'stop_id',
+        startDate: 'start_date::date',
+        endDate: 'end_date::date',
+        isActive: 'is_active',
+      },
     );
-    if (!result.rows[0]) return null;
-    return mapStudentAssignmentRow(result.rows[0] as Record<string, unknown>);
+    return row ? mapStudentAssignmentRow(row) : null;
   }
 
   async findStudentAssignmentById(
@@ -1163,6 +1089,61 @@ export class PgTransportRepository implements TransportRepository {
       [data.tenantId, data.deviceId, data.pingId],
     );
     return { ping: mapGpsPingRow(existing.rows[0] as Record<string, unknown>), duplicate: true };
+  }
+
+  async ingestGpsPings(
+    tenantId: string,
+    rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
+  ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>> {
+    await this.ensureSchema();
+    // PRC-M446: whole batch in one withPgTenant transaction (one connection, one commit).
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const q = (text: string, values: unknown[]) =>
+        client.query(text, values) as unknown as Promise<pg.QueryResult>;
+      const now = new Date();
+      const out: Array<{ ping: GpsPingEntity; duplicate: boolean }> = [];
+      for (const data of rows) {
+        const inserted = await q(
+          `INSERT INTO transport_gps_pings (
+            id, tenant_id, vehicle_id, device_id, ping_id, latitude, longitude,
+            recorded_at, speed_kph, heading_deg, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          ON CONFLICT (tenant_id, device_id, ping_id) DO NOTHING
+          RETURNING *`,
+          [
+            data.id,
+            tenantId,
+            data.vehicleId,
+            data.deviceId,
+            data.pingId,
+            data.latitude,
+            data.longitude,
+            data.recordedAt,
+            data.speedKph,
+            data.headingDeg,
+            now,
+          ],
+        );
+        if (inserted.rows[0]) {
+          out.push({
+            ping: mapGpsPingRow(inserted.rows[0] as Record<string, unknown>),
+            duplicate: false,
+          });
+          continue;
+        }
+        const existing = await q(
+          `SELECT * FROM transport_gps_pings
+           WHERE tenant_id = $1 AND device_id = $2 AND ping_id = $3
+           LIMIT 1`,
+          [tenantId, data.deviceId, data.pingId],
+        );
+        out.push({
+          ping: mapGpsPingRow(existing.rows[0] as Record<string, unknown>),
+          duplicate: true,
+        });
+      }
+      return out;
+    });
   }
 
   async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
@@ -1411,6 +1392,92 @@ export class PgTransportRepository implements TransportRepository {
       [tenantId],
     );
     return (result.rows as Record<string, unknown>[]).map(mapFeeLinkRow);
+  }
+
+  async setTransportFeeStructureFeesId(
+    id: string,
+    tenantId: string,
+    feesStructureId: string,
+  ): Promise<TransportFeeStructureEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_structures SET fees_structure_id = $3, updated_at = now()
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, feesStructureId],
+    );
+    if (!result.rows[0]) return null;
+    return mapFeeStructureRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async claimPendingFeeLinks(
+    tenantId: string,
+    leaseToken: string,
+    leaseExpiresAt: Date,
+    limit: number,
+  ): Promise<TransportFeeLinkEntity[]> {
+    await this.ensureSchema();
+    // PRC-M439: SKIP LOCKED + lease marker so concurrent workers never claim the same link.
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_links l
+          SET reason = $2
+        WHERE l.id IN (
+          SELECT id FROM transport_fee_links
+           WHERE tenant_id = $1 AND status = 'pending'
+             AND (reason IS NULL OR reason NOT LIKE '${FEE_LINK_LEASE_PREFIX}%'
+                  OR COALESCE(NULLIF(split_part(reason, ':', 3), ''), '0')::bigint < $3)
+           ORDER BY created_at
+           LIMIT $4
+           FOR UPDATE SKIP LOCKED
+        )
+        RETURNING l.*`,
+      [
+        tenantId,
+        `${FEE_LINK_LEASE_PREFIX}${leaseToken}:${leaseExpiresAt.getTime()}`,
+        Date.now(),
+        limit,
+      ],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapFeeLinkRow);
+  }
+
+  async settleFeeLink(
+    id: string,
+    tenantId: string,
+    patch: { status: TransportFeeLinkStatus; feesInvoiceId: string | null; reason: string | null },
+    leaseToken?: string,
+  ): Promise<TransportFeeLinkEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_fee_links
+          SET status = $3, fees_invoice_id = $4, reason = $5
+        WHERE id = $1 AND tenant_id = $2 AND status = 'pending'
+          AND ($6::text IS NULL OR reason LIKE $6::text || '%')
+        RETURNING *`,
+      [
+        id,
+        tenantId,
+        patch.status,
+        patch.feesInvoiceId,
+        patch.reason,
+        leaseToken ? `${FEE_LINK_LEASE_PREFIX}${leaseToken}:` : null,
+      ],
+    );
+    if (!result.rows[0]) return null;
+    return mapFeeLinkRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async countPendingFeeLinks(tenantId: string): Promise<number> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS n FROM transport_fee_links WHERE tenant_id = $1 AND status = 'pending'`,
+      [tenantId],
+    );
+    return Number((result.rows[0] as { n?: number } | undefined)?.n ?? 0);
   }
 
   async findFeeLinkByAssignment(

@@ -32,6 +32,8 @@ import {
   effectiveTenantSettings,
   InMemoryTenantSettingsStore,
   PgTenantSettingsStore,
+  RolesAndSettingsSeeder,
+  type TenantDefaultsSeeder,
   registerBrandingRoutes,
   registerRolesRoutes,
   registerTenantSettingsRoutes,
@@ -121,20 +123,38 @@ export interface TenantAdminPluginOptions {
   tenantService?: TenantService;
 }
 
+/** Built-in role seed derived from DEFAULT_ROLES (shared with tenant provisioning). */
+export function builtInRoleSeed(): BuiltInRoleSeed[] {
+  return DEFAULT_ROLES.map((role) => ({
+    roleId: role.roleId,
+    roleName: role.roleName,
+    // The tenant package's PermissionRef vocabulary is the CRUD subset; other
+    // actions (e.g. `preview`) are platform-only and not role-editable here.
+    permissions: role.permissions.filter((p): p is BuiltInRoleSeed['permissions'][number] =>
+      ['create', 'read', 'update', 'delete', 'list', 'manage', 'preview', 'edit'].includes(
+        p.action,
+      ),
+    ),
+  }));
+}
+
+/**
+ * PRC-H099: roles/settings seeder for POST /tenant-lifecycle/tenants. Postgres
+ * only — the same tables the tenant admin console reads. In-memory mode roles
+ * seed lazily and settings fall back to defaults, so no seeder is needed.
+ */
+export function createTenantDefaultsSeederFromEnv(): TenantDefaultsSeeder | undefined {
+  if (!process.env.DATABASE_URL?.trim()) return undefined;
+  const pool = getSharedPgPool();
+  if (!pool) return undefined;
+  const { repository } = createRolesRepository(builtInRoleSeed());
+  return new RolesAndSettingsSeeder(repository, new PgTenantSettingsStore(pool));
+}
+
 export const tenantAdminPlugin = fp(
   async (fastify: FastifyInstance, options: TenantAdminPluginOptions) => {
     const prefix = options.prefix ?? '/tenant';
-    const seed: BuiltInRoleSeed[] = DEFAULT_ROLES.map((role) => ({
-      roleId: role.roleId,
-      roleName: role.roleName,
-      // The tenant package's PermissionRef vocabulary is the CRUD subset; other
-      // actions (e.g. `preview`) are platform-only and not role-editable here.
-      permissions: role.permissions.filter((p): p is BuiltInRoleSeed['permissions'][number] =>
-        ['create', 'read', 'update', 'delete', 'list', 'manage', 'preview', 'edit'].includes(
-          p.action,
-        ),
-      ),
-    }));
+    const seed = builtInRoleSeed();
     const { repository, persistence } = createRolesRepository(seed);
     // W1-SEC-12: settings store follows the same fail-closed policy as roles
     // (Pg when DATABASE_URL; never silent memory when Postgres is required).

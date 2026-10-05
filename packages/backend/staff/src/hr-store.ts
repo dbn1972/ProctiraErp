@@ -67,9 +67,40 @@ export interface StaffPayrollExportRecord {
   replacesRunId?: string | null;
 }
 
+/** PRC-M379: bounded list window for HR list endpoints. */
+export interface PageWindow {
+  limit: number;
+  offset: number;
+}
+
+export interface PagedRows<T> {
+  rows: T[];
+  total: number;
+}
+
+export function pageSlice<T>(all: readonly T[], window: PageWindow): PagedRows<T> {
+  return { rows: all.slice(window.offset, window.offset + window.limit), total: all.length };
+}
+
+export type AttendanceListFilter = { date?: string; staffId?: string; from?: string; to?: string };
+
 export interface StaffHrStore {
   createContract(record: StaffContractRecord): Promise<StaffContractRecord>;
+  /**
+   * PRC-L153/L246: insert a contract on a caller-supplied transaction executor (same DB
+   * transaction as the staff row). Only SQL-backed stores implement this.
+   */
+  createContractOn?(
+    executor: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+    record: StaffContractRecord,
+  ): Promise<StaffContractRecord>;
   listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]>;
+  /** PRC-M379: windowed list with total (HTTP list endpoints). */
+  listContractsPage(
+    tenantId: string,
+    staffId: string | undefined,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffContractRecord>>;
   findContract(tenantId: string, id: string): Promise<StaffContractRecord | null>;
   updateContract(
     tenantId: string,
@@ -90,6 +121,11 @@ export interface StaffHrStore {
 
   createQualification(record: StaffQualificationRecord): Promise<StaffQualificationRecord>;
   listQualifications(tenantId: string, staffId?: string): Promise<StaffQualificationRecord[]>;
+  listQualificationsPage(
+    tenantId: string,
+    staffId: string | undefined,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffQualificationRecord>>;
   findQualification(tenantId: string, id: string): Promise<StaffQualificationRecord | null>;
   updateQualification(
     tenantId: string,
@@ -104,6 +140,11 @@ export interface StaffHrStore {
     tenantId: string,
     filter: { date?: string; staffId?: string; from?: string; to?: string },
   ): Promise<StaffAttendanceRecord[]>;
+  listAttendancePage(
+    tenantId: string,
+    filter: AttendanceListFilter,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffAttendanceRecord>>;
   findAttendance(
     tenantId: string,
     staffId: string,
@@ -151,6 +192,18 @@ export class InMemoryStaffHrStore implements StaffHrStore {
   async createContract(record: StaffContractRecord): Promise<StaffContractRecord> {
     this.contracts.set(record.id, clone(record));
     return clone(record);
+  }
+
+  async listContractsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    return pageSlice(await this.listContracts(tenantId, staffId), window);
+  }
+
+  async listQualificationsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    return pageSlice(await this.listQualifications(tenantId, staffId), window);
+  }
+
+  async listAttendancePage(tenantId: string, filter: AttendanceListFilter, window: PageWindow) {
+    return pageSlice(await this.listAttendance(tenantId, filter), window);
   }
 
   async listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]> {

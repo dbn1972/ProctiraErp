@@ -23,11 +23,12 @@ import { CoreRepositoryImportAdapter } from './import/core-repository-import-ada
 import { registerImportRoutes } from './import/import-routes.js';
 import { ImportService } from './import/import-service.js';
 import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
+import { createImportProgressStoreFromEnv } from './import/progress-store.js';
 import {
   createStudentImportWorker,
   type StudentImportWorker,
 } from './import/student-import-worker.js';
-import type { ImportQueue } from './import/types.js';
+import type { ImportProgressStore, ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentPortalBinding } from './student-portal-access.js';
 import type { StudentRepository } from './student-repository.js';
@@ -53,6 +54,8 @@ export interface StudentPluginOptions {
   enrollmentPrefix?: string;
   /** Import job queue (default: in-process queue) */
   importQueue?: ImportQueue;
+  /** PRC-H092: progress store for the in-process fallback queue (default: env). */
+  importProgressStore?: ImportProgressStore;
   /**
    * PRC-H092: dedicated queue adapter the in-process student-import worker
    * consumes from (started onReady, stopped onClose). A durable `importQueue`
@@ -178,15 +181,19 @@ export const studentPlugin = fp(
     // (setImmediate) so async / >1000-row imports reach a terminal status.
     const importQueue: ImportQueue = durable
       ? options.importQueue!
-      : new InMemoryImportQueue((tenantId, jobId, fileBuffer, importOptions) => {
-          setImmediate(() => {
-            importService
-              .processQueuedImport(tenantId, jobId, fileBuffer, importOptions)
-              .catch((err: unknown) => {
-                fastify.log.error({ err, tenantId, jobId }, 'in-process student import failed');
-              });
-          });
-        });
+      : new InMemoryImportQueue(
+          (tenantId, jobId, fileBuffer, importOptions) => {
+            setImmediate(() => {
+              importService
+                .processQueuedImport(tenantId, jobId, fileBuffer, importOptions)
+                .catch((err: unknown) => {
+                  fastify.log.error({ err, tenantId, jobId }, 'in-process student import failed');
+                });
+            });
+          },
+          // PRC-H092: persisted (Redis) progress so polls on other instances agree.
+          options.importProgressStore ?? createImportProgressStoreFromEnv(),
+        );
     const importService: ImportService = new ImportService({
       studentRepository: new CoreRepositoryImportAdapter(repository),
       importQueue,

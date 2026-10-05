@@ -36,6 +36,12 @@ const ACTION_ROLES: Record<AssessmentAction, readonly string[]> = {
   'assessment.write': ASSESSMENT_STAFF_ROLES,
 };
 
+/** PRC-M163: admin-tier roles that may overwrite another author's comment. */
+export function isAssessmentAdmin(roles: unknown): boolean {
+  const normalized = normalizeAssessmentRoles(roles);
+  return normalized.some((role) => (ADMIN_ROLES as readonly string[]).includes(role));
+}
+
 export function normalizeAssessmentRoles(roles: unknown): string[] {
   if (!Array.isArray(roles)) return [];
   return roles

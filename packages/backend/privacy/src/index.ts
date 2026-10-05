@@ -1,7 +1,13 @@
-export { privacyPlugin } from './privacy-plugin.js';
+export { privacyPlugin, readPrivacyJobStuckMinutes } from './privacy-plugin.js';
+export { CompositeCorrectionApplier } from './correction-applier.js';
+export type { CorrectionApplier, CorrectionTarget } from './correction-applier.js';
 export type { PrivacyPluginOptions } from './privacy-plugin.js';
 export { PrivacyExecutorNotConfiguredError, PrivacyService } from './privacy-service.js';
-export type { DestructiveDeleteGuard, PrivacyServiceOptions } from './privacy-service.js';
+export type {
+  DestructiveDeleteGuard,
+  PrivacyRequestContext,
+  PrivacyServiceOptions,
+} from './privacy-service.js';
 export type {
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -10,6 +16,7 @@ export type {
   ListPage,
   OffboardChecklistItem,
   PrivacyRepository,
+  StuckPrivacyJobRef,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
 export { InMemoryPrivacyRepository } from './in-memory-repository.js';
@@ -83,3 +90,30 @@ export type {
   PrivacyAnonymizationProcessor,
   PrivacyOffboardProcessor,
 } from './privacy-worker.js';
+export {
+  PgDomainSubjectAnonymizer,
+  PgTenantWipeExecutor,
+  classifyWipeTable,
+  createStudentPhotoAnonymizer,
+  defaultDomainAnonymizers,
+  readFinanceHealthErasureMode,
+  studentSiblingsAnonymizer,
+} from './domain-anonymizers.js';
+export {
+  SUBJECT_LINK_COLUMNS,
+  SUBJECT_LINK_REGISTRY,
+  TENANT_WIPE_REGISTRY,
+  subjectKindFor,
+  tenantWipeDisposition,
+} from './tenant-data-registry.js';
+export type {
+  SubjectKind,
+  SubjectLink,
+  SubjectLinkHandling,
+  TenantWipeDisposition,
+} from './tenant-data-registry.js';
+export type {
+  DomainSubjectAnonymizer,
+  FinanceHealthErasureMode,
+  ObjectEraser,
+} from './domain-anonymizers.js';

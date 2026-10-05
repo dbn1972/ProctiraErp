@@ -6,6 +6,7 @@
  * - Readiness: Critical dependencies (Postgres / Redis when configured) must be reachable
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import {
   assertDatabaseSchemaReady,
   DATABASE_SCHEMA_CONTRACTS,
@@ -96,7 +97,7 @@ function databaseRequired(env: PersistencePolicyEnv): boolean {
   if (truthy(env.REQUIRE_DATABASE)) return true;
   // W1-SEC-12: production always requires Postgres — ALLOW_IN_MEMORY_IN_PRODUCTION
   // is obsolete and must not keep readiness green on in-memory stores.
-  if (env.NODE_ENV === 'production') {
+  if (isProductionNodeEnv(env.NODE_ENV)) {
     return true;
   }
   return Boolean(env.DATABASE_URL?.trim());
@@ -214,7 +215,7 @@ async function probeDatabaseDependency(
   if (!databaseUrl) {
     if (databaseRequired(env)) {
       const obsoleteEscape =
-        env.NODE_ENV === 'production' && truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)
+        isProductionNodeEnv(env.NODE_ENV) && truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)
           ? ' (ALLOW_IN_MEMORY_IN_PRODUCTION is disabled — W1-SEC-12)'
           : '';
       return {

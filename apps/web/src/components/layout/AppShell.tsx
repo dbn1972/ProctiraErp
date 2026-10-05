@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ConflictResolutionDialog } from '@/components/sync/ConflictResolutionDialog';
 import { useViewport } from '@/hooks/useViewport';
 import { DesktopShell } from './DesktopShell';
 import { MobileShell } from './MobileShell';
@@ -27,12 +28,25 @@ import { MobileShell } from './MobileShell';
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isMobile } = useViewport();
+  // PRC-M575: the Sync_Queue 409 surface is mounted once in the authenticated
+  // shell so `sync:conflict` events from ConnectivityProvider are never dropped.
+  const conflictDialog = <ConflictResolutionDialog />;
 
   if (isMobile) {
-    return <MobileShell>{children}</MobileShell>;
+    return (
+      <>
+        <MobileShell>{children}</MobileShell>
+        {conflictDialog}
+      </>
+    );
   }
 
-  return <DesktopShell>{children}</DesktopShell>;
+  return (
+    <>
+      <DesktopShell>{children}</DesktopShell>
+      {conflictDialog}
+    </>
+  );
 }
 
 export default AppShell;

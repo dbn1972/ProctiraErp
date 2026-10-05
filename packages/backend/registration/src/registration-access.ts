@@ -90,7 +90,10 @@ export function isPublicRegistrationPath(path: string): boolean {
 
   if (under === '/' || under === '') return true;
   if (/^\/[A-Za-z0-9-]+\/status$/.test(under)) return true;
+  // PRC-M331: POST /registrations/status (DOB in body).
+  if (under === '/status') return true;
   if (under === '/institutions') return true;
+  if (under === '/institution-filters') return true;
   if (under.startsWith('/schools/search')) return true;
   if (under.startsWith('/form-config/')) return true;
   if (under === '/language') return true;

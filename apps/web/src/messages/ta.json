@@ -153,7 +153,11 @@
     "mfaPrintCodes": "குறியீடுகளை அச்சிடு",
     "mfaAcknowledgement": "என் காப்பு குறியீடுகளை பாதுகாப்பான இடத்தில் சேமித்துள்ளேன்.",
     "mfaAcknowledgementHelp": "அமைப்பை முடித்த பிறகு இந்த குறியீடுகளை மீண்டும் பார்க்க முடியாது.",
-    "mfaFinishSetup": "அமைப்பை முடி"
+    "mfaFinishSetup": "அமைப்பை முடி",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "டாஷ்போர்டு",
@@ -670,7 +674,8 @@
     "accessDeniedTitle": "அணுகல் மறுக்கப்பட்டது",
     "accessDeniedHelp": "உங்களுக்கு அணுகல் இருக்க வேண்டும் என நினைத்தால் உங்கள் நிர்வாகியைத் தொடர்பு கொள்ளுங்கள்.",
     "returnToDashboard": "டாஷ்போர்டுக்குத் திரும்பு",
-    "tableAriaLabel": "சுகாதாரப் பதிவுகள்"
+    "tableAriaLabel": "சுகாதாரப் பதிவுகள்",
+    "unknownStudent": "அறியப்படாத மாணவர்"
   },
   "workflows": {
     "title": "பணிப்பாய்வு வரையறைகள்",
