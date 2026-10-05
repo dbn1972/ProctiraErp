@@ -17,6 +17,10 @@ const Set<String> _expectedUserTables = <String>{
   'institutions_cache',
   'enrollments_cache',
   'health_records_cache',
+  // Added by the client DB migration in PR #542.
+  'examinations_cache',
+  'examination_results_cache',
+  'assessment_results_cache',
 };
 
 /// Referenced by lib/ but not yet in the local schema (needs a client DB
@@ -24,9 +28,6 @@ const Set<String> _expectedUserTables = <String>{
 const Set<String> _knownMissing = <String>{
   'scholarship_programs_cache',
   'scholarship_applications_cache',
-  'assessment_results_cache',
-  'examinations_cache',
-  'examination_results_cache',
 };
 
 Future<Set<String>> _tables(Database raw) async => (await raw.rawQuery(
