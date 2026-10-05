@@ -1085,7 +1085,7 @@ export class FeesService {
       }
     }
 
-    const concession = await this.repository.createConcession({
+    const draft: Omit<FeeConcessionEntity, 'createdAt'> = {
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
@@ -1099,13 +1099,19 @@ export class FeesService {
       approverId: autoApprove ? (input.approverId ?? actorId) : null,
       status: autoApprove ? 'approved' : 'pending',
       createdBy: actorId,
-    });
+    };
 
     if (!autoApprove) {
+      const concession = await this.repository.createConcession(draft);
       return { concession, invoice: null, discountCents: discount };
     }
 
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount);
+    // PR #548 review: the auto-approved row is created inside the same invoice
+    // lock/transaction as the over-unpaid check, so a 422 persists nothing and
+    // a corrected retry is not blocked by the duplicate-concession guard.
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, draft, discount, undefined, {
+      create: true,
+    });
   }
 
   /**
@@ -1157,14 +1163,21 @@ export class FeesService {
     return { concession: rejected!, invoice: null, discountCents: 0 };
   }
 
+  /**
+   * Applies an approved concession to its invoice under the invoice lock.
+   * `mode.approverId` flips an existing pending row to approved in-lock
+   * (PRC-M245); `mode.create` inserts a not-yet-persisted auto-approved row
+   * in-lock (PR #548), so a rejected application leaves nothing behind.
+   */
   private async applyApprovedConcessionToInvoice(
     tenantId: string,
     actorId: string,
-    concession: FeeConcessionEntity,
+    concession: FeeConcessionEntity | Omit<FeeConcessionEntity, 'createdAt'>,
     discount: number,
     audit?: FeesMoneyAuditSink,
-    approve?: { approverId: string },
+    mode: { approverId?: string; create?: boolean } = {},
   ) {
+    const approve = mode.approverId ? { approverId: mode.approverId } : undefined;
     const target = concession.invoiceId
       ? await this.getInvoice(tenantId, concession.invoiceId)
       : await this.repository.findInvoiceForStructureStudent(
@@ -1173,14 +1186,26 @@ export class FeesService {
           concession.studentId,
         );
     if (!target) {
+      if (mode.create) {
+        const created = await this.repository.createConcession(concession);
+        return { concession: created, invoice: null, discountCents: discount };
+      }
       if (approve) {
         const approved = await this.repository.updateConcession(concession.id, tenantId, {
           status: 'approved',
           approverId: approve.approverId,
         });
-        return { concession: approved ?? concession, invoice: null, discountCents: discount };
+        return {
+          concession: approved ?? (concession as FeeConcessionEntity),
+          invoice: null,
+          discountCents: discount,
+        };
       }
-      return { concession, invoice: null, discountCents: discount };
+      return {
+        concession: concession as FeeConcessionEntity,
+        invoice: null,
+        discountCents: discount,
+      };
     }
     // PRC-H058: re-read the invoice under lock; journal + face update + link are atomic.
     return this.repository.withInvoiceLock(tenantId, target.id, async (tx, locked) => {
@@ -1197,6 +1222,9 @@ export class FeesService {
       }
       const applied = Math.min(discount, unpaid);
       const nextAmount = invoice.amountCents - applied;
+      if (mode.create) {
+        await tx.createConcession({ ...concession, invoiceId: invoice.id });
+      }
       if (approve) {
         await tx.updateConcession(concession.id, tenantId, {
           status: 'approved',
@@ -1231,7 +1259,11 @@ export class FeesService {
         beforeStatus: invoice.status,
         afterStatus: updated?.status ?? invoice.status,
       });
-      return { concession: refreshed ?? concession, invoice: updated, discountCents: applied };
+      return {
+        concession: refreshed ?? (concession as FeeConcessionEntity),
+        invoice: updated,
+        discountCents: applied,
+      };
     });
   }
 

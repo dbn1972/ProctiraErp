@@ -12,9 +12,11 @@ const STUDENT = '00000000-0000-4000-8000-0000000000d1';
 
 describe('PRC-M245 adjustment status recompute', () => {
   let service: FeesService;
+  let repository: InMemoryFeesRepository;
 
   beforeEach(() => {
-    service = new FeesService(new InMemoryFeesRepository(), new SandboxPaymentAdapter());
+    repository = new InMemoryFeesRepository();
+    service = new FeesService(repository, new SandboxPaymentAdapter());
   });
 
   async function partPaid() {
@@ -84,5 +86,66 @@ describe('PRC-M245 adjustment status recompute', () => {
     const res = await service.approveConcession(TENANT, 'bursar-1', concession.id);
     expect(res.invoice?.status).toBe('paid');
     expect(res.concession.status).toBe('approved');
+  });
+
+  // PR #548 review: auto-approve must not leave an orphaned approved row.
+  async function autoApproveFor(invoiceId: string | undefined, amountCents: number, code: string) {
+    const structure = await service.createFeeStructure(TENANT, 'staff-1', {
+      code,
+      name: 'Tuition',
+      category: 'tuition',
+      amountCents: 10_000,
+      currency: 'INR',
+    } as never);
+    const apply = (amount: number) =>
+      service.applyConcession(TENANT, 'bursar-1', {
+        studentId: STUDENT,
+        structureId: structure.id,
+        invoiceId,
+        kind: 'amount',
+        amountCents: amount,
+        reason: 'need based',
+        autoApprove: true,
+      } as never);
+    return { structure, apply, first: apply(amountCents) };
+  }
+  it('auto-approve over the unpaid balance → 422, persists nothing, retry succeeds', async () => {
+    const invoice = await partPaid();
+    const { structure, apply, first } = await autoApproveFor(invoice.id, 7_000, 'AUTO-OVER');
+    await expect(first).rejects.toMatchObject({ statusCode: 422 });
+    await expect(first).rejects.toThrow(/exceeds unpaid balance/);
+    const left = (await repository.listConcessions(TENANT)).filter(
+      (c) => c.studentId === STUDENT && c.structureId === structure.id,
+    );
+    expect(left).toEqual([]);
+    const inv = await service.getInvoice(TENANT, invoice.id);
+    expect(inv.amountCents).toBe(10_000);
+    expect(inv.status).toBe('open');
+    // A corrected retry is not blocked by the duplicate-concession guard.
+    const retry = await apply(6_000);
+    expect(retry.concession.status).toBe('approved');
+    expect(retry.concession.invoiceId).toBe(invoice.id);
+    expect(retry.invoice?.status).toBe('paid');
+    const after = (await repository.listConcessions(TENANT)).filter(
+      (c) => c.studentId === STUDENT && c.structureId === structure.id,
+    );
+    expect(after).toHaveLength(1);
+  });
+  it('auto-approve within the unpaid balance creates one approved, linked row', async () => {
+    const invoice = await partPaid();
+    const { first } = await autoApproveFor(invoice.id, 1_000, 'AUTO-OK');
+    const res = await first;
+    expect(res.concession.status).toBe('approved');
+    expect(res.concession.approverId).toBe('bursar-1');
+    expect(res.concession.invoiceId).toBe(invoice.id);
+    expect(res.invoice?.amountCents).toBe(9_000);
+    expect(res.invoice?.status).toBe('open');
+  });
+  it('auto-approve with no invoice yet creates an approved, unlinked row', async () => {
+    const { first } = await autoApproveFor(undefined, 1_000, 'AUTO-NOINV');
+    const res = await first;
+    expect(res.concession.status).toBe('approved');
+    expect(res.concession.invoiceId).toBeNull();
+    expect(res.invoice).toBeNull();
   });
 });
