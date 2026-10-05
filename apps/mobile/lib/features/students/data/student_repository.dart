@@ -126,7 +126,7 @@ class StudentRepository {
       remote: remote.students,
       prune: remote.complete,
     );
-    return remote.length;
+    return remote.students.length;
   }
 
   Future<bool> _cacheIsEmpty(Database db, String tenantId) async {
