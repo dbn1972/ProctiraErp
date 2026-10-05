@@ -42,14 +42,17 @@ function cell(value: unknown): string {
  * Sheets treat them as text, then RFC 4180 quoting is applied.
  */
 export function escapeCsv(field: string): string {
-  const safe = /^[=+\-@\t\r]/.test(field) ? `'${field}` : field;
+  // One formula guard: PRC-M341 (#545) and PRC-M382 (#551) each added one, and applying
+  // both prefixed plain numbers such as -5 with a quote. csvSafeText is idempotent (an
+  // already-quoted value starts with ', not a formula character), so double calls are safe.
+  const safe = csvSafeText(field);
   if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
   return safe;
 }
 
 export function generateCsv(table: ReportTable): Buffer {
   const headers = table.columns.map((c) => c.label);
-  const lines = [headers.map((h) => escapeCsv(csvSafeText(h))).join(',')];
+  const lines = [headers.map((h) => escapeCsv(h)).join(',')];
   for (const row of table.rows) {
     lines.push(table.columns.map((col) => escapeCsv(cell(row[col.name]))).join(','));
   }
