@@ -82,7 +82,6 @@ export function ClassGradeFilter(props: {
           router.push(`${pathname}?${params.toString()}`);
         }}
       >
-        <option value="senior">Classes 9–12</option>
         <option value="all">All grades</option>
         {grades.map((grade) => (
           <option key={grade.id} value={grade.id}>

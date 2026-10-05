@@ -64,8 +64,9 @@ export class LocalDiskScholarshipDocumentBlobStore implements ScholarshipDocumen
   async get(key: string): Promise<Buffer | null> {
     try {
       return await readFile(this.pathFor(key));
-    } catch {
-      return null;
+    } catch (error) {
+      if (isMissingObjectError(error)) return null;
+      throw error;
     }
   }
 
@@ -95,8 +96,11 @@ export class StorageAdapterScholarshipDocumentBlobStore implements ScholarshipDo
     try {
       const stream = await this.adapter.download(key);
       return await streamToBuffer(stream);
-    } catch {
-      return null;
+    } catch (error) {
+      // PRC-M356: only a genuinely missing object is "no longer available";
+      // provider/network failures propagate so callers answer 503, not 404.
+      if (isMissingObjectError(error)) return null;
+      throw error;
     }
   }
 
@@ -113,6 +117,21 @@ export class StorageAdapterScholarshipDocumentBlobStore implements ScholarshipDo
   }
 }
 
+/** True for "object does not exist" errors from S3, MinIO, or local disk. */
+export function isMissingObjectError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as {
+    name?: unknown;
+    code?: unknown;
+    Code?: unknown;
+    message?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+  const codes = [e.name, e.code, e.Code].map((v) => (typeof v === 'string' ? v : ''));
+  if (codes.some((c) => c === 'NoSuchKey' || c === 'NotFound' || c === 'ENOENT')) return true;
+  if (e.$metadata?.httpStatusCode === 404) return true;
+  return typeof e.message === 'string' && e.message.startsWith('Object not found:');
+}
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
   const chunks: Uint8Array[] = [];
   for await (const chunk of stream) {

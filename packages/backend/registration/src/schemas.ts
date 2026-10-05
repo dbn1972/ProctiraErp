@@ -355,8 +355,9 @@ export const FormConfigurationSchema = Type.Object({
   version: Type.Integer({ minimum: 1, description: 'Immutable version number' }),
   publishedAt: Type.String({ description: 'Publish timestamp (ISO 8601)' }),
   fields: Type.Array(FormFieldDefinitionSchema, { description: 'Configurable form fields' }),
+  /** Display name of the institution (public form-config response, PRC-M056). */
+  institutionName: Type.Optional(Type.String()),
 });
-
 export type FormConfiguration = Static<typeof FormConfigurationSchema>;
 
 // --- Response Schemas ---
@@ -385,10 +386,9 @@ export const RegistrationStatusResponseSchema = Type.Object({
     description: 'Current application status',
   }),
   institutionName: Type.String({ description: 'Target institution name' }),
-  applicantName: Type.String({ description: 'Applicant full name' }),
+  applicantName: Type.String({ description: 'Applicant first-name initial (PRC-M331)' }),
   submittedAt: Type.String({ description: 'Submission timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
-  remarks: Type.Optional(Type.String({ description: 'Reviewer remarks' })),
   waitlistPosition: Type.Optional(Type.Number({ minimum: 1 })),
   interviewBookings: Type.Optional(
     Type.Array(

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { Search, School, MapPin, Layers } from 'lucide-react';
@@ -29,6 +29,8 @@ interface FilterOption {
 interface InstitutionMapProps {
   /** Initial server-rendered list to avoid a flash of empty content */
   initialInstitutions?: InstitutionLocation[];
+  /** Total matching institutions for the initial filters (all pages). */
+  initialTotal?: number;
   /** Filter options derived from the initial server fetch */
   initialAreas?: FilterOption[];
   initialTypes?: FilterOption[];
@@ -46,6 +48,7 @@ interface InstitutionMapProps {
  */
 export function InstitutionMap({
   initialInstitutions = [],
+  initialTotal,
   initialAreas = [],
   initialTypes = [],
   initialGrades = [],
@@ -54,21 +57,43 @@ export function InstitutionMap({
 }: InstitutionMapProps) {
   const t = useTranslations('institutions');
   const [institutions, setInstitutions] = useState<InstitutionLocation[]>(initialInstitutions);
+  const [total, setTotal] = useState<number>(initialTotal ?? initialInstitutions.length);
+  const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<InstitutionFilters>(initialFilters);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(initialError);
   const [retryNonce, setRetryNonce] = useState(0);
+  const skipInitialFetch = useRef(!initialError);
 
-  // Re-fetch when filters change
+  // PRC-M056: search runs server-side across every institution (debounced).
   useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
+
+  // Re-fetch page 1 when filters / search change.
+  useEffect(() => {
+    if (skipInitialFetch.current) {
+      // Server already rendered page 1 for the initial filters.
+      skipInitialFetch.current = false;
+      return;
+    }
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const result = await getInstitutions({ ...filters, pageSize: MAX_PUBLIC_PAGE_SIZE });
+        const result = await getInstitutions({
+          ...filters,
+          search: debouncedSearch || undefined,
+          page: 1,
+          pageSize: MAX_PUBLIC_PAGE_SIZE,
+        });
         if (!cancelled) {
           setInstitutions(result.data);
+          setTotal(result.meta.totalItems);
+          setPage(1);
           setLoadError(false);
         }
       } catch {
@@ -81,19 +106,35 @@ export function InstitutionMap({
     return () => {
       cancelled = true;
     };
-  }, [filters, retryNonce]);
+  }, [filters, debouncedSearch, retryNonce]);
 
-  // Client-side search filter
-  const filteredInstitutions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return institutions;
-    return institutions.filter(
-      (inst) =>
-        inst.name.toLowerCase().includes(query) ||
-        inst.code.toLowerCase().includes(query) ||
-        (inst.areaName?.toLowerCase().includes(query) ?? false),
-    );
-  }, [institutions, searchQuery]);
+  // PRC-M056: load further pages instead of silently capping at the first page.
+  async function loadMore() {
+    setLoading(true);
+    try {
+      const next = page + 1;
+      const result = await getInstitutions({
+        ...filters,
+        search: debouncedSearch || undefined,
+        page: next,
+        pageSize: MAX_PUBLIC_PAGE_SIZE,
+      });
+      setInstitutions((prev) => {
+        const seen = new Set(prev.map((row) => row.id));
+        return [...prev, ...result.data.filter((row) => !seen.has(row.id))];
+      });
+      setTotal(result.meta.totalItems);
+      setPage(next);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filteredInstitutions = institutions;
+  const hasMore = institutions.length < total;
 
   function setFilter(key: keyof InstitutionFilters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
@@ -148,9 +189,7 @@ export function InstitutionMap({
             onChange={(v) => setFilter('gradeId', v)}
           />
         </div>
-        <p className="mt-4 text-xs text-gray-500">
-          {t('resultsCount', { count: String(filteredInstitutions.length) })}
-        </p>
+        <p className="mt-4 text-xs text-gray-500">{t('resultsCount', { count: String(total) })}</p>
       </div>
 
       {loadError ? (
@@ -226,6 +265,18 @@ export function InstitutionMap({
           ))}
         </ul>
       )}
+      {hasMore && !loadError ? (
+        <div className="text-center">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void loadMore()}
+            disabled={loading}
+          >
+            {t('loadMore')}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

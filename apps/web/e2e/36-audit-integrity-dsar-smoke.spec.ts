@@ -103,6 +103,8 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(body.headSeq).toBeGreaterThanOrEqual(entry.chainSeq);
 
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
+    // PRC-M085: verification is an explicit action, not part of page load.
+    await page.getByTestId('chain-verify').click();
     await expect(page.getByTestId('chain-integrity')).toHaveAttribute('data-valid', 'true');
   });
 
@@ -135,18 +137,30 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(created.status(), await created.text()).toBe(201);
 
     await page.goto('/audit-logs/dsar', { waitUntil: 'domcontentloaded' });
+    // PRC-M084: "Build package" is a client-side server action. Clicking before
+    // hydration falls back to a native GET that only pre-fills the field, so
+    // wait for the form to hydrate (count+attribute retried together because
+    // `next start` can briefly stream an unhydrated duplicate).
+    const dsarForm = page.getByTestId('dsar-form');
+    await expect(async () => {
+      await expect(dsarForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(dsarForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     // Free-text subject field (any actor id). Directory names are suggestions only.
     await page.getByTestId('dsar-subject-input').fill(subject);
     await page.getByTestId('dsar-run').click();
     await expect(page.getByTestId('dsar-package')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('dsar-row')).toHaveCount(1);
 
-    const download = await page.request.get(`/api/audit-logs/dsar/${subject}`);
-    expect(download.status()).toBe(200);
-    expect(download.headers()['content-disposition']).toContain(`dsar-${subject}.json`);
-    const pack = await download.json();
-    expect(pack.subjectId).toBe(subject);
-    expect(pack.entryCount).toBe(1);
+    // PRC-M084: the download saves the package already built (no GET export
+    // route), and the build itself was audited.
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByTestId('dsar-download').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe(`dsar-${subject}.json`);
+    // A reload must not export again: the package is gone until rebuilt.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dsar-package')).toHaveCount(0);
   });
 
   test('retention policy saves from the UI and is readable via API', async ({ page, request }) => {

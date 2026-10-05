@@ -168,17 +168,66 @@ describe('Registration Routes', () => {
       const { trackingNumber } = JSON.parse(submitResponse.body);
 
       // Check status (DOB required to prevent tracking-number-only PII disclosure)
+      // PRC-M331: DOB in the body (POST) or header (GET); never in the URL.
       const response = await app.inject({
-        method: 'GET',
-        url: `/registrations/${trackingNumber}/status?dob=2011-10-02`,
+        method: 'POST',
+        url: '/registrations/status',
+        payload: { trackingNumber, dateOfBirth: '2011-10-02' },
       });
-
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.trackingNumber).toBe(trackingNumber);
       expect(body.status).toBe('pending');
-      expect(body.applicantName).toBe('Charlie Brown');
+      expect(body.applicantName).toBe('C.');
+      expect(body).not.toHaveProperty('remarks');
       expect(body.institutionName).toBe('Test School');
+      const viaHeader = await app.inject({
+        method: 'GET',
+        url: `/registrations/${trackingNumber}/status`,
+        headers: { 'x-applicant-dob': '2011-10-02' },
+      });
+      expect(viaHeader.statusCode).toBe(200);
+      const inQuery = await app.inject({
+        method: 'GET',
+        url: `/registrations/${trackingNumber}/status?dob=2011-10-02`,
+      });
+      expect(inQuery.statusCode).toBe(400);
+      expect(JSON.parse(inQuery.body).code).toBe('DOB_IN_QUERY_NOT_ALLOWED');
+    });
+
+    it('PRC-M331: wrong DOB x5 locks the tracking number (429), even for the right DOB', async () => {
+      const submitResponse = await app.inject({
+        method: 'POST',
+        url: '/registrations',
+        headers: { 'idempotency-key': 'status-lockout' },
+        payload: {
+          institutionId: testInstitutionId,
+          formConfigurationId: testFormConfigurationId,
+          formConfigurationVersion: 1,
+          firstName: 'Lucy',
+          lastName: 'Van Pelt',
+          dateOfBirth: '2011-03-03',
+          gender: 'female',
+          guardianName: 'Parent',
+          guardianPhone: '+911234567890',
+        },
+      });
+      const { trackingNumber } = JSON.parse(submitResponse.body);
+      for (let i = 0; i < 5; i += 1) {
+        const miss = await app.inject({
+          method: 'POST',
+          url: '/registrations/status',
+          payload: { trackingNumber, dateOfBirth: `2011-01-0${i + 1}` },
+        });
+        expect(miss.statusCode).toBe(404);
+      }
+      const locked = await app.inject({
+        method: 'POST',
+        url: '/registrations/status',
+        payload: { trackingNumber, dateOfBirth: '2011-03-03' },
+      });
+      expect(locked.statusCode).toBe(429);
+      expect(locked.headers['retry-after']).toBeDefined();
     });
 
     it('should return 400 for invalid tracking number format', async () => {

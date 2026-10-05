@@ -177,15 +177,19 @@ describe('ReportCardService', () => {
     const subjectId = uuidv4();
     const academicPeriodId = uuidv4();
     const teacherId = uuidv4();
+    const actor = { userId: teacherId, isAdmin: false };
 
     it('should create a teacher comment', async () => {
-      const comment = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: 'Excellent progress in mathematics this term.',
-      });
+      const comment = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          comment: 'Excellent progress in mathematics this term.',
+        },
+        actor,
+      );
 
       expect(comment.id).toBeDefined();
       expect(comment.studentId).toBe(studentId);
@@ -194,21 +198,29 @@ describe('ReportCardService', () => {
     });
 
     it('should update an existing comment for the same student+subject+period', async () => {
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: 'First comment',
-      });
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: 'First comment',
+        },
+        actor,
+      );
 
-      const updated = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: 'Updated comment',
-      });
+      const updated = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: 'Updated comment',
+        },
+        actor,
+      );
 
       expect(updated.comment).toBe('Updated comment');
 
@@ -221,49 +233,91 @@ describe('ReportCardService', () => {
       const longComment = 'x'.repeat(MAX_COMMENT_LENGTH + 1);
 
       await expect(
-        service.upsertComment(tenantId, {
-          studentId,
-          subjectId,
-          academicPeriodId,
-          teacherId,
-          comment: longComment,
-        }),
+        service.upsertComment(
+          tenantId,
+          {
+            studentId,
+            subjectId,
+            academicPeriodId,
+            teacherId,
+            comment: longComment,
+          },
+          actor,
+          actor,
+        ),
       ).rejects.toThrow(`must not exceed ${MAX_COMMENT_LENGTH} characters`);
     });
 
     it('should accept comments at exactly 500 characters', async () => {
       const exactComment = 'x'.repeat(MAX_COMMENT_LENGTH);
 
-      const comment = await service.upsertComment(tenantId, {
-        studentId,
-        subjectId,
-        academicPeriodId,
-        teacherId,
-        comment: exactComment,
-      });
+      const comment = await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId,
+          academicPeriodId,
+          teacherId,
+          comment: exactComment,
+        },
+        actor,
+      );
 
       expect(comment.comment).toHaveLength(MAX_COMMENT_LENGTH);
+    });
+
+    it('PRC-M163: author is the actor and another teacher cannot overwrite it', async () => {
+      const subj = uuidv4();
+      const saved = await service.upsertComment(
+        tenantId,
+        { studentId, subjectId: subj, academicPeriodId, teacherId: uuidv4(), comment: 'A' },
+        actor,
+      );
+      expect(saved.teacherId).toBe(teacherId);
+      const teacherB = { userId: uuidv4(), isAdmin: false };
+      await expect(
+        service.upsertComment(
+          tenantId,
+          { studentId, subjectId: subj, academicPeriodId, comment: 'B' },
+          teacherB,
+        ),
+      ).rejects.toMatchObject({ statusCode: 403 });
+      const admin = { userId: uuidv4(), isAdmin: true };
+      const overwritten = await service.upsertComment(
+        tenantId,
+        { studentId, subjectId: subj, academicPeriodId, comment: 'Admin' },
+        admin,
+      );
+      expect(overwritten.comment).toBe('Admin');
     });
 
     it('should get all comments for a student in an academic period', async () => {
       const subject1 = uuidv4();
       const subject2 = uuidv4();
 
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId: subject1,
-        academicPeriodId,
-        teacherId,
-        comment: 'Math comment',
-      });
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId: subject1,
+          academicPeriodId,
+          teacherId,
+          comment: 'Math comment',
+        },
+        actor,
+      );
 
-      await service.upsertComment(tenantId, {
-        studentId,
-        subjectId: subject2,
-        academicPeriodId,
-        teacherId,
-        comment: 'Science comment',
-      });
+      await service.upsertComment(
+        tenantId,
+        {
+          studentId,
+          subjectId: subject2,
+          academicPeriodId,
+          teacherId,
+          comment: 'Science comment',
+        },
+        actor,
+      );
 
       const comments = await service.getComments(tenantId, studentId, academicPeriodId);
       expect(comments).toHaveLength(2);

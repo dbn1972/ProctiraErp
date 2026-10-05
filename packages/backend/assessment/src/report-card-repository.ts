@@ -191,4 +191,16 @@ export interface ReportCardJobRepository {
    * cross-tenant; returns ids only). Used by the worker's boot reclaim.
    */
   listTenantIdsWithStatus?(status: ReportCardJobStatus): Promise<string[]>;
+
+  /**
+   * PRC-M165: compare-and-set claim. Atomically moves the job to `processing`
+   * only when it is `queued`/`failed`, or `processing` but last touched before
+   * `staleBefore` (crashed worker). Returns null when another worker owns it or
+   * it is already completed.
+   */
+  claimForProcessing(
+    id: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity | null>;
 }

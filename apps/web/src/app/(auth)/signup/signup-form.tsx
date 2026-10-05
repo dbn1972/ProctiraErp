@@ -470,7 +470,7 @@ export function SignUpForm(): JSX.Element {
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={showPassword ? t('hidePassword') : t('showPassword')}
-                  tabIndex={-1}
+                  aria-pressed={showPassword}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -513,7 +513,7 @@ export function SignUpForm(): JSX.Element {
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={showConfirmPassword ? t('hidePassword') : t('showPassword')}
-                  tabIndex={-1}
+                  aria-pressed={showConfirmPassword}
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />

@@ -19,6 +19,7 @@ import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
+import { assertTenantConfigValues } from './config-validation.js';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -47,6 +48,7 @@ import type {
   TenantFilter,
   TenantRepository,
 } from './tenant-repository.js';
+import { tenantTimezoneFieldError } from './timezone-validation.js';
 
 const logger = createLogger({ name: 'tenant-service' });
 
@@ -156,6 +158,7 @@ export class TenantService {
 
     // Merge user-provided config with defaults
     const config = this.mergeConfig(defaultConfig, input.config);
+    this.assertValidTimezone(config.locale?.timezone, 'config.locale.timezone');
 
     const tenant = await this.repository.createTenant({
       id: uuidv4(),
@@ -498,6 +501,10 @@ export class TenantService {
       throw new BusinessRuleError('Cannot modify configuration of a decommissioned tenant');
     }
 
+    // PRC-L358: an invalid zone would silently resolve to UTC at runtime; reject it on write.
+    if (input.locale !== undefined) {
+      this.assertValidTimezone(input.locale.timezone, 'locale.timezone');
+    }
     const updatedConfig = this.mergeConfig(tenant.config, input);
 
     const updated = await this.applyUpdate(id, {
@@ -506,6 +513,12 @@ export class TenantService {
 
     logger.info({ tenantId: id }, 'Tenant configuration updated');
     return updated;
+  }
+
+  /** PRC-L358: reject a non-IANA tenant timezone on admin create/update. */
+  private assertValidTimezone(value: unknown, field: string): void {
+    const error = tenantTimezoneFieldError(value, field);
+    if (error) throw new ValidationError('Validation failed', [error]);
   }
 
   /**
@@ -1011,7 +1024,7 @@ export class TenantService {
    */
   private mergeConfig(base: TenantConfig, override?: Partial<TenantConfig>): TenantConfig {
     if (!override) return base;
-
+    assertTenantConfigValues(override, base);
     return {
       branding: override.branding ? { ...base.branding, ...override.branding } : base.branding,
       locale: override.locale ? { ...base.locale, ...override.locale } : base.locale,
@@ -1028,7 +1041,9 @@ export class TenantService {
       security: override.security ? { ...base.security, ...override.security } : base.security,
       // theme is owned by the branding versioning pipeline — never
       // overwritten by a generic config update.
-      theme: override.theme ?? base.theme,
+      // PRC-M391: an override `theme` is ignored even if a caller bypasses
+      // the route schema.
+      theme: base.theme,
     };
   }
 }

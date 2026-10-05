@@ -153,7 +153,11 @@
     "mfaPrintCodes": "कोड प्रिंट करें",
     "mfaAcknowledgement": "मैंने अपने बैकअप कोड एक सुरक्षित स्थान पर सहेज लिए हैं।",
     "mfaAcknowledgementHelp": "सेटअप समाप्त करने के बाद आप इन कोडों को फिर से नहीं देख पाएंगे।",
-    "mfaFinishSetup": "सेटअप समाप्त करें"
+    "mfaFinishSetup": "सेटअप समाप्त करें",
+    "useBackupCode": "इसके बजाय बैकअप कोड का उपयोग करें",
+    "useAuthenticatorCode": "ऑथेंटिकेटर कोड का उपयोग करें",
+    "backupCodeLabel": "बैकअप कोड",
+    "backupCodeIncomplete": "अपने बैकअप कोड में से एक दर्ज करें (कम से कम 8 अक्षर)।"
   },
   "dashboard": {
     "title": "डैशबोर्ड",
@@ -670,7 +674,8 @@
     "accessDeniedTitle": "पहुँच अस्वीकृत",
     "accessDeniedHelp": "यदि आपको लगता है कि आपके पास पहुँच होनी चाहिए तो अपने प्रशासक से संपर्क करें।",
     "returnToDashboard": "डैशबोर्ड पर वापस जाएँ",
-    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड"
+    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड",
+    "unknownStudent": "अज्ञात छात्र"
   },
   "workflows": {
     "title": "कार्यप्रवाह परिभाषाएं",

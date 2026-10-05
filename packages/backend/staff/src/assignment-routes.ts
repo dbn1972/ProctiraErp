@@ -11,7 +11,7 @@
  * - 7.2: Track staff assignments with start/end dates, prevent overlapping
  * - 7.5: Track allocation percentage, enforce total ≤ 100%
  */
-import { AppError } from '@proctira/common';
+import { AppError, assertInstitutionInScope } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -80,6 +80,32 @@ export async function registerAssignmentRoutes(
 
   fastify.addHook('preHandler', async (request, reply) => {
     if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
+  });
+  // PRC-H004: `/:id` routes address an assignment only by id, so the gateway scope hook cannot
+  // see its school. Load it and 404 a school-bound caller outside that school.
+  const itemRoute = `${fastify.prefix}${prefix}/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.routeOptions.url !== itemRoute) return;
+    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+    const id = (request.params as { id?: unknown }).id;
+    if (!tenantId || typeof id !== 'string' || !validate(AssignmentParamsSchema, { id }).success) {
+      return; // handler answers 400
+    }
+    let ownerInstitutionId: string;
+    try {
+      ownerInstitutionId = (await assignmentService.getById(tenantId, id)).institutionId;
+    } catch (error: unknown) {
+      if (error instanceof AppError) return; // handler answers its own 404
+      throw error;
+    }
+    try {
+      const user = (request as FastifyRequest & { user?: unknown }).user as
+        Parameters<typeof assertInstitutionInScope>[0] | undefined;
+      assertInstitutionInScope(user, ownerInstitutionId, `Assignment with id '${id}' not found`);
+    } catch (error: unknown) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
   });
 
   /**

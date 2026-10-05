@@ -94,6 +94,8 @@ export interface FormConfiguration {
   version: number;
   publishedAt: string;
   fields: FormFieldDefinition[];
+  /** School display name (PRC-M056); absent from older gateways. */
+  institutionName?: string;
 }
 
 export async function getFormConfiguration(
@@ -128,6 +130,21 @@ export interface InstitutionLocation {
   longitude: number | null;
   address?: string | null;
   availableGrades?: string[];
+}
+
+/** PRC-M051/M056: real directory filter options from active institutions. */
+export interface InstitutionFilterOptions {
+  types: Array<{ id: string; name: string }>;
+  areas: Array<{ id: string; name: string }>;
+  grades: string[];
+}
+
+export async function getInstitutionFilters(
+  transport: RegistrationTransport = browserTransport,
+): Promise<InstitutionFilterOptions> {
+  const response = await transport('/registrations/institution-filters');
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as InstitutionFilterOptions;
 }
 
 export interface InstitutionMapResponse {
@@ -216,10 +233,10 @@ export interface RegistrationStatus {
   trackingNumber: string;
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
   institutionName: string;
+  /** First-name initial only (PRC-M331). */
   applicantName: string;
   submittedAt: string;
   updatedAt: string;
-  remarks?: string;
 }
 
 export async function checkApplicationStatus(
@@ -227,10 +244,12 @@ export async function checkApplicationStatus(
   dateOfBirth: string,
   transport: RegistrationTransport = browserTransport,
 ): Promise<RegistrationStatus | null> {
-  const params = new URLSearchParams({ dob: dateOfBirth });
-  const response = await transport(
-    `/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
-  );
+  // PRC-M331: DOB travels in the POST body, never in the URL / access logs.
+  const response = await transport('/registrations/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingNumber, dateOfBirth }),
+  });
   if (response.status === 404) return null;
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationStatus;

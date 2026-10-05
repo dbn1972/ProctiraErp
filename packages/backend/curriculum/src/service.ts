@@ -94,6 +94,20 @@ export class CurriculumService {
     return this.store.listLessonPlansForUnits(tenantId, unitIds);
   }
 
+  /**
+   * PRC-H022: owning institution of a lesson plan (through its syllabus unit). Null when the plan
+   * is unknown in this tenant; a tenant-wide unit (no institution) yields `{ institutionId: null }`.
+   */
+  async lessonPlanInstitution(
+    tenantId: string,
+    id: string,
+  ): Promise<{ institutionId: string | null } | null> {
+    const plan = await this.store.getLessonPlan(tenantId, id);
+    if (!plan) return null;
+    const unit = await this.store.getUnit(tenantId, plan.unitId);
+    if (!unit) return null;
+    return { institutionId: unit.institutionId };
+  }
   async updateLessonPlan(
     tenantId: string,
     id: string,

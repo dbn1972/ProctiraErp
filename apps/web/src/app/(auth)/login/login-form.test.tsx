@@ -79,3 +79,16 @@ describe('LoginForm (PRC-L021)', () => {
     expect(target).not.toContain('token');
   });
 });
+describe('LoginForm password toggle (PRC-M059)', () => {
+  it('keeps the show/hide toggle in the tab order and exposes its pressed state', () => {
+    render(<LoginForm />);
+    const toggle = screen.getByRole('button', { name: 'showPassword' });
+    expect(toggle.hasAttribute('tabindex')).toBe(false);
+    expect(toggle.tabIndex).toBe(0);
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle);
+    const pressed = screen.getByRole('button', { name: 'hidePassword' });
+    expect(pressed.getAttribute('aria-pressed')).toBe('true');
+    expect(document.getElementById('password')?.getAttribute('type')).toBe('text');
+  });
+});

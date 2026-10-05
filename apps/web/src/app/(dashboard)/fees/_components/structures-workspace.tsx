@@ -24,8 +24,12 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
-import { bulkInvoiceAction, createFeeStructureAction } from '@/lib/fees/actions';
-import type { FeeStructure } from '@/lib/api/fees';
+import {
+  bulkInvoiceAction,
+  createFeeStructureAction,
+  previewBulkInvoiceAction,
+} from '@/lib/fees/actions';
+import type { BulkInvoicePreview, FeeStructure } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { formatAmount } from './format-amount';
 
@@ -59,6 +63,19 @@ export function StructuresWorkspace({
   const [pending, startTransition] = useTransition();
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [pendingBulkFd, setPendingBulkFd] = useState<FormData | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<BulkInvoicePreview | null>(null);
+
+  function bulkValues(fd: FormData) {
+    const structureId = String(fd.get('structureId') ?? '');
+    const structure = structures.find((row) => row.id === structureId);
+    return {
+      structureId,
+      classId: String(fd.get('classId') ?? ''),
+      studentIds: String(fd.get('studentIds') ?? ''),
+      dueAt: String(fd.get('dueAt') ?? ''),
+      structureScoped: Boolean(structure?.classId || structure?.gradeId),
+    };
+  }
 
   function onCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,8 +104,28 @@ export function StructuresWorkspace({
 
   function onBulk(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPendingBulkFd(new FormData(event.currentTarget));
-    setConfirmBulk(true);
+    const fd = new FormData(event.currentTarget);
+    // PRC-M086: validate scope and preview the count before confirming.
+    startTransition(async () => {
+      setBulkError(null);
+      setBulkResult(null);
+      const preview = await previewBulkInvoiceAction(bulkValues(fd));
+      if (!preview.success || !preview.data) {
+        setBulkError(preview.success ? 'Preview failed' : preview.error);
+        return;
+      }
+      if (preview.data.toCreateCount === 0) {
+        setBulkError(
+          preview.data.studentCount === 0
+            ? 'No enrolled students match this class or student list.'
+            : 'Every selected student already has an invoice for this structure.',
+        );
+        return;
+      }
+      setBulkPreview(preview.data);
+      setPendingBulkFd(fd);
+      setConfirmBulk(true);
+    });
   }
 
   function onConfirmBulk() {
@@ -97,12 +134,7 @@ export function StructuresWorkspace({
     startTransition(async () => {
       setBulkError(null);
       setBulkResult(null);
-      const result = await bulkInvoiceAction({
-        structureId: String(fd.get('structureId') ?? ''),
-        classId: String(fd.get('classId') ?? ''),
-        studentIds: String(fd.get('studentIds') ?? ''),
-        dueAt: String(fd.get('dueAt') ?? ''),
-      });
+      const result = await bulkInvoiceAction(bulkValues(fd));
       if (!result.success) {
         setBulkError(result.error);
         return;
@@ -110,6 +142,7 @@ export function StructuresWorkspace({
       setBulkResult(result.data ?? { created: 0, skipped: 0 });
       setConfirmBulk(false);
       setPendingBulkFd(null);
+      setBulkPreview(null);
       router.refresh();
     });
   }
@@ -329,10 +362,17 @@ export function StructuresWorkspace({
         open={confirmBulk}
         onOpenChange={(open) => {
           setConfirmBulk(open);
-          if (!open) setPendingBulkFd(null);
+          if (!open) {
+            setPendingBulkFd(null);
+            setBulkPreview(null);
+          }
         }}
         title="Create bulk invoices?"
-        description="Invoices will be created for the selected structure and class. Students who already have an invoice for this structure are skipped."
+        description={
+          bulkPreview
+            ? `${bulkPreview.toCreateCount} invoice(s) totalling ${formatAmount(bulkPreview.totalAmountCents, bulkPreview.currency, locale)} will be created${bulkPreview.skippedCount > 0 ? `; ${bulkPreview.skippedCount} student(s) already invoiced will be skipped` : ''}.`
+            : 'Invoices will be created for the selected structure and class.'
+        }
         confirmLabel="Bulk invoice"
         pending={pending}
         onConfirm={onConfirmBulk}

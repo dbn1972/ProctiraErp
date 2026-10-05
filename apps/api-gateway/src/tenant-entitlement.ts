@@ -58,6 +58,15 @@ export function noteTenantStatusChange(tenantId: string, status: GateTenantStatu
   cache.set(tenantId, { status, expiresAt: Date.now() + ttlMs });
 }
 
+/**
+ * Drop this process's cached status so the next request re-reads the tenant store. Used for
+ * cross-replica messages: they only say "this tenant changed", so a delayed or reordered message
+ * can never overwrite a newer status with an older one.
+ */
+export function invalidateTenantStatus(tenantId: string): void {
+  versions.set(tenantId, (versions.get(tenantId) ?? 0) + 1);
+  cache.delete(tenantId);
+}
 /** The currently installed source (lets an app reset only its own wiring on close). */
 export function currentTenantStatusSource(): TenantStatusSource | null {
   return statusSource;
@@ -86,7 +95,10 @@ export async function resolveTenantBlocked(tenantId: string): Promise<boolean> {
   const status = await statusSource(tenantId);
   // A lifecycle event that landed while we were reading is newer than this read: keep it.
   if ((versions.get(tenantId) ?? 0) !== versionAtStart) {
-    return isBlockingStatus(cache.get(tenantId)?.status);
+    const newer = cache.get(tenantId);
+    if (newer) return isBlockingStatus(newer.status);
+    // Invalidated by a cross-replica message meanwhile: this read may be stale, read again.
+    return resolveTenantBlocked(tenantId);
   }
   cache.set(tenantId, { status, expiresAt: Date.now() + ttlMs });
   return isBlockingStatus(status);
@@ -102,6 +114,91 @@ export function isRequestTenantSuspended(
   if (user?.tenantStatus === 'suspended') return true;
   if (tenantId && isTenantSuspended(tenantId)) return true;
   return false;
+}
+
+/**
+ * PRC-H008 / PRC-H098 — `TENANT_SUSPEND_BLOCK_AUTH` (default true, fail closed): a suspended or
+ * decommissioned tenant is blocked entirely — login and refresh are refused, every authenticated
+ * /api/v1 request is rejected and the tenant's sessions are revoked on suspension. Set it to
+ * `false` for the read-only-while-suspended mode (writes blocked, reads and remediation allowed).
+ */
+export function tenantSuspendBlocksAuth(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env['TENANT_SUSPEND_BLOCK_AUTH'] ?? '').trim().toLowerCase();
+  return !['false', '0', 'off', 'no'].includes(raw);
+}
+
+export function isBlockingTenantStatus(status: string | null | undefined): boolean {
+  return status === 'suspended' || status === 'decommissioned';
+}
+
+const GATE_STATUSES: ReadonlySet<string> = new Set([
+  'provisioning',
+  'active',
+  'suspended',
+  'decommissioned',
+]);
+export const TENANT_STATUS_CHANNEL = 'proctira:tenant-status';
+
+/** Minimal ioredis surface for the cross-replica tenant-status bus. */
+export interface RedisTenantStatusSubscriber {
+  /** ioredis connection state; 'wait' means a lazyConnect client not yet connected. */
+  readonly status?: string;
+  connect?(): Promise<void>;
+  subscribe(channel: string): Promise<unknown>;
+  on(event: 'message', listener: (channel: string, message: string) => void): unknown;
+  quit(): Promise<unknown>;
+}
+export interface RedisTenantStatusPublisher {
+  publish(channel: string, message: string): Promise<number>;
+  duplicate(): RedisTenantStatusSubscriber;
+}
+export interface TenantStatusBus {
+  publish(tenantId: string, status: GateTenantStatus): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** Apply a remote status message (invalidate this process's cache); ignores malformed payloads. */
+export function applyTenantStatusMessage(message: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(message);
+  } catch {
+    return false;
+  }
+  const { tenantId, status } = (parsed ?? {}) as { tenantId?: unknown; status?: unknown };
+  if (typeof tenantId !== 'string' || !tenantId || typeof status !== 'string') return false;
+  if (!GATE_STATUSES.has(status)) return false;
+  invalidateTenantStatus(tenantId);
+  return true;
+}
+
+/**
+ * PRC-H008: Redis pub/sub invalidation so every gateway replica enforces a lifecycle transition
+ * immediately instead of waiting for its status-cache TTL. The TTL read from the tenant store
+ * stays the backstop when a message is missed.
+ */
+export async function startRedisTenantStatusBus(
+  redis: RedisTenantStatusPublisher,
+  log: { warn: (obj: object, msg: string) => void } = { warn: () => undefined },
+): Promise<TenantStatusBus> {
+  const subscriber = redis.duplicate();
+  // The gateway's client is lazyConnect with no offline queue, so its duplicate must connect first.
+  if (subscriber.connect && subscriber.status === 'wait') await subscriber.connect();
+  subscriber.on('message', (channel, message) => {
+    if (channel !== TENANT_STATUS_CHANNEL) return;
+    if (!applyTenantStatusMessage(message)) {
+      log.warn({ channel }, 'ignored malformed tenant-status message');
+    }
+  });
+  await subscriber.subscribe(TENANT_STATUS_CHANNEL);
+  return {
+    async publish(tenantId, status) {
+      await redis.publish(TENANT_STATUS_CHANNEL, JSON.stringify({ tenantId, status }));
+    },
+    async close() {
+      await subscriber.quit();
+    },
+  };
 }
 
 /** Test helper: mark a tenant as suspended. */
