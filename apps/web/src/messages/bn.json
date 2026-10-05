@@ -153,7 +153,11 @@
     "mfaPrintCodes": "কোড প্রিন্ট করুন",
     "mfaAcknowledgement": "আমি আমার ব্যাকআপ কোড একটি নিরাপদ স্থানে সংরক্ষণ করেছি।",
     "mfaAcknowledgementHelp": "সেটআপ শেষ করার পরে আপনি আর এই কোডগুলি দেখতে পাবেন না।",
-    "mfaFinishSetup": "সেটআপ সম্পন্ন করুন"
+    "mfaFinishSetup": "সেটআপ সম্পন্ন করুন",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "ড্যাশবোর্ড",

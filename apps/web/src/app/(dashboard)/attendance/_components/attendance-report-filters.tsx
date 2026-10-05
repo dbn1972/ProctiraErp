@@ -24,6 +24,7 @@ import {
 import type { AttendancePercentageResult } from '@/lib/api/attendance';
 
 import { getAttendanceReportAction, type ActionState } from '../actions';
+import { addDaysToIsoDate, todayInTimeZone } from '@/lib/datetime/tenant-zoned';
 
 interface InstitutionOption {
   id: string;
@@ -32,13 +33,18 @@ interface InstitutionOption {
 
 interface AttendanceReportFiltersProps {
   institutions: InstitutionOption[];
+  /** PRC-M078: today in the tenant timezone (server-computed). */
+  today?: string;
 }
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
 
-export function AttendanceReportFilters({ institutions }: AttendanceReportFiltersProps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+export function AttendanceReportFilters({
+  institutions,
+  today: tenantToday,
+}: AttendanceReportFiltersProps) {
+  const today = tenantToday ?? todayInTimeZone();
+  const monthAgo = addDaysToIsoDate(today, -30);
 
   const [scope, setScope] = useState<'student' | 'class' | 'institution'>('institution');
   const [institutionId, setInstitutionId] = useState('');

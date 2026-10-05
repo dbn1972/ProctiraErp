@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Database, FileSpreadsheet, FileText } from 'lucide-react';
 
 import {
@@ -19,11 +19,37 @@ import {
 
 import { useHydrated } from '@/hooks/useHydrated';
 
-import { createImportJobAction } from '../../reports/actions';
+/** Advertised upload limit (PRC-M072). */
+export const MAX_IMPORT_FILE_BYTES = 50 * 1024 * 1024;
+
+/**
+ * PRC-M072: client-side validation for warehouse import files. Returns an
+ * error message, or null when the file is acceptable.
+ */
+export function validateImportFile(
+  file: { name: string; size: number },
+  accept: string,
+  title: string,
+): string | null {
+  const allowed = accept.split(',').map((ext) => ext.trim().toLowerCase());
+  const lower = file.name.toLowerCase();
+  if (!allowed.some((ext) => lower.endsWith(ext))) {
+    return `${title} import accepts ${allowed.join(', ')} files only.`;
+  }
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    return `“${file.name}” is larger than the 50 MB limit.`;
+  }
+  return null;
+}
 
 /**
  * Import source forms with client-side validation.
- * When `liveImport` is true, queues jobs via POST /data-warehouse/import/jobs.
+ *
+ * PRC-M072: the gateway only exposes a job-metadata endpoint
+ * (POST /data-warehouse/import/jobs) with no file or database transfer path.
+ * Recording a job without the data produced a false "Import queued" success
+ * and a rows=0 job, so live mode now states plainly that the transfer is not
+ * available and records nothing.
  */
 export function ImportSourceForms({ liveImport = false }: { liveImport?: boolean }) {
   const hydrated = useHydrated();
@@ -72,7 +98,6 @@ function FileImportCard({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,6 +110,11 @@ function FileImportCard({
       setError(`Choose a ${title} file before uploading.`);
       return;
     }
+    const invalid = validateImportFile(file, accept, title);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
 
     if (!liveImport) {
       setMessage(
@@ -93,18 +123,9 @@ function FileImportCard({
       return;
     }
 
-    startTransition(async () => {
-      const result = await createImportJobAction({
-        source,
-        filename: file.name,
-        rows: 0,
-      });
-      if (result.status === 'error') {
-        setError(result.message ?? 'Failed to queue import');
-        return;
-      }
-      setMessage(result.message ?? `Import job ${result.id} queued.`);
-    });
+    setMessage(
+      `“${file.name}” was validated, but file upload to the warehouse is not available yet. No data was imported and no job was recorded.`,
+    );
   }
 
   return (
@@ -123,6 +144,7 @@ function FileImportCard({
             name="file"
             accept={accept}
             aria-label={`Upload ${title} file`}
+            data-source={source}
             aria-invalid={Boolean(error)}
             onChange={() => {
               setError(null);
@@ -143,12 +165,12 @@ function FileImportCard({
                   : `${title.toLowerCase()}-demo-submit`
               }
             >
-              <AlertTitle>{liveImport ? 'Import queued' : 'Demo submit'}</AlertTitle>
+              <AlertTitle>{liveImport ? 'Upload not available yet' : 'Demo submit'}</AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? 'Uploading…' : 'Upload'}
+          <Button type="submit" size="sm">
+            Upload
           </Button>
         </form>
       </CardContent>
@@ -159,7 +181,6 @@ function FileImportCard({
 function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -185,18 +206,11 @@ function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
       return;
     }
 
-    startTransition(async () => {
-      const result = await createImportJobAction({
-        source: 'DATABASE',
-        filename: connection.replace(/:\/\/.*@/, '://***@').slice(0, 80),
-        rows: 0,
-      });
-      if (result.status === 'error') {
-        setError(result.message ?? 'Failed to queue import');
-        return;
-      }
-      setMessage(result.message ?? `Import job ${result.id} queued.`);
-    });
+    // The connection string is never sent anywhere: no DB pull endpoint exists.
+    form.reset();
+    setMessage(
+      'Remote database pull is not available yet. The connection string was not sent or stored, and no job was recorded.',
+    );
   }
 
   return (
@@ -216,6 +230,9 @@ function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
             <Input
               id="db-conn"
               name="connection"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
               placeholder="postgres://…"
               aria-invalid={Boolean(error)}
               onChange={() => {
@@ -234,12 +251,14 @@ function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
               variant={liveImport ? 'default' : 'warning'}
               data-testid={liveImport ? 'database-live-submit' : 'database-demo-submit'}
             >
-              <AlertTitle>{liveImport ? 'Import queued' : 'Demo submit'}</AlertTitle>
+              <AlertTitle>
+                {liveImport ? 'Database pull not available yet' : 'Demo submit'}
+              </AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? 'Importing…' : 'Import'}
+          <Button type="submit" size="sm">
+            Import
           </Button>
         </form>
       </CardContent>
