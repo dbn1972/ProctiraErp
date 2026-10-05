@@ -418,35 +418,32 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
 // ─── Default fetcher ─────────────────────────────────────────────────────────
 
 /**
- * Default fetcher: hits `/api/v1/tenant/branding`. Falls back to
- * `DEFAULT_BRAND` on any network/parse error so the UI keeps rendering.
+ * Default fetcher: hits `/api/v1/tenant/branding`.
  *
- * Returns the *normalized* `Brand`, never throws — the provider relies on
- * this contract to keep public marketing screens visible even when the
- * gateway is offline.
+ * PRC-M158: a 5xx or network/parse failure *throws* so the provider can set
+ * `error`, keep painting the safe default, and — because `fetchBrandCached`
+ * only caches successful results — re-fetch on the next call instead of
+ * pinning the fallback for the whole 5-minute TTL. A 4xx is a definitive
+ * "no branding for this tenant" and resolves to `DEFAULT_BRAND`.
  */
 export async function defaultBrandFetcher(): Promise<Brand> {
   if (!isBrowser()) return DEFAULT_BRAND;
-  try {
-    const response = await fetch(BRAND_ENDPOINT, {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    });
-    if (!response.ok) return DEFAULT_BRAND;
-    // 204 is the route's answer for an anonymous visitor: no tenant context, so no
-    // branding to resolve. It satisfies `response.ok`, so without this branch the
-    // empty body reaches `response.json()`, throws, and lands in the catch below —
-    // the right brand for the wrong reason, and a parse error on every public page if
-    // anyone ever narrows that catch.
-    if (response.status === 204) return DEFAULT_BRAND;
-    const payload = (await response.json()) as unknown;
-    return normalizeBrandResponse(payload);
-  } catch {
-    return DEFAULT_BRAND;
+  const response = await fetch(BRAND_ENDPOINT, {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  if (response.status >= 500) {
+    throw new Error(`Brand config request failed (HTTP ${response.status})`);
   }
+  if (!response.ok) return DEFAULT_BRAND;
+  // 204 is the route's answer for an anonymous visitor: no tenant context, so no
+  // branding to resolve. It satisfies `response.ok`, so without this branch the
+  // empty body would reach `response.json()` and throw.
+  if (response.status === 204) return DEFAULT_BRAND;
+  const payload = (await response.json()) as unknown;
+  return normalizeBrandResponse(payload);
 }
-
 /**
  * Cached brand fetch. Honors a 5-minute module-level TTL and de-dupes
  * concurrent in-flight requests so two providers mounting at the same time

@@ -42,8 +42,8 @@ const sampleData = (): ReportCardData => ({
       subjectId: 'sub-math',
       subjectName: 'Mathematics',
       items: [
-        { name: 'Midterm', score: 45, maxScore: 50, weight: 0.4, weightedScore: 36 },
-        { name: 'Final', score: 92, maxScore: 100, weight: 0.6, weightedScore: 55.2 },
+        { name: 'Midterm', score: 45, maxScore: 50, weight: 40, weightedScore: 36 },
+        { name: 'Final', score: 92, maxScore: 100, weight: 60, weightedScore: 55.2 },
       ],
       weightedAverage: 91.2,
       grade: 'A',
@@ -87,9 +87,14 @@ describe('ReportCardPdfGenerator', () => {
       'Teacher comment: Outstanding analytical (and creative) work.',
       'Overall grade',
       'A-',
+      // PRC-M159: percentage weights render as-is.
+      '40%',
+      '60%',
     ]) {
       expect(info.literalStrings).toContain(expected);
     }
+    expect(info.literalStrings).not.toContain('4000%');
+    expect(info.literalStrings).not.toContain('6000%');
   });
 
   it('derives a heading from the template and falls back sensibly', () => {

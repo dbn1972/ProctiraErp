@@ -42,10 +42,13 @@ export interface CounsellingSession {
   id: string;
   studentId: string;
   studentName: string;
+  counsellorId?: string;
   counsellorName: string;
+  sessionType?: string;
   sessionDate: string;
   topic: string;
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  /** PRC-M476: domain status carried through (incl. NO_SHOW); unknown values pass as-is. */
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | (string & NonNullable<unknown>);
 }
 
 /** Domain create payload for POST /health/counselling/sessions. */

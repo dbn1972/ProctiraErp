@@ -136,6 +136,8 @@ export interface CreateFeeStructureInput {
   academicPeriodId?: string;
   gradeId?: string;
   classId?: string;
+  /** PRC-M091: instalments created atomically with the structure. */
+  partCount?: number;
 }
 
 function throwIfMissing<T>(
@@ -204,6 +206,33 @@ export async function listInvoices(
 export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoice> {
   const result = await gatewayFetch<FeeInvoice>('/fees/invoices', { method: 'POST', json: input });
   return throwIfMissing(result, 'Failed to create invoice');
+}
+
+/** PRC-M477: one bounded page of fee rows (server-side paging + filters). */
+export interface FeeListPageQuery {
+  page: number;
+  pageSize?: number;
+  status?: string;
+  studentId?: string;
+}
+
+function feePageQs(query: FeeListPageQuery): string {
+  const qs = new URLSearchParams();
+  qs.set('page', String(Math.max(1, Math.floor(query.page) || 1)));
+  qs.set('pageSize', String(Math.min(100, Math.max(1, query.pageSize ?? FEE_LIST_PAGE_SIZE))));
+  if (query.status) qs.set('status', query.status);
+  if (query.studentId) qs.set('studentId', query.studentId);
+  return qs.toString();
+}
+
+export const FEE_LIST_PAGE_SIZE = 50;
+
+export function listInvoicesPageResult(query: FeeListPageQuery): Promise<ListResult<FeeInvoice>> {
+  return fetchList<FeeInvoice>(`/fees/invoices?${feePageQs(query)}`, { next: { revalidate: 0 } });
+}
+
+export function listReceiptsPageResult(query: FeeListPageQuery): Promise<ListResult<FeeReceipt>> {
+  return fetchList<FeeReceipt>(`/fees/receipts?${feePageQs(query)}`, { next: { revalidate: 0 } });
 }
 
 export function listReceiptsResult(
@@ -287,6 +316,26 @@ export async function bulkInvoiceStructure(
     { method: 'POST', json: input },
   );
   return throwIfMissing(result, 'Failed to bulk invoice');
+}
+
+/** PRC-M086: dry-run count + total for the bulk-invoice confirm dialog. */
+export interface BulkInvoicePreview {
+  structureId: string;
+  studentCount: number;
+  toCreateCount: number;
+  skippedCount: number;
+  totalAmountCents: number;
+  currency: string;
+}
+export async function previewBulkInvoiceStructure(
+  structureId: string,
+  input: { classId?: string; gradeId?: string; studentIds?: string[] },
+): Promise<BulkInvoicePreview> {
+  const result = await gatewayFetch<BulkInvoicePreview>(
+    `/fees/structures/${structureId}/bulk-invoice/preview`,
+    { method: 'POST', json: input },
+  );
+  return throwIfMissing(result, 'Failed to preview bulk invoice');
 }
 
 export async function applyConcession(input: {
@@ -424,11 +473,36 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
-export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
-    method: 'POST',
-    json: { method: 'sandbox' },
-  });
+/**
+ * PRC-M065 / PRC-M089: record a staff-collected payment (method, partial
+ * amount, reference) with a client idempotency key so a double submit pays
+ * once. Only fields the gateway's `PayInvoiceSchema` accepts are sent.
+ */
+export interface RecordInvoicePaymentInput {
+  method: 'cash' | 'upi' | 'card' | 'sandbox';
+  amountCents: number;
+  idempotencyKey: string;
+  /** UPI transaction id / card approval code / receipt-book number (1–100 chars). */
+  reference?: string;
+}
+
+export async function recordInvoicePayment(
+  invoiceId: string,
+  input: RecordInvoicePaymentInput,
+): Promise<FeeInvoice> {
+  const reference = input.reference?.trim();
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: {
+        method: input.method,
+        amountCents: input.amountCents,
+        idempotencyKey: input.idempotencyKey,
+        ...(reference ? { reference } : {}),
+      },
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 

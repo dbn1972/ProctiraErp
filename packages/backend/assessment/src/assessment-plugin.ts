@@ -34,7 +34,7 @@ import type { TaskQueuePublisher, PdfGenerator } from './report-card-service.js'
 import { createReportCardWorker, type ReportCardWorker } from './report-card-worker.js';
 import type { AssessmentResultRepository } from './result-repository.js';
 import { registerResultRoutes } from './result-routes.js';
-import { ResultService } from './result-service.js';
+import { ResultService, type ResultStudentDirectory } from './result-service.js';
 import { registerAssessmentRoutes } from './routes.js';
 
 /**
@@ -97,6 +97,14 @@ declare module 'fastify' {
   }
 }
 
+/** Directories that can also answer student-existence checks (PRC-M161). */
+function asStudentDirectory(directory: unknown): ResultStudentDirectory | null {
+  return directory &&
+    typeof (directory as ResultStudentDirectory).findExistingStudentIds === 'function'
+    ? (directory as ResultStudentDirectory)
+    : null;
+}
+
 /**
  * Fastify plugin that registers the assessment service and routes.
  */
@@ -143,11 +151,15 @@ export const assessmentPlugin = fp(
 
     // Register result routes if result repository is provided
     let resultService: ResultService | undefined;
+    // PRC-M161: one directory instance backs report-card names and result student checks.
+    const resolvedDirectory =
+      reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory;
     if (resultRepository) {
       resultService = new ResultService(
         resultRepository,
         assessmentItemRepository,
         gradingSchemeRepository,
+        { studentDirectory: asStudentDirectory(resolvedDirectory) },
       );
 
       fastify.decorate('resultService', resultService);
@@ -187,10 +199,13 @@ export const assessmentPlugin = fp(
         {
           artifactStore: reportCardArtifactStore ?? createReportCardArtifactStore(),
           resultRepository,
-          directory:
-            reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory,
+          directory: resolvedDirectory,
           // Without a queue consumer there is no worker, so finish the job in-request.
           processInline: !effectivePublisher,
+          logger: {
+            warn: (obj, msg) => fastify.log.warn(obj, msg),
+            error: (obj, msg) => fastify.log.error(obj, msg),
+          },
         },
       );
 

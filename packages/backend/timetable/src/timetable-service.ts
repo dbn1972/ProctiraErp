@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { NotFoundError, ValidationError } from '@proctira/common';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
-import { detectMeetingClashes, detectSubstituteClashes } from './clash-helper.js';
+import {
+  detectMeetingClashes,
+  detectSubstituteClashes,
+  type PeriodWindow,
+} from './clash-helper.js';
 import {
   InMemoryTimetableOpsStore,
   type GenerationJobRecord,
@@ -16,8 +20,13 @@ import {
   type GeneratorPeriod,
   type GeneratorRoom,
 } from './generation.js';
+import { isValidIsoDate, UUID_PATTERN } from './schemas.js';
 import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
-import { isTimetableClashError, TimetableClashError } from './timetable-errors.js';
+import {
+  isTimetableClashError,
+  TimetableClashError,
+  TimetableVersionConflictError,
+} from './timetable-errors.js';
 import type {
   BellScheduleEntity,
   PeriodEntity,
@@ -68,12 +77,47 @@ type SubstitutionInput = {
   status?: string;
 };
 
+/** PRC-M401: a queued/running generation older than this is treated as crashed. */
+const GENERATION_STALE_MS = 15 * 60 * 1000;
+const GENERATION_STALE_MESSAGE = 'Generation interrupted (worker stopped); re-run the job';
+/** PRC-M401: per-process cap on concurrent solver runs (CPU-bound). */
+const DEFAULT_GENERATION_CONCURRENCY = 2;
+const UUID_RE = new RegExp(UUID_PATTERN);
+
+/** Client-safe failure text: domain validation messages pass through, internals do not. */
+function sanitizeGenerationError(error: unknown): string {
+  if (error instanceof AppError && error.statusCode < 500) return error.message;
+  return 'Generation failed due to an internal error';
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function dateToday(): string {
-  return new Date().toISOString().slice(0, 10);
+/** PRC-M403: calendar date (YYYY-MM-DD) of `instant` in an IANA timezone. */
+export function calendarDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Resolves the institution/tenant IANA timezone used for enrollment calendar dates. */
+export type TimetableTimeZoneResolver = (
+  tenantId: string,
+  institutionId?: string,
+) => string | Promise<string>;
+
+export interface TimetableServiceOptions {
+  maxConcurrentGenerations?: number;
+  /** Default 'UTC' (or TIMETABLE_DEFAULT_TIMEZONE). */
+  timeZone?: string | TimetableTimeZoneResolver;
+  /** Injectable clock for tests. */
+  now?: () => Date;
 }
 
 function slugCode(name: string, fallback: string): string {
@@ -95,11 +139,35 @@ export class TimetableService {
   private readonly auditLog: TimetableAuditEntry[] = [];
   private readonly ops: TimetableOpsStore;
 
+  private runningGenerations = 0;
+  private readonly maxConcurrentGenerations: number;
+
   constructor(
     private readonly repo: TimetableRepository,
     ops?: TimetableOpsStore,
+    private readonly options: TimetableServiceOptions = {},
   ) {
     this.ops = ops ?? new InMemoryTimetableOpsStore();
+    const envCap = Number(process.env.TIMETABLE_GENERATION_MAX_CONCURRENCY);
+    this.maxConcurrentGenerations = Math.max(
+      1,
+      options.maxConcurrentGenerations ??
+        (Number.isInteger(envCap) && envCap > 0 ? envCap : DEFAULT_GENERATION_CONCURRENCY),
+    );
+  }
+
+  private async localDate(tenantId: string, institutionId?: string): Promise<string> {
+    const configured = this.options.timeZone;
+    let zone =
+      typeof configured === 'function'
+        ? await configured(tenantId, institutionId)
+        : (configured ?? process.env.TIMETABLE_DEFAULT_TIMEZONE ?? 'UTC');
+    try {
+      Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    } catch {
+      zone = 'UTC';
+    }
+    return calendarDateInZone(this.options.now?.() ?? new Date(), zone);
   }
 
   listAudits(tenantId: string): TimetableAuditEntry[] {
@@ -146,8 +214,14 @@ export class TimetableService {
     return row;
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleInput>) {
-    const row = await this.repo.updateBellSchedule(tenantId, id, patch);
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
+    await this.assertBellScheduleUnlocked(tenantId, id);
+    const row = await this.repo.updateBellSchedule(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
         tenantId,
@@ -162,6 +236,7 @@ export class TimetableService {
   }
 
   async deleteBellSchedule(tenantId: string, id: string) {
+    await this.assertBellScheduleUnlocked(tenantId, id);
     const ok = await this.repo.deleteBellSchedule(tenantId, id);
     if (ok) {
       this.recordAudit({
@@ -188,6 +263,7 @@ export class TimetableService {
     if (input.startTime >= input.endTime) {
       throw new ValidationError('Period startTime must be before endTime');
     }
+    await this.assertNoPeriodOverlap(tenantId, input.bellScheduleId, input);
     const now = nowIso();
     const row = await this.repo.createPeriod({
       id: randomUUID(),
@@ -207,8 +283,48 @@ export class TimetableService {
     return row;
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodInput>) {
-    const row = await this.repo.updatePeriod(tenantId, id, patch);
+  /** PRC-M399: periods of one bell schedule must not overlap in time. */
+  private async assertNoPeriodOverlap(
+    tenantId: string,
+    bellScheduleId: string,
+    candidate: { startTime: string; endTime: string },
+    excludePeriodId?: string,
+  ): Promise<void> {
+    const siblings = await this.repo.listPeriods(tenantId, bellScheduleId);
+    const clash = siblings.find(
+      (p) =>
+        p.id !== excludePeriodId &&
+        candidate.startTime < p.endTime.slice(0, 5) &&
+        p.startTime.slice(0, 5) < candidate.endTime,
+    );
+    if (clash) {
+      throw new ValidationError(
+        `Period ${candidate.startTime}-${candidate.endTime} overlaps period ${clash.name}`,
+      );
+    }
+  }
+
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
+    const existing = await this.repo.getPeriod(tenantId, id);
+    if (!existing) return null;
+    await this.assertPeriodsUnlocked(tenantId, existing.bellScheduleId, [id]);
+    // PRC-M399: validate the merged row, not just the patch.
+    const merged = {
+      startTime: (patch.startTime ?? existing.startTime).slice(0, 5),
+      endTime: (patch.endTime ?? existing.endTime).slice(0, 5),
+    };
+    if (merged.startTime >= merged.endTime) {
+      throw new ValidationError('Period startTime must be before endTime');
+    }
+    if (patch.startTime !== undefined || patch.endTime !== undefined) {
+      await this.assertNoPeriodOverlap(tenantId, existing.bellScheduleId, merged, id);
+    }
+    const row = await this.repo.updatePeriod(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
         tenantId,
@@ -223,6 +339,9 @@ export class TimetableService {
   }
 
   async deletePeriod(tenantId: string, id: string) {
+    const existing = await this.repo.getPeriod(tenantId, id);
+    if (!existing) return false;
+    await this.assertPeriodsUnlocked(tenantId, existing.bellScheduleId, [id]);
     const ok = await this.repo.deletePeriod(tenantId, id);
     if (ok) {
       this.recordAudit({
@@ -315,42 +434,28 @@ export class TimetableService {
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
-    if (section.status === 'ARCHIVED') {
-      throw new ValidationError('Cannot enroll into an archived section');
-    }
-
-    const existing = await this.repo.getEnrollment(tenantId, sectionId, studentId);
-    if (existing && existing.status === 'ENROLLED') {
-      return existing;
-    }
-
-    const active = (await this.repo.listEnrollments(tenantId, sectionId)).filter(
-      (e) => e.status === 'ENROLLED',
-    );
-    if (!existing && active.length >= section.capacity) {
-      throw new ValidationError(`Section ${section.code} is at capacity (${section.capacity})`);
-    }
-
-    const now = nowIso();
-    if (existing) {
-      return this.repo.updateEnrollment(tenantId, existing.id, {
-        status: 'ENROLLED',
-        withdrawnAt: null,
-        enrolledAt: dateToday(),
-      });
-    }
-
-    return this.repo.createEnrollment({
-      id: randomUUID(),
+    // PRC-M403: capacity check + write are one atomic repository operation.
+    const result = await this.repo.enrollWithinCapacity({
       tenantId,
       sectionId,
       studentId,
-      status: 'ENROLLED',
-      enrolledAt: dateToday(),
-      withdrawnAt: null,
-      createdAt: now,
-      updatedAt: now,
+      enrolledAt: await this.localDate(tenantId, section.institutionId),
+      newId: randomUUID(),
+      now: nowIso(),
     });
+    switch (result.outcome) {
+      case 'enrolled':
+      case 'already_enrolled':
+        return result.enrollment;
+      case 'section_missing':
+        throw new NotFoundError(`Section ${sectionId} not found`);
+      case 'student_missing':
+        throw new NotFoundError(`Student ${studentId} not found`);
+      case 'section_archived':
+        throw new ValidationError('Cannot enroll into an archived section');
+      case 'full':
+        throw new ValidationError(`Section ${result.code} is at capacity (${result.capacity})`);
+    }
   }
 
   async withdrawStudent(tenantId: string, sectionId: string, studentId: string) {
@@ -361,9 +466,10 @@ export class TimetableService {
     if (enrollment.status === 'WITHDRAWN') {
       return enrollment;
     }
+    const section = await this.repo.getSection(tenantId, sectionId);
     return this.repo.updateEnrollment(tenantId, enrollment.id, {
       status: 'WITHDRAWN',
-      withdrawnAt: dateToday(),
+      withdrawnAt: await this.localDate(tenantId, section?.institutionId),
     });
   }
 
@@ -447,6 +553,10 @@ export class TimetableService {
       academicPeriodId: filter.academicPeriodId,
     });
 
+    const periodTimes = await this.loadPeriodTimes(
+      tenantId,
+      meetings.map((m) => m.periodId),
+    );
     const seen = new Set<string>();
     const out: Array<{
       reason: string;
@@ -460,7 +570,7 @@ export class TimetableService {
     }> = [];
 
     for (const candidate of meetings) {
-      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id, periodTimes);
       for (const c of conflicts) {
         const peer = c.meetingId ?? '';
         const pairKey = [candidate.id, peer].sort().join('|');
@@ -487,7 +597,11 @@ export class TimetableService {
    * Publish a draft section. Runs institution-wide room∩time and teacher∩time
    * clash detection including this section's meetings → 409 on conflict.
    */
-  async publishSection(tenantId: string, sectionId: string): Promise<SectionEntity> {
+  async publishSection(
+    tenantId: string,
+    sectionId: string,
+    opts?: UpdateConcurrencyOpts,
+  ): Promise<SectionEntity> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
@@ -509,8 +623,12 @@ export class TimetableService {
     }
 
     // Validate each of this section's meetings against the rest of the institution grid.
+    const periodTimes = await this.loadPeriodTimes(
+      tenantId,
+      meetings.map((m) => m.periodId),
+    );
     for (const candidate of sectionMeetings) {
-      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id, periodTimes);
       const hard = conflicts.filter((c) => c.reason === 'staff' || c.reason === 'room');
       if (hard.length > 0) {
         throw new TimetableClashError(
@@ -520,10 +638,17 @@ export class TimetableService {
       }
     }
 
-    const updated = await this.repo.updateSection(tenantId, sectionId, {
-      status: 'PUBLISHED',
-      publishedAt: nowIso(),
-    });
+    if (opts?.expectedUpdatedAt && opts.expectedUpdatedAt !== section.updatedAt) {
+      throw new TimetableVersionConflictError('section', sectionId, section.updatedAt);
+    }
+    // PRC-M404: CAS on the version read before the clash check — a concurrent section edit
+    // between check and write makes this a 409 instead of publishing a stale state.
+    const updated = await this.repo.updateSection(
+      tenantId,
+      sectionId,
+      { status: 'PUBLISHED', publishedAt: nowIso() },
+      { expectedUpdatedAt: section.updatedAt },
+    );
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
@@ -538,7 +663,11 @@ export class TimetableService {
     return updated;
   }
 
-  async unpublishSection(tenantId: string, sectionId: string): Promise<SectionEntity> {
+  async unpublishSection(
+    tenantId: string,
+    sectionId: string,
+    opts?: UpdateConcurrencyOpts,
+  ): Promise<SectionEntity> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
@@ -546,10 +675,15 @@ export class TimetableService {
     if (section.status === 'DRAFT') {
       return section;
     }
-    const updated = await this.repo.updateSection(tenantId, sectionId, {
-      status: 'DRAFT',
-      publishedAt: null,
-    });
+    if (opts?.expectedUpdatedAt && opts.expectedUpdatedAt !== section.updatedAt) {
+      throw new TimetableVersionConflictError('section', sectionId, section.updatedAt);
+    }
+    const updated = await this.repo.updateSection(
+      tenantId,
+      sectionId,
+      { status: 'DRAFT', publishedAt: null },
+      { expectedUpdatedAt: section.updatedAt },
+    );
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
@@ -607,7 +741,11 @@ export class TimetableService {
   ) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return null;
-    await this.assertSectionEditable(tenantId, patch.sectionId ?? existing.sectionId);
+    // PRC-M405: moving a meeting must not touch a locked schedule on either side.
+    await this.assertSectionEditable(tenantId, existing.sectionId);
+    if (patch.sectionId && patch.sectionId !== existing.sectionId) {
+      await this.assertSectionEditable(tenantId, patch.sectionId);
+    }
     const candidate: MeetingInput = {
       institutionId: patch.institutionId ?? existing.institutionId,
       academicPeriodId: patch.academicPeriodId ?? existing.academicPeriodId,
@@ -666,8 +804,34 @@ export class TimetableService {
       throw new NotFoundError(`Section meeting ${input.sectionMeetingId} not found`);
     }
 
-    const originalStaffId = input.originalStaffId ?? meeting.staffId;
-    const institutionId = input.institutionId ?? meeting.institutionId;
+    // PRC-M402: provenance comes from the meeting, never from the client.
+    if (input.originalStaffId !== undefined && input.originalStaffId !== meeting.staffId) {
+      throw new ValidationError('originalStaffId does not match the meeting teacher');
+    }
+    if (input.institutionId !== undefined && input.institutionId !== meeting.institutionId) {
+      throw new ValidationError('institutionId does not match the meeting institution');
+    }
+    const originalStaffId = meeting.staffId;
+    const institutionId = meeting.institutionId;
+    if (!isValidIsoDate(input.substitutionDate)) {
+      throw new ValidationError('substitutionDate must be a real YYYY-MM-DD date');
+    }
+    if (isoWeekday(input.substitutionDate) !== meeting.dayOfWeek) {
+      throw new ValidationError(
+        `substitutionDate ${input.substitutionDate} is not on the meeting weekday (${meeting.dayOfWeek})`,
+      );
+    }
+    if (meeting.status !== 'active') {
+      throw new ValidationError('Cannot substitute an inactive or cancelled meeting');
+    }
+    const substituteAbsences = await this.ops.listAbsences(tenantId, {
+      institutionId,
+      staffId: input.substituteStaffId,
+      date: input.substitutionDate,
+    });
+    if (substituteAbsences.length > 0) {
+      throw new ValidationError('Substitute teacher is marked absent on that date');
+    }
 
     if (originalStaffId === input.substituteStaffId) {
       throw new ValidationError('Substitute staff must differ from the original teacher');
@@ -675,6 +839,8 @@ export class TimetableService {
 
     const meetings = await this.repo.listMeetings(tenantId, {
       institutionId,
+      academicPeriodId: meeting.academicPeriodId,
+      dayOfWeek: meeting.dayOfWeek,
     });
     const substitutions = await this.repo.listSubstitutions(tenantId, {
       institutionId,
@@ -699,13 +865,20 @@ export class TimetableService {
       });
     }
 
+    const periodTimes = await this.loadPeriodTimes(tenantId, [
+      meeting.periodId,
+      ...meetings.filter((m) => m.dayOfWeek === meeting.dayOfWeek).map((m) => m.periodId),
+      ...enrichedSubs.map((sub) => sub.periodId),
+    ]);
     const conflicts = detectSubstituteClashes({
       substituteStaffId: input.substituteStaffId,
       periodId: meeting.periodId,
       dayOfWeek: meeting.dayOfWeek,
       substitutionDate: input.substitutionDate,
-      meetings,
+      // PRC-M398: only the meeting's academic period can collide.
+      meetings: meetings.filter((m) => m.academicPeriodId === meeting.academicPeriodId),
       substitutions: enrichedSubs,
+      periodTimes,
     });
 
     if (conflicts.length > 0) {
@@ -748,8 +921,21 @@ export class TimetableService {
     return this.repo.listAttendancePeriods(tenantId, filter);
   }
 
-  listGenerationJobs(tenantId: string, filter: { institutionId?: string }) {
+  /** PRC-M401: sweeps crashed runs, then returns a bounded summary page (no blobs). */
+  async listGenerationJobs(
+    tenantId: string,
+    filter: { institutionId?: string; limit?: number; offset?: number },
+  ) {
+    await this.sweepStaleGenerationJobs(tenantId);
     return this.ops.listJobs(tenantId, filter);
+  }
+
+  async sweepStaleGenerationJobs(tenantId: string, now: number = Date.now()): Promise<number> {
+    return this.ops.failStaleJobs(
+      tenantId,
+      new Date(now - GENERATION_STALE_MS).toISOString(),
+      GENERATION_STALE_MESSAGE,
+    );
   }
 
   getGenerationJob(tenantId: string, id: string) {
@@ -763,7 +949,16 @@ export class TimetableService {
     tenantId: string,
     input: CreateGenerationJobInput,
     requestedBy: string | null,
+    options: { async?: boolean } = {},
   ): Promise<GenerationJobRecord> {
+    if (this.runningGenerations >= this.maxConcurrentGenerations) {
+      throw new AppError(
+        'Too many timetable generations are running; retry shortly',
+        'TOO_MANY_REQUESTS',
+        429,
+      );
+    }
+    await this.sweepStaleGenerationJobs(tenantId);
     const now = nowIso();
     const job = await this.ops.createJob({
       id: randomUUID(),
@@ -790,6 +985,23 @@ export class TimetableService {
       updatedAt: now,
     });
 
+    this.runningGenerations += 1;
+    if (options.async) {
+      // PRC-M401: off the request path; the stale sweeper fails it if the process dies.
+      setImmediate(() => {
+        void this.executeGenerationJob(tenantId, job, input, requestedBy).catch(() => undefined);
+      });
+      return job;
+    }
+    return this.executeGenerationJob(tenantId, job, input, requestedBy);
+  }
+
+  private async executeGenerationJob(
+    tenantId: string,
+    job: GenerationJobRecord,
+    input: CreateGenerationJobInput,
+    requestedBy: string | null,
+  ): Promise<GenerationJobRecord> {
     await this.ops.updateJob(tenantId, job.id, {
       status: 'running',
       startedAt: nowIso(),
@@ -825,7 +1037,8 @@ export class TimetableService {
               institutionId: input.institutionId,
               academicPeriodId: input.academicPeriodId,
               sectionId: assignment.sectionId,
-              subjectId: assignment.subjectId,
+              // Review #554: a demand subject may be a code; meetings keep only real subject ids.
+              subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
               staffId: assignment.staffId,
               periodId: assignment.periodId,
               roomId: assignment.roomId,
@@ -874,14 +1087,15 @@ export class TimetableService {
       });
       return updated ?? job;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'generation failed';
       const failed = await this.ops.updateJob(tenantId, job.id, {
         status: 'failed',
-        errorMessage: message,
+        errorMessage: sanitizeGenerationError(error),
         finishedAt: nowIso(),
       });
       if (failed) return failed;
       throw error;
+    } finally {
+      this.runningGenerations -= 1;
     }
   }
 
@@ -968,6 +1182,46 @@ export class TimetableService {
       }));
   }
 
+  /**
+   * PRC-M405: periods referenced by meetings of a PUBLISHED section are part of a locked
+   * schedule; editing/deleting them would silently change the published timetable.
+   */
+  private async assertPeriodsUnlocked(
+    tenantId: string,
+    bellScheduleId: string,
+    periodIds: readonly string[],
+  ): Promise<void> {
+    if (periodIds.length === 0) return;
+    const schedule = await this.repo.getBellSchedule(tenantId, bellScheduleId);
+    const ids = new Set(periodIds);
+    const meetings = await this.repo.listMeetings(
+      tenantId,
+      schedule ? { institutionId: schedule.institutionId } : undefined,
+    );
+    const sectionIds = new Set(
+      meetings
+        .filter((m) => ids.has(m.periodId) && m.status !== 'cancelled')
+        .map((m) => m.sectionId),
+    );
+    for (const sectionId of sectionIds) {
+      const section = await this.repo.getSection(tenantId, sectionId);
+      if (section?.status === 'PUBLISHED') {
+        throw new ConflictError(
+          `Period is used by published section ${section.code}; unpublish before editing`,
+        );
+      }
+    }
+  }
+
+  private async assertBellScheduleUnlocked(tenantId: string, bellScheduleId: string) {
+    const periods = await this.repo.listPeriods(tenantId, bellScheduleId);
+    await this.assertPeriodsUnlocked(
+      tenantId,
+      bellScheduleId,
+      periods.map((p) => p.id),
+    );
+  }
+
   private async assertSectionEditable(tenantId: string, sectionId: string): Promise<void> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
@@ -980,15 +1234,36 @@ export class TimetableService {
     }
   }
 
+  /** PRC-M398: wall-clock windows for every period referenced, for time-overlap clash checks. */
+  private async loadPeriodTimes(
+    tenantId: string,
+    periodIds: Iterable<string>,
+  ): Promise<Map<string, PeriodWindow>> {
+    const out = new Map<string, PeriodWindow>();
+    for (const id of new Set(periodIds)) {
+      const period = await this.repo.getPeriod(tenantId, id);
+      if (period) out.set(id, { startTime: period.startTime, endTime: period.endTime });
+    }
+    return out;
+  }
+
   private async assertNoMeetingClash(
     tenantId: string,
     candidate: MeetingInput,
     excludeMeetingId?: string,
   ): Promise<void> {
-    const meetings = await this.repo.listMeetings(tenantId, {
+    // PRC-M398: only meetings of the same academic period can collide.
+    // PRC-M407: fetch only candidate-relevant rows (same institution, period and weekday).
+    const sameDay = await this.repo.listMeetings(tenantId, {
       institutionId: candidate.institutionId,
+      academicPeriodId: candidate.academicPeriodId,
+      dayOfWeek: candidate.dayOfWeek,
     });
-    const conflicts = detectMeetingClashes(meetings, candidate, excludeMeetingId);
+    const periodTimes = await this.loadPeriodTimes(tenantId, [
+      candidate.periodId,
+      ...sameDay.map((m) => m.periodId),
+    ]);
+    const conflicts = detectMeetingClashes(sameDay, candidate, excludeMeetingId, periodTimes);
     if (conflicts.length > 0) {
       const reasons = [...new Set(conflicts.map((c) => c.reason))].join(', ');
       throw new TimetableClashError(
@@ -997,12 +1272,25 @@ export class TimetableService {
       );
     }
   }
-  /** G-5 — clone published sections + meetings into a target academic period. */
+  /**
+   * G-5 — clone sections + meetings into a target academic period.
+   *
+   * PRC-M397:
+   * - meetings are remapped onto the TARGET period's bell schedule (same
+   *   schedule code, else the institution's only target schedule) by
+   *   `periodOrder`; any unmappable meeting fails the whole clone;
+   * - cloned sections are DRAFT with `publishedAt` cleared;
+   * - clash validation runs against target-period meetings + the plan;
+   * - all rows are written in one repository transaction (all-or-nothing);
+   * - resume-safe: target sections that already exist but have no meetings
+   *   receive their meetings;
+   * - an audit entry is recorded.
+   */
   async cloneForAcademicPeriod(
     tenantId: string,
     sourcePeriodId: string,
     targetPeriodId: string,
-    options: { dryRun?: boolean } = {},
+    options: { dryRun?: boolean; actorId?: string | null } = {},
   ): Promise<{ sectionsCloned: number; meetingsCloned: number }> {
     if (sourcePeriodId === targetPeriodId) {
       throw new ValidationError('Source and target academic periods must differ');
@@ -1011,51 +1299,142 @@ export class TimetableService {
     const existingTarget = await this.repo.listSections(tenantId, {
       academicPeriodId: targetPeriodId,
     });
-    const existingKeys = new Set(
-      existingTarget.map((s) => `${s.institutionId}|${s.code}`.toLowerCase()),
-    );
-    if (options.dryRun) {
-      const toClone = sections.filter(
-        (s) => !existingKeys.has(`${s.institutionId}|${s.code}`.toLowerCase()),
-      );
-      const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
-      const sectionIds = new Set(toClone.map((s) => s.id));
-      const meetingsPlanned = meetings.filter((m) => sectionIds.has(m.sectionId)).length;
-      return { sectionsCloned: toClone.length, meetingsCloned: meetingsPlanned };
-    }
-    let sectionsCloned = 0;
-    let meetingsCloned = 0;
+    const keyOf = (s: SectionEntity) => `${s.institutionId}|${s.code}`.toLowerCase();
+    const targetByKey = new Map(existingTarget.map((s) => [keyOf(s), s]));
+    const targetMeetings = await this.repo.listMeetings(tenantId, {
+      academicPeriodId: targetPeriodId,
+    });
+    const targetSectionsWithMeetings = new Set(targetMeetings.map((m) => m.sectionId));
+
+    const now = nowIso();
+    const newSections: SectionEntity[] = [];
+    /** source section id -> target section id (new, or existing-but-empty for resume). */
     const sectionIdMap = new Map<string, string>();
     for (const section of sections) {
-      const key = `${section.institutionId}|${section.code}`.toLowerCase();
-      if (existingKeys.has(key)) continue;
+      const existing = targetByKey.get(keyOf(section));
+      if (existing) {
+        if (!targetSectionsWithMeetings.has(existing.id)) sectionIdMap.set(section.id, existing.id);
+        continue;
+      }
       const newId = randomUUID();
       sectionIdMap.set(section.id, newId);
-      await this.repo.createSection({
+      newSections.push({
         ...section,
         id: newId,
         academicPeriodId: targetPeriodId,
         status: 'DRAFT' as SectionPublishStatus,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
       });
-      sectionsCloned += 1;
     }
-    const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
-    for (const meeting of meetings) {
-      const newSectionId = sectionIdMap.get(meeting.sectionId);
-      if (!newSectionId) continue;
-      await this.repo.createMeeting({
+
+    const sourceMeetings = (
+      await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId })
+    ).filter((m) => sectionIdMap.has(m.sectionId));
+    const mapPeriod = await this.buildPeriodMapper(tenantId, targetPeriodId);
+    const unmapped: string[] = [];
+    const newMeetings: SectionMeetingEntity[] = [];
+    for (const meeting of sourceMeetings) {
+      const periodId = await mapPeriod(meeting.institutionId, meeting.periodId);
+      if (!periodId) {
+        unmapped.push(meeting.id);
+        continue;
+      }
+      newMeetings.push({
         ...meeting,
         id: randomUUID(),
-        sectionId: newSectionId,
+        sectionId: sectionIdMap.get(meeting.sectionId)!,
         academicPeriodId: targetPeriodId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        periodId,
+        createdAt: now,
+        updatedAt: now,
       });
-      meetingsCloned += 1;
     }
-    return { sectionsCloned, meetingsCloned };
+    if (unmapped.length > 0) {
+      throw new ValidationError(
+        `${unmapped.length} meeting(s) cannot be mapped to a bell period of the target academic period; create the target bell schedule (same code and period orders) first`,
+      );
+    }
+
+    // Clash validation against what already exists in the target + the plan.
+    const accumulated: SectionMeetingEntity[] = [...targetMeetings];
+    for (const candidate of newMeetings) {
+      const conflicts = detectMeetingClashes(
+        accumulated.filter((m) => m.institutionId === candidate.institutionId),
+        candidate,
+      );
+      if (conflicts.length > 0) {
+        const reasons = [...new Set(conflicts.map((c) => c.reason))].join(', ');
+        throw new TimetableClashError(
+          `Cloned timetable clash on day ${candidate.dayOfWeek} period ${candidate.periodId} (${reasons})`,
+          conflicts,
+        );
+      }
+      accumulated.push(candidate);
+    }
+
+    const result = { sectionsCloned: newSections.length, meetingsCloned: newMeetings.length };
+    if (options.dryRun) return result;
+
+    await this.repo.insertClonedTimetable(tenantId, newSections, newMeetings);
+    this.recordAudit({
+      tenantId,
+      action: 'timetable.clone_period',
+      entityType: 'academic_period',
+      entityId: targetPeriodId,
+      actorId: options.actorId ?? null,
+      details: { sourcePeriodId, targetPeriodId, ...result },
+    });
+    return result;
+  }
+
+  /**
+   * PRC-M397: resolve a source bell period to the target academic period's
+   * bell period with the same `periodOrder`. Target schedule = same code as
+   * the source schedule, else the institution's only target schedule.
+   */
+  private async buildPeriodMapper(
+    tenantId: string,
+    targetPeriodId: string,
+  ): Promise<(institutionId: string, sourcePeriodId: string) => Promise<string | null>> {
+    const cache = new Map<string, string | null>();
+    const targetSchedules = new Map<string, BellScheduleEntity[]>();
+    const targetPeriods = new Map<string, PeriodEntity[]>();
+    return async (institutionId, sourcePeriodId) => {
+      const cacheKey = `${institutionId}|${sourcePeriodId}`;
+      if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+      let mapped: string | null = null;
+      const period = await this.repo.getPeriod(tenantId, sourcePeriodId);
+      const sourceSchedule = period
+        ? await this.repo.getBellSchedule(tenantId, period.bellScheduleId)
+        : null;
+      if (period && sourceSchedule) {
+        if (!targetSchedules.has(institutionId)) {
+          targetSchedules.set(
+            institutionId,
+            await this.repo.listBellSchedules(tenantId, {
+              institutionId,
+              academicPeriodId: targetPeriodId,
+            }),
+          );
+        }
+        const candidates = targetSchedules.get(institutionId)!;
+        const schedule =
+          candidates.find((c) => c.code.toLowerCase() === sourceSchedule.code.toLowerCase()) ??
+          (candidates.length === 1 ? candidates[0] : undefined);
+        if (schedule) {
+          if (!targetPeriods.has(schedule.id)) {
+            targetPeriods.set(schedule.id, await this.repo.listPeriods(tenantId, schedule.id));
+          }
+          mapped =
+            targetPeriods.get(schedule.id)!.find((p) => p.periodOrder === period.periodOrder)?.id ??
+            null;
+        }
+      }
+      cache.set(cacheKey, mapped);
+      return mapped;
+    };
   }
 }
 

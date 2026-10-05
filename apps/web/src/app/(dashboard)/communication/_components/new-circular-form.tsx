@@ -34,12 +34,15 @@ const AUDIENCES = [
 export function NewCircularForm({
   createdBy,
   people,
+  peopleTotal,
   roleOptions,
   classOptions,
   institutionOptions,
 }: {
   createdBy?: string;
   people: EntityLabelOption[];
+  /** Directory size when `people` is a capped first page (PRC-M083). */
+  peopleTotal?: number;
   roleOptions: EntityLabelOption[];
   classOptions: EntityLabelOption[];
   institutionOptions: EntityLabelOption[];
@@ -151,6 +154,7 @@ export function NewCircularForm({
             name="recipientIds"
             label="Recipients"
             options={people}
+            totalAvailable={peopleTotal}
           />
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Channels</legend>

@@ -187,3 +187,80 @@ describe('privacy legal hold blocks destructive deletion (live Postgres)', () =>
     expect(allowedInB.rowCount).toBe(1);
   });
 });
+
+/** Review #554: manual release of a stalled erasure run fences its jobs in one transaction. */
+describe('pg releaseStalledErasureExecution + job CAS (live Postgres)', () => {
+  async function inProgressErasure() {
+    const { tenantId, studentId, repo } = await seedSubject();
+    const requestId = randomUUID();
+    await repo.createErasureRequest({
+      id: requestId,
+      tenantId,
+      subjectType: 'student',
+      subjectId: studentId,
+      status: 'approved',
+      requestType: 'anonymization',
+      reason: null,
+      requestedBy: 'live-test',
+      reviewedBy: null,
+      statusReason: null,
+      completedAt: null,
+    });
+    const started = await repo.startErasureExecution(
+      requestId,
+      tenantId,
+      { reviewedBy: 'live-test', statusReason: 'started' },
+      {
+        id: randomUUID(),
+        tenantId,
+        erasureRequestId: requestId,
+        subjectType: 'student',
+        subjectId: studentId,
+        requestType: 'anonymization',
+        status: 'queued',
+        actorId: 'live-test',
+        statusReason: null,
+        fieldsTouched: [],
+        residualNote: null,
+        startedAt: null,
+        completedAt: null,
+      },
+    );
+    return { tenantId, requestId, repo, jobId: started!.job.id };
+  }
+
+  it.skipIf(!live)('a live job blocks the release and nothing is written', async () => {
+    const { tenantId, requestId, repo, jobId } = await inProgressErasure();
+    const result = await repo.releaseStalledErasureExecution(
+      requestId,
+      tenantId,
+      { reviewedBy: 'officer', statusReason: 'retry' },
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    expect(result).toEqual({ outcome: 'live_job', jobId });
+    expect((await repo.findErasureRequestById(requestId, tenantId))?.status).toBe('in_progress');
+    expect((await repo.findAnonymizationJobById(jobId, tenantId))?.status).toBe('queued');
+  });
+
+  it.skipIf(!live)('a stale job is failed and the request returns to approved', async () => {
+    const { tenantId, requestId, repo, jobId } = await inProgressErasure();
+    const result = await repo.releaseStalledErasureExecution(
+      requestId,
+      tenantId,
+      { reviewedBy: 'officer', statusReason: 'retry' },
+      new Date(Date.now() + 60 * 1000),
+    );
+    expect(result.outcome).toBe('released');
+    expect((await repo.findErasureRequestById(requestId, tenantId))?.status).toBe('approved');
+    expect((await repo.findAnonymizationJobById(jobId, tenantId))?.status).toBe('failed');
+    // The fenced worker's claim CAS misses and writes nothing.
+    const claim = await repo.updateAnonymizationJob(
+      jobId,
+      tenantId,
+      { status: 'in_progress', startedAt: new Date() },
+      { expectedStatus: 'queued' },
+    );
+    expect(claim).toBeNull();
+    expect((await repo.findAnonymizationJobById(jobId, tenantId))?.status).toBe('failed');
+  });
+});

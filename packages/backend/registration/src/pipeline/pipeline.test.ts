@@ -521,7 +521,8 @@ it('W2-ADM-02: declining an offer promotes the head of the waitlist into a draft
   });
   const convertedOffer = await service.convertEnquiry(TENANT, offered.id);
   const convertedWait = await service.convertEnquiry(TENANT, waitlisted.id);
-
+  // Real flow: staff set status `waitlisted` which enqueues (PRC-M329 requires it).
+  await apps.updateStatus(convertedWait.application.id, 'waitlisted', undefined, TENANT);
   await crm.enqueueWaitlist({
     tenantId: TENANT,
     applicationId: convertedWait.application.id,

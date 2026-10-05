@@ -2,8 +2,10 @@
  * Pure clash detection for timetable / substitutions (no I/O).
  *
  * Teacher double-book: same tenant staff cannot occupy two meetings that share
- * dayOfWeek + periodId (and, for substitutions, the same calendar date).
+ * dayOfWeek and overlapping period times (and, for substitutions, the same calendar date).
  */
+
+import { intervalsOverlap } from './clash-detection.js';
 
 export type ClashReason = 'staff' | 'class' | 'room' | 'substitute';
 
@@ -44,6 +46,33 @@ function isActive(status?: string): boolean {
   return s !== 'cancelled' && s !== 'inactive' && s !== 'deleted';
 }
 
+/** Period wall-clock window ("HH:MM" or "HH:MM:SS"). */
+export interface PeriodWindow {
+  startTime: string;
+  endTime: string;
+}
+
+/**
+ * PRC-M398: two slots on the same weekday collide when their periods overlap in time —
+ * even if they belong to different bell schedules (different period ids). When either
+ * period's times are unknown we fall back to period-id equality.
+ */
+function periodsCollide(
+  a: string,
+  b: string,
+  periodTimes?: ReadonlyMap<string, PeriodWindow>,
+): boolean {
+  if (a === b) return true;
+  const pa = periodTimes?.get(a);
+  const pb = periodTimes?.get(b);
+  if (!pa || !pb) return false;
+  try {
+    return intervalsOverlap(pa.startTime, pa.endTime, pb.startTime, pb.endTime);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Detect teacher / section / room double-books among meeting slots.
  */
@@ -51,6 +80,7 @@ export function detectMeetingClashes(
   existing: MeetingSlotLike[],
   candidate: Omit<MeetingSlotLike, 'id'> & { id?: string },
   excludeMeetingId?: string,
+  periodTimes?: ReadonlyMap<string, PeriodWindow>,
 ): ClashConflict[] {
   const conflicts: ClashConflict[] = [];
 
@@ -59,7 +89,7 @@ export function detectMeetingClashes(
     if (candidate.id && slot.id === candidate.id) continue;
     if (!isActive(slot.status)) continue;
     if (slot.dayOfWeek !== candidate.dayOfWeek) continue;
-    if (slot.periodId !== candidate.periodId) continue;
+    if (!periodsCollide(slot.periodId, candidate.periodId, periodTimes)) continue;
 
     if (slot.staffId === candidate.staffId) {
       conflicts.push({
@@ -111,6 +141,7 @@ export function detectSubstituteClashes(input: {
   meetings: MeetingSlotLike[];
   substitutions: SubstitutionSlotLike[];
   excludeSubstitutionId?: string;
+  periodTimes?: ReadonlyMap<string, PeriodWindow>;
 }): ClashConflict[] {
   const conflicts: ClashConflict[] = [];
   const { substituteStaffId, periodId, dayOfWeek, substitutionDate } = input;
@@ -119,7 +150,7 @@ export function detectSubstituteClashes(input: {
     if (!isActive(meeting.status)) continue;
     if (meeting.staffId !== substituteStaffId) continue;
     if (meeting.dayOfWeek !== dayOfWeek) continue;
-    if (meeting.periodId !== periodId) continue;
+    if (!periodsCollide(meeting.periodId, periodId, input.periodTimes)) continue;
     conflicts.push({
       reason: 'substitute',
       meetingId: meeting.id,
@@ -137,7 +168,7 @@ export function detectSubstituteClashes(input: {
     if (sub.substituteStaffId !== substituteStaffId) continue;
     if (sub.substitutionDate !== substitutionDate) continue;
     if (sub.dayOfWeek !== dayOfWeek) continue;
-    if (sub.periodId !== periodId) continue;
+    if (!periodsCollide(sub.periodId, periodId, input.periodTimes)) continue;
     conflicts.push({
       reason: 'substitute',
       substitutionId: sub.id,

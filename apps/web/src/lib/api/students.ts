@@ -83,6 +83,8 @@ export interface StudentListFilters {
   status?: 'ENROLLED' | 'TRANSFERRED' | 'WITHDRAWN' | 'GRADUATED' | 'ALL';
   sortBy?: 'firstName' | 'lastName' | 'dateOfBirth' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
+  /** PRC-M097: batch lookup by id (max 100 per request). */
+  ids?: string[];
 }
 
 export interface CreateStudentInput {
@@ -223,6 +225,7 @@ function toQuery(filters: StudentListFilters): string {
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
   if (filters.gradeId) params.set('gradeId', filters.gradeId);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  if (filters.ids && filters.ids.length > 0) params.set('ids', filters.ids.join(','));
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
@@ -647,6 +650,30 @@ export async function setStudentConsent(
   });
   if (!result.data) throw new Error('Empty response from consent update');
   return result.data;
+}
+
+/**
+ * PRC-M483: like {@link listStudentConsents} / {@link listStudentDiscipline} but
+ * `null` when the read failed, so a checklist never shows "clear" for a record it
+ * could not load.
+ */
+export async function readStudentConsents(studentId: string): Promise<StudentConsent[] | null> {
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : null;
+}
+
+export async function readStudentDiscipline(
+  studentId: string,
+): Promise<DisciplineIncident[] | null> {
+  const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
+    `/students/${studentId}/discipline`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? result.data.data : null;
 }
 
 export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {

@@ -12,6 +12,7 @@
  *    `ON CONFLICT (tenant_id, application_id) DO NOTHING`;
  *  - `bookSlot` is idempotent per (slot, application).
  */
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -148,11 +149,23 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
       );
       const row = (head.rows as Record<string, unknown>[])[0];
       if (!row) return null;
-      await client.query(`DELETE FROM admission_waitlist_entries WHERE id = $1 AND tenant_id = $2`, [
-        row.id,
-        tenantId,
-      ]);
+      await client.query(
+        `DELETE FROM admission_waitlist_entries WHERE id = $1 AND tenant_id = $2`,
+        [row.id, tenantId],
+      );
       return mapWaitlist(row);
+    });
+  }
+
+  async removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM admission_waitlist_entries
+          WHERE tenant_id = $1 AND application_id = $2
+          RETURNING id`,
+        [tenantId, applicationId],
+      );
+      return result.rows.length > 0;
     });
   }
 
@@ -214,11 +227,34 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
 
   async bookSlot(input: BookSlotInput): Promise<InterviewBooking> {
     return this.withTenant(input.tenantId, async (client) => {
-      // Lock the slot row so concurrent bookings see a consistent count.
-      await client.query(
-        `SELECT id FROM admission_interview_slots WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+      // PRC-M334: lock the slot row, then check existing booking and capacity
+      // in the same transaction so concurrent bookings cannot over-fill.
+      const locked = await client.query(
+        `SELECT id, capacity, status FROM admission_interview_slots
+          WHERE id = $1 AND tenant_id = $2
+          FOR UPDATE`,
         [input.slotId, input.tenantId],
       );
+      const slot = (locked.rows as Array<{ capacity: number | string; status: string }>)[0];
+      if (!slot || slot.status !== 'open') {
+        throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
+      }
+      const already = await client.query(
+        `SELECT * FROM admission_interview_bookings
+          WHERE tenant_id = $1 AND slot_id = $2 AND application_id = $3 AND status = 'booked'`,
+        [input.tenantId, input.slotId, input.applicationId],
+      );
+      const alreadyRow = (already.rows as Record<string, unknown>[])[0];
+      if (alreadyRow) return mapBooking(alreadyRow);
+      const counted = await client.query(
+        `SELECT COUNT(*)::int AS n FROM admission_interview_bookings
+          WHERE tenant_id = $1 AND slot_id = $2 AND status = 'booked'`,
+        [input.tenantId, input.slotId],
+      );
+      const bookedCount = Number((counted.rows as Array<{ n: number }>)[0]?.n ?? 0);
+      if (bookedCount >= Number(slot.capacity)) {
+        throw new BusinessRuleError('Interview slot is at capacity');
+      }
       const inserted = await client.query(
         `INSERT INTO admission_interview_bookings
            (id, tenant_id, slot_id, application_id, status)

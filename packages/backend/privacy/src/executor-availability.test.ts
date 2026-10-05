@@ -32,6 +32,7 @@ describe('destructive privacy ops refuse when no real executor is wired (PRC-H07
     const app = Fastify();
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT;
+      (request as unknown as { user: { sub: string } }).user = { sub: 'officer-1' };
     });
     await app.register(privacyPlugin, { repository, prefix: '/privacy' });
     const service = app.privacyService;

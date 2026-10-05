@@ -388,12 +388,13 @@ describe('Staff Assignment Routes', () => {
 
       expect(response.statusCode).toBe(204);
 
-      // Verify it's gone
+      // PRC-M375: history is kept — the assignment is ended, not erased.
       const getResponse = await app.inject({
         method: 'GET',
         url: `/staff/assignments/${created.id}`,
       });
-      expect(getResponse.statusCode).toBe(404);
+      expect(getResponse.statusCode).toBe(200);
+      expect(getResponse.json().status).toBe('INACTIVE');
     });
 
     it('should return 404 when assignment does not exist', async () => {
@@ -414,5 +415,54 @@ describe('Staff Assignment Routes', () => {
 
       expect(response.statusCode).toBe(400);
     });
+  });
+});
+describe('PRC-H004 /staff/assignments/:id school scope', () => {
+  let app: FastifyInstance;
+  let caller: Record<string, unknown>;
+  let assignmentId: string;
+  const OTHER_SCHOOL = uuid();
+  beforeEach(async () => {
+    caller = { roles: ['hr_officer'] };
+    app = Fastify();
+    const service = new StaffAssignmentService(new InMemoryAssignmentRepository());
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as unknown as { tenantId: string }).tenantId = TENANT_ID;
+      (request as unknown as { user: unknown }).user = caller;
+    });
+    await registerAssignmentRoutes(app, { assignmentService: service });
+    await app.ready();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/staff/assignments',
+      payload: validCreateBody(),
+    });
+    expect(created.statusCode).toBe(201);
+    assignmentId = created.json().id;
+  });
+  it('an HR officer bound to another school gets 404 on GET/PUT/DELETE', async () => {
+    caller = { roles: ['hr_officer'], institutions: [OTHER_SCHOOL] };
+    const get = await app.inject({ method: 'GET', url: `/staff/assignments/${assignmentId}` });
+    expect(get.statusCode).toBe(404);
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/staff/assignments/${assignmentId}`,
+      payload: { allocationPercentage: 10 },
+    });
+    expect(put.statusCode).toBe(404);
+    const del = await app.inject({ method: 'DELETE', url: `/staff/assignments/${assignmentId}` });
+    expect(del.statusCode).toBe(404);
+  });
+  it('an HR officer of the owning school can read and update it', async () => {
+    caller = { roles: ['hr_officer'], institutions: [INSTITUTION_ID] };
+    const get = await app.inject({ method: 'GET', url: `/staff/assignments/${assignmentId}` });
+    expect(get.statusCode).toBe(200);
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/staff/assignments/${assignmentId}`,
+      payload: { allocationPercentage: 10 },
+    });
+    expect(put.statusCode).toBe(200);
   });
 });

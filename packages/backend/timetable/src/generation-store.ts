@@ -42,6 +42,24 @@ export interface TeacherAbsenceRecord {
   createdAt: string;
 }
 
+export interface ListGenerationJobsFilter {
+  institutionId?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const DEFAULT_JOB_LIST_LIMIT = 50;
+export const MAX_JOB_LIST_LIMIT = 100;
+
+function boundedPage(filter: ListGenerationJobsFilter): { limit: number; offset: number } {
+  const limit = Math.min(
+    Math.max(1, Math.trunc(filter.limit ?? DEFAULT_JOB_LIST_LIMIT)),
+    MAX_JOB_LIST_LIMIT,
+  );
+  const offset = Math.max(0, Math.trunc(filter.offset ?? 0));
+  return { limit, offset };
+}
+
 export interface TimetableOpsStore {
   createJob(row: GenerationJobRecord): Promise<GenerationJobRecord>;
   updateJob(
@@ -50,7 +68,16 @@ export interface TimetableOpsStore {
     patch: Partial<GenerationJobRecord>,
   ): Promise<GenerationJobRecord | null>;
   getJob(tenantId: string, id: string): Promise<GenerationJobRecord | null>;
-  listJobs(tenantId: string, filter: { institutionId?: string }): Promise<GenerationJobRecord[]>;
+  /**
+   * PRC-M401: bounded summary list (newest first). Rows omit the `input` / `result` blobs
+   * (returned as `{}`); fetch a single job for the full payload.
+   */
+  listJobs(tenantId: string, filter: ListGenerationJobsFilter): Promise<GenerationJobRecord[]>;
+  /**
+   * PRC-M401: mark queued/running jobs whose run started (or was created) before
+   * `staleBefore` as failed — a crashed process can never leave a job running forever.
+   */
+  failStaleJobs(tenantId: string, staleBefore: string, message: string): Promise<number>;
   createAbsence(row: TeacherAbsenceRecord): Promise<TeacherAbsenceRecord>;
   listAbsences(
     tenantId: string,
@@ -90,8 +117,9 @@ export class InMemoryTimetableOpsStore implements TimetableOpsStore {
 
   async listJobs(
     tenantId: string,
-    filter: { institutionId?: string },
+    filter: ListGenerationJobsFilter,
   ): Promise<GenerationJobRecord[]> {
+    const { limit, offset } = boundedPage(filter);
     return [...this.jobs.values()]
       .filter((row) => {
         if (row.tenantId !== tenantId) return false;
@@ -99,7 +127,26 @@ export class InMemoryTimetableOpsStore implements TimetableOpsStore {
         return true;
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map(clone);
+      .slice(offset, offset + limit)
+      .map((row) => ({ ...clone(row), input: {}, result: {} }));
+  }
+  async failStaleJobs(tenantId: string, staleBefore: string, message: string): Promise<number> {
+    let count = 0;
+    const now = new Date().toISOString();
+    for (const [id, row] of this.jobs) {
+      if (row.tenantId !== tenantId) continue;
+      if (row.status !== 'queued' && row.status !== 'running') continue;
+      if ((row.startedAt ?? row.createdAt) >= staleBefore) continue;
+      this.jobs.set(id, {
+        ...row,
+        status: 'failed',
+        errorMessage: message,
+        finishedAt: now,
+        updatedAt: now,
+      });
+      count += 1;
+    }
+    return count;
   }
 
   async createAbsence(row: TeacherAbsenceRecord): Promise<TeacherAbsenceRecord> {
@@ -314,18 +361,38 @@ export class PgTimetableOpsStore implements TimetableOpsStore {
 
   async listJobs(
     tenantId: string,
-    filter: { institutionId?: string },
+    filter: ListGenerationJobsFilter,
   ): Promise<GenerationJobRecord[]> {
+    const { limit, offset } = boundedPage(filter);
     return this.run(tenantId, async (client) => {
       const params: unknown[] = [tenantId];
-      let sql = `SELECT * FROM timetable_generation_jobs WHERE tenant_id = $1`;
+      // PRC-M401: summary columns only — input/result blobs are not shipped in list rows.
+      let sql = `SELECT id, tenant_id, institution_id, academic_period_id, bell_schedule_id,
+                        status, requested_by, persist_meetings, teacher_max_periods_per_day,
+                        demand_count, assigned_count, unassigned_count, clash_count,
+                        repair_passes, stats, '{}'::jsonb AS input, '{}'::jsonb AS result,
+                        error_message, created_at, started_at, finished_at, updated_at
+                   FROM timetable_generation_jobs WHERE tenant_id = $1`;
       if (filter.institutionId) {
         params.push(filter.institutionId);
-        sql += ` AND institution_id = $2`;
+        sql += ` AND institution_id = $${params.length}`;
       }
-      sql += ` ORDER BY created_at DESC`;
+      params.push(limit, offset);
+      sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
       const { rows } = await client.query(sql, params);
       return (rows as JobRow[]).map(toJob);
+    });
+  }
+  async failStaleJobs(tenantId: string, staleBefore: string, message: string): Promise<number> {
+    return this.run(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE timetable_generation_jobs
+            SET status = 'failed', error_message = $3, finished_at = NOW(), updated_at = NOW()
+          WHERE tenant_id = $1 AND status IN ('queued', 'running')
+            AND COALESCE(started_at, created_at) < $2::timestamptz`,
+        [tenantId, staleBefore, message],
+      );
+      return Number((result as { rowCount?: unknown }).rowCount ?? 0);
     });
   }
 

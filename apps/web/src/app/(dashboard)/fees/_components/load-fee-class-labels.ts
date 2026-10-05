@@ -1,28 +1,45 @@
 /**
  * Class names for fee dues (invoice.class_id is the classes table, not a section).
  */
-import { listInstitutions } from '@/lib/api/institutions';
+import { listInstitutionsPage } from '@/lib/api/institutions';
 import { listClassesByInstitution } from '@/lib/institutions/api';
 
-export async function loadFeeClassLabels(): Promise<Record<string, string>> {
+/** PRC-M477: safety bound on institution pages walked (100 per page). */
+const MAX_INSTITUTION_PAGES = 50;
+
+/**
+ * PRC-M477: resolves class names across *all* institutions (not just the first 100),
+ * and when `classIds` is given stops as soon as every requested class is labelled.
+ */
+export async function loadFeeClassLabels(
+  classIds?: readonly string[],
+): Promise<Record<string, string>> {
+  const wanted = classIds ? new Set(classIds.filter((id) => id && id !== 'unassigned')) : null;
+  const labels: Record<string, string> = {};
+  if (wanted && wanted.size === 0) return labels;
   try {
-    const institutions = await listInstitutions({ pageSize: 100 });
-    const groups = await Promise.all(
-      institutions.map((institution) => listClassesByInstitution(institution.id).catch(() => [])),
-    );
-    const labels: Record<string, string> = {};
-    for (const group of groups) {
-      for (const row of group) {
-        const name = row.name?.trim();
-        if (name) labels[row.id] = name;
+    for (let page = 1; page <= MAX_INSTITUTION_PAGES; page += 1) {
+      const { data: institutions, totalItems } = await listInstitutionsPage({
+        page,
+        pageSize: 100,
+      });
+      const groups = await Promise.all(
+        institutions.map((institution) => listClassesByInstitution(institution.id).catch(() => [])),
+      );
+      for (const group of groups) {
+        for (const row of group) {
+          const name = row.name?.trim();
+          if (name && (!wanted || wanted.has(row.id))) labels[row.id] = name;
+        }
       }
+      if (wanted && [...wanted].every((id) => labels[id])) break;
+      if (institutions.length < 100 || page * 100 >= totalItems) break;
     }
     return labels;
   } catch {
-    return {};
+    return labels;
   }
 }
-
 /** Replace the dues CSV class id column with the class name operators already see on screen. */
 export function labelDuesCsv(csv: string, labels: Record<string, string>): string {
   const lines = csv
