@@ -676,11 +676,14 @@ export async function setStudentConsent(
  * could not load.
  */
 export async function readStudentConsents(studentId: string): Promise<StudentConsent[] | null> {
-  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(
+    `/students/${encodeURIComponent(studentId)}/consents`,
+    {
+      method: 'GET',
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.ok && result.data ? result.data.data : null;
 }
 
@@ -688,7 +691,7 @@ export async function readStudentDiscipline(
   studentId: string,
 ): Promise<DisciplineIncident[] | null> {
   const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
-    `/students/${studentId}/discipline`,
+    `/students/${encodeURIComponent(studentId)}/discipline`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok && result.data ? result.data.data : null;
