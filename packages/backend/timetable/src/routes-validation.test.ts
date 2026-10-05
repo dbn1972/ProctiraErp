@@ -1,6 +1,7 @@
 /** PRC-M399: ids, times, enums and query params are validated (400), never a PG 500. */
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { InMemoryTimetableOpsStore } from './generation-store.js';
 import { InMemoryTimetableRepository } from './in-memory-repository.js';
 import { timetablePlugin } from './timetable-plugin.js';
 
@@ -21,6 +22,9 @@ beforeEach(async () => {
   });
   await app.register(timetablePlugin, {
     repository: new InMemoryTimetableRepository(),
+    // Pin the in-memory ops store: with DATABASE_URL set (integration CI) the default
+    // factory picks Postgres, where these fixture ids have no institution rows (FK -> 409).
+    opsStore: new InMemoryTimetableOpsStore(),
     prefix: '/timetable',
   });
   await app.ready();
