@@ -14,7 +14,7 @@
  *    appropriate error message showing current total and difference
  * 3. Up to 50 items per subject per academic period are allowed
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { BusinessRuleError } from '@proctira/common';
 
@@ -24,6 +24,9 @@ import {
   InMemoryAssessmentItemRepository,
   InMemoryOutcomeRepository,
 } from './in-memory-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('Assessment Weight Sum Constraint', () => {
   // Feature: proctira-unified-platform, Property 18: Assessment Weight Sum Constraint

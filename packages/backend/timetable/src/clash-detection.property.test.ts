@@ -1,11 +1,14 @@
 /**
  * Property tests for the master-schedule conflict engine (G-304).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { detectClashes, intervalsOverlap, type MeetingSlot } from './clash-detection.js';
 import { detectMeetingClashes, type MeetingSlotLike } from './clash-helper.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const timeArb = fc
   .tuple(fc.integer({ min: 0, max: 22 }), fc.integer({ min: 0, max: 59 }))

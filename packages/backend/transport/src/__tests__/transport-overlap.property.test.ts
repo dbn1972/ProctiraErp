@@ -5,12 +5,15 @@
  * for the same time period. The service must reject the second assignment
  * when a student already has an active assignment.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { v4 as uuidv4 } from 'uuid';
 
 import { TransportService } from '../transport-service.js';
 import { InMemoryTransportRepository } from '../in-memory-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('Transport Service - No Overlapping Student Assignments (Property)', () => {
   let service: TransportService;

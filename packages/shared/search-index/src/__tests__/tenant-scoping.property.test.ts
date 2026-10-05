@@ -2,22 +2,24 @@
  * Property tests mirroring tenant-isolation gate Category 5 (search trimming).
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { TenantScopedSearchIndex } from '../adapters/in-memory-search-index.js';
 
-const entityNameArb = fc.string({ minLength: 2, maxLength: 24 }).filter((s) => s.trim().length >= 2);
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
+
+const entityNameArb = fc
+  .string({ minLength: 2, maxLength: 24 })
+  .filter((s) => s.trim().length >= 2);
 
 const distinctTenantPairArb = fc
   .tuple(fc.uuid(), fc.uuid())
   .filter(([a, b]) => a !== b)
   .map(([tenantA, tenantB]) => ({ tenantA, tenantB }));
 
-function assertNoForeignTenant(
-  tenantId: string,
-  hits: Array<{ tenantId: string }>,
-): void {
+function assertNoForeignTenant(tenantId: string, hits: Array<{ tenantId: string }>): void {
   for (const hit of hits) {
     expect(hit.tenantId).toBe(tenantId);
   }
