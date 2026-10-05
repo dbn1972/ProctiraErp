@@ -96,7 +96,7 @@ export default async function SectionRosterPage(props: PageProps) {
     const admission =
       (typeof fromCustom === 'string' && fromCustom) ||
       student.admissionNumber ||
-      student.nationalId ||
+      // PRC-M156: never fall back to the national ID for a display code.
       '';
     if (admission) studentAdmission.set(student.id, admission);
   };
@@ -105,8 +105,8 @@ export default async function SectionRosterPage(props: PageProps) {
     const admission = studentAdmission.get(s.id) ?? '';
     return {
       id: s.id,
-      label: formatPersonLabel(s.firstName, s.lastName, admission || s.nationalId),
-      searchText: `${s.firstName} ${s.lastName} ${admission} ${s.nationalId ?? ''}`,
+      label: formatPersonLabel(s.firstName, s.lastName, admission || null),
+      searchText: `${s.firstName} ${s.lastName} ${admission}`,
     };
   });
   const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));

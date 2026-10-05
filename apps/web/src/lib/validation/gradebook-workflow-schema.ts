@@ -9,11 +9,18 @@ export const gradeWorkflowActionSchema = z.enum([
   'reopen',
 ]);
 
-export const transitionGradeFormSchema = z.object({
-  id: z.string().min(1),
-  action: gradeWorkflowActionSchema,
-  institutionId: z.string().min(1),
-});
+export const transitionGradeFormSchema = z
+  .object({
+    id: z.string().min(1),
+    action: gradeWorkflowActionSchema,
+    institutionId: z.string().min(1),
+    /** PRC-M474: required for `reject`; stored as the rejection remark. */
+    reason: z.string().trim().max(500).optional(),
+  })
+  .refine((v) => v.action !== 'reject' || Boolean(v.reason), {
+    path: ['reason'],
+    message: 'A reason is required to reject a grade.',
+  });
 
 export const bulkTransitionGradeFormSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(200),

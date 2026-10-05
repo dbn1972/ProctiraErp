@@ -4,10 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button, Input, Label } from '@proctira/ui/components';
-import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { LmsRubric } from '@/lib/api/lms';
-import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { gradeWithRubricAction, uploadLmsFileAction } from '../depth-actions';
 
@@ -16,14 +14,11 @@ export function RubricGradeForm({
   submissionId,
   questionId,
   rubric,
-  criterionOptions = [],
 }: {
   assignmentId: string;
   submissionId: string;
   questionId?: string;
   rubric?: LmsRubric | null;
-  /** Criteria from the school rubric directory when this assignment has none attached. */
-  criterionOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -34,22 +29,16 @@ export function RubricGradeForm({
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     startTransition(async () => {
-      const scores =
-        criteria.length > 0
-          ? criteria.map((c) => ({
-              criterionId: c.id,
-              levelIndex: levels[c.id]?.levelIndex ?? 0,
-              points: levels[c.id]?.points ?? c.levels[0]?.points ?? 0,
-            }))
-          : [
-              {
-                criterionId: String(form.get('criterionId') ?? ''),
-                points: Number(form.get('points') ?? 0),
-                levelIndex: Number(form.get('levelIndex') ?? 0),
-              },
-            ];
+      if (criteria.length === 0) {
+        setMessage('Attach a rubric before rubric grading.');
+        return;
+      }
+      const scores = criteria.map((c) => ({
+        criterionId: c.id,
+        levelIndex: levels[c.id]?.levelIndex ?? 0,
+        points: levels[c.id]?.points ?? c.levels[0]?.points ?? 0,
+      }));
       const result = await gradeWithRubricAction(assignmentId, {
         submissionId,
         questionId: questionId ?? '',
@@ -117,44 +106,18 @@ export function RubricGradeForm({
           </table>
         </div>
       ) : (
-        <div className="space-y-2">
-          <EntitySearchSelect
-            id={`crit-${submissionId}`}
-            name="criterionId"
-            label="Criterion"
-            options={criterionOptions}
-            required
-            placeholder="Search criteria by name…"
-            emptyMessage="No rubric criteria are loaded for this assignment. Attach a rubric before scoring."
-          />
-          <div className="flex flex-wrap gap-2">
-            <div className="space-y-1">
-              <Label htmlFor={`points-${submissionId}`}>Points</Label>
-              <Input
-                id={`points-${submissionId}`}
-                name="points"
-                type="number"
-                min={0}
-                placeholder="Points"
-                className="h-11 w-24"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`level-${submissionId}`}>Level</Label>
-              <Input
-                id={`level-${submissionId}`}
-                name="levelIndex"
-                type="number"
-                min={0}
-                defaultValue={0}
-                className="h-11 w-24"
-              />
-            </div>
-          </div>
-        </div>
+        // PRC-M479: no free-points fallback — scores come only from a linked rubric's levels.
+        <p role="status" className="text-sm text-muted-foreground" data-testid="lms-rubric-missing">
+          No rubric is attached to this question. Attach a rubric to the essay question before
+          rubric grading.
+        </p>
       )}
-      <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={pending || criteria.length === 0}
+        aria-busy={pending}
+      >
         Rubric grade
       </Button>
       {message ? (

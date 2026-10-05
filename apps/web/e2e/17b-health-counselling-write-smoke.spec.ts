@@ -150,7 +150,13 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
     await expect(studentSelect.locator('option', { hasText: studentName })).toHaveCount(1, {
       timeout: 15_000,
     });
-    await studentSelect.selectOption({ label: studentName });
+    // Student labels may carry an admission-code prefix ("ADM-… · First Last"),
+    // so select by the matching option's value rather than its exact label.
+    const studentValue = await studentSelect
+      .locator('option', { hasText: studentName })
+      .getAttribute('value');
+    expect(studentValue, `option value for ${studentName}`).toBeTruthy();
+    await studentSelect.selectOption(studentValue!);
     const counsellorSelect = page.locator('#counselling-counsellor-id');
     await expect(counsellorSelect.locator('option', { hasText: counsellorName })).toHaveCount(1, {
       timeout: 15_000,

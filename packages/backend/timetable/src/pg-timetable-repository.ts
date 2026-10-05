@@ -24,6 +24,9 @@ import type {
   ListSectionsFilter,
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
+  ListPageFilter,
+  EnrollWithinCapacityInput,
+  EnrollWithinCapacityResult,
 } from './timetable-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
@@ -235,6 +238,13 @@ const MEETING_SELECT = `
   JOIN sections s ON s.id = sm.section_id
 `;
 
+/** PRC-M407: append a bounded LIMIT/OFFSET when the caller asked for a page. */
+function pageSql(filter: ListPageFilter | undefined, params: unknown[]): string {
+  if (filter?.limit === undefined) return '';
+  params.push(Math.max(1, Math.trunc(filter.limit)), Math.max(0, Math.trunc(filter.offset ?? 0)));
+  return ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+}
+
 const SECTION_INSERT_SQL = `INSERT INTO sections (
           id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
           primary_teacher_id, default_room_id, capacity, status, published_at,
@@ -331,7 +341,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC`,
+        `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapBellSchedule(row as Record<string, unknown>));
@@ -377,16 +387,24 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleEntity>) {
+  async updateBellSchedule(
+    tenantId: string,
+    id: string,
+    patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getBellSchedule(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('bell_schedule', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
       const result = await this.query(
         tenantId,
@@ -397,6 +415,7 @@ export class PgTimetableRepository implements TimetableRepository {
           status = $6,
           updated_at = $7::timestamptz
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+           AND ($8::timestamptz IS NULL OR updated_at = $8::timestamptz)
          RETURNING *`,
         [
           tenantId,
@@ -406,8 +425,14 @@ export class PgTimetableRepository implements TimetableRepository {
           JSON.stringify(dayPatternToJson(next.dayPattern)),
           next.status,
           next.updatedAt,
+          opts?.expectedUpdatedAt ?? null,
         ],
       );
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getBellSchedule(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('bell_schedule', id, again.updatedAt);
+      }
       return mapBellSchedule(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -488,16 +513,24 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodEntity>) {
+  async updatePeriod(
+    tenantId: string,
+    id: string,
+    patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getPeriod(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('period', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
       const result = await this.query(
         tenantId,
@@ -508,9 +541,24 @@ export class PgTimetableRepository implements TimetableRepository {
           end_time = $6::time,
           updated_at = $7::timestamptz
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+           AND ($8::timestamptz IS NULL OR updated_at = $8::timestamptz)
          RETURNING *`,
-        [tenantId, id, next.name, next.periodOrder, next.startTime, next.endTime, next.updatedAt],
+        [
+          tenantId,
+          id,
+          next.name,
+          next.periodOrder,
+          next.startTime,
+          next.endTime,
+          next.updatedAt,
+          opts?.expectedUpdatedAt ?? null,
+        ],
       );
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getPeriod(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('period', id, again.updatedAt);
+      }
       return mapPeriod(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -547,11 +595,15 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.sectionId);
         clauses.push(`sm.section_id = $${params.length}`);
       }
+      if (filter?.dayOfWeek !== undefined) {
+        params.push(filter.dayOfWeek);
+        clauses.push(`sm.day_of_week = $${params.length}`);
+      }
       const result = await this.query(
         tenantId,
         `${MEETING_SELECT}
          WHERE ${clauses.join(' AND ')}
-         ORDER BY sm.day_of_week ASC, sm.bell_period_id ASC`,
+         ORDER BY sm.day_of_week ASC, sm.bell_period_id ASC, sm.id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapMeeting(row as Record<string, unknown>));
@@ -655,7 +707,8 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async listSubstitutions(tenantId: string, filter?: ListSubstitutionsFilter) {
     return withSchemaCheck(async () => {
-      const clauses = ['sub.tenant_id = $1'];
+      // PRC-M407: hide substitutions of soft-deleted meetings/sections.
+      const clauses = ['sub.tenant_id = $1', 'sm.deleted_at IS NULL', 's.deleted_at IS NULL'];
       const params: unknown[] = [tenantId];
       if (filter?.institutionId) {
         params.push(filter.institutionId);
@@ -669,6 +722,10 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.toDate);
         clauses.push(`sub.substitution_date <= $${params.length}::date`);
       }
+      if (filter?.status) {
+        params.push(filter.status.toUpperCase());
+        clauses.push(`sub.status = $${params.length}::substitution_status`);
+      }
       const result = await this.query(
         tenantId,
         `SELECT sub.*, s.institution_id
@@ -676,7 +733,7 @@ export class PgTimetableRepository implements TimetableRepository {
          JOIN section_meetings sm ON sm.id = sub.section_meeting_id
          JOIN sections s ON s.id = sm.section_id
          WHERE ${clauses.join(' AND ')}
-         ORDER BY sub.substitution_date DESC, sub.created_at DESC`,
+         ORDER BY sub.substitution_date DESC, sub.created_at DESC, sub.id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapSubstitution(row as Record<string, unknown>));
@@ -741,7 +798,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapRoom(row as Record<string, unknown>));
@@ -805,7 +862,7 @@ export class PgTimetableRepository implements TimetableRepository {
       }
       const result = await this.query(
         tenantId,
-        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC, id ASC${pageSql(filter, params)}`,
         params,
       );
       return result.rows.map((row) => mapSection(row as Record<string, unknown>));
@@ -951,6 +1008,84 @@ export class PgTimetableRepository implements TimetableRepository {
       );
       return mapEnrollment(result.rows[0] as Record<string, unknown>);
     });
+  }
+
+  async enrollWithinCapacity(
+    input: EnrollWithinCapacityInput,
+  ): Promise<EnrollWithinCapacityResult> {
+    return withSchemaCheck(async () =>
+      withPgTenant(this.pool, input.tenantId, async (client) => {
+        const q = (text: string, values: unknown[]) =>
+          client.query(text, values) as unknown as Promise<pg.QueryResult>;
+        // Row lock serialises concurrent enrolls into the same section.
+        const sec = await q(
+          `SELECT id, code, capacity, status::text AS status FROM sections
+            WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+            FOR UPDATE`,
+          [input.tenantId, input.sectionId],
+        );
+        const section = sec.rows[0] as
+          { code: string; capacity: number; status: string } | undefined;
+        if (!section) return { outcome: 'section_missing' as const };
+        if (String(section.status).toUpperCase() === 'ARCHIVED') {
+          return { outcome: 'section_archived' as const };
+        }
+        // The FK on student_id is not tenant-scoped; verify tenant ownership explicitly.
+        const student = await q(
+          `SELECT 1 FROM students WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+          [input.tenantId, input.studentId],
+        );
+        if (student.rows.length === 0) return { outcome: 'student_missing' as const };
+        const ex = await q(
+          `SELECT * FROM section_enrollments
+            WHERE tenant_id = $1 AND section_id = $2 AND student_id = $3`,
+          [input.tenantId, input.sectionId, input.studentId],
+        );
+        const existingRow = ex.rows[0] as Record<string, unknown> | undefined;
+        const existing = existingRow ? mapEnrollment(existingRow) : null;
+        if (existing?.status === 'ENROLLED') {
+          return { outcome: 'already_enrolled' as const, enrollment: existing };
+        }
+        const cnt = await q(
+          `SELECT COUNT(*)::int AS n FROM section_enrollments
+            WHERE tenant_id = $1 AND section_id = $2 AND status = 'ENROLLED'`,
+          [input.tenantId, input.sectionId],
+        );
+        const active = Number((cnt.rows[0] as { n: number }).n);
+        const capacity = Number(section.capacity);
+        if (active >= capacity) {
+          return { outcome: 'full' as const, capacity, code: String(section.code) };
+        }
+        const written = existing
+          ? await q(
+              `UPDATE section_enrollments SET
+                 status = 'ENROLLED', enrolled_at = $3::date, withdrawn_at = NULL,
+                 updated_at = $4::timestamptz
+               WHERE tenant_id = $1 AND id = $2
+               RETURNING *`,
+              [input.tenantId, existing.id, input.enrolledAt, input.now],
+            )
+          : await q(
+              `INSERT INTO section_enrollments (
+                 id, tenant_id, section_id, student_id, status, enrolled_at, withdrawn_at,
+                 created_at, updated_at
+               ) VALUES ($1,$2,$3,$4,'ENROLLED',$5::date,NULL,$6::timestamptz,$6::timestamptz)
+               RETURNING *`,
+              [
+                input.newId,
+                input.tenantId,
+                input.sectionId,
+                input.studentId,
+                input.enrolledAt,
+                input.now,
+              ],
+            );
+        return {
+          outcome: 'enrolled' as const,
+          enrollment: mapEnrollment(written.rows[0] as Record<string, unknown>),
+        };
+      }),
+    );
   }
 
   async updateEnrollment(tenantId: string, id: string, patch: Partial<SectionEnrollmentEntity>) {

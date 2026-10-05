@@ -5,11 +5,17 @@ import type { TimetableOpsStore } from './generation-store.js';
 import { createTimetableOpsStore } from './repository-factory.js';
 import { registerTimetableRoutes } from './routes.js';
 import type { TimetableRepository } from './timetable-repository.js';
-import { TimetableService, type StaffInstitutionMembership } from './timetable-service.js';
+import {
+  TimetableService,
+  type StaffInstitutionMembership,
+  type TimetableServiceOptions,
+} from './timetable-service.js';
 
 export interface TimetablePluginOptions {
   repository: TimetableRepository;
   opsStore?: TimetableOpsStore;
+  /** PRC-M403: institution/tenant timezone for enrollment dates (default UTC). */
+  timeZone?: TimetableServiceOptions['timeZone'];
   prefix?: string;
   /** PRC-M101: when set, meetings/substitutions reject staff of another institution. */
   staffBelongsToInstitution?: StaffInstitutionMembership;
@@ -26,7 +32,10 @@ export const timetablePlugin = fp(
     const service = new TimetableService(
       options.repository,
       options.opsStore ?? createTimetableOpsStore(),
-      { staffBelongsToInstitution: options.staffBelongsToInstitution },
+      {
+        timeZone: options.timeZone,
+        staffBelongsToInstitution: options.staffBelongsToInstitution,
+      },
     );
     fastify.decorate('timetableService', service);
     await registerTimetableRoutes(fastify, {

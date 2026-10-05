@@ -10,6 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { getTenantSettings } from '@/lib/api/admin.server';
+import { formatDateTimeWithZone } from '@/lib/datetime/zoned';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -20,11 +22,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
   await requireSession();
-  const [hostels, passes, studentOptions] = await Promise.all([
+  const [hostels, passes, studentOptions, tenant] = await Promise.all([
     listHostels(),
     listHostelGatePasses(),
     loadStudentOptions(),
+    getTenantSettings().catch(() => ({ settings: null })),
   ]);
+  // PRC-M478: capture and display gate-pass times in the tenant timezone.
+  const timeZone = tenant.settings?.timezone ?? null;
+  const formatTime = (iso: string) => formatDateTimeWithZone(iso, timeZone);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
@@ -41,7 +47,7 @@ export default async function HostelGatePassesPage() {
         </Button>
       </div>
 
-      <GatePassRequestForm hostels={hostels} studentOptions={studentOptions} />
+      <GatePassRequestForm hostels={hostels} studentOptions={studentOptions} timeZone={timeZone} />
 
       <Card>
         <CardHeader>
@@ -72,7 +78,8 @@ export default async function HostelGatePassesPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {resolveEntityLabel(pass.studentId, studentLabels, 'Student')} · out{' '}
-                    {pass.expectedOutAt.slice(0, 16)} → in {pass.expectedInAt.slice(0, 16)}
+                    <time dateTime={pass.expectedOutAt}>{formatTime(pass.expectedOutAt)}</time> → in{' '}
+                    <time dateTime={pass.expectedInAt}>{formatTime(pass.expectedInAt)}</time>
                   </p>
                   <GatePassActions id={pass.id} status={pass.status} />
                 </li>
