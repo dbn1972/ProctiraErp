@@ -680,7 +680,8 @@
     "accessDeniedTitle": "प्रवेश नाकारला",
     "accessDeniedHelp": "तुम्हाला प्रवेश असावा असे वाटत असल्यास तुमच्या प्रशासकाशी संपर्क साधा.",
     "returnToDashboard": "डॅशबोर्डवर परत जा",
-    "tableAriaLabel": "आरोग्य नोंदी"
+    "tableAriaLabel": "आरोग्य नोंदी",
+    "unknownStudent": "अज्ञात विद्यार्थी"
   },
   "workflows": {
     "title": "कार्यप्रवाह व्याख्या",

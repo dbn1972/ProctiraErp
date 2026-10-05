@@ -35,11 +35,14 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
+  deriveApplicantAttributes,
   resolveApplicationSubject,
   resolveScholarshipActor,
+  type ApplicantAttributesLookup,
   type ApplicantStudentLookup,
 } from './application-intake.js';
 import { authorizeApplicationCreate } from './document-routes.js';
+import { applicantAttributesForStudent } from './parent-links.js';
 import {
   CreateScholarshipProgramSchema,
   UpdateScholarshipProgramSchema,
@@ -115,6 +118,11 @@ export interface ScholarshipRoutesOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
   /** PRC-H030: when set, an application's applicant must be a student of the tenant. */
   applicantExists?: ApplicantStudentLookup;
+  /**
+   * PRC-L345: student-record lookup for areaId/gender. Defaults to the Postgres record (null
+   * without a database, in which case client-supplied values are dropped).
+   */
+  resolveApplicantAttributes?: ApplicantAttributesLookup;
 }
 
 /**
@@ -151,6 +159,7 @@ export async function registerScholarshipRoutes(
     prefix = '/scholarships',
     resolveLinkedStudentIds,
     applicantExists,
+    resolveApplicantAttributes = applicantAttributesForStudent,
   } = options;
 
   // ─── Program Routes ────────────────────────────────────────────────────
@@ -424,6 +433,7 @@ export async function registerScholarshipRoutes(
 
       // PRC-H030: resolve who the application is for server-side; never trust placeholders.
       let subject: { applicantId: string; institutionId: string };
+      let attributes: { areaId?: string; gender?: 'male' | 'female' | 'other' };
       try {
         subject = await resolveApplicationSubject({
           request,
@@ -432,6 +442,13 @@ export async function registerScholarshipRoutes(
           applicantId: result.data.applicantId,
           institutionId: result.data.institutionId,
           applicantExists,
+        });
+        // PRC-L345: areaId/gender from the student record; contradictions are a 422.
+        attributes = await deriveApplicantAttributes({
+          tenantId,
+          applicantId: subject.applicantId,
+          claimed: { areaId: result.data.areaId, gender: result.data.gender },
+          lookup: resolveApplicantAttributes,
         });
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -452,9 +469,13 @@ export async function registerScholarshipRoutes(
       }
 
       try {
+        const { areaId: _claimedArea, gender: _claimedGender, ...claimedRest } = result.data;
+        void _claimedArea;
+        void _claimedGender;
         const application = await scholarshipService.submitApplication(tenantId, {
-          ...result.data,
+          ...claimedRest,
           ...subject,
+          ...attributes,
         });
         return reply.status(201).send({
           ...application,

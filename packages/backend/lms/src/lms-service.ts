@@ -1211,7 +1211,7 @@ export class LmsService {
       ]);
     }
     try {
-      assertAllowedUpload(input.mimeType, bytes.length);
+      assertAllowedUpload(input.mimeType, bytes.length, bytes);
     } catch (error) {
       throw new ValidationError((error as Error).message, [
         { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
@@ -1432,7 +1432,7 @@ export class LmsService {
       }
       const bytes = decodeBase64Payload(input.contentBase64);
       try {
-        assertAllowedUpload(input.mimeType, bytes.length);
+        assertAllowedUpload(input.mimeType, bytes.length, bytes);
       } catch (error) {
         throw new ValidationError((error as Error).message, [
           { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
@@ -1655,7 +1655,7 @@ export class LmsService {
         ]);
       }
       const bytes = decodeBase64Payload(input.contentBase64);
-      assertAllowedUpload(input.mimeType, bytes.length);
+      assertAllowedUpload(input.mimeType, bytes.length, bytes);
       const stored = await putLmsFile(tenantId, randomUUID(), input.title, bytes);
       storageKey = stored.storageKey;
     }

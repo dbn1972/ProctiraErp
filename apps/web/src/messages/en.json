@@ -810,7 +810,8 @@
     "accessDeniedTitle": "Access denied",
     "accessDeniedHelp": "Contact your administrator if you believe you should have access.",
     "returnToDashboard": "Return to dashboard",
-    "tableAriaLabel": "Health records"
+    "tableAriaLabel": "Health records",
+    "unknownStudent": "Unknown student"
   },
   "workflows": {
     "title": "Workflow definitions",

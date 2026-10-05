@@ -196,10 +196,6 @@ export async function listStaff(filters: StaffListFilters = {}): Promise<StaffLi
   return result.data;
 }
 
-/**
- * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
- * failed read is distinguishable from an institution with no staff.
- */
 /** PRC-M102: hard cap for staff pickers (pages x 100). */
 export const STAFF_PICKER_CAP = 400;
 
@@ -207,13 +203,21 @@ export type StaffLoadResult =
   | { ok: true; items: Staff[]; truncated: boolean; totalItems: number }
   | Extract<ListResult<Staff>, { ok: false }>;
 
+/**
+ * PRC-M100: every staff page (up to `maxPages` x 100) as a ListResult, so a
+ * failed read is distinguishable from an institution with no staff.
+ * PRC-M101: `institutionId` scopes to staff assigned there. PRC-M102: the
+ * result says when the cap truncated the list. A bare number is accepted as
+ * `maxPages` (the original PRC-M100 signature).
+ */
 export async function listAllStaffResult(
-  opts: { institutionId?: string; maxPages?: number } = {},
+  opts: { institutionId?: string; maxPages?: number } | number = {},
 ): Promise<StaffLoadResult> {
-  const maxPages = opts.maxPages ?? STAFF_PICKER_CAP / 100;
+  const options = typeof opts === 'number' ? { maxPages: opts } : opts;
+  const maxPages = options.maxPages ?? STAFF_PICKER_CAP / 100;
   // PRC-M101: scope to the institution's staff (active assignment there).
-  const scope = opts.institutionId
-    ? `&institutionId=${encodeURIComponent(opts.institutionId)}`
+  const scope = options.institutionId
+    ? `&institutionId=${encodeURIComponent(options.institutionId)}`
     : '';
   const rows: Staff[] = [];
   let totalItems = 0;
@@ -232,6 +236,7 @@ export async function listAllStaffResult(
   const truncated = totalItems > rows.length || (lastPageFull && rows.length >= maxPages * 100);
   return { ok: true, items: rows, truncated, totalItems: Math.max(totalItems, rows.length) };
 }
+
 export async function getStaff(id: string): Promise<Staff | null> {
   const result = await gatewayFetch<Staff>(`/staff/${id}`, {
     method: 'GET',

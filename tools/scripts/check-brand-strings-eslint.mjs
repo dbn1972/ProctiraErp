@@ -87,6 +87,7 @@ const KNOWN_VIOLATIONS = new Set([
   'apps/web/src/app/(auth)/_components/auth-shell.tsx',
   'apps/web/src/app/(auth)/login/login-branding.test.tsx',
   'apps/web/src/app/(auth)/signup/signup-form.tsx',
+  // getBrand() fallback moved here from useDraftAutosave.ts (PR #547 review).
   'apps/web/src/lib/draft/storage.ts',
   'apps/web/src/lib/sync/syncQueue.ts',
   'apps/web/src/lib/theme/boot-script.ts',

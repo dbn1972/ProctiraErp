@@ -151,6 +151,8 @@ const PayInvoiceSchema = Type.Object({
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  /** PRC-M089: UPI txn id / receipt-book number for manually recorded payments. */
+  reference: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({
@@ -168,6 +170,8 @@ const CreateFeeStructureSchema = Type.Object({
   validTo: Type.Optional(
     Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
   ),
+  /** PRC-M091: instalments created in the same transaction as the structure. */
+  partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -183,6 +187,8 @@ const BulkInvoiceSchema = Type.Object({
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   studentIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { minItems: 1 })),
   dueAt: Type.Optional(IsoDateString()),
+  /** PRC-M086: explicit opt-in required to invoice every enrolled student. */
+  allStudents: Type.Optional(Type.Boolean()),
 });
 
 const ApplyConcessionSchema = Type.Object({
@@ -1079,6 +1085,45 @@ export const feesPlugin = fp(
       },
     );
 
+    // PRC-M086: dry run for the confirm dialog — count + total, creates nothing.
+    fastify.post(
+      `${prefix}/structures/:id/bulk-invoice/preview`,
+      async function bulkInvoicePreview(
+        request: FastifyRequest<{ Params: IdParams; Body: BulkInvoiceInput }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(BulkInvoiceSchema, request.body ?? {});
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
+        try {
+          const preview = await feesService.previewBulkInvoice(tenantId, {
+            ...bodyResult.data,
+            structureId: paramsResult.data.id,
+          });
+          return reply.status(200).send(preview);
+        } catch (error: unknown) {
+          return sendFeesError(reply, error);
+        }
+      },
+    );
     fastify.post(
       `${prefix}/concessions`,
       async function applyConcession(

@@ -155,10 +155,10 @@ export const CreateFeeStructureSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   roomType: Type.String({ minLength: 1, maxLength: 64 }),
   termLabel: Type.String({ minLength: 1, maxLength: 64 }),
-  amountCents: Type.Number({ minimum: 0 }),
+  // PRC-M095: integer minor units, never a zero-fee structure.
+  amountCents: Type.Integer({ minimum: 1 }),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
 });
-
 export type CreateFeeStructureInput = Static<typeof CreateFeeStructureSchema>;
 
 export const CreateAttendanceSchema = Type.Object({

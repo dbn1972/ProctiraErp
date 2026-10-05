@@ -31,7 +31,7 @@ import { AppError } from '@proctira/common';
 import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { getLmsFile } from './lms-file-store.js';
+import { getLmsFile, LMS_UPLOAD_BODY_LIMIT_BYTES } from './lms-file-store.js';
 import { enforceLmsRouteAccess } from './lms-http-guard.js';
 import type { LmsActor, LmsService } from './lms-service.js';
 import {
@@ -601,25 +601,30 @@ export async function registerLmsRoutes(
     }
   });
 
-  fastify.post(`${prefix}/assignments/:id/files`, async (request, reply) => {
-    const params = validate(IdParamsSchema, plainParams(request));
-    if (!params.success) return validationFailed(reply, params.errors, 'Invalid ID');
-    const body = validate(UploadFileSchema, request.body);
-    if (!body.success) return validationFailed(reply, body.errors);
-    const tenantId = getTenantId(request);
-    if (!tenantId) return tenantRequired(reply);
-    try {
-      const file = await lmsService.uploadAssignmentFile(
-        tenantId,
-        params.data.id,
-        body.data,
-        getLmsActor(request),
-      );
-      return reply.status(201).send(serialise(file));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
+  // PRC-M099: a 5 MB file is ~6.7 MB as base64; Fastify's 1 MiB default rejected it.
+  fastify.post(
+    `${prefix}/assignments/:id/files`,
+    { bodyLimit: LMS_UPLOAD_BODY_LIMIT_BYTES },
+    async (request, reply) => {
+      const params = validate(IdParamsSchema, plainParams(request));
+      if (!params.success) return validationFailed(reply, params.errors, 'Invalid ID');
+      const body = validate(UploadFileSchema, request.body);
+      if (!body.success) return validationFailed(reply, body.errors);
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      try {
+        const file = await lmsService.uploadAssignmentFile(
+          tenantId,
+          params.data.id,
+          body.data,
+          getLmsActor(request),
+        );
+        return reply.status(201).send(serialise(file));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   fastify.get(`${prefix}/assignments/:id/files`, async (request, reply) => {
     const params = validate(IdParamsSchema, plainParams(request));
@@ -893,28 +898,36 @@ export async function registerLmsRoutes(
     }
   });
 
-  fastify.post(`${prefix}/content`, async (request, reply) => {
-    const body = validate(CreateContentItemSchema, request.body);
-    if (!body.success) return validationFailed(reply, body.errors);
-    // PRC-H024 / PRC-H033: a 'link' body is rendered as an href — http(s) only.
-    if (
-      body.data.kind === 'link' &&
-      body.data.body &&
-      !new RegExp(HTTP_URL_PATTERN).test(body.data.body)
-    ) {
-      return validationFailed(reply, [
-        { path: '/body', message: 'Link must be an http:// or https:// URL' },
-      ]);
-    }
-    const tenantId = getTenantId(request);
-    if (!tenantId) return tenantRequired(reply);
-    try {
-      const created = await lmsService.createContentItem(tenantId, body.data, getLmsActor(request));
-      return reply.status(201).send(serialise(created));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
+  fastify.post(
+    `${prefix}/content`,
+    { bodyLimit: LMS_UPLOAD_BODY_LIMIT_BYTES },
+    async (request, reply) => {
+      const body = validate(CreateContentItemSchema, request.body);
+      if (!body.success) return validationFailed(reply, body.errors);
+      // PRC-H024 / PRC-H033: a 'link' body is rendered as an href — http(s) only.
+      if (
+        body.data.kind === 'link' &&
+        body.data.body &&
+        !new RegExp(HTTP_URL_PATTERN).test(body.data.body)
+      ) {
+        return validationFailed(reply, [
+          { path: '/body', message: 'Link must be an http:// or https:// URL' },
+        ]);
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      try {
+        const created = await lmsService.createContentItem(
+          tenantId,
+          body.data,
+          getLmsActor(request),
+        );
+        return reply.status(201).send(serialise(created));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   fastify.get(`${prefix}/content`, async (request, reply) => {
     const query = validateQuery(ContentListQuerySchema, plainQuery(request));

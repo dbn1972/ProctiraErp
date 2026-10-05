@@ -680,7 +680,8 @@
     "accessDeniedTitle": "تم رفض الوصول",
     "accessDeniedHelp": "اتصل بالمسؤول إذا كنت تعتقد أنه يجب أن يكون لديك حق الوصول.",
     "returnToDashboard": "العودة إلى لوحة التحكم",
-    "tableAriaLabel": "السجلات الصحية"
+    "tableAriaLabel": "السجلات الصحية",
+    "unknownStudent": "طالب غير معروف"
   },
   "workflows": {
     "title": "تعريفات سير العمل",

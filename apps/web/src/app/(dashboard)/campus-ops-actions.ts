@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { GatewayError } from '@/lib/api/gateway';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { parseMajorUnits } from '@/lib/format-money';
 import {
   addHostelMessMenuItem,
   createHostelFeeStructure,
@@ -323,19 +324,32 @@ export async function createHostelFeeStructureAction(input: {
   hostelId: string;
   roomType: string;
   termLabel: string;
-  amountCents: number;
+  /** PRC-M095: major units as typed (e.g. "5000.00"); converted server-side. */
+  amount: string;
 }): Promise<OpsActionState> {
   const parsed = z
     .object({
       hostelId: UUID,
       roomType: z.string().min(1).max(64),
       termLabel: z.string().min(1).max(64),
-      amountCents: z.number().int().min(0),
+      amount: z.string(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Fee structure fields are invalid.' };
+  const amountCents = parseMajorUnits(parsed.data.amount);
+  if (amountCents === null || amountCents < 1) {
+    return {
+      status: 'error',
+      message: 'Enter an amount greater than 0 with at most 2 decimals (for example 5000.00).',
+    };
+  }
   try {
-    const row = await createHostelFeeStructure(parsed.data);
+    const row = await createHostelFeeStructure({
+      hostelId: parsed.data.hostelId,
+      roomType: parsed.data.roomType,
+      termLabel: parsed.data.termLabel,
+      amountCents,
+    });
     revalidatePath('/hostel/fees');
     revalidatePath('/hostel/assignments');
     return { status: 'success', id: row.id, message: 'Hostel fee structure saved.' };

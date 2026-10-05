@@ -45,7 +45,7 @@ export function LogRepairRequestForm({
       }}
     >
       <div className="flex flex-wrap items-end gap-2">
-        <label className="space-y-1 text-xs font-semibold text-amber-900 dark:text-amber-200">
+        <label className="space-y-1 text-xs font-semibold text-foreground">
           Facility
           <select
             className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"
@@ -61,9 +61,7 @@ export function LogRepairRequestForm({
           </select>
         </label>
         <div className="min-w-[16rem] flex-1 space-y-1">
-          <Label htmlFor="repair-summary" className="text-amber-900 dark:text-amber-200">
-            Repair request
-          </Label>
+          <Label htmlFor="repair-summary">Repair request</Label>
           <Textarea id="repair-summary" name="summary" required rows={2} maxLength={500} />
         </div>
         <Button type="submit" size="sm" disabled={pending} data-testid="submit-repair-request">
@@ -71,7 +69,7 @@ export function LogRepairRequestForm({
         </Button>
       </div>
       {message ? (
-        <p className="text-sm text-amber-900 dark:text-amber-100" role="status">
+        <p className="text-sm text-foreground" role="status">
           {message}
         </p>
       ) : null}

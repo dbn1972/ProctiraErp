@@ -188,6 +188,77 @@ function shouldTouchIdentity(id: string, now = Date.now()): boolean {
   return true;
 }
 
+/**
+ * PRC-L283: per-session cache of the linked identity so an authenticated request does not read
+ * the identity store (findIdentity + findUserByEmail) every time. Keyed by the verified token's
+ * session id *and* subject, bounded in size and age; only successful links are cached, so a
+ * store outage still fails closed. Session revocation is enforced separately on every request.
+ */
+export interface SessionIdentityCache {
+  get(sessionId: string, externalId: string): LinkedKeycloakUser | undefined;
+  set(sessionId: string, externalId: string, user: LinkedKeycloakUser): void;
+  /** Drop a session (e.g. on logout). */
+  delete(sessionId: string, externalId: string): void;
+  readonly size: number;
+}
+
+export function createSessionIdentityCache(
+  options: { ttlMs?: number; maxEntries?: number; now?: () => number } = {},
+): SessionIdentityCache {
+  const ttlMs = options.ttlMs ?? 5 * 60 * 1000;
+  const maxEntries = options.maxEntries ?? 50_000;
+  const now = options.now ?? Date.now;
+  const entries = new Map<string, { user: LinkedKeycloakUser; expiresAt: number }>();
+  const keyOf = (sessionId: string, externalId: string) => `${sessionId}\u0000${externalId}`;
+  return {
+    get(sessionId, externalId) {
+      const key = keyOf(sessionId, externalId);
+      const hit = entries.get(key);
+      if (!hit) return undefined;
+      if (hit.expiresAt <= now()) {
+        entries.delete(key);
+        return undefined;
+      }
+      return { ...hit.user };
+    },
+    set(sessionId, externalId, user) {
+      if (ttlMs <= 0) return;
+      const key = keyOf(sessionId, externalId);
+      entries.delete(key);
+      entries.set(key, { user: { ...user }, expiresAt: now() + ttlMs });
+      while (entries.size > maxEntries) {
+        const oldest = entries.keys().next().value;
+        if (oldest === undefined) break;
+        entries.delete(oldest);
+      }
+    },
+    delete(sessionId, externalId) {
+      entries.delete(keyOf(sessionId, externalId));
+    },
+    get size() {
+      return entries.size;
+    },
+  };
+}
+
+/**
+ * {@link linkKeycloakIdentity} behind a {@link SessionIdentityCache}. Tokens without a session id
+ * are linked every time (never cached under a shared key).
+ */
+export async function linkKeycloakIdentityForSession(
+  input: KeycloakIdentityInput,
+  store: KeycloakIdentityStore,
+  cache: SessionIdentityCache | undefined,
+  sessionId: string | undefined,
+): Promise<LinkedKeycloakUser> {
+  if (!cache || !sessionId || !input.externalId) return linkKeycloakIdentity(input, store);
+  const hit = cache.get(sessionId, input.externalId);
+  if (hit) return hit;
+  const linked = await linkKeycloakIdentity(input, store);
+  cache.set(sessionId, input.externalId, linked);
+  return linked;
+}
+
 /** Test hook: forget touch throttling state. */
 export function resetIdentityTouchThrottleForTests(): void {
   lastTouchedAt.clear();

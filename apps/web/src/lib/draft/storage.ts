@@ -1,22 +1,43 @@
 /**
- * apps/web/src/lib/draft/storage.ts — hook-free draft storage helpers.
+ * apps/web/src/lib/draft/storage.ts — Draft storage helpers (hook-free)
  * =====================================================================
  *
- * The `localStorage` contract behind `useDraftAutosave` (key format,
- * envelope, TTL, purge). Kept free of React imports so server-reachable
- * modules (e.g. `lib/auth/session.ts`, which is imported by route handlers
- * via `lib/auth/server.ts`) can purge drafts on sign-out without pulling a
- * client hook into the server graph. Every function is a no-op outside the
- * browser.
+ * The `localStorage` contract behind `useDraftAutosave`: key building,
+ * envelope read/write/remove, TTL expiry, and the session-end purge
+ * (PRC-M079 / PRC-M119).
  *
- * Storage key: `<brand>-draft:[t:<tenantId>:u:<userId>:]<route>:<formId>`.
+ * This module MUST NOT import React. It is reached from server-reachable
+ * code (`lib/sw/purge.ts` and `lib/auth/session.ts`, which route handlers,
+ * server components and server actions import via `lib/auth/server.ts`),
+ * and Next.js rejects any server import graph that pulls in a module using
+ * client-only hooks. Keep the React hook in `useDraftAutosave.ts` and the
+ * storage primitives here.
+ *
+ * Every helper is SSR safe: outside the browser reads return `null` and
+ * writes/removals/purges are silent no-ops.
+ *
+ * Storage key: `<brand>-draft:[<owner>:]<route>:<formId>`, where `<owner>`
+ * is `t:<tenantId>:u:<userId>` for a {@link DraftScope} object or the
+ * caller-supplied string scope (normally `<tenantId>:<userId>`). Anonymous
+ * drafts have no owner segment, so the route (always `/…` or `_`) follows
+ * the `-draft:` marker directly.
  */
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Schema version stamped on every persisted draft. Bump when shape changes. */
+export const DRAFT_SCHEMA_VERSION = 1;
 
 /**
  * PRC-M119: drafts expire after this long (envelope `savedAt` + TTL). Expired
- * drafts are removed on read.
+ * drafts are removed on read. Callers may pass a shorter/longer `ttlMs`.
  */
 export const DRAFT_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Marker that separates the brand prefix from the rest of a draft key. */
+const DRAFT_KEY_MARKER = '-draft:';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 /** Owner of a draft. Scoped drafts are only readable by the same user + tenant. */
 export interface DraftScope {
@@ -24,8 +45,12 @@ export interface DraftScope {
   tenantId: string;
 }
 
-/** Schema version stamped on every persisted draft. Bump when shape changes. */
-const DRAFT_SCHEMA_VERSION = 1;
+/**
+ * Accepted draft owner: a {@link DraftScope} object (PRC-M119) or an opaque
+ * identity string, normally `<tenantId>:<userId>` (PRC-M079). `null` /
+ * `undefined` / empty means an anonymous (unscoped) draft.
+ */
+export type DraftScopeInput = DraftScope | string | null | undefined;
 
 /**
  * The on-disk shape. We persist a small envelope so that future
@@ -41,13 +66,15 @@ export interface DraftEnvelope<T> {
   values: T;
 }
 
+// ─── Key helpers ─────────────────────────────────────────────────────────────
+
 /**
  * The configured brand prefix for storage namespacing. Matches the
  * convention in `lib/sync/syncQueue.ts` so multi-tenant deployments
  * keep their drafts isolated. Falls back to `proctira` when the env
  * is missing (e.g. SSR, tests).
  */
-function getBrand(): string {
+export function getBrand(): string {
   if (typeof process !== 'undefined' && process.env) {
     const brand = process.env['NEXT_PUBLIC_BRAND'] ?? process.env['OPENEMIS_BRAND'];
     if (brand && brand.length > 0) return brand;
@@ -73,16 +100,43 @@ function getRoute(): string {
   return window.location.pathname || '/';
 }
 
-/** Build the localStorage key for a given form id at the current route. */
-export function buildDraftKey(formId: string, scope?: DraftScope | null): string {
-  const owner = scope ? `t:${scope.tenantId}:u:${scope.userId}:` : '';
-  return `${getBrand()}-draft:${owner}${getRoute()}:${formId}`;
+/**
+ * The owner segment (without trailing `:`) for a scope, or `''` for an
+ * anonymous draft. Stable primitive, so hooks can use it as an effect dep.
+ */
+export function draftOwnerSegment(scope: DraftScopeInput): string {
+  if (!scope) return '';
+  if (typeof scope === 'string') return scope;
+  return `t:${scope.tenantId}:u:${scope.userId}`;
 }
 
 /**
- * PRC-M119: remove every persisted draft (any brand, user or tenant). Called
- * on sign-out, session expiry and user/tenant switch so a shared device never
- * keeps the previous user's form data.
+ * Build the localStorage key for a given form id at the current route.
+ *
+ * PRC-M079 / PRC-M119: when a `scope` is supplied it is embedded in the key
+ * so a draft written by one user/tenant on a shared device is never
+ * restored for another.
+ */
+export function buildDraftKey(formId: string, scope?: DraftScopeInput): string {
+  const owner = draftOwnerSegment(scope);
+  return `${getBrand()}${DRAFT_KEY_MARKER}${owner ? `${owner}:` : ''}${getRoute()}:${formId}`;
+}
+
+/** True when the draft key carries an owner (user/tenant) segment. */
+function isOwnedDraftKey(key: string): boolean {
+  const rest = key.slice(key.indexOf(DRAFT_KEY_MARKER) + DRAFT_KEY_MARKER.length);
+  // Anonymous keys go straight to the route: `/…` in the browser, `_` in SSR.
+  return !(rest.startsWith('/') || rest.startsWith('_:'));
+}
+
+// ─── Storage helpers ─────────────────────────────────────────────────────────
+
+/**
+ * PRC-M079 / PRC-M119: remove every persisted draft (any brand, user or
+ * tenant). Called on logout, session expiry, 401 and user/tenant switch so a
+ * shared device never keeps the previous user's in-progress form data.
+ * `ownedOnly` keeps anonymous drafts (e.g. a public registration wizard).
+ * Best-effort; never throws.
  */
 export function purgeAllDrafts(options: { ownedOnly?: boolean } = {}): void {
   if (typeof window === 'undefined') return;
@@ -91,9 +145,8 @@ export function purgeAllDrafts(options: { ownedOnly?: boolean } = {}): void {
     const doomed: string[] = [];
     for (let i = 0; i < storage.length; i += 1) {
       const key = storage.key(i);
-      if (!key || !key.includes('-draft:')) continue;
-      // `ownedOnly` keeps anonymous drafts (e.g. a public registration wizard).
-      if (options.ownedOnly && !key.includes('-draft:t:')) continue;
+      if (!key || !key.includes(DRAFT_KEY_MARKER)) continue;
+      if (options.ownedOnly && !isOwnedDraftKey(key)) continue;
       doomed.push(key);
     }
     for (const key of doomed) storage.removeItem(key);
@@ -104,8 +157,8 @@ export function purgeAllDrafts(options: { ownedOnly?: boolean } = {}): void {
 
 /**
  * Read the current draft from storage. Returns `null` when storage
- * is unavailable, the slot is empty, or the persisted envelope is
- * malformed / stale.
+ * is unavailable, the key is `null` (storage disabled), the slot is empty,
+ * or the persisted envelope is malformed / stale / expired.
  */
 export function readDraft<T>(
   key: string | null,
@@ -125,13 +178,14 @@ export function readDraft<T>(
       window.localStorage.removeItem(key);
       return null;
     }
-    const savedAtMs = Date.parse((parsed as { savedAt?: string }).savedAt ?? '');
+    const envelope = parsed as DraftEnvelope<T>;
+    const savedAtMs = Date.parse(envelope.savedAt ?? '');
     if (!Number.isFinite(savedAtMs) || Date.now() - savedAtMs > ttlMs) {
-      // PRC-M119: expired (or undated) draft — purge rather than restore.
+      // PRC-M079 / PRC-M119: expired (or undated) draft — purge, never restore.
       window.localStorage.removeItem(key);
       return null;
     }
-    return parsed as DraftEnvelope<T>;
+    return envelope;
   } catch {
     // SecurityError (private mode), QuotaExceededError, or invalid JSON.
     return null;

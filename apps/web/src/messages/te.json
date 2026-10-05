@@ -680,7 +680,8 @@
     "accessDeniedTitle": "యాక్సెస్ నిరాకరించబడింది",
     "accessDeniedHelp": "మీకు యాక్సెస్ ఉండాలని భావిస్తే మీ నిర్వాహకుడిని సంప్రదించండి.",
     "returnToDashboard": "డాష్‌బోర్డ్‌కు తిరిగి వెళ్ళు",
-    "tableAriaLabel": "ఆరోగ్య రికార్డులు"
+    "tableAriaLabel": "ఆరోగ్య రికార్డులు",
+    "unknownStudent": "తెలియని విద్యార్థి"
   },
   "workflows": {
     "title": "వర్క్‌ఫ్లో నిర్వచనాలు",
