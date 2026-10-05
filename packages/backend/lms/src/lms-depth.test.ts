@@ -154,6 +154,24 @@ describe('LMS depth — question bank + quiz from bank', () => {
     );
     expect(graded.status).toBe('graded');
     expect(graded.score).toBe(10);
+    // PRC-M479: scores are bounded by the linked rubric.
+    const essayId = quiz.questions[2]!.id;
+    const gradeWith = (
+      scores: Array<{ criterionId: string; levelIndex: number; points: number }>,
+    ) => svc.gradeWithRubric(TENANT_A, submission.id, { questionId: essayId, scores }, teacher);
+    const first = rubric.criteria[0]!;
+    await expect(
+      gradeWith([{ criterionId: randomUUID(), levelIndex: 0, points: 1 }]),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    await expect(
+      gradeWith([{ criterionId: first.id, levelIndex: 1, points: first.levels[1]!.points + 1 }]),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      gradeWith([{ criterionId: first.id, levelIndex: 99, points: 0 }]),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect((await svc.getSubmission(TENANT_A, submission.id, teacher)).score).toBe(10);
 
     const analytics = await svc.getQuizAnalytics(TENANT_A, quiz.id, teacher);
     expect(analytics.submissionCount).toBe(1);

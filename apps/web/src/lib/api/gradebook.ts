@@ -102,8 +102,7 @@ export interface GradingScale {
 }
 
 export type GradebookLoadResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string; status?: number };
+  { ok: true; data: T } | { ok: false; error: string; code?: string; status?: number };
 
 function mapError(error: unknown): { error: string; code?: string; status?: number } {
   if (error instanceof GatewayError) {
@@ -414,10 +413,11 @@ export async function listPublishedGradeEntries(filters?: {
 export async function transitionGradeEntry(
   id: string,
   action: GradeWorkflowAction,
+  reason?: string,
 ): Promise<GradeEntry> {
   const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${id}/transition`, {
     method: 'POST',
-    json: { action },
+    json: reason ? { action, reason } : { action },
   });
   if (!result.data) {
     throw new GatewayError({

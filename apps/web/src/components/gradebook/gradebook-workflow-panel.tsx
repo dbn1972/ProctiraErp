@@ -69,6 +69,10 @@ export function GradebookWorkflowPanel({
     action: GradeWorkflowAction;
     ids: string[];
   } | null>(null);
+  // PRC-M474: reject needs a mandatory reason, captured in its own dialog.
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const rankByStudent = useMemo(() => {
     const map = new Map<string, ClassRankSnapshot>();
@@ -76,24 +80,43 @@ export function GradebookWorkflowPanel({
     return map;
   }, [ranks]);
 
-  const runTransition = (ids: string[], action: GradeWorkflowAction) => {
+  const runTransition = (ids: string[], action: GradeWorkflowAction, reason?: string) => {
     if (ids.length === 0) return;
     setError(null);
     setMessage(null);
     startTransition(async () => {
       const result =
         ids.length === 1
-          ? await transitionGradeEntryAction({ id: ids[0]!, action, institutionId })
+          ? await transitionGradeEntryAction({ id: ids[0]!, action, institutionId, reason })
           : await bulkTransitionGradeEntriesAction({ ids, action, institutionId });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setMessage(`${action} applied to ${ids.length} ${ids.length === 1 ? 'entry' : 'entries'}.`);
+      // PRC-M474: report what the server actually transitioned, not the selection size.
+      const applied =
+        ids.length === 1 ? 1 : typeof result.extra?.count === 'number' ? result.extra.count : 0;
+      setMessage(
+        applied === ids.length
+          ? `${action} applied to ${applied} ${applied === 1 ? 'entry' : 'entries'}.`
+          : `${action} applied to ${applied} of ${ids.length} entries. Check the remaining entries' status.`,
+      );
       setSelected([]);
       setConfirmBulk(null);
+      setRejectTarget(null);
+      setRejectReason('');
       router.refresh();
     });
+  };
+  const confirmReject = () => {
+    const reason = rejectReason.trim();
+    if (!rejectTarget) return;
+    if (!reason) {
+      setRejectError('Enter a reason so the teacher knows what to fix.');
+      return;
+    }
+    setRejectError(null);
+    runTransition([rejectTarget], 'reject', reason);
   };
 
   const requestTransition = (ids: string[], action: GradeWorkflowAction) => {
@@ -233,6 +256,44 @@ export function GradebookWorkflowPanel({
         }}
         testId="gradebook-workflow-confirm"
       />
+      <ConfirmActionDialog
+        open={rejectTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectTarget(null);
+            setRejectReason('');
+            setRejectError(null);
+          }
+        }}
+        title="Reject this grade entry?"
+        description="The entry returns to the teacher as Rejected with your reason, and can be corrected and resubmitted."
+        confirmLabel="Reject"
+        destructive
+        pending={pending}
+        onConfirm={confirmReject}
+        testId="gradebook-reject-confirm"
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="grade-reject-reason">Reason (required)</Label>
+          <Textarea
+            id="grade-reject-reason"
+            value={rejectReason}
+            onChange={(event) => setRejectReason(event.target.value)}
+            maxLength={500}
+            rows={3}
+            required
+            aria-required="true"
+            aria-invalid={rejectError ? 'true' : undefined}
+            aria-describedby={rejectError ? 'grade-reject-reason-error' : undefined}
+            data-testid="grade-reject-reason"
+          />
+          {rejectError ? (
+            <p id="grade-reject-reason-error" role="alert" className="text-sm text-destructive">
+              {rejectError}
+            </p>
+          ) : null}
+        </div>
+      </ConfirmActionDialog>
       {message ? (
         <p className="text-sm text-foreground" data-testid="gradebook-workflow-message">
           {message}
@@ -330,37 +391,55 @@ export function GradebookWorkflowPanel({
                       {rank?.cgpa ?? '—'}
                     </td>
                     <td className="py-2">
-                      {next && canRun(next, canSubmit, canModerate) ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          data-testid={`transition-${next}-${row.id}`}
-                          onClick={() => requestTransition([row.id], next)}
-                        >
-                          {next === 'submit'
-                            ? 'Submit'
-                            : next === 'approve'
-                              ? 'Approve'
-                              : next === 'lock'
-                                ? 'Lock'
-                                : 'Publish'}
-                        </Button>
-                      ) : status === 'PUBLISHED' && canModerate ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          data-testid={`transition-reopen-${row.id}`}
-                          onClick={() => requestTransition([row.id], 'reopen')}
-                        >
-                          Unpublish
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {next && canRun(next, canSubmit, canModerate) ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-${next}-${row.id}`}
+                            onClick={() => requestTransition([row.id], next)}
+                          >
+                            {next === 'submit'
+                              ? 'Submit'
+                              : next === 'approve'
+                                ? 'Approve'
+                                : next === 'lock'
+                                  ? 'Lock'
+                                  : 'Publish'}
+                          </Button>
+                        ) : status === 'PUBLISHED' && canModerate ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-reopen-${row.id}`}
+                            onClick={() => requestTransition([row.id], 'reopen')}
+                          >
+                            Unpublish
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        {status === 'SUBMITTED' && canModerate ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            data-testid={`transition-reject-${row.id}`}
+                            onClick={() => {
+                              setRejectTarget(row.id);
+                              setRejectReason('');
+                              setRejectError(null);
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
