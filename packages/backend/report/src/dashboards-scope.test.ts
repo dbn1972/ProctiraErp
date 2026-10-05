@@ -30,8 +30,8 @@ function fakeDb(seen: Array<{ text: string; values?: unknown[] }>, fail = false)
     if (text.includes('to_regclass')) return { rows: [{ reg: 'public.x' }] };
     if (fail) throw new Error('connection reset');
     seen.push({ text, values });
-    const scoped = text.includes('parent_user_id = $1');
-    if (scoped && values?.[0] !== PARENT) return { rows: [{ n: 0 }] };
+    const scoped = text.includes('parent_user_id = $2');
+    if (scoped && (values?.[0] !== TENANT || values?.[1] !== PARENT)) return { rows: [{ n: 0 }] };
     if (text.includes('SUM(amount_cents)')) return { rows: [{ n: '3000000000' }] };
     if (text.includes('FROM institutions')) return { rows: [{ n: 1 }] };
     if (text.includes('FROM students')) return { rows: [{ n: scoped ? 1 : 500 }] };
@@ -56,11 +56,40 @@ describe('PRC-M344 caller-scoped dashboards', () => {
     expect(agg.openInvoices).toBe(1);
     expect(agg.linkedChildren).toBe(1);
     expect(agg.schools).toBe(0);
-    // every parent query is bound to the caller id
+    // every parent query is bound to the tenant and the caller id
     expect(seen.length).toBeGreaterThan(0);
-    for (const q of seen) expect(q.values).toEqual([PARENT]);
+    for (const q of seen) expect(q.values).toEqual([TENANT, PARENT]);
     const other = await loadDashboardAggregates(TENANT, { role: 'parent', userId: 'someone-else' });
     expect(other.students).toBe(0);
+  });
+
+  it('parent queries carry an explicit tenant predicate, not RLS alone', async () => {
+    const seen: Array<{ text: string; values?: unknown[] }> = [];
+    fakeDb(seen);
+    await loadDashboardAggregates(TENANT, { role: 'parent', userId: PARENT });
+    const outerTables = ['students', 'student_attendance', 'parent_fee_invoices'];
+    for (const table of outerTables) {
+      expect(seen.some((q) => q.text.includes(`FROM ${table} `))).toBe(true);
+    }
+    for (const q of seen) {
+      // link subquery: (tenant_id, parent_user_id) — matches idx_parent_child_links_parent
+      expect(q.text).toContain(
+        'FROM parent_child_links WHERE tenant_id = $1 AND parent_user_id = $2',
+      );
+      // outer table is also tenant-scoped
+      for (const table of outerTables) {
+        if (q.text.includes(`FROM ${table} `)) {
+          expect(q.text).toContain(`FROM ${table} WHERE tenant_id = $1 AND`);
+        }
+      }
+      expect(q.values?.[0]).toBe(TENANT);
+    }
+    // a different tenant with the same parent subject sees nothing
+    const crossTenant = await loadDashboardAggregates('00000000-0000-4000-8000-0000000000d2', {
+      role: 'parent',
+      userId: PARENT,
+    });
+    expect(crossTenant).toMatchObject({ students: 0, openInvoices: 0, linkedChildren: 0 });
   });
 
   it('parent without an authenticated id is refused (fail closed)', async () => {

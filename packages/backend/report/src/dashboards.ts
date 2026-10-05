@@ -283,47 +283,55 @@ const EMPTY_AGGREGATES: DashboardAggregates = {
   linkedChildren: 0,
 };
 
-/** Active links of the calling parent; fee visibility additionally needs can_view_fees. */
-const PARENT_CHILDREN = `SELECT student_id FROM parent_child_links WHERE parent_user_id = $1 AND status = 'active'`;
+/**
+ * Active links of the calling parent; fee visibility additionally needs can_view_fees.
+ * Parent queries bind `$1 = tenantId`, `$2 = parentUserId`. The tenant predicate is
+ * explicit on the link subquery and on every outer table (defence in depth over RLS:
+ * `parent_user_id` is a JWT subject and is not tenant-unique). The link predicate
+ * order matches `idx_parent_child_links_parent (tenant_id, parent_user_id)`.
+ */
+const PARENT_CHILDREN = `SELECT student_id FROM parent_child_links WHERE tenant_id = $1 AND parent_user_id = $2 AND status = 'active'`;
 const PARENT_FEE_CHILDREN = `${PARENT_CHILDREN} AND can_view_fees`;
 
 async function loadParentAggregates(
   client: PgQueryable,
+  tenantId: string,
   parentUserId: string,
 ): Promise<DashboardAggregates> {
   // Fail closed: without the link table a parent has no visible children.
   if (!(await relationExists(client, 'parent_child_links'))) return { ...EMPTY_AGGREGATES };
+  const params = [tenantId, parentUserId];
   const linkedChildren = await count(
     client,
     `SELECT COUNT(DISTINCT student_id)::int AS n FROM (${PARENT_CHILDREN}) c`,
-    [parentUserId],
+    params,
   );
   const students = (await relationExists(client, 'students'))
     ? await count(
         client,
-        `SELECT COUNT(*)::int AS n FROM students WHERE deleted_at IS NULL AND id IN (${PARENT_CHILDREN})`,
-        [parentUserId],
+        `SELECT COUNT(*)::int AS n FROM students WHERE tenant_id = $1 AND deleted_at IS NULL AND id IN (${PARENT_CHILDREN})`,
+        params,
       )
     : 0;
   let attendancePercent: number | null = null;
   if (await relationExists(client, 'student_attendance')) {
     const present = await count(
       client,
-      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE student_id IN (${PARENT_CHILDREN}) AND status IN ('PRESENT','LATE','present','late')`,
-      [parentUserId],
+      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE tenant_id = $1 AND student_id IN (${PARENT_CHILDREN}) AND status IN ('PRESENT','LATE','present','late')`,
+      params,
     );
     const total = await count(
       client,
-      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE student_id IN (${PARENT_CHILDREN})`,
-      [parentUserId],
+      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE tenant_id = $1 AND student_id IN (${PARENT_CHILDREN})`,
+      params,
     );
     attendancePercent = total > 0 ? Math.round((present / total) * 1000) / 10 : null;
   }
   const openInvoices = (await relationExists(client, 'parent_fee_invoices'))
     ? await count(
         client,
-        `SELECT COUNT(*)::int AS n FROM parent_fee_invoices WHERE status IN ('open','overdue') AND student_id IN (${PARENT_FEE_CHILDREN})`,
-        [parentUserId],
+        `SELECT COUNT(*)::int AS n FROM parent_fee_invoices WHERE tenant_id = $1 AND status IN ('open','overdue') AND student_id IN (${PARENT_FEE_CHILDREN})`,
+        params,
       )
     : 0;
   return { ...EMPTY_AGGREGATES, students, attendancePercent, openInvoices, linkedChildren };
@@ -394,7 +402,7 @@ export async function loadDashboardAggregates(
   try {
     return await withPgTenant(pool, tenantId, (client) =>
       scope.role === 'parent'
-        ? loadParentAggregates(client, scope.userId as string)
+        ? loadParentAggregates(client, tenantId, scope.userId as string)
         : loadTenantAggregates(client),
     );
   } catch (error: unknown) {
