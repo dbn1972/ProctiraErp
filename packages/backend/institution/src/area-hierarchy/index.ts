@@ -9,8 +9,19 @@ export {
   TenantScopedAreaHierarchyResolver,
   toAreaNodes,
   notifyAreaHierarchyChanged,
+  publishAreaHierarchyChanged,
   DEFAULT_AREA_HIERARCHY_TTL_MS,
 } from './area-hierarchy-resolver.js';
+export {
+  MemoryAreaHierarchyVersionStore,
+  RedisAreaHierarchyVersionStore,
+  configureAreaHierarchyVersionStore,
+  getAreaHierarchyVersionStore,
+} from './area-hierarchy-version.js';
+export type {
+  AreaHierarchyVersionStore,
+  RedisLikeForAreaHierarchyVersion,
+} from './area-hierarchy-version.js';
 export type {
   RegisterableArea,
   AreaHierarchyLoader,

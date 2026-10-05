@@ -1,6 +1,7 @@
 /**
  * /attendance/ops — regularisation and student leave (G-919).
  */
+import { toStudentOption } from '@/lib/load-entity-labels';
 import Link from 'next/link';
 
 import { ArrowLeft } from 'lucide-react';
@@ -9,7 +10,7 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { listLeaveRequests, listRegularisations } from '@/lib/api/attendance';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listStudents } from '@/lib/api/students';
-import { formatCodeNameLabel, formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
+import { formatCodeNameLabel, type EntityLabelOption } from '@/lib/entity-label';
 import { listAcademicPeriods, listClassesByInstitution } from '@/lib/institutions/api';
 
 import { AttendanceOpsForms } from '../_components/attendance-ops-forms';
@@ -45,11 +46,8 @@ async function loadAttendanceOpsLookups(): Promise<{
   //
   // The real fix is a server-side student search endpoint for this picker; until then
   // do not treat these options as exhaustive.
-  const studentOptions: EntityLabelOption[] = (studentsResult.data ?? []).map((student) => ({
-    id: student.id,
-    label: formatPersonLabel(student.firstName, student.lastName, student.nationalId),
-    searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
-  }));
+  // PRC-M156: labels never carry the national ID.
+  const studentOptions: EntityLabelOption[] = (studentsResult.data ?? []).map(toStudentOption);
   const studentTotal = studentsResult.meta?.totalItems ?? studentOptions.length;
   const studentOptionsTruncated = studentTotal > studentOptions.length;
 

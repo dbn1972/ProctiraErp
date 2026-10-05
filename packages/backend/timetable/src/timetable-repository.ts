@@ -118,33 +118,58 @@ export interface AttendancePeriodSlot {
   teacherStaffId: string | null;
 }
 
-export interface ListBellSchedulesFilter {
+/** PRC-M407: optional page window; omitted -> unbounded (internal callers only). */
+export interface ListPageFilter {
+  limit?: number;
+  offset?: number;
+}
+export interface ListBellSchedulesFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
 }
 
-export interface ListMeetingsFilter {
+export interface ListMeetingsFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
   staffId?: string;
   sectionId?: string;
+  /** PRC-M407: candidate-relevant clash scans (same weekday only). */
+  dayOfWeek?: number;
 }
 
-export interface ListSubstitutionsFilter {
+export interface ListSubstitutionsFilter extends ListPageFilter {
   institutionId?: string;
   fromDate?: string;
   toDate?: string;
+  /** Case-insensitive substitution status (scheduled / completed / cancelled). */
+  status?: string;
 }
 
-export interface ListSectionsFilter {
+export interface ListSectionsFilter extends ListPageFilter {
   institutionId?: string;
   academicPeriodId?: string;
   status?: SectionPublishStatus;
 }
 
-export interface ListRoomsFilter {
+export interface ListRoomsFilter extends ListPageFilter {
   institutionId?: string;
 }
+
+export interface EnrollWithinCapacityInput {
+  tenantId: string;
+  sectionId: string;
+  studentId: string;
+  /** Institution-local calendar date (YYYY-MM-DD). */
+  enrolledAt: string;
+  newId: string;
+  now: string;
+}
+
+export type EnrollWithinCapacityResult =
+  | { outcome: 'enrolled' | 'already_enrolled'; enrollment: SectionEnrollmentEntity }
+  | { outcome: 'section_missing' | 'student_missing' }
+  | { outcome: 'section_archived' }
+  | { outcome: 'full'; capacity: number; code: string };
 
 /** Thin optimistic concurrency: If-Match token is the entity `updatedAt` ISO string. */
 export interface UpdateConcurrencyOpts {
@@ -162,6 +187,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<BellScheduleEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<BellScheduleEntity | null>;
   deleteBellSchedule(tenantId: string, id: string): Promise<boolean>;
 
@@ -172,6 +198,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<PeriodEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<PeriodEntity | null>;
   deletePeriod(tenantId: string, id: string): Promise<boolean>;
 
@@ -197,6 +224,12 @@ export interface TimetableRepository {
     studentId: string,
   ): Promise<SectionEnrollmentEntity | null>;
   createEnrollment(row: SectionEnrollmentEntity): Promise<SectionEnrollmentEntity>;
+  /**
+   * PRC-M403: atomic capacity-checked enroll. Locks the section row, counts active
+   * enrollments and inserts/reactivates in one transaction, so concurrent enrolls at
+   * capacity-1 yield exactly one success.
+   */
+  enrollWithinCapacity(input: EnrollWithinCapacityInput): Promise<EnrollWithinCapacityResult>;
   updateEnrollment(
     tenantId: string,
     id: string,

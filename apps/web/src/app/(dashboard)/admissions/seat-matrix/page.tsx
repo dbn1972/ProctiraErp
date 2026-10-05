@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { listSeatMatrix } from '@/lib/api/admissions';
 import { loadAdmissionsLookups, pickSelectedLookup } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
@@ -11,7 +12,7 @@ interface PageProps {
 
 export default async function AdmissionsSeatMatrixPage(props: PageProps) {
   const searchParams = (await props.searchParams) ?? {};
-  const { institutions, periods, grades } = await loadAdmissionsLookups();
+  const { institutions, periods, grades, errors } = await loadAdmissionsLookups();
   // PRC-M070: the matrix reflects the selected institution, not always [0].
   const institutionId = pickSelectedLookup(institutions, searchParams['institutionId']);
   const rows = await listSeatMatrix(institutionId ? { institutionId } : undefined);
@@ -25,6 +26,7 @@ export default async function AdmissionsSeatMatrixPage(props: PageProps) {
           come from accepted offers on the same category key.
         </p>
       </div>
+      <LookupLoadError failed={errors} />
       <AdmissionsChrome current="/admissions/seat-matrix">
         {institutions.length > 1 ? (
           <form

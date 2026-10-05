@@ -307,8 +307,9 @@ export class HostelService {
     if (Number.isNaN(expectedOutAt.getTime()) || Number.isNaN(expectedInAt.getTime())) {
       throw new BusinessRuleError('expectedOutAt and expectedInAt must be valid timestamps');
     }
-    if (expectedInAt.getTime() < expectedOutAt.getTime()) {
-      throw new BusinessRuleError('expectedInAt must be on or after expectedOutAt');
+    // PRC-M478: the return must be strictly after the departure.
+    if (expectedInAt.getTime() <= expectedOutAt.getTime()) {
+      throw new BusinessRuleError('expectedInAt must be after expectedOutAt');
     }
     return this.repository.createGatePass({
       id: uuidv4(),

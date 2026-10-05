@@ -4,7 +4,7 @@
  */
 import { ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
 import { GradebookSchemaMissingError } from './gradebook-errors.js';
@@ -671,8 +671,8 @@ export class PgGradebookRepository implements GradebookRepository {
           row.issuedBy,
           row.artifactUri,
           row.checksumSha256,
-          row.signatureHmac
-            ?? (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
+          row.signatureHmac ??
+            (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
           JSON.stringify(row.metadata ?? {}),
           row.createdAt,
           row.updatedAt,
@@ -758,6 +758,27 @@ export class PgGradebookRepository implements GradebookRepository {
     });
   }
 
+  claimExportJob(tenantId: string, id: string, startedAt: string, staleBefore: string) {
+    return withSchemaCheck(async () => {
+      // PRC-M270: single conditional UPDATE is the claim; concurrent callers race on the row lock
+      // and only one sees a matching predicate.
+      const res = await this.query(
+        tenantId,
+        `UPDATE board_export_jobs SET
+           status = 'RUNNING'::export_job_status,
+           started_at = $3,
+           updated_at = $3
+         WHERE tenant_id = $1 AND id = $2
+           AND (status = 'QUEUED'::export_job_status
+                OR (status = 'RUNNING'::export_job_status
+                    AND (started_at IS NULL OR started_at < $4)))
+         RETURNING *`,
+        [tenantId, id, startedAt, staleBefore],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapJob(row) : null;
+    });
+  }
   listExportJobs(tenantId: string, jobType?: string) {
     return withSchemaCheck(async () => {
       const params: unknown[] = [tenantId];

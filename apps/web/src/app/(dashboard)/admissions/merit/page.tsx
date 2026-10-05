@@ -1,3 +1,4 @@
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import { getMeritList, listApplications } from '@/lib/api/admissions';
 import { loadAdmissionsLookups, pickSelectedLookup } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
@@ -11,7 +12,7 @@ interface PageProps {
 
 export default async function AdmissionsMeritPage(props: PageProps) {
   const searchParams = (await props.searchParams) ?? {};
-  const [{ institutions, periods, grades }, applications] = await Promise.all([
+  const [{ institutions, periods, grades, errors }, applications] = await Promise.all([
     loadAdmissionsLookups(),
     listApplications(),
   ]);
@@ -38,6 +39,7 @@ export default async function AdmissionsMeritPage(props: PageProps) {
           weights.
         </p>
       </div>
+      <LookupLoadError failed={errors} />
       <AdmissionsChrome current="/admissions/merit">
         <MeritPanel
           institutions={institutions}

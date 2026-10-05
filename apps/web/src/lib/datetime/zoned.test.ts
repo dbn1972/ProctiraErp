@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInTimeZone, zonedLocalToUtcIso } from './zoned';
+import { formatDateTimeWithZone, formatInTimeZone, zonedLocalToUtcIso } from './zoned';
 import { createInterviewSlotFormSchema } from '../admissions/validation';
 
 describe('zonedLocalToUtcIso (PRC-L233)', () => {
@@ -31,6 +31,18 @@ describe('zonedLocalToUtcIso (PRC-L233)', () => {
     });
     expect(out).toContain('10:00');
     expect(formatInTimeZone('garbage', 'UTC')).toBe('—');
+  });
+
+  it('formats date, time and zone name without throwing (gate passes)', () => {
+    const iso = '2026-06-01T04:30:00.000Z';
+    expect(() => formatDateTimeWithZone(iso, 'Asia/Kolkata')).not.toThrow();
+    const out = formatDateTimeWithZone(iso, 'Asia/Kolkata');
+    expect(out).toMatch(/2026/);
+    expect(out).toMatch(/10:00/);
+    expect(out).toMatch(/IST|GMT\+5:30/);
+    expect(() => formatDateTimeWithZone(iso, null)).not.toThrow();
+    expect(formatDateTimeWithZone(iso, 'Not/AZone')).toMatch(/UTC/);
+    expect(formatDateTimeWithZone('garbage', 'UTC')).toBe('—');
   });
 });
 

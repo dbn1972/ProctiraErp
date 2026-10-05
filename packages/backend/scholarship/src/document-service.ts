@@ -15,6 +15,7 @@ import type { ScholarshipDocumentBlobStore } from './document-blob-store.js';
 import {
   assertDocumentBytes,
   sanitizeFilename,
+  type ScholarshipDocumentDownloadAuditEvent,
   sha256Hex,
   signDocumentDownloadToken,
 } from './document-bytes.js';
@@ -294,6 +295,8 @@ export class ScholarshipDocumentService {
     applicationId: string | null;
     documentId: string | null;
     purpose?: string;
+    /** Extra non-sensitive context (request id, jti, user agent). */
+    details?: Record<string, unknown>;
   }): Promise<void> {
     await this.deps.documents.recordAccess({
       tenantId: input.tenantId,
@@ -304,10 +307,42 @@ export class ScholarshipDocumentService {
       userName: input.actor.userName,
       ipAddress: input.actor.ipAddress,
       metadata: {
+        ...input.details,
         action: input.action,
         applicationId: input.applicationId,
         documentId: input.documentId,
         purpose: input.purpose ?? 'scholarship_review',
+      },
+    });
+  }
+
+  /**
+   * PRC-L344 + PRC-M353: the single durable access record for a redeemed download link. It is
+   * the same hash-chained access log as list/link/content, carrying the link's jti and the
+   * presenting session so a replay investigation can tie the row to one token. Throws when the
+   * row cannot be written; the caller must then refuse to serve the bytes.
+   */
+  async recordTokenDownload(
+    event: ScholarshipDocumentDownloadAuditEvent,
+    context: { applicationId: string; userName: string },
+  ): Promise<void> {
+    await this.recordAccess({
+      tenantId: event.tenantId,
+      actor: {
+        userId: event.userId || event.sessionUserId || 'download-link',
+        userName: context.userName,
+        ipAddress: event.ipAddress,
+      },
+      action: 'token_download',
+      applicationId: context.applicationId,
+      documentId: event.documentId,
+      details: {
+        event: 'scholarship.document.downloaded',
+        jti: event.jti,
+        linkUserId: event.userId,
+        sessionUserId: event.sessionUserId,
+        userAgent: event.userAgent,
+        requestId: event.requestId,
       },
     });
   }
