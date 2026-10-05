@@ -78,6 +78,28 @@ function maskStudentPii<T extends { nationalId: string | null; identityDocuments
 }
 
 /**
+ * PRC-L365: strong entity tag derived from the row's `updatedAt`.
+ */
+export function studentEtag(updatedAt: Date): string {
+  return `"${updatedAt.toISOString()}"`;
+}
+/**
+ * PRC-L365: parse an If-Match precondition. Accepts the ETag we emit
+ * (`"<ISO updatedAt>"`, optionally weak `W/`), or a bare ISO timestamp.
+ * `*` / absent ⇒ no precondition. Anything else ⇒ 'invalid' (400).
+ */
+export function parseIfMatch(header: string | string[] | undefined): Date | undefined | 'invalid' {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === '*') return undefined;
+  if (trimmed.includes(',')) return 'invalid';
+  const unquoted = trimmed.replace(/^W\//, '').replace(/^"(.*)"$/, '$1');
+  if (!/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/.test(unquoted)) return 'invalid';
+  const parsed = new Date(unquoted);
+  return Number.isNaN(parsed.getTime()) ? 'invalid' : parsed;
+}
+/**
  * Formats a student entity to the API response shape.
  */
 function formatStudentResponse(entity: {
@@ -254,13 +276,25 @@ export async function registerStudentRoutes(
         });
       }
 
+      const expectedUpdatedAt = parseIfMatch(request.headers['if-match']);
+      if (expectedUpdatedAt === 'invalid') {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'If-Match must be the student ETag returned by a prior read',
+          statusCode: 400,
+          errors: [{ field: 'If-Match', message: 'malformed precondition', rule: 'format' }],
+        });
+      }
       try {
         assertStudentWriteAccess(getRoles(request), 'student.update');
+        // PRC-L365: optional optimistic-concurrency precondition (409 on stale).
         const student = await studentService.update(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
+          expectedUpdatedAt ? { expectedUpdatedAt } : {},
         );
+        reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(formatStudentResponse(student));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -435,6 +469,7 @@ export async function registerStudentRoutes(
           });
         }
         const student = await studentService.getById(tenantId, paramsResult.data.id);
+        reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(maskStudentPii(formatStudentResponse(student), roles));
       } catch (error: unknown) {
         if (error instanceof AppError) {

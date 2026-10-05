@@ -170,3 +170,70 @@ describe('PRC-L318 rollover idempotency', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 });
+/** PRC-L318: claim-first ledger fake honouring the single-statement claim semantics. */
+function claimLedger() {
+  const rows = new Map<string, { id: string; status: string; summary: RolloverSummary | null }>();
+  let seq = 0;
+  const extras: RolloverExtras = {
+    claimRolloverRun: vi.fn(async ({ tenantId, idempotencyKey }) => {
+      const key = `${tenantId}|${idempotencyKey}`;
+      const row = rows.get(key);
+      if (!row || row.status === 'failed') {
+        const id = row?.id ?? `run-${++seq}`;
+        rows.set(key, { id, status: 'running', summary: null });
+        return { state: 'claimed' as const, runId: id };
+      }
+      return row.status === 'completed' && row.summary
+        ? { state: 'completed' as const, summary: structuredClone(row.summary) }
+        : { state: 'running' as const };
+    }),
+    finishRolloverRun: vi.fn(async ({ runId, status, summary }) => {
+      for (const row of rows.values()) {
+        if (row.id === runId) {
+          row.status = status;
+          if (summary) row.summary = structuredClone(summary);
+        }
+      }
+    }),
+    recordRolloverRun: vi.fn(async () => undefined),
+  };
+  return { rows, extras };
+}
+describe('PRC-L318 claim-first ledger', () => {
+  const dto = { targetPeriodId: 'tgt', dryRun: false, idempotencyKey: 'concurrent-key-01' };
+  it('concurrent same-key requests: exactly one executes, the other gets 409 in-progress', async () => {
+    const { rows, extras } = claimLedger();
+    const { service, prisma } = build(extras);
+    const results = await Promise.allSettled([
+      service.rollover('t1', 'src', dto, 'user-1'),
+      service.rollover('t1', 'src', dto, 'user-2'),
+    ]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    expect(ok).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.reason).toMatchObject({ statusCode: 409 });
+    expect(prisma.class.create).toHaveBeenCalledTimes(1);
+    expect([...rows.values()].map((r) => r.status)).toEqual(['completed']);
+    // claimed real runs never go through the legacy post-hoc insert
+    expect(extras.recordRolloverRun).not.toHaveBeenCalled();
+  });
+  it('a replay after completion returns the stored summary without re-executing', async () => {
+    const { extras } = claimLedger();
+    const { service, prisma } = build(extras);
+    const first = await service.rollover('t1', 'src', dto, 'user-1');
+    const again = await service.rollover('t1', 'src', dto, 'user-1');
+    expect(again).toEqual(first);
+    expect(prisma.class.create).toHaveBeenCalledTimes(1);
+  });
+  it('a failed run is marked failed and the key can be re-claimed', async () => {
+    const { rows, extras } = claimLedger();
+    const { service, prisma } = build(extras);
+    prisma.class.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(service.rollover('t1', 'src', dto, 'user-1')).rejects.toThrow('db down');
+    expect([...rows.values()][0]!.status).toBe('failed');
+    const retry = await service.rollover('t1', 'src', dto, 'user-1');
+    expect(retry.classes.created).toBe(1);
+    expect([...rows.values()][0]!.status).toBe('completed');
+  });
+});

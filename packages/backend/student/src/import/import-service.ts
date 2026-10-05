@@ -157,7 +157,7 @@ export class ImportService {
 
       // PRC-H092: record `queued` before enqueue so a fast consumer's
       // processing/completed progress is never overwritten back to `queued`.
-      await this.queue.updateProgress(jobId, progress);
+      await this.queue.updateProgress(tenantId, jobId, progress);
       await this.queue.enqueue(tenantId, jobId, fileBuffer, options);
 
       return progress;
@@ -336,8 +336,8 @@ export class ImportService {
   /**
    * Get the progress of an async import job.
    */
-  async getImportProgress(jobId: string): Promise<ImportProgress | null> {
-    return this.queue.getProgress(jobId);
+  async getImportProgress(tenantId: string, jobId: string): Promise<ImportProgress | null> {
+    return this.queue.getProgress(tenantId, jobId);
   }
 
   /**
@@ -353,7 +353,7 @@ export class ImportService {
     fileBuffer: Buffer,
     options: ImportOptions,
   ): Promise<ImportResult> {
-    await this.queue.updateProgress(jobId, {
+    await this.queue.updateProgress(tenantId, jobId, {
       jobId,
       status: 'processing',
       totalRows: 0,
@@ -367,7 +367,7 @@ export class ImportService {
       parseResult = await parseExcelBuffer(fileBuffer);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Excel parse failed';
-      await this.queue.updateProgress(jobId, {
+      await this.queue.updateProgress(tenantId, jobId, {
         status: 'failed',
         progressPercent: 100,
         errorMessage: message,
@@ -404,7 +404,7 @@ export class ImportService {
         })),
         duplicates: [],
       };
-      await this.queue.updateProgress(jobId, {
+      await this.queue.updateProgress(tenantId, jobId, {
         status: 'failed',
         progressPercent: 100,
         completedAt: new Date().toISOString(),
@@ -412,14 +412,14 @@ export class ImportService {
       return failed;
     }
 
-    await this.queue.updateProgress(jobId, {
+    await this.queue.updateProgress(tenantId, jobId, {
       totalRows: parseResult.rows.length,
       progressPercent: 10,
     });
 
     const result = await this.processRows(tenantId, parseResult.rows, options);
 
-    await this.queue.updateProgress(jobId, {
+    await this.queue.updateProgress(tenantId, jobId, {
       status: 'completed',
       processedRows: result.totalRows,
       progressPercent: 100,

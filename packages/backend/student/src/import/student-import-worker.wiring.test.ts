@@ -55,7 +55,7 @@ async function buildApp(durable: boolean) {
 async function waitForTerminal(app: FastifyInstance, jobId: string, timeoutMs = 20000) {
   const started = Date.now();
   for (;;) {
-    const progress = await app.studentImportService!.getImportProgress(jobId);
+    const progress = await app.studentImportService!.getImportProgress(TENANT_ID, jobId);
     if (
       (progress && (progress.status === 'completed' || progress.status === 'failed')) ||
       Date.now() - started > timeoutMs
