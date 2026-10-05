@@ -13,6 +13,8 @@
  * not change.
  */
 
+import { useOptionalAuthScope } from '@/providers/AuthProvider';
+import { DashboardLoadError } from '../DashboardLoadError';
 import {
   Briefcase,
   Calendar,
@@ -221,7 +223,11 @@ function DistrictRankingCard({ ranking, loading }: DistrictRankingCardProps) {
 export default function StateDashboard() {
   const navigate = useNavigate();
   const params = useParams<{ stateCode?: string }>();
-  const { data, isLoading } = useStateDashboardData(params.stateCode);
+  // PRC-M578: route param, else the state-level user's own area.
+  const scope = useOptionalAuthScope();
+  const { data, isLoading, error } = useStateDashboardData(
+    params.stateCode ?? (scope?.level === 'state' ? scope.area_id : undefined),
+  );
 
   const kpis = data?.kpis ?? [];
   const boards = data?.boards ?? [];
@@ -233,6 +239,9 @@ export default function StateDashboard() {
 
   const handleDistrictClick = (district: DistrictRow) =>
     navigate(`/app/dashboard/state/${stateCode}/district/${district.id}`);
+
+  // PRC-M577: render the real failure instead of sample data.
+  if (error) return <DashboardLoadError title="State Dashboard" error={error} />;
 
   return (
     <div className="space-y-6 p-6" data-testid="state-dashboard">

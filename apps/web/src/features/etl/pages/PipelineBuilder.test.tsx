@@ -93,9 +93,7 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
     expect(container.innerHTML).toContain('etl@db.internal:5432/src');
 
     fireEvent.submit(source.closest('form')!);
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('/etl/pipelines/p1', expect.anything()),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/pipelines/p1', expect.anything()));
     const putCall = fetchMock.mock.calls.find((c) => c[1]?.method === 'PUT')!;
     const json = putCall[1].json as {
       source: Record<string, unknown>;
@@ -143,9 +141,7 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       ),
     );
     fireEvent.submit(screen.getByLabelText('Source connection string').closest('form')!);
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('/etl/pipelines/p2', expect.anything()),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/pipelines/p2', expect.anything()));
     const putCall = fetchMock.mock.calls.find((c) => c[1]?.method === 'PUT')!;
     const json = putCall[1].json as {
       source: Record<string, unknown>;

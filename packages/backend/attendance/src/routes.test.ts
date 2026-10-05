@@ -121,6 +121,16 @@ describe('Attendance Routes', () => {
 
   describe('POST /attendance/student/bulk', () => {
     it('should record bulk attendance and return 201', async () => {
+      // PRC-M574: bulk records must belong to the class roster.
+      for (const id of [STUDENT_ID, '88888888-8888-4888-8888-888888888888']) {
+        repository.addRosterEntry({
+          studentId: id,
+          studentName: id,
+          enrollmentId: `enr-${id}`,
+          classId: CLASS_ID,
+          gradeId: 'grade-001',
+        });
+      }
       const response = await app.inject({
         method: 'POST',
         url: '/attendance/student/bulk',

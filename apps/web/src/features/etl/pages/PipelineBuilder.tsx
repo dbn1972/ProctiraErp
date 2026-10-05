@@ -9,9 +9,9 @@
  *   - Retry policy configuration
  *
  * Wired to the ETL Service API (Task 60A.6 / Task 23):
- *   - GET /api/v1/etl/pipelines/:id (load existing)
- *   - POST /api/v1/etl/pipelines (create)
- *   - PUT /api/v1/etl/pipelines/:id (update)
+ *   - GET /api/v1/pipelines/:id (load existing)
+ *   - POST /api/v1/pipelines (create)
+ *   - PUT /api/v1/pipelines/:id (update)
  *
  * Requirements: 14.1, 14.2, 14.4, 14.5, 14.6
  */
@@ -28,6 +28,7 @@ import {
   toApiConnector,
   type SavedConnectorTarget,
 } from '../connector-config';
+import { etlPaths } from '../etl-api-paths';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -199,7 +200,7 @@ export default function PipelineBuilder() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await browserGatewayFetch<PipelineResponse>(`/etl/pipelines/${pipelineId}`);
+      const result = await browserGatewayFetch<PipelineResponse>(etlPaths.pipeline(pipelineId));
 
       // Determine schedule preset from cron
       let schedulePreset: SchedulePreset = 'custom';
@@ -361,13 +362,13 @@ export default function PipelineBuilder() {
     };
 
     try {
-      if (isEditing) {
-        await browserGatewayFetch(`/etl/pipelines/${pipelineId}`, {
+      if (isEditing && pipelineId) {
+        await browserGatewayFetch(etlPaths.pipeline(pipelineId), {
           method: 'PUT',
           json: payload,
         });
       } else {
-        await browserGatewayFetch('/etl/pipelines', {
+        await browserGatewayFetch(etlPaths.pipelines(), {
           method: 'POST',
           json: payload,
         });
