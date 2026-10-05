@@ -11,13 +11,16 @@
  * **Validates: Requirements 9.4**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { AttendanceStatus } from '@proctira/common';
 
 import { AttendanceService } from './attendance-service.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
 import type { StudentAttendanceEntity } from './attendance-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Constants ---
 

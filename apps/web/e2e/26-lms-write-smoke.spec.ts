@@ -11,6 +11,8 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** Server Action + route refresh can exceed 15s on loaded CI runners (fits the 90s CI test timeout). */
+const UI_WRITE_TIMEOUT = 30_000;
 const GATEWAY_URL =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
@@ -180,7 +182,8 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
       await expect(lifecycle).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /^publish$/i }).click();
-    await expect(page.getByText(/^published$/i).first()).toBeVisible({ timeout: 15_000 });
+    // The publish Server Action plus route refresh exceeded 15s on a loaded CI runner.
+    await expect(page.getByText(/^published$/i).first()).toBeVisible({ timeout: UI_WRITE_TIMEOUT });
 
     await expect(async () => {
       await expect(lifecycle).toHaveCount(1, { timeout: 2_000 });
@@ -188,7 +191,7 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
     }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /^close$/i }).click();
     await page.getByRole('button', { name: /close now/i }).click();
-    await expect(page.getByText(/^closed$/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/^closed$/i).first()).toBeVisible({ timeout: UI_WRITE_TIMEOUT });
   });
 
   test('learner submits a quiz → auto-graded → teacher sees the score', async ({

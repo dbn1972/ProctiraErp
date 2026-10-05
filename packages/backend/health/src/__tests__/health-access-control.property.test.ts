@@ -6,11 +6,14 @@
  * School-bound health roles additionally require institution scope
  * (W1-SEC-04 COMPLETE — deny on missing scope).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { hasHealthAccess } from '../health-service.js';
 import type { HealthAccessContext } from '../health-service.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 /** Roles that are NOT authorized for health access */
 const UNAUTHORIZED_ROLES = [

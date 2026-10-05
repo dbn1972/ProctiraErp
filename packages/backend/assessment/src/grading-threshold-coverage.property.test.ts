@@ -4,7 +4,7 @@
  */
 import { BusinessRuleError } from '@proctira/common';
 import fc from 'fast-check';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssessmentService } from './assessment-service.js';
 import {
   InMemoryAssessmentItemRepository,
@@ -12,6 +12,9 @@ import {
   InMemoryOutcomeRepository,
 } from './in-memory-repository.js';
 import { assignGradeForScore } from './result-service.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const tenantId = 'tenant-h114';
 
