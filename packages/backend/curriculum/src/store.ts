@@ -68,6 +68,7 @@ export interface CurriculumStore {
 
   createLessonPlan(row: LessonPlanRecord): Promise<LessonPlanRecord>;
   listLessonPlans(tenantId: string, unitId: string): Promise<LessonPlanRecord[]>;
+  getLessonPlan(tenantId: string, id: string): Promise<LessonPlanRecord | null>;
   listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]>;
   updateLessonPlan(
     tenantId: string,
@@ -135,6 +136,10 @@ export class InMemoryCurriculumStore implements CurriculumStore {
     return this.listLessonPlansForUnits(tenantId, [unitId]);
   }
 
+  async getLessonPlan(tenantId: string, id: string): Promise<LessonPlanRecord | null> {
+    const row = this.plans.get(id);
+    return row && row.tenantId === tenantId ? { ...row } : null;
+  }
   async listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]> {
     const set = new Set(unitIds);
     return [...this.plans.values()]
@@ -407,6 +412,15 @@ export class PgCurriculumStore implements CurriculumStore {
     return this.listLessonPlansForUnits(tenantId, [unitId]);
   }
 
+  async getLessonPlan(tenantId: string, id: string): Promise<LessonPlanRecord | null> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM lesson_plans WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+        [tenantId, id],
+      );
+      return rows[0] ? mapPlan(rows[0] as Record<string, unknown>) : null;
+    });
+  }
   async listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]> {
     if (unitIds.length === 0) return [];
     return this.run(tenantId, async (client) => {

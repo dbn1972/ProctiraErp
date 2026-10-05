@@ -46,3 +46,16 @@ describe('entity-label', () => {
     expect(directoryLabel('x', new Map([['x', '  ']]), 'Unknown route')).toBe('Unknown route');
   });
 });
+
+describe('personDisplayName (PRC-M088)', () => {
+  it('prefers the directory label and never shows id fragments', async () => {
+    const { personDisplayName } = await import('./entity-label');
+    expect(personDisplayName('Asha Rao', 'ignored', 'Unknown student')).toBe('Asha Rao');
+    expect(personDisplayName(undefined, '3f2b8c1e', 'Unknown student')).toBe('Unknown student');
+    expect(
+      personDisplayName(undefined, '3f2b8c1e-4a5d-4e6f-8a7b-9c0d1e2f3a4b', 'Unknown student'),
+    ).toBe('Unknown student');
+    expect(personDisplayName(undefined, '', 'Unknown student')).toBe('Unknown student');
+    expect(personDisplayName(undefined, 'Priya Nair', 'Unknown student')).toBe('Priya Nair');
+  });
+});

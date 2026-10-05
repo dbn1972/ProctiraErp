@@ -44,6 +44,34 @@ describe('If-Match enforcement (PRC-M404)', () => {
     },
   );
 
+  it('is enforced when the plugin is mounted under a gateway prefix (/api/v1)', async () => {
+    const mounted = Fastify({ logger: false });
+    mounted.addHook('onRequest', async (request) => {
+      (request as FastifyRequest & { tenantId?: string }).tenantId = TENANT;
+      (request as FastifyRequest & { user: { id: string; roles: string[] } }).user = {
+        id: 'actor-1',
+        roles: ['admin'],
+      };
+    });
+    await mounted.register(
+      async (scope) => {
+        await scope.register(timetablePlugin, {
+          repository: new InMemoryTimetableRepository(),
+          prefix: '/timetable',
+        });
+      },
+      { prefix: '/api/v1' },
+    );
+    await mounted.ready();
+    const res = await mounted.inject({
+      method: 'PUT',
+      url: `/api/v1/timetable/sections/${ANY}`,
+      payload: { name: 'x' },
+    });
+    expect(res.statusCode).toBe(428);
+    await mounted.close();
+  });
+
   it('stale If-Match on a bell schedule returns 409; fresh ETag succeeds', async () => {
     const created = await app.inject({
       method: 'POST',

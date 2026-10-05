@@ -11,15 +11,20 @@ export function PersonMultiSelect({
   name,
   label,
   options,
+  totalAvailable,
 }: {
   id: string;
   name: string;
   label: string;
   options: EntityLabelOption[];
+  /** Directory size when `options` is a capped first page (PRC-M083). */
+  totalAvailable?: number;
 }) {
   const [ids, setIds] = useState<string[]>([]);
   const [pendingId, setPendingId] = useState('');
-  const labels = toLabelMap(options);
+  // Labels for people found through server-side search (PRC-M083).
+  const [picked, setPicked] = useState<EntityLabelOption[]>([]);
+  const labels = toLabelMap([...options, ...picked]);
   const remaining = options.filter((option) => !ids.includes(option.id));
 
   function addPending() {
@@ -64,6 +69,15 @@ export function PersonMultiSelect({
         label={label}
         options={remaining}
         onValueChange={setPendingId}
+        remoteSearch="person"
+        totalAvailable={totalAvailable}
+        onOptionSelected={(option) => {
+          if (option && !options.some((o) => o.id === option.id)) {
+            setPicked((current) =>
+              current.some((o) => o.id === option.id) ? current : [...current, option],
+            );
+          }
+        }}
         emptyMessage="No students or staff are available to address. The directory did not load."
       />
       <Button

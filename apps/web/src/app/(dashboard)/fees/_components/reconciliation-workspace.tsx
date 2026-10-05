@@ -20,6 +20,12 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { DEFAULT_FEE_CURRENCY, formatAmount } from './format-amount';
 import { importReconciliationAction, resolveReconExceptionAction } from '@/lib/fees/actions';
 import type { FeeReconciliationBatch, FeeReconciliationRow } from '@/lib/api/fees';
+import {
+  MAX_RECON_BYTES,
+  validateReconciliationCsv,
+  type ReconAmountUnit,
+  type ReconCsvIssue,
+} from '@/lib/fees/reconciliation-csv';
 
 export function ReconciliationWorkspace({
   batches,
@@ -40,6 +46,27 @@ export function ReconciliationWorkspace({
   const [rows, setRows] = useState(initialRows);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolvePendingId, setResolvePendingId] = useState<string | null>(null);
+  // PRC-M092: file/paste input, amount unit and a row-level pre-check.
+  const [csvText, setCsvText] = useState('');
+  const [unit, setUnit] = useState<ReconAmountUnit>('paise');
+  const [issues, setIssues] = useState<ReconCsvIssue[]>([]);
+
+  async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setIssues([]);
+    if (!file) return;
+    if (file.size > MAX_RECON_BYTES) {
+      setIssues([
+        {
+          line: 0,
+          message: `File is too large (${Math.ceil(file.size / 1024)} KB; limit ${Math.round(MAX_RECON_BYTES / 1024)} KB). Split it into smaller files.`,
+        },
+      ]);
+      event.target.value = '';
+      return;
+    }
+    setCsvText(await file.text());
+  }
 
   useEffect(() => {
     setSelectedBatchId(initialBatchId);
@@ -58,13 +85,17 @@ export function ReconciliationWorkspace({
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const filename = String(fd.get('filename') ?? '').trim() || 'staff-import.csv';
+    const check = validateReconciliationCsv(csvText, unit);
+    setIssues(check.issues);
+    if (!check.ok) {
+      setError(null);
+      setSummary(null);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       setSummary(null);
-      const result = await importReconciliationAction({
-        csv: String(fd.get('csv') ?? ''),
-        filename,
-      });
+      const result = await importReconciliationAction({ csv: csvText, filename, unit });
       if (!result.success) {
         setError(result.error);
         return;
@@ -111,8 +142,10 @@ export function ReconciliationWorkspace({
         <CardHeader>
           <CardTitle className="text-base">Import bank / PSP CSV</CardTitle>
           <CardDescription>
-            Columns: <code className="text-xs">invoiceNumber,amountCents</code>. Creates a batch
-            with match and exception rows plus an import audit (who / when).
+            Header <code className="text-xs">invoiceNumber,amountCents</code> (paise) or{' '}
+            <code className="text-xs">invoiceNumber,amount</code> (rupees, up to 2 decimals). Up to{' '}
+            {Math.round(MAX_RECON_BYTES / 1024)} KB. The file is checked before a batch is created;
+            an import audit (who / when) is recorded.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -132,15 +165,75 @@ export function ReconciliationWorkspace({
                 autoComplete="off"
               />
             </FormField>
-            <FormField id="recon-csv" label="CSV" required>
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Amounts are in</legend>
+              <div className="flex flex-wrap gap-4">
+                {(
+                  [
+                    ['paise', 'Paise (whole numbers)'],
+                    ['rupees', 'Rupees (e.g. 5000.50)'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label key={value} className="flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="unit"
+                      value={value}
+                      checked={unit === value}
+                      onChange={() => setUnit(value)}
+                      disabled={!hydrated || pending}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <FormField id="recon-file" label="CSV file">
+              <Input
+                id="recon-file"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={onFile}
+                disabled={!hydrated || pending}
+              />
+            </FormField>
+            <FormField id="recon-csv" label="Or paste CSV" required>
               <Textarea
                 id="recon-csv"
                 name="csv"
                 rows={6}
                 required
+                value={csvText}
+                onChange={(e) => {
+                  setCsvText(e.target.value);
+                  setIssues([]);
+                }}
                 disabled={!hydrated || pending}
               />
             </FormField>
+            {issues.length > 0 ? (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm"
+                data-testid="recon-issues"
+              >
+                <p className="font-medium text-destructive">
+                  Fix {issues.length === 1 ? 'this problem' : `these ${issues.length} problems`}{' '}
+                  before importing. No batch was created.
+                </p>
+                <ul className="mt-1 list-disc ps-5">
+                  {issues.slice(0, 10).map((issue, i) => (
+                    <li key={`${issue.line}-${i}`}>
+                      {issue.line > 0 ? `Line ${issue.line}: ` : ''}
+                      {issue.message}
+                    </li>
+                  ))}
+                </ul>
+                {issues.length > 10 ? (
+                  <p className="mt-1 text-xs">…and {issues.length - 10} more.</p>
+                ) : null}
+              </div>
+            ) : null}
             {error ? (
               <p className="text-sm text-destructive" role="alert">
                 {error}

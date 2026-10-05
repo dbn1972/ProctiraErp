@@ -68,6 +68,8 @@ export interface ExamOpsPanelProps {
   staffLabels?: Record<string, string>;
   candidateLabels?: Record<string, string>;
   staffOptions?: EntityLabelOption[];
+  /** Staff directory size when `staffOptions` is a capped page (PRC-M083). */
+  staffTotal?: number;
   candidateOptions?: EntityLabelOption[];
 }
 
@@ -81,6 +83,7 @@ export function ExamOpsPanel({
   staffLabels = {},
   candidateLabels = {},
   staffOptions = [],
+  staffTotal,
   candidateOptions = [],
 }: ExamOpsPanelProps) {
   const router = useRouter();
@@ -236,6 +239,8 @@ export function ExamOpsPanel({
                           name="staffId"
                           label={`Staff for session ${session.roomId}`}
                           options={staffOptions}
+                          remoteSearch="staff"
+                          totalAvailable={staffTotal}
                           required
                           className="min-w-[12rem] space-y-1.5"
                         />
@@ -580,6 +585,8 @@ export function ExamOpsPanel({
                             name="evaluatorId"
                             label="Evaluator"
                             options={staffOptions}
+                            remoteSearch="staff"
+                            totalAvailable={staffTotal}
                             required
                             className="min-w-[12rem] space-y-1.5"
                           />
