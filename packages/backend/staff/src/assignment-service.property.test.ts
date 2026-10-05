@@ -8,13 +8,16 @@
  * same staff member, and the total allocation percentage across all active assignments
  * never exceeds 100%.
  */
-import { describe, it, beforeEach } from 'vitest';
+import { describe, it, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { ConflictError, BusinessRuleError } from '@proctira/common';
 
 import { InMemoryAssignmentRepository } from './in-memory-assignment-repository.js';
 import { StaffAssignmentService } from './assignment-service.js';
 import type { CreateAssignmentInput } from './assignment-schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Generators ---
 

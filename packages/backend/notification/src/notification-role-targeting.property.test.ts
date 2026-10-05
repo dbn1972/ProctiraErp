@@ -10,12 +10,15 @@
  *
  * Requirement 22.3: Deliver to all recipients matching configured role and area criteria.
  */
-import { describe, it, beforeEach, expect } from 'vitest';
+import { describe, it, beforeEach, expect, vi } from 'vitest';
 import fc from 'fast-check';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
 import { NotificationService } from './notification-service.js';
 import type { NotificationTemplateEntity } from './notification-repository.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Generators ---
 

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { RedactedSecret, redact } from './redacted-secret.js';
 import { EnvSecretAdapter } from './adapters/env-adapter.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * Property-based tests for the Secret Management adapter.

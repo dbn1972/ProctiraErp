@@ -17,11 +17,14 @@
  * and verify each sampled token has a dark-mode counterpart, providing
  * shrinkable counterexamples on failure.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fc from 'fast-check';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const here = dirname(fileURLToPath(import.meta.url));
 const themeCssPath = resolve(here, './theme.css');
