@@ -6,6 +6,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
+
 import type {
   TenantEntity,
   DomainEntity,
@@ -34,6 +35,13 @@ export class InMemoryTenantRepository implements TenantRepository {
   private readonly brandingDrafts = new Map<string, TenantBrandingDraftEntity>();
 
   // ─── Tenant CRUD ─────────────────────────────────────────────────────────
+
+  /** PRC-H099: rollback of a never-active tenant. */
+  async discardProvisioningTenant(id: string): Promise<boolean> {
+    const existing = await this.findTenantById(id);
+    if (!existing || existing.status !== 'provisioning') return false;
+    return this.deleteTenant(id);
+  }
 
   async createTenant(data: Omit<TenantEntity, 'createdAt' | 'updatedAt'>): Promise<TenantEntity> {
     const now = new Date();

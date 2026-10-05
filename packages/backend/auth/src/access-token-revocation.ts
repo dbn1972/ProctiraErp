@@ -7,6 +7,7 @@
  * across every gateway replica.
  */
 import { DEFAULT_ACCESS_TOKEN_EXPIRES } from '@proctira/auth';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 
 export type AccessTokenRevocationKind = 'jti' | 'sid';
 
@@ -27,8 +28,7 @@ export interface AccessTokenRevocationStore {
 export type AccessTokenRevocationFailure = 'revoked_jti' | 'revoked_sid' | 'store_unavailable';
 
 export type AccessTokenRevocationCheckResult =
-  | { ok: true }
-  | { ok: false; reason: AccessTokenRevocationFailure };
+  { ok: true } | { ok: false; reason: AccessTokenRevocationFailure };
 
 export interface AccessTokenClaimsForRevocation {
   jti?: string;
@@ -49,7 +49,7 @@ export interface AssertAccessTokenNotRevokedOptions {
 }
 
 function isProductionEnv(nodeEnv: string | undefined): boolean {
-  return (nodeEnv ?? process.env['NODE_ENV'] ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(nodeEnv ?? process.env['NODE_ENV']);
 }
 
 /**
@@ -190,8 +190,7 @@ export type AccessTokenRevocationStoreEnv = {
 };
 
 export type AccessTokenRevocationStoreDecision =
-  | { mode: 'redis'; reason: string }
-  | { mode: 'memory'; reason: string };
+  { mode: 'redis'; reason: string } | { mode: 'memory'; reason: string };
 
 /** True only for stores that explicitly guarantee cross-replica visibility. */
 export function isSharedAccessTokenRevocationStore(store: AccessTokenRevocationStore): boolean {

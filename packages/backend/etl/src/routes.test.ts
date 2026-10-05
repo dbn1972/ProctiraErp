@@ -264,6 +264,62 @@ describe('ETL Routes', () => {
 
   // PRC-H050: pipeline definitions carry connector credentials and execution error rows carry
   // source records. Only ETL/admin roles may touch pipelines; report-readers must not.
+  describe('etl.manage for connector config (PRC-H115)', () => {
+    const operator: TestRole[] = [
+      { roleId: 'etl_operator', roleName: 'ETL Operator', areaId: null },
+    ];
+    async function createAsEngineer() {
+      principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+      const res = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      expect(res.statusCode).toBe(201);
+      return JSON.parse(res.payload) as { id: string; destination: Record<string, unknown> };
+    }
+
+    it('manager sees redacted config; operator sees connector type only', async () => {
+      const created = await createAsEngineer();
+      expect(created.destination).toMatchObject({ host: 'localhost', password: '__REDACTED__' });
+      principalRoles = operator;
+      const one = await app.inject({ method: 'GET', url: `/pipelines/${created.id}` });
+      expect(one.statusCode).toBe(200);
+      expect(JSON.parse(one.payload).destination).toEqual({ type: 'postgresql' });
+      const list = await app.inject({ method: 'GET', url: '/pipelines' });
+      expect(JSON.parse(list.payload).data[0].destination).toEqual({ type: 'postgresql' });
+    });
+
+    it('operator cannot create or update pipelines (403)', async () => {
+      const created = await createAsEngineer();
+      principalRoles = operator;
+      const post = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      expect(post.statusCode).toBe(403);
+      const put = await app.inject({
+        method: 'PUT',
+        url: `/pipelines/${created.id}`,
+        payload: { name: 'x' },
+      });
+      expect(put.statusCode).toBe(403);
+    });
+
+    it('redacted password placeholder restores on an unchanged-target update', async () => {
+      const created = await createAsEngineer();
+      const put = await app.inject({
+        method: 'PUT',
+        url: `/pipelines/${created.id}`,
+        payload: { destination: { ...validPipelineBody.destination, password: '__REDACTED__' } },
+      });
+      expect(put.statusCode).toBe(200);
+      const stored = await etlService.getPipeline(tenantId, created.id);
+      expect((stored.destination as { password: string }).password).toBe('pass');
+    });
+  });
+
   describe('ETL access control (PRC-H050)', () => {
     const denied: TestRole[][] = [
       [{ roleId: 'parent', roleName: 'Parent', areaId: null }],

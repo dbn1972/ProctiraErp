@@ -9,6 +9,7 @@
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
+  withPlatformScope,
   type PgQueryable,
   type PgPool,
 } from '@proctira/database';
@@ -470,6 +471,18 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
         [tenantId, status],
       );
       return (res.rows as Row[]).map(mapJob);
+    });
+  }
+
+  /** PRC-H039: cross-tenant enumeration under platform scope (ids only). */
+  async listTenantIdsWithStatus(status: ReportCardJobStatus): Promise<string[]> {
+    await ensureReportCardSchema(this.pool);
+    return withPlatformScope(this.pool as PgQueryable, async (c) => {
+      const res = await c.query(
+        `SELECT DISTINCT tenant_id FROM report_card_jobs WHERE status = $1 ORDER BY tenant_id`,
+        [status],
+      );
+      return (res.rows as Row[]).map((r) => String(r.tenant_id));
     });
   }
 }

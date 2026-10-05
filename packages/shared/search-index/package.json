@@ -22,5 +22,8 @@
     "fast-check": "^4.10.1",
     "typescript": "^5.4.0",
     "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@proctira/common": "workspace:*"
   }
 }
