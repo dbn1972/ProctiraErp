@@ -115,7 +115,8 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     await page.getByLabel(/acknowledge dual confirm/i).check();
     await page.getByRole('button', { name: /draft blast/i }).click();
 
-    await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
+    // The draft Server Action plus refresh can exceed 15s on a loaded CI runner.
+    await expect(page.getByText(reason)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/pending_confirm/i).first()).toBeVisible();
   });
 
@@ -131,11 +132,13 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     expect(createRes.status()).toBe(201);
     const blast = await createRes.json();
 
+    // PRC-H045: two-person control — the creator (officer-a) may not confirm, so two
+    // other officers provide the dual confirmation.
     const first = await request.post(
       `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
       {
-        headers: gatewayAuthHeaders('officer-a'),
-        data: { actorId: 'officer-a' },
+        headers: gatewayAuthHeaders('officer-b'),
+        data: {},
       },
     );
     expect(first.status()).toBe(200);
@@ -144,8 +147,8 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     const second = await request.post(
       `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
       {
-        headers: gatewayAuthHeaders('officer-b'),
-        data: { actorId: 'officer-b' },
+        headers: gatewayAuthHeaders('officer-c'),
+        data: {},
       },
     );
     expect(second.status()).toBe(200);

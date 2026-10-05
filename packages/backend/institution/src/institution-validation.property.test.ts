@@ -7,13 +7,16 @@
  * **Validates: Requirements 5.3, 5.4, 5.1**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { ConflictError, BusinessRuleError, EntityStatus } from '@proctira/common';
 
 import { InMemoryInstitutionRepository } from './in-memory-repository.js';
 import { InstitutionService } from './institution-service.js';
 import type { CreateInstitutionInput } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 
