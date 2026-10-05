@@ -115,7 +115,8 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     await page.getByLabel(/acknowledge dual confirm/i).check();
     await page.getByRole('button', { name: /draft blast/i }).click();
 
-    await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
+    // The draft Server Action plus refresh can exceed 15s on a loaded CI runner.
+    await expect(page.getByText(reason)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/pending_confirm/i).first()).toBeVisible();
   });
 
