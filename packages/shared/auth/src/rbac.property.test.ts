@@ -159,7 +159,9 @@ const resourceArb: fc.Arbitrary<string> = fc.constantFrom(
 
 // --- Property 3: RBAC Area-Scoped Access Control ---
 
-describe('Property 3: RBAC Area-Scoped Access Control', () => {
+// 200-run property tests take ~0.5s locally but exceeded the 5s default on a
+// loaded CI runner (turbo runs packages in parallel); assertions are unchanged.
+describe('Property 3: RBAC Area-Scoped Access Control', { timeout: 30_000 }, () => {
   // **Validates: Requirements 4.4, 17.5**
 
   it('a user with a role at area X can access resources in area X (self)', async () => {

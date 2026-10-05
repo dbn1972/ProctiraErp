@@ -19,11 +19,14 @@
  * **Validates: Requirements 39.1, 39.2**
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 // @ts-expect-error - direct .mjs import; types are not generated.
 import * as gate from '../check-lighthouse.mjs';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ---------------------------------------------------------------------------
 // Arbitraries

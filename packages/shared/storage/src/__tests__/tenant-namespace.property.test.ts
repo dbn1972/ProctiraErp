@@ -3,7 +3,7 @@
  * Validates that the namespace utilities correctly enforce tenant isolation.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 import {
   buildTenantKey,
@@ -11,6 +11,9 @@ import {
   extractTenantId,
   validateTenantOwnership,
 } from '../tenant-namespace.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * Arbitrary for alphanumeric characters.
