@@ -393,8 +393,11 @@ export async function registerAuditRoutes(
     }
   });
 
-  // GET /audit/dsar/:subjectId — G-734 Data Subject Access Request export
-  fastify.get(`${prefix}/dsar/:subjectId`, async (request: FastifyRequest, reply: FastifyReply) => {
+  // G-734 Data Subject Access Request export. PRC-M084: every export
+  // (POST is the explicit UI action; GET kept for API compatibility) writes
+  // an audit row with the actor, subject and entry count *before* the
+  // package is returned, so an unaudited export is impossible (fail closed).
+  const dsarExportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const subjectId = String((request.params as { subjectId?: string }).subjectId ?? '').trim();
       if (!subjectId) {
@@ -406,6 +409,24 @@ export async function registerAuditRoutes(
       }
       const tenantId = getTenantId(request);
       const pack = await auditService.exportDataSubjectPackage(tenantId, subjectId);
+      const { userId, userName } = getUserInfo(request);
+      await auditService.recordAudit({
+        tenantId,
+        entityType: 'dsar_export',
+        entityId: subjectId,
+        operation: 'CREATE',
+        userId,
+        userName,
+        ipAddress: getClientIp(request),
+        beforeValues: null,
+        afterValues: {
+          subjectId,
+          entryCount: pack.entryCount,
+          truncated: pack.truncated,
+          exportedAt: pack.exportedAt,
+        },
+        metadata: { action: 'dsar_export', method: request.method },
+      });
       return reply.status(200).send({
         subjectId: pack.subjectId,
         tenantId: pack.tenantId,
@@ -424,7 +445,9 @@ export async function registerAuditRoutes(
       }
       throw error;
     }
-  });
+  };
+  fastify.get(`${prefix}/dsar/:subjectId`, dsarExportHandler);
+  fastify.post(`${prefix}/dsar/:subjectId/export`, dsarExportHandler);
 
   // PRC-M576: GET /audit/entity-types — tenant-scoped distinct entity types.
   // Registered before `/:id` so it is not captured as an entry id.

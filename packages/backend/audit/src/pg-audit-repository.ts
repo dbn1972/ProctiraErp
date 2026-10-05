@@ -9,7 +9,7 @@
  */
 import { withPlatformScope, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
 
-import { verifyEntrySequence } from './audit-hash.js';
+import { ChainVerifier } from './audit-hash.js';
 import type {
   ArchivalResult,
   AuditLogEntry,
@@ -60,6 +60,11 @@ function cutoffFor(config: AuditRetentionConfig): Date {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - config.retentionMonths);
   return cutoff;
+}
+
+/** Advisory-lock key shared by chain verification and the retention sweep. */
+function chainLockKey(tenantId: string): string {
+  return `audit-chain-verify:${tenantId}`;
 }
 
 export class PgAuditRepository implements AuditRepository {
@@ -203,6 +208,8 @@ export class PgAuditRepository implements AuditRepository {
     const cutoffDate = cutoffFor(config);
     const executedAt = new Date();
     return this.scoped(tenantId, async (client) => {
+      // PRC-M085: exclusive vs. chain verification (see verifyChain).
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [chainLockKey(tenantId)]);
       await client.query(`SELECT set_config('app.audit_archival', '1', true)`);
       const moved = await client.query(
         `WITH moved AS (
@@ -255,31 +262,68 @@ export class PgAuditRepository implements AuditRepository {
    */
   async verifyChain(tenantId: string): Promise<ChainVerification> {
     return this.scoped(tenantId, async (client) => {
-      const all: AuditLogEntry[] = [];
+      // PRC-M085: shared lock so a concurrent retention sweep (which moves
+      // rows live -> archive) cannot make keyset pages skip or repeat rows.
+      await client.query('SELECT pg_advisory_xact_lock_shared(hashtext($1))', [
+        chainLockKey(tenantId),
+      ]);
+      const union = `(
+           SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+                  ip_address, occurred_at, before_values, after_values, metadata,
+                  chain_seq, prev_hash, entry_hash
+           FROM audit_log_entries WHERE tenant_id = $1
+           UNION ALL
+           SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+                  ip_address, occurred_at, before_values, after_values, metadata,
+                  chain_seq, prev_hash, entry_hash
+           FROM audit_log_archive WHERE tenant_id = $1
+         ) u`;
+      const legacy = await client.query(
+        `SELECT count(*)::int AS n FROM ${union} WHERE chain_seq IS NULL`,
+        [tenantId],
+      );
+      const headRes = await client.query(
+        `SELECT chain_seq, entry_hash FROM ${union}
+         WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC, id DESC LIMIT 1`,
+        [tenantId],
+      );
+      const headRow = headRes.rows[0] as { chain_seq: unknown; entry_hash: unknown } | undefined;
+      const head = headRow
+        ? {
+            seq: Number(headRow.chain_seq),
+            hash: headRow.entry_hash == null ? null : String(headRow.entry_hash),
+          }
+        : null;
+
+      // Keyset-page the hashed chain in (chain_seq, id) order, carrying
+      // prev_hash in the verifier instead of buffering every row.
+      const verifier = new ChainVerifier(tenantId);
       const pageSize = 1000;
-      let offset = 0;
+      let lastSeq = 0;
+      let lastId = '00000000-0000-0000-0000-000000000000';
       for (;;) {
         const res = await client.query(
-          `SELECT * FROM (
-             SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-                    ip_address, occurred_at, before_values, after_values, metadata,
-                    chain_seq, prev_hash, entry_hash
-             FROM audit_log_entries WHERE tenant_id = $1
-             UNION ALL
-             SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-                    ip_address, occurred_at, before_values, after_values, metadata,
-                    chain_seq, prev_hash, entry_hash
-             FROM audit_log_archive WHERE tenant_id = $1
-           ) u
-           ORDER BY chain_seq ASC NULLS FIRST, occurred_at ASC
-           LIMIT $2 OFFSET $3`,
-          [tenantId, pageSize, offset],
+          `SELECT * FROM ${union}
+           WHERE chain_seq IS NOT NULL
+             AND (chain_seq > $2 OR (chain_seq = $2 AND id > $3::uuid))
+           ORDER BY chain_seq ASC, id ASC
+           LIMIT $4`,
+          [tenantId, lastSeq, lastId, pageSize],
         );
-        for (const row of res.rows) all.push(mapEntry(row as Record<string, unknown>));
-        if (res.rows.length < pageSize) break;
-        offset += pageSize;
+        let keepGoing = true;
+        for (const row of res.rows) {
+          const entry = mapEntry(row as Record<string, unknown>);
+          if (!verifier.push(entry)) {
+            keepGoing = false;
+            break;
+          }
+          lastSeq = entry.chainSeq ?? lastSeq;
+          lastId = entry.id;
+        }
+        if (!keepGoing || res.rows.length < pageSize) break;
       }
-      return verifyEntrySequence(tenantId, all);
+      const legacyCount = Number((legacy.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+      return verifier.finish(legacyCount, head);
     });
   }
 
