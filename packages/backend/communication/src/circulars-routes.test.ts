@@ -84,3 +84,73 @@ describe('Circular routes (G-922)', () => {
     expect(response.json().code).toBe('TENANT_REQUIRED');
   });
 });
+
+describe('Circular acknowledgement scoping (PRC-M071)', () => {
+  let user: { sub: string; roles: string[] };
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    user = { sub: 'comms-staff', roles: ['communications_officer'] };
+    app = Fastify();
+    const circularsService = new CircularsService(new InMemoryCircularStore());
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as FastifyRequest & { tenantId: string }).tenantId = TENANT_ID;
+      (request as FastifyRequest & { user?: { sub: string; roles: string[] } }).user = user;
+    });
+    await registerCircularRoutes(app, { circularsService });
+    await app.ready();
+  });
+
+  async function sentCircular(): Promise<string> {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/communication/circulars',
+      payload: {
+        title: 'Fee notice',
+        body: 'Please acknowledge.',
+        audienceType: 'roles',
+        audienceIds: ['parent'],
+        requiresAck: true,
+        channels: ['whatsapp'],
+        recipientIds: ['user-a', 'user-b'],
+      },
+    });
+    const id = created.json().id as string;
+    await app.inject({ method: 'POST', url: `/communication/circulars/${id}/send` });
+    return id;
+  }
+
+  it('returns 403 when a portal user acknowledges for another recipient', async () => {
+    const id = await sentCircular();
+    user = { sub: 'user-a', roles: ['parent'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-b' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('lets a portal user acknowledge as themselves', async () => {
+    const id = await sentCircular();
+    user = { sub: 'user-a', roles: ['parent'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-a' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ackCount).toBe(1);
+  });
+
+  it('lets communication staff record an acknowledgement on behalf of a recipient', async () => {
+    const id = await sentCircular();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-b' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});

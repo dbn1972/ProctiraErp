@@ -671,7 +671,9 @@ describe('StaffAssignmentService', () => {
 
       await service.delete(TENANT_ID, created.id);
 
-      await expect(service.getById(TENANT_ID, created.id)).rejects.toThrow(NotFoundError);
+      // PRC-M375: soft end — history is kept as INACTIVE.
+      const ended = await service.getById(TENANT_ID, created.id);
+      expect(ended.status).toBe('INACTIVE');
     });
 
     it('should throw NotFoundError when assignment does not exist', async () => {

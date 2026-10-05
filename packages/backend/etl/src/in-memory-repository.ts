@@ -3,12 +3,12 @@
  *
  * In-memory implementation of PipelineRepository for testing and development.
  */
-import type { Pipeline, PipelineExecution } from './schemas.js';
 import type {
   PipelineRepository,
   PipelineListFilter,
   PipelineListResult,
 } from './pipeline-repository.js';
+import type { Pipeline, PipelineExecution } from './schemas.js';
 
 export class InMemoryPipelineRepository implements PipelineRepository {
   private pipelines: Map<string, Pipeline> = new Map();
@@ -76,6 +76,22 @@ export class InMemoryPipelineRepository implements PipelineRepository {
   async createExecution(execution: PipelineExecution): Promise<PipelineExecution> {
     this.executions.set(execution.id, { ...execution });
     return { ...execution };
+  }
+
+  async createExecutionIfIdle(execution: PipelineExecution, staleBefore: Date): Promise<boolean> {
+    // Synchronous check-and-insert: atomic within the JS thread (PRC-M225).
+    for (const e of this.executions.values()) {
+      if (
+        e.tenantId === execution.tenantId &&
+        e.pipelineId === execution.pipelineId &&
+        e.status === 'running' &&
+        e.startedAt > staleBefore
+      ) {
+        return false;
+      }
+    }
+    this.executions.set(execution.id, { ...execution });
+    return true;
   }
 
   async updateExecution(

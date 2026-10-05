@@ -8,8 +8,11 @@ import { StatusCard } from '@/components/tracking/status-card';
 import { TrackingForm } from '@/components/tracking/tracking-form';
 import { checkApplicationStatus } from '@/lib/api';
 import { serverTransport } from '@/lib/gateway';
-import { TRACK_DOB_COOKIE } from '@/lib/track-lookup';
-import { isValidDateOfBirth, isValidTrackingNumber } from '@/lib/validation';
+import {
+  resolveTrackingPage,
+  safeDecodeTrackingNumber,
+  TRACK_DOB_COOKIE,
+} from '@/lib/track-lookup';
 
 interface PageProps {
   params: Promise<{ trackingNumber: string }>;
@@ -27,26 +30,17 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
   const t = await getTranslations('tracking');
   const { trackingNumber: rawTrackingNumber } = await params;
   const query = await searchParams;
-  const trackingNumber = decodeURIComponent(rawTrackingNumber).toUpperCase();
-
-  if (query.dob) {
-    redirect(`/track/${encodeURIComponent(trackingNumber)}`);
+  const decoded = safeDecodeTrackingNumber(rawTrackingNumber);
+  if (query.dob && decoded) {
+    redirect(`/track/${encodeURIComponent(decoded)}`);
   }
-
   const cookieStore = await cookies();
   const dob = cookieStore.get(TRACK_DOB_COOKIE)?.value ?? '';
-  const valid = isValidTrackingNumber(trackingNumber) && isValidDateOfBirth(dob);
-
-  let result: Awaited<ReturnType<typeof checkApplicationStatus>> = null;
-  if (valid) {
-    try {
-      result = await checkApplicationStatus(trackingNumber, dob, serverTransport);
-    } catch {
-      result = null;
-    }
-  }
-
-  const isMatch = valid && result !== null;
+  // PRC-M055: outage / throttle / malformed URL are distinct from "not found".
+  const state = await resolveTrackingPage(rawTrackingNumber, dob, (tn, d) =>
+    checkApplicationStatus(tn, d, serverTransport),
+  );
+  const trackingNumber = state.trackingNumber ?? '';
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -61,12 +55,32 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
           </h1>
 
           <div className="mt-8">
-            {isMatch && result ? (
-              <StatusCard status={result} />
+            {state.kind === 'match' ? (
+              <StatusCard status={state.status} />
+            ) : state.kind === 'unavailable' || state.kind === 'rate_limited' ? (
+              <div className="space-y-6">
+                <div
+                  role="alert"
+                  className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+                >
+                  {t(state.kind === 'unavailable' ? 'serviceUnavailable' : 'rateLimited')}
+                </div>
+                <div className="text-center">
+                  <Link
+                    href={`/track/${encodeURIComponent(trackingNumber)}`}
+                    className="btn-secondary"
+                  >
+                    {t('retry')}
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="space-y-6">
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                  {t('notFound')}
+                <div
+                  role="status"
+                  className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                >
+                  {t(state.kind === 'invalid' ? 'invalidRequest' : 'notFound')}
                 </div>
                 <TrackingForm />
                 <div className="text-center">

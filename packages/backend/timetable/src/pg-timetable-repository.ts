@@ -235,8 +235,78 @@ const MEETING_SELECT = `
   JOIN sections s ON s.id = sm.section_id
 `;
 
+const SECTION_INSERT_SQL = `INSERT INTO sections (
+          id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
+          primary_teacher_id, default_room_id, capacity, status, published_at,
+          created_at, updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::section_publish_status,
+          $12::timestamptz,$13::timestamptz,$14::timestamptz
+        ) RETURNING *`;
+
+function sectionInsertParams(row: SectionEntity): unknown[] {
+  return [
+    row.id,
+    row.tenantId,
+    row.institutionId,
+    row.academicPeriodId,
+    row.gradeId,
+    row.code,
+    row.name,
+    row.primaryTeacherId,
+    row.defaultRoomId,
+    row.capacity,
+    row.status,
+    row.publishedAt,
+    row.createdAt,
+    row.updatedAt,
+  ];
+}
+
+const MEETING_INSERT_SQL = `INSERT INTO section_meetings (
+          id, tenant_id, section_id, bell_period_id, day_of_week,
+          room_id, teacher_staff_id, status, created_at, updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz,$10::timestamptz
+        ) RETURNING *`;
+
+function meetingInsertParams(row: SectionMeetingEntity): unknown[] {
+  return [
+    row.id,
+    row.tenantId,
+    row.sectionId,
+    row.periodId,
+    row.dayOfWeek,
+    row.roomId,
+    row.staffId || null,
+    row.status,
+    row.createdAt,
+    row.updatedAt,
+  ];
+}
+
 export class PgTimetableRepository implements TimetableRepository {
   constructor(private readonly pool: PgPoolLike) {}
+
+  /** PRC-M397: insert a whole cloned period in ONE tenant transaction. */
+  async insertClonedTimetable(
+    tenantId: string,
+    sections: SectionEntity[],
+    meetings: SectionMeetingEntity[],
+  ): Promise<void> {
+    await withSchemaCheck(() =>
+      withPgTenant(this.pool, tenantId, async (client) => {
+        for (const row of sections) {
+          if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+          await client.query(SECTION_INSERT_SQL, sectionInsertParams(row));
+        }
+        for (const row of meetings) {
+          if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+          await client.query(MEETING_INSERT_SQL, meetingInsertParams(row));
+        }
+      }),
+    );
+  }
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
@@ -503,27 +573,7 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createMeeting(row: SectionMeetingEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(
-        row.tenantId,
-        `INSERT INTO section_meetings (
-          id, tenant_id, section_id, bell_period_id, day_of_week,
-          room_id, teacher_staff_id, status, created_at, updated_at
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz,$10::timestamptz
-        ) RETURNING *`,
-        [
-          row.id,
-          row.tenantId,
-          row.sectionId,
-          row.periodId,
-          row.dayOfWeek,
-          row.roomId,
-          row.staffId || null,
-          row.status,
-          row.createdAt,
-          row.updatedAt,
-        ],
-      );
+      const result = await this.query(row.tenantId, MEETING_INSERT_SQL, meetingInsertParams(row));
       const inserted = result.rows[0] as Record<string, unknown>;
       // Re-read with join for institution/period denorm fields.
       const full = await this.getMeeting(row.tenantId, String(inserted.id));
@@ -776,33 +826,7 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createSection(row: SectionEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(
-        row.tenantId,
-        `INSERT INTO sections (
-          id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
-          primary_teacher_id, default_room_id, capacity, status, published_at,
-          created_at, updated_at
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::section_publish_status,
-          $12::timestamptz,$13::timestamptz,$14::timestamptz
-        ) RETURNING *`,
-        [
-          row.id,
-          row.tenantId,
-          row.institutionId,
-          row.academicPeriodId,
-          row.gradeId,
-          row.code,
-          row.name,
-          row.primaryTeacherId,
-          row.defaultRoomId,
-          row.capacity,
-          row.status,
-          row.publishedAt,
-          row.createdAt,
-          row.updatedAt,
-        ],
-      );
+      const result = await this.query(row.tenantId, SECTION_INSERT_SQL, sectionInsertParams(row));
       return mapSection(result.rows[0] as Record<string, unknown>);
     });
   }

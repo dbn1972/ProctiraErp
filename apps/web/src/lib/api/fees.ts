@@ -437,15 +437,29 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
+export interface RecordInvoicePaymentInput {
+  method: 'cash' | 'upi' | 'card' | 'sandbox';
+  amountCents: number;
+  idempotencyKey: string;
+}
+
 export async function recordInvoicePayment(
   invoiceId: string,
-  options?: MoneyMutationOptions,
+  input: RecordInvoicePaymentInput,
 ): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
-    method: 'POST',
-    json: { method: 'sandbox' },
-    headers: idempotencyHeaders(options),
-  });
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: {
+        method: input.method,
+        amountCents: input.amountCents,
+        idempotencyKey: input.idempotencyKey,
+      },
+      // PRC-H058: the same key also drives the gateway idempotency plugin.
+      headers: idempotencyHeaders({ idempotencyKey: input.idempotencyKey }),
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 

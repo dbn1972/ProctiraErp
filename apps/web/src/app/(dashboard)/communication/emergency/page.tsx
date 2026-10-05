@@ -3,13 +3,14 @@ import Link from 'next/link';
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listEmergencyBlasts } from '@/lib/api/communication';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { EmergencyBlastPanel } from '../_components/emergency-blast-panel';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CommunicationEmergencyPage() {
   const session = await requireSession();
-  const blasts = await listEmergencyBlasts();
+  const result = await listEmergencyBlasts();
 
   return (
     <div className="space-y-6 p-6">
@@ -26,7 +27,15 @@ export default async function CommunicationEmergencyPage() {
           <Link href="/communication">Back to communication</Link>
         </Button>
       </div>
-      <EmergencyBlastPanel actorId={session.user.sub} initialBlasts={blasts} />
+      {result.ok ? (
+        <EmergencyBlastPanel actorId={session.user.sub} initialBlasts={result.items} />
+      ) : (
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/communication/emergency"
+        />
+      )}
     </div>
   );
 }

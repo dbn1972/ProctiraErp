@@ -8,6 +8,7 @@ import { BusinessRuleError } from '@proctira/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assertOfferFeeInvoiceMatchesOffer,
   assertOfferFeeInvoicePaid,
   assertOfferFeePaidHook,
   verifyOfferFeeInvoiceOwnershipHook,
@@ -49,6 +50,16 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
     invoiceNumber: null,
     structureId: null,
   });
+  // PRC-M327: the hook also requires the invoice to match this offer (application, amount,
+  // currency), so these inputs match invoice() and the paid-status decision is what's tested.
+  const offerInput = {
+    tenantId: 't-1',
+    invoiceId: 'inv-1',
+    applicationId: 'app-1',
+    offerId: 'offer-1',
+    expectedAmount: 10,
+    expectedCurrency: 'INR',
+  };
   const readerFor = (status: string) => {
     const getInvoice = vi.fn(async () => invoice(status) as never);
     return { getInvoice, factory: () => ({ getInvoice }) };
@@ -57,17 +68,22 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
   it('refuses an open invoice even when the client sends a paymentRef', async () => {
     const r = readerFor('open');
     const hook = assertOfferFeePaidHook(r.factory);
-    await expect(
-      hook({ tenantId: 't-1', invoiceId: 'inv-1', paymentRef: 'SANDBOX-PAY' }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    await expect(hook({ ...offerInput, paymentRef: 'SANDBOX-PAY' })).rejects.toBeInstanceOf(
+      BusinessRuleError,
+    );
     expect(r.getInvoice).toHaveBeenCalledWith('t-1', 'inv-1');
   });
 
   it('passes a paid invoice', async () => {
     const r = readerFor('paid');
+    await expect(assertOfferFeePaidHook(r.factory)(offerInput)).resolves.toBeUndefined();
+  });
+
+  it('refuses a paid invoice that does not match this offer (PRC-M327)', async () => {
+    const r = readerFor('paid');
     await expect(
-      assertOfferFeePaidHook(r.factory)({ tenantId: 't-1', invoiceId: 'inv-1' }),
-    ).resolves.toBeUndefined();
+      assertOfferFeePaidHook(r.factory)({ ...offerInput, applicationId: 'app-2' }),
+    ).rejects.toThrow(/does not match/);
   });
 
   it('propagates a missing invoice instead of passing', async () => {
@@ -76,7 +92,7 @@ describe('assertOfferFeePaidHook (PRC-H079)', () => {
         throw new Error('not found');
       },
     }));
-    await expect(hook({ tenantId: 't-1', invoiceId: 'missing' })).rejects.toThrow('not found');
+    await expect(hook({ ...offerInput, invoiceId: 'missing' })).rejects.toThrow('not found');
   });
 });
 
@@ -135,5 +151,27 @@ describe('verifyOfferFeeInvoiceOwnershipHook (PRC-H079)', () => {
 
   it('rejects an unknown / cross-tenant invoice (404)', async () => {
     await expect(hookWith(new Error('not found'))(input)).resolves.toBe(false);
+  });
+});
+
+describe('assertOfferFeeInvoiceMatchesOffer (PRC-M327)', () => {
+  const APP = '11111111-1111-4111-8111-111111111111';
+  const good = {
+    createdBy: 'admissions-offer',
+    description: `Admission application ${APP}`,
+    amountCents: 150000,
+    currency: 'INR',
+  };
+  const offer = { applicationId: APP, expectedAmount: 1500, expectedCurrency: 'INR' };
+  it('accepts the matching admissions invoice', () => {
+    expect(() => assertOfferFeeInvoiceMatchesOffer(good, offer)).not.toThrow();
+  });
+  it.each([
+    ['foreign application', { ...good, description: 'Admission application other' }],
+    ['non-admissions invoice', { ...good, createdBy: 'staff' }],
+    ['cheaper amount', { ...good, amountCents: 100 }],
+    ['other currency', { ...good, currency: 'USD' }],
+  ])('rejects %s', (_label, invoice) => {
+    expect(() => assertOfferFeeInvoiceMatchesOffer(invoice, offer)).toThrow(/does not match/);
   });
 });

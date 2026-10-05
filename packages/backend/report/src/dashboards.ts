@@ -1,6 +1,8 @@
 import { AppError, ErrorCode } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
+import { isReportDemoDataEnabled, ReportDataUnavailableError } from './providers.js';
+
 export type DashboardRole = 'board' | 'principal' | 'teacher' | 'staff' | 'parent';
 
 export interface DashboardCard {
@@ -14,6 +16,8 @@ export interface RoleDashboard {
   role: DashboardRole;
   title: string;
   cards: DashboardCard[];
+  /** `unavailable` when live data could not be read (values are '—'). */
+  dataStatus?: 'live' | 'unavailable' | 'demo';
 }
 
 const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
@@ -80,7 +84,12 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
         value: '—',
         hint: 'Current enrolments',
       },
-      { id: 'staff-notifications', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
+      {
+        id: 'staff-notifications',
+        title: 'Open invoices',
+        value: '—',
+        hint: 'Fee invoices still open',
+      },
     ],
   },
   parent: {
@@ -212,15 +221,29 @@ async function relationExists(client: PgQueryable, name: string): Promise<boolea
   }
 }
 
-async function count(client: PgQueryable, sql: string): Promise<number> {
-  try {
-    const { rows } = await client.query(sql);
-    const raw = (rows[0] as { n?: unknown } | undefined)?.n;
-    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
+/**
+ * PRC-M345: errors are NOT swallowed to 0 — they propagate so the dashboard is
+ * reported as unavailable instead of showing a fabricated zero.
+ */
+async function count(client: PgQueryable, sql: string, values: unknown[] = []): Promise<number> {
+  const { rows } = await client.query(sql, values);
+  const raw = (rows[0] as { n?: unknown } | undefined)?.n;
+  const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+  if (!Number.isFinite(n)) throw new Error('Dashboard aggregate returned a non-numeric value');
+  return n;
+}
+
+/** Exact bigint sum as a decimal string (PRC-M345: no ::int overflow). */
+async function sumBigint(
+  client: PgQueryable,
+  sql: string,
+  values: unknown[] = [],
+): Promise<string> {
+  const { rows } = await client.query(sql, values);
+  const raw = (rows[0] as { n?: unknown } | undefined)?.n;
+  const str = raw === null || raw === undefined ? '0' : String(raw);
+  if (!/^-?\d+$/.test(str)) throw new Error('Dashboard fee total is not an integer');
+  return str;
 }
 
 export interface DashboardAggregates {
@@ -229,8 +252,15 @@ export interface DashboardAggregates {
   enrolments: number;
   attendancePercent: number | null;
   openInvoices: number;
-  feesCollectedCents: number;
+  /** Integer minor units as a decimal string (may exceed 2^31 / 2^53). */
+  feesCollectedCents: string;
   linkedChildren: number;
+}
+
+/** Who the aggregates are computed for. Parents only ever see their own children. */
+export interface DashboardScope {
+  role: DashboardRole;
+  userId?: string | null;
 }
 
 const DEMO_AGGREGATES: DashboardAggregates = {
@@ -239,69 +269,145 @@ const DEMO_AGGREGATES: DashboardAggregates = {
   enrolments: 61,
   attendancePercent: 94.2,
   openInvoices: 4,
-  feesCollectedCents: 1_250_000,
+  feesCollectedCents: '1250000',
   linkedChildren: 2,
 };
 
-export async function loadDashboardAggregates(tenantId: string): Promise<DashboardAggregates> {
+const EMPTY_AGGREGATES: DashboardAggregates = {
+  schools: 0,
+  students: 0,
+  enrolments: 0,
+  attendancePercent: null,
+  openInvoices: 0,
+  feesCollectedCents: '0',
+  linkedChildren: 0,
+};
+
+/**
+ * Active links of the calling parent; fee visibility additionally needs can_view_fees.
+ * Parent queries bind `$1 = tenantId`, `$2 = parentUserId`. The tenant predicate is
+ * explicit on the link subquery and on every outer table (defence in depth over RLS:
+ * `parent_user_id` is a JWT subject and is not tenant-unique). The link predicate
+ * order matches `idx_parent_child_links_parent (tenant_id, parent_user_id)`.
+ */
+const PARENT_CHILDREN = `SELECT student_id FROM parent_child_links WHERE tenant_id = $1 AND parent_user_id = $2 AND status = 'active'`;
+const PARENT_FEE_CHILDREN = `${PARENT_CHILDREN} AND can_view_fees`;
+
+async function loadParentAggregates(
+  client: PgQueryable,
+  tenantId: string,
+  parentUserId: string,
+): Promise<DashboardAggregates> {
+  // Fail closed: without the link table a parent has no visible children.
+  if (!(await relationExists(client, 'parent_child_links'))) return { ...EMPTY_AGGREGATES };
+  const params = [tenantId, parentUserId];
+  const linkedChildren = await count(
+    client,
+    `SELECT COUNT(DISTINCT student_id)::int AS n FROM (${PARENT_CHILDREN}) c`,
+    params,
+  );
+  const students = (await relationExists(client, 'students'))
+    ? await count(
+        client,
+        `SELECT COUNT(*)::int AS n FROM students WHERE tenant_id = $1 AND deleted_at IS NULL AND id IN (${PARENT_CHILDREN})`,
+        params,
+      )
+    : 0;
+  let attendancePercent: number | null = null;
+  if (await relationExists(client, 'student_attendance')) {
+    const present = await count(
+      client,
+      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE tenant_id = $1 AND student_id IN (${PARENT_CHILDREN}) AND status IN ('PRESENT','LATE','present','late')`,
+      params,
+    );
+    const total = await count(
+      client,
+      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE tenant_id = $1 AND student_id IN (${PARENT_CHILDREN})`,
+      params,
+    );
+    attendancePercent = total > 0 ? Math.round((present / total) * 1000) / 10 : null;
+  }
+  const openInvoices = (await relationExists(client, 'parent_fee_invoices'))
+    ? await count(
+        client,
+        `SELECT COUNT(*)::int AS n FROM parent_fee_invoices WHERE tenant_id = $1 AND status IN ('open','overdue') AND student_id IN (${PARENT_FEE_CHILDREN})`,
+        params,
+      )
+    : 0;
+  return { ...EMPTY_AGGREGATES, students, attendancePercent, openInvoices, linkedChildren };
+}
+
+async function loadTenantAggregates(client: PgQueryable): Promise<DashboardAggregates> {
+  const schools = (await relationExists(client, 'institutions'))
+    ? await count(client, `SELECT COUNT(*)::int AS n FROM institutions`)
+    : 0;
+  const students = (await relationExists(client, 'students'))
+    ? await count(client, `SELECT COUNT(*)::int AS n FROM students WHERE deleted_at IS NULL`)
+    : 0;
+  const enrolments = (await relationExists(client, 'enrollments'))
+    ? await count(client, `SELECT COUNT(*)::int AS n FROM enrollments WHERE status = 'ENROLLED'`)
+    : 0;
+  let attendancePercent: number | null = null;
+  if (await relationExists(client, 'student_attendance')) {
+    const present = await count(
+      client,
+      `SELECT COUNT(*)::int AS n FROM student_attendance WHERE status IN ('PRESENT','LATE','present','late')`,
+    );
+    const total = await count(client, `SELECT COUNT(*)::int AS n FROM student_attendance`);
+    attendancePercent = total > 0 ? Math.round((present / total) * 1000) / 10 : null;
+  }
+  const openInvoices = (await relationExists(client, 'parent_fee_invoices'))
+    ? await count(
+        client,
+        `SELECT COUNT(*)::int AS n FROM parent_fee_invoices WHERE status IN ('open','overdue')`,
+      )
+    : 0;
+  const feesCollectedCents = (await relationExists(client, 'parent_fee_payments'))
+    ? await sumBigint(
+        client,
+        `SELECT COALESCE(SUM(amount_cents),0)::bigint::text AS n FROM parent_fee_payments WHERE status IN ('succeeded','paid','SUCCESS')`,
+      )
+    : '0';
+  // Linked children is a parent-only metric; staff dashboards never fabricate it.
+  return {
+    schools,
+    students,
+    enrolments,
+    attendancePercent,
+    openInvoices,
+    feesCollectedCents,
+    linkedChildren: 0,
+  };
+}
+
+/**
+ * PRC-M344: aggregates are scoped to the caller (parents: own linked children
+ * only) and are never fabricated. No pool / query error throws
+ * {@link ReportDataUnavailableError}; demo numbers only in explicit
+ * non-production demo mode.
+ */
+export async function loadDashboardAggregates(
+  tenantId: string,
+  scope: DashboardScope,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<DashboardAggregates> {
+  if (scope.role === 'parent' && !scope.userId) {
+    throw new AppError('Parent dashboard requires an authenticated user', ErrorCode.FORBIDDEN, 403);
+  }
   const pool = getSharedPgPool();
-  if (!pool) return { ...DEMO_AGGREGATES };
+  if (!pool) {
+    if (isReportDemoDataEnabled(env)) return { ...DEMO_AGGREGATES };
+    throw new ReportDataUnavailableError('Dashboard data source is not configured');
+  }
   try {
-    return await withPgTenant(pool, tenantId, async (client) => {
-      const schools = (await relationExists(client, 'institutions'))
-        ? await count(client, `SELECT COUNT(*)::int AS n FROM institutions`)
-        : 0;
-      const students = (await relationExists(client, 'students'))
-        ? await count(client, `SELECT COUNT(*)::int AS n FROM students WHERE deleted_at IS NULL`)
-        : 0;
-      const enrolments = (await relationExists(client, 'enrollments'))
-        ? await count(
-            client,
-            `SELECT COUNT(*)::int AS n FROM enrollments WHERE status = 'ENROLLED'`,
-          )
-        : 0;
-      let attendancePercent: number | null = null;
-      if (await relationExists(client, 'student_attendance')) {
-        const present = await count(
-          client,
-          `SELECT COUNT(*)::int AS n FROM student_attendance WHERE status IN ('PRESENT','LATE','present','late')`,
-        );
-        const total = await count(client, `SELECT COUNT(*)::int AS n FROM student_attendance`);
-        attendancePercent = total > 0 ? Math.round((present / total) * 1000) / 10 : null;
-      }
-      const openInvoices = (await relationExists(client, 'parent_fee_invoices'))
-        ? await count(
-            client,
-            `SELECT COUNT(*)::int AS n FROM parent_fee_invoices WHERE status IN ('open','overdue')`,
-          )
-        : 0;
-      let feesCollectedCents = 0;
-      if (await relationExists(client, 'parent_fee_payments')) {
-        feesCollectedCents = await count(
-          client,
-          `SELECT COALESCE(SUM(amount_cents),0)::int AS n FROM parent_fee_payments WHERE status IN ('succeeded','paid','SUCCESS')`,
-        );
-      }
-      const linkedChildren = (await relationExists(client, 'parent_child_links'))
-        ? await count(client, `SELECT COUNT(*)::int AS n FROM parent_child_links`)
-        : students > 0
-          ? Math.min(students, 2)
-          : 0;
-      if (schools + students + enrolments + openInvoices === 0 && attendancePercent == null) {
-        return { ...DEMO_AGGREGATES };
-      }
-      return {
-        schools,
-        students,
-        enrolments,
-        attendancePercent,
-        openInvoices,
-        feesCollectedCents,
-        linkedChildren,
-      };
-    });
-  } catch {
-    return { ...DEMO_AGGREGATES };
+    return await withPgTenant(pool, tenantId, (client) =>
+      scope.role === 'parent'
+        ? loadParentAggregates(client, tenantId, scope.userId as string)
+        : loadTenantAggregates(client),
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ReportDataUnavailableError(`Dashboard query failed: ${message}`, error);
   }
 }
 
@@ -313,12 +419,14 @@ function fmtPct(n: number | null): string {
   return n == null ? '—' : `${n}%`;
 }
 
-function fmtMoney(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {
+/** Format integer minor units (decimal string) exactly via BigInt. */
+export function fmtMoney(cents: string): string {
+  const major = BigInt(cents) / 100n;
+  return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  });
+  }).format(major);
 }
 
 export function valuesForRole(
@@ -358,6 +466,7 @@ export function valuesForRole(
       return {
         'parent-children': fmtCount(agg.linkedChildren),
         'parent-fees': fmtCount(agg.openInvoices),
+        // Parent sees only own children's records, never the school roster.
         'parent-students': fmtCount(agg.students),
         'parent-attendance': fmtPct(agg.attendancePercent),
       };

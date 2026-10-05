@@ -24,10 +24,15 @@ let trackingNumber = '';
 /** Routes the client's `fetch` into the in-process Fastify app. */
 const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(String(input), 'http://gateway.test');
+  // PRC-M331: the status lookup is a POST with a JSON body — forward it.
+  const body = typeof init?.body === 'string' ? init.body : undefined;
   const res = await app.inject({
     method: (init?.method ?? 'GET') as 'GET',
     url: `${url.pathname}${url.search}`,
-    headers: { accept: 'application/json' },
+    headers: body
+      ? { accept: 'application/json', 'content-type': 'application/json' }
+      : { accept: 'application/json' },
+    ...(body ? { payload: body } : {}),
   });
   return new Response(res.body, {
     status: res.statusCode,

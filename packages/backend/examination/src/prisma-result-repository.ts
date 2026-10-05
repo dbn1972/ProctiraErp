@@ -16,6 +16,7 @@
  *   strings inside the payload and are revived to `Date` on read.
  * - `examination_academic_records`: one append-only row per update.
  */
+import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
@@ -27,6 +28,44 @@ import type {
   ResultAnalysis,
   ResultRepository,
 } from './result-repository.js';
+import {
+  MARKS_LOCKED_MESSAGE,
+  fingerprintCandidates,
+  mergeSubjectResults,
+} from './result-repository.js';
+
+type Tx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
+
+/** PRC-M239: serialise marks entry and publication per examination. */
+async function lockExamination(tx: Tx, tenantId: string, examinationId: string): Promise<void> {
+  await tx.$queryRawUnsafe(
+    'SELECT id FROM examinations WHERE id = $1::uuid AND tenant_id = $2::uuid FOR UPDATE',
+    examinationId,
+    tenantId,
+  );
+}
+
+function rowToCandidate(row: {
+  id: string;
+  examinationId: string;
+  studentId: string;
+  centerId: string;
+  gender: string;
+  areaId: string;
+  subjectResults: unknown;
+}): ExaminationCandidate {
+  return {
+    id: row.id,
+    examinationId: row.examinationId,
+    studentId: row.studentId,
+    centerId: row.centerId,
+    gender: row.gender as ExaminationCandidate['gender'],
+    areaId: row.areaId,
+    subjectResults: Array.isArray(row.subjectResults)
+      ? (row.subjectResults as unknown as CandidateSubjectResult[])
+      : [],
+  };
+}
 
 /** Serialize an aggregate (with Date fields) to a JSON-safe payload. */
 function toJsonPayload(value: unknown): Prisma.InputJsonValue {
@@ -102,8 +141,73 @@ export class PrismaResultRepository implements ResultRepository {
     });
   }
 
-  async savePublicationResult(result: PublicationResult): Promise<void> {
+  async mergeCandidateMarks(
+    tenantId: string,
+    examinationId: string,
+    candidates: ExaminationCandidate[],
+  ): Promise<void> {
+    if (candidates.length === 0) return;
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      // PRC-M239: lock first, then check publication inside the same transaction.
+      await lockExamination(tx, tenantId, examinationId);
+      const published = await tx.examinationPublication.findUnique({
+        where: { tenantId_examinationId: { tenantId, examinationId } },
+      });
+      if (published) throw new BusinessRuleError(MARKS_LOCKED_MESSAGE);
+      const stored = await tx.examinationCandidate.findMany({
+        where: { tenantId, examinationId, studentId: { in: candidates.map((c) => c.studentId) } },
+      });
+      const storedByStudent = new Map(stored.map((r) => [r.studentId, rowToCandidate(r)]));
+      for (const candidate of candidates) {
+        const current = storedByStudent.get(candidate.studentId);
+        const id = current?.id ?? candidate.id;
+        const subjectResults = toJsonPayload(
+          mergeSubjectResults(current?.subjectResults ?? [], candidate.subjectResults, id),
+        );
+        await tx.examinationCandidate.upsert({
+          where: {
+            tenantId_examinationId_studentId: {
+              tenantId,
+              examinationId,
+              studentId: candidate.studentId,
+            },
+          },
+          create: {
+            id,
+            tenantId,
+            examinationId,
+            studentId: candidate.studentId,
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+          update: {
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+        });
+      }
+    });
+  }
+
+  async savePublicationResult(
+    result: PublicationResult,
+    options: { candidatesFingerprint?: string } = {},
+  ): Promise<void> {
     await withTenantTransaction(this.prisma, result.tenantId, async (tx) => {
+      if (options.candidatesFingerprint !== undefined) {
+        // PRC-M239: marks entered after the snapshot would be silently excluded.
+        await lockExamination(tx, result.tenantId, result.examinationId);
+        const rows = await tx.examinationCandidate.findMany({
+          where: { tenantId: result.tenantId, examinationId: result.examinationId },
+        });
+        if (fingerprintCandidates(rows.map(rowToCandidate)) !== options.candidatesFingerprint) {
+          throw new ConflictError('Marks changed while results were being published; retry');
+        }
+      }
       const payload = toJsonPayload(result);
       await tx.examinationPublication.upsert({
         where: {

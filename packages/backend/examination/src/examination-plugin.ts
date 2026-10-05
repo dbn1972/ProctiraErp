@@ -140,6 +140,7 @@ export const examinationPlugin = fp(
           ? (tenantId, examinationId) =>
               examOpsService.countUnresolvedVariances(tenantId, examinationId)
           : undefined,
+        logger: { warn: (obj, msg) => fastify.log.warn(obj, msg) },
       });
       resultPublicationService = publisher;
       fastify.decorate('resultPublicationService', publisher);
@@ -162,6 +163,7 @@ export const examinationPlugin = fp(
         documentTaskQueue,
         undefined,
         outboxStore,
+        { logger: { warn: (obj, msg) => fastify.log.warn(obj, msg) } },
       );
       certificateGenerator = documentGenerationService;
       fastify.decorate('documentGenerationService', documentGenerationService);

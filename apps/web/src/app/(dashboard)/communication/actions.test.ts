@@ -37,6 +37,7 @@ import {
   createCircularAction,
   createEmergencyBlastAction,
   dispatchEmergencyBlastAction,
+  previewAudienceAction,
   retryDeliveryAction,
   sendCircularAction,
 } from './actions';
@@ -155,5 +156,35 @@ describe('delivery retry', () => {
     const result = await retryDeliveryAction(D1);
     expect(result).toMatchObject({ status: 'success', id: D1 });
     expect(revalidatePath).toHaveBeenCalledWith('/communication/delivery');
+  });
+});
+
+describe('audience preview (PRC-M074)', () => {
+  it('does not show a number when only the estimator is available', async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      estimatedRecipients: 100,
+      scope: 'grade',
+      breakdown: { base: 500 },
+      honestyNote: 'estimator',
+      source: 'estimator',
+    });
+    const result = await previewAudienceAction({ scope: 'grade', grade: '10' });
+    expect(result.status).toBe('success');
+    expect(result.message).toMatch(/estimate unavailable/i);
+    expect(result.message).not.toMatch(/\d/);
+    expect(result.estimatedRecipients).toBeUndefined();
+  });
+
+  it('shows the live count with its source', async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      estimatedRecipients: 42,
+      scope: 'hostel',
+      breakdown: {},
+      honestyNote: 'live',
+      source: 'live',
+    });
+    const result = await previewAudienceAction({ scope: 'hostel', hostelId: 'h' });
+    expect(result.message).toBe('42 recipients (live count).');
+    expect(result.estimatedRecipients).toBe(42);
   });
 });

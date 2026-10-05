@@ -206,6 +206,14 @@ export interface TimetableRepository {
   listMeetings(tenantId: string, filter?: ListMeetingsFilter): Promise<SectionMeetingEntity[]>;
   getMeeting(tenantId: string, id: string): Promise<SectionMeetingEntity | null>;
   createMeeting(row: SectionMeetingEntity): Promise<SectionMeetingEntity>;
+  /**
+   * PRC-M397: insert cloned sections + meetings atomically (all-or-nothing).
+   */
+  insertClonedTimetable(
+    tenantId: string,
+    sections: SectionEntity[],
+    meetings: SectionMeetingEntity[],
+  ): Promise<void>;
   updateMeeting(
     tenantId: string,
     id: string,

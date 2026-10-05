@@ -2,10 +2,19 @@ import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AdmissionsCrmStore } from '../admissions-crm-store.js';
+import { dateOfBirthErrors, parseTimestamp } from '../input-validation.js';
+import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
 import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
-import { buildOfferDocument } from './offer-letter.js';
+import {
+  buildOfferDocument,
+  MAX_OFFER_FEE_AMOUNT,
+  OFFER_FEE_CURRENCIES,
+  OfferSignatureError,
+  verifyOfferDocument,
+  type SignedOfferDocument,
+} from './offer-letter.js';
 import type {
   ApplicationPlacement,
   AdmissionsPipelineStore,
@@ -53,6 +62,64 @@ export interface SeatAvailability extends SeatMatrixRecord {
   filled: number;
   available: number;
 }
+
+/** PRC-M336: fee must be a non-negative amount with at most 2 decimals, bounded, ISO currency. */
+function assertValidOfferFee(amount: number, currency: string): void {
+  const cents = amount * 100;
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > MAX_OFFER_FEE_AMOUNT ||
+    Math.abs(cents - Math.round(cents)) > 1e-6
+  ) {
+    throw new ValidationError('Invalid offer fee amount', [
+      {
+        field: 'feeAmount',
+        rule: 'format',
+        message: `feeAmount must be 0..${MAX_OFFER_FEE_AMOUNT} with at most 2 decimal places`,
+      },
+    ]);
+  }
+  if (!(OFFER_FEE_CURRENCIES as readonly string[]).includes(currency)) {
+    throw new ValidationError('Invalid offer fee currency', [
+      {
+        field: 'feeCurrency',
+        rule: 'enum',
+        message: `feeCurrency must be one of ${OFFER_FEE_CURRENCIES.join(', ')}`,
+      },
+    ]);
+  }
+}
+
+/**
+ * PRC-M336: the stored offer document must carry a valid server signature and
+ * agree with the offer row (fee, seat, applicant) before it can be accepted.
+ */
+function assertOfferDocumentAuthentic(offer: OfferRecord): void {
+  try {
+    verifyOfferDocument(offer.offerDocument);
+  } catch (error) {
+    throw new ConflictError(
+      error instanceof OfferSignatureError ? error.message : 'Offer document cannot be verified',
+    );
+  }
+  const doc = offer.offerDocument as Partial<SignedOfferDocument>;
+  if (doc.signatureAlg !== 'hmac-sha256') return; // explicitly allowed legacy document
+  const matches =
+    doc.offerId === offer.id &&
+    doc.tenantId === offer.tenantId &&
+    doc.applicationId === offer.applicationId &&
+    doc.seat?.institutionId === offer.institutionId &&
+    doc.seat?.academicPeriodId === offer.academicPeriodId &&
+    doc.seat?.gradeId === offer.gradeId &&
+    doc.seat?.quota === offer.quota &&
+    Number(doc.fee?.amount) === Number(offer.feeAmount) &&
+    doc.fee?.currency === offer.feeCurrency;
+  if (!matches) throw new ConflictError('Offer record does not match its signed offer document');
+}
+
+/** Upper bound on stale waitlist entries skipped in one promotion (PRC-M329). */
+const MAX_WAITLIST_SKIPS = 50;
 
 function num(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -108,7 +175,15 @@ export type CreateOfferFeeInvoice = (input: {
  * payment: payment state is set only by the verified PSP webhook / callback
  * path. A client `paymentRef` is informational and is not passed (PRC-H079).
  */
-export type AssertOfferFeePaid = (input: { tenantId: string; invoiceId: string }) => Promise<void>;
+export type AssertOfferFeePaid = (input: {
+  tenantId: string;
+  invoiceId: string;
+  /** PRC-M327: the invoice must belong to this application/offer and match the fee. */
+  applicationId: string;
+  offerId: string;
+  expectedAmount: number;
+  expectedCurrency: string;
+}) => Promise<void>;
 
 /**
  * Verifies that a staff-supplied offer-fee invoice belongs to this tenant and
@@ -148,6 +223,8 @@ export class AdmissionsPipelineService {
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
+    const dobErrors = dateOfBirthErrors(input.dateOfBirth);
+    if (dobErrors.length > 0) throw new ValidationError('Invalid date of birth', dobErrors);
     const now = new Date();
     const record: EnquiryRecord = {
       id: uuidv4(),
@@ -176,9 +253,10 @@ export class AdmissionsPipelineService {
     return formatEnquiry(await this.store.createEnquiry(record));
   }
 
-  async listEnquiries(tenantId: string) {
-    const rows = await this.store.listEnquiries(tenantId);
-    return rows.map(formatEnquiry);
+  async listEnquiries(tenantId: string, page: ListPage = { limit: MAX_LIST_PAGE_SIZE, offset: 0 }) {
+    const rows = await this.store.listEnquiries(tenantId, page);
+    const result = toPageResult(rows, page);
+    return { ...result, data: result.data.map(formatEnquiry) };
   }
 
   async updateEnquiry(tenantId: string, id: string, input: UpdateEnquiryDto) {
@@ -390,6 +468,17 @@ export class AdmissionsPipelineService {
   }
 
   async createOffer(tenantId: string, input: CreateOfferDto) {
+    // PRC-M327: offer-fee invoices are server-owned (raised at send). A client
+    // supplied invoice id could reference another applicant's paid invoice.
+    if (input.offerFeeInvoiceId !== undefined) {
+      throw new ValidationError('offerFeeInvoiceId cannot be supplied by the client', [
+        {
+          field: 'offerFeeInvoiceId',
+          rule: 'forbidden',
+          message: 'The offer-fee invoice is raised by the server when the offer is sent',
+        },
+      ]);
+    }
     const application = await this.requireApplication(tenantId, input.applicationId);
     const placement = await this.store.getPlacement(tenantId, application.id);
     if (!placement) {
@@ -397,48 +486,41 @@ export class AdmissionsPipelineService {
         'Application is missing grade / period / quota placement required for an offer',
       );
     }
-    await this.assertSeatAvailable(tenantId, placement);
-    const now = new Date();
-    const document = {
-      ...buildOfferDocument({
-        offerId: uuidv4(),
-        tenantId,
-        applicationId: application.id,
-        firstName: application.firstName,
-        lastName: application.lastName,
-        institutionId: placement.institutionId,
-        academicPeriodId: placement.academicPeriodId,
-        gradeId: placement.gradeId,
-        quota: placement.quota,
-        feeAmount: input.feeAmount ?? 0,
-        feeCurrency: input.feeCurrency ?? 'INR',
-        issuedAt: now.toISOString(),
-      }),
-      classId: input.classId ?? null,
-    };
     const feeAmount = input.feeAmount ?? 0;
     const feeCurrency = input.feeCurrency ?? 'INR';
-    const offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
-    if (offerFeeInvoiceId) {
-      // PRC-H079: a staff-supplied invoice must be this application's own offer-fee
-      // invoice for THIS offer's amount/currency; otherwise another student's (or an
-      // earlier, different-amount offer's) paid invoice could satisfy acceptance.
-      // No verifier wired -> fail closed (the invoice is raised server-side at send).
-      const owned = this.verifyOfferFeeInvoiceOwnership
-        ? await this.verifyOfferFeeInvoiceOwnership({
-            tenantId,
-            applicationId: application.id,
-            invoiceId: offerFeeInvoiceId,
-            feeAmount,
-            feeCurrency,
-          })
-        : false;
-      if (!owned) {
-        throw new BusinessRuleError(
-          'offerFeeInvoiceId does not belong to this application and offer fee; omit it to raise the offer fee invoice on send',
-        );
+    assertValidOfferFee(feeAmount, feeCurrency);
+    // PRC-M333: expiresAt must be a real timestamp in the future.
+    let expiresAt: Date | null = null;
+    if (input.expiresAt !== undefined) {
+      expiresAt = parseTimestamp(input.expiresAt);
+      if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+        throw new ValidationError('Invalid offer expiry', [
+          {
+            field: 'expiresAt',
+            rule: 'format',
+            message: 'expiresAt must be a future ISO timestamp',
+          },
+        ]);
       }
     }
+    await this.assertSeatAvailable(tenantId, placement);
+    const now = new Date();
+    const document = buildOfferDocument({
+      offerId: uuidv4(),
+      tenantId,
+      applicationId: application.id,
+      firstName: application.firstName,
+      lastName: application.lastName,
+      institutionId: placement.institutionId,
+      academicPeriodId: placement.academicPeriodId,
+      gradeId: placement.gradeId,
+      quota: placement.quota,
+      feeAmount,
+      feeCurrency,
+      issuedAt: now.toISOString(),
+      classId: input.classId ?? null,
+    });
+    const offerFeeInvoiceId = null;
     const record: OfferRecord = {
       id: document.offerId,
       tenantId,
@@ -454,7 +536,7 @@ export class AdmissionsPipelineService {
       paymentRef: null,
       offerFeeInvoiceId,
       enrolledStudentId: null,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      expiresAt,
       offerDocument: document as unknown as Record<string, unknown>,
       createdAt: now,
       updatedAt: now,
@@ -475,6 +557,31 @@ export class AdmissionsPipelineService {
     }
     await this.assertSeatAvailable(tenantId, offer);
     let offerFeeInvoiceId = offer.offerFeeInvoiceId;
+    if (offerFeeInvoiceId) {
+      // PRC-H079: createOffer no longer accepts a client invoice id (PRC-M327), but a
+      // draft persisted before that change may still carry a staff-supplied one. It must
+      // be this application's own offer-fee invoice for THIS offer's amount/currency;
+      // otherwise another student's (or an earlier, different-amount offer's) paid
+      // invoice could satisfy acceptance. No verifier wired -> fail closed.
+      const owned = this.verifyOfferFeeInvoiceOwnership
+        ? await this.verifyOfferFeeInvoiceOwnership({
+            tenantId,
+            applicationId: offer.applicationId,
+            invoiceId: offerFeeInvoiceId,
+            feeAmount: offer.feeAmount,
+            feeCurrency: offer.feeCurrency,
+          })
+        : false;
+      if (!owned) {
+        throw new BusinessRuleError(
+          'offerFeeInvoiceId does not belong to this application and offer fee; the offer fee invoice must be raised on send',
+        );
+      }
+    }
+    if (!offerFeeInvoiceId && offer.feeAmount > 0 && !this.createOfferFeeInvoice) {
+      // PRC-M327: fail closed — a fee offer without an invoice could never be paid.
+      throw new ConflictError('Offer fee invoicing is not configured; cannot send a fee offer');
+    }
     if (!offerFeeInvoiceId && offer.feeAmount > 0 && this.createOfferFeeInvoice) {
       const application = await this.requireApplication(tenantId, offer.applicationId);
       const invoice = await this.createOfferFeeInvoice({
@@ -517,26 +624,44 @@ export class AdmissionsPipelineService {
     if (effective.status === 'expired') {
       throw new BusinessRuleError('Offer has expired');
     }
-    if (effective.status !== 'sent' && effective.status !== 'draft') {
-      throw new BusinessRuleError(`Cannot accept an offer in '${effective.status}' status`);
+    // PRC-M327: only a sent offer can be accepted (drafts were never issued).
+    if (effective.status !== 'sent') {
+      throw new ConflictError(`Cannot accept an offer in '${effective.status}' status`);
     }
     if (effective.feeAmount > 0) {
       // PRC-H079: a fee-bearing offer is accepted only against a verified paid
       // invoice raised at send time. No invoice / no verifier -> fail closed.
-      if (effective.status !== 'sent') {
-        throw new BusinessRuleError('An offer with a fee must be sent before it can be accepted');
-      }
       if (!effective.offerFeeInvoiceId || !this.assertOfferFeePaid) {
-        throw new BusinessRuleError(
+        throw new ConflictError(
           'Offer fee payment cannot be verified; acceptance is blocked until the fee is paid',
         );
       }
     }
+    // PRC-M328: seat count + enrolment + accepted write run under one lock per
+    // seat-matrix key so concurrent accepts of different offers cannot over-fill.
+    return this.store.withSeatLock(tenantId, effective, () =>
+      this.acceptOfferSeatLocked(tenantId, effective, input),
+    );
+  }
+
+  private async acceptOfferSeatLocked(
+    tenantId: string,
+    effective: OfferRecord,
+    input: AcceptOfferDto,
+  ) {
+    assertOfferDocumentAuthentic(effective);
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
 
-    if (effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
-      await this.assertOfferFeePaid({ tenantId, invoiceId: effective.offerFeeInvoiceId });
+    if (effective.feeAmount > 0 && effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
+      await this.assertOfferFeePaid({
+        tenantId,
+        invoiceId: effective.offerFeeInvoiceId,
+        applicationId: effective.applicationId,
+        offerId: effective.id,
+        expectedAmount: effective.feeAmount,
+        expectedCurrency: effective.feeCurrency,
+      });
     }
 
     let enrolledStudentId = effective.enrolledStudentId;
@@ -603,7 +728,10 @@ export class AdmissionsPipelineService {
     }
     const next: OfferRecord = { ...offer, status: 'declined', updatedAt: new Date() };
     const declined = formatOffer(await this.store.updateOffer(next));
-    const promotedOffer = await this.promoteNextWaitlisted(tenantId, offer);
+    // PRC-M337: only an issued (sent) offer holds a seat claim; declining a
+    // draft releases nothing, so the waitlist is left untouched.
+    const promotedOffer =
+      offer.status === 'sent' ? await this.promoteNextWaitlisted(tenantId, offer) : null;
     return { ...declined, promotedOffer };
   }
 
@@ -616,7 +744,18 @@ export class AdmissionsPipelineService {
     released: OfferRecord,
   ): Promise<ReturnType<typeof formatOffer> | null> {
     if (!this.crm) return null;
-    const head = await this.crm.dequeueWaitlistHead(tenantId, released.institutionId);
+    // PRC-M329: skip (and drop) stale entries whose application is no longer
+    // `waitlisted` — a rejected/approved applicant is never promoted.
+    let head: Awaited<ReturnType<AdmissionsCrmStore['dequeueWaitlistHead']>> = null;
+    for (let i = 0; i < MAX_WAITLIST_SKIPS; i += 1) {
+      const candidate = await this.crm.dequeueWaitlistHead(tenantId, released.institutionId);
+      if (!candidate) return null;
+      const app = await this.applications.findById(candidate.applicationId, tenantId);
+      if (app && app.tenantId === tenantId && app.status === 'waitlisted') {
+        head = candidate;
+        break;
+      }
+    }
     if (!head) return null;
 
     // Ensure placement matches the freed seat band when missing.
@@ -664,12 +803,12 @@ export class AdmissionsPipelineService {
 
   async getApplicationBundle(tenantId: string, applicationId: string) {
     const application = await this.requireApplication(tenantId, applicationId);
-    const [placement, offers, enquiries] = await Promise.all([
+    // PRC-M337: targeted enquiry lookup instead of loading every enquiry.
+    const [placement, offers, enquiry] = await Promise.all([
       this.store.getPlacement(tenantId, applicationId),
       this.store.listOffers(tenantId, applicationId),
-      this.store.listEnquiries(tenantId),
+      this.store.findEnquiryByApplication(tenantId, applicationId),
     ]);
-    const enquiry = enquiries.find((row) => row.applicationId === applicationId) ?? null;
     const resolvedOffers = await Promise.all(offers.map((row) => this.expireIfNeeded(row)));
     return {
       application: this.formatApplication(application),
@@ -679,9 +818,17 @@ export class AdmissionsPipelineService {
     };
   }
 
-  async listOffers(tenantId: string, applicationId?: string) {
-    const offers = await this.store.listOffers(tenantId, applicationId);
-    return Promise.all(offers.map(async (row) => formatOffer(await this.expireIfNeeded(row))));
+  async listOffers(
+    tenantId: string,
+    applicationId?: string,
+    page: ListPage = { limit: MAX_LIST_PAGE_SIZE, offset: 0 },
+  ) {
+    const offers = await this.store.listOffers(tenantId, applicationId, page);
+    const result = toPageResult(offers, page);
+    const data = await Promise.all(
+      result.data.map(async (row) => formatOffer(await this.expireIfNeeded(row))),
+    );
+    return { ...result, data };
   }
 
   /**
