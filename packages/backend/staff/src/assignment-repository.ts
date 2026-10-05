@@ -63,6 +63,13 @@ export interface StaffAssignmentRepository {
   findActiveByStaffId(staffId: string, tenantId: string): Promise<StaffAssignmentEntity[]>;
 
   /**
+   * PRC-M101: whether the staff member has an ACTIVE assignment at the
+   * institution. Must not materialise full rows: administrative assignments
+   * (principal, accounts) carry NULL subject/class (db/sql/098).
+   */
+  hasActiveAssignmentAt(staffId: string, tenantId: string, institutionId: string): Promise<boolean>;
+
+  /**
    * Find overlapping assignments for the same staff member at the same
    * institution-subject-class combination within a date range.
    * Used to enforce the non-overlap constraint (Requirement 7.2).

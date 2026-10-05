@@ -69,6 +69,15 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
     );
   }
 
+  async hasActiveAssignmentAt(
+    staffId: string,
+    tenantId: string,
+    institutionId: string,
+  ): Promise<boolean> {
+    const active = await this.findActiveByStaffId(staffId, tenantId);
+    return active.some((entity) => entity.institutionId === institutionId);
+  }
+
   async findOverlapping(
     tenantId: string,
     staffId: string,

@@ -165,6 +165,21 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     });
   }
 
+  async hasActiveAssignmentAt(
+    staffId: string,
+    tenantId: string,
+    institutionId: string,
+  ): Promise<boolean> {
+    // count() reads no columns, so NULL subject_id/class_id rows (admin
+    // assignments, db/sql/098) cannot trip Prisma's non-nullable decoding.
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const count = await tx.staffAssignment.count({
+        where: { tenantId, staffId, institutionId, status: 'ACTIVE' },
+      });
+      return count > 0;
+    });
+  }
+
   async findOverlapping(
     tenantId: string,
     staffId: string,

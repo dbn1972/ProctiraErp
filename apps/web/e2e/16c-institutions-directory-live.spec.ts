@@ -93,7 +93,8 @@ test.describe('Institutions directory — Sunrise live', () => {
 
     const mayur = directoryTable.getByRole('row', { name: /Mayur Vihar/ });
     await expect(mayur).toContainText('1,240');
-    await expect(mayur).toContainText('84');
+    // 81 generated + 7 named staff assigned at Mayur Vihar (PRC-M101 seed).
+    await expect(mayur).toContainText('88');
     await expect(mayur).toContainText('94%');
     await expect(mayur).toContainText('Delhi East');
     await expect(mayur).toContainText('Senior Secondary');
