@@ -252,14 +252,21 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-/**
- * Access the current authentication state and actions.
- * Must be used within an `<AuthProvider>`.
- */
 /** Like {@link useAuth} but returns null outside an `<AuthProvider>`. */
 export function useOptionalAuth(): AuthContextValue | null {
   return useContext(AuthContext) ?? null;
 }
+/**
+ * PRC-M578: scope of the signed-in user, or `undefined` outside an
+ * `<AuthProvider>` (isolated component tests). Never throws.
+ */
+export function useOptionalAuthScope(): UserScope | undefined {
+  return useContext(AuthContext)?.user?.scope;
+}
+/**
+ * Access the current authentication state and actions.
+ * Must be used within an `<AuthProvider>`.
+ */
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);

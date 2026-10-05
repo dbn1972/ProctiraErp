@@ -59,9 +59,14 @@ describe('AssignmentFileForm (PRC-M099)', () => {
 
   it('schema refuses a base64 payload larger than 5 MB of bytes', () => {
     const base = { assignmentId: UUID, filename: 'a.pdf', mimeType: 'application/pdf' } as const;
+    // PRC-M494: the bound is on decoded bytes. 6,990,504 chars decode to 5,242,878 bytes (fits);
+    // 6,990,508 unpadded chars would decode to 5,242,881 bytes (one byte over 5 MB).
+    expect(
+      lmsFileUploadSchema.safeParse({ ...base, contentBase64: 'A'.repeat(6_990_504) }).success,
+    ).toBe(true);
     expect(
       lmsFileUploadSchema.safeParse({ ...base, contentBase64: 'A'.repeat(6_990_508) }).success,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       lmsFileUploadSchema.safeParse({ ...base, contentBase64: 'A'.repeat(6_990_512) }).success,
     ).toBe(false);

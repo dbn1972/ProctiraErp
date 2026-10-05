@@ -4,7 +4,7 @@
  *
  * Returns a TanStack-Query-shaped `{ data, isLoading, error }` envelope.
  * Calls `GET /api/v1/dashboards/teacher` via the browser gateway client.
- * Falls back to mock data when the API is unavailable.
+ * Failures are surfaced as `error` (PRC-M577); no sample data is substituted.
  */
 
 import { useEffect, useState } from 'react';
@@ -106,11 +106,11 @@ export function useTeacherDashboard(): DashboardQueryResult<TeacherDashboardData
           setData(result);
           setError(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          // Fall back to mock data so the UI remains functional
-          setData(MOCK_DATA);
-          setError(null);
+          // PRC-M577: surface the real failure; never substitute sample data.
+          setData(undefined);
+          setError(err instanceof Error ? err : new Error('Dashboard unavailable'));
         }
       }
     })();
@@ -123,7 +123,7 @@ export function useTeacherDashboard(): DashboardQueryResult<TeacherDashboardData
 
   return {
     data,
-    isLoading: data === undefined,
+    isLoading: data === undefined && error === null,
     error,
   };
 }

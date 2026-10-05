@@ -6,13 +6,7 @@ import { GatewayError, gatewayFetch } from './gateway';
 export type TransportRouteStatus = 'active' | 'inactive' | 'suspended';
 
 export type OperatingDay =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
+  'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 export interface TransportRoute {
   id: string;
@@ -76,10 +70,13 @@ export async function listTransportRoutes(): Promise<TransportRoute[]> {
 }
 
 export async function getTransportRoute(id: string): Promise<TransportRoute | null> {
-  const result = await gatewayFetch<Record<string, unknown>>(`/transport/routes/${id}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<Record<string, unknown>>(
+    `/transport/routes/${encodeURIComponent(id)}`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.data ? mapRoute(result.data) : null;
 }
 

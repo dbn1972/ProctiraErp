@@ -115,7 +115,10 @@ export async function checkoutBarcodeAction(input: {
   barcode: string;
   patronUserId?: string;
   studentId?: string;
-  /** Wall-clock date from the form; resolved to end of day in the tenant timezone. */
+  /**
+   * Wall-clock YYYY-MM-DD from the desk form (PRC-M104 / PRC-M573: no longer
+   * dropped); resolved to end of day in the tenant timezone.
+   */
   dueAt?: string;
 }): Promise<OpsActionState> {
   const parsed = z
@@ -123,7 +126,7 @@ export async function checkoutBarcodeAction(input: {
       barcode: z.string().min(1).max(64),
       patronUserId: z.string().min(1).max(128).optional(),
       studentId: z.string().min(1).max(128).optional(),
-      dueAt: z.string().max(40).optional(),
+      dueAt: z.string().max(64).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Barcode is required.' };
@@ -132,7 +135,12 @@ export async function checkoutBarcodeAction(input: {
     const dueAt = await toTenantUtcIso(parsed.data.dueAt);
     const dueError = dueAt ? libraryDueAtError(dueAt) : null;
     if (dueError) return { status: 'error', message: dueError };
-    const loan = await checkoutLibraryByBarcode({ ...parsed.data, dueAt });
+    const loan = await checkoutLibraryByBarcode({
+      barcode: parsed.data.barcode,
+      ...(parsed.data.patronUserId ? { patronUserId: parsed.data.patronUserId } : {}),
+      ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
+      ...(dueAt ? { dueAt } : {}),
+    });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', id: loan.id, message: 'Checked out by barcode.' };

@@ -18,7 +18,8 @@ function signToken(app: FastifyInstance, roleId: string): string {
     tenantId: TENANT_ID,
     email: `${roleId}@example.com`,
     displayName: roleId,
-    roles: [{ roleId, roleName: roleId, areaId: 'root' }],
+    // roleName is tenant-editable display text; the engine matches assignees on roleId only.
+    roles: [{ roleId, roleName: `Display name for ${roleId}`, areaId: 'root' }],
     areas: [],
     institutions: [],
     jti: `jti-${roleId}`,
@@ -55,7 +56,10 @@ const definitionBody = {
   name: 'Transfer approval',
   entityType: 'student_transfer',
   states: [
-    { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
+    // PRC-M490: only the current state's assignee may transition. Draft is assigned to the
+    // `admin` role so the admin JWT (RoleAssignment roleId 'admin') is the legitimate actor,
+    // proving gateway JwtPayload roles reach the engine's assignee check by roleId.
+    { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'role', assigneeId: 'admin' },
     {
       id: 'review',
       name: 'Review',

@@ -25,6 +25,8 @@
 // ./admin.server.ts to avoid pulling next/headers into client bundles.
 // ────────────────────────────────────────────────────────────────────────
 
+import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
+import { BROWSER_GATEWAY_API_PREFIX, BROWSER_GATEWAY_BASE_URL } from './browser-gateway';
 export interface AdminUser {
   id: string;
   email: string;
@@ -195,6 +197,17 @@ class AdminApiError extends Error {
 
 export { AdminApiError };
 
+/**
+ * PRC-M486: the admin endpoints live on the API gateway (there is no
+ * same-origin Next route for /api/v1/tenant/roles|users|settings), so
+ * relative `/api/v1/...` paths are resolved against the browser gateway base
+ * URL exactly like `browserGatewayFetch` does. Absolute URLs pass through.
+ */
+function resolveAdminUrl(url: string): string {
+  if (/^https?:\/\//.test(url)) return url;
+  if (url.startsWith(BROWSER_GATEWAY_API_PREFIX + '/')) return `${BROWSER_GATEWAY_BASE_URL}${url}`;
+  return url;
+}
 async function adminFetch<T>(
   url: string,
   init: RequestInit = {},
@@ -202,6 +215,10 @@ async function adminFetch<T>(
 ): Promise<T> {
   const fetcher = options.fetcher ?? fetch;
   const headers = new Headers(init.headers);
+  // PRC-M486: every request carries the double-submit CSRF token so the
+  // gateway/middleware CSRF gate accepts mutations from this client.
+  const csrfToken = readCsrfTokenFromDocument();
+  if (csrfToken && !headers.has(CSRF_HEADER)) headers.set(CSRF_HEADER, csrfToken);
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }

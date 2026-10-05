@@ -238,7 +238,7 @@ export async function listAllStaffResult(
 }
 
 export async function getStaff(id: string): Promise<Staff | null> {
-  const result = await gatewayFetch<Staff>(`/staff/${id}`, {
+  const result = await gatewayFetch<Staff>(`/staff/${encodeURIComponent(id)}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -256,7 +256,7 @@ export async function createStaff(input: CreateStaffInput): Promise<Staff> {
 }
 
 export async function updateStaff(id: string, input: UpdateStaffInput): Promise<Staff> {
-  const result = await gatewayFetch<Staff>(`/staff/${id}`, {
+  const result = await gatewayFetch<Staff>(`/staff/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });
@@ -265,7 +265,7 @@ export async function updateStaff(id: string, input: UpdateStaffInput): Promise<
 }
 
 export async function deleteStaff(id: string): Promise<void> {
-  await gatewayFetch<void>(`/staff/${id}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/staff/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /* ------------------------------------------------------------- Assignments */
@@ -313,7 +313,7 @@ export async function listAppraisalTemplates(): Promise<AppraisalTemplate[]> {
 
 export async function getAppraisalTemplate(templateId: string): Promise<AppraisalTemplate | null> {
   const result = await gatewayFetch<AppraisalTemplate>(
-    `/staff/appraisals/templates/${templateId}`,
+    `/staff/appraisals/templates/${encodeURIComponent(templateId)}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
   return result.ok ? result.data : null;
@@ -404,7 +404,7 @@ export async function decideStaffLeave(
   id: string,
   status: 'approved' | 'rejected',
 ): Promise<StaffLeave> {
-  const result = await gatewayFetch<StaffLeave>(`/staff/leaves/${id}/decide`, {
+  const result = await gatewayFetch<StaffLeave>(`/staff/leaves/${encodeURIComponent(id)}/decide`, {
     method: 'POST',
     json: { status },
   });
@@ -559,10 +559,13 @@ export async function verifyStaffQualification(
   verified: boolean,
   documentRef?: string,
 ): Promise<StaffQualification> {
-  const result = await gatewayFetch<StaffQualification>(`/staff/qualifications/${id}/verify`, {
-    method: 'POST',
-    json: { verified, documentRef },
-  });
+  const result = await gatewayFetch<StaffQualification>(
+    `/staff/qualifications/${encodeURIComponent(id)}/verify`,
+    {
+      method: 'POST',
+      json: { verified, documentRef },
+    },
+  );
   if (!result.data) throw new Error('Empty response from staff-service');
   return result.data;
 }

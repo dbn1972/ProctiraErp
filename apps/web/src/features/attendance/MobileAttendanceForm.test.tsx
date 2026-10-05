@@ -143,17 +143,21 @@ describe('<MobileAttendanceForm> — touch-target sizing', () => {
 // ─── Button state transitions (Requirement 41 AC 5) ─────────────────────────
 
 describe('<MobileAttendanceForm> — button state transitions', () => {
-  it('marks PRESENT as the initial active selection', () => {
+  it('starts every row unmarked (PRC-M574: no implicit PRESENT)', () => {
     render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
     const present = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`);
-    expect(present.getAttribute('aria-checked')).toBe('true');
-    expect(present.getAttribute('data-active')).toBe('true');
+    expect(present.getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('mobile-attendance-submit').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('mobile-attendance-submit-hint').textContent).toContain('not marked');
   });
 
   it('flips active state on click and clears the previous selection', () => {
     render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
     const present = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`);
     const absent = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`);
+    act(() => {
+      fireEvent.click(present);
+    });
 
     act(() => {
       fireEvent.click(absent);
@@ -173,11 +177,11 @@ describe('<MobileAttendanceForm> — button state transitions', () => {
       fireEvent.click(row1Late);
     });
 
-    // Row 2 must remain at the default PRESENT selection.
+    // Row 2 must remain unmarked (PRC-M574).
     const row2Present = screen.getByTestId(
       `mobile-attendance-status-${ROSTER[1]!.studentId}-PRESENT`,
     );
-    expect(row2Present.getAttribute('aria-checked')).toBe('true');
+    expect(row2Present.getAttribute('aria-checked')).toBe('false');
   });
 
   it('toggles the comment input via an explicit on-screen control (no hover)', () => {
@@ -297,6 +301,9 @@ describe('<MobileAttendanceForm> — submission routing', () => {
       />,
     );
 
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-attendance-mark-all-present'));
+    });
     const submitButton = screen.getByTestId('mobile-attendance-submit');
 
     await act(async () => {
@@ -334,6 +341,9 @@ describe('<MobileAttendanceForm> — submission routing', () => {
       />,
     );
 
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-attendance-mark-all-present'));
+    });
     const submitButton = screen.getByTestId('mobile-attendance-submit');
 
     await act(async () => {
@@ -388,6 +398,9 @@ describe('<MobileAttendanceForm> — submission routing', () => {
       />,
     );
 
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-attendance-mark-all-present'));
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId('mobile-attendance-submit'));
     });
@@ -402,5 +415,60 @@ describe('<MobileAttendanceForm> — submission routing', () => {
     const queued = await peekSyncQueue();
     expect(queued).toHaveLength(1);
     expect(queued[0]!.targetEntity).toBe('attendance');
+  });
+});
+
+// ─── PRC-M574: no implicit PRESENT, no cross-class submission ───────────────
+describe('<MobileAttendanceForm> — explicit marking (PRC-M574)', () => {
+  it('does not send untouched rows as PRESENT', async () => {
+    const submit = vi.fn(
+      async (_payload: MobileAttendanceSubmission): Promise<MobileAttendanceSubmitResult> => ({
+        status: 'success',
+      }),
+    );
+    render(
+      <MobileAttendanceForm
+        roster={ROSTER}
+        defaults={DEFAULTS}
+        submit={submit}
+        isOnlineOverride={true}
+      />,
+    );
+    const submitButton = screen.getByTestId('mobile-attendance-submit');
+    expect(submitButton.hasAttribute('disabled')).toBe(true);
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
+    expect(submit).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.click(
+        screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`),
+      );
+    });
+    // One row still unmarked -> still disabled.
+    expect(screen.getByTestId('mobile-attendance-submit').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('disables submit when the class changes without a matching roster', () => {
+    const { rerender } = render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-attendance-mark-all-present'));
+    });
+    expect(screen.getByTestId('mobile-attendance-submit').hasAttribute('disabled')).toBe(false);
+    rerender(
+      <MobileAttendanceForm roster={ROSTER} defaults={{ ...DEFAULTS, classId: 'other-class' }} />,
+    );
+    expect(screen.getByTestId('mobile-attendance-submit').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('mobile-attendance-submit-hint').textContent).toContain(
+      'does not belong to the selected class',
+    );
+  });
+
+  it('class and period identifiers are read-only', () => {
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    expect(screen.getByTestId('mobile-attendance-class-input').hasAttribute('readonly')).toBe(true);
+    expect(screen.getByTestId('mobile-attendance-period-input').hasAttribute('readonly')).toBe(
+      true,
+    );
   });
 });

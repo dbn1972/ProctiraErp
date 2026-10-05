@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { base64MaxBytes } from './zod-helpers';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const studentPhotoUploadSchema = z.object({
-  contentBase64: z.string().min(1, 'Photo is required'),
+  // PRC-M494: mirrors the backend PHOTO_MAX_BYTES (2 MB).
+  contentBase64: base64MaxBytes(2 * 1024 * 1024, 'Photo'),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 });
 export type StudentPhotoUploadValues = z.infer<typeof studentPhotoUploadSchema>;
