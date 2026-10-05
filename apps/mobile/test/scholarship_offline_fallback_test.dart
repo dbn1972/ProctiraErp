@@ -83,4 +83,32 @@ void main() {
     expect(s.programs.single.id, 'p1');
     await bloc.close();
   });
+
+  test('a later online fetch clears the stale flag', () async {
+    final ScholarshipRepository r = repo();
+    reply = const FakeReply(200, <String, dynamic>{
+      'data': <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'p1', 'name': 'Merit', 'status': 'open'},
+      ],
+    });
+    await r.getPrograms();
+    reply = const FakeReply.fail(DioExceptionType.connectionError);
+    await r.getPrograms();
+    expect(r.lastServedFromCache, isTrue);
+
+    reply = const FakeReply(200, <String, dynamic>{
+      'data': <Map<String, dynamic>>[],
+    });
+    await r.getApplications(studentId: 'stu-1');
+    expect(r.lastServedFromCache, isFalse);
+
+    reply = const FakeReply.fail(DioExceptionType.connectionError);
+    await r.getPrograms();
+    expect(r.lastServedFromCache, isTrue);
+    reply = const FakeReply(200, <String, dynamic>{
+      'data': <Map<String, dynamic>>[],
+    });
+    await r.getPrograms();
+    expect(r.lastServedFromCache, isFalse);
+  });
 }

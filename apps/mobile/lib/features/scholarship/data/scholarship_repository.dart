@@ -314,6 +314,7 @@ class ScholarshipRepository {
   /// Fetch available scholarship programs.
   Future<List<ScholarshipProgram>> getPrograms({bool openOnly = true}) async {
     final String tenantId = _requireTenantId();
+    _lastServedFromCache = false;
 
     try {
       final Response<dynamic> response = await _dio.get(
@@ -501,6 +502,7 @@ class ScholarshipRepository {
     required String studentId,
   }) async {
     final String tenantId = _requireTenantId();
+    _lastServedFromCache = false;
 
     try {
       // The staff route filters on `applicantId`; an unknown `studentId`
