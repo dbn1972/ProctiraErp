@@ -40,7 +40,10 @@ describe('ParentPortalService', () => {
     const existing = await repository.listActiveHouseholdIdsForParent(TENANT_A, parentUserId);
     if (!existing.includes(householdId)) {
       try {
-        await service.createHousehold(TENANT_A, { id: householdId, label: `Household ${householdId}` });
+        await service.createHousehold(TENANT_A, {
+          id: householdId,
+          label: `Household ${householdId}`,
+        });
       } catch {
         // household may already exist from a prior call in the same test
       }

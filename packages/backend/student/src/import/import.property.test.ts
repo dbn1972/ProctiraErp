@@ -15,7 +15,7 @@
  * **Validates: Requirements 6.7, 6.8, 19.2, 19.5**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { validateRow, validateAllRows } from './row-validator.js';
@@ -24,6 +24,9 @@ import { ImportService } from './import-service.js';
 import { InMemoryStudentRepository } from './in-memory-student-repository.js';
 import { InMemoryImportQueue } from './in-memory-import-queue.js';
 import type { ImportStudentRow, ImportRowError, StudentRecord } from './types.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 

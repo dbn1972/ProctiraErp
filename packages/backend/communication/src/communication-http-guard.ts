@@ -16,9 +16,11 @@ export function communicationRequestRoles(request: FastifyRequest): unknown {
 }
 
 export function communicationHasUser(request: FastifyRequest): boolean {
-  const user = (request as FastifyRequest & {
-    user?: { sub?: string; userId?: string; id?: string };
-  }).user;
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; userId?: string; id?: string };
+    }
+  ).user;
   if (!user) return false;
   return Boolean(user.sub ?? user.userId ?? user.id);
 }
@@ -29,9 +31,11 @@ export function communicationHasUser(request: FastifyRequest): boolean {
  * treat null as forbidden — the RBAC guard already rejects unauthenticated callers).
  */
 export function communicationActorId(request: FastifyRequest): string | null {
-  const user = (request as FastifyRequest & {
-    user?: { sub?: string; userId?: string; id?: string };
-  }).user;
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; userId?: string; id?: string };
+    }
+  ).user;
   if (!user) return null;
   const id = user.sub ?? user.userId ?? user.id;
   return id ? String(id) : null;

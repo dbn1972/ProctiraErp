@@ -5,7 +5,7 @@
  * is accepted. Any submission missing a required field must be rejected
  * with a ValidationError.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +21,9 @@ import type {
   SubmissionEntity,
 } from '../survey-repository.js';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Minimal in-memory implementations for testing
 class MockSurveyRepo implements SurveyRepository {

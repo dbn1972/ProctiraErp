@@ -14,12 +14,7 @@ export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-co
 export type { BreakGlassUseCase } from './break-glass-constants';
 
 export type BreakGlassStatus =
-  | 'pending_approval'
-  | 'approved'
-  | 'active'
-  | 'expired'
-  | 'revoked'
-  | 'denied';
+  'pending_approval' | 'approved' | 'active' | 'expired' | 'revoked' | 'denied';
 
 export interface BreakGlassRequest {
   id: string;
