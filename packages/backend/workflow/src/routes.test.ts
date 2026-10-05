@@ -20,7 +20,10 @@ function createApp(): FastifyInstance {
     (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
     // PRC-M490: simulate the auth plugin; tests pick the caller via x-test-user/x-test-roles.
     const sub = (request.headers['x-test-user'] as string | undefined) ?? 'creator';
-    const roles = ((request.headers['x-test-roles'] as string | undefined) ?? 'admin').split(',');
+    // Production shape: the gateway JwtPayload carries RoleAssignment objects.
+    const roles = ((request.headers['x-test-roles'] as string | undefined) ?? 'admin')
+      .split(',')
+      .map((roleId) => ({ roleId, roleName: roleId.toUpperCase(), areaId: 'area-1' }));
     if (sub !== 'anonymous') {
       (request as typeof request & { user: unknown }).user = { sub, roles };
     }

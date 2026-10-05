@@ -42,7 +42,17 @@ beforeEach(async () => {
     (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
     const sub = request.headers['x-test-user'] as string | undefined;
     if (sub) {
-      const roles = String(request.headers['x-test-roles'] ?? '').split(',');
+      // Production shape: the gateway JwtPayload carries RoleAssignment objects.
+      // `x-test-role-shape: string` keeps coverage of legacy string-role tokens.
+      const ids = String(request.headers['x-test-roles'] ?? '').split(',');
+      const roles =
+        request.headers['x-test-role-shape'] === 'string'
+          ? ids
+          : ids.map((roleId) => ({
+              roleId,
+              roleName: String(request.headers['x-test-role-name'] ?? roleId.toUpperCase()),
+              areaId: 'area-1',
+            }));
       (request as typeof request & { user: unknown }).user = { sub, roles };
     }
   });
@@ -85,6 +95,25 @@ describe('workflow instance visibility (PRC-M491)', () => {
       headers: as('p1', 'principal'),
     });
     expect(detail.statusCode).toBe(404);
+  });
+  it('restricted types are visible to the RoleAssignment roleId, not a look-alike roleName', async () => {
+    const counsellor = (await list('', as('c1', 'counsellor'))).json();
+    expect(counsellor.data.map((i: { entityType: string }) => i.entityType)).toContain(
+      'counselling_case',
+    );
+    const spoof = (
+      await list('', { ...as('m1', 'custom-role-1'), 'x-test-role-name': 'counsellor' })
+    ).json();
+    expect(spoof.data.map((i: { entityType: string }) => i.entityType)).not.toContain(
+      'counselling_case',
+    );
+    const legacy = (
+      await list('entityType=counselling_case', {
+        ...as('c2', 'counsellor'),
+        'x-test-role-shape': 'string',
+      })
+    ).json();
+    expect(legacy.data).toHaveLength(1);
   });
   it('priority filter runs server-side so totals match the filtered rows', async () => {
     const body = (await list('priority=high&pageSize=1', as('p1', 'principal'))).json();

@@ -33,7 +33,17 @@ beforeEach(async () => {
     (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
     const sub = request.headers['x-test-user'] as string | undefined;
     if (sub) {
-      const roles = String(request.headers['x-test-roles'] ?? '').split(',');
+      // Production shape: the gateway JwtPayload carries RoleAssignment objects.
+      // `x-test-role-shape: string` keeps coverage of legacy string-role tokens.
+      const ids = String(request.headers['x-test-roles'] ?? '').split(',');
+      const roles =
+        request.headers['x-test-role-shape'] === 'string'
+          ? ids
+          : ids.map((roleId) => ({
+              roleId,
+              roleName: String(request.headers['x-test-role-name'] ?? roleId.toUpperCase()),
+              areaId: 'area-1',
+            }));
       (request as typeof request & { user: unknown }).user = { sub, roles };
     }
   });
@@ -91,6 +101,31 @@ describe('workflow transition actor (PRC-M490)', () => {
       })
     ).json();
     expect(audit.data[0].actorId).toBe('teacher-1');
+  });
+  it('JWT RoleAssignment objects: matching roleId transitions (200), others 403', async () => {
+    const id = await startInstance();
+    // Non-matching RoleAssignment (roleId 'parent') is forbidden on a teacher-assigned state.
+    expect((await transition(id, 'submit', as('parent-1', 'parent'))).statusCode).toBe(403);
+    // Matching RoleAssignment { roleId: 'teacher', roleName: 'TEACHER' } is allowed.
+    const ok = await transition(id, 'submit', as('teacher-1', 'teacher'));
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().currentStateId).toBe('review');
+  });
+  it('matches on roleId only: a custom role *named* like the assignee is 403', async () => {
+    const id = await startInstance();
+    const res = await transition(id, 'submit', {
+      ...as('mallory', 'custom-role-1'),
+      'x-test-role-name': 'teacher',
+    });
+    expect(res.statusCode).toBe(403);
+  });
+  it('still accepts legacy string roles in the token', async () => {
+    const id = await startInstance();
+    const res = await transition(id, 'submit', {
+      ...as('teacher-1', 'teacher'),
+      'x-test-role-shape': 'string',
+    });
+    expect(res.statusCode).toBe(200);
   });
   it('two approvals by the same user do not satisfy requiredApprovals=2', async () => {
     const id = await startInstance();

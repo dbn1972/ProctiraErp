@@ -124,14 +124,42 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
+/**
+ * Role key the engine matches against `assigneeId` / restricted entity roles.
+ *
+ * The gateway's `request.user` is a `JwtPayload` whose `roles` are `RoleAssignment`
+ * objects (`{ roleId, roleName, areaId, institutionId? }`). Workflow definitions and
+ * `DEFAULT_RESTRICTED_ENTITY_TYPES` use role ids ('principal', 'counsellor'), so only the
+ * stable `roleId` is used. `roleName` is tenant-editable display text and is deliberately
+ * NOT matched, so a custom role named e.g. 'Principal' cannot act as the `principal` role.
+ * Plain string roles are still accepted for callers/tests that put role ids in the token.
+ */
+function roleKeyOf(role: unknown): string | null {
+  if (typeof role === 'string') return role.trim() || null;
+  if (role !== null && typeof role === 'object' && 'roleId' in role) {
+    const { roleId } = role;
+    if (typeof roleId === 'string') return roleId.trim() || null;
+  }
+  return null;
+}
+
 /** PRC-M490: authenticated actor (JWT subject + roles) from the auth plugin. */
 function getActor(request: FastifyRequest): TransitionActor | null {
-  const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;
-  if (!user || typeof user.sub !== 'string' || user.sub.length === 0) return null;
-  const roles = Array.isArray(user.roles)
-    ? user.roles.filter((r): r is string => typeof r === 'string')
+  // Read as `unknown`: the gateway augments `request.user` as `JwtPayload`, standalone
+  // servers/tests may not, so narrow structurally instead of trusting either shape.
+  const user: unknown = (request as { user?: unknown }).user;
+  if (user === null || typeof user !== 'object') return null;
+  const sub: unknown = 'sub' in user ? user.sub : undefined;
+  if (typeof sub !== 'string' || sub.length === 0) return null;
+  const rawRoles: unknown = 'roles' in user ? user.roles : undefined;
+  const roles = Array.isArray(rawRoles)
+    ? [
+        ...new Set(
+          (rawRoles as unknown[]).map((r) => roleKeyOf(r)).filter((r): r is string => r !== null),
+        ),
+      ]
     : [];
-  return { id: user.sub, roles };
+  return { id: sub, roles };
 }
 /**
  * Register workflow routes on a Fastify instance.
