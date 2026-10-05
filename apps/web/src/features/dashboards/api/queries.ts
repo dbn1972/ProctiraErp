@@ -3,9 +3,8 @@
  *
  * Each hook returns a TanStack-Query–compatible shape (`{ data, isLoading,
  * error }`). The implementation calls the real API client from
- * `@/lib/api/dashboards.ts` and falls back to mock data when the
- * backend is unavailable (e.g. during local development without the
- * gateway running).
+ * `@/lib/api/dashboards.ts`. PRC-M577: failures (incl. 401/403/5xx) are
+ * surfaced as `error`; sample data is never substituted.
  *
  * The hooks are typed against `DashboardQueryResult<T>` so the migration
  * to `@tanstack/react-query` only requires renaming the import and
@@ -22,12 +21,6 @@ import {
   fetchStateDashboard,
 } from '@/lib/api/dashboards';
 
-import {
-  BOARD_ADMIN_DASHBOARD_MOCK,
-  BOARD_COMPARISON_MOCK,
-  COUNTRY_DASHBOARD_MOCK,
-  STATE_DASHBOARD_MOCK,
-} from './mockData';
 import type {
   BoardAdminDashboardData,
   BoardComparisonData,
@@ -37,13 +30,21 @@ import type {
   StateDashboardData,
 } from './types';
 
+/** PRC-M578: the signed-in user's scope does not name the entity a dashboard needs. */
+export class DashboardScopeError extends Error {
+  constructor(public readonly missing: 'institution' | 'state' | 'board') {
+    super(`Your account is not assigned to a ${missing}, so this dashboard cannot be shown.`);
+    this.name = 'DashboardScopeError';
+  }
+}
+
 /**
- * Generic hook that calls an async fetcher and falls back to mock data
- * when the API is unreachable or returns a NOT_IMPLEMENTED error.
+ * Generic hook that calls an async fetcher. PRC-M577: failures (401/403/5xx,
+ * network) are surfaced as `error`; sample data is never substituted.
  */
 function useApiQuery<T>(
   fetcher: (signal: AbortSignal) => Promise<T>,
-  fallback: T,
+  deps: readonly unknown[] = [],
 ): DashboardQueryResult<T> {
   const [data, setData] = useState<T | undefined>(undefined);
   const [error, setError] = useState<Error | null>(null);
@@ -63,10 +64,8 @@ function useApiQuery<T>(
         }
       } catch (err) {
         if (cancelled) return;
-        // Fall back to mock data on network errors or NOT_IMPLEMENTED
-        // so the UI remains functional during development.
-        setData(fallback);
-        setError(null);
+        setData(undefined);
+        setError(err instanceof Error ? err : new Error('Dashboard unavailable'));
       }
     })();
 
@@ -74,11 +73,12 @@ function useApiQuery<T>(
       cancelled = true;
       controller.abort();
     };
-  }, [fallback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- caller-supplied deps
+  }, deps);
 
   return {
     data,
-    isLoading: data === undefined,
+    isLoading: data === undefined && error === null,
     error,
   };
 }
@@ -87,24 +87,28 @@ function useApiQuery<T>(
  * `GET /api/v1/dashboards/country`
  *
  * Fetches the country-level dashboard aggregate from the backend.
- * Falls back to mock data when the gateway is unavailable.
+ * Failures are surfaced as `error` (PRC-M577); no sample data is substituted.
  */
 export function useCountryDashboardData(): DashboardQueryResult<CountryDashboardData> {
-  return useApiQuery((signal) => fetchCountryDashboard(signal), COUNTRY_DASHBOARD_MOCK);
+  return useApiQuery((signal) => fetchCountryDashboard(signal));
 }
 
 /**
  * `GET /api/v1/dashboards/state/:stateId`
  *
  * Fetches the state-level dashboard aggregate from the backend.
- * Falls back to mock data when the gateway is unavailable.
+ * Failures are surfaced as `error` (PRC-M577); no sample data is substituted.
  */
 export function useStateDashboardData(
   stateCode?: string,
 ): DashboardQueryResult<StateDashboardData> {
+  // PRC-M578: no hard-coded 'MH' default; callers pass the scope's state.
   return useApiQuery(
-    (signal) => fetchStateDashboard(stateCode ?? 'MH', signal),
-    STATE_DASHBOARD_MOCK,
+    (signal) =>
+      stateCode
+        ? fetchStateDashboard(stateCode, signal)
+        : Promise.reject(new DashboardScopeError('state')),
+    [stateCode],
   );
 }
 
@@ -112,27 +116,31 @@ export function useStateDashboardData(
  * `GET /api/v1/dashboards/board-admin/:boardId`
  *
  * Fetches the board admin dashboard aggregate from the backend.
- * Falls back to mock data when the gateway is unavailable.
+ * Failures are surfaced as `error` (PRC-M577); no sample data is substituted.
  */
 export function useBoardAdminDashboardData(
   boardCode?: string,
 ): DashboardQueryResult<BoardAdminDashboardData> {
+  // PRC-M578: no hard-coded 'cbse' default; callers pass the scope's board.
   return useApiQuery(
-    (signal) => fetchBoardAdminDashboard(boardCode ?? 'cbse', signal),
-    BOARD_ADMIN_DASHBOARD_MOCK,
+    (signal) =>
+      boardCode
+        ? fetchBoardAdminDashboard(boardCode, signal)
+        : Promise.reject(new DashboardScopeError('board')),
+    [boardCode],
   );
 }
 
 /**
  * `GET /api/v1/dashboard/board-comparison`
  *
- * Fetches the board comparison data. Falls back to mock data since
- * this endpoint depends on the data warehouse rollup (not yet shipped).
+ * Fetches the board comparison data (data-warehouse rollup). Failures are
+ * surfaced as `error` (PRC-M577).
  */
 export function useBoardComparisonData(
   boardCodes?: ReadonlyArray<string>,
 ): DashboardQueryResult<BoardComparisonData> {
-  return useApiQuery((signal) => fetchBoardComparison(boardCodes, signal), BOARD_COMPARISON_MOCK);
+  return useApiQuery((signal) => fetchBoardComparison(boardCodes, signal));
 }
 
 /**

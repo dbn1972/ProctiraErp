@@ -4,6 +4,7 @@
  * Test implementation of the AuditRepository interface.
  * Stores audit log entries in memory for unit and property-based testing.
  */
+import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 import type {
   AuditRepository,
   AuditLogEntry,
@@ -14,7 +15,6 @@ import type {
   ArchivalResult,
   ChainVerification,
 } from './audit-repository.js';
-import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 
 /**
  * In-memory implementation of AuditRepository for testing purposes.
@@ -72,6 +72,13 @@ export class InMemoryAuditRepository implements AuditRepository {
   /**
    * Query audit log entries with filtering and pagination.
    */
+  async listEntityTypes(tenantId: string, limit: number): Promise<string[]> {
+    const types = new Set(
+      this.entries.filter((e) => e.tenantId === tenantId).map((e) => e.entityType),
+    );
+    return [...types].sort().slice(0, limit);
+  }
+
   async query(query: AuditLogQuery): Promise<AuditLogQueryResult> {
     let filtered = this.entries.filter((e) => e.tenantId === query.tenantId);
 

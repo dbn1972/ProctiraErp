@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { base64MaxBytes } from './zod-helpers';
 import { isHttpUrl } from '@/lib/safe-url';
 import { refineScopeTarget } from './lms-schema';
 
@@ -114,8 +115,8 @@ export const lmsFileUploadSchema = z.object({
     'text/plain',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ]),
-  // PRC-M099: 5 MB of bytes is at most 6,990,508 base64 characters.
-  contentBase64: z.string().min(1).max(6_990_508, 'File exceeds 5 MB.'),
+  // PRC-M494: mirrors the LMS file store MAX_BYTES (5 MB).
+  contentBase64: base64MaxBytes(5 * 1024 * 1024),
 });
 export type LmsFileUploadValues = z.infer<typeof lmsFileUploadSchema>;
 

@@ -132,3 +132,48 @@ describe('gatewayFetch', () => {
     expect(call[1]?.body).toBe(JSON.stringify({ firstName: 'Aisha' }));
   });
 });
+// PRC-M489: negative / auth-fallback paths.
+describe('gatewayFetch auth fallbacks and failures (PRC-M489)', () => {
+  it('omits Authorization and falls back to the middleware tenant header when no session', async () => {
+    mockGet.mockReturnValue(undefined);
+    mockHeaderGet.mockImplementation((name: string) =>
+      name === 'x-tenant-id' ? 'tenant-from-header' : null,
+    );
+    fetchMock.mockResolvedValueOnce(
+      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    const { gatewayFetch } = await import('./gateway');
+    await gatewayFetch('/students');
+    const headers = fetchMock.mock.calls[0]![1]!.headers as Headers;
+    expect(headers.get('Authorization')).toBeNull();
+    expect(headers.get('X-Tenant-ID')).toBe('tenant-from-header');
+  });
+  it('falls back to "default" tenant when neither cookie nor header is present', async () => {
+    mockGet.mockReturnValue(undefined);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const { gatewayFetch } = await import('./gateway');
+    const res = await gatewayFetch('/students');
+    expect((fetchMock.mock.calls[0]![1]!.headers as Headers).get('X-Tenant-ID')).toBe('default');
+    expect(res).toMatchObject({ ok: true, status: 204, data: null });
+  });
+  it('maps a network failure to NETWORK_ERROR (throwing and non-throwing)', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    const { gatewayFetch, GatewayError } = await import('./gateway');
+    await expect(gatewayFetch('/students')).rejects.toBeInstanceOf(GatewayError);
+    const res = await gatewayFetch('/students', { throwOnError: false });
+    expect(res).toMatchObject({ ok: false, status: 0, error: { code: 'NETWORK_ERROR' } });
+  });
+  it('401 with a non-JSON body yields GATEWAY_ERROR rather than data', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('nope', { status: 401, statusText: 'Unauthorized' }),
+    );
+    const { gatewayFetch } = await import('./gateway');
+    const res = await gatewayFetch('/students', { throwOnError: false });
+    expect(res).toMatchObject({
+      ok: false,
+      status: 401,
+      data: null,
+      error: { code: 'GATEWAY_ERROR' },
+    });
+  });
+});

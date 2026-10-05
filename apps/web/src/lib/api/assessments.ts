@@ -183,7 +183,7 @@ export async function listGradingSchemes(
 }
 
 export async function getGradingScheme(id: string): Promise<GradingScheme | null> {
-  const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${id}`, {
+  const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${encodeURIComponent(id)}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
@@ -204,7 +204,7 @@ export async function updateGradingScheme(
   id: string,
   input: UpdateGradingSchemeInput,
 ): Promise<GradingScheme> {
-  const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${id}`, {
+  const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
   });
@@ -213,7 +213,7 @@ export async function updateGradingScheme(
 }
 
 export async function deleteGradingScheme(id: string): Promise<void> {
-  await gatewayFetch<void>(`/grading-schemes/${id}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/grading-schemes/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /* ----------------------------------------------------- Assessment Items */
@@ -331,5 +331,5 @@ export async function createOutcome(input: {
 }
 
 export async function deleteOutcome(id: string): Promise<void> {
-  await gatewayFetch<void>(`/outcomes/${id}`, { method: 'DELETE' });
+  await gatewayFetch<void>(`/outcomes/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
