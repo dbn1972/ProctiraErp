@@ -58,6 +58,13 @@ export interface AssessmentRepositoryConfig {
   prismaClient?: PrismaClient;
 }
 
+/**
+ * PRC-M167: one PrismaClient per database URL per process. Every factory call
+ * reuses it (createPrismaClient only caches outside production), so the four
+ * gateway factories share a single connection pool.
+ */
+const prismaClientsByUrl = new Map<string, PrismaClient>();
+
 function resolvePrismaClient(config: AssessmentRepositoryConfig): PrismaClient | null {
   if (config.prismaClient) return config.prismaClient;
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
@@ -65,7 +72,17 @@ function resolvePrismaClient(config: AssessmentRepositoryConfig): PrismaClient |
     assertInMemoryFallbackAllowed('assessment');
     return null;
   }
-  return createPrismaClient({ datasourceUrl: databaseUrl });
+  let client = prismaClientsByUrl.get(databaseUrl);
+  if (!client) {
+    client = createPrismaClient({ datasourceUrl: databaseUrl });
+    prismaClientsByUrl.set(databaseUrl, client);
+  }
+  return client;
+}
+
+/** Test hook: forget cached clients (does not disconnect them). */
+export function resetAssessmentPrismaClientCacheForTests(): void {
+  prismaClientsByUrl.clear();
 }
 
 export function createGradingSchemeRepository(

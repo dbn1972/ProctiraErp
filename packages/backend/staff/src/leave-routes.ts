@@ -2,9 +2,10 @@
  * Staff leave routes — list/create/decide.
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { ListPageQuerySchema, pageMeta, toPageWindow } from './hr-schemas.js';
 import {
   CreateStaffLeaveSchema,
   DecideStaffLeaveSchema,
@@ -106,8 +107,21 @@ export async function registerStaffLeaveRoutes(
         });
       }
 
-      const leaves = await leaveService.listLeaves(tenantId);
-      return reply.status(200).send({ data: leaves.map(formatLeave) });
+      // PRC-M379: bounded pages; invalid paging -> 400.
+      const query = validateQuery(ListPageQuerySchema, request.query ?? {});
+      if (!query.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: query.errors,
+        });
+      }
+      const w = toPageWindow(query.data);
+      const { rows, total } = await leaveService.listLeavesPage(tenantId, w);
+      return reply
+        .status(200)
+        .send({ data: rows.map(formatLeave), meta: pageMeta(w.page, w.pageSize, total) });
     },
   );
 

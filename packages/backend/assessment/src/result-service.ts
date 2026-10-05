@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   AssessmentItemEntity,
   AssessmentItemRepository,
+  GradingSchemeEntity,
   GradingSchemeRepository,
 } from './assessment-repository.js';
 import type {
@@ -35,6 +36,31 @@ import type {
 import { MAX_BULK_RESULT_ROWS } from './result-schemas.js';
 import type { GradeThreshold } from './schemas.js';
 
+/** PRC-M164: upper bound for one page of subject-wide grades. */
+export const MAX_GRADE_PAGE_SIZE = 500;
+
+/**
+ * PRC-M161: tenant-scoped student existence port. Returns the subset of `studentIds`
+ * that exist (and are not deleted) in the tenant.
+ */
+export interface ResultStudentDirectory {
+  findExistingStudentIds(tenantId: string, studentIds: readonly string[]): Promise<Set<string>>;
+}
+
+export interface ResultServiceOptions {
+  /**
+   * When provided, every result's student must exist in the tenant (single IN query per
+   * call). Without it the `assessment_results_student_id_fkey` constraint is the backstop.
+   */
+  studentDirectory?: ResultStudentDirectory | null;
+}
+
+/** PRC-M164: optional page window for subject-wide grade listings. */
+export interface GradeListPage {
+  page?: number;
+  limit?: number;
+}
+
 /**
  * Service handling assessment result business logic.
  */
@@ -43,6 +69,7 @@ export class ResultService {
     private readonly resultRepo: AssessmentResultRepository,
     private readonly assessmentItemRepo: AssessmentItemRepository,
     private readonly gradingSchemeRepo: GradingSchemeRepository,
+    private readonly options: ResultServiceOptions = {},
   ) {}
 
   /**
@@ -68,17 +95,32 @@ export class ResultService {
       throw new NotFoundError(`Assessment item with id '${input.assessmentItemId}' not found`);
     }
 
+    // PRC-M161: the item owns its subject/period; a mis-tagged entry is rejected (422).
+    if (item.subjectId !== input.subjectId || item.academicPeriodId !== input.academicPeriodId) {
+      throw new BusinessRuleError(
+        `Assessment item '${item.name}' does not belong to the given subject and academic period`,
+      );
+    }
+
     // Validate score is within the item's score range
     this.validateScoreRange(input.score, item);
 
-    // Upsert the result
+    const directory = this.options.studentDirectory;
+    if (directory) {
+      const existing = await directory.findExistingStudentIds(tenantId, [input.studentId]);
+      if (!existing.has(input.studentId)) {
+        throw new NotFoundError(`Student with id '${input.studentId}' not found`);
+      }
+    }
+
+    // Upsert the result (subject/period derived from the item)
     const entity: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
       assessmentItemId: input.assessmentItemId,
-      subjectId: input.subjectId,
-      academicPeriodId: input.academicPeriodId,
+      subjectId: item.subjectId,
+      academicPeriodId: item.academicPeriodId,
       score: input.score,
     };
 
@@ -111,17 +153,22 @@ export class ResultService {
       );
     }
 
-    // Collect all unique assessment item IDs for batch lookup
-    const uniqueItemIds = [...new Set(input.results.map((r) => r.assessmentItemId))];
+    // PRC-M164: one query for every item of the subject+period (instead of N lookups).
+    // PRC-M161: items outside that subject+period are row errors, never persisted.
+    const periodItems = await this.assessmentItemRepo.findBySubjectAndPeriod(
+      tenantId,
+      input.subjectId,
+      input.academicPeriodId,
+    );
+    const itemMap = new Map<string, AssessmentItemEntity>(periodItems.map((i) => [i.id, i]));
 
-    // Batch fetch all referenced assessment items
-    const itemMap = new Map<string, AssessmentItemEntity>();
-    for (const itemId of uniqueItemIds) {
-      const item = await this.assessmentItemRepo.findById(itemId, tenantId);
-      if (item) {
-        itemMap.set(itemId, item);
-      }
-    }
+    // PRC-M161: one tenant-scoped IN query for student existence.
+    const directory = this.options.studentDirectory;
+    const knownStudents = directory
+      ? await directory.findExistingStudentIds(tenantId, [
+          ...new Set(input.results.map((r) => r.studentId)),
+        ])
+      : null;
 
     // Validate each row
     const validEntries: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>[] = [];
@@ -137,7 +184,18 @@ export class ResultService {
           studentId: row.studentId,
           assessmentItemId: row.assessmentItemId,
           field: 'assessmentItemId',
-          message: `Assessment item with id '${row.assessmentItemId}' not found`,
+          message: `Assessment item with id '${row.assessmentItemId}' not found for the given subject and academic period`,
+        });
+        continue;
+      }
+
+      if (knownStudents && !knownStudents.has(row.studentId)) {
+        errors.push({
+          row: i,
+          studentId: row.studentId,
+          assessmentItemId: row.assessmentItemId,
+          field: 'studentId',
+          message: `Student with id '${row.studentId}' not found`,
         });
         continue;
       }
@@ -159,8 +217,8 @@ export class ResultService {
         tenantId,
         studentId: row.studentId,
         assessmentItemId: row.assessmentItemId,
-        subjectId: input.subjectId,
-        academicPeriodId: input.academicPeriodId,
+        subjectId: item.subjectId,
+        academicPeriodId: item.academicPeriodId,
         score: row.score,
       });
     }
@@ -213,14 +271,7 @@ export class ResultService {
       );
     }
 
-    // Get the grading scheme from the first item (all items share the same scheme)
-    const gradingScheme = await this.gradingSchemeRepo.findById(
-      items[0]!.gradingSchemeId,
-      tenantId,
-    );
-    if (!gradingScheme) {
-      throw new NotFoundError(`Grading scheme with id '${items[0]!.gradingSchemeId}' not found`);
-    }
+    const gradingScheme = await this.loadScheme(tenantId, items);
 
     // Get student's results for this subject+period
     const results = await this.resultRepo.findByStudentSubjectPeriod(
@@ -230,6 +281,33 @@ export class ResultService {
       academicPeriodId,
     );
 
+    return this.computeGrade(studentId, subjectId, academicPeriodId, items, gradingScheme, results);
+  }
+
+  /** Grading scheme shared by the subject+period items (taken from the first item). */
+  private async loadScheme(
+    tenantId: string,
+    items: AssessmentItemEntity[],
+  ): Promise<GradingSchemeEntity> {
+    const gradingScheme = await this.gradingSchemeRepo.findById(
+      items[0]!.gradingSchemeId,
+      tenantId,
+    );
+    if (!gradingScheme) {
+      throw new NotFoundError(`Grading scheme with id '${items[0]!.gradingSchemeId}' not found`);
+    }
+    return gradingScheme;
+  }
+
+  /** Pure weighted-average + grade computation over pre-loaded items/scheme/results. */
+  private computeGrade(
+    studentId: string,
+    subjectId: string,
+    academicPeriodId: string,
+    items: AssessmentItemEntity[],
+    gradingScheme: GradingSchemeEntity,
+    results: AssessmentResultEntity[],
+  ): StudentSubjectResult {
     // Build a map of assessmentItemId -> score
     const scoreMap = new Map<string, number>();
     for (const result of results) {
@@ -296,29 +374,65 @@ export class ResultService {
     subjectId: string,
     academicPeriodId: string,
   ): Promise<StudentSubjectResult[]> {
-    // Get all results for the subject+period
+    return (await this.calculateGradesPage(tenantId, subjectId, academicPeriodId, {})).data;
+  }
+
+  /**
+   * PRC-M164: paged subject-wide grades. With `limit` the window is capped at
+   * MAX_GRADE_PAGE_SIZE; `total` is the number of graded students.
+   */
+  async calculateGradesPage(
+    tenantId: string,
+    subjectId: string,
+    academicPeriodId: string,
+    pageOpts: GradeListPage,
+  ): Promise<{ data: StudentSubjectResult[]; total: number; page: number; limit: number | null }> {
+    // PRC-M164: items + scheme + all results loaded once (3 queries), grouped in memory.
+    const items = await this.assessmentItemRepo.findBySubjectAndPeriod(
+      tenantId,
+      subjectId,
+      academicPeriodId,
+    );
+    if (items.length === 0) {
+      throw new NotFoundError(
+        `No assessment items found for subject '${subjectId}' in period '${academicPeriodId}'`,
+      );
+    }
+    const gradingScheme = await this.loadScheme(tenantId, items);
     const allResults = await this.resultRepo.findBySubjectPeriod(
       tenantId,
       subjectId,
       academicPeriodId,
     );
 
-    // Get unique student IDs
-    const studentIds = [...new Set(allResults.map((r) => r.studentId))];
+    const byStudent = new Map<string, AssessmentResultEntity[]>();
+    for (const r of allResults) {
+      const list = byStudent.get(r.studentId);
+      if (list) list.push(r);
+      else byStudent.set(r.studentId, [r]);
+    }
 
-    // Calculate grade for each student
-    const grades: StudentSubjectResult[] = [];
-    for (const studentId of studentIds) {
-      const grade = await this.calculateStudentGrade(
-        tenantId,
+    const allStudentIds = [...byStudent.keys()];
+    let studentIds = allStudentIds;
+    let page = 1;
+    let limit: number | null = null;
+    if (pageOpts.limit !== undefined) {
+      limit = Math.max(1, Math.min(MAX_GRADE_PAGE_SIZE, Math.floor(pageOpts.limit)));
+      page = Math.max(1, Math.floor(pageOpts.page ?? 1));
+      studentIds = allStudentIds.slice((page - 1) * limit, page * limit);
+    }
+
+    const data = studentIds.map((studentId) =>
+      this.computeGrade(
         studentId,
         subjectId,
         academicPeriodId,
-      );
-      grades.push(grade);
-    }
-
-    return grades;
+        items,
+        gradingScheme,
+        byStudent.get(studentId)!,
+      ),
+    );
+    return { data, total: allStudentIds.length, page, limit };
   }
 
   /**

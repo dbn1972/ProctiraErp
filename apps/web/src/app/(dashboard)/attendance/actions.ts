@@ -152,9 +152,12 @@ export async function createRegularisationAction(input: {
 export async function decideRegularisationAction(
   id: string,
   decision: 'approve' | 'reject',
+  decisionNote?: string,
 ): Promise<ActionState<{ id: string }>> {
   try {
-    const row = await decideRegularisation(id, decision);
+    // PRC-M077: the approver's note is forwarded for the audit trail.
+    const note = decisionNote?.trim().slice(0, 2000) || undefined;
+    const row = await decideRegularisation(id, decision, note);
     revalidatePath('/attendance/ops');
     revalidatePath('/attendance');
     return { status: 'success', data: { id: row.id } };
@@ -185,9 +188,12 @@ export async function createLeaveRequestAction(input: {
 export async function decideLeaveAction(
   id: string,
   decision: 'approve' | 'reject',
+  decisionNote?: string,
 ): Promise<ActionState<{ id: string }>> {
   try {
-    const row = await decideLeaveRequest(id, decision);
+    // PRC-M077: the approver's note is forwarded for the audit trail.
+    const note = decisionNote?.trim().slice(0, 2000) || undefined;
+    const row = await decideLeaveRequest(id, decision, note);
     revalidatePath('/attendance/ops');
     revalidatePath('/attendance');
     return { status: 'success', data: { id: row.id } };
