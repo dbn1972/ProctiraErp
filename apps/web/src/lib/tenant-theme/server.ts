@@ -211,7 +211,43 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+/**
+ * PRC-M066: the slug is request-derived, so the cache is bounded (LRU by
+ * insertion order) and expired entries are purged; invalid slugs never reach
+ * the cache or the upstream fetch.
+ */
+export const SSR_THEME_CACHE_MAX_ENTRIES = 500;
+const TENANT_SLUG_PATTERN = /^[a-z0-9-]{1,63}$/;
+
 const _cache = new Map<string, CacheEntry>();
+
+/** Test-only: current number of cached tenants. */
+export function ssrThemeCacheSize(): number {
+  return _cache.size;
+}
+
+function cacheSet(slug: string, entry: CacheEntry, now: number): void {
+  _cache.delete(slug);
+  if (_cache.size >= SSR_THEME_CACHE_MAX_ENTRIES) {
+    for (const [key, value] of _cache) {
+      if (value.expiresAt <= now) _cache.delete(key);
+    }
+  }
+  while (_cache.size >= SSR_THEME_CACHE_MAX_ENTRIES) {
+    const oldest = _cache.keys().next().value;
+    if (oldest === undefined) break;
+    _cache.delete(oldest);
+  }
+  _cache.set(slug, entry);
+}
+
+/** Normalise a request-derived tenant slug; anything malformed becomes `default`. */
+export function normalizeTenantSlug(raw: string | null | undefined): string {
+  const slug = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  return TENANT_SLUG_PATTERN.test(slug) ? slug : 'default';
+}
 
 /** Test-only: drop the SSR cache so the next call refetches. */
 export function clearSSRThemeCache(): void {
@@ -302,10 +338,11 @@ export async function getPublishedTenantTheme(
   tenantSlug: string,
   fetcher: PublishedThemeFetcher = fetchPublishedThemeFromGateway,
 ): Promise<PublishedTenantTheme> {
-  const slug = (tenantSlug || 'default').toLowerCase();
+  const slug = normalizeTenantSlug(tenantSlug);
   const now = Date.now();
 
   const cached = _cache.get(slug);
+  if (cached && cached.expiresAt <= now) _cache.delete(slug);
   if (cached && cached.expiresAt > now) {
     return {
       tenantSlug: slug,
@@ -323,11 +360,7 @@ export async function getPublishedTenantTheme(
   }
   const tokens = brandToTenantTokens(brand);
 
-  _cache.set(slug, {
-    tokens,
-    brand,
-    expiresAt: now + SSR_THEME_CACHE_TTL_MS,
-  });
+  cacheSet(slug, { tokens, brand, expiresAt: now + SSR_THEME_CACHE_TTL_MS }, now);
 
   return { tenantSlug: slug, tokens, brand, fromCache: false };
 }
@@ -348,8 +381,10 @@ export async function getPublishedTenantTheme(
 export async function resolveRequestTenantSlug(headerStore: {
   get(name: string): string | null | undefined;
 }): Promise<string> {
+  // Both headers are overwritten by the middleware from the Host (PRC-H027 /
+  // PRC-M066), so client-sent values never reach this point.
   const slug = headerStore.get('x-tenant-slug') || headerStore.get('x-tenant-id') || 'default';
-  return String(slug).toLowerCase();
+  return normalizeTenantSlug(slug);
 }
 
 // ─── CSS rendering ────────────────────────────────────────────────────────────

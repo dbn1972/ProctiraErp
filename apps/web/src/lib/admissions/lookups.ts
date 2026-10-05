@@ -28,3 +28,18 @@ export async function loadAdmissionsLookups(): Promise<{
   ]);
   return { institutions, periods, grades };
 }
+
+/**
+ * PRC-M070: resolve a URL-selected lookup id against the loaded options.
+ * Unknown/missing ids fall back to the first option so a page always shows
+ * a valid, explicitly-reflected selection rather than silently using [0]
+ * while the UI suggests otherwise.
+ */
+export function pickSelectedLookup(
+  options: ReadonlyArray<{ id: string }>,
+  raw: string | string[] | undefined,
+): string | undefined {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value && options.some((option) => option.id === value)) return value;
+  return options[0]?.id;
+}

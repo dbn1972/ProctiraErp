@@ -475,7 +475,12 @@ export function handleApiRequest(request: NextRequest): NextResponse {
 export function withTrustedTenantHeader(request: NextRequest, tenant: string | null): Headers {
   const headers = new Headers(request.headers);
   headers.delete('x-tenant-id');
-  if (tenant) headers.set('x-tenant-id', tenant);
+  // PRC-M066: X-Tenant-Slug drives the SSR theme lookup; never trust the client's.
+  headers.delete('x-tenant-slug');
+  if (tenant) {
+    headers.set('x-tenant-id', tenant);
+    headers.set('x-tenant-slug', tenant);
+  }
   return headers;
 }
 

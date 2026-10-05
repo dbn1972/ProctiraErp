@@ -7,9 +7,11 @@ import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/reque
  * Proxy to the upstream Tenant Service `GET /api/v1/tenant/signup-roles`
  * (Design §D, Requirement 4 AC 17). The endpoint is public — the
  * sign-up screen is anonymous-accessible — so this route forwards the
- * tenant header but does not require an access token. When the upstream
- * service is unreachable the route falls back to a small default catalog
- * so the sign-up form still renders a usable role picker.
+ * tenant header but does not require an access token.
+ *
+ * PRC-M057: there is no synthetic fallback catalog. When the tenant service
+ * is unreachable or returns no roles the route answers 503 so the sign-up
+ * form shows an error instead of offering a hard-coded (privileged) list.
  */
 
 interface SignupRole {
@@ -19,13 +21,11 @@ interface SignupRole {
   requiresApproval?: boolean;
 }
 
-const FALLBACK_ROLES: SignupRole[] = [
-  { id: 'principal', label: 'Principal / Director', requiresApproval: true },
-  { id: 'admin', label: 'School Administrator', requiresApproval: true },
-  { id: 'teacher', label: 'Teacher', requiresApproval: true },
-  { id: 'parent', label: 'Parent / Guardian', requiresApproval: false },
-  { id: 'student', label: 'Student', requiresApproval: false },
-];
+const CATALOG_UNAVAILABLE = {
+  roles: [] as SignupRole[],
+  code: 'SIGNUP_ROLES_UNAVAILABLE',
+  message: 'Sign-up roles are unavailable right now. Please try again later.',
+};
 
 function getTenantServiceUrl(): string {
   return (
@@ -55,15 +55,16 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
 
     if (!upstream.ok) {
-      return NextResponse.json({ roles: FALLBACK_ROLES });
+      return NextResponse.json(CATALOG_UNAVAILABLE, { status: 503 });
     }
 
     const payload = (await safeJson(upstream)) as { roles?: SignupRole[] };
-    const roles =
-      Array.isArray(payload.roles) && payload.roles.length > 0 ? payload.roles : FALLBACK_ROLES;
-    return NextResponse.json({ roles });
+    if (!Array.isArray(payload.roles) || payload.roles.length === 0) {
+      return NextResponse.json(CATALOG_UNAVAILABLE, { status: 503 });
+    }
+    return NextResponse.json({ roles: payload.roles });
   } catch {
-    return NextResponse.json({ roles: FALLBACK_ROLES });
+    return NextResponse.json(CATALOG_UNAVAILABLE, { status: 503 });
   }
 }
 
