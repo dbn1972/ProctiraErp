@@ -118,6 +118,8 @@ export interface TimetableServiceOptions {
   timeZone?: string | TimetableTimeZoneResolver;
   /** Injectable clock for tests. */
   now?: () => Date;
+  /** PRC-M101: when set, meetings/substitutions reject staff of another institution. */
+  staffBelongsToInstitution?: StaffInstitutionMembership;
 }
 
 function slugCode(name: string, fallback: string): string {
@@ -135,19 +137,29 @@ function isoWeekday(isoDate: string): number {
   return ((new Date(`${isoDate}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
 }
 
+/**
+ * PRC-M101: answers whether a staff member belongs to an institution (an
+ * active staff assignment there). Wired by the gateway from the staff domain.
+ */
+export type StaffInstitutionMembership = (
+  tenantId: string,
+  staffId: string,
+  institutionId: string,
+) => Promise<boolean>;
+
 export class TimetableService {
   private readonly auditLog: TimetableAuditEntry[] = [];
   private readonly ops: TimetableOpsStore;
-
+  private readonly staffBelongsToInstitution?: StaffInstitutionMembership;
   private runningGenerations = 0;
   private readonly maxConcurrentGenerations: number;
-
   constructor(
     private readonly repo: TimetableRepository,
     ops?: TimetableOpsStore,
     private readonly options: TimetableServiceOptions = {},
   ) {
     this.ops = ops ?? new InMemoryTimetableOpsStore();
+    this.staffBelongsToInstitution = options.staffBelongsToInstitution;
     const envCap = Number(process.env.TIMETABLE_GENERATION_MAX_CONCURRENCY);
     this.maxConcurrentGenerations = Math.max(
       1,
@@ -155,7 +167,18 @@ export class TimetableService {
         (Number.isInteger(envCap) && envCap > 0 ? envCap : DEFAULT_GENERATION_CONCURRENCY),
     );
   }
-
+  /** PRC-M101: refuse staff from another institution of the same tenant. */
+  private async assertStaffAtInstitution(
+    tenantId: string,
+    staffId: string | null | undefined,
+    institutionId: string,
+  ): Promise<void> {
+    if (!staffId || !this.staffBelongsToInstitution) return;
+    const ok = await this.staffBelongsToInstitution(tenantId, staffId, institutionId);
+    if (!ok) {
+      throw new ValidationError('Staff member is not assigned to this institution');
+    }
+  }
   private async localDate(tenantId: string, institutionId?: string): Promise<string> {
     const configured = this.options.timeZone;
     let zone =
@@ -708,6 +731,7 @@ export class TimetableService {
 
   async createMeeting(tenantId: string, input: MeetingInput) {
     await this.assertSectionEditable(tenantId, input.sectionId);
+    await this.assertStaffAtInstitution(tenantId, input.staffId, input.institutionId);
     await this.assertNoMeetingClash(tenantId, input);
     const now = nowIso();
     const row = await this.repo.createMeeting({
@@ -757,6 +781,9 @@ export class TimetableService {
       dayOfWeek: patch.dayOfWeek ?? existing.dayOfWeek,
       status: patch.status ?? existing.status,
     };
+    if (patch.staffId !== undefined || patch.institutionId !== undefined) {
+      await this.assertStaffAtInstitution(tenantId, candidate.staffId, candidate.institutionId);
+    }
     await this.assertNoMeetingClash(tenantId, candidate, id);
     const row = await this.repo.updateMeeting(tenantId, id, patch, opts);
     if (row) {
@@ -836,6 +863,7 @@ export class TimetableService {
     if (originalStaffId === input.substituteStaffId) {
       throw new ValidationError('Substitute staff must differ from the original teacher');
     }
+    await this.assertStaffAtInstitution(tenantId, input.substituteStaffId, institutionId);
 
     const meetings = await this.repo.listMeetings(tenantId, {
       institutionId,

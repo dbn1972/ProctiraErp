@@ -41,7 +41,7 @@ beforeEach(() => {
     .mockResolvedValue({} as never);
   vi.mocked(listScholarshipDisbursements)
     .mockReset()
-    .mockResolvedValue([row(FAILED, 'FAILED'), row(PAID, 'PROCESSED')]);
+    .mockResolvedValue({ ok: true, items: [row(FAILED, 'FAILED'), row(PAID, 'PROCESSED')] });
 });
 
 describe('retryFailedDisbursementsAction (PRC-M481)', () => {
@@ -69,6 +69,16 @@ describe('retryFailedDisbursementsAction (PRC-M481)', () => {
     expect(result.message).toContain('1 skipped');
   });
 
+  it('a failed disbursement list load is an error, not "not found" for every id', async () => {
+    vi.mocked(listScholarshipDisbursements).mockResolvedValue({
+      ok: false,
+      kind: 'unavailable',
+      status: 503,
+    });
+    const result = await retryFailedDisbursementsAction([FAILED]);
+    expect(result).toMatchObject({ status: 'error', message: 'Could not load disbursements.' });
+    expect(updateDisbursement).not.toHaveBeenCalled();
+  });
   it('rejects non-uuid ids and oversized batches', async () => {
     expect((await retryFailedDisbursementsAction(['../evil'])).status).toBe('error');
     const many = Array.from({ length: 101 }, () => FAILED);

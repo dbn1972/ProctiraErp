@@ -7,6 +7,7 @@ import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { payInvoiceStaffAction } from '@/lib/fees/actions';
 import { STAFF_PAYMENT_METHODS, type StaffPaymentMethod } from '@/lib/fees/validation';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 
 const METHOD_LABELS: Record<StaffPaymentMethod, string> = {
   cash: 'Cash',
@@ -22,8 +23,9 @@ const REFERENCE_LABELS: Record<StaffPaymentMethod, string> = {
   sandbox: 'Reference (optional)',
 };
 
+/** PRC-H058: UUID v4 (with non-randomUUID fallbacks); forwarded as the gateway Idempotency-Key. */
 function newIdempotencyKey(): string {
-  return globalThis.crypto.randomUUID();
+  return generateIdempotencyKey();
 }
 
 /**
@@ -73,6 +75,9 @@ export function PayInvoiceStaffButton({
 
   function onConfirmPay() {
     if (pending) return;
+    // PRC-H058: minted when the dialog opens; repeated confirms reuse it.
+    const key = idempotencyKey || newIdempotencyKey();
+    if (key !== idempotencyKey) setIdempotencyKey(key);
     startTransition(async () => {
       setError(null);
       setFieldErrors({});
@@ -81,7 +86,7 @@ export function PayInvoiceStaffButton({
         method: method as StaffPaymentMethod,
         amount,
         reference: reference.trim() || undefined,
-        idempotencyKey,
+        idempotencyKey: key,
       });
       if (!result.success) {
         setError(result.error);

@@ -128,6 +128,19 @@ export class PrismaResultRepository implements ResultRepository {
     });
   }
 
+  async deleteCandidates(
+    tenantId: string,
+    examinationId: string,
+    studentIds: string[],
+  ): Promise<void> {
+    if (studentIds.length === 0) return;
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      await tx.examinationCandidate.deleteMany({
+        where: { tenantId, examinationId, studentId: { in: studentIds } },
+      });
+    });
+  }
+
   async mergeCandidateMarks(
     tenantId: string,
     examinationId: string,

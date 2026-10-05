@@ -10,6 +10,7 @@ import type { CacheClient } from '@proctira/cache';
 import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ScholarshipRepository,
   ScholarshipProgramEntity,
@@ -153,8 +154,9 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     id: string,
     tenantId: string,
     data: Partial<DisbursementEntity>,
+    inTx?: (tx: ScholarshipTxClient) => Promise<void>,
   ): Promise<DisbursementEntity | null> {
-    return this.delegate.updateDisbursement(id, tenantId, data);
+    return this.delegate.updateDisbursement(id, tenantId, data, inTx);
   }
 
   async findDisbursementById(id: string, tenantId: string): Promise<DisbursementEntity | null> {

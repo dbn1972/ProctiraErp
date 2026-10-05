@@ -46,7 +46,7 @@ function allOk() {
   tt.listRooms.mockResolvedValue(ok([]));
   tt.listBellSchedules.mockResolvedValue(ok([]));
   tt.listPeriods.mockResolvedValue(ok([]));
-  listAllStaffResult.mockResolvedValue({ ok: true, items: [] });
+  listAllStaffResult.mockResolvedValue({ ok: true, items: [], truncated: false, totalItems: 0 });
   listAcademicPeriods.mockResolvedValue([]);
 }
 
@@ -91,6 +91,8 @@ describe('substitutions page (PRC-M100)', () => {
     listAllStaffResult.mockResolvedValue({
       ok: true,
       items: [{ id: 's1', firstName: 'A', lastName: 'B' }],
+      truncated: false,
+      totalItems: 1,
     });
     tt[fn].mockResolvedValue(fail('boom'));
     const { default: Page } = await import('./substitutions/page');
@@ -143,5 +145,83 @@ describe('timetable page (PRC-M100)', () => {
     expect(screen.getByTestId('timetable-load-errors').textContent).toContain(
       'Staff: Your role cannot view this.',
     );
+  });
+});
+
+describe('staff picker cap (PRC-M102)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    allOk();
+  });
+
+  it('shows a visible notice when the staff list was truncated', async () => {
+    const items = Array.from({ length: 400 }, (_, i) => ({
+      id: `s${i}`,
+      firstName: 'T',
+      lastName: String(i),
+    }));
+    listAllStaffResult.mockResolvedValue({ ok: true, items, truncated: true, totalItems: 450 });
+    const { default: Page } = await import('./substitutions/page');
+    render(await Page({ params }));
+    expect(screen.getByTestId('staff-truncation-notice').textContent).toContain('400 of 450');
+  });
+
+  it('passes the institution to the staff loader', async () => {
+    const { default: Page } = await import('./page');
+    render(await Page({ params }));
+    expect(listAllStaffResult).toHaveBeenCalledWith({ institutionId: 'inst-1' });
+  });
+});
+
+describe('class filter (PRC-M103)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    allOk();
+    listAcademicPeriods.mockResolvedValue([{ id: 'ap1', name: '2026', status: 'active' }]);
+    tt.listSections.mockResolvedValue(
+      ok([
+        { id: 'sec9b', name: 'Class 9-B Maths', code: '9B', status: 'PUBLISHED' },
+        { id: 'sec10a', name: 'Class 10-A English', code: '10A', status: 'PUBLISHED' },
+        { id: 'club', name: 'Robotics Club', code: 'RC', status: 'PUBLISHED' },
+      ]),
+    );
+    tt.listMeetings.mockResolvedValue(
+      ok(
+        ['sec9b', 'sec10a', 'club'].map((sectionId, i) => ({
+          id: `m${i}`,
+          sectionId,
+          staffId: 's1',
+          periodId: 'p1',
+          roomId: null,
+          dayOfWeek: 1,
+          status: 'active',
+        })),
+      ),
+    );
+  });
+
+  it('list view with class=9-B shows only 9-B meetings', async () => {
+    const { default: Page } = await import('./page');
+    render(await Page({ params, searchParams: Promise.resolve({ view: 'list', class: '9-B' }) }));
+    const table = screen.getByRole('table', { name: 'Meetings' });
+    expect(table.textContent).toContain('9B');
+    expect(table.textContent).not.toContain('10A');
+    expect(table.textContent).not.toContain('Robotics');
+  });
+
+  it('defaults to all classes and an unbanded section is selectable', async () => {
+    const { default: Page } = await import('./page');
+    render(await Page({ params, searchParams: Promise.resolve({ view: 'list' }) }));
+    expect(
+      screen.getByRole('table', { name: 'Meetings' }).querySelectorAll('tbody tr'),
+    ).toHaveLength(3);
+    render(
+      await Page({
+        params,
+        searchParams: Promise.resolve({ view: 'list', class: 'section:club' }),
+      }),
+    );
+    const tables = screen.getAllByRole('table', { name: 'Meetings' });
+    expect(tables[1]!.querySelectorAll('tbody tr')).toHaveLength(1);
   });
 });

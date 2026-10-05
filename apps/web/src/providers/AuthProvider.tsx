@@ -36,6 +36,9 @@ import {
   signOut as sessionSignOut,
 } from '@/lib/auth/session';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { purgeAllDrafts } from '@/lib/draft/storage';
+import { setSyncIdentity } from '@/lib/sync/identity';
+import { clearSyncQueue } from '@/lib/sync/syncQueue';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,6 +138,11 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
   const lastIdentity = useRef<string | null>(null);
   useEffect(() => {
     if (status === 'unauthenticated') {
+      // PRC-M119: a session that ends here (logout / expiry) drops every form
+      // draft; a cold unauthenticated load still drops all user-owned drafts.
+      purgeAllDrafts({ ownedOnly: lastIdentity.current === null });
+      // Queued writes stay (quarantined) on expiry; nothing replays signed out.
+      setSyncIdentity(null);
       lastIdentity.current = null;
       void purgeServiceWorkerCaches();
       return;
@@ -143,7 +151,10 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
     const identity = `${user.tenant_id}:${user.id}`;
     if (lastIdentity.current !== null && lastIdentity.current !== identity) {
       void purgeServiceWorkerCaches();
+      purgeAllDrafts();
+      void clearSyncQueue();
     }
+    setSyncIdentity({ tenantId: user.tenant_id, userId: user.id });
     lastIdentity.current = identity;
   }, [status, user]);
   const applySession = useCallback(async (signal?: AbortSignal) => {
@@ -241,10 +252,10 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-/**
- * Access the current authentication state and actions.
- * Must be used within an `<AuthProvider>`.
- */
+/** Like {@link useAuth} but returns null outside an `<AuthProvider>`. */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext) ?? null;
+}
 /**
  * PRC-M578: scope of the signed-in user, or `undefined` outside an
  * `<AuthProvider>` (isolated component tests). Never throws.
@@ -252,6 +263,10 @@ export function AuthProvider({ children, initialUser, hydrate }: AuthProviderPro
 export function useOptionalAuthScope(): UserScope | undefined {
   return useContext(AuthContext)?.user?.scope;
 }
+/**
+ * Access the current authentication state and actions.
+ * Must be used within an `<AuthProvider>`.
+ */
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);

@@ -1365,6 +1365,31 @@ export class LmsService {
     return this.repository.listDiscussions(tenantId, filter, pagination);
   }
 
+  /** PRC-M108: a page of discussions with their posts, in two repository reads. */
+  async listDiscussionsWithPosts(
+    tenantId: string,
+    filter: { institutionId?: string; classKey?: string },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    const listed = await this.listDiscussions(tenantId, filter, pagination, actor);
+    const posts = await this.repository.listDiscussionPostsFor(
+      tenantId,
+      listed.data.map((d) => d.id),
+    );
+    const byThread = new Map<string, DiscussionPostEntity[]>();
+    for (const post of posts) {
+      if (isLearner(actor) && post.hidden) continue;
+      const list = byThread.get(post.discussionId) ?? [];
+      list.push(post);
+      byThread.set(post.discussionId, list);
+    }
+    return {
+      ...listed,
+      data: listed.data.map((d) => ({ ...d, posts: byThread.get(d.id) ?? [] })),
+    };
+  }
+
   async getDiscussion(tenantId: string, id: string, actor: LmsActor) {
     const discussion = await this.repository.findDiscussion(tenantId, id);
     if (!discussion) throw new NotFoundError('Discussion not found');
@@ -1637,6 +1662,30 @@ export class LmsService {
     const effective = { ...filter };
     if (isLearner(actor)) effective.published = true;
     return this.repository.listLessons(tenantId, effective, pagination);
+  }
+
+  /** PRC-M108: a page of lessons with their resources, in two repository reads. */
+  async listLessonsWithResources(
+    tenantId: string,
+    filter: { institutionId?: string; boardId?: string; subject?: string; published?: boolean },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    const listed = await this.listLessons(tenantId, filter, pagination, actor);
+    const resources = await this.repository.listLessonResourcesFor(
+      tenantId,
+      listed.data.map((l) => l.id),
+    );
+    const byLesson = new Map<string, LessonResourceEntity[]>();
+    for (const resource of resources) {
+      const list = byLesson.get(resource.lessonId) ?? [];
+      list.push(resource);
+      byLesson.set(resource.lessonId, list);
+    }
+    return {
+      ...listed,
+      data: listed.data.map((l) => ({ ...l, resources: byLesson.get(l.id) ?? [] })),
+    };
   }
 
   async getLesson(tenantId: string, id: string, actor: LmsActor) {

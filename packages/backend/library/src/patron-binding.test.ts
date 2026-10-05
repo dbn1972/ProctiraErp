@@ -17,6 +17,8 @@ const TENANT_ID = '550e8400-e29b-41d4-a716-446655440000';
 const CHILD = '55555555-5555-4555-8555-555555555555';
 const OTHER_CHILD = '66666666-6666-4666-8666-666666666666';
 const PARENT_SUB = 'parent-1';
+/** PRC-M104: checkout due dates must be in the future and within 180 days. */
+const inThirtyDays = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
 type Role = { roleId: string; roleName: string };
 
@@ -48,7 +50,7 @@ async function seedLoans(repository: LibraryRepository, binding: PatronBinding) 
     const res = await app.inject({
       method: 'POST',
       url: '/library/circulation/checkout',
-      payload: { itemId: item.json().id, studentId, dueAt: '2030-01-01T00:00:00.000Z' },
+      payload: { itemId: item.json().id, studentId, dueAt: inThirtyDays() },
     });
     expect(res.statusCode).toBe(201);
   }

@@ -212,6 +212,8 @@ export const GetUserNotificationsQuerySchema = Type.Object(
     ),
     status: Type.Optional(DeliveryStatusSchema),
     channel: Type.Optional(DeliveryChannelSchema),
+    /** PRC-M114: only notifications the user has not read yet. */
+    unread: Type.Optional(Type.Union([Type.Literal('true'), Type.Literal('false')])),
   },
   { additionalProperties: false },
 );

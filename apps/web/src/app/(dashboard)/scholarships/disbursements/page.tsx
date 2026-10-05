@@ -9,7 +9,7 @@
  *
  * Validates: Requirement 11.1 — schedule and track scholarship disbursements.
  */
-import { AlertTriangle, CheckCircle2, Clock, Plus, Wallet } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Plus, Wallet, XCircle } from 'lucide-react';
 
 import {
   Button,
@@ -25,7 +25,13 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listScholarshipDisbursements, type ScholarshipDisbursement } from '@/lib/api/scholarships';
+import {
+  listScholarshipDisbursements,
+  totalsByCurrency,
+  type ScholarshipDisbursement,
+} from '@/lib/api/scholarships';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { cn } from '@/lib/utils';
 
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
@@ -34,15 +40,25 @@ export const dynamic = 'force-dynamic';
 
 const STATUS_LABELS: Record<ScholarshipDisbursement['status'], string> = {
   SCHEDULED: 'Scheduled',
+  PROCESSING: 'Processing',
   PROCESSED: 'Processed',
   FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
 };
 
 const STATUS_COLOURS: Record<ScholarshipDisbursement['status'], string> = {
   PROCESSED: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   SCHEDULED: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
+  PROCESSING: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
   FAILED: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400',
+  CANCELLED: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
+/** PRC-M111: one formatted amount per currency, never a cross-currency sum. */
+function formatTotals(rows: ReadonlyArray<{ amount: number; currency: string }>): string {
+  return totalsByCurrency(rows)
+    .map((t) => formatMoney(t.total, t.currency))
+    .join(' + ');
+}
 
 function formatMoney(amount: number, currency: string): string {
   try {
@@ -68,15 +84,38 @@ function formatDate(iso: string): string {
   }
 }
 
-export default async function ScholarshipDisbursementsPage() {
-  const disbursements = await listScholarshipDisbursements();
+export default async function ScholarshipDisbursementsPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await props.searchParams) ?? {};
+  // PRC-M114: paged server-side; KPI counts come from per-status totals.
+  const page = Math.max(1, Number(typeof sp.page === 'string' ? sp.page : 1) || 1);
+  const PAGE_SIZE = 50;
+  const result = await listScholarshipDisbursements({ page, pageSize: PAGE_SIZE });
+  // PRC-M113: a failed read is an error panel, never "No disbursements scheduled."
+  if (!result.ok) {
+    return (
+      <section aria-labelledby="disbursements-heading" className="space-y-6">
+        <h1 id="disbursements-heading" className="text-3xl font-extrabold tracking-tight">
+          Disbursements
+        </h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/scholarships/disbursements"
+        />
+      </section>
+    );
+  }
+  const disbursements = result.items;
 
   const processed = disbursements.filter((d) => d.status === 'PROCESSED');
   const failed = disbursements.filter((d) => d.status === 'FAILED');
   const scheduled = disbursements.filter((d) => d.status === 'SCHEDULED');
-  const currency = disbursements[0]?.currency ?? 'INR';
-  const disbursedTotal = processed.reduce((sum, d) => sum + d.amount, 0);
-  const failedTotal = failed.reduce((sum, d) => sum + d.amount, 0);
+  const processing = disbursements.filter((d) => d.status === 'PROCESSING');
+  const cancelled = disbursements.filter((d) => d.status === 'CANCELLED');
+  const totalRecords = result.meta?.totalItems ?? disbursements.length;
+  const multiPage = (result.meta?.totalPages ?? 1) > 1;
   const settled = processed.length + failed.length;
   const successRate = settled > 0 ? ((processed.length / settled) * 100).toFixed(1) : null;
 
@@ -106,12 +145,18 @@ export default async function ScholarshipDisbursementsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {multiPage ? (
+        <p className="text-xs text-muted-foreground" data-testid="disbursement-kpi-scope">
+          Figures below cover the {disbursements.length.toLocaleString()} records on this page of{' '}
+          {totalRecords.toLocaleString()}.
+        </p>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
           label="Disbursed"
-          value={processed.length > 0 ? formatMoney(disbursedTotal, currency) : '—'}
+          value={processed.length > 0 ? formatTotals(processed) : '—'}
           foot={`${processed.length.toLocaleString()} processed`}
         />
         <KpiCard
@@ -130,18 +175,25 @@ export default async function ScholarshipDisbursementsPage() {
           iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
           label="Failed transfers"
           value={failed.length.toLocaleString()}
-          foot={
-            failed.length > 0
-              ? `${formatMoney(failedTotal, currency)} pending retry`
-              : 'No failed transfers'
-          }
+          foot={failed.length > 0 ? `${formatTotals(failed)} pending retry` : 'No failed transfers'}
         />
         <KpiCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
           label="Scheduled"
           value={scheduled.length.toLocaleString()}
-          foot="Awaiting processing"
+          foot={
+            processing.length > 0
+              ? `${processing.length.toLocaleString()} processing now`
+              : 'Awaiting processing'
+          }
+        />
+        <KpiCard
+          icon={<XCircle className="h-5 w-5" aria-hidden="true" />}
+          iconClass="bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+          label="Cancelled"
+          value={cancelled.length.toLocaleString()}
+          foot={cancelled.length > 0 ? `${formatTotals(cancelled)} not paid` : 'None cancelled'}
         />
       </div>
 
@@ -160,8 +212,7 @@ export default async function ScholarshipDisbursementsPage() {
               {failed.length === 1 ? '' : 's'}
             </p>
             <p className="text-xs opacity-90">
-              {formatMoney(failedTotal, currency)} needs retry. Confirm bank details before
-              reprocessing.
+              {formatTotals(failed)} needs retry. Confirm bank details before reprocessing.
             </p>
           </div>
           <RetryFailedTransfersButton failedIds={failed.map((d) => d.id)} />
@@ -231,10 +282,13 @@ export default async function ScholarshipDisbursementsPage() {
                 </TableBody>
               </Table>
             </div>
-            <div className="border-t px-4 py-3 text-sm text-muted-foreground">
-              Showing{' '}
-              <span className="font-semibold text-foreground">1–{disbursements.length}</span> of{' '}
-              <span className="font-semibold text-foreground">{disbursements.length}</span> records
+            <div className="border-t px-4 py-3">
+              <PaginationControls
+                page={page}
+                pageSize={PAGE_SIZE}
+                totalItems={result.meta?.totalItems ?? disbursements.length}
+                totalPages={Math.max(1, result.meta?.totalPages ?? 1)}
+              />
             </div>
           </CardContent>
         </Card>

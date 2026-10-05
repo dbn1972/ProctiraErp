@@ -179,6 +179,12 @@ export interface ResultRepository {
     candidates: ExaminationCandidate[],
   ): Promise<void>;
 
+  /**
+   * Delete candidate rows keyed by (examinationId, studentId). Used by PRC-H057
+   * marks-unit compensation when the unit itself created the candidate row.
+   */
+  deleteCandidates(tenantId: string, examinationId: string, studentIds: string[]): Promise<void>;
+
   /** Save publication result */
   /**
    * PRC-M239: with `candidatesFingerprint`, the save locks the examination and

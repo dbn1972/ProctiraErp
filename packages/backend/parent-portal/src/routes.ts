@@ -980,7 +980,9 @@ export async function registerParentPortalRoutes(
 
       if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       try {
-        const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id);
+        const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id, {
+          actorId: getActorId(request),
+        });
         return reply.status(200).send(formatInvoice(invoice));
       } catch (error: unknown) {
         if (error instanceof AppError) {

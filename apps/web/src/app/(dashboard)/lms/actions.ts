@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { GatewayError, gatewayFetch } from '@/lib/api/gateway';
 import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   closeAssignment,
@@ -168,4 +168,34 @@ export async function lookupStudentPalAction(
   } catch (error) {
     return { status: 'error', message: errorMessage(error, 'Failed to load learner plan') };
   }
+}
+
+export type PalStudentSearchResult =
+  { ok: true; items: Array<{ id: string; name: string }> } | { ok: false };
+
+/**
+ * PRC-M116 — async learner search for the Spiral PAL picker (the page no
+ * longer caps the choice at the first 50 students). A failed read is an
+ * explicit `{ ok: false }`, never an empty result.
+ */
+export async function searchPalStudentsAction(query: string): Promise<PalStudentSearchResult> {
+  const q = typeof query === 'string' ? query.trim().slice(0, 100) : '';
+  if (q.length < 2) return { ok: true, items: [] };
+  const params = new URLSearchParams({
+    search: q,
+    pageSize: '20',
+    sortBy: 'lastName',
+    sortOrder: 'asc',
+  });
+  const result = await gatewayFetch<{
+    data?: Array<{ id: string; firstName?: string; lastName?: string }>;
+  }>(`/students?${params.toString()}`, { method: 'GET', cache: 'no-store', throwOnError: false });
+  if (!result.ok) return { ok: false };
+  return {
+    ok: true,
+    items: (result.data?.data ?? []).map((s) => ({
+      id: s.id,
+      name: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
+    })),
+  };
 }

@@ -92,7 +92,9 @@ describe('W1-SEC-10 mutation audit policy', () => {
       expect(isAtomicMutationAuditPath(`/api/v1/fees/invoices/${inv}/${action}`)).toBe(true);
     }
     expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/approve`)).toBe(true);
-    expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/reject`)).toBe(false);
+    expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/reject`)).toBe(true);
+    expect(isAtomicMutationAuditPath('/api/v1/fees/scholarships/net')).toBe(true);
+    expect(isAtomicMutationAuditPath(`/api/v1/fees/concessions/${inv}/archive`)).toBe(false);
   });
 
   it('tracks request-level atomic audit commit marker', () => {

@@ -13,6 +13,7 @@ import { redirect } from 'next/navigation';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   createAppraisal,
+  getAppraisalTemplate,
   createAssignment,
   createStaff,
   deleteStaff,
@@ -25,6 +26,7 @@ import {
 import {
   appraisalFormSchema,
   assignmentFormSchema,
+  buildAppraisalFormSchema,
   staffFormSchema,
   type AppraisalFormValues,
   type AssignmentFormValues,
@@ -188,11 +190,29 @@ export async function createAppraisalAction(
   staffId: string,
   values: AppraisalFormValues,
 ): Promise<ActionState<{ appraisalId: string }>> {
-  const parsed = appraisalFormSchema.safeParse(values);
-  if (!parsed.success) {
+  const base = appraisalFormSchema.safeParse(values);
+  if (!base.success) {
     return {
       status: 'error',
       message: 'Please fix the highlighted fields.',
+      fieldErrors: zodFlatten(base.error.flatten().fieldErrors),
+    };
+  }
+  // PRC-M118: validate scores against the fetched template's criterion maxima.
+  const template = await getAppraisalTemplate(base.data.templateId);
+  if (!template) {
+    return {
+      status: 'error',
+      message: 'The selected appraisal template could not be loaded.',
+      fieldErrors: { templateId: 'Select an available template' },
+    };
+  }
+  const parsed = buildAppraisalFormSchema(template).safeParse(values);
+  if (!parsed.success) {
+    const firstScoreIssue = parsed.error.issues.find((i) => i.path[0] === 'scores');
+    return {
+      status: 'error',
+      message: firstScoreIssue?.message ?? 'Please fix the highlighted fields.',
       fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
     };
   }

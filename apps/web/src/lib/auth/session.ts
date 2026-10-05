@@ -9,6 +9,9 @@
 
 import { withCsrfHeader } from '@/lib/auth/csrf';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
+import { purgeAllDrafts } from '@/lib/draft/storage';
+import { setSyncIdentity } from '@/lib/sync/identity';
+import { clearSyncQueue } from '@/lib/sync/syncQueue';
 
 import type { AuthUserFromToken } from './auth-user';
 import { decodeJwtPayload } from './jwt-payload';
@@ -287,7 +290,10 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
   }
   // PRC-H026 / PRC-H032: never leave this user's cached responses behind.
   await purgeServiceWorkerCaches();
-
+  // PRC-M119: no form draft (student PII etc.) survives sign-out.
+  purgeAllDrafts();
+  setSyncIdentity(null);
+  await clearSyncQueue();
   if (typeof window !== 'undefined') {
     window.location.href = redirectTo;
   }

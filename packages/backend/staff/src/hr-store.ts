@@ -292,7 +292,8 @@ export class InMemoryStaffHrStore implements StaffHrStore {
         ...existing,
         status: record.status,
         notes: record.notes,
-        markedBy: record.markedBy,
+        // PRC-M123: re-saving an unchanged status keeps the original recorder.
+        markedBy: existing.status === record.status ? existing.markedBy : record.markedBy,
         updatedAt: new Date(),
       };
       this.attendance.set(existing.id, updated);

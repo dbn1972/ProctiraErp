@@ -185,6 +185,20 @@ export type AssertOfferFeePaid = (input: {
   expectedCurrency: string;
 }) => Promise<void>;
 
+/**
+ * Verifies that a staff-supplied offer-fee invoice belongs to this tenant and
+ * application (PRC-H079). Returns false when the invoice is unknown, belongs to
+ * another student/application, or is not an admissions offer-fee invoice.
+ */
+export type VerifyOfferFeeInvoiceOwnership = (input: {
+  tenantId: string;
+  applicationId: string;
+  invoiceId: string;
+  /** The new offer's fee (major units) and currency: the invoice must match both. */
+  feeAmount: number;
+  feeCurrency: string;
+}) => Promise<boolean>;
+
 export type ReconcileOfferResources = (input: {
   tenantId: string;
   applicationId: string;
@@ -205,6 +219,7 @@ export class AdmissionsPipelineService {
     /** Optional CRM waitlist used to promote the next applicant when a seat frees. */
     private readonly crm?: AdmissionsCrmStore,
     private readonly reconcileOfferResources?: ReconcileOfferResources,
+    private readonly verifyOfferFeeInvoiceOwnership?: VerifyOfferFeeInvoiceOwnership,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -542,6 +557,27 @@ export class AdmissionsPipelineService {
     }
     await this.assertSeatAvailable(tenantId, offer);
     let offerFeeInvoiceId = offer.offerFeeInvoiceId;
+    if (offerFeeInvoiceId) {
+      // PRC-H079: createOffer no longer accepts a client invoice id (PRC-M327), but a
+      // draft persisted before that change may still carry a staff-supplied one. It must
+      // be this application's own offer-fee invoice for THIS offer's amount/currency;
+      // otherwise another student's (or an earlier, different-amount offer's) paid
+      // invoice could satisfy acceptance. No verifier wired -> fail closed.
+      const owned = this.verifyOfferFeeInvoiceOwnership
+        ? await this.verifyOfferFeeInvoiceOwnership({
+            tenantId,
+            applicationId: offer.applicationId,
+            invoiceId: offerFeeInvoiceId,
+            feeAmount: offer.feeAmount,
+            feeCurrency: offer.feeCurrency,
+          })
+        : false;
+      if (!owned) {
+        throw new BusinessRuleError(
+          'offerFeeInvoiceId does not belong to this application and offer fee; the offer fee invoice must be raised on send',
+        );
+      }
+    }
     if (!offerFeeInvoiceId && offer.feeAmount > 0 && !this.createOfferFeeInvoice) {
       // PRC-M327: fail closed — a fee offer without an invoice could never be paid.
       throw new ConflictError('Offer fee invoicing is not configured; cannot send a fee offer');

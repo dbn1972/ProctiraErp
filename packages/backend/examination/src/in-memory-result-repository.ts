@@ -59,6 +59,21 @@ export class InMemoryResultRepository implements ResultRepository {
     }
   }
 
+  async deleteCandidates(
+    tenantId: string,
+    examinationId: string,
+    studentIds: string[],
+  ): Promise<void> {
+    const k = key(tenantId, examinationId);
+    const list = this.candidates.get(k);
+    if (!list) return;
+    const remove = new Set(studentIds);
+    this.candidates.set(
+      k,
+      list.filter((c) => !remove.has(c.studentId)),
+    );
+  }
+
   async mergeCandidateMarks(
     tenantId: string,
     examinationId: string,

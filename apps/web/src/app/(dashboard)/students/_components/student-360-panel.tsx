@@ -4,7 +4,7 @@
  * G-914 — Students 360 write surfaces on the staff profile:
  * photo upload, ID-card download, siblings, consents, discipline log.
  */
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { IdCard, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 
@@ -38,6 +38,8 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { useOptionalAuth } from '@/providers/AuthProvider';
 import type {
   ConsentKind,
   DisciplineIncident,
@@ -60,6 +62,15 @@ const CONSENT_LABELS: Record<ConsentKind, string> = {
 };
 
 const CONSENT_ORDER: ConsentKind[] = ['photo', 'medical', 'trips', 'data_sharing'];
+
+/**
+ * PRC-M124: readable actor label instead of a raw UUID. There is no user
+ * directory lookup on this surface yet, so other recorders show a short ref.
+ */
+export function consentActorLabel(actorId: string, currentUserId: string | null): string {
+  if (currentUserId && actorId === currentUserId) return 'you';
+  return `staff user …${actorId.replace(/-/g, '').slice(-6)}`;
+}
 
 export interface Student360PanelProps {
   studentId: string;
@@ -199,7 +210,13 @@ function PhotoAndIdCard({ studentId, hasPhoto }: { studentId: string; hasPhoto: 
 function ConsentsCard({ studentId, consents }: { studentId: string; consents: StudentConsent[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const currentUserId = useOptionalAuth()?.user?.id ?? null;
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  // PRC-M124: optimistic value per kind; dropped (reverted) when the save fails.
+  const [optimistic, setOptimistic] = useState<Partial<Record<ConsentKind, boolean>>>({});
+  // Fresh server records are authoritative once the refresh lands.
+  useEffect(() => setOptimistic({}), [consents]);
   const byKind = new Map(consents.map((c) => [c.kind, c]));
 
   return (
@@ -217,14 +234,14 @@ function ConsentsCard({ studentId, consents }: { studentId: string; consents: St
       >
         {CONSENT_ORDER.map((kind) => {
           const row = byKind.get(kind);
-          const granted = row?.granted ?? false;
+          const granted = optimistic[kind] ?? row?.granted ?? false;
           return (
             <div key={kind} className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">{CONSENT_LABELS[kind]}</p>
                 <p className="text-xs text-muted-foreground">
                   {row
-                    ? `${granted ? 'Granted' : 'Not granted'} · ${row.actorId} · ${row.recordedAt.slice(0, 10)}`
+                    ? `${row.granted ? 'Granted' : 'Not granted'} · by ${consentActorLabel(row.actorId, currentUserId)} · ${row.recordedAt.slice(0, 10)}`
                     : 'Not recorded'}
                 </p>
               </div>
@@ -234,8 +251,25 @@ function ConsentsCard({ studentId, consents }: { studentId: string; consents: St
                 data-testid={`consent-toggle-${kind}`}
                 aria-label={`${CONSENT_LABELS[kind]} consent`}
                 onCheckedChange={(next) => {
+                  setError(null);
+                  setOptimistic((prev) => ({ ...prev, [kind]: next }));
                   startTransition(async () => {
-                    await setStudentConsentAction(studentId, { kind, granted: next });
+                    const outcome = await setStudentConsentAction(studentId, {
+                      kind,
+                      granted: next,
+                    });
+                    if (outcome.status === 'error') {
+                      // Revert the switch to the last recorded value.
+                      setOptimistic((prev) => {
+                        const rest = { ...prev };
+                        delete rest[kind];
+                        return rest;
+                      });
+                      setError(
+                        `${CONSENT_LABELS[kind]} consent was not saved: ${outcome.message ?? 'please try again.'}`,
+                      );
+                      return;
+                    }
                     router.refresh();
                   });
                 }}
@@ -243,6 +277,11 @@ function ConsentsCard({ studentId, consents }: { studentId: string; consents: St
             </div>
           );
         })}
+        {error ? (
+          <p className="text-sm text-destructive" role="alert" data-testid="consent-error">
+            {error}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -335,6 +374,8 @@ function DisciplineCard({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState('low');
+  // PRC-M124: removal requires explicit confirmation.
+  const [pendingRemoval, setPendingRemoval] = useState<DisciplineIncident | null>(null);
   const [visibleToParent, setVisibleToParent] = useState(false);
 
   return (
@@ -407,14 +448,7 @@ function DisciplineCard({
                       aria-label={`Remove incident ${row.incidentType} on ${row.incidentDate}`}
                       onClick={() => {
                         setError(null);
-                        startTransition(async () => {
-                          const outcome = await removeStudentDisciplineAction(studentId, row.id);
-                          if (outcome.status === 'error') {
-                            setError(outcome.message ?? 'Could not remove incident');
-                            return;
-                          }
-                          router.refresh();
-                        });
+                        setPendingRemoval(row);
                       }}
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -431,6 +465,35 @@ function DisciplineCard({
           </p>
         ) : null}
       </CardContent>
+      <ConfirmActionDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(next) => {
+          if (!next && !isPending) setPendingRemoval(null);
+        }}
+        title="Remove discipline incident?"
+        description={
+          pendingRemoval
+            ? `This removes the ${pendingRemoval.incidentType} incident of ${pendingRemoval.incidentDate}${pendingRemoval.visibleToParent ? ', which parents can currently see' : ''}. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Remove incident"
+        destructive
+        pending={isPending}
+        testId="discipline-remove-confirm"
+        onConfirm={() => {
+          const target = pendingRemoval;
+          if (!target) return;
+          startTransition(async () => {
+            const outcome = await removeStudentDisciplineAction(studentId, target.id);
+            setPendingRemoval(null);
+            if (outcome.status === 'error') {
+              setError(outcome.message ?? 'Could not remove incident');
+              return;
+            }
+            router.refresh();
+          });
+        }}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <form

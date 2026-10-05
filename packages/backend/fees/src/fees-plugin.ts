@@ -15,7 +15,7 @@ import {
   requireFeesStaffRead,
   resolveFeesReadScope,
 } from './fees-http-guard.js';
-import type { FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
+import type { FeesMoneyAuditEvent, FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,
@@ -376,6 +376,13 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
  * concession approval. No-op when the repository is not transaction-bound
  * (in-memory); the gateway onSend audit remains the safety net there.
  */
+const MONEY_AUDIT_UPDATE_KINDS: ReadonlySet<FeesMoneyAuditEvent['kind']> = new Set([
+  'void',
+  'concession_approve',
+  'concession_reject',
+  'scholarship_netting_reversal',
+]);
+
 function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMoneyAuditSink {
   return async (tx, event) => {
     const client = tx.transactionClient?.() ?? null;
@@ -386,8 +393,7 @@ function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMon
         tenantId,
         entityType: 'fees',
         entityId: event.entityId,
-        operation:
-          event.kind === 'void' || event.kind === 'concession_approve' ? 'UPDATE' : 'CREATE',
+        operation: MONEY_AUDIT_UPDATE_KINDS.has(event.kind) ? 'UPDATE' : 'CREATE',
         userId: getActorId(request),
         userName: getActorDisplayName(request),
         ipAddress: request.ip,
@@ -409,6 +415,42 @@ function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMon
     markRegulatedMutationAuditCommitted(request);
   };
 }
+/**
+ * PRC-L306: same-transaction money audit for non-HTTP callers (e.g. the scholarship
+ * disbursement paid/reversed hooks that net fees). The row is appended on the open
+ * transaction client, so an audit failure rolls back the netting / reversal.
+ */
+export function buildSystemMoneyAuditSink(
+  tenantId: string,
+  actor: { userId: string; userName?: string | null; source: string },
+): FeesMoneyAuditSink {
+  return async (tx, event) => {
+    const client = tx.transactionClient?.() ?? null;
+    if (!client) return;
+    await appendAuditEntryOnClient(
+      client,
+      toCreateAuditLogInput({
+        tenantId,
+        entityType: 'fees',
+        entityId: event.entityId,
+        operation: MONEY_AUDIT_UPDATE_KINDS.has(event.kind) ? 'UPDATE' : 'CREATE',
+        userId: actor.userId,
+        userName: actor.userName ?? actor.userId,
+        // System (non-HTTP) caller: no client IP.
+        ipAddress: '0.0.0.0',
+        beforeValues: { invoiceId: event.invoiceId, status: event.beforeStatus },
+        afterValues: {
+          invoiceId: event.invoiceId,
+          amountCents: event.amountCents,
+          status: event.afterStatus,
+          kind: event.kind,
+        },
+        metadata: { source: actor.source, regulated: `fees.${event.kind}`, atomic: true },
+      }),
+    );
+  };
+}
+
 function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -1274,6 +1316,7 @@ export const feesPlugin = fp(
             tenantId,
             getActorId(request),
             paramsResult.data.id,
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send({
             concession: {
@@ -1783,6 +1826,7 @@ export const feesPlugin = fp(
               invoiceId: body.invoiceId,
               currency: body.currency,
             },
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send(result);
         } catch (error: unknown) {
