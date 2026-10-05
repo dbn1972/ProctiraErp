@@ -20,6 +20,27 @@ data:
   # PRC-H027: web BFF tenant when the Host has no tenant subdomain (dev/single-tenant only).
   TENANT_FALLBACK_SLUG: {{ . | quote }}
   {{- end }}
+  {{- with .Values.config.auth }}
+  # PRC-M011: api-gateway auth boot prerequisites (non-secret ids/URLs).
+  {{- with .keycloakIssuer }}
+  KEYCLOAK_ISSUER: {{ . | quote }}
+  {{- end }}
+  {{- with .keycloakClientId }}
+  KEYCLOAK_CLIENT_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .keycloakRealm }}
+  KEYCLOAK_REALM: {{ . | quote }}
+  {{- end }}
+  {{- with .keycloakAudience }}
+  KEYCLOAK_AUDIENCE: {{ . | quote }}
+  {{- end }}
+  {{- with .keycloakRedirectUri }}
+  KEYCLOAK_REDIRECT_URI: {{ . | quote }}
+  {{- end }}
+  {{- with .webUrl }}
+  NEXT_PUBLIC_WEB_URL: {{ . | quote }}
+  {{- end }}
+  {{- end }}
   S3_REGION: {{ .Values.config.s3Region | quote }}
   S3_FORCE_PATH_STYLE: {{ .Values.config.s3ForcePathStyle | quote }}
   {{- if .Values.config.tracing }}
