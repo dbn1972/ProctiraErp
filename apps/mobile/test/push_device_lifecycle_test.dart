@@ -38,9 +38,20 @@ class _RecordingDeviceApi implements NotificationDeviceApi {
 
 class _FakeMessaging implements FirebaseMessaging {
   int deleted = 0;
+  int tokenRequests = 0;
+  String? nextToken;
 
   @override
   Future<void> deleteToken() async => deleted++;
+
+  @override
+  Future<String?> getToken({
+    String? vapidKey,
+    String? serviceWorkerScriptPath,
+  }) async {
+    tokenRequests++;
+    return nextToken;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -95,6 +106,28 @@ void main() {
     expect(api.calls.last, 'unregister:install-1');
     expect(messaging.deleted, 1);
     expect(fcm.token, isNull);
+  });
+
+  test('login → logout → login in one process re-registers', () async {
+    final _RecordingDeviceApi api = _RecordingDeviceApi();
+    final _FakeMessaging messaging = _FakeMessaging();
+    final FcmService fcm = build(api, messaging)..debugToken = 'tok-1';
+
+    await fcm.onAuthenticated();
+    await fcm.onLoggingOut();
+    expect(fcm.token, isNull);
+
+    // FCM issues a new token only on request after deleteToken.
+    messaging.nextToken = 'tok-2';
+    await fcm.onAuthenticated();
+
+    expect(messaging.tokenRequests, 1);
+    expect(fcm.token, 'tok-2');
+    expect(api.calls, <String>[
+      'register:install-1:tok-1',
+      'unregister:install-1',
+      'register:install-1:tok-2',
+    ]);
   });
 
   test('registration retries transient failures', () async {

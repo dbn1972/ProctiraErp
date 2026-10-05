@@ -181,7 +181,19 @@ class FcmService implements PushDeviceLifecycle {
   @override
   Future<void> onAuthenticated() async {
     _authenticated = true;
-    final String? token = _token;
+    String? token = _token;
+    if ((token == null || token.isEmpty) &&
+        (_started || _messagingOverride != null)) {
+      // [onLoggingOut] deleted the token and [start] will not run again in
+      // this process, so a later sign-in must fetch a fresh one itself.
+      try {
+        token = await (_messagingOverride ?? FirebaseMessaging.instance)
+            .getToken();
+        _token = token;
+      } catch (error) {
+        debugPrint('FCM token retrieval failed: $error');
+      }
+    }
     if (token != null && token.isNotEmpty) {
       await _registerDevice(token);
     }
