@@ -18,6 +18,10 @@ import { bulkUpsertInTx } from './prisma-result-repository.js';
 import { InMemoryReportCardDirectory } from './report-card-directory.js';
 import { ResultService } from './result-service.js';
 
+// The 2000-student paging test is CPU-heavy; it exceeded vitest's 5s default on a loaded CI
+// runner (Unit Tests on #537) while running in well under a second locally.
+vi.setConfig({ testTimeout: 30_000 });
+
 const tenantId = 'tenant-m161';
 const subjectA = '11111111-1111-4111-8111-111111111111';
 const subjectB = '11111111-1111-4111-8111-222222222222';
