@@ -28,7 +28,15 @@ import {
   type AdmissionsCrmStore,
   type WaitlistEntry,
 } from './admissions-crm-store.js';
+import {
+  dateOfBirthErrors,
+  isRealIsoDate,
+  matchesConfiguredPattern,
+  parseTimestamp,
+} from './input-validation.js';
+import type { ListPage } from './pagination.js';
 import type {
+  InstitutionFilterOptions,
   RegistrationRepository,
   InstitutionLocationFilter,
   NewRegistrationEntity,
@@ -177,6 +185,17 @@ export function validateCustomFields(
 
     if (field.value === null || field.value === '') continue;
 
+    // PRC-M333: value type must match the configured field type.
+    const typeError = customFieldTypeError(fieldDef.type, field.value);
+    if (typeError) {
+      errors.push({
+        field: `customFields.${field.fieldId}`,
+        rule: 'type',
+        message: `Field '${fieldDef.label}' ${typeError}`,
+      });
+      continue;
+    }
+
     // Type-specific validation
     if (fieldDef.type === 'select' && fieldDef.options) {
       const validValues = fieldDef.options.map((o) => o.value);
@@ -206,6 +225,17 @@ export function validateCustomFields(
             message: `Field '${fieldDef.label}' must be at most ${fieldDef.validation.maxLength} characters`,
           });
         }
+        // PRC-M333: honour the configured pattern (anchored; invalid regex fails closed).
+        if (
+          fieldDef.validation.pattern &&
+          !matchesConfiguredPattern(val, fieldDef.validation.pattern)
+        ) {
+          errors.push({
+            field: `customFields.${field.fieldId}`,
+            rule: 'pattern',
+            message: `Field '${fieldDef.label}' has an invalid format`,
+          });
+        }
       }
       if (typeof val === 'number') {
         if (fieldDef.validation.min !== undefined && val < fieldDef.validation.min) {
@@ -227,6 +257,26 @@ export function validateCustomFields(
   }
 
   return errors;
+}
+
+/** PRC-M333: returns a message when `value` does not fit the configured field type. */
+function customFieldTypeError(type: string, value: string | number | boolean): string | null {
+  switch (type) {
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value) ? null : 'must be a number';
+    case 'checkbox':
+      return typeof value === 'boolean' ? null : 'must be true or false';
+    case 'date':
+      return typeof value === 'string' && isRealIsoDate(value)
+        ? null
+        : 'must be a real date (YYYY-MM-DD)';
+    case 'text':
+    case 'textarea':
+    case 'select':
+      return typeof value === 'string' ? null : 'must be text';
+    default:
+      return null;
+  }
 }
 
 /** Match configured file fields to submitted documentType values. */
@@ -379,6 +429,7 @@ export class RegistrationService {
 
     const documents = input.documents ?? [];
     const fieldErrors = [
+      ...dateOfBirthErrors(input.dateOfBirth),
       ...validateDocuments(documents),
       ...validateConfiguredDocuments(documents, formConfig),
       ...validateCustomFields(input.customFields ?? [], formConfig),
@@ -472,10 +523,11 @@ export class RegistrationService {
       trackingNumber: registration.trackingNumber,
       status: registration.status,
       institutionName: registration.institutionName,
-      applicantName: `${registration.firstName} ${registration.lastName}`,
+      // PRC-M331: anonymous lookup discloses only the first-name initial and no
+      // staff free-text remarks.
+      applicantName: `${registration.firstName.trim().charAt(0).toUpperCase()}.`,
       submittedAt: registration.submittedAt.toISOString(),
       updatedAt: registration.updatedAt.toISOString(),
-      remarks: registration.remarks ?? undefined,
       waitlistPosition:
         waitlist.find((row) => row.applicationId === registration.id)?.position ?? undefined,
       interviewBookings: bookings
@@ -492,6 +544,11 @@ export class RegistrationService {
    * Get institution locations for map display with filtering.
    * Requirement 16.4: Interactive map with area/type/grade filtering.
    */
+  /** PRC-M051/M056: public directory filter options from real institution data. */
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return this.repository.getInstitutionFilterOptions(tenantId);
+  }
+
   async getInstitutionLocations(
     tenantId: string,
     filter: InstitutionLocationFilter,
@@ -507,11 +564,14 @@ export class RegistrationService {
   async getFormConfiguration(
     tenantId: string,
     institutionId: string,
-  ): Promise<FormConfiguration | null> {
+  ): Promise<(FormConfiguration & { institutionName: string }) | null> {
     try {
       const institution = await this.repository.findInstitution(tenantId, institutionId);
       if (!institution || institution.status !== 'ACTIVE') return null;
-      return await this.repository.getFormConfiguration(tenantId, institutionId);
+      const config = await this.repository.getFormConfiguration(tenantId, institutionId);
+      // PRC-M056: return the school name with the form so the apply heading
+      // needs no directory scan.
+      return config ? { ...config, institutionName: institution.name } : null;
     } catch {
       throw new AppError(
         'Registration form configuration is temporarily unavailable',
@@ -595,8 +655,8 @@ export class RegistrationService {
   }
 
   /** Staff CRM: list applications for a tenant. */
-  async listApplications(tenantId: string) {
-    return this.repository.listByTenant(tenantId);
+  async listApplications(tenantId: string, page?: ListPage) {
+    return this.repository.listByTenant(tenantId, page);
   }
 
   /**
@@ -615,16 +675,31 @@ export class RegistrationService {
     }
 
     if (!isAllowedApplicationTransition(application.status, status)) {
-      throw new BusinessRuleError(
+      // PRC-M334: invalid transition is a state conflict (409).
+      throw new ConflictError(
         `Application status cannot change from '${application.status}' to '${status}'`,
       );
     }
-
-    const updated = await this.repository.updateStatus(applicationId, status, remarks, tenantId);
+    // PRC-M334: optimistic write — only applies if nobody changed the status
+    // since we validated the transition.
+    const updated = await this.repository.updateStatus(
+      applicationId,
+      status,
+      remarks,
+      tenantId,
+      application.status,
+    );
     if (!updated) {
-      throw new NotFoundError(`Application with id '${applicationId}' not found`);
+      throw new ConflictError(
+        `Application '${applicationId}' status changed concurrently; reload and retry`,
+      );
     }
 
+    // PRC-M329: leaving `waitlisted` (approved/rejected/under_review) removes the
+    // queue entry so the applicant can never be promoted afterwards.
+    if (application.status === 'waitlisted' && status !== 'waitlisted') {
+      await this.crm.removeWaitlistEntry(tenantId, applicationId);
+    }
     let waitlistEntry: WaitlistEntry | null = null;
     if (status === 'waitlisted') {
       waitlistEntry = await this.crm.enqueueWaitlist({
@@ -652,7 +727,20 @@ export class RegistrationService {
       location?: string | null;
     },
   ) {
-    if (new Date(input.endsAt) <= new Date(input.startsAt)) {
+    // PRC-M333: reject unparseable timestamps (NaN comparisons are always false).
+    const startsAt = parseTimestamp(input.startsAt);
+    const endsAt = parseTimestamp(input.endsAt);
+    if (!startsAt || !endsAt) {
+      throw new ValidationError('Invalid interview slot time', [
+        ...(!startsAt
+          ? [{ field: 'startsAt', rule: 'format', message: 'startsAt must be an ISO timestamp' }]
+          : []),
+        ...(!endsAt
+          ? [{ field: 'endsAt', rule: 'format', message: 'endsAt must be an ISO timestamp' }]
+          : []),
+      ]);
+    }
+    if (endsAt <= startsAt) {
       throw new BusinessRuleError('Interview slot end must be after start');
     }
     return this.crm.createSlot({ tenantId, ...input });
@@ -673,18 +761,8 @@ export class RegistrationService {
       throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
     }
 
-    const booked = await this.crm.listBookingsForSlot(tenantId, slot.id);
-    if (booked.length >= slot.capacity) {
-      throw new BusinessRuleError('Interview slot is at capacity');
-    }
-
-    const existing = (
-      await this.crm.listBookingsForApplication(tenantId, input.applicationId)
-    ).find((row) => row.slotId === slot.id && row.status === 'booked');
-    if (existing) {
-      return existing;
-    }
-
+    // PRC-M334: existing-booking check and capacity check happen atomically in
+    // the store (slot row locked FOR UPDATE), not check-then-act here.
     return this.crm.bookSlot({
       tenantId,
       slotId: slot.id,

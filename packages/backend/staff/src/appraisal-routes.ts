@@ -8,6 +8,8 @@
  * GET    /staff/appraisals                  - List appraisals
  * GET    /staff/appraisals/:id              - Get an appraisal
  * POST   /staff/appraisals/:id/submit       - Submit appraisal for workflow approval
+ * POST   /staff/appraisals/:id/approve      - Approve a submitted appraisal (PRC-M376)
+ * POST   /staff/appraisals/:id/reject       - Reject a submitted appraisal (PRC-M376)
  *
  * Requirements:
  * - 7.3: Staff appraisal workflows with configurable criteria, scoring, and approval chains
@@ -28,7 +30,7 @@ import {
   type AppraisalListQuery,
 } from './appraisal-schemas.js';
 import type { AppraisalService } from './appraisal-service.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
+import { requireStaffAction, staffWritePreHandler } from './staff-http-guard.js';
 
 /**
  * Options for registering appraisal routes.
@@ -381,4 +383,59 @@ export async function registerAppraisalRoutes(
       }
     },
   );
+
+  // PRC-M376: approve/reject. Reviewer = authenticated JWT subject; HR/admin only.
+  for (const [action, decision] of [
+    ['approve', 'APPROVED'],
+    ['reject', 'REJECTED'],
+  ] as const) {
+    fastify.post(
+      `${prefix}/:id/${action}`,
+      async function decideAppraisalHandler(
+        request: FastifyRequest<{ Params: AppraisalParams }>,
+        reply: FastifyReply,
+      ) {
+        if (!requireStaffAction(request, reply, 'staff.appraisal.decide')) return reply;
+        const paramsResult = validate(AppraisalParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid appraisal ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+        if (!tenantId) {
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
+        }
+        const reviewerId = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub;
+        if (!reviewerId) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'Authenticated reviewer required',
+            statusCode: 401,
+          });
+        }
+        try {
+          const appraisal = await appraisalService.decideAppraisal(
+            tenantId,
+            paramsResult.data.id,
+            decision,
+            reviewerId,
+          );
+          return reply.status(200).send(formatAppraisalResponse(appraisal));
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+  }
 }

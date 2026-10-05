@@ -76,6 +76,12 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     // the gateway middleware in production.
     app = Fastify();
     await registerTenantRoutes(app, { tenantService: service });
+    // PRC-M390: the actor comes from the authenticated user, simulated here
+    // by mapping an `x-actor-id` header onto request.user.sub.
+    app.addHook('onRequest', async (req) => {
+      const actor = req.headers['x-actor-id'];
+      if (typeof actor === 'string') Object.assign(req, { user: { sub: actor } });
+    });
     await registerBrandingRoutes(app, {
       tenantService: service,
       getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
@@ -102,7 +108,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     app.inject({
       method: 'POST',
       url: '/tenant/branding/publish',
-      headers: { 'x-tenant-id': tenantId },
+      headers: { 'x-tenant-id': tenantId, 'x-actor-id': publishedBy },
       payload: { tokens, publishedBy },
     });
 
@@ -110,7 +116,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     app.inject({
       method: 'POST',
       url: '/tenant/branding/rollback',
-      headers: { 'x-tenant-id': tenantId },
+      headers: { 'x-tenant-id': tenantId, 'x-actor-id': publishedBy },
       payload: { revision, publishedBy },
     });
 
@@ -135,7 +141,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/publish',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_ALICE,
+        },
         payload: { tokens: tokensV1, publishedBy: PUBLISHER_ALICE },
       });
       expect(res.statusCode).toBe(403);
@@ -150,7 +160,11 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/tenant/branding/rollback',
-        headers: { 'x-tenant-id': tenantId, 'x-deny-branding-edit': '1' },
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-deny-branding-edit': '1',
+          'x-actor-id': PUBLISHER_BOB,
+        },
         payload: { revision: 1, publishedBy: PUBLISHER_BOB },
       });
       expect(res.statusCode).toBe(403);
@@ -178,10 +192,32 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
       expect(response.json().code).toBe('TENANT_REQUIRED');
     });
 
-    it('returns 400 when publishedBy is not a UUID', async () => {
-      const response = await publish(tokensV1, 'not-a-uuid');
-      expect(response.statusCode).toBe(400);
-      expect(response.json().code).toBe('VALIDATION_ERROR');
+    it('PRC-M390: body publishedBy is ignored; stored actor is the JWT sub', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/tenant/branding/publish',
+        headers: { 'x-tenant-id': tenantId, 'x-actor-id': PUBLISHER_ALICE },
+        payload: { tokens: tokensV1, publishedBy: PUBLISHER_BOB },
+      });
+      expect(response.statusCode).toBe(201);
+      expect(response.json().publishedBy).toBe(PUBLISHER_ALICE);
+    });
+
+    it('PRC-M390: no authenticated user -> 401 on publish, rollback and draft save', async () => {
+      for (const [url, payload] of [
+        ['/tenant/branding/publish', { tokens: tokensV1, publishedBy: PUBLISHER_BOB }],
+        ['/tenant/branding/rollback', { revision: 1, publishedBy: PUBLISHER_BOB }],
+        ['/tenant/branding/draft', { tokens: tokensV1, savedBy: PUBLISHER_BOB }],
+      ] as const) {
+        const res = await app.inject({
+          method: 'POST',
+          url,
+          headers: { 'x-tenant-id': tenantId },
+          payload,
+        });
+        expect(res.statusCode, url).toBe(401);
+      }
+      expect((await listVersions()).json().data).toHaveLength(0);
     });
 
     it('appends rows with monotonically increasing revision numbers', async () => {

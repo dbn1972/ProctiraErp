@@ -9,8 +9,8 @@
  *
  * Endpoints (Task 58.2):
  *
- *   POST   /tenant/branding/publish      Publish a new revision (`tokens` +
- *                                        `publishedBy`). Appends a
+ *   POST   /tenant/branding/publish      Publish a new revision (`tokens`;
+ *                                        actor = JWT sub, PRC-M390). Appends a
  *                                        `tenant_theme_versions` row at
  *                                        `MAX(revision) + 1` and mirrors
  *                                        the tokens onto
@@ -62,9 +62,9 @@ import {
   PublishBrandingSchema,
   RollbackBrandingSchema,
   SaveBrandingDraftSchema,
-  type PublishBrandingInput,
-  type RollbackBrandingInput,
-  type SaveBrandingDraftInput,
+  type PublishBrandingBody,
+  type RollbackBrandingBody,
+  type SaveBrandingDraftBody,
 } from './schemas.js';
 import type { TenantService } from './tenant-service.js';
 
@@ -78,15 +78,6 @@ export type TenantIdResolver = (request: FastifyRequest) => string | undefined;
 /**
  * Default resolver: read `request.tenantId` (set by the gateway plugin).
  */
-/**
- * PRC-M490: the publisher/saver recorded on branding audit rows is the authenticated JWT
- * subject, never the client-supplied `publishedBy`/`savedBy`. The body value is only used
- * when no auth plugin decorated the request (in-process/test mounts).
- */
-function authenticatedActor(request: FastifyRequest): string | undefined {
-  const sub = (request as FastifyRequest & { user?: { sub?: unknown } }).user?.sub;
-  return typeof sub === 'string' && sub.length > 0 ? sub : undefined;
-}
 const defaultTenantIdResolver: TenantIdResolver = (request) =>
   (request as FastifyRequest & { tenantId?: string }).tenantId;
 
@@ -190,6 +181,25 @@ export interface BrandingRoutesOptions {
    * default protects deployments that forget to wire the resolver.
    */
   hasPermission?: BrandingPermissionResolver;
+  /**
+   * PRC-M390: resolves the authenticated actor recorded on publish/rollback/
+   * draft rows. Defaults to the verified JWT subject (`request.user.sub`).
+   * Requests without an actor are rejected with 401.
+   */
+  getActorId?: (request: FastifyRequest) => string | undefined;
+}
+
+const defaultActorIdResolver = (request: FastifyRequest): string | undefined => {
+  const sub = (request as FastifyRequest & { user?: { sub?: unknown } }).user?.sub;
+  return typeof sub === 'string' && sub.trim().length > 0 ? sub : undefined;
+};
+
+function unauthenticated(reply: FastifyReply): FastifyReply {
+  return reply.status(401).send({
+    code: 'UNAUTHORIZED',
+    message: 'Authenticated actor required',
+    statusCode: 401,
+  });
 }
 
 function tenantRequired(reply: FastifyReply): FastifyReply {
@@ -220,6 +230,7 @@ export async function registerBrandingRoutes(
     prefix = '/tenant/branding',
     getTenantId = defaultTenantIdResolver,
     hasPermission = defaultPermissionResolver,
+    getActorId = defaultActorIdResolver,
   } = options;
 
   // ─── GET /tenant/branding ───────────────────────────────────────────────
@@ -302,11 +313,13 @@ export async function registerBrandingRoutes(
   fastify.post(
     `${prefix}/publish`,
     async function publishBrandingHandler(
-      request: FastifyRequest<{ Body: PublishBrandingInput }>,
+      request: FastifyRequest<{ Body: PublishBrandingBody }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      const actorId = getActorId(request);
+      if (!actorId) return unauthenticated(reply);
 
       // PRC-H097: publishing branding is a privileged mutation. Require branding:edit and fail
       // closed (the default resolver denies), so this is safe even if the route is ever mounted
@@ -326,8 +339,8 @@ export async function registerBrandingRoutes(
 
       try {
         const version = await tenantService.publishBranding(tenantId, {
-          ...result.data,
-          publishedBy: authenticatedActor(request) ?? result.data.publishedBy,
+          tokens: result.data.tokens,
+          publishedBy: actorId,
         });
         return reply.status(201).send(tenantService.formatThemeVersionResponse(version));
       } catch (error: unknown) {
@@ -344,11 +357,13 @@ export async function registerBrandingRoutes(
   fastify.post(
     `${prefix}/rollback`,
     async function rollbackBrandingHandler(
-      request: FastifyRequest<{ Body: RollbackBrandingInput }>,
+      request: FastifyRequest<{ Body: RollbackBrandingBody }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      const actorId = getActorId(request);
+      if (!actorId) return unauthenticated(reply);
 
       // PRC-H097: rollback is a privileged mutation — require branding:edit, fail closed.
       const allowed = Boolean(await hasPermission(request, 'branding:edit'));
@@ -366,8 +381,8 @@ export async function registerBrandingRoutes(
 
       try {
         const rollback = await tenantService.rollbackBranding(tenantId, {
-          ...result.data,
-          publishedBy: authenticatedActor(request) ?? result.data.publishedBy,
+          revision: result.data.revision,
+          publishedBy: actorId,
         });
         return reply.status(201).send(tenantService.formatThemeVersionResponse(rollback));
       } catch (error: unknown) {
@@ -420,11 +435,13 @@ export async function registerBrandingRoutes(
   fastify.post(
     `${prefix}/draft`,
     async function saveBrandingDraftHandler(
-      request: FastifyRequest<{ Body: SaveBrandingDraftInput }>,
+      request: FastifyRequest<{ Body: SaveBrandingDraftBody }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      const actorId = getActorId(request);
+      if (!actorId) return unauthenticated(reply);
 
       const allowed = Boolean(await hasPermission(request, 'branding:edit'));
       if (!allowed) return forbidden(reply, 'branding:edit');
@@ -441,8 +458,8 @@ export async function registerBrandingRoutes(
 
       try {
         const draft = await tenantService.saveBrandingDraft(tenantId, {
-          ...result.data,
-          savedBy: authenticatedActor(request) ?? result.data.savedBy,
+          tokens: result.data.tokens,
+          savedBy: actorId,
         });
         return reply.status(201).send(tenantService.formatBrandingDraftResponse(draft));
       } catch (error: unknown) {

@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AppError } from '@proctira/common';
 import { ETLService } from './etl-service.js';
+import { memoryConnectorFactory } from './test-support/memory-connector-factory.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type { CreatePipelineInput } from './schemas.js';
 
@@ -15,6 +16,7 @@ describe('ETLService', () => {
   beforeEach(() => {
     repository = new InMemoryPipelineRepository();
     service = new ETLService(repository, {
+      connectorFactory: memoryConnectorFactory(),
       defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
     });
   });

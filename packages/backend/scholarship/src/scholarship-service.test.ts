@@ -684,6 +684,48 @@ describe('ScholarshipService', () => {
       }
     });
 
+    it('honours startDate/endDate for applications and paid disbursements (PRC-M352)', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        await service.approveApplication(TENANT_ID, application.id);
+        const d = await service.createDisbursement(TENANT_ID, {
+          applicationId: application.id,
+          amount: 5000,
+          scheduledDate: '2024-04-01',
+        });
+        await service.updateDisbursement(TENANT_ID, d.id, {
+          paymentStatus: 'paid',
+          paidDate: '2024-04-01',
+          transactionReference: 'TXN-P1',
+        });
+        const inPeriod = await service.getUtilizationReport(TENANT_ID, {
+          startDate: '2024-03-01',
+          endDate: '2024-04-30',
+        });
+        expect(inPeriod.totalApplications).toBe(1);
+        expect(inPeriod.totalDisbursed).toBe(1);
+        expect(inPeriod.totalAmountCents).toBe(500_000);
+        expect(inPeriod.currencyTotals).toEqual([
+          { currency: inPeriod.currency, totalAmountCents: 500_000, totalAmount: 5000 },
+        ]);
+        const otherPeriod = await service.getUtilizationReport(TENANT_ID, {
+          startDate: '2024-05-01',
+          endDate: '2024-06-30',
+        });
+        expect(otherPeriod.totalApplications).toBe(0);
+        expect(otherPeriod.totalDisbursed).toBe(0);
+        expect(otherPeriod.totalAmountCents).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
     it('should filter report by gender', async () => {
       const program = await service.createProgram(TENANT_ID, makeProgramInput());
       await service.updateProgram(TENANT_ID, program.id, { status: 'open' });

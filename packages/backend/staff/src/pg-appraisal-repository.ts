@@ -179,8 +179,10 @@ export class PgAppraisalRepository implements AppraisalRepository {
     id: string,
     tenantId: string,
     data: Partial<AppraisalEntity>,
+    expectedStatus?: readonly AppraisalEntity['status'][],
   ): Promise<AppraisalEntity | null> {
     return this.run(tenantId, async (c) => {
+      // PRC-M376: optional status compare-and-set ($11) makes transitions atomic.
       const res = await c.query(
         `UPDATE hr_appraisals SET
            appraisal_date       = COALESCE($3, appraisal_date),
@@ -190,6 +192,7 @@ export class PgAppraisalRepository implements AppraisalRepository {
            status               = COALESCE($8, status),
            workflow_instance_id = CASE WHEN $9::boolean THEN $10 ELSE workflow_instance_id END
          WHERE id = $1 AND tenant_id = $2
+           AND ($11::text[] IS NULL OR status = ANY($11::text[]))
          RETURNING *`,
         [
           id,
@@ -202,6 +205,7 @@ export class PgAppraisalRepository implements AppraisalRepository {
           data.status ?? null,
           data.workflowInstanceId !== undefined,
           data.workflowInstanceId ?? null,
+          expectedStatus ? [...expectedStatus] : null,
         ],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;

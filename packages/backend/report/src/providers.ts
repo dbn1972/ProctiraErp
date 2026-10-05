@@ -14,6 +14,13 @@ import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/datab
 import type { CatalogueReportKey } from './catalogue.js';
 import type { ReportTable } from './generators.js';
 
+/** Hard cap on rows in a single catalogue report (see catalogue-service). */
+export const MAX_CATALOGUE_REPORT_ROWS = 25_000;
+/**
+ * PRC-M342: providers fetch cap+1 rows so an oversized result is detected and
+ * rejected by the cap check instead of being silently truncated.
+ */
+export const CATALOGUE_FETCH_LIMIT = MAX_CATALOGUE_REPORT_ROWS + 1;
 /** Thrown when live report data cannot be read; the run must fail (no artifact). */
 export class ReportDataUnavailableError extends AppError {
   constructor(message: string, cause?: unknown) {
@@ -146,7 +153,8 @@ async function loadStudentsRoster(client: PgQueryable, tenantId: string): Promis
          FROM students
         WHERE deleted_at IS NULL
         ORDER BY last_name, first_name
-        LIMIT 500`,
+        LIMIT $1`,
+    [CATALOGUE_FETCH_LIMIT],
   );
   return {
     columns: [
@@ -237,7 +245,8 @@ async function loadFeeDues(client: PgQueryable, tenantId: string): Promise<Repor
          FROM parent_fee_invoices
         WHERE status IN ('open', 'overdue')
         ORDER BY due_at NULLS LAST, created_at DESC
-        LIMIT 500`,
+        LIMIT $1`,
+    [CATALOGUE_FETCH_LIMIT],
   );
   return {
     columns: [
@@ -302,7 +311,8 @@ async function loadEnrolment(
 async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable> {
   for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
     if (!(await relationExists(client, table))) continue;
-    const result = await client.query(`SELECT * FROM ${table} LIMIT 200`);
+    // `table` comes from the fixed allow-list above (not user input).
+    const result = await client.query(`SELECT * FROM ${table} LIMIT $1`, [CATALOGUE_FETCH_LIMIT]);
     const rows = result.rows as Record<string, unknown>[];
     const fieldNames = Array.isArray(result.fields)
       ? (result.fields as Array<{ name: string }>).map((f) => f.name)

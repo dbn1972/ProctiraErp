@@ -13,7 +13,6 @@ const localeNames: Record<Locale, string> = {
   es: 'Español',
   fr: 'Français',
   ar: 'العربية',
-  he: 'עברית',
 };
 
 /**

@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { registerETLRoutes } from './routes.js';
 import { ETLService } from './etl-service.js';
+import { memoryConnectorFactory } from './test-support/memory-connector-factory.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import { REDACTED_SECRET } from './secret-redaction.js';
 
@@ -49,6 +50,7 @@ describe('PRC-H115 — ETL credential redaction', () => {
     app = Fastify();
     repository = new InMemoryPipelineRepository();
     const etlService = new ETLService(repository, {
+      connectorFactory: memoryConnectorFactory(),
       defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
     });
     app.addHook('onRequest', async (request) => {

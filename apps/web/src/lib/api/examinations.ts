@@ -423,16 +423,22 @@ export async function generateExaminationDocuments(
   examinationId: string,
   documentType: ExaminationDocumentType,
 ): Promise<ExaminationDocument> {
-  const queued = await gatewayFetch<DocumentJobRecord>(
+  const queued = await gatewayFetch<DocumentJobRecord & { jobIds?: string[] }>(
     `/examinations/${encodeURIComponent(examinationId)}/documents/generate`,
     { method: 'POST', json: { documentType } },
   );
   if (!queued.data) throw new Error('Empty response from examination-service');
-  const processed = await gatewayFetch<DocumentJobRecord>(
-    `/examinations/${encodeURIComponent(examinationId)}/documents/jobs/${encodeURIComponent(queued.data.id)}/process`,
-    { method: 'POST', throwOnError: false },
-  );
-  return toDocument(examinationId, processed.data ?? queued.data);
+  // PRC-M236: large exams are split into chunk jobs of ≤500 candidates; process each.
+  const jobIds = queued.data.jobIds?.length ? queued.data.jobIds : [queued.data.id];
+  let first: DocumentJobRecord | null = null;
+  for (const jobId of jobIds) {
+    const processed = await gatewayFetch<DocumentJobRecord>(
+      `/examinations/${encodeURIComponent(examinationId)}/documents/jobs/${encodeURIComponent(jobId)}/process`,
+      { method: 'POST', throwOnError: false },
+    );
+    first ??= processed.data ?? null;
+  }
+  return toDocument(examinationId, first ?? queued.data);
 }
 
 export interface ExamOpsSession {
