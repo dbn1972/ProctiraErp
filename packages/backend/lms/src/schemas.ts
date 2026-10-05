@@ -310,6 +310,8 @@ export const DiscussionListQuerySchema = Type.Object({
   pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
   institutionId: Type.Optional(Uuid),
   classKey: Type.Optional(Type.String({ maxLength: 120 })),
+  /** PRC-M108: embed posts so the list renders without one call per thread. */
+  include: Type.Optional(Type.Literal('posts')),
 });
 
 export const CreatePostSchema = Type.Object({
@@ -348,6 +350,8 @@ export const LessonListQuerySchema = Type.Object({
   boardId: Type.Optional(Uuid),
   subject: Type.Optional(Type.String({ maxLength: 120 })),
   published: Type.Optional(Type.Boolean()),
+  /** PRC-M108: embed resources so the list renders without one call per lesson. */
+  include: Type.Optional(Type.Literal('resources')),
 });
 
 /** Absolute http(s) URL — blocks javascript:/data:/vbscript: hrefs (PRC-H024 / PRC-H033). */

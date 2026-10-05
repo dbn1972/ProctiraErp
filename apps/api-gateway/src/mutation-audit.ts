@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 
 import type { AuditOperation } from '@proctira/backend-audit';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import type { FastifyRequest } from 'fastify';
 
 import { resourceForApiPath } from './rbac-registry.js';
@@ -43,12 +44,13 @@ export const ATOMIC_MUTATION_AUDIT_PATH_PREFIXES = [
 /**
  * PRC-L306: fees money movements whose audit row is written in the same
  * transaction as the refund / credit note / write-off / void / concession
- * approval (see fees-plugin buildMoneyAuditSink). Pg only; in-memory falls
+ * approval / rejection and scholarship netting (see fees-plugin buildMoneyAuditSink). Pg only; in-memory falls
  * back to the post-hoc onSend audit.
  */
 export const ATOMIC_MUTATION_AUDIT_PATH_PATTERNS: readonly RegExp[] = [
   /^\/api\/v1\/fees\/invoices\/[^/]+\/(refund|credit-notes|write-offs|void|pay)$/,
-  /^\/api\/v1\/fees\/concessions\/[^/]+\/approve$/,
+  /^\/api\/v1\/fees\/concessions\/[^/]+\/(approve|reject)$/,
+  /^\/api\/v1\/fees\/scholarships\/net$/,
 ];
 
 const REQUEST_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
@@ -160,7 +162,7 @@ export function isAtomicMutationAuditPath(pathname: string): boolean {
  * Non-production may set ALLOW_MUTATION_AUDIT_DEGRADE=1 for local tooling.
  */
 export function isMutationAuditDegradeAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  if ((env.NODE_ENV ?? '').toLowerCase() === 'production') return false;
+  if (isProductionNodeEnv(env.NODE_ENV)) return false;
   return truthy(env.ALLOW_MUTATION_AUDIT_DEGRADE);
 }
 
@@ -175,7 +177,7 @@ export function shouldFailClosedOnMutationAuditFailure(options: {
   const env = options.env ?? process.env;
   if (isMutationAuditDegradeAllowed(env)) return false;
   if (!isSecuritySensitiveMutationPath(options.path)) return false;
-  return (env.NODE_ENV ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(env.NODE_ENV);
 }
 
 export const MUTATION_AUDIT_UNAVAILABLE_BODY = {

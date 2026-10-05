@@ -20,6 +20,7 @@ import type {
   EligibilityCriteria,
   FinancialInfo,
 } from './schemas.js';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ApplicationFilter,
   ApplicationStatus,
@@ -42,6 +43,7 @@ import type {
   ApproveApplicationOutcome,
 } from './scholarship-repository.js';
 import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
+import { buildUtilizationReport, UTILIZATION_GROUP_EXPR } from './utilization-report.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -507,6 +509,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       if (filter.applicantIds) add('applicant_id = ANY(?)', filter.applicantIds);
       if (filter.institutionId) add('institution_id = ?', filter.institutionId);
       if (filter.status) add('status = ?', filter.status);
+      if (filter.statuses && filter.statuses.length > 0) add('status = ANY(?)', filter.statuses);
       if (filter.areaId) add('area_id = ?', filter.areaId);
       if (filter.gender) add('gender = ?', filter.gender);
       const where = conditions.join(' AND ');
@@ -687,11 +690,12 @@ export class PgScholarshipRepository implements ScholarshipRepository {
     id: string,
     tenantId: string,
     data: Partial<DisbursementEntity>,
+    inTx?: (tx: ScholarshipTxClient) => Promise<void>,
   ): Promise<DisbursementEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const existingResult = await client.query(
-        `SELECT * FROM scholarship_disbursements WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        `SELECT * FROM scholarship_disbursements WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
         [id, tenantId],
       );
       if (!existingResult.rows[0]) return null;
@@ -720,6 +724,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         ],
       );
       if (!result.rows[0]) return null;
+      // PRC-H084: outbox row commits (or rolls back) with the status write.
+      if (inTx) await inTx(client);
       return mapDisbursement(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -844,114 +850,111 @@ export class PgScholarshipRepository implements ScholarshipRepository {
     filter: UtilizationReportFilter,
   ): Promise<UtilizationReportData> {
     await this.ensureSchema();
+    // PRC-M352: aggregate in SQL (GROUP BY) instead of loading every programme,
+    // application and disbursement into memory; honour startDate/endDate.
+    const groupBy = filter.groupBy ?? 'program';
+    const groupExpr = UTILIZATION_GROUP_EXPR[groupBy] ?? UTILIZATION_GROUP_EXPR.program;
     return this.withTenant(tenantId, async (client) => {
       const programsResult = await client.query(
-        `SELECT * FROM scholarship_programs WHERE tenant_id = $1`,
+        `SELECT count(*)::int AS c FROM scholarship_programs WHERE tenant_id = $1`,
         [tenantId],
       );
-      const programs = programsResult.rows.map((row) => mapProgram(row as Record<string, unknown>));
+      const totalPrograms = Number((programsResult.rows[0] as { c: number } | undefined)?.c ?? 0);
 
-      const appConditions = ['tenant_id = $1'];
-      const appParams: unknown[] = [tenantId];
+      const appConditions = ['a.tenant_id = $1'];
+      const params: unknown[] = [tenantId];
       if (filter.programId) {
-        appParams.push(filter.programId);
-        appConditions.push(`program_id = $${appParams.length}`);
+        params.push(filter.programId);
+        appConditions.push(`a.program_id = $${params.length}`);
       }
       if (filter.areaId) {
-        appParams.push(filter.areaId);
-        appConditions.push(`area_id = $${appParams.length}`);
+        params.push(filter.areaId);
+        appConditions.push(`a.area_id = $${params.length}`);
       }
       if (filter.gender) {
-        appParams.push(filter.gender);
-        appConditions.push(`gender = $${appParams.length}`);
+        params.push(filter.gender);
+        appConditions.push(`a.gender = $${params.length}`);
       }
       if (filter.institutionId) {
-        appParams.push(filter.institutionId);
-        appConditions.push(`institution_id = $${appParams.length}`);
+        params.push(filter.institutionId);
+        appConditions.push(`a.institution_id = $${params.length}`);
+      }
+      const baseParamCount = params.length;
+      // Applications are in-period by submission date.
+      const appDateConditions: string[] = [];
+      const appParams = [...params];
+      if (filter.startDate) {
+        appParams.push(filter.startDate);
+        appDateConditions.push(`a.submitted_at::date >= $${appParams.length}::date`);
+      }
+      if (filter.endDate) {
+        appParams.push(filter.endDate);
+        appDateConditions.push(`a.submitted_at::date <= $${appParams.length}::date`);
       }
       const appsResult = await client.query(
-        `SELECT * FROM scholarship_applications WHERE ${appConditions.join(' AND ')}`,
+        `SELECT ${groupExpr} AS group_value,
+                count(*)::int AS application_count,
+                (count(*) FILTER (WHERE a.status = 'approved'))::int AS approved_count
+           FROM scholarship_applications a
+          WHERE ${[...appConditions, ...appDateConditions].join(' AND ')}
+          GROUP BY 1`,
         appParams,
       );
-      const apps = appsResult.rows.map((row) => mapApplication(row as Record<string, unknown>));
 
-      const disbursementsResult = await client.query(
-        `SELECT * FROM scholarship_disbursements WHERE tenant_id = $1`,
-        [tenantId],
-      );
-      const disbursementsList = disbursementsResult.rows.map((row) =>
-        mapDisbursement(row as Record<string, unknown>),
-      );
-
-      const approvedApps = apps.filter((a) => a.status === 'approved');
-      const approvedAppIds = new Set(approvedApps.map((a) => a.id));
-      const paidDisbursements = disbursementsList.filter(
-        (d) => approvedAppIds.has(d.applicationId) && d.paymentStatus === 'paid',
-      );
-      const totalAmountCents = paidDisbursements.reduce((sum, d) => sum + d.amountCents, 0);
-      const totalAmount = majorUnitsNumberFromCents(totalAmountCents);
-      const currency = programs.length > 0 && programs[0] ? programs[0].currency : 'USD';
-      const groupBy = filter.groupBy ?? 'program';
-      const groupMap = new Map<
-        string,
-        { applicationCount: number; approvedCount: number; disbursedAmountCents: number }
-      >();
-
-      const groupKeyFor = (app: ScholarshipApplicationEntity): string => {
-        switch (groupBy) {
-          case 'area':
-            return app.areaId ?? 'unknown';
-          case 'gender':
-            return app.gender ?? 'unknown';
-          case 'institution':
-            return app.institutionId;
-          case 'program':
-          default:
-            return app.programId;
-        }
-      };
-
-      for (const app of apps) {
-        const key = groupKeyFor(app);
-        if (!groupMap.has(key)) {
-          groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmountCents: 0 });
-        }
-        const group = groupMap.get(key)!;
-        group.applicationCount++;
-        if (app.status === 'approved') group.approvedCount++;
+      // Disbursements are in-period by paid date (falling back to scheduled date).
+      const disbParams = params.slice(0, baseParamCount);
+      const disbDateConditions: string[] = [];
+      if (filter.startDate) {
+        disbParams.push(filter.startDate);
+        disbDateConditions.push(
+          `COALESCE(d.paid_date, d.scheduled_date) >= $${disbParams.length}::date`,
+        );
       }
-
-      const appById = new Map(apps.map((a) => [a.id, a]));
-      for (const d of paidDisbursements) {
-        const app = appById.get(d.applicationId);
-        if (!app) continue;
-        const group = groupMap.get(groupKeyFor(app));
-        if (group) group.disbursedAmountCents += d.amountCents;
+      if (filter.endDate) {
+        disbParams.push(filter.endDate);
+        disbDateConditions.push(
+          `COALESCE(d.paid_date, d.scheduled_date) <= $${disbParams.length}::date`,
+        );
       }
+      const disbResult = await client.query(
+        `SELECT ${groupExpr} AS group_value,
+                p.currency AS currency,
+                count(*)::int AS disbursed_count,
+                COALESCE(sum(COALESCE(d.amount_cents, round(d.amount * 100))), 0)::bigint AS amount_cents
+           FROM scholarship_disbursements d
+           JOIN scholarship_applications a
+             ON a.id = d.application_id AND a.tenant_id = d.tenant_id
+           JOIN scholarship_programs p
+             ON p.id = a.program_id AND p.tenant_id = a.tenant_id
+          WHERE d.tenant_id = $1
+            AND d.payment_status = 'paid'
+            AND a.status = 'approved'
+            ${[...appConditions.slice(1), ...disbDateConditions].map((c) => `AND ${c}`).join(' ')}
+          GROUP BY 1, 2`,
+        disbParams,
+      );
 
-      const breakdown = Array.from(groupMap.entries()).map(([key, data]) => ({
-        groupKey: groupBy,
-        groupValue: key,
-        applicationCount: data.applicationCount,
-        approvedCount: data.approvedCount,
-        disbursedAmountCents: data.disbursedAmountCents,
-        disbursedAmount: majorUnitsNumberFromCents(data.disbursedAmountCents),
-        utilizationRate:
-          data.applicationCount > 0
-            ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
-            : 0,
-      }));
-
-      return {
-        totalPrograms: programs.length,
-        totalApplications: apps.length,
-        totalApproved: approvedApps.length,
-        totalDisbursed: paidDisbursements.length,
-        totalAmount,
-        totalAmountCents,
-        currency,
-        breakdown,
-      };
+      return buildUtilizationReport(
+        groupBy,
+        totalPrograms,
+        appsResult.rows.map((r) => {
+          const row = r as Record<string, unknown>;
+          return {
+            groupValue: String(row.group_value),
+            applicationCount: Number(row.application_count),
+            approvedCount: Number(row.approved_count),
+          };
+        }),
+        disbResult.rows.map((r) => {
+          const row = r as Record<string, unknown>;
+          return {
+            groupValue: String(row.group_value),
+            currency: String(row.currency),
+            disbursedCount: Number(row.disbursed_count),
+            amountCents: Number(row.amount_cents),
+          };
+        }),
+      );
     });
   }
 }

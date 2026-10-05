@@ -84,3 +84,24 @@ export function formatInTimeZone(
   const tz = timeZone && isValidTimeZone(timeZone) ? timeZone : 'UTC';
   return new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(date);
 }
+/**
+ * Date + time + short zone name (e.g. "1 Jun 2026, 10:00 am IST").
+ * Uses component options: `timeZoneName` cannot be combined with
+ * `dateStyle`/`timeStyle` (Intl throws a TypeError).
+ */
+export const DATE_TIME_WITH_ZONE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+};
+/** Format an ISO instant with date, time and zone label in `timeZone`. */
+export function formatDateTimeWithZone(
+  iso: string,
+  timeZone: string | null | undefined,
+  locale = 'en-IN',
+): string {
+  return formatInTimeZone(iso, timeZone, DATE_TIME_WITH_ZONE_OPTIONS, locale);
+}

@@ -1085,16 +1085,80 @@ export class LmsService {
         criteriaById.set(c.id, c);
       }
     }
-    const scored = input.scores.map((s) => {
+    // PRC-M479: rubric grading requires a linked rubric, and every score must belong
+    // to it, pick a real level, and award exactly that level's points (<= maxPoints).
+    if (typeof rubricId !== 'string' || criteriaById.size === 0) {
+      throw new BusinessRuleError('Attach a rubric to the essay question before rubric grading');
+    }
+    const seen = new Set<string>();
+    const fieldErrors: Array<{ field: string; rule: string; message: string }> = [];
+    input.scores.forEach((s, i) => {
       const criterion = criteriaById.get(s.criterionId);
-      return {
-        criterionId: s.criterionId,
-        points: s.points,
-        maxPoints: criterion?.maxPoints ?? s.points,
-      };
+      if (!criterion) {
+        fieldErrors.push({
+          field: `scores[${i}].criterionId`,
+          rule: 'rubric',
+          message: 'Criterion does not belong to the linked rubric',
+        });
+        return;
+      }
+      if (seen.has(s.criterionId)) {
+        fieldErrors.push({
+          field: `scores[${i}].criterionId`,
+          rule: 'unique',
+          message: 'Each criterion may be scored once',
+        });
+      }
+      seen.add(s.criterionId);
+      if (criterion.levels.length > 0) {
+        const level = criterion.levels[s.levelIndex];
+        if (!level) {
+          fieldErrors.push({
+            field: `scores[${i}].levelIndex`,
+            rule: 'range',
+            message: `levelIndex must be between 0 and ${criterion.levels.length - 1}`,
+          });
+        } else if (Math.abs(level.points - s.points) > 1e-9) {
+          fieldErrors.push({
+            field: `scores[${i}].points`,
+            rule: 'level',
+            message: `Points must equal the selected level's points (${level.points})`,
+          });
+        }
+      }
+      if (s.points > criterion.maxPoints) {
+        fieldErrors.push({
+          field: `scores[${i}].points`,
+          rule: 'range',
+          message: `Points cannot exceed the criterion maximum (${criterion.maxPoints})`,
+        });
+      }
     });
+    if (fieldErrors.length > 0) {
+      throw new ValidationError('Invalid rubric scores', fieldErrors);
+    }
+    const scored = input.scores.map((s) => ({
+      criterionId: s.criterionId,
+      points: s.points,
+      maxPoints: criteriaById.get(s.criterionId)!.maxPoints,
+    }));
     const essayPoints = essay?.points ?? assignment.maxScore;
     const essayResult = gradeEssay(scored, essayPoints);
+    const objective = gradeObjectiveQuiz(questions.map(toBankLike), submission.answers);
+    const combined = objective.results
+      .filter((r) => r.questionType !== 'essay')
+      .reduce((s, r) => s + r.score, 0);
+    const total = combined + essayResult.score;
+    // PRC-M479: a graded total can never exceed the assignment maximum.
+    if (total > assignment.maxScore + 1e-9) {
+      throw new ValidationError('Graded total exceeds the assignment maximum', [
+        {
+          field: 'scores',
+          rule: 'range',
+          message: `Total ${Math.round(total * 100) / 100} exceeds the assignment maximum (${assignment.maxScore})`,
+        },
+      ]);
+    }
     await this.repository.replaceRubricScores(
       tenantId,
       submissionId,
@@ -1110,11 +1174,6 @@ export class LmsService {
         scoredBy: uuidOrNull(actor.userId),
       })),
     );
-    const objective = gradeObjectiveQuiz(questions.map(toBankLike), submission.answers);
-    const combined = objective.results
-      .filter((r) => r.questionType !== 'essay')
-      .reduce((s, r) => s + r.score, 0);
-    const total = combined + essayResult.score;
     const updated = await this.repository.updateSubmission(tenantId, submissionId, {
       score: Math.round(total * 100) / 100,
       feedback: input.feedback ?? submission.feedback,
@@ -1211,7 +1270,7 @@ export class LmsService {
       ]);
     }
     try {
-      assertAllowedUpload(input.mimeType, bytes.length);
+      assertAllowedUpload(input.mimeType, bytes.length, bytes);
     } catch (error) {
       throw new ValidationError((error as Error).message, [
         { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
@@ -1304,6 +1363,31 @@ export class LmsService {
   ) {
     assertInstitutionAllowed(actor, filter.institutionId);
     return this.repository.listDiscussions(tenantId, filter, pagination);
+  }
+
+  /** PRC-M108: a page of discussions with their posts, in two repository reads. */
+  async listDiscussionsWithPosts(
+    tenantId: string,
+    filter: { institutionId?: string; classKey?: string },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    const listed = await this.listDiscussions(tenantId, filter, pagination, actor);
+    const posts = await this.repository.listDiscussionPostsFor(
+      tenantId,
+      listed.data.map((d) => d.id),
+    );
+    const byThread = new Map<string, DiscussionPostEntity[]>();
+    for (const post of posts) {
+      if (isLearner(actor) && post.hidden) continue;
+      const list = byThread.get(post.discussionId) ?? [];
+      list.push(post);
+      byThread.set(post.discussionId, list);
+    }
+    return {
+      ...listed,
+      data: listed.data.map((d) => ({ ...d, posts: byThread.get(d.id) ?? [] })),
+    };
   }
 
   async getDiscussion(tenantId: string, id: string, actor: LmsActor) {
@@ -1407,7 +1491,7 @@ export class LmsService {
       }
       const bytes = decodeBase64Payload(input.contentBase64);
       try {
-        assertAllowedUpload(input.mimeType, bytes.length);
+        assertAllowedUpload(input.mimeType, bytes.length, bytes);
       } catch (error) {
         throw new ValidationError((error as Error).message, [
           { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
@@ -1580,6 +1664,30 @@ export class LmsService {
     return this.repository.listLessons(tenantId, effective, pagination);
   }
 
+  /** PRC-M108: a page of lessons with their resources, in two repository reads. */
+  async listLessonsWithResources(
+    tenantId: string,
+    filter: { institutionId?: string; boardId?: string; subject?: string; published?: boolean },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    const listed = await this.listLessons(tenantId, filter, pagination, actor);
+    const resources = await this.repository.listLessonResourcesFor(
+      tenantId,
+      listed.data.map((l) => l.id),
+    );
+    const byLesson = new Map<string, LessonResourceEntity[]>();
+    for (const resource of resources) {
+      const list = byLesson.get(resource.lessonId) ?? [];
+      list.push(resource);
+      byLesson.set(resource.lessonId, list);
+    }
+    return {
+      ...listed,
+      data: listed.data.map((l) => ({ ...l, resources: byLesson.get(l.id) ?? [] })),
+    };
+  }
+
   async getLesson(tenantId: string, id: string, actor: LmsActor) {
     const lesson = await this.repository.findLesson(tenantId, id);
     if (!lesson) throw new NotFoundError('Lesson not found');
@@ -1606,7 +1714,7 @@ export class LmsService {
         ]);
       }
       const bytes = decodeBase64Payload(input.contentBase64);
-      assertAllowedUpload(input.mimeType, bytes.length);
+      assertAllowedUpload(input.mimeType, bytes.length, bytes);
       const stored = await putLmsFile(tenantId, randomUUID(), input.title, bytes);
       storageKey = stored.storageKey;
     }

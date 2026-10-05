@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { createPrivacyRepository, isPgPrivacyEnabled } from './create-privacy-repository.js';
 import { InMemoryPrivacyRepository } from './in-memory-repository.js';
+import { CompositeCorrectionApplier, type CorrectionApplier } from './correction-applier.js';
 import { RecordingPrivacyAuditPort } from './privacy-audit.js';
 import { PrivacyService } from './privacy-service.js';
 import { resetSharedInMemoryPrivacyRepositoryForTests } from './shared-store.js';
@@ -80,8 +81,9 @@ describe('PrivacyService legal hold + erasure (W1-SEC-06)', () => {
     await service.transitionErasureRequest(req.id, TENANT_A, 'under_review', 'officer');
     await service.transitionErasureRequest(req.id, TENANT_A, 'approved', 'officer');
     const done = await service.executeErasure(req.id, TENANT_A, 'officer');
-    // Erasure must not claim completed wipe when residuals remain.
-    expect(done.status).toBe('in_progress');
+    // Erasure must not claim completed wipe when residuals remain; PRC-M320: it returns to
+    // `approved` so execution can be retried.
+    expect(done.status).toBe('approved');
     expect(done.statusReason).toMatch(/residual|cascade/i);
     const jobs = await repository.listAnonymizationJobs(TENANT_A);
     expect(jobs).toHaveLength(1);
@@ -177,9 +179,104 @@ describe('PrivacyService correction path with audit (W1-SEC-06)', () => {
   let service: PrivacyService;
   let audit: RecordingPrivacyAuditPort;
 
+  // PRC-M321: a fake owning domain (student store) behind the CorrectionApplier port.
+  let studentStore: Map<string, Record<string, string>>;
+  let failWrite: boolean;
+  const studentApplier: CorrectionApplier = {
+    allowedFieldPaths: (subjectType) => (subjectType === 'student' ? ['legalName', 'email'] : []),
+    async readCurrentValue({ subjectId, fieldPath }) {
+      const row = studentStore.get(subjectId);
+      if (!row) throw new NotFoundError(`student ${subjectId}`);
+      return row[fieldPath] ?? null;
+    },
+    async applyValue({ subjectId, fieldPath, value }) {
+      if (failWrite) throw new Error('student write failed');
+      const row = studentStore.get(subjectId);
+      if (!row) throw new NotFoundError(`student ${subjectId}`);
+      row[fieldPath] = value;
+    },
+  };
+
   beforeEach(() => {
     audit = new RecordingPrivacyAuditPort();
-    service = new PrivacyService(new InMemoryPrivacyRepository(), { audit });
+    studentStore = new Map([['stu-1', { legalName: 'Jon', email: 'old@example.com' }]]);
+    failWrite = false;
+    service = new PrivacyService(new InMemoryPrivacyRepository(), {
+      audit,
+      correctionApplier: new CompositeCorrectionApplier({ student: studentApplier }),
+    });
+  });
+
+  async function approvedCorrection(fieldPath = 'email', requestedValue = 'new@example.com') {
+    const req = await service.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-1',
+      fieldPath,
+      // Client-claimed current value is not trusted for audit.
+      currentValue: 'client-claimed',
+      requestedValue,
+      requestedBy: 'parent-1',
+    });
+    await service.transitionCorrectionRequest(req.id, TENANT_A, 'under_review', 'officer');
+    await service.transitionCorrectionRequest(req.id, TENANT_A, 'approved', 'officer');
+    return req;
+  }
+
+  it('apply changes the student field; audit before digest is server-read (PRC-M321)', async () => {
+    const req = await approvedCorrection();
+    const applied = await service.applyCorrection(req.id, TENANT_A, 'officer');
+    expect(applied.status).toBe('applied');
+    expect(studentStore.get('stu-1')?.email).toBe('new@example.com');
+    const ev = audit.events.find(
+      (e) => e.entityType === 'privacy_correction' && e.afterValues?.status === 'applied',
+    );
+    const { createHash } = await import('node:crypto');
+    const digest = (v: string) =>
+      `sha256:${createHash('sha256').update(`${TENANT_A}\u0000${v}`).digest('hex')}`;
+    expect(ev?.beforeValues?.valueDigest).toBe(digest('old@example.com'));
+    expect(ev?.afterValues?.valueDigest).toBe(digest('new@example.com'));
+  });
+
+  it('unknown fieldPath is rejected with 400 (PRC-M321)', async () => {
+    await expect(
+      service.createCorrectionRequest({
+        tenantId: TENANT_A,
+        subjectType: 'student',
+        subjectId: 'stu-1',
+        fieldPath: 'passwordHash',
+        requestedValue: 'x',
+        requestedBy: 'parent-1',
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('failed domain write leaves the correction approved (PRC-M321)', async () => {
+    const req = await approvedCorrection();
+    failWrite = true;
+    await expect(service.applyCorrection(req.id, TENANT_A, 'officer')).rejects.toThrow(
+      /write failed/,
+    );
+    expect((await service.getCorrectionRequest(req.id, TENANT_A))?.status).toBe('approved');
+  });
+
+  it('without an applier apply refuses with 501 and does not report applied', async () => {
+    const repo = new InMemoryPrivacyRepository();
+    const bare = new PrivacyService(repo, { audit });
+    const req = await bare.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-1',
+      fieldPath: 'email',
+      requestedValue: 'x@example.com',
+      requestedBy: 'parent-1',
+    });
+    await bare.transitionCorrectionRequest(req.id, TENANT_A, 'under_review', 'officer');
+    await bare.transitionCorrectionRequest(req.id, TENANT_A, 'approved', 'officer');
+    await expect(bare.applyCorrection(req.id, TENANT_A, 'officer')).rejects.toMatchObject({
+      statusCode: 501,
+    });
+    expect((await bare.getCorrectionRequest(req.id, TENANT_A))?.status).toBe('approved');
   });
 
   it('applies correction with before/after audit', async () => {
@@ -200,11 +297,61 @@ describe('PrivacyService correction path with audit (W1-SEC-06)', () => {
     expect(applied.appliedAt).toBeTruthy();
 
     const applyAudit = audit.events.find(
-      (e) => e.entityType === 'privacy_correction' && e.operation === 'UPDATE',
+      (e) => e.entityType === 'privacy_correction' && e.afterValues?.status === 'applied',
     );
     expect(applyAudit).toBeTruthy();
-    expect(applyAudit?.beforeValues).toMatchObject({ fieldPath: 'legalName', value: 'Jon' });
-    expect(applyAudit?.afterValues).toMatchObject({ fieldPath: 'legalName', value: 'John' });
+    expect(applyAudit?.beforeValues).toMatchObject({ fieldPath: 'legalName' });
+    expect(applyAudit?.afterValues).toMatchObject({ fieldPath: 'legalName' });
+    // PRC-M322: audit carries digests, never the raw values.
+    expect(String(applyAudit?.afterValues?.valueDigest)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const allAudit = JSON.stringify(audit.events);
+    expect(allAudit).not.toContain('John');
+    expect(allAudit).not.toContain('"Jon"');
+    // ...and the stored row no longer keeps the values after apply.
+    const stored = await service.getCorrectionRequest(req.id, TENANT_A);
+    expect(stored?.currentValue).toBeNull();
+    expect(stored?.requestedValue).toBe('[REDACTED]');
+  });
+
+  it('erasure of the subject redacts correction values (PRC-M322)', async () => {
+    const repository = new InMemoryPrivacyRepository();
+    const svc = new PrivacyService(repository, {
+      audit,
+      anonymizer: { anonymize: async () => ({ fieldsTouched: ['email'] }) },
+    });
+    const corr = await svc.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-9',
+      fieldPath: 'email',
+      currentValue: 'old@example.com',
+      requestedValue: 'secret-new@example.com',
+      requestedBy: 'parent-1',
+    });
+    const other = await svc.createCorrectionRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-other',
+      fieldPath: 'email',
+      requestedValue: 'keep@example.com',
+      requestedBy: 'parent-1',
+    });
+    const er = await svc.createErasureRequest({
+      tenantId: TENANT_A,
+      subjectType: 'student',
+      subjectId: 'stu-9',
+      requestedBy: 'parent-1',
+    });
+    await svc.transitionErasureRequest(er.id, TENANT_A, 'under_review', 'officer');
+    await svc.transitionErasureRequest(er.id, TENANT_A, 'approved', 'officer');
+    expect((await svc.executeErasure(er.id, TENANT_A, 'officer')).status).toBe('completed');
+    const redacted = await svc.getCorrectionRequest(corr.id, TENANT_A);
+    expect(redacted?.currentValue).toBeNull();
+    expect(redacted?.requestedValue).toBe('[REDACTED]');
+    expect((await svc.getCorrectionRequest(other.id, TENANT_A))?.requestedValue).toBe(
+      'keep@example.com',
+    );
+    expect(JSON.stringify(audit.events)).not.toContain('secret-new@example.com');
   });
 
   it('rejects apply when not approved', async () => {

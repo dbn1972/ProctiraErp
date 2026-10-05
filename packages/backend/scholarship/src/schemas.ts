@@ -531,6 +531,15 @@ export const UtilizationReportResponseSchema = Type.Object({
   totalAmount: Type.Number(),
   totalAmountCents: Type.Integer({ minimum: 0 }),
   currency: Type.String(),
+  currencyTotals: Type.Optional(
+    Type.Array(
+      Type.Object({
+        currency: Type.String(),
+        totalAmountCents: Type.Integer({ minimum: 0 }),
+        totalAmount: Type.Number(),
+      }),
+    ),
+  ),
   breakdown: Type.Array(
     Type.Object({
       groupKey: Type.String(),

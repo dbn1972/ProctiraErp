@@ -297,6 +297,42 @@ describe('G-914 students 360', () => {
       expect(result.days).toHaveLength(2);
       expect(result.days.every((d) => d.slot === 'empty')).toBe(true);
     });
+
+    it('PRC-M385: EARLY_DEPARTURE weighs 0.5 like the attendance module and shows as half', () => {
+      // attendance-service: (1 present + 1 late + 0.5 * 2 early) / 4 = 75%
+      const result = aggregateAttendanceHeatmap(
+        [
+          { date: '2026-09-01', status: 'PRESENT' },
+          { date: '2026-09-02', status: 'LATE' },
+          { date: '2026-09-03', status: 'EARLY_DEPARTURE' },
+          { date: '2026-09-04', status: 'EARLY_DEPARTURE' },
+        ],
+        '2026-09-01',
+        '2026-09-04',
+      );
+      expect(result.attendancePercentage).toBe(75);
+      expect(result.earlyDepartureCount).toBe(2);
+      expect(result.days[2]?.slot).toBe('half');
+    });
+
+    it('PRC-M385: range > 366 days, lone ancient from, or invalid calendar date -> 400', async () => {
+      const student = await createStudent(repo, TENANT_A);
+      for (const [from, to] of [
+        ['0001-01-01', '9999-12-31'],
+        ['2025-01-01', '2026-01-02'],
+        ['2026-02-30', '2026-03-01'],
+      ] as const) {
+        await expect(
+          service.attendanceHeatmap(TENANT_A, student.id, from, to),
+        ).rejects.toMatchObject({ statusCode: 400 });
+      }
+      await expect(
+        service.attendanceHeatmap(TENANT_A, student.id, '0001-01-01'),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      await expect(
+        service.attendanceHeatmap(TENANT_A, student.id, '2025-01-01', '2025-12-31'),
+      ).resolves.toMatchObject({ from: '2025-01-01' });
+    });
   });
 
   describe('id-card PDF', () => {

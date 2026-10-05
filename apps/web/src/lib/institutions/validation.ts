@@ -4,6 +4,7 @@
  * Mirror the Typebox schemas defined in
  * `packages/backend/institution/src/schemas.ts`.
  */
+import { isRealIsoDate } from '@/lib/validation/zod-helpers';
 import { z } from 'zod';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -67,8 +68,14 @@ export const academicPeriodFormSchema = z
   .object({
     name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
     code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
-    startDate: z.string().regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format'),
-    endDate: z.string().regex(ISO_DATE, 'End date must be in YYYY-MM-DD format'),
+    startDate: z
+      .string()
+      .regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format')
+      .refine(isRealIsoDate, 'Enter a real calendar date'),
+    endDate: z
+      .string()
+      .regex(ISO_DATE, 'End date must be in YYYY-MM-DD format')
+      .refine(isRealIsoDate, 'Enter a real calendar date'),
     status: z.enum(['active', 'inactive', 'archived']).optional(),
     // G-905 hierarchy — a year has no parent; terms/semesters/quarters need one.
     kind: z.enum(['year', 'semester', 'term', 'quarter']).optional(),
@@ -92,8 +99,14 @@ export const calendarEventFormSchema = z
   .object({
     kind: z.enum(['holiday', 'break', 'grading_window', 'exam_window', 'event']),
     name: z.string().min(1, 'Name is required').max(200, 'Name must be 200 characters or fewer'),
-    startDate: z.string().regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format'),
-    endDate: z.string().regex(ISO_DATE, 'End date must be in YYYY-MM-DD format'),
+    startDate: z
+      .string()
+      .regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format')
+      .refine(isRealIsoDate, 'Enter a real calendar date'),
+    endDate: z
+      .string()
+      .regex(ISO_DATE, 'End date must be in YYYY-MM-DD format')
+      .refine(isRealIsoDate, 'Enter a real calendar date'),
     institutionId: z
       .union([z.literal(''), z.string().uuid('Select an institution')])
       .optional()

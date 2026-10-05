@@ -160,7 +160,8 @@ export const OfferParamsSchema = Type.Object({
 export type OfferParams = Static<typeof OfferParamsSchema>;
 
 export const AcceptGuardianOfferSchema = Type.Object({
-  paymentRef: Type.String({ minLength: 1, maxLength: 200 }),
+  /** Informational only; never proof of payment (PRC-H079). */
+  paymentRef: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   offerFeeInvoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
 

@@ -79,6 +79,8 @@ export class InMemoryFeesRepository implements FeesRepository {
       refunds: this.refunds.map((r) => ({ ...r })),
       creditNotes: this.creditNotes.map((r) => ({ ...r })),
       writeOffs: this.writeOffs.map((r) => ({ ...r })),
+      structures: this.structures.map((r) => ({ ...r })),
+      instalments: this.instalments.map((r) => ({ ...r })),
     };
     try {
       return await fn();
@@ -91,6 +93,8 @@ export class InMemoryFeesRepository implements FeesRepository {
       this.refunds = snapshot.refunds;
       this.creditNotes = snapshot.creditNotes;
       this.writeOffs = snapshot.writeOffs;
+      this.structures = snapshot.structures;
+      this.instalments = snapshot.instalments;
       throw error;
     }
   }
@@ -131,6 +135,7 @@ export class InMemoryFeesRepository implements FeesRepository {
     scope: { classId?: string | null; gradeId?: string | null },
     studentIds: string[],
   ): void {
+    if (scope.classId) this.knownClasses.add(`${tenantId}:${scope.classId}`);
     this.classRoster.set(`${tenantId}:${scope.classId ?? ''}:${scope.gradeId ?? ''}`, [
       ...studentIds,
     ]);
@@ -274,6 +279,15 @@ export class InMemoryFeesRepository implements FeesRepository {
     };
     this.invoices[index] = updated;
     return updated;
+  }
+
+  /** Classes known to this in-memory tenant (seeded or implied by a roster). */
+  private readonly knownClasses = new Set<string>();
+  seedClass(tenantId: string, classId: string): void {
+    this.knownClasses.add(`${tenantId}:${classId}`);
+  }
+  async classExists(tenantId: string, classId: string): Promise<boolean> {
+    return this.knownClasses.has(`${tenantId}:${classId}`);
   }
 
   async listStudentIdsForScope(

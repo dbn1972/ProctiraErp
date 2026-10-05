@@ -105,7 +105,8 @@ export default async function ScholarshipApplicationPage(props: PageProps) {
   const application = await getScholarshipApplication(params.id);
   if (!application) notFound();
 
-  const program = await getScholarshipProgram(application.programId);
+  // The program is display context only; its failure must not hide the application.
+  const program = await getScholarshipProgram(application.programId).catch(() => null);
   const canDecide = application.status === 'PENDING' || application.status === 'UNDER_REVIEW';
 
   return (

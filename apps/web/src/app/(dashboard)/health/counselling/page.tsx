@@ -34,7 +34,15 @@ import {
   type CounsellingSession,
 } from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { personDisplayName } from '@/lib/entity-label';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { cn } from '@/lib/utils';
+import { getTenantToday } from '@/lib/tenant-today';
+import {
+  counsellingStatusPresentation,
+  isUpcomingCounsellingSession,
+  type CounsellingStatusTone,
+} from '@/lib/health/counselling-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,11 +105,29 @@ export default async function CounsellingPage() {
       </section>
     );
   }
-  const sessions = result.items;
-
+  // PRC-M088: resolve student and counsellor names from the directories.
+  const [studentLabels, staffLabels] = await Promise.all([
+    loadStudentLabelMap(result.items.map((s) => s.studentId)),
+    loadStaffLabelMap(result.items.map((s) => s.counsellorId)),
+  ]);
+  const sessions = result.items.map((s) => ({
+    ...s,
+    studentName: personDisplayName(
+      studentLabels.get(s.studentId),
+      s.studentName,
+      'Unknown student',
+    ),
+    counsellorName: personDisplayName(
+      s.counsellorId ? staffLabels.get(s.counsellorId) : undefined,
+      s.counsellorName,
+      'Unknown counsellor',
+    ),
+  }));
   const total = sessions.length;
   const studentsSupported = new Set(sessions.map((s) => s.studentId)).size;
-  const upcoming = sessions.filter((s) => s.status === 'SCHEDULED').length;
+  // PRC-M476: upcoming = still scheduled AND dated today or later (tenant timezone).
+  const today = await getTenantToday();
+  const upcoming = sessions.filter((s) => isUpcomingCounsellingSession(s, today)).length;
   const counsellors = new Set(sessions.map((s) => s.counsellorName).filter(Boolean)).size;
 
   return (
@@ -154,7 +180,7 @@ export default async function CounsellingPage() {
         <KpiCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-          label="Upcoming / scheduled"
+          label="Upcoming"
           value={upcoming.toLocaleString()}
         />
         <KpiCard
@@ -200,6 +226,7 @@ export default async function CounsellingPage() {
                     <TableHead className="ps-4 font-semibold">Student</TableHead>
                     <TableHead className="font-semibold">Counsellor</TableHead>
                     <TableHead className="font-semibold">Session type</TableHead>
+                    <TableHead className="font-semibold">Reason</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold">Notes</TableHead>
@@ -248,7 +275,9 @@ function SessionRow({ session }: { session: CounsellingSession }) {
       {/* Counsellor */}
       <TableCell className="text-sm">{session.counsellorName || '—'}</TableCell>
 
-      {/* Session type */}
+      {/* Session type (PRC-M088: the type, not the reason) */}
+      <TableCell className="text-sm capitalize">{session.sessionType || '—'}</TableCell>
+      {/* Reason (PHI; only present for nurses / health officers) */}
       <TableCell>
         {session.topic ? (
           <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -320,25 +349,25 @@ function KpiCard({
   );
 }
 
+const STATUS_TONE_CLASS: Record<CounsellingStatusTone, string> = {
+  success: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  muted: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+  warning: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  info: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
+  neutral: 'bg-muted text-foreground',
+};
+
+/** PRC-M476: explicit label per domain status; unknown statuses render as-is. */
 function SessionStatus({ status }: { status: CounsellingSession['status'] }) {
-  switch (status) {
-    case 'COMPLETED':
-      return (
-        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-          Completed
-        </span>
-      );
-    case 'CANCELLED':
-      return (
-        <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-          Cancelled
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">
-          Scheduled
-        </span>
-      );
-  }
+  const { label, tone } = counsellingStatusPresentation(status);
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+        STATUS_TONE_CLASS[tone],
+      )}
+    >
+      {label}
+    </span>
+  );
 }

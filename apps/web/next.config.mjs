@@ -20,7 +20,8 @@ const nextConfig = {
     serverActions: {
       // PRC-H096: student photo upload goes through a server action as base64 (2 MB client
       // cap -> ~2.7 MB body). Next's 1 MB default rejected it before it reached the gateway.
-      bodySizeLimit: '3mb',
+      // PRC-M099: LMS assignment files (5 MB client cap -> ~6.7 MB base64 + envelope).
+      bodySizeLimit: '8mb',
     },
   },
   transpilePackages: [

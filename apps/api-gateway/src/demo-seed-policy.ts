@@ -10,6 +10,7 @@
  * Domain plugins call {@link shouldSeedDemoData} before writing demo rows
  * (scholarships, workflow UI, health UI seed).
  */
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { createLogger } from '@proctira/logging';
 
 export interface DemoSeedEnv {
@@ -24,7 +25,7 @@ let warnedProductionSeed = false;
 export function shouldSeedDemoData(env: DemoSeedEnv = process.env): boolean {
   const flag = env.SEED_DEMO_DATA?.trim().toLowerCase();
   if (flag === '1' || flag === 'true') {
-    if (env.NODE_ENV !== 'production') return true;
+    if (!isProductionNodeEnv(env.NODE_ENV)) return true;
     // PRC-L207: a stray SEED_DEMO_DATA=1 must not plant the fixed-UUID demo tenant in
     // production; it takes a second, production-specific opt-in.
     const allow = env.ALLOW_DEMO_SEED_IN_PRODUCTION?.trim().toLowerCase();
@@ -40,6 +41,6 @@ export function shouldSeedDemoData(env: DemoSeedEnv = process.env): boolean {
     return allowed;
   }
   if (flag === '0' || flag === 'false') return false;
-  if (env.NODE_ENV === 'production') return false;
+  if (isProductionNodeEnv(env.NODE_ENV)) return false;
   return !(env.DATABASE_URL && env.DATABASE_URL.trim().length > 0);
 }

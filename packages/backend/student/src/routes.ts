@@ -33,6 +33,17 @@ import {
   type StudentPortalBinding,
 } from './student-portal-access.js';
 import type { StudentService } from './student-service.js';
+import { UUID_PATTERN } from './uuid-pattern.js';
+
+const STUDENT_ID_RE = new RegExp(UUID_PATTERN);
+
+/** PRC-M097: `ids` batch filter — up to 100 comma-separated UUIDs, deduped. */
+function parseIdsFilter(raw: string | undefined): string[] | undefined | null {
+  if (raw === undefined || raw === '') return undefined;
+  const ids = [...new Set(raw.split(','))];
+  if (ids.length > 100 || !ids.every((id) => STUDENT_ID_RE.test(id))) return null;
+  return ids;
+}
 
 function getRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -66,6 +77,28 @@ function maskStudentPii<T extends { nationalId: string | null; identityDocuments
   return { ...student, nationalId: null, identityDocuments: [] };
 }
 
+/**
+ * PRC-L365: strong entity tag derived from the row's `updatedAt`.
+ */
+export function studentEtag(updatedAt: Date): string {
+  return `"${updatedAt.toISOString()}"`;
+}
+/**
+ * PRC-L365: parse an If-Match precondition. Accepts the ETag we emit
+ * (`"<ISO updatedAt>"`, optionally weak `W/`), or a bare ISO timestamp.
+ * `*` / absent ⇒ no precondition. Anything else ⇒ 'invalid' (400).
+ */
+export function parseIfMatch(header: string | string[] | undefined): Date | undefined | 'invalid' {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === '*') return undefined;
+  if (trimmed.includes(',')) return 'invalid';
+  const unquoted = trimmed.replace(/^W\//, '').replace(/^"(.*)"$/, '$1');
+  if (!/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/.test(unquoted)) return 'invalid';
+  const parsed = new Date(unquoted);
+  return Number.isNaN(parsed.getTime()) ? 'invalid' : parsed;
+}
 /**
  * Formats a student entity to the API response shape.
  */
@@ -243,13 +276,25 @@ export async function registerStudentRoutes(
         });
       }
 
+      const expectedUpdatedAt = parseIfMatch(request.headers['if-match']);
+      if (expectedUpdatedAt === 'invalid') {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'If-Match must be the student ETag returned by a prior read',
+          statusCode: 400,
+          errors: [{ field: 'If-Match', message: 'malformed precondition', rule: 'format' }],
+        });
+      }
       try {
         assertStudentWriteAccess(getRoles(request), 'student.update');
+        // PRC-L365: optional optimistic-concurrency precondition (409 on stale).
         const student = await studentService.update(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
+          expectedUpdatedAt ? { expectedUpdatedAt } : {},
         );
+        reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(formatStudentResponse(student));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -335,6 +380,14 @@ export async function registerStudentRoutes(
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
+      const ids = parseIdsFilter(query.ids);
+      if (ids === null) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'ids must be up to 100 comma-separated UUIDs',
+          statusCode: 400,
+        });
+      }
       try {
         // PRC-C010: listing all students is a staff surface; portal roles are denied.
         const roles = getRoles(request);
@@ -348,6 +401,7 @@ export async function registerStudentRoutes(
             gender: query.gender,
             search: query.search,
             institutionId: query.institutionId,
+            ids,
           },
           { page, pageSize, sortBy, sortOrder },
         );
@@ -415,6 +469,7 @@ export async function registerStudentRoutes(
           });
         }
         const student = await studentService.getById(tenantId, paramsResult.data.id);
+        reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(maskStudentPii(formatStudentResponse(student), roles));
       } catch (error: unknown) {
         if (error instanceof AppError) {

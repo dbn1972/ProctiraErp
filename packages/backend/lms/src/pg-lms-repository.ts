@@ -1500,6 +1500,22 @@ export class PgLmsRepository implements LmsRepository {
     });
   }
 
+  async listDiscussionPostsFor(
+    tenantId: string,
+    discussionIds: string[],
+  ): Promise<DiscussionPostEntity[]> {
+    if (discussionIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_discussion_posts WHERE tenant_id=$1 AND discussion_id = ANY($2)
+         ORDER BY discussion_id, pinned DESC, created_at ASC`,
+        [tenantId, [...new Set(discussionIds)]],
+      );
+      return result.rows.map((row) => mapPost(row as Record<string, unknown>));
+    });
+  }
+
   async setPostPinned(
     tenantId: string,
     postId: string,
@@ -1625,6 +1641,22 @@ export class PgLmsRepository implements LmsRepository {
         ],
       );
       return mapLessonResource(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listLessonResourcesFor(
+    tenantId: string,
+    lessonIds: string[],
+  ): Promise<LessonResourceEntity[]> {
+    if (lessonIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_lesson_resources WHERE tenant_id=$1 AND lesson_id = ANY($2)
+         ORDER BY lesson_id, position`,
+        [tenantId, [...new Set(lessonIds)]],
+      );
+      return result.rows.map((row) => mapLessonResource(row as Record<string, unknown>));
     });
   }
 

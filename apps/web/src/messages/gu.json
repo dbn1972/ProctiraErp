@@ -153,7 +153,11 @@
     "mfaPrintCodes": "કોડ પ્રિન્ટ કરો",
     "mfaAcknowledgement": "મેં મારા બેકઅપ કોડ સુરક્ષિત જગ્યાએ સાચવ્યા છે.",
     "mfaAcknowledgementHelp": "સેટઅપ પૂર્ણ કર્યા પછી તમે આ કોડ ફરી જોઈ શકશો નહીં.",
-    "mfaFinishSetup": "સેટઅપ પૂર્ણ કરો"
+    "mfaFinishSetup": "સેટઅપ પૂર્ણ કરો",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "ડેશબોર્ડ",
@@ -637,7 +641,13 @@
     "rubricsNew": "નવી રુબ્રિક",
     "rubricsEmptyTitle": "હજી કોઈ રુબ્રિક નથી",
     "rubricsEmptyBody": "નિબંધોના મૂલ્યાંકન માટે રુબ્રિક બનાવો.",
-    "rubricsAnySubject": "કોઈપણ વિષય"
+    "rubricsAnySubject": "કોઈપણ વિષય",
+    "searchStudents": "વિદ્યાર્થીઓ શોધો",
+    "searchStudentsHint": "નામના ઓછામાં ઓછા 2 અક્ષર લખો, અથવા વિદ્યાર્થી ID પેસ્ટ કરો.",
+    "studentsLoadFailed": "વિદ્યાર્થીઓ લોડ થઈ શક્યા નહીં. ફરી પ્રયાસ કરો.",
+    "noStudentsMatch": "આ શોધ સાથે કોઈ વિદ્યાર્થી મેળ ખાતા નથી.",
+    "searchingStudents": "શોધી રહ્યા છીએ…",
+    "studentResultsCount": "{count, plural, one {# વિદ્યાર્થી મળ્યો} other {# વિદ્યાર્થીઓ મળ્યા}}"
   },
   "health": {
     "title": "આરોગ્ય રેકોર્ડ",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "ઍક્સેસ નકારવામાં આવી",
     "accessDeniedHelp": "જો તમને લાગે કે તમને ઍક્સેસ હોવી જોઈએ તો તમારા સંચાલકનો સંપર્ક કરો.",
     "returnToDashboard": "ડેશબોર્ડ પર પાછા જાઓ",
-    "tableAriaLabel": "આરોગ્ય રેકોર્ડ"
+    "tableAriaLabel": "આરોગ્ય રેકોર્ડ",
+    "unknownStudent": "અજ્ઞાત વિદ્યાર્થી"
   },
   "workflows": {
     "title": "વર્કફ્લો વ્યાખ્યાઓ",
@@ -901,6 +912,12 @@
     "inboxDescription": "તમારા સાઇન-ઇન એકાઉન્ટ માટે એલર્ટ.",
     "empty": "હજી કોઈ સૂચના નથી. ઇમેઇલ, પુશ અથવા SMS પસંદ કરવા માટે પસંદગીઓનો ઉપયોગ કરો — અને મોબાઇલ એલર્ટ માટે ઉપકરણ નોંધાવો.",
     "read": "વાંચેલું",
-    "unread": "ન વાંચેલું"
+    "unread": "ન વાંચેલું",
+    "filterLabel": "સૂચનાઓ ફિલ્ટર કરો",
+    "filterAll": "બધી",
+    "filterUnread": "ન વાંચેલી",
+    "markRead": "વાંચેલ તરીકે ચિહ્નિત કરો",
+    "markAllRead": "બધી વાંચેલ તરીકે ચિહ્નિત કરો",
+    "markReadFailed": "વાંચેલ તરીકે ચિહ્નિત કરી શકાયું નહીં. ફરી પ્રયાસ કરો."
   }
 }

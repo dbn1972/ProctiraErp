@@ -6,6 +6,8 @@
  * keys are unscoped (not under tenants/{id}/).
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 const TENANT_PREFIX = 'tenants';
 
 export class TenantScopeError extends Error {
@@ -16,7 +18,7 @@ export class TenantScopeError extends Error {
 }
 
 export function isProductionEnv(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
-  return (nodeEnv ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(nodeEnv);
 }
 
 export function isUnscopedTenantNamespaceAllowed(env: NodeJS.ProcessEnv = process.env): boolean {

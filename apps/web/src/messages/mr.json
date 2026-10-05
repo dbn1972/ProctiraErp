@@ -153,7 +153,11 @@
     "mfaPrintCodes": "कोड प्रिंट करा",
     "mfaAcknowledgement": "मी माझे बॅकअप कोड सुरक्षित ठिकाणी जतन केले आहेत.",
     "mfaAcknowledgementHelp": "सेटअप पूर्ण केल्यानंतर तुम्ही हे कोड पुन्हा पाहू शकणार नाही.",
-    "mfaFinishSetup": "सेटअप पूर्ण करा"
+    "mfaFinishSetup": "सेटअप पूर्ण करा",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "डॅशबोर्ड",
@@ -637,7 +641,13 @@
     "rubricsNew": "नवीन रुब्रिक",
     "rubricsEmptyTitle": "अद्याप रुब्रिक नाहीत",
     "rubricsEmptyBody": "निबंधांचे मूल्यांकन करण्यासाठी रुब्रिक तयार करा.",
-    "rubricsAnySubject": "कोणताही विषय"
+    "rubricsAnySubject": "कोणताही विषय",
+    "searchStudents": "विद्यार्थी शोधा",
+    "searchStudentsHint": "नावाची किमान 2 अक्षरे टाइप करा, किंवा विद्यार्थी ID पेस्ट करा.",
+    "studentsLoadFailed": "विद्यार्थी लोड होऊ शकले नाहीत. पुन्हा प्रयत्न करा.",
+    "noStudentsMatch": "या शोधाशी कोणताही विद्यार्थी जुळत नाही.",
+    "searchingStudents": "शोधत आहे…",
+    "studentResultsCount": "{count, plural, one {# विद्यार्थी सापडला} other {# विद्यार्थी सापडले}}"
   },
   "health": {
     "title": "आरोग्य नोंदी",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "प्रवेश नाकारला",
     "accessDeniedHelp": "तुम्हाला प्रवेश असावा असे वाटत असल्यास तुमच्या प्रशासकाशी संपर्क साधा.",
     "returnToDashboard": "डॅशबोर्डवर परत जा",
-    "tableAriaLabel": "आरोग्य नोंदी"
+    "tableAriaLabel": "आरोग्य नोंदी",
+    "unknownStudent": "अज्ञात विद्यार्थी"
   },
   "workflows": {
     "title": "कार्यप्रवाह व्याख्या",
@@ -901,6 +912,12 @@
     "inboxDescription": "तुमच्या साइन-इन खात्यासाठी अलर्ट.",
     "empty": "अद्याप सूचना नाहीत. ईमेल, पुश किंवा SMS निवडण्यासाठी प्राधान्ये वापरा — आणि मोबाइल अलर्टसाठी डिव्हाइस नोंदवा.",
     "read": "वाचलेले",
-    "unread": "न वाचलेले"
+    "unread": "न वाचलेले",
+    "filterLabel": "सूचना फिल्टर करा",
+    "filterAll": "सर्व",
+    "filterUnread": "न वाचलेले",
+    "markRead": "वाचले म्हणून चिन्हांकित करा",
+    "markAllRead": "सर्व वाचले म्हणून चिन्हांकित करा",
+    "markReadFailed": "वाचले म्हणून चिन्हांकित करता आले नाही. पुन्हा प्रयत्न करा."
   }
 }

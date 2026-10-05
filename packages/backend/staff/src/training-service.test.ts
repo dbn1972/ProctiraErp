@@ -21,7 +21,7 @@ import {
   InMemoryTrainingAttendanceRepository,
   InMemoryCertificationRepository,
 } from './in-memory-training-repository.js';
-import { TrainingService } from './training-service.js';
+import { TrainingService, runCertificationExpiryJob } from './training-service.js';
 import type { NotificationIntegration } from './training-service.js';
 import { CertificationStatus } from './training-schemas.js';
 import type {
@@ -488,7 +488,10 @@ describe('TrainingService', () => {
         issuedDate: '2024-01-01',
       });
 
-      const expired = await service.processExpiredCertifications(TENANT_ID, '2030-01-01');
+      const expired = await service.processExpiredCertifications(
+        TENANT_ID,
+        new Date().toISOString().slice(0, 10),
+      );
       expect(expired).toHaveLength(0);
     });
 
@@ -681,5 +684,63 @@ describe('TrainingService', () => {
       expect(expiredResult.data).toHaveLength(1);
       expect(expiredResult.data[0]!.certificationName).toBe('Expiring Cert');
     });
+  });
+});
+
+describe('PRC-M380 certification expiry job', () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
+  async function setup(notifier?: NotificationIntegration) {
+    const service = new TrainingService(
+      new InMemoryTrainingProgramRepository(),
+      new InMemoryTrainingSessionRepository(),
+      new InMemoryTrainingAttendanceRepository(),
+      new InMemoryCertificationRepository(),
+      notifier,
+    );
+    const program = await service.createProgram(TENANT_ID, {
+      name: 'Safety',
+      startDate: '2020-01-01',
+      endDate: '2020-02-01',
+    });
+    const cert = await service.issueCertification(TENANT_ID, {
+      staffId: uuid(),
+      programId: program.id,
+      certificationName: 'First Aid',
+      issuedDate: '2020-01-01',
+      expiryDate: yesterday,
+    });
+    return { service, cert };
+  }
+
+  it('reads as EXPIRED before the job runs (lazy fallback)', async () => {
+    const { service, cert } = await setup();
+    expect((await service.getCertification(TENANT_ID, cert.id)).status).toBe('EXPIRED');
+  });
+
+  it('job expires, enqueues a notification, and is idempotent on rerun', async () => {
+    const sent: string[] = [];
+    const { service } = await setup({
+      sendCertificationExpiryNotification: async (_t, staffId) => {
+        sent.push(staffId);
+      },
+    });
+    const first = await runCertificationExpiryJob(service, [TENANT_ID]);
+    expect(first.expired[TENANT_ID]).toBe(1);
+    expect(sent).toHaveLength(1);
+    const second = await runCertificationExpiryJob(service, [TENANT_ID]);
+    expect(second.expired[TENANT_ID]).toBe(0);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('notifier failure does not abort the batch and is reported', async () => {
+    const { service } = await setup({
+      sendCertificationExpiryNotification: async () => {
+        throw new Error('smtp down');
+      },
+    });
+    const result = await runCertificationExpiryJob(service, [TENANT_ID]);
+    expect(result.expired[TENANT_ID]).toBe(1);
+    expect(result.failures).toHaveLength(1);
   });
 });

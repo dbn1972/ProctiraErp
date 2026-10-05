@@ -6,6 +6,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/errors/user_error_message.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/conflict_resolver.dart';
@@ -13,6 +14,7 @@ import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/attendance_repository.dart';
+import 'attendance_class_picker.dart';
 import 'attendance_geofence_widget.dart';
 
 /// Offline-first attendance marking screen.
@@ -34,10 +36,18 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
   final TextEditingController _institutionCtrl = TextEditingController();
-  final TextEditingController _classCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   bool _loading = false;
+  bool _submitting = false;
   String? _loadError;
+
+  /// Non-blocking notice when cached rows are shown because the refresh
+  /// failed (PRC-M032).
+  String? _staleNotice;
+
+  /// Class picker (PRC-M031): only classes present in the roster cache.
+  List<String> _knownClasses = const <String>[];
+  String? _selectedClass;
   List<AttendanceRosterEntry> _roster = const <AttendanceRosterEntry>[];
   GeofenceCheck? _lastCheck;
 
@@ -73,8 +83,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       final List<AttendanceRosterEntry> roster = await _repository.loadRoster(
         institutionId: _institutionCtrl.text.trim(),
-        classId: _classCtrl.text.trim().isEmpty ? null : _classCtrl.text.trim(),
+        classId: _selectedClass,
         date: _dateString,
+        // Queue-status refreshes only re-read the cache.
+        refresh: false,
       );
       if (mounted) setState(() => _roster = roster);
     } catch (_) {
@@ -88,7 +100,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   void dispose() {
     _queueSub?.cancel();
     _institutionCtrl.dispose();
-    _classCtrl.dispose();
     super.dispose();
   }
 
@@ -119,25 +130,71 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     setState(() {
       _loading = true;
       _loadError = null;
+      _staleNotice = null;
     });
     try {
-      final List<AttendanceRosterEntry> roster = await _repository.loadRoster(
+      final RosterLoadResult result = await _repository.loadRosterWithStatus(
         institutionId: institution,
-        classId: _classCtrl.text.trim().isEmpty ? null : _classCtrl.text.trim(),
+        classId: _selectedClass,
         date: _dateString,
       );
       if (!mounted) return;
+      final Object? refreshError = result.refreshError;
       setState(() {
-        _roster = roster;
+        _roster = result.entries;
+        _knownClasses = result.knownClasses;
+        if (_selectedClass != null && !_knownClasses.contains(_selectedClass)) {
+          _selectedClass = null;
+        }
         _loading = false;
+        if (refreshError != null) {
+          final String reason = userErrorMessage(
+            refreshError,
+            context: 'attendance roster refresh',
+          );
+          if (result.entries.isEmpty) {
+            _loadError = 'Unable to load roster. $reason';
+          } else {
+            _staleNotice = 'Showing saved roster. $reason';
+          }
+        }
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _loadError = 'Unable to load roster: $error';
+        _loadError =
+            'Unable to load roster. '
+            '${userErrorMessage(error, context: 'attendance roster')}';
         _loading = false;
       });
     }
+  }
+
+  /// Push queued marks now and report the outcome (PRC-M038). Marks are
+  /// queued per tap; this is the explicit "send them" step.
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    String message;
+    try {
+      final AttendanceSubmitSummary summary = await _repository.submitPending();
+      message = summary.describe();
+      final List<AttendanceRosterEntry> roster = await _repository.loadRoster(
+        institutionId: _institutionCtrl.text.trim(),
+        classId: _selectedClass,
+        date: _dateString,
+        refresh: false,
+      );
+      if (mounted) setState(() => _roster = roster);
+    } catch (error) {
+      message =
+          'Could not submit attendance. '
+          '${userErrorMessage(error, context: 'attendance submit')}';
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _mark(
@@ -152,7 +209,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final AttendanceRosterEntry saved = await _repository.markAttendance(
         entry: entry,
         institutionId: _institutionCtrl.text.trim(),
-        classId: _classCtrl.text.trim().isEmpty ? null : _classCtrl.text.trim(),
+        classId: _selectedClass,
         date: _dateString,
         status: status,
         recordedBy: recordedBy,
@@ -188,9 +245,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to save. '
+            '${userErrorMessage(error, context: 'attendance mark')}',
+          ),
+        ),
+      );
     }
   }
 
@@ -277,12 +339,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: TextField(
-                      controller: _classCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Class (optional)',
-                        prefixIcon: Icon(Icons.groups_outlined),
-                      ),
+                    child: AttendanceClassPicker(
+                      classes: _knownClasses,
+                      value: _selectedClass,
+                      onChanged: (String? value) {
+                        setState(() => _selectedClass = value);
+                        if (_roster.isNotEmpty || _knownClasses.isNotEmpty) {
+                          unawaited(_loadRoster());
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -317,6 +382,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ),
               const SizedBox(height: 8),
               SyncStatusBanner(controller: _syncStatus),
+              if (_staleNotice != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Row(
+                      children: <Widget>[
+                        const Icon(Icons.cloud_off_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_staleNotice!)),
+                        TextButton(
+                          onPressed: _loading ? null : _loadRoster,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               if (_loadError != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -383,9 +466,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: FilledButton.icon(
-                  onPressed: marked == 0 ? null : _loadRoster,
-                  icon: const Icon(Icons.check, size: 20),
-                  label: Text('Submit · $marked of $total marked'),
+                  onPressed: marked == 0 || _submitting ? null : _submit,
+                  icon: const Icon(Icons.cloud_upload_outlined, size: 20),
+                  label: Text(
+                    _submitting
+                        ? 'Submitting…'
+                        : 'Submit · $marked of $total marked',
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,

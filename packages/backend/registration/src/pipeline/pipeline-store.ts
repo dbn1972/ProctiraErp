@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
+import { sliceForPage, type ListPage } from '../pagination.js';
+
 import type { EnquirySource, EnquiryStage, FollowupStatus, OfferStatus } from './schemas.js';
 
 export interface EnquiryRecord {
@@ -110,10 +112,27 @@ export interface OfferRecord {
   updatedAt: Date;
 }
 
+/** Seat-matrix key: one quota band of one grade in one period at one institution. */
+export interface SeatKey {
+  institutionId: string;
+  academicPeriodId: string;
+  gradeId: string;
+  quota: string;
+}
+
+/** Stable lock name for a seat-matrix key (PRC-M328). */
+export function seatLockName(key: SeatKey): string {
+  return `admissions-seat:${key.institutionId}:${key.academicPeriodId}:${key.gradeId}:${key.quota}`;
+}
+
 export interface AdmissionsPipelineStore {
   withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T>;
+  /** PRC-M328: exclusive lock on one seat-matrix key (institution, period, grade, quota). */
+  withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T>;
   createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
-  listEnquiries(tenantId: string): Promise<EnquiryRecord[]>;
+  /** With `page`, returns up to `page.limit + 1` rows (PRC-M337). */
+  listEnquiries(tenantId: string, page?: ListPage): Promise<EnquiryRecord[]>;
+  findEnquiryByApplication(tenantId: string, applicationId: string): Promise<EnquiryRecord | null>;
   findEnquiry(tenantId: string, id: string): Promise<EnquiryRecord | null>;
   updateEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
   createFollowup(record: FollowupRecord): Promise<FollowupRecord>;
@@ -151,7 +170,8 @@ export interface AdmissionsPipelineStore {
 
   createOffer(record: OfferRecord): Promise<OfferRecord>;
   findOffer(tenantId: string, id: string): Promise<OfferRecord | null>;
-  listOffers(tenantId: string, applicationId?: string): Promise<OfferRecord[]>;
+  /** With `page`, returns up to `page.limit + 1` rows (PRC-M337). */
+  listOffers(tenantId: string, applicationId?: string, page?: ListPage): Promise<OfferRecord[]>;
   updateOffer(record: OfferRecord): Promise<OfferRecord>;
   countAcceptedSeats(
     tenantId: string,
@@ -174,7 +194,14 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
   private offerLocks = new Map<string, Promise<void>>();
 
   async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
-    const key = `${tenantId}:${offerId}`;
+    return this.withKeyedLock(`offer:${tenantId}:${offerId}`, work);
+  }
+
+  async withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T> {
+    return this.withKeyedLock(`${tenantId}:${seatLockName(key)}`, work);
+  }
+
+  private async withKeyedLock<T>(key: string, work: () => Promise<T>): Promise<T> {
     const prior = this.offerLocks.get(key) ?? Promise.resolve();
     let release!: () => void;
     const current = new Promise<void>((resolve) => {
@@ -196,11 +223,21 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
     return clone(record);
   }
 
-  async listEnquiries(tenantId: string): Promise<EnquiryRecord[]> {
-    return [...this.enquiries.values()]
+  async listEnquiries(tenantId: string, page?: ListPage): Promise<EnquiryRecord[]> {
+    const rows = [...this.enquiries.values()]
       .filter((row) => row.tenantId === tenantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map(clone);
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page).map(clone);
+  }
+
+  async findEnquiryByApplication(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<EnquiryRecord | null> {
+    const row = [...this.enquiries.values()].find(
+      (e) => e.tenantId === tenantId && e.applicationId === applicationId,
+    );
+    return row ? clone(row) : null;
   }
 
   async findEnquiry(tenantId: string, id: string): Promise<EnquiryRecord | null> {
@@ -360,14 +397,18 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
     return row && row.tenantId === tenantId ? clone(row) : null;
   }
 
-  async listOffers(tenantId: string, applicationId?: string): Promise<OfferRecord[]> {
-    return [...this.offers.values()]
+  async listOffers(
+    tenantId: string,
+    applicationId?: string,
+    page?: ListPage,
+  ): Promise<OfferRecord[]> {
+    const rows = [...this.offers.values()]
       .filter(
         (row) =>
           row.tenantId === tenantId && (!applicationId || row.applicationId === applicationId),
       )
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map(clone);
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return sliceForPage(rows, page).map(clone);
   }
 
   async updateOffer(record: OfferRecord): Promise<OfferRecord> {

@@ -14,6 +14,7 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
+import { canWrite } from '@/lib/auth/route-write-guard';
 import { listLibraryItemsResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -25,10 +26,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, result, studentOptions] = await Promise.all([
+  const [t, result, studentOptions, canManage] = await Promise.all([
     getTranslations('library'),
     listLibraryItemsResult(),
     loadStudentOptions(),
+    // PRC-M480: catalogue/circulation write forms only for roles with library:create.
+    canWrite('library', 'create'),
   ]);
 
   if (!result.ok) {
@@ -72,9 +75,13 @@ export default async function LibraryCatalogPage() {
         </div>
       </div>
 
-      <NewLibraryItemForm />
-      <IsbnImportForm />
-      <LibraryClearanceForm studentOptions={studentOptions} />
+      {canManage ? (
+        <>
+          <NewLibraryItemForm />
+          <IsbnImportForm />
+          <LibraryClearanceForm studentOptions={studentOptions} />
+        </>
+      ) : null}
 
       <Card>
         <CardHeader>

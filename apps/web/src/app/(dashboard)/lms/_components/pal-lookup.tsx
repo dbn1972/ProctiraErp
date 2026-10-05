@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Search } from 'lucide-react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@proctira/ui/components';
@@ -9,7 +9,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 import type { SpiralPlanItem } from '@/lib/api/lms';
 import { cn } from '@/lib/utils';
 
-import { lookupStudentPalAction, type PalLookupState } from '../actions';
+import { lookupStudentPalAction, searchPalStudentsAction, type PalLookupState } from '../actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -44,12 +44,58 @@ function MasteryBar({ value, label }: { value: number; label: string }) {
   );
 }
 
-export function PalLookup({ students }: { students: Array<{ id: string; name: string }> }) {
+type StudentOption = { id: string; name: string };
+type SearchState =
+  | { status: 'idle' }
+  | { status: 'searching' }
+  | { status: 'done'; items: StudentOption[] }
+  | { status: 'error' };
+/**
+ * PRC-M116: the learner is found by an async server search (any student in
+ * the directory, not just the first 50), or by a pasted / linked id.
+ */
+export function PalLookup({ initialStudentId = '' }: { initialStudentId?: string }) {
   const t = useTranslations('lms');
   const id = useId();
   const hydrated = useHydrated();
   const [pending, setPending] = useState(false);
-  const [studentId, setStudentId] = useState(students[0]?.id ?? '');
+  const [studentId, setStudentId] = useState(initialStudentId);
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState<SearchState>({ status: 'idle' });
+  useEffect(() => {
+    const q = query.trim();
+    if (UUID_RE.test(q)) {
+      setStudentId(q);
+      setSearch({ status: 'idle' });
+      return;
+    }
+    if (q.length < 2) {
+      setSearch({ status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setSearch({ status: 'searching' });
+    const timer = setTimeout(() => {
+      void searchPalStudentsAction(q)
+        .then((result) => {
+          if (cancelled) return;
+          if (!result.ok) {
+            setSearch({ status: 'error' });
+            return;
+          }
+          setSearch({ status: 'done', items: result.items });
+          if (result.items[0]) setStudentId(result.items[0].id);
+        })
+        .catch(() => {
+          if (!cancelled) setSearch({ status: 'error' });
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+  const options = search.status === 'done' ? search.items : [];
   const [state, setState] = useState<PalLookupState>({ status: 'idle' });
 
   async function lookup(event: React.FormEvent<HTMLFormElement>) {
@@ -86,33 +132,65 @@ export function PalLookup({ students }: { students: Array<{ id: string; name: st
           data-testid="pal-lookup-form"
           data-hydrated={hydrated ? 'true' : 'false'}
         >
-          <div className="flex-1">
-            <label htmlFor={`${id}-student`} className="mb-1 block text-sm font-medium">
-              {t('fieldStudent')}
-            </label>
-            {students.length > 0 ? (
-              <select
-                id={`${id}-student`}
-                name="studentId"
-                className={selectClass}
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-              >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name || s.id}
-                  </option>
-                ))}
-              </select>
-            ) : (
+          <div className="flex-1 space-y-2">
+            <div>
+              <label htmlFor={`${id}-search`} className="mb-1 block text-sm font-medium">
+                {t('searchStudents')}
+              </label>
               <Input
-                id={`${id}-student`}
-                name="studentId"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                placeholder={t('fieldIdPlaceholder')}
+                id={`${id}-search`}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-describedby={`${id}-search-hint ${id}-search-status`}
+                autoComplete="off"
               />
-            )}
+              <p id={`${id}-search-hint`} className="mt-1 text-xs text-muted-foreground">
+                {t('searchStudentsHint')}
+              </p>
+              <p id={`${id}-search-status`} role="status" className="text-xs text-muted-foreground">
+                {search.status === 'searching'
+                  ? t('searchingStudents')
+                  : search.status === 'done'
+                    ? search.items.length === 0
+                      ? t('noStudentsMatch')
+                      : t('studentResultsCount', { count: search.items.length })
+                    : ''}
+              </p>
+              {search.status === 'error' ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t('studentsLoadFailed')}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <label htmlFor={`${id}-student`} className="mb-1 block text-sm font-medium">
+                {t('fieldStudent')}
+              </label>
+              {options.length > 0 ? (
+                <select
+                  id={`${id}-student`}
+                  name="studentId"
+                  className={selectClass}
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                >
+                  {options.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || s.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id={`${id}-student`}
+                  name="studentId"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  placeholder={t('fieldIdPlaceholder')}
+                />
+              )}
+            </div>
           </div>
           <Button type="submit" disabled={pending} aria-busy={pending} className="min-h-11">
             <Search className="me-1.5 h-4 w-4" aria-hidden="true" />

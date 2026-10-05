@@ -126,25 +126,30 @@ function mapDomainCounselling(
     scheduled: 'SCHEDULED',
     completed: 'COMPLETED',
     cancelled: 'CANCELLED',
-    'no-show': 'CANCELLED',
+    // PRC-M476: a no-show is not a cancellation; keep the domain meaning.
+    'no-show': 'NO_SHOW',
   };
   return {
     id: entity.id,
     tenantId: entity.tenantId,
     studentId: entity.studentId,
-    studentName: entity.studentId.slice(0, 8),
-    counsellorName: entity.counsellorId.slice(0, 8),
+    // PRC-M088: names are not stored in the health schema; the web resolves
+    // them from the directory. Never present an id fragment as a name.
+    studentName: '',
+    counsellorId: entity.counsellorId,
+    counsellorName: '',
+    sessionType: entity.sessionType,
     sessionDate: entity.sessionDate,
     // Schedule metadata only for nurses/health officers; the reason is counselling PHI.
     topic: showTopic ? entity.reason : '',
-    status: statusMap[entity.status] ?? 'SCHEDULED',
+    status: statusMap[entity.status] ?? String(entity.status).toUpperCase(),
   };
 }
 
 /**
  * Fold per-student allergy + condition rows into one record row per student.
- * Names are not stored in the health schema (PHI minimisation) — the UI shows
- * the short student id until the roster join lands.
+ * Names are not stored in the health schema (PHI minimisation) — the web
+ * resolves them from the student directory (PRC-M088).
  */
 function buildDomainRecords(
   tenantId: string,
@@ -159,7 +164,7 @@ function buildDomainRecords(
         id: studentId,
         tenantId,
         studentId,
-        studentName: studentId.slice(0, 8),
+        studentName: '', // PRC-M088: resolved by the web from the directory
         bloodType: null,
         allergies: [],
         chronicConditions: [],
@@ -215,7 +220,7 @@ function buildDomainSpecialNeeds(
         id: studentId,
         tenantId,
         studentId,
-        studentName: studentId.slice(0, 8),
+        studentName: '', // PRC-M088: resolved by the web from the directory
         category: 'Unspecified',
         severity: 'MILD',
         accommodations: [],

@@ -228,6 +228,31 @@ describe('Notification Routes', () => {
       expect(body.pagination.total).toBe(3);
       expect(body.pagination.totalPages).toBe(2);
     });
+    it('filters to unread notifications (PRC-M114)', async () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        const sent = await app.inject({
+          method: 'POST',
+          url: '/notifications/send',
+          payload: {
+            channel: 'in_app',
+            templateId,
+            recipients: { userIds: [userId1] },
+            variables: { name: `U${i}` },
+          },
+        });
+        ids.push(JSON.parse(sent.payload).data[0].id);
+      }
+      await app.inject({ method: 'POST', url: `/notifications/${ids[0]}/read` });
+      const response = await app.inject({
+        method: 'GET',
+        url: `/notifications/user/${userId1}?unread=true&page=1&pageSize=10`,
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.data.map((n: { id: string }) => n.id)).toEqual([ids[1]]);
+      expect(body.pagination.total).toBe(1);
+    });
   });
 
   // ─── POST /notifications/rules ───────────────────────────────────────────

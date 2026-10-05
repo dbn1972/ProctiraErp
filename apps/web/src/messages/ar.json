@@ -153,7 +153,11 @@
     "mfaPrintCodes": "طباعة الرموز",
     "mfaAcknowledgement": "لقد حفظت رموز النسخ الاحتياطي في مكان آمن.",
     "mfaAcknowledgementHelp": "لن ترى هذه الرموز مرة أخرى بعد إكمال الإعداد.",
-    "mfaFinishSetup": "إنهاء الإعداد"
+    "mfaFinishSetup": "إنهاء الإعداد",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -637,7 +641,13 @@
     "rubricsNew": "سلّم تقدير جديد",
     "rubricsEmptyTitle": "لا توجد سلالم تقدير بعد",
     "rubricsEmptyBody": "أنشئ سلّم تقدير لتقييم المقالات.",
-    "rubricsAnySubject": "أي مادة"
+    "rubricsAnySubject": "أي مادة",
+    "searchStudents": "ابحث عن الطلاب",
+    "searchStudentsHint": "اكتب حرفين على الأقل من الاسم، أو الصق معرّف الطالب.",
+    "studentsLoadFailed": "تعذّر تحميل الطلاب. حاول مرة أخرى.",
+    "noStudentsMatch": "لا يوجد طلاب يطابقون هذا البحث.",
+    "searchingStudents": "جارٍ البحث…",
+    "studentResultsCount": "{count, plural, one {تم العثور على طالب واحد} other {تم العثور على # طالب}}"
   },
   "health": {
     "title": "السجلات الصحية",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "تم رفض الوصول",
     "accessDeniedHelp": "اتصل بالمسؤول إذا كنت تعتقد أنه يجب أن يكون لديك حق الوصول.",
     "returnToDashboard": "العودة إلى لوحة التحكم",
-    "tableAriaLabel": "السجلات الصحية"
+    "tableAriaLabel": "السجلات الصحية",
+    "unknownStudent": "طالب غير معروف"
   },
   "workflows": {
     "title": "تعريفات سير العمل",
@@ -901,6 +912,12 @@
     "inboxDescription": "تنبيهات لحسابك المسجّل.",
     "empty": "لا توجد إشعارات بعد. استخدم التفضيلات لاختيار البريد الإلكتروني أو الإشعارات الفورية أو الرسائل القصيرة — وسجّل جهازًا عند رغبتك في تنبيهات الجوال.",
     "read": "مقروء",
-    "unread": "غير مقروء"
+    "unread": "غير مقروء",
+    "filterLabel": "تصفية الإشعارات",
+    "filterAll": "الكل",
+    "filterUnread": "غير مقروءة",
+    "markRead": "وضع علامة كمقروء",
+    "markAllRead": "وضع علامة على الكل كمقروء",
+    "markReadFailed": "تعذر وضع علامة كمقروء. حاول مرة أخرى."
   }
 }

@@ -10,7 +10,6 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/c
 import { listGradebookBoards } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listSkills } from '@/lib/api/lms';
-import { listStudents } from '@/lib/api/students';
 
 import { KpiCard } from '../_components/kpi-card';
 import { ScopePill } from '../_components/badges';
@@ -20,14 +19,17 @@ import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SpiralPalPage() {
-  const [t, skills, students, institutions, boardsResult] = await Promise.all([
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export default async function SpiralPalPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await props.searchParams) ?? {};
+  // PRC-M116: ?studentId= preselects a learner (e.g. linked from a profile).
+  const initialStudentId =
+    typeof sp.studentId === 'string' && UUID_RE.test(sp.studentId) ? sp.studentId : '';
+  const [t, skills, institutions, boardsResult] = await Promise.all([
     getTranslations('lms'),
     listSkills(),
-    listStudents({ pageSize: 50, sortBy: 'lastName', sortOrder: 'asc' }).catch(() => ({
-      data: [],
-      meta: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
-    })),
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listGradebookBoards(),
   ]);
@@ -77,12 +79,7 @@ export default async function SpiralPalPage() {
         />
       </div>
 
-      <PalLookup
-        students={students.data.map((s) => ({
-          id: s.id,
-          name: `${s.firstName} ${s.lastName}`.trim(),
-        }))}
-      />
+      <PalLookup initialStudentId={initialStudentId} />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>

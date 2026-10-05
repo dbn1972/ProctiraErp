@@ -229,6 +229,29 @@ export class InMemoryReportCardJobRepository implements ReportCardJobRepository 
     return updated;
   }
 
+  async claimForProcessing(
+    id: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity | null> {
+    // Synchronous check-and-set: atomic within the single JS thread (PRC-M165).
+    const index = this.jobs.findIndex((j) => j.id === id && j.tenantId === tenantId);
+    if (index === -1) return null;
+    const existing = this.jobs[index]!;
+    const claimable =
+      existing.status === 'queued' ||
+      existing.status === 'failed' ||
+      (existing.status === 'processing' && existing.updatedAt < staleBefore);
+    if (!claimable) return null;
+    const updated: ReportCardJobEntity = {
+      ...existing,
+      status: 'processing',
+      updatedAt: new Date(),
+    };
+    this.jobs[index] = updated;
+    return updated;
+  }
+
   async findByStudentAndPeriod(
     tenantId: string,
     studentId: string,
@@ -247,6 +270,10 @@ export class InMemoryReportCardJobRepository implements ReportCardJobRepository 
     status: ReportCardJobStatus,
   ): Promise<ReportCardJobEntity[]> {
     return this.jobs.filter((j) => j.tenantId === tenantId && j.status === status);
+  }
+
+  async listTenantIdsWithStatus(status: ReportCardJobStatus): Promise<string[]> {
+    return [...new Set(this.jobs.filter((j) => j.status === status).map((j) => j.tenantId))];
   }
 
   /** Reset for testing */

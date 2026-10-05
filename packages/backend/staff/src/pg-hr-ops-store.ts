@@ -7,6 +7,9 @@ import {
 } from '@proctira/database';
 
 import type {
+  AttendanceListFilter,
+  PagedRows,
+  PageWindow,
   StaffAttendanceRecord,
   StaffAttendanceStatus,
   StaffContractRecord,
@@ -129,6 +132,92 @@ async function selectCurrentPayrollExport(
   return row ? mapPayrollExport(row, month) : null;
 }
 
+async function insertContract(
+  client: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+  record: StaffContractRecord,
+): Promise<StaffContractRecord> {
+  const { rows } = await client.query(
+    `INSERT INTO staff_contracts (
+       id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band,
+       monthly_gross_cents, status, notes, created_at, updated_at
+     ) VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5::date,$6::date,$7,$8::bigint,$9,$10,
+               $11::timestamptz,$12::timestamptz)
+     RETURNING *`,
+    [
+      record.id,
+      record.tenantId,
+      record.staffId,
+      record.contractType,
+      record.startDate,
+      record.endDate,
+      record.salaryBand,
+      record.monthlyGrossCents,
+      record.status,
+      record.notes,
+      record.createdAt,
+      record.updatedAt,
+    ],
+  );
+  return mapContract(rows[0] as Record<string, unknown>);
+}
+
+/** PRC-M379: shared WHERE builders (parameterized; table/order are constants). */
+function staffFilter(tenantId: string, staffId?: string): { where: string; values: unknown[] } {
+  return staffId
+    ? { where: 'tenant_id = $1 AND staff_id = $2', values: [tenantId, staffId] }
+    : { where: 'tenant_id = $1', values: [tenantId] };
+}
+
+function attendanceFilter(
+  tenantId: string,
+  filter: AttendanceListFilter,
+): { where: string; values: unknown[] } {
+  const clauses = ['tenant_id = $1'];
+  const values: unknown[] = [tenantId];
+  let i = 2;
+  if (filter.date) {
+    clauses.push(`attendance_date = $${i++}::date`);
+    values.push(filter.date);
+  }
+  if (filter.staffId) {
+    clauses.push(`staff_id = $${i++}`);
+    values.push(filter.staffId);
+  }
+  if (filter.from) {
+    clauses.push(`attendance_date >= $${i++}::date`);
+    values.push(filter.from);
+  }
+  if (filter.to) {
+    clauses.push(`attendance_date <= $${i++}::date`);
+    values.push(filter.to);
+  }
+  return { where: clauses.join(' AND '), values };
+}
+
+type PagedTable = 'staff_contracts' | 'staff_qualifications' | 'staff_hr_attendance';
+
+async function pagedSelect<T>(
+  client: PgQueryable,
+  table: PagedTable,
+  where: string,
+  orderBy: string,
+  values: unknown[],
+  window: PageWindow,
+  map: (row: Record<string, unknown>) => T,
+): Promise<PagedRows<T>> {
+  const count = await client.query(
+    `SELECT COUNT(*)::int AS total FROM ${table} WHERE ${where}`,
+    values,
+  );
+  const n = values.length;
+  const { rows } = await client.query(
+    `SELECT * FROM ${table} WHERE ${where} ORDER BY ${orderBy} LIMIT $${n + 1} OFFSET $${n + 2}`,
+    [...values, window.limit, window.offset],
+  );
+  const total = Number((count.rows[0] as { total?: unknown } | undefined)?.total ?? 0);
+  return { rows: rows.map((row) => map(row as Record<string, unknown>)), total };
+}
+
 export class PgStaffHrStore implements StaffHrStore {
   constructor(private readonly pool: PgHrOpsPool) {}
 
@@ -138,45 +227,46 @@ export class PgStaffHrStore implements StaffHrStore {
 
   async createContract(record: StaffContractRecord): Promise<StaffContractRecord> {
     await ensureStaffHrSchema(this.pool);
-    return this.run(record.tenantId, async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO staff_contracts (
-           id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band,
-           monthly_gross_cents, status, notes, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11,$12)
-         RETURNING *`,
-        [
-          record.id,
-          record.tenantId,
-          record.staffId,
-          record.contractType,
-          record.startDate,
-          record.endDate,
-          record.salaryBand,
-          record.monthlyGrossCents,
-          record.status,
-          record.notes,
-          record.createdAt,
-          record.updatedAt,
-        ],
-      );
-      return mapContract(rows[0] as Record<string, unknown>);
-    });
+    return this.run(record.tenantId, (client) => insertContract(client, record));
+  }
+
+  async createContractOn(
+    executor: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+    record: StaffContractRecord,
+  ): Promise<StaffContractRecord> {
+    await ensureStaffHrSchema(this.pool);
+    return insertContract(executor, record);
   }
 
   async listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]> {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
-      const { rows } = staffId
-        ? await client.query(
-            `SELECT * FROM staff_contracts WHERE tenant_id = $1 AND staff_id = $2 ORDER BY start_date DESC`,
-            [tenantId, staffId],
-          )
-        : await client.query(
-            `SELECT * FROM staff_contracts WHERE tenant_id = $1 ORDER BY start_date DESC`,
-            [tenantId],
-          );
+      const { where, values } = staffFilter(tenantId, staffId);
+      const { rows } = await client.query(
+        `SELECT * FROM staff_contracts WHERE ${where} ORDER BY start_date DESC`,
+        values,
+      );
       return rows.map((row) => mapContract(row as Record<string, unknown>));
+    });
+  }
+
+  async listContractsPage(
+    tenantId: string,
+    staffId: string | undefined,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffContractRecord>> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const { where, values } = staffFilter(tenantId, staffId);
+      return pagedSelect(
+        client,
+        'staff_contracts',
+        where,
+        'start_date DESC, id',
+        values,
+        window,
+        mapContract,
+      );
     });
   }
 
@@ -286,16 +376,32 @@ export class PgStaffHrStore implements StaffHrStore {
   ): Promise<StaffQualificationRecord[]> {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
-      const { rows } = staffId
-        ? await client.query(
-            `SELECT * FROM staff_qualifications WHERE tenant_id = $1 AND staff_id = $2 ORDER BY year DESC`,
-            [tenantId, staffId],
-          )
-        : await client.query(
-            `SELECT * FROM staff_qualifications WHERE tenant_id = $1 ORDER BY year DESC`,
-            [tenantId],
-          );
+      const { where, values } = staffFilter(tenantId, staffId);
+      const { rows } = await client.query(
+        `SELECT * FROM staff_qualifications WHERE ${where} ORDER BY year DESC`,
+        values,
+      );
       return rows.map((row) => mapQualification(row as Record<string, unknown>));
+    });
+  }
+
+  async listQualificationsPage(
+    tenantId: string,
+    staffId: string | undefined,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffQualificationRecord>> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const { where, values } = staffFilter(tenantId, staffId);
+      return pagedSelect(
+        client,
+        'staff_qualifications',
+        where,
+        'year DESC, id',
+        values,
+        window,
+        mapQualification,
+      );
     });
   }
 
@@ -376,7 +482,11 @@ export class PgStaffHrStore implements StaffHrStore {
            id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
          ) VALUES ${tuples.join(',')}
          ON CONFLICT (tenant_id, staff_id, attendance_date)
-         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_by = EXCLUDED.marked_by, updated_at = now()
+         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes,
+           -- PRC-M123: re-saving an unchanged status keeps the original recorder.
+           marked_by = CASE WHEN staff_hr_attendance.status IS DISTINCT FROM EXCLUDED.status
+                            THEN EXCLUDED.marked_by ELSE staff_hr_attendance.marked_by END,
+           updated_at = now()
          RETURNING *`,
         values,
       );
@@ -392,7 +502,11 @@ export class PgStaffHrStore implements StaffHrStore {
            id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
          ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9)
          ON CONFLICT (tenant_id, staff_id, attendance_date)
-         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_by = EXCLUDED.marked_by, updated_at = now()
+         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes,
+           -- PRC-M123: re-saving an unchanged status keeps the original recorder.
+           marked_by = CASE WHEN staff_hr_attendance.status IS DISTINCT FROM EXCLUDED.status
+                            THEN EXCLUDED.marked_by ELSE staff_hr_attendance.marked_by END,
+           updated_at = now()
          RETURNING *`,
         [
           record.id,
@@ -412,34 +526,36 @@ export class PgStaffHrStore implements StaffHrStore {
 
   async listAttendance(
     tenantId: string,
-    filter: { date?: string; staffId?: string; from?: string; to?: string },
+    filter: AttendanceListFilter,
   ): Promise<StaffAttendanceRecord[]> {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
-      const clauses = ['tenant_id = $1'];
-      const values: unknown[] = [tenantId];
-      let i = 2;
-      if (filter.date) {
-        clauses.push(`attendance_date = $${i++}::date`);
-        values.push(filter.date);
-      }
-      if (filter.staffId) {
-        clauses.push(`staff_id = $${i++}`);
-        values.push(filter.staffId);
-      }
-      if (filter.from) {
-        clauses.push(`attendance_date >= $${i++}::date`);
-        values.push(filter.from);
-      }
-      if (filter.to) {
-        clauses.push(`attendance_date <= $${i++}::date`);
-        values.push(filter.to);
-      }
+      const { where, values } = attendanceFilter(tenantId, filter);
       const { rows } = await client.query(
-        `SELECT * FROM staff_hr_attendance WHERE ${clauses.join(' AND ')} ORDER BY attendance_date, staff_id`,
+        `SELECT * FROM staff_hr_attendance WHERE ${where} ORDER BY attendance_date, staff_id`,
         values,
       );
       return rows.map((row) => mapAttendance(row as Record<string, unknown>));
+    });
+  }
+
+  async listAttendancePage(
+    tenantId: string,
+    filter: AttendanceListFilter,
+    window: PageWindow,
+  ): Promise<PagedRows<StaffAttendanceRecord>> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const { where, values } = attendanceFilter(tenantId, filter);
+      return pagedSelect(
+        client,
+        'staff_hr_attendance',
+        where,
+        'attendance_date, staff_id',
+        values,
+        window,
+        mapAttendance,
+      );
     });
   }
 

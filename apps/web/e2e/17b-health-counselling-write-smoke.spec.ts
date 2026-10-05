@@ -150,7 +150,13 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
     await expect(studentSelect.locator('option', { hasText: studentName })).toHaveCount(1, {
       timeout: 15_000,
     });
-    await studentSelect.selectOption({ label: studentName });
+    // Student labels may carry an admission-code prefix ("ADM-… · First Last"),
+    // so select by the matching option's value rather than its exact label.
+    const studentValue = await studentSelect
+      .locator('option', { hasText: studentName })
+      .getAttribute('value');
+    expect(studentValue, `option value for ${studentName}`).toBeTruthy();
+    await studentSelect.selectOption(studentValue!);
     const counsellorSelect = page.locator('#counselling-counsellor-id');
     await expect(counsellorSelect.locator('option', { hasText: counsellorName })).toHaveCount(1, {
       timeout: 15_000,
@@ -191,6 +197,11 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
     expect(record.allergies).toContain(`E2E shellfish ${studentId.slice(0, 6)}`);
 
     await page.goto('/health', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(studentId.slice(0, 8)).first()).toBeVisible({ timeout: 20_000 });
+    // PRC-M088: the row links to the student's record; the name comes from the
+    // directory (this random id has none, so "Unknown student"), never an id
+    // fragment presented as a name.
+    const studentLink = page.locator(`main a[href="/health/${studentId}"]`).first();
+    await expect(studentLink).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('main').getByText(studentId.slice(0, 8))).toHaveCount(0);
   });
 });

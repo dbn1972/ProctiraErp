@@ -35,11 +35,14 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
+  deriveApplicantAttributes,
   resolveApplicationSubject,
   resolveScholarshipActor,
+  type ApplicantAttributesLookup,
   type ApplicantStudentLookup,
 } from './application-intake.js';
 import { authorizeApplicationCreate } from './document-routes.js';
+import { applicantAttributesForStudent } from './parent-links.js';
 import {
   CreateScholarshipProgramSchema,
   UpdateScholarshipProgramSchema,
@@ -83,6 +86,23 @@ function applicationStatus(value: string | undefined): ApplicationStatus | undef
   return APPLICATION_STATUSES.find((status) => status === value);
 }
 
+/**
+ * PRC-M114: `status` may be one status or a comma list (e.g. `submitted,under_review`);
+ * unknown values are dropped, so an all-unknown list filters nothing out.
+ */
+function applicationStatusFilter(value: string | undefined): {
+  status?: ApplicationStatus;
+  statuses?: ApplicationStatus[];
+} {
+  if (!value) return {};
+  const parts = value
+    .split(',')
+    .map((part) => applicationStatus(part.trim()))
+    .filter((s): s is ApplicationStatus => s !== undefined);
+  if (parts.length === 0) return {};
+  return parts.length === 1 ? { status: parts[0] } : { statuses: [...new Set(parts)] };
+}
+
 function disbursementStatus(value: string | undefined): PaymentStatus | undefined {
   return PAYMENT_STATUSES.find((status) => status === value);
 }
@@ -98,6 +118,11 @@ export interface ScholarshipRoutesOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
   /** PRC-H030: when set, an application's applicant must be a student of the tenant. */
   applicantExists?: ApplicantStudentLookup;
+  /**
+   * PRC-L345: student-record lookup for areaId/gender. Defaults to the Postgres record (null
+   * without a database, in which case client-supplied values are dropped).
+   */
+  resolveApplicantAttributes?: ApplicantAttributesLookup;
 }
 
 /**
@@ -134,6 +159,7 @@ export async function registerScholarshipRoutes(
     prefix = '/scholarships',
     resolveLinkedStudentIds,
     applicantExists,
+    resolveApplicantAttributes = applicantAttributesForStudent,
   } = options;
 
   // ─── Program Routes ────────────────────────────────────────────────────
@@ -407,6 +433,7 @@ export async function registerScholarshipRoutes(
 
       // PRC-H030: resolve who the application is for server-side; never trust placeholders.
       let subject: { applicantId: string; institutionId: string };
+      let attributes: { areaId?: string; gender?: 'male' | 'female' | 'other' };
       try {
         subject = await resolveApplicationSubject({
           request,
@@ -415,6 +442,13 @@ export async function registerScholarshipRoutes(
           applicantId: result.data.applicantId,
           institutionId: result.data.institutionId,
           applicantExists,
+        });
+        // PRC-L345: areaId/gender from the student record; contradictions are a 422.
+        attributes = await deriveApplicantAttributes({
+          tenantId,
+          applicantId: subject.applicantId,
+          claimed: { areaId: result.data.areaId, gender: result.data.gender },
+          lookup: resolveApplicantAttributes,
         });
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -435,9 +469,13 @@ export async function registerScholarshipRoutes(
       }
 
       try {
+        const { areaId: _claimedArea, gender: _claimedGender, ...claimedRest } = result.data;
+        void _claimedArea;
+        void _claimedGender;
         const application = await scholarshipService.submitApplication(tenantId, {
-          ...result.data,
+          ...claimedRest,
           ...subject,
+          ...attributes,
         });
         return reply.status(201).send({
           ...application,
@@ -495,7 +533,7 @@ export async function registerScholarshipRoutes(
           programId: query.programId,
           applicantId: query.applicantId,
           institutionId: query.institutionId,
-          status: applicationStatus(query.status),
+          ...applicationStatusFilter(query.status),
           areaId: query.areaId,
           gender: query.gender,
         },
@@ -740,6 +778,73 @@ export async function registerScholarshipRoutes(
     },
   );
 
+  /**
+   * PRC-H084: GET /scholarships/fee-outbox — undelivered disbursement->fees rows (reconcile view).
+   */
+  fastify.get(`${prefix}/fee-outbox`, async function listFeeOutboxHandler(request, reply) {
+    if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const rows = await scholarshipService.listOpenFeeOutbox(tenantId);
+    return reply.status(200).send({
+      data: rows.map((r) => ({
+        id: r.id,
+        disbursementId: r.disbursementId,
+        event: r.event,
+        status: r.status,
+        attempts: r.attempts,
+        lastError: r.lastError,
+        nextAttemptAt: r.nextAttemptAt.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  });
+  /**
+   * PRC-H084: POST /scholarships/fee-outbox/replay — requeue + redeliver (one id or all open).
+   * Fee hooks are disbursementId-idempotent, so replay nets once.
+   */
+  fastify.post(
+    `${prefix}/fee-outbox/replay`,
+    async function replayFeeOutboxHandler(
+      request: FastifyRequest<{ Body: { id?: unknown } | undefined }>,
+      reply: FastifyReply,
+    ) {
+      if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      const rawId = request.body?.id;
+      if (rawId !== undefined && (typeof rawId !== 'string' || !/^[0-9a-f-]{36}$/i.test(rawId))) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'id must be a UUID',
+          statusCode: 400,
+        });
+      }
+      try {
+        const result = await scholarshipService.replayFeeOutbox(tenantId, {
+          id: rawId,
+        });
+        return reply.status(200).send(result);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
   /**
    * PUT /scholarships/disbursements/:id - Update disbursement status
    */

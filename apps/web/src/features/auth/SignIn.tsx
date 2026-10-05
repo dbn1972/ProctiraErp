@@ -233,7 +233,7 @@ export default function SignIn(): ReactElement {
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                  tabIndex={-1}
+                  aria-pressed={showPassword}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

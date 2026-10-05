@@ -4,23 +4,14 @@
  * Mirrors the Typebox schemas in `@proctira/backend-staff`.
  */
 import { z } from 'zod';
-
-const isoDate = z
-  .string()
-  .min(1, 'Date is required')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
-
-const isoDateOptional = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format')
-  .or(z.literal(''));
+import { isoDate, isoDateOptional, pastIsoDate } from './zod-helpers';
 
 const uuid = z.string().uuid('Must be a valid UUID');
 
 export const staffFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(100),
   lastName: z.string().min(1, 'Last name is required').max(100),
-  dateOfBirth: isoDate,
+  dateOfBirth: pastIsoDate,
   identityNumber: z
     .string()
     .min(1, 'Identity number is required')
@@ -66,6 +57,74 @@ export const appraisalFormSchema = z.object({
 });
 
 export type AppraisalFormValues = z.infer<typeof appraisalFormSchema>;
+
+/** Minimal template shape used for per-criterion validation and the live total. */
+export interface AppraisalTemplateShape {
+  scoreMin: number;
+  scoreMax: number;
+  criteria: ReadonlyArray<{ name: string; weight: number; maxScore: number }>;
+}
+
+/**
+ * PRC-M118 — the form schema for a specific template: every criterion must be
+ * scored once, each score within 0..criterion.maxScore (mirrors
+ * AppraisalService.createAppraisal). Used client-side and in the server action.
+ */
+export function buildAppraisalFormSchema(template: AppraisalTemplateShape | null | undefined) {
+  if (!template) return appraisalFormSchema;
+  return appraisalFormSchema.superRefine((data, ctx) => {
+    const byName = new Map(template.criteria.map((c) => [c.name, c]));
+    data.scores.forEach((entry, index) => {
+      const criterion = byName.get(entry.criterionName);
+      if (!criterion) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scores', index, 'criterionName'],
+          message: 'This criterion is not on the selected template',
+        });
+        return;
+      }
+      if (Number.isFinite(entry.score) && entry.score > criterion.maxScore) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scores', index, 'score'],
+          message: `Score must be between 0 and ${criterion.maxScore}`,
+        });
+      }
+    });
+    const scored = new Set(data.scores.map((s) => s.criterionName));
+    for (const c of template.criteria) {
+      if (!scored.has(c.name)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scores'],
+          message: `Missing score for criterion '${c.name}'`,
+        });
+      }
+    }
+  });
+}
+
+/**
+ * PRC-M118 — weighted total, same formula as the backend
+ * (sum of score/maxScore × weight, scaled to scoreMin..scoreMax, 2 dp).
+ * Returns null until every criterion has a valid score.
+ */
+export function computeAppraisalTotal(
+  template: AppraisalTemplateShape,
+  scores: ReadonlyArray<{ criterionName: string; score: number | undefined }>,
+): number | null {
+  let weightedSum = 0;
+  for (const criterion of template.criteria) {
+    const entry = scores.find((s) => s.criterionName === criterion.name);
+    const score = entry?.score;
+    if (typeof score !== 'number' || !Number.isFinite(score)) return null;
+    if (score < 0 || score > criterion.maxScore || criterion.maxScore <= 0) return null;
+    weightedSum += (score / criterion.maxScore) * criterion.weight;
+  }
+  const total = template.scoreMin + (weightedSum / 100) * (template.scoreMax - template.scoreMin);
+  return Math.round(total * 100) / 100;
+}
 
 export const contractFormSchema = z
   .object({

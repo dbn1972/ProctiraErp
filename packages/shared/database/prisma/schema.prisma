@@ -644,8 +644,10 @@ model StaffAssignment {
   tenantId             String    @map("tenant_id") @db.Uuid
   staffId              String    @map("staff_id") @db.Uuid
   institutionId        String    @map("institution_id") @db.Uuid
-  subjectId            String    @map("subject_id") @db.Uuid
-  classId              String    @map("class_id") @db.Uuid
+  /// NULL for administrative assignments (principal, additional charge) — db/sql/098_staff_identity_link.sql.
+  subjectId            String?   @map("subject_id") @db.Uuid
+  /// NULL for administrative assignments — db/sql/098_staff_identity_link.sql.
+  classId              String?   @map("class_id") @db.Uuid
   role                 String    @db.VarChar(100)
   allocationPercentage Int       @map("allocation_percentage") @db.SmallInt
   startDate            DateTime  @map("start_date") @db.Date

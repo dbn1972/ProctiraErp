@@ -12,7 +12,7 @@
  *         per subject, teacher comments (up to 500 chars), overall grade summary,
  *         and institution logo and name
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
@@ -117,6 +117,40 @@ export interface ReportCardServiceOptions {
    * explicitly rather than issuing report cards with blank names.
    */
   directory?: ReportCardDirectory | null;
+  /** PRC-M165: structured logger for publish / processing failures. */
+  logger?: ReportCardServiceLogger;
+  /**
+   * PRC-M165: a `processing` job untouched for this long is considered abandoned
+   * by a crashed worker and may be reclaimed. Default 15 minutes.
+   */
+  staleProcessingMs?: number;
+}
+
+export interface ReportCardServiceLogger {
+  warn(obj: Record<string, unknown>, msg: string): void;
+  error(obj: Record<string, unknown>, msg: string): void;
+}
+
+/** PRC-M165: options for a single processing attempt. */
+export interface ProcessReportCardJobOptions {
+  /**
+   * Queue workers set this so transient failures propagate and the broker
+   * retries / dead-letters the message. Inline (HTTP) callers get the stored
+   * `failed` job instead.
+   */
+  rethrowRetryable?: boolean;
+}
+
+/** Default abandonment window for `processing` jobs (PRC-M165). */
+export const DEFAULT_STALE_PROCESSING_MS = 15 * 60 * 1000;
+
+/**
+ * PRC-M165: client / data errors (4xx AppErrors) will not succeed on retry;
+ * everything else (DB, store, network) is treated as transient.
+ */
+export function isRetryableReportCardError(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return !(typeof status === 'number' && status >= 400 && status < 500);
 }
 
 /** A generated report card ready to be streamed to a client. */
@@ -124,6 +158,12 @@ export interface ReportCardPdfArtifact {
   filename: string;
   contentType: 'application/pdf';
   bytes: Buffer;
+}
+
+/** PRC-M163: authenticated author of a teacher comment. */
+export interface TeacherCommentActor {
+  userId: string;
+  isAdmin: boolean;
 }
 
 /**
@@ -218,6 +258,7 @@ export class ReportCardService {
 
   /**
    * Create or update a teacher comment for a student on a subject.
+   * `actor` is the authenticated caller (PRC-M163).
    *
    * Requirement 8.7: Teacher comments up to 500 characters per subject.
    *
@@ -226,12 +267,23 @@ export class ReportCardService {
   async upsertComment(
     tenantId: string,
     input: UpsertTeacherCommentInput,
+    actor: TeacherCommentActor,
   ): Promise<TeacherCommentEntity> {
     // Validate comment length
     if (input.comment.length > MAX_COMMENT_LENGTH) {
       throw new BusinessRuleError(
         `Teacher comment must not exceed ${MAX_COMMENT_LENGTH} characters. Current length: ${input.comment.length}`,
       );
+    }
+    // PRC-M163: only the original author (or an admin) may overwrite a comment.
+    const existing = await this.commentRepo.findByStudentSubjectPeriod(
+      tenantId,
+      input.studentId,
+      input.subjectId,
+      input.academicPeriodId,
+    );
+    if (existing && existing.teacherId !== actor.userId && !actor.isAdmin) {
+      throw new ForbiddenError('Only the comment author or an administrator can change it');
     }
 
     const entity: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'> = {
@@ -240,7 +292,8 @@ export class ReportCardService {
       studentId: input.studentId,
       subjectId: input.subjectId,
       academicPeriodId: input.academicPeriodId,
-      teacherId: input.teacherId,
+      // PRC-M163: author is always the authenticated actor, never the request body.
+      teacherId: actor.userId,
       comment: input.comment,
     };
 
@@ -324,8 +377,9 @@ export class ReportCardService {
             retryCount: 0,
           },
         });
-      } catch {
-        // Leave status=queued for reclaim — do not fail the API create.
+      } catch (error: unknown) {
+        // Leave status=queued for reclaim — do not fail the API create (PRC-M165: but log it).
+        this.logPublishFailure(tenantId, job.id, error);
       }
     } else if (this.options.processInline) {
       return this.processReportCardJob(tenantId, job.id);
@@ -396,8 +450,9 @@ export class ReportCardService {
               retryCount: 0,
             },
           });
-        } catch {
-          // Leave status=queued for reclaimQueuedJobs.
+        } catch (error: unknown) {
+          // Leave status=queued for reclaimQueuedJobs (PRC-M165: but log it).
+          this.logPublishFailure(tenantId, job.id, error);
         }
       } else if (this.options.processInline) {
         jobs.push(await this.processReportCardJob(tenantId, job.id));
@@ -431,8 +486,38 @@ export class ReportCardService {
    * W2-JOB-02: re-dispatch (or inline-process) jobs left in `queued` after a
    * create→publish dual-write crash. Returns the number of jobs touched.
    */
+  /**
+   * PRC-H039: boot reclaim across tenants — enumerate tenants with `queued`
+   * jobs (platform scope), then reclaim each under its own tenant context.
+   * A failing tenant does not block the others.
+   */
+  async reclaimQueuedJobsAllTenants(): Promise<{
+    tenants: number;
+    reclaimed: number;
+    failedTenants: string[];
+  }> {
+    const tenantIds = (await this.jobRepo.listTenantIdsWithStatus?.('queued')) ?? [];
+    let reclaimed = 0;
+    const failedTenants: string[] = [];
+    for (const tenantId of tenantIds) {
+      try {
+        reclaimed += await this.reclaimQueuedJobs(tenantId);
+      } catch {
+        failedTenants.push(tenantId);
+      }
+    }
+    return { tenants: tenantIds.length, reclaimed, failedTenants };
+  }
+
   async reclaimQueuedJobs(tenantId: string): Promise<number> {
-    const orphaned = await this.jobRepo.listByStatus(tenantId, 'queued');
+    // PRC-M165: also reclaim `processing` rows abandoned by a crashed worker.
+    const staleBefore = this.staleBefore();
+    const orphaned = [
+      ...(await this.jobRepo.listByStatus(tenantId, 'queued')),
+      ...(await this.jobRepo.listByStatus(tenantId, 'processing')).filter(
+        (job) => job.updatedAt < staleBefore,
+      ),
+    ];
     let count = 0;
     for (const job of orphaned) {
       if (this.taskQueuePublisher) {
@@ -473,20 +558,24 @@ export class ReportCardService {
    *
    * Requirement 8.7: Full report card generation.
    */
-  async processReportCardJob(tenantId: string, jobId: string): Promise<ReportCardJobEntity> {
-    const job = await this.jobRepo.findById(jobId, tenantId);
-    if (!job) {
+  async processReportCardJob(
+    tenantId: string,
+    jobId: string,
+    processOptions: ProcessReportCardJobOptions = {},
+  ): Promise<ReportCardJobEntity> {
+    const current = await this.jobRepo.findById(jobId, tenantId);
+    if (!current) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
     }
-
     // Idempotent: completed jobs survive redelivery after worker crash/ack loss.
-    if (job.status === 'completed') {
-      return job;
+    if (current.status === 'completed') {
+      return current;
     }
-
-    // Mark as processing
-    await this.jobRepo.updateStatus(jobId, tenantId, 'processing');
-
+    // PRC-M165: compare-and-set claim; a concurrent/duplicate delivery is a no-op.
+    const job = await this.jobRepo.claimForProcessing(jobId, tenantId, this.staleBefore());
+    if (!job) {
+      return (await this.jobRepo.findById(jobId, tenantId)) ?? current;
+    }
     try {
       // Get template
       const template = await this.templateRepo.findById(job.templateId, tenantId);
@@ -627,8 +716,29 @@ export class ReportCardService {
       const failedJob = await this.jobRepo.updateStatus(jobId, tenantId, 'failed', {
         errorMessage,
       });
+      const retryable = isRetryableReportCardError(error);
+      this.options.logger?.error(
+        { tenantId, jobId, retryable, err: errorMessage },
+        'report-card job failed',
+      );
+      // PRC-M165: `failed` is claimable again, so a broker redelivery retries it;
+      // after maxRetries the broker dead-letters the message.
+      if (retryable && processOptions.rethrowRetryable) {
+        throw error;
+      }
       return failedJob!;
     }
+  }
+
+  private staleBefore(): Date {
+    return new Date(Date.now() - (this.options.staleProcessingMs ?? DEFAULT_STALE_PROCESSING_MS));
+  }
+
+  private logPublishFailure(tenantId: string, jobId: string, error: unknown): void {
+    this.options.logger?.warn(
+      { tenantId, jobId, err: error instanceof Error ? error.message : String(error) },
+      'report-card job publish failed; left queued for reclaim',
+    );
   }
 
   /** Storage key for a job's PDF: `report-cards/<tenant>/<student>/<period>/<job>.pdf`. */

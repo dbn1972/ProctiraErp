@@ -62,8 +62,26 @@ describe('bulkInvoiceFormSchema', () => {
       }).success,
     ).toBe(true);
     expect(
-      bulkInvoiceFormSchema.safeParse({ structureId: STRUCTURE, studentIds: '', dueAt: '' })
-        .success,
+      bulkInvoiceFormSchema.safeParse({
+        structureId: STRUCTURE,
+        classId: STUDENT,
+        studentIds: '',
+        dueAt: '',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('PRC-M086: rejects a run with no class, students or class-scoped structure', () => {
+    const parsed = bulkInvoiceFormSchema.safeParse({
+      structureId: STRUCTURE,
+      classId: '',
+      studentIds: '',
+      dueAt: '',
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toMatch(/class or add students/);
+    expect(
+      bulkInvoiceFormSchema.safeParse({ structureId: STRUCTURE, structureScoped: true }).success,
     ).toBe(true);
   });
 });

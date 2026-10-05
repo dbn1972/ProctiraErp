@@ -230,6 +230,38 @@ describe('scholarship document routes', () => {
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.body.startsWith('%PDF')).toBe(true);
+    // PRC-M353: link minting and token redemption are access-logged with actor + document.
+    const access = documents.audits.filter(
+      (entry) => entry.entityType === 'scholarship_application_document_access',
+    );
+    const docId = uploaded.json().id as string;
+    expect(access.map((entry) => entry.metadata.action)).toEqual(
+      expect.arrayContaining(['download_link', 'token_download']),
+    );
+    expect(access.every((entry) => entry.userId === 'staff-1' && entry.tenantId === TENANT_A)).toBe(
+      true,
+    );
+    expect(access.filter((entry) => entry.metadata.documentId === docId).length).toBe(2);
+    // Fails closed: when the access log cannot be written no bytes are served.
+    const original = documents.recordAccess.bind(documents);
+    documents.recordAccess = async () => {
+      throw new Error('audit down');
+    };
+    try {
+      const listWhileDown = await app.inject({
+        method: 'GET',
+        url: `/scholarships/applications/${applicationId}/documents`,
+      });
+      expect(listWhileDown.statusCode).toBeGreaterThanOrEqual(500);
+      const contentWhileDown = await app.inject({
+        method: 'GET',
+        url: `/scholarships/applications/${applicationId}/documents/${docId}/content`,
+      });
+      expect(contentWhileDown.statusCode).toBeGreaterThanOrEqual(500);
+      expect(contentWhileDown.body.startsWith('%PDF')).toBe(false);
+    } finally {
+      documents.recordAccess = original;
+    }
     // PRC-L344: links are single-use.
     const replay = await app.inject({
       method: 'GET',

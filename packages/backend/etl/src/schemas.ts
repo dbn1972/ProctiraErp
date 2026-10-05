@@ -117,6 +117,7 @@ export type DataSourceConfig = Static<typeof DataSourceConfigSchema>;
 export const DestinationTypeSchema = Type.Union([
   Type.Literal('postgresql'),
   Type.Literal('rest_api'),
+  Type.Literal('connection'),
 ]);
 
 export type DestinationType = Static<typeof DestinationTypeSchema>;
@@ -172,11 +173,26 @@ export const RestApiDestinationConfigSchema = Type.Object({
 export type RestApiDestinationConfig = Static<typeof RestApiDestinationConfigSchema>;
 
 /**
+ * PRC-M109: destination by reference to a server-managed connection; the
+ * host and credentials are resolved server-side at validate/run time.
+ */
+export const ConnectionDestinationConfigSchema = Type.Object({
+  type: Type.Literal('connection'),
+  connectionId: Type.String({ pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' }),
+  schema: Type.Optional(Type.String({ minLength: 1, maxLength: 63 })),
+  table: Type.String({ minLength: 1, maxLength: 63, pattern: '^[A-Za-z_][A-Za-z0-9_]*$' }),
+  writeMode: Type.Optional(
+    Type.Union([Type.Literal('insert'), Type.Literal('upsert'), Type.Literal('replace')]),
+  ),
+});
+export type ConnectionDestinationConfig = Static<typeof ConnectionDestinationConfigSchema>;
+/**
  * Union of all destination configurations.
  */
 export const DataDestinationConfigSchema = Type.Union([
   PostgresDestinationConfigSchema,
   RestApiDestinationConfigSchema,
+  ConnectionDestinationConfigSchema,
 ]);
 
 export type DataDestinationConfig = Static<typeof DataDestinationConfigSchema>;
@@ -344,7 +360,9 @@ export interface Pipeline {
 
 // ─── Execution Log Entity ─────────────────────────────────────────────────────
 
-export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
+/** PRC-M227: `completed_with_errors` = run finished but some rows were rejected. */
+export type ExecutionStatus =
+  'pending' | 'running' | 'completed' | 'completed_with_errors' | 'failed';
 
 /**
  * Thin run lineage (P2-WH) — breadcrumb only, not a governed catalog/graph.

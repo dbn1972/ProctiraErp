@@ -1,6 +1,7 @@
 /**
  * Staff leave repository contract (HR leave v1).
  */
+import type { PagedRows, PageWindow } from './hr-store.js';
 export type StaffLeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type StaffLeaveType = 'annual' | 'sick' | 'casual' | 'unpaid' | 'other';
 
@@ -45,9 +46,50 @@ export class InsufficientLeaveBalanceError extends Error {
   }
 }
 
+/** PRC-M372: the leave was no longer pending when the decision committed. */
+export class LeaveNotPendingError extends Error {
+  constructor(public readonly currentStatus: StaffLeaveStatus) {
+    super(`Leave is already ${currentStatus}`);
+    this.name = 'LeaveNotPendingError';
+  }
+}
+
+/** PRC-M372: approval needs a configured balance row (PRC-H091). */
+export class LeaveBalanceMissingError extends Error {
+  constructor(
+    public readonly staffId: string,
+    public readonly leaveType: StaffLeaveType,
+  ) {
+    super(`No ${leaveType} leave balance is configured for staff '${staffId}'`);
+    this.name = 'LeaveBalanceMissingError';
+  }
+}
+
+export interface DecideLeaveAtomicInput {
+  status: StaffLeaveStatus;
+  decidedBy: string;
+  decidedAt: Date;
+  /** Days to debit from the leave's balance (approve of a balance-tracked type). */
+  debitDays: number | null;
+}
+
 export interface StaffLeaveRepository {
+  /**
+   * PRC-M372: in ONE transaction lock the leave, verify it is pending, debit the
+   * balance (when debitDays is set) and update the status with a
+   * `status = 'pending'` guard. Returns null when the leave does not exist.
+   * Throws {@link LeaveNotPendingError}, {@link LeaveBalanceMissingError} or
+   * {@link InsufficientLeaveBalanceError}; any failure rolls back the debit.
+   */
+  decideLeaveAtomically(
+    tenantId: string,
+    leaveId: string,
+    input: DecideLeaveAtomicInput,
+  ): Promise<StaffLeaveEntity | null>;
   createLeave(data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<StaffLeaveEntity>;
   listLeaves(tenantId: string): Promise<StaffLeaveEntity[]>;
+  /** PRC-M379: bounded list with total for GET /staff/leaves. */
+  listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>>;
   findLeaveById(id: string, tenantId: string): Promise<StaffLeaveEntity | null>;
   updateLeave(
     id: string,
@@ -67,6 +109,14 @@ export interface StaffLeaveRepository {
     leaveType: StaffLeaveType,
     balanceDays: number,
   ): Promise<StaffLeaveBalanceEntity>;
+  /**
+   * PRC-H091: upsert many opening balances in ONE transaction (all-or-nothing).
+   * Optional; callers fall back to sequential `setBalance`.
+   */
+  setBalancesAtomic?(
+    tenantId: string,
+    rows: readonly { staffId: string; leaveType: StaffLeaveType; balanceDays: number }[],
+  ): Promise<StaffLeaveBalanceEntity[]>;
   /**
    * Atomically add `deltaDays` (negative to consume). Must lock the balance row
    * (`SELECT … FOR UPDATE`) and throw {@link InsufficientLeaveBalanceError}

@@ -12,7 +12,6 @@
  * - 21.5: Configurable retention with automated archival of expired entries.
  */
 import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
-import type { PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -206,6 +205,11 @@ export class AuditService {
     };
 
     return this.repository.query(query);
+  }
+
+  /** PRC-M576: distinct entity types for the audit viewer filter (max 500). */
+  async listEntityTypes(tenantId: string): Promise<string[]> {
+    return this.repository.listEntityTypes(tenantId, 500);
   }
 
   /**

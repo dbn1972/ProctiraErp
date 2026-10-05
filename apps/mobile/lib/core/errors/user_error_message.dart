@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 /// Generic fallback shown when an error has no safe, specific message.
 const String kGenericErrorMessage = 'Something went wrong. Please try again.';
@@ -21,6 +22,21 @@ String userErrorMessage(
   debugPrint('${context ?? 'error'}: $error');
   if (error is DioException) {
     return _fromDio(error, fallback);
+  }
+  if (error is ApiException) {
+    // Typed api-client failures (PRC-M047): map by status, never echo
+    // `toString()` (which carries the class name and raw server message).
+    final int? status = error.statusCode;
+    if (status == null) {
+      if (error is TransientApiException && error.cause is DioException) {
+        return _fromDio(error.cause! as DioException, fallback);
+      }
+      return error is TransientApiException ? _offline : fallback;
+    }
+    return _fromStatusCode(status, error.responseBody, fallback);
+  }
+  if (error is StateError || error is TypeError) {
+    return fallback;
   }
   if (error is SocketException) {
     return _offline;
@@ -59,8 +75,10 @@ String _fromDio(DioException error, String fallback) {
   }
 }
 
-String _fromStatus(Response<dynamic>? response, String fallback) {
-  final int status = response?.statusCode ?? 0;
+String _fromStatus(Response<dynamic>? response, String fallback) =>
+    _fromStatusCode(response?.statusCode ?? 0, response?.data, fallback);
+
+String _fromStatusCode(int status, Object? data, String fallback) {
   if (status == 401) {
     return 'Your session has expired. Please sign in again.';
   }
@@ -77,7 +95,7 @@ String _fromStatus(Response<dynamic>? response, String fallback) {
     return 'The server had a problem. Please try again later.';
   }
   if (status == 400 || status == 409 || status == 422) {
-    final String? message = _serverMessage(response?.data);
+    final String? message = _serverMessage(data);
     if (message != null) {
       return message;
     }

@@ -316,3 +316,41 @@ describe('admin client → audit event dispatch', () => {
     });
   });
 });
+// ─── PRC-M486: CSRF header on admin mutations ────────────────────────────
+describe('adminFetch CSRF (PRC-M486)', () => {
+  beforeEach(() => {
+    document.cookie = 'csrf_token=tok-486; path=/';
+  });
+  afterEach(() => {
+    document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  });
+  it('every non-GET helper sends x-csrf-token equal to the csrf_token cookie', async () => {
+    const role: TenantRole = {
+      id: 'role-1',
+      name: 'Role',
+      description: null,
+      builtIn: false,
+      permissions: [],
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    };
+    const fetcher = makeFetchSpy((_url, init) =>
+      init?.method === 'DELETE'
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify(role), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+    );
+    const opts = { fetcher: asFetch(fetcher) };
+    await createRole({ name: 'Role', description: null, permissions: [] } as never, opts);
+    await deleteRole('role-1', { roleName: 'Role' }, opts);
+    const mutating = fetcher.mock.calls.filter(
+      (c) => ((c[1] as RequestInit | undefined)?.method ?? 'GET') !== 'GET',
+    );
+    expect(mutating.length).toBeGreaterThan(0);
+    for (const [, init] of mutating) {
+      expect(new Headers((init as RequestInit).headers).get('x-csrf-token')).toBe('tok-486');
+    }
+  });
+});

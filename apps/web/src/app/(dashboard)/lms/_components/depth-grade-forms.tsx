@@ -4,10 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button, Input, Label } from '@proctira/ui/components';
-import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { LmsRubric } from '@/lib/api/lms';
-import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { gradeWithRubricAction, uploadLmsFileAction } from '../depth-actions';
 
@@ -16,14 +14,11 @@ export function RubricGradeForm({
   submissionId,
   questionId,
   rubric,
-  criterionOptions = [],
 }: {
   assignmentId: string;
   submissionId: string;
   questionId?: string;
   rubric?: LmsRubric | null;
-  /** Criteria from the school rubric directory when this assignment has none attached. */
-  criterionOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -34,22 +29,16 @@ export function RubricGradeForm({
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     startTransition(async () => {
-      const scores =
-        criteria.length > 0
-          ? criteria.map((c) => ({
-              criterionId: c.id,
-              levelIndex: levels[c.id]?.levelIndex ?? 0,
-              points: levels[c.id]?.points ?? c.levels[0]?.points ?? 0,
-            }))
-          : [
-              {
-                criterionId: String(form.get('criterionId') ?? ''),
-                points: Number(form.get('points') ?? 0),
-                levelIndex: Number(form.get('levelIndex') ?? 0),
-              },
-            ];
+      if (criteria.length === 0) {
+        setMessage('Attach a rubric before rubric grading.');
+        return;
+      }
+      const scores = criteria.map((c) => ({
+        criterionId: c.id,
+        levelIndex: levels[c.id]?.levelIndex ?? 0,
+        points: levels[c.id]?.points ?? c.levels[0]?.points ?? 0,
+      }));
       const result = await gradeWithRubricAction(assignmentId, {
         submissionId,
         questionId: questionId ?? '',
@@ -117,44 +106,18 @@ export function RubricGradeForm({
           </table>
         </div>
       ) : (
-        <div className="space-y-2">
-          <EntitySearchSelect
-            id={`crit-${submissionId}`}
-            name="criterionId"
-            label="Criterion"
-            options={criterionOptions}
-            required
-            placeholder="Search criteria by name…"
-            emptyMessage="No rubric criteria are loaded for this assignment. Attach a rubric before scoring."
-          />
-          <div className="flex flex-wrap gap-2">
-            <div className="space-y-1">
-              <Label htmlFor={`points-${submissionId}`}>Points</Label>
-              <Input
-                id={`points-${submissionId}`}
-                name="points"
-                type="number"
-                min={0}
-                placeholder="Points"
-                className="h-11 w-24"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`level-${submissionId}`}>Level</Label>
-              <Input
-                id={`level-${submissionId}`}
-                name="levelIndex"
-                type="number"
-                min={0}
-                defaultValue={0}
-                className="h-11 w-24"
-              />
-            </div>
-          </div>
-        </div>
+        // PRC-M479: no free-points fallback — scores come only from a linked rubric's levels.
+        <p role="status" className="text-sm text-muted-foreground" data-testid="lms-rubric-missing">
+          No rubric is attached to this question. Attach a rubric to the essay question before
+          rubric grading.
+        </p>
       )}
-      <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={pending || criteria.length === 0}
+        aria-busy={pending}
+      >
         Rubric grade
       </Button>
       {message ? (
@@ -166,17 +129,25 @@ export function RubricGradeForm({
   );
 }
 
+export const LMS_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export function fileTooLargeMessage(bytes: number): string {
+  const mb = (bytes / (1024 * 1024)).toFixed(1);
+  return `File is ${mb} MB; the upload limit is 5 MB.`;
+}
 export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const file = (event.currentTarget.elements.namedItem('file') as HTMLInputElement)?.files?.[0];
+    setMessage(null);
+    setError(null);
     if (!file) {
-      setMessage('Choose a file first.');
+      setError('Choose a file first.');
       return;
     }
     const allowed = [
@@ -188,11 +159,12 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ] as const;
     if (!allowed.includes(file.type as (typeof allowed)[number])) {
-      setMessage('Use PDF, image, text or DOCX.');
+      setError('Use PDF, image, text or DOCX.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage('File exceeds 5 MB.');
+    if (file.size > LMS_UPLOAD_MAX_BYTES) {
+      // PRC-M099: size errors are distinct and state the actual size.
+      setError(fileTooLargeMessage(file.size));
       return;
     }
     startTransition(async () => {
@@ -206,14 +178,25 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
         reader.onerror = () => reject(new Error('Could not read file'));
         reader.readAsDataURL(file);
       });
-      const result = await uploadLmsFileAction({
-        assignmentId,
-        filename: file.name,
-        mimeType: file.type as (typeof allowed)[number],
-        contentBase64,
-      });
-      setMessage(result.status === 'success' ? 'File uploaded.' : (result.message ?? 'Failed'));
-      if (result.status === 'success') router.refresh();
+      let result: Awaited<ReturnType<typeof uploadLmsFileAction>>;
+      try {
+        result = await uploadLmsFileAction({
+          assignmentId,
+          filename: file.name,
+          mimeType: file.type as (typeof allowed)[number],
+          contentBase64,
+        });
+      } catch {
+        // The Server Action transport rejects over-limit bodies before the action runs.
+        setError(fileTooLargeMessage(file.size));
+        return;
+      }
+      if (result.status === 'success') {
+        setMessage('File uploaded.');
+        router.refresh();
+        return;
+      }
+      setError(result.message ?? 'Upload failed.');
     });
   }
 
@@ -226,7 +209,17 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
     >
       <div className="space-y-1">
         <Label htmlFor="lms-file">Submission file</Label>
-        <Input id="lms-file" name="file" type="file" className="h-11" />
+        <Input
+          id="lms-file"
+          name="file"
+          type="file"
+          className="h-11"
+          aria-describedby="lms-file-hint"
+          aria-invalid={error ? true : undefined}
+        />
+        <p id="lms-file-hint" className="text-xs text-muted-foreground">
+          PDF, image, text or DOCX, up to 5 MB.
+        </p>
       </div>
       <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>
         Upload
@@ -234,6 +227,11 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
       {message ? (
         <span role="status" className="text-xs">
           {message}
+        </span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-xs text-destructive" data-testid="lms-file-error">
+          {error}
         </span>
       ) : null}
     </form>

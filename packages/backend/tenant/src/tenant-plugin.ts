@@ -15,6 +15,7 @@ import {
   type TenantIdResolver,
 } from './branding-routes.js';
 import { registerTenantRoutes } from './routes.js';
+import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type { TenantRepository } from './tenant-repository.js';
 import {
   TenantService,
@@ -37,6 +38,8 @@ export interface TenantPluginOptions {
    * fails closed (422) instead of creating a tenant without an admin.
    */
   adminProvisioner?: TenantAdminProvisioner;
+  /** PRC-H099: seeds roles/settings for a new tenant before the admin. */
+  defaultsSeeder?: TenantDefaultsSeeder;
   /**
    * Branding route configuration (Tasks 58.2 + 58.3). When omitted, the
    * branding endpoints are still registered at `/tenant/branding` and rely
@@ -77,10 +80,16 @@ export const tenantLifecyclePlugin = fp(
       branding,
       destructiveDeleteGuard,
       adminProvisioner,
+      defaultsSeeder,
     } = options;
 
     // Create tenant service instance
-    const tenantService = new TenantService(repository, destructiveDeleteGuard, adminProvisioner);
+    const tenantService = new TenantService(
+      repository,
+      destructiveDeleteGuard,
+      adminProvisioner,
+      defaultsSeeder,
+    );
 
     // Decorate fastify with the tenant service
     fastify.decorate('tenantService', tenantService);

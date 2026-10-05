@@ -9,12 +9,17 @@ const StatusUnion = Type.Union([
 ]);
 
 export const CreateRegularisationSchema = Type.Object({
-  attendanceId: Type.String({ minLength: 1 }),
+  /**
+   * PRC-M081: optional. The record is resolved server-side from
+   * student + class + date; when supplied it must match that record.
+   */
+  attendanceId: Type.Optional(Type.String({ minLength: 1 })),
   studentId: Type.String({ minLength: 1 }),
   institutionId: Type.String({ minLength: 1 }),
   classId: Type.String({ minLength: 1 }),
   attendanceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
-  fromStatus: Type.String({ minLength: 1 }),
+  /** PRC-M081: ignored — always taken from the stored record. */
+  fromStatus: Type.Optional(Type.String({ minLength: 1 })),
   toStatus: StatusUnion,
   reason: Type.Optional(Type.String({ maxLength: 2000 })),
 });

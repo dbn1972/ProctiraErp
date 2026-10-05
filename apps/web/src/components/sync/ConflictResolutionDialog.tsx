@@ -54,7 +54,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@proctira/ui/components';
-import { dequeue } from '@/lib/sync/syncQueue';
+import { dequeue, enqueue, getOperation } from '@/lib/sync/syncQueue';
+import type { EnqueueInput, SyncQueueOperation } from '@/lib/sync/syncQueue';
 import {
   SYNC_AMEND_CONFLICT_EVENT,
   SYNC_CONFLICT_EVENT,
@@ -117,10 +118,18 @@ export interface ConflictResolutionDialogProps {
    * without needing a real IndexedDB.
    */
   dequeueOperation?: (id: string) => Promise<void>;
+  /** PRC-M575 test seams for the Amend re-enqueue. */
+  enqueueOperation?: (input: EnqueueInput) => Promise<string>;
+  getQueuedOperation?: (id: string) => Promise<SyncQueueOperation | null>;
 }
+
+/** PRC-M575: header carrying the server's conflict resolution token on resubmit. */
+export const CONFLICT_RESOLUTION_TOKEN_HEADER = 'X-Conflict-Resolution-Token';
 
 export function ConflictResolutionDialog({
   dequeueOperation = dequeue,
+  enqueueOperation = enqueue,
+  getQueuedOperation = getOperation,
 }: ConflictResolutionDialogProps = {}) {
   const t = useTranslations('sync.conflict');
 
@@ -194,16 +203,35 @@ export function ConflictResolutionDialog({
       mergedPayload: merged,
       resolutionToken: active.conflict.resolution_token,
     };
-    // Drop the failed queue entry. The form/wizard listening for
-    // `sync:amend-conflict` is responsible for re-opening with the
-    // merged values and re-enqueuing the new attempt (with the
-    // resolution token attached so the gateway can correlate).
+    // PRC-M575: re-enqueue the merged body (with the resolution token) BEFORE
+    // dropping the failed entry, so the amended write is never lost even when
+    // no form is listening for `sync:amend-conflict`. A crash between the two
+    // steps leaves a duplicate (idempotency-keyed) op, never zero.
+    const original = await getQueuedOperation(active.queueId);
+    if (original) {
+      await enqueueOperation({
+        tenantId: original.tenantId,
+        userId: original.userId,
+        operationType: original.operationType,
+        targetEntity: original.targetEntity,
+        targetId: original.targetId,
+        payload: {
+          url: original.payload.url,
+          headers: {
+            ...(original.payload.headers ?? {}),
+            'Content-Type': 'application/json',
+            [CONFLICT_RESOLUTION_TOKEN_HEADER]: detail.resolutionToken,
+          },
+          body: JSON.stringify(merged),
+        },
+      });
+    }
     await dequeueOperation(active.queueId);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(SYNC_AMEND_CONFLICT_EVENT, { detail }));
     }
     advance();
-  }, [active, advance, dequeueOperation, resolutions]);
+  }, [active, advance, dequeueOperation, enqueueOperation, getQueuedOperation, resolutions]);
 
   const handleDiscard = useCallback(async () => {
     if (!active) return;

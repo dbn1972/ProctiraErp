@@ -6,8 +6,8 @@
  *   - Detailed row-level success/error viewer for a specific execution
  *
  * Wired to the ETL Service API (Task 60A.6 / Task 23):
- *   - GET /api/v1/etl/pipelines/:pipelineId/executions
- *   - GET /api/v1/etl/executions/:executionId
+ *   - GET /api/v1/pipelines/:pipelineId/executions
+ *   - GET /api/v1/pipelines/:pipelineId/executions/:executionId
  *
  * Requirements: 14.3, 14.6
  */
@@ -17,10 +17,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { etlPaths } from '../etl-api-paths';
 
 /* ------------------------------------------------------------------ Types */
 
-type ExecutionStatus = 'running' | 'completed' | 'failed' | 'partial';
+// PRC-M227: the API reports partial runs as `completed_with_errors`.
+type ExecutionStatus = 'running' | 'completed' | 'failed' | 'partial' | 'completed_with_errors';
+
+function statusLabel(status: ExecutionStatus): string {
+  const text = status.replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 interface ExecutionSummary {
   id: string;
@@ -97,6 +104,7 @@ function getStatusBadgeClass(status: ExecutionStatus): string {
     case 'failed':
       return 'bg-red-100 text-red-800';
     case 'partial':
+    case 'completed_with_errors':
       return 'bg-yellow-100 text-yellow-800';
   }
 }
@@ -137,7 +145,7 @@ export default function ExecutionLog() {
       params.set('pageSize', '20');
 
       const result = await browserGatewayFetch<ExecutionListResponse>(
-        `/etl/pipelines/${pipelineId}/executions?${params.toString()}`,
+        etlPaths.executions(pipelineId, params),
       );
       setExecutions(result.data);
       setTotalPages(result.meta.totalPages);
@@ -153,22 +161,28 @@ export default function ExecutionLog() {
   }, [pipelineId, page]);
 
   // Fetch execution detail
-  const fetchExecutionDetail = useCallback(async (execId: string) => {
-    setIsLoadingDetail(true);
-    setError(null);
-    try {
-      const result = await browserGatewayFetch<ExecutionDetail>(`/etl/executions/${execId}`);
-      setSelectedExecution(result);
-    } catch (err) {
-      if (err instanceof BrowserGatewayError) {
-        setError(err.message);
-      } else {
-        setError('Failed to load execution details');
+  const fetchExecutionDetail = useCallback(
+    async (execId: string) => {
+      if (!pipelineId) return;
+      setIsLoadingDetail(true);
+      setError(null);
+      try {
+        const result = await browserGatewayFetch<ExecutionDetail>(
+          etlPaths.execution(pipelineId, execId),
+        );
+        setSelectedExecution(result);
+      } catch (err) {
+        if (err instanceof BrowserGatewayError) {
+          setError(err.message);
+        } else {
+          setError('Failed to load execution details');
+        }
+      } finally {
+        setIsLoadingDetail(false);
       }
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, []);
+    },
+    [pipelineId],
+  );
 
   useEffect(() => {
     fetchExecutions();
@@ -237,8 +251,7 @@ export default function ExecutionLog() {
               <span
                 className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(selectedExecution.status)}`}
               >
-                {selectedExecution.status.charAt(0).toUpperCase() +
-                  selectedExecution.status.slice(1)}
+                {statusLabel(selectedExecution.status)}
               </span>
             </div>
             <div className="rounded-md border p-4">
@@ -297,10 +310,10 @@ export default function ExecutionLog() {
                 <table className="w-full text-sm" data-testid="execution-errors-table">
                   <thead>
                     <tr className="border-b bg-red-50">
-                      <th className="px-4 py-2 text-left font-medium">Row</th>
-                      <th className="px-4 py-2 text-left font-medium">Field</th>
-                      <th className="px-4 py-2 text-left font-medium">Error</th>
-                      <th className="px-4 py-2 text-left font-medium">Source Data</th>
+                      <th className="px-4 py-2 text-start font-medium">Row</th>
+                      <th className="px-4 py-2 text-start font-medium">Field</th>
+                      <th className="px-4 py-2 text-start font-medium">Error</th>
+                      <th className="px-4 py-2 text-start font-medium">Source Data</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -373,14 +386,14 @@ export default function ExecutionLog() {
               <table className="w-full text-sm" data-testid="execution-list-table">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left font-medium">Started</th>
+                    <th className="px-4 py-3 text-start font-medium">Started</th>
                     <th className="px-4 py-3 text-center font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Extracted</th>
-                    <th className="px-4 py-3 text-right font-medium">Loaded</th>
-                    <th className="px-4 py-3 text-right font-medium">Errors</th>
-                    <th className="px-4 py-3 text-left font-medium">Duration</th>
-                    <th className="px-4 py-3 text-left font-medium">Trigger</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <th className="px-4 py-3 text-end font-medium">Extracted</th>
+                    <th className="px-4 py-3 text-end font-medium">Loaded</th>
+                    <th className="px-4 py-3 text-end font-medium">Errors</th>
+                    <th className="px-4 py-3 text-start font-medium">Duration</th>
+                    <th className="px-4 py-3 text-start font-medium">Trigger</th>
+                    <th className="px-4 py-3 text-end font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -393,17 +406,17 @@ export default function ExecutionLog() {
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(exec.status)}`}
                         >
-                          {exec.status.charAt(0).toUpperCase() + exec.status.slice(1)}
+                          {statusLabel(exec.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono">
+                      <td className="px-4 py-3 text-end font-mono">
                         {exec.extractedCount.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono">
+                      <td className="px-4 py-3 text-end font-mono">
                         {exec.loadedCount.toLocaleString()}
                       </td>
                       <td
-                        className={`px-4 py-3 text-right font-mono ${exec.errorCount > 0 ? 'text-destructive font-semibold' : ''}`}
+                        className={`px-4 py-3 text-end font-mono ${exec.errorCount > 0 ? 'text-destructive font-semibold' : ''}`}
                       >
                         {exec.errorCount.toLocaleString()}
                       </td>
@@ -414,7 +427,7 @@ export default function ExecutionLog() {
                         {exec.triggeredBy}
                         {exec.retryAttempt > 0 && ` (#${exec.retryAttempt})`}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-end">
                         <button
                           onClick={() => handleSelectExecution(exec.id)}
                           className="rounded-md border border-input bg-background px-2 py-1 text-xs font-medium hover:bg-accent"

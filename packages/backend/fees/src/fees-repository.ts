@@ -292,9 +292,18 @@ export interface RecordPaymentOnInvoiceSettlement {
  * Carries amounts and before/after status only (no PII).
  */
 export interface FeesMoneyAuditEvent {
-  kind: 'refund' | 'credit_note' | 'write_off' | 'void' | 'concession_approve';
+  kind:
+    | 'refund'
+    | 'credit_note'
+    | 'write_off'
+    | 'void'
+    | 'concession_approve'
+    | 'concession_reject'
+    | 'scholarship_netting'
+    | 'scholarship_netting_reversal';
   entityId: string;
-  invoiceId: string;
+  /** Null when no invoice was touched (credit reserved / rejected without a target). */
+  invoiceId: string | null;
   amountCents: number;
   beforeStatus: string;
   afterStatus: string;
@@ -344,6 +353,11 @@ export interface FeesRepository {
     tenantId: string,
     scope: { classId?: string | null; gradeId?: string | null },
   ): Promise<string[]>;
+  /**
+   * PRC-M087: true only when `classId` is a live row of the tenant's
+   * `classes` table (not a timetable section id).
+   */
+  classExists(tenantId: string, classId: string): Promise<boolean>;
 
   createFeeStructure(
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,

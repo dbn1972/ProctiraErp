@@ -8,7 +8,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listDeliveryLogs } from '@/lib/api/communication';
-import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { loadStaffLabelMap, loadStudentLabelMap, withPersonLabels } from '@/lib/load-entity-labels';
 
 import { DeliveryLogTable } from '../_components/delivery-log-table';
 
@@ -31,7 +32,7 @@ export default async function DeliveryLogPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const channel = readStr(searchParams, 'channel');
   const status = readStr(searchParams, 'status');
-  const [rows, studentLabels, staffLabels] = await Promise.all([
+  const [logs, studentLabels, staffLabels] = await Promise.all([
     listDeliveryLogs({
       channel: channel || undefined,
       status: status || undefined,
@@ -39,7 +40,14 @@ export default async function DeliveryLogPage(props: PageProps) {
     loadStudentLabelMap(),
     loadStaffLabelMap(),
   ]);
-  const recipientLabels = Object.fromEntries([...studentLabels, ...staffLabels]);
+  const rows = logs.ok ? logs.items : [];
+  // PRC-M083: recipients beyond the first directory page are looked up by id.
+  const recipientLabels = Object.fromEntries(
+    await withPersonLabels(
+      new Map([...studentLabels, ...staffLabels]),
+      rows.map((row) => row.recipientId),
+    ),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -54,7 +62,9 @@ export default async function DeliveryLogPage(props: PageProps) {
         <CardHeader>
           <CardTitle className="text-base">Filter</CardTitle>
           <CardDescription>
-            {rows.length} row{rows.length === 1 ? '' : 's'}
+            {logs.ok
+              ? `${rows.length} row${rows.length === 1 ? '' : 's'}`
+              : 'Delivery log unavailable'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -87,7 +97,15 @@ export default async function DeliveryLogPage(props: PageProps) {
               Apply
             </Button>
           </form>
-          <DeliveryLogTable rows={rows} recipientLabels={recipientLabels} />
+          {logs.ok ? (
+            <DeliveryLogTable rows={rows} recipientLabels={recipientLabels} />
+          ) : (
+            <ListLoadFailure
+              kind={logs.kind}
+              status={logs.status}
+              returnTo="/communication/delivery"
+            />
+          )}
         </CardContent>
       </Card>
     </div>

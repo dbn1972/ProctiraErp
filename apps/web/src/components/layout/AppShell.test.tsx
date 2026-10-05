@@ -48,6 +48,10 @@ vi.mock('./MobileShell', () => ({
   ),
 }));
 
+// PRC-M575: the conflict dialog has its own mount test (AppShell.conflict.test.tsx).
+vi.mock('@/components/sync/ConflictResolutionDialog', () => ({
+  ConflictResolutionDialog: () => <div data-stub="conflict-dialog" />,
+}));
 vi.mock('@/components/CommandPalette', () => ({
   CommandPalette: () => <div data-stub="command-palette" />,
 }));

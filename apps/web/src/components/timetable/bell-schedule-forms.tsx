@@ -7,8 +7,21 @@ import { Button } from '@proctira/ui/components';
 
 import { createBellScheduleAction, createPeriodAction } from '@/app/(dashboard)/timetable-actions';
 
-export function BellScheduleCreateForm(props: { academicPeriodId: string; institutionId: string }) {
+export function BellScheduleCreateForm(props: {
+  academicPeriodId: string;
+  institutionId?: string;
+  /**
+   * PRC-M070: when several institutions exist the operator must pick one
+   * explicitly instead of the form silently using the first.
+   */
+  institutions?: Array<{ id: string; name: string }>;
+}) {
   const router = useRouter();
+  const institutionChoices = props.institutions ?? [];
+  const needsPicker = institutionChoices.length > 1;
+  const [institutionId, setInstitutionId] = useState(
+    needsPicker ? '' : (institutionChoices[0]?.id ?? props.institutionId ?? ''),
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('Standard day');
@@ -23,7 +36,7 @@ export function BellScheduleCreateForm(props: { academicPeriodId: string; instit
         startTransition(async () => {
           const result = await createBellScheduleAction({
             academicPeriodId: props.academicPeriodId,
-            institutionId: props.institutionId,
+            institutionId,
             name,
             dayPattern,
           });
@@ -39,6 +52,25 @@ export function BellScheduleCreateForm(props: { academicPeriodId: string; instit
         });
       }}
     >
+      {needsPicker ? (
+        <label className="flex min-w-[12rem] flex-col gap-1 text-sm">
+          <span className="font-medium text-foreground">Institution</span>
+          <select
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
+            value={institutionId}
+            onChange={(e) => setInstitutionId(e.target.value)}
+            required
+            data-testid="bell-schedule-institution"
+          >
+            <option value="">Select institution…</option>
+            {institutionChoices.map((inst) => (
+              <option key={inst.id} value={inst.id}>
+                {inst.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm">
         <span className="font-medium text-foreground">Schedule name</span>
         <input

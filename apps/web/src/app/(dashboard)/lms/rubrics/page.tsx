@@ -4,9 +4,10 @@
 import { getTranslations } from 'next-intl/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
-import { listRubrics } from '@/lib/api/lms';
+import { listRubricsResult } from '@/lib/api/lms';
 import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 import { LmsSubnav } from '../_components/lms-subnav';
 import { RubricForm } from '../_components/rubric-form';
@@ -14,11 +15,12 @@ import { RubricForm } from '../_components/rubric-form';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsRubricsPage() {
-  const [items, schools, t] = await Promise.all([
-    listRubrics(),
+  const [rubrics, schools, t] = await Promise.all([
+    listRubricsResult(),
     loadInstitutionOptions(),
     getTranslations('lms'),
   ]);
+  const items = rubrics.ok ? rubrics.items : [];
   return (
     <section className="space-y-6" aria-labelledby="lms-rubrics-heading">
       <div>
@@ -36,7 +38,9 @@ export default async function LmsRubricsPage() {
           <RubricForm schools={schools} />
         </CardContent>
       </Card>
-      {items.length === 0 ? (
+      {!rubrics.ok ? (
+        <ListLoadFailure kind={rubrics.kind} status={rubrics.status} returnTo="/lms/rubrics" />
+      ) : items.length === 0 ? (
         <Card>
           <CardContent>
             <EmptyState title={t('rubricsEmptyTitle')} description={t('rubricsEmptyBody')} />

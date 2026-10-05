@@ -12,6 +12,8 @@
  *   3. Health / readiness `SELECT 1` probes
  *   4. Platform catalog tables with no `tenant_id` (insights reference data)
  *   5. Explicit GUC binder fallbacks (`set_config` only) in approved binder files
+ *   6. Literal relation-existence probes (`SELECT to_regclass('<name>') IS NOT NULL`):
+ *      system-catalog only, no FROM clause, no parameters, so no tenant rows are read
  *
  * Everything else that calls `pool.query` / `this.pool.query` is a violation.
  */
@@ -95,6 +97,7 @@ type Classification =
   | 'guc-binder'
   | 'ddl-ensure'
   | 'health-probe'
+  | 'catalog-probe'
   | 'platform-catalog'
   | 'violation';
 
@@ -236,6 +239,12 @@ function isHealthProbeSql(sql: string): boolean {
   return /^\s*SELECT\s+1\b/i.test(sql);
 }
 
+/** Literal-only `to_regclass` existence probe: reads pg_class, never tenant rows. */
+function isRelationExistenceProbeSql(sql: string): boolean {
+  return /^\s*SELECT\s+to_regclass\(\s*'[a-z_][a-z0-9_]*'\s*\)\s+IS\s+NOT\s+NULL(?:\s+AS\s+[a-z_]+)?\s*;?\s*$/i.test(
+    sql,
+  );
+}
 function isSetConfigOnly(sql: string): boolean {
   return /set_config\s*\(/i.test(sql) && !/\b(?:FROM|INTO|UPDATE|DELETE|INSERT)\b/i.test(sql);
 }
@@ -250,6 +259,7 @@ function classifyHit(hit: PoolQueryHit): Classification {
   if (isDdlEnsureFn(hit.fn)) return 'ddl-ensure';
 
   if (isHealthProbeSql(hit.sqlPreview)) return 'health-probe';
+  if (isRelationExistenceProbeSql(hit.sqlPreview)) return 'catalog-probe';
 
   const tables = extractSqlTables(hit.sqlPreview);
   if (tables.length > 0 && tables.every((t) => PLATFORM_CATALOG_TABLES.has(t))) {
@@ -347,6 +357,7 @@ describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
       'guc-binder': 0,
       'ddl-ensure': 0,
       'health-probe': 0,
+      'catalog-probe': 0,
       'platform-catalog': 0,
     };
 
@@ -372,6 +383,28 @@ describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
     // UP-P0-02: application repositories must contain no runtime DDL exceptions.
     expect(allowedCounts['ddl-ensure']).toBe(0);
     expect(allowedCounts['health-probe']).toBeGreaterThanOrEqual(1);
+  });
+
+  it('catalog-probe class accepts only literal to_regclass existence checks', () => {
+    const hit = (sqlPreview: string): PoolQueryHit => ({
+      file: 'x.ts',
+      line: 1,
+      fn: 'f',
+      sqlPreview,
+    });
+    expect(classifyHit(hit(`SELECT to_regclass('scholarship_fee_outbox') IS NOT NULL AS ok`))).toBe(
+      'catalog-probe',
+    );
+    // Parameterised, tenant-table reads, or extra clauses stay violations.
+    expect(classifyHit(hit('SELECT to_regclass($1) IS NOT NULL AS ok'))).toBe('violation');
+    expect(
+      classifyHit(
+        hit(`SELECT to_regclass('students') IS NOT NULL, (SELECT count(*) FROM students)`),
+      ),
+    ).toBe('violation');
+    expect(classifyHit(hit(`SELECT to_regclass('x') IS NOT NULL AS ok FROM students`))).toBe(
+      'violation',
+    );
   });
 
   it('approved helpers export withPgTenant / withPlatformScope binders', () => {

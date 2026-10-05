@@ -28,12 +28,14 @@ const SAMPLE_RESPONSE = {
 test.describe('Public Application Tracking page', () => {
   test('renders the form, submits a tracking number, and shows the status', async ({ page }) => {
     let requestedUrl: string | null = null;
+    let requestedBody: string | null = null;
 
     // Intercept the public read-only endpoint and reply with the sample
     // payload. We match by URL path so the test does not care which port
     // the dev server is on.
-    await page.route('**/api/v1/registrations/*/status**', async (route) => {
+    await page.route('**/api/v1/registrations/status', async (route) => {
       requestedUrl = route.request().url();
+      requestedBody = route.request().postData();
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -66,7 +68,13 @@ test.describe('Public Application Tracking page', () => {
     // The browser actually called the public registration endpoint with
     // the encoded tracking number from the form.
     expect(requestedUrl).not.toBeNull();
-    expect(requestedUrl).toContain(`/api/v1/registrations/${TRACKING_NUMBER}/status?dob=${DOB}`);
+    // PRC-M331: POST with DOB in the body; the URL carries no DOB.
+    expect(requestedUrl).toContain('/api/v1/registrations/status');
+    expect(requestedUrl).not.toContain(DOB);
+    expect(JSON.parse(requestedBody ?? '{}')).toEqual({
+      trackingNumber: TRACKING_NUMBER,
+      dateOfBirth: DOB,
+    });
 
     // Task 56.7 — populated result state must also pass WCAG 2.1 AA.
     // The badge, remarks, and interview sections each introduce
@@ -76,7 +84,7 @@ test.describe('Public Application Tracking page', () => {
   });
 
   test('shows the friendly "not found" alert on a 404', async ({ page }) => {
-    await page.route('**/api/v1/registrations/*/status**', async (route) => {
+    await page.route('**/api/v1/registrations/status', async (route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -95,7 +103,7 @@ test.describe('Public Application Tracking page', () => {
 
   test('rejects an empty tracking number client-side', async ({ page }) => {
     let networkCalls = 0;
-    await page.route('**/api/v1/registrations/*/status**', async (route) => {
+    await page.route('**/api/v1/registrations/status', async (route) => {
       networkCalls += 1;
       await route.fulfill({ status: 200, body: '{}' });
     });

@@ -153,7 +153,11 @@
     "mfaPrintCodes": "কোড প্রিন্ট করুন",
     "mfaAcknowledgement": "আমি আমার ব্যাকআপ কোড একটি নিরাপদ স্থানে সংরক্ষণ করেছি।",
     "mfaAcknowledgementHelp": "সেটআপ শেষ করার পরে আপনি আর এই কোডগুলি দেখতে পাবেন না।",
-    "mfaFinishSetup": "সেটআপ সম্পন্ন করুন"
+    "mfaFinishSetup": "সেটআপ সম্পন্ন করুন",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "ড্যাশবোর্ড",
@@ -637,7 +641,13 @@
     "rubricsNew": "নতুন রুব্রিক",
     "rubricsEmptyTitle": "এখনও কোনো রুব্রিক নেই",
     "rubricsEmptyBody": "প্রবন্ধ মূল্যায়নের জন্য একটি রুব্রিক তৈরি করুন।",
-    "rubricsAnySubject": "যেকোনো বিষয়"
+    "rubricsAnySubject": "যেকোনো বিষয়",
+    "searchStudents": "শিক্ষার্থী খুঁজুন",
+    "searchStudentsHint": "নামের অন্তত ২টি অক্ষর লিখুন, অথবা শিক্ষার্থী ID পেস্ট করুন।",
+    "studentsLoadFailed": "শিক্ষার্থীদের লোড করা যায়নি। আবার চেষ্টা করুন।",
+    "noStudentsMatch": "এই অনুসন্ধানের সাথে কোনো শিক্ষার্থী মেলেনি।",
+    "searchingStudents": "খোঁজা হচ্ছে…",
+    "studentResultsCount": "{count, plural, one {#জন শিক্ষার্থী পাওয়া গেছে} other {#জন শিক্ষার্থী পাওয়া গেছে}}"
   },
   "health": {
     "title": "স্বাস্থ্য রেকর্ড",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "প্রবেশ অস্বীকৃত",
     "accessDeniedHelp": "আপনার প্রবেশাধিকার থাকা উচিত মনে করলে আপনার প্রশাসকের সাথে যোগাযোগ করুন।",
     "returnToDashboard": "ড্যাশবোর্ডে ফিরে যান",
-    "tableAriaLabel": "স্বাস্থ্য রেকর্ড"
+    "tableAriaLabel": "স্বাস্থ্য রেকর্ড",
+    "unknownStudent": "অজানা শিক্ষার্থী"
   },
   "workflows": {
     "title": "ওয়ার্কফ্লো সংজ্ঞা",
@@ -901,6 +912,12 @@
     "inboxDescription": "আপনার সাইন-ইন করা অ্যাকাউন্টের সতর্কতা।",
     "empty": "এখনও কোনো বিজ্ঞপ্তি নেই। ইমেল, পুশ বা SMS বেছে নিতে পছন্দসমূহ ব্যবহার করুন — মোবাইল সতর্কতার জন্য ডিভাইস নিবন্ধন করুন।",
     "read": "পড়া হয়েছে",
-    "unread": "অপঠিত"
+    "unread": "অপঠিত",
+    "filterLabel": "বিজ্ঞপ্তি ফিল্টার করুন",
+    "filterAll": "সব",
+    "filterUnread": "অপঠিত",
+    "markRead": "পঠিত হিসেবে চিহ্নিত করুন",
+    "markAllRead": "সবগুলো পঠিত হিসেবে চিহ্নিত করুন",
+    "markReadFailed": "পঠিত হিসেবে চিহ্নিত করা যায়নি। আবার চেষ্টা করুন।"
   }
 }

@@ -35,6 +35,7 @@ export {
 } from './timetable-errors.js';
 
 export { TimetableService } from './timetable-service.js';
+export type { StaffInstitutionMembership, TimetableServiceOptions } from './timetable-service.js';
 export type { TimetableAuditEntry } from './timetable-service.js';
 export {
   assertTimetableAccess,

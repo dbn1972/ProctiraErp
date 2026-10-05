@@ -6,13 +6,9 @@
  *   - Class roster entries map student → status with optional comment.
  */
 import { z } from 'zod';
+import { isoDate, todayInTimeZone } from './zod-helpers';
 
 const uuid = z.string().uuid('Must be a valid UUID');
-
-const isoDate = z
-  .string()
-  .min(1, 'Date is required')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
 
 export const attendanceStatusSchema = z.enum([
   'PRESENT',
@@ -38,12 +34,17 @@ export const attendanceMarkingFormSchema = z
           comment: z.string().max(500).optional().or(z.literal('')),
         }),
       )
-      .min(1, 'Cannot record an empty roster'),
+      .min(1, 'Cannot record an empty roster')
+      .max(1000, 'At most 1000 students per submission')
+      .refine((rows) => new Set(rows.map((r) => r.studentId)).size === rows.length, {
+        message: 'Each student can only be marked once',
+      }),
   })
   .refine(
     (d) => {
-      // Compare YYYY-MM-DD strings for "no future dates" rule.
-      const today = new Date().toISOString().slice(0, 10);
+      // Compare YYYY-MM-DD strings for "no future dates" rule, using the tenant's
+      // wall-clock day (PRC-M494) rather than the UTC date.
+      const today = todayInTimeZone();
       return d.date <= today;
     },
     { message: 'Attendance date cannot be in the future', path: ['date'] },

@@ -278,6 +278,23 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(tenant?.legalHold).toBe(true);
   });
 
+  it('createTenant over a pre-existing row mirrors the table-owned columns instead of conflicting', async () => {
+    // Provisioning/registration create the `tenants` row before the document. The
+    // document written by createTenant above must not leave the row saying
+    // `active` / `legal_hold = false` (db/sql/067 fails a permanent delete closed on it).
+    const row = await asPlatformAdmin((c) =>
+      c.query<{ name: string; status: string; legal_hold: boolean; deleted_at: Date | null }>(
+        `SELECT name, status, legal_hold, deleted_at FROM tenants WHERE id = $1`,
+        [DOC_TENANT],
+      ),
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0]?.name).toBe('Doc Wins');
+    expect(row.rows[0]?.status).toBe('suspended');
+    expect(row.rows[0]?.legal_hold).toBe(true);
+    expect(row.rows[0]?.deleted_at).toBeNull();
+  });
+
   it('returns null for an unknown id rather than raising', async () => {
     expect(await repo.findTenantById('5a5a5a5a-0000-4000-8000-0000000000ff')).toBeNull();
   });

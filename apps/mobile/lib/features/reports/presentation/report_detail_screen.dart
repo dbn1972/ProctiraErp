@@ -5,6 +5,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/sync/connectivity_monitor.dart';
+import '../data/report_file_store.dart';
 import 'reports_screen.dart';
 import '../../../core/errors/user_error_message.dart';
 
@@ -20,9 +21,17 @@ const Color _slate = Color(0xFF64748B);
 /// enrollment-summary) it shows a placeholder table. For server-generated
 /// reports it fetches status from the API and offers a download button.
 class ReportDetailScreen extends StatefulWidget {
-  const ReportDetailScreen({super.key, required this.id});
+  const ReportDetailScreen({
+    super.key,
+    required this.id,
+    this.saveFile,
+  });
 
   final String id;
+
+  /// Where downloaded bytes are written (injectable for tests). Defaults to
+  /// the sealed, backup-excluded [ReportFileStore].
+  final ReportFileSaver? saveFile;
 
   @override
   State<ReportDetailScreen> createState() => _ReportDetailScreenState();
@@ -68,18 +77,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     try {
       final Uint8List bytes = await _reportApi!.downloadReport(widget.id);
       if (!mounted) return;
-      setState(() => _downloading = false);
       if (bytes.isEmpty) {
-        setState(() => _downloadError = 'Report file is empty.');
+        setState(() {
+          _downloading = false;
+          _downloadError = 'Report file is empty.';
+        });
         return;
       }
-      // Show a success snackbar. In a production app this would save to
-      // device storage or open a share sheet.
+      final ReportFileSaver save =
+          widget.saveFile ?? getIt<ReportFileStore>().save;
+      await save(widget.id, bytes);
+      if (!mounted) return;
+      setState(() => _downloading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Downloaded ${bytes.length} bytes'),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
-        ),
+        const SnackBar(content: Text('Report saved to this device.')),
       );
     } catch (error) {
       if (!mounted) return;
@@ -96,6 +107,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     // For predefined reports, show the placeholder view.
     if (_isPredefined) {
+      // Placeholder tables only in preview builds (PRC-M045).
+      if (!ReportsScreen.showPreviewReports) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Report')),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                "This report isn't available in the app yet.",
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ),
+        );
+      }
       return _buildPredefinedReport(theme);
     }
 

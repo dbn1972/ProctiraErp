@@ -19,7 +19,13 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
-import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+import type {
+  StaffEntity,
+  StaffFilter,
+  StaffRepository,
+  StaffTransactionScope,
+} from './staff-repository.js';
+import { matchesStaffType } from './staff-type.js';
 
 const PROFILE_KEY = '__profile';
 
@@ -133,26 +139,68 @@ function toEntity(row: StaffRow): StaffEntity {
   };
 }
 
+type StaffTx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
+
+async function createStaffRow(
+  tx: StaffTx,
+  data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>,
+): Promise<StaffEntity> {
+  const row = (await tx.staff.create({
+    data: {
+      id: data.id,
+      tenantId: data.tenantId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      dateOfBirth: new Date(data.dateOfBirth),
+      identityNumber: data.identityNumber,
+      customData: buildCustomData(data) as Prisma.InputJsonValue,
+    },
+  })) as StaffRow;
+  return toEntity(row);
+}
+
+/** Interactive-transaction limits for {@link PrismaStaffRepository.withTransaction}. */
+const STAFF_TX_MAX_WAIT_MS = 10_000;
+const STAFF_TX_TIMEOUT_MS = 120_000;
+
 export class PrismaStaffRepository implements StaffRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
-    return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
-      const row = (await tx.staff.create({
-        data: {
-          id: data.id,
-          tenantId: data.tenantId,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          dateOfBirth: new Date(data.dateOfBirth),
-          identityNumber: data.identityNumber,
-          customData: buildCustomData(data) as Prisma.InputJsonValue,
-        },
-      })) as StaffRow;
-      return toEntity(row);
-    });
+  async withTransaction<T>(
+    tenantId: string,
+    fn: (scope: StaffTransactionScope) => Promise<T>,
+  ): Promise<T> {
+    return withTenantTransaction(
+      this.prisma,
+      tenantId,
+      async (tx) => {
+        const scope: StaffTransactionScope = {
+          create: async (data) => {
+            if (data.tenantId !== tenantId) {
+              throw new Error('Staff transaction scope is bound to a different tenant');
+            }
+            return createStaffRow(tx, data);
+          },
+          executor: {
+            // Allowlisted in check-no-runtime-ddl (DYNAMIC_SQL_ALLOWLIST): callers pass static,
+            // parameterised DML (pg-hr-ops-store insertContract).
+            query: async (text, values = []) => ({
+              rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
+            }),
+          },
+        };
+        return fn(scope);
+      },
+      // allOrNothing imports hold one interactive transaction across every row; Prisma's 5s
+      // default would roll back large files with P2028.
+      { maxWait: STAFF_TX_MAX_WAIT_MS, timeout: STAFF_TX_TIMEOUT_MS },
+    );
   }
-
+  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
+    return withTenantTransaction(this.prisma, data.tenantId, async (tx) =>
+      createStaffRow(tx, data),
+    );
+  }
   async update(
     id: string,
     tenantId: string,
@@ -215,6 +263,7 @@ export class PrismaStaffRepository implements StaffRepository {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       // status/position live in custom_data → filter in-memory after fetch.
       const where: Record<string, unknown> = { tenantId, deletedAt: null };
+      if (filter.ids) where.id = { in: [...filter.ids] };
       if (filter.search) {
         const terms = filter.search.trim().split(/\s+/).filter(Boolean);
         if (terms.length > 0) {
@@ -239,6 +288,10 @@ export class PrismaStaffRepository implements StaffRepository {
       let entities = allRows.map(toEntity);
       if (filter.status) entities = entities.filter((s) => s.status === filter.status);
       if (filter.position) entities = entities.filter((s) => s.position === filter.position);
+      if (filter.staffType) {
+        const type = filter.staffType;
+        entities = entities.filter((s) => matchesStaffType(s.position, type));
+      }
 
       const totalItems = entities.length;
       const skip = (page - 1) * pageSize;
@@ -292,6 +345,22 @@ export class PrismaStaffRepository implements StaffRepository {
     });
   }
 
+  async listAfterId(
+    tenantId: string,
+    afterId: string | null,
+    limit: number,
+  ): Promise<StaffEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const where: Record<string, unknown> = { tenantId, deletedAt: null };
+      if (afterId) where.id = { gt: afterId };
+      const rows = (await tx.staff.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        take: Math.max(1, Math.min(limit, 1000)),
+      })) as StaffRow[];
+      return rows.map(toEntity);
+    });
+  }
   async purgeCreated(id: string, tenantId: string): Promise<void> {
     await withTenantTransaction(this.prisma, tenantId, async (tx) => {
       await tx.staff.deleteMany({ where: { id, tenantId } });

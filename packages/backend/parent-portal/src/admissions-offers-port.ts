@@ -23,6 +23,6 @@ export interface AdmissionsOffersPort {
     tenantId: string,
     offerId: string,
     guardianEmail: string,
-    input: { paymentRef: string; offerFeeInvoiceId?: string },
+    input: { paymentRef?: string; offerFeeInvoiceId?: string },
   ): Promise<ParentAdmissionOffer>;
 }

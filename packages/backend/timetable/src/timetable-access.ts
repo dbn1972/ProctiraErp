@@ -3,7 +3,8 @@
  */
 import { AppError } from '@proctira/common';
 
-export type TimetableAction = 'schedule.write' | 'schedule.publish';
+/** `schedule.read`: staff-only reads (rosters, generation jobs, absences) — PRC-M406. */
+export type TimetableAction = 'schedule.write' | 'schedule.publish' | 'schedule.read';
 
 const ADMIN_ROLES = [
   'admin',
@@ -16,9 +17,20 @@ const ADMIN_ROLES = [
 
 const SCHEDULER_ROLES = ['registrar', 'scheduler', 'timetable_officer', ...ADMIN_ROLES] as const;
 
+/** School staff who may see rosters / scheduling internals (never student/parent/guardian). */
+const STAFF_READ_ROLES = [
+  'teacher',
+  'staff',
+  'staff_admin',
+  'hod',
+  'coordinator',
+  'academic_coordinator',
+  ...SCHEDULER_ROLES,
+] as const;
 const ACTION_ROLES: Record<TimetableAction, readonly string[]> = {
   'schedule.write': SCHEDULER_ROLES,
   'schedule.publish': SCHEDULER_ROLES,
+  'schedule.read': STAFF_READ_ROLES,
 };
 
 export function normalizeTimetableRoles(roles: unknown): string[] {

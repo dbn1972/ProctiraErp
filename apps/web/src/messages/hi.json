@@ -153,7 +153,11 @@
     "mfaPrintCodes": "कोड प्रिंट करें",
     "mfaAcknowledgement": "मैंने अपने बैकअप कोड एक सुरक्षित स्थान पर सहेज लिए हैं।",
     "mfaAcknowledgementHelp": "सेटअप समाप्त करने के बाद आप इन कोडों को फिर से नहीं देख पाएंगे।",
-    "mfaFinishSetup": "सेटअप समाप्त करें"
+    "mfaFinishSetup": "सेटअप समाप्त करें",
+    "useBackupCode": "इसके बजाय बैकअप कोड का उपयोग करें",
+    "useAuthenticatorCode": "ऑथेंटिकेटर कोड का उपयोग करें",
+    "backupCodeLabel": "बैकअप कोड",
+    "backupCodeIncomplete": "अपने बैकअप कोड में से एक दर्ज करें (कम से कम 8 अक्षर)।"
   },
   "dashboard": {
     "title": "डैशबोर्ड",
@@ -637,7 +641,13 @@
     "rubricsNew": "नया रूब्रिक",
     "rubricsEmptyTitle": "अभी कोई रूब्रिक नहीं",
     "rubricsEmptyBody": "निबंधों के मूल्यांकन के लिए एक रूब्रिक बनाएँ।",
-    "rubricsAnySubject": "कोई भी विषय"
+    "rubricsAnySubject": "कोई भी विषय",
+    "searchStudents": "विद्यार्थी खोजें",
+    "searchStudentsHint": "नाम के कम से कम 2 अक्षर लिखें, या विद्यार्थी ID चिपकाएँ।",
+    "studentsLoadFailed": "विद्यार्थी लोड नहीं हो सके। फिर से प्रयास करें।",
+    "noStudentsMatch": "इस खोज से कोई विद्यार्थी मेल नहीं खाता।",
+    "searchingStudents": "खोज रहे हैं…",
+    "studentResultsCount": "{count, plural, one {# विद्यार्थी मिला} other {# विद्यार्थी मिले}}"
   },
   "health": {
     "title": "स्वास्थ्य रिकॉर्ड",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "पहुँच अस्वीकृत",
     "accessDeniedHelp": "यदि आपको लगता है कि आपके पास पहुँच होनी चाहिए तो अपने प्रशासक से संपर्क करें।",
     "returnToDashboard": "डैशबोर्ड पर वापस जाएँ",
-    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड"
+    "tableAriaLabel": "स्वास्थ्य रिकॉर्ड",
+    "unknownStudent": "अज्ञात छात्र"
   },
   "workflows": {
     "title": "कार्यप्रवाह परिभाषाएं",
@@ -901,6 +912,12 @@
     "inboxDescription": "आपके साइन-इन खाते के अलर्ट।",
     "empty": "अभी कोई सूचना नहीं। ईमेल, पुश या SMS चुनने के लिए प्राथमिकताएँ देखें — और मोबाइल अलर्ट के लिए डिवाइस पंजीकृत करें।",
     "read": "पढ़ा गया",
-    "unread": "अपठित"
+    "unread": "अपठित",
+    "filterLabel": "सूचनाएँ फ़िल्टर करें",
+    "filterAll": "सभी",
+    "filterUnread": "अपठित",
+    "markRead": "पढ़ा हुआ चिह्नित करें",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
+    "markReadFailed": "पढ़ा हुआ चिह्नित नहीं हो सका। फिर से प्रयास करें।"
   }
 }

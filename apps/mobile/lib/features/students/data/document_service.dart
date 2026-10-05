@@ -1,9 +1,6 @@
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
-
+import '../../../core/storage/captured_document_store.dart';
 import '../../../core/sync/student_document_dispatcher.dart';
 import '../data/student_repository.dart';
 
@@ -27,25 +24,19 @@ class DocumentUploadResult {
   final String? rejectedReason;
 }
 
-Future<Directory> _defaultStorageDir() async => Directory(
-  p.join((await getApplicationSupportDirectory()).path, 'pending_documents'),
-);
-
 /// Records a captured document against a student and queues its upload
 /// (PRC-H016).
 ///
-/// The picked file is first copied into app-private storage (camera/gallery
-/// temp files can be purged by the OS before the device is back online); the
-/// copy is uploaded by [StudentDocumentSyncDispatcher] and deleted after the
-/// server accepts it.
+/// The picked file is sealed into the app-private encrypted
+/// [CapturedDocumentStore] and the plaintext picker temp file deleted
+/// (PRC-M046); the sealed copy is uploaded by [StudentDocumentSyncDispatcher]
+/// and deleted after the server accepts it.
 class DocumentService {
-  DocumentService(
-    this._repository, {
-    Future<Directory> Function() storageDir = _defaultStorageDir,
-  }) : _storageDir = storageDir;
+  DocumentService(this._repository, {required CapturedDocumentStore store})
+    : _store = store;
 
   final StudentRepository _repository;
-  final Future<Directory> Function() _storageDir;
+  final CapturedDocumentStore _store;
 
   Future<DocumentUploadResult> uploadCapturedDocument({
     required String studentId,
@@ -55,6 +46,7 @@ class DocumentService {
     final File source = File(filePath);
     final int size = await source.length();
     if (size > kMaxStudentDocumentBytes) {
+      await _store.discard(filePath);
       return DocumentUploadResult(
         studentId: studentId,
         filePath: filePath,
@@ -62,13 +54,7 @@ class DocumentService {
         rejectedReason: 'Document is larger than 10 MB',
       );
     }
-    final Directory dir = await _storageDir();
-    await dir.create(recursive: true);
-    final String durablePath = p.join(
-      dir.path,
-      '${const Uuid().v4()}${p.extension(filePath).toLowerCase()}',
-    );
-    await source.copy(durablePath);
+    final String durablePath = await _store.seal(source);
 
     final CachedStudent? saved = await _repository.attachDocument(
       studentId: studentId,
@@ -77,7 +63,7 @@ class DocumentService {
     );
     if (saved == null) {
       // Nothing queued; don't leave an orphaned copy of the child's document.
-      await File(durablePath).delete();
+      await _store.discard(durablePath);
     }
     return DocumentUploadResult(
       studentId: studentId,

@@ -13,12 +13,29 @@
 import {
   NotFoundError,
   BusinessRuleError,
+  ConflictError,
+  ForbiddenError,
   ValidationError,
   WorkflowStateType,
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { EscalationService } from './escalation-service.js';
+import {
+  filterVisibleInstances,
+  isAssignee,
+  type TransitionActor,
+  type VisibilityOptions,
+} from './instance-visibility.js';
+import type {
+  CreateWorkflowDefinitionInput,
+  UpdateWorkflowDefinitionInput,
+  CreateWorkflowInstanceInput,
+  TransitionRequestInput,
+  WorkflowStateInput,
+  WorkflowTransitionInput,
+} from './schemas.js';
 import type {
   WorkflowRepository,
   WorkflowDefinitionEntity,
@@ -28,21 +45,21 @@ import type {
   WorkflowInstanceStatus,
   TransitionAuditEntity,
 } from './workflow-repository.js';
-import type {
-  CreateWorkflowDefinitionInput,
-  UpdateWorkflowDefinitionInput,
-  CreateWorkflowInstanceInput,
-  TransitionRequestInput,
-  WorkflowStateInput,
-  WorkflowTransitionInput,
-} from './schemas.js';
-import type { EscalationService } from './escalation-service.js';
+
+export { isAssignee, type TransitionActor } from './instance-visibility.js';
 
 /**
  * Service handling workflow engine business logic.
  */
 export class WorkflowService {
   private escalationService: EscalationService | null = null;
+  /**
+   * PRC-H110: when true, definitions carrying escalationRules are rejected
+   * (422) while no escalation publisher/consumer is wired. Default false:
+   * accepted, and escalation health reports degraded instead.
+   */
+  private rejectUnwiredEscalations = false;
+  private escalationsWired = false;
 
   constructor(private readonly repository: WorkflowRepository) {}
 
@@ -52,6 +69,21 @@ export class WorkflowService {
    */
   setEscalationService(escalationService: EscalationService): void {
     this.escalationService = escalationService;
+  }
+
+  /** PRC-H110: record whether escalations will actually be processed. */
+  setEscalationWiring(wired: boolean, rejectUnwired: boolean): void {
+    this.escalationsWired = wired;
+    this.rejectUnwiredEscalations = rejectUnwired;
+  }
+
+  private assertEscalationsProcessable(rules: readonly unknown[] | null | undefined): void {
+    if (!this.rejectUnwiredEscalations || this.escalationsWired) return;
+    if (rules && rules.length > 0) {
+      throw new BusinessRuleError(
+        'Escalation rules are not supported: no escalation worker is configured (WORKFLOW_REJECT_UNWIRED_ESCALATIONS=true)',
+      );
+    }
   }
 
   // ─── Workflow Definition CRUD ────────────────────────────────────────────
@@ -72,6 +104,7 @@ export class WorkflowService {
     input: CreateWorkflowDefinitionInput,
   ): Promise<WorkflowDefinitionEntity> {
     this.validateDefinitionStructure(input.states, input.transitions, input.escalationRules ?? []);
+    this.assertEscalationsProcessable(input.escalationRules);
 
     const definition: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
@@ -130,6 +163,7 @@ export class WorkflowService {
     if (input.description !== undefined) updateData.description = input.description;
     if (input.states !== undefined) updateData.states = input.states;
     if (input.transitions !== undefined) updateData.transitions = input.transitions;
+    this.assertEscalationsProcessable(input.escalationRules);
     if (input.escalationRules !== undefined) updateData.escalationRules = input.escalationRules;
 
     const updated = await this.repository.updateDefinition(id, tenantId, updateData);
@@ -251,7 +285,13 @@ export class WorkflowService {
     tenantId: string,
     instanceId: string,
     input: TransitionRequestInput,
+    actor?: TransitionActor,
   ): Promise<WorkflowInstanceEntity> {
+    // PRC-M490: an explicit actor (HTTP route) wins over any body-supplied actorId.
+    const actorId = actor?.id ?? input.actorId;
+    if (!actorId) {
+      throw new ValidationError('Transition actor is required');
+    }
     const instance = await this.repository.findInstanceById(instanceId, tenantId);
     if (!instance) {
       throw new NotFoundError(`Workflow instance with id '${instanceId}' not found`);
@@ -285,13 +325,29 @@ export class WorkflowService {
       );
     }
 
+    // PRC-M490: only the assignee of the current state may act on it.
+    if (actor) {
+      const currentState = definition.states.find((st) => st.id === instance.currentStateId);
+      if (!currentState || !isAssignee(currentState, actor)) {
+        throw new ForbiddenError('You are not assigned to the current workflow state');
+      }
+    }
+    // PRC-M490: one approval per actor per state+action, so a single user cannot satisfy
+    // requiredApprovals by transitioning repeatedly.
+    const alreadyApproved = instance.approvals.some(
+      (a) =>
+        a.stateId === instance.currentStateId && a.action === input.action && a.actorId === actorId,
+    );
+    if (alreadyApproved) {
+      throw new ConflictError('You have already recorded this action for the current state');
+    }
     // Handle parallel approval paths (Requirement 13.4)
     const requiredApprovals = validTransition.requiredApprovals ?? 1;
 
     // Record this approval
     const newApproval = {
       stateId: instance.currentStateId,
-      actorId: input.actorId,
+      actorId,
       action: input.action,
       timestamp: new Date(),
     };
@@ -325,7 +381,7 @@ export class WorkflowService {
       fromStateId: instance.currentStateId,
       toStateId: newStateId,
       action: input.action,
-      actorId: input.actorId,
+      actorId,
       comments: input.comments ?? null,
       timestamp: new Date(),
     };
@@ -379,6 +435,50 @@ export class WorkflowService {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<WorkflowInstanceEntity>> {
     return this.repository.listInstances(tenantId, filter, pagination);
+  }
+
+  /**
+   * PRC-M491: caller-scoped instance list. Loads the filtered set (bounded), applies
+   * entity-type visibility, `mine` assignee matching and priority/SLA filters, then
+   * paginates so `totalItems` matches the filtered result.
+   */
+  async listInstancesForActor(
+    tenantId: string,
+    filter: WorkflowInstanceFilter,
+    pagination: PaginationOptions,
+    actor: TransitionActor,
+    options: VisibilityOptions = {},
+  ): Promise<PaginatedResult<WorkflowInstanceEntity>> {
+    const MAX_SCAN = 5000;
+    const CHUNK = 500;
+    const all: WorkflowInstanceEntity[] = [];
+    for (let page = 1; all.length < MAX_SCAN; page += 1) {
+      const chunk = await this.repository.listInstances(tenantId, filter, {
+        page,
+        pageSize: CHUNK,
+      });
+      all.push(...chunk.data);
+      if (chunk.data.length < CHUNK || page >= chunk.meta.totalPages) break;
+    }
+    const definitions = new Map<string, WorkflowDefinitionEntity>();
+    if (options.mine) {
+      for (const id of new Set(all.map((i) => i.workflowDefinitionId))) {
+        const def = await this.repository.findDefinitionById(id, tenantId);
+        if (def) definitions.set(id, def);
+      }
+    }
+    const visible = filterVisibleInstances(all, definitions, actor, options);
+    const page = Math.max(1, pagination.page);
+    const pageSize = Math.max(1, pagination.pageSize);
+    return {
+      data: visible.slice((page - 1) * pageSize, page * pageSize),
+      meta: {
+        page,
+        pageSize,
+        totalItems: visible.length,
+        totalPages: Math.ceil(visible.length / pageSize),
+      },
+    };
   }
 
   // ─── Private Helpers ─────────────────────────────────────────────────────
