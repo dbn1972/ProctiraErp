@@ -191,21 +191,19 @@ Future<JourneyHarness> bootstrapTestApp({
   // Reset any leftover registrations from a prior test in the same isolate.
   await resetDependencies();
 
-  await configureDependencies(apiBaseUrl: 'http://test.invalid');
-
-  // Replace the production database with one rooted in a temp file so each
-  // test starts with a clean store.
+  // A database rooted in a temp file so each test starts with a clean store.
+  // Injected up front (not swapped afterwards) so the AuthBloc's sign-out /
+  // workspace-switch purge and unsynced-work inspection use this same store.
   final Directory tempDir = await Directory.systemTemp.createTemp(
     'openemis_int_',
   );
   final AppDatabase tempDb = AppDatabase(
     overridePath: '${tempDir.path}/openemis.db',
   );
-  await getIt.unregister<AppDatabase>(
-    instance: getIt<AppDatabase>(),
-    disposingFunction: (AppDatabase d) => d.close(),
+  await configureDependencies(
+    apiBaseUrl: 'http://test.invalid',
+    database: tempDb,
   );
-  getIt.registerSingleton<AppDatabase>(tempDb);
 
   // Replace the Dio adapter with one that fails any unexpected outbound
   // request. Tests that need a controlled response should re-register Dio.
