@@ -12,6 +12,7 @@ import { NotFoundError, BusinessRuleError, ConflictError, ValidationError } from
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 import type {
   TrainingProgramEntity,
   TrainingSessionEntity,
@@ -43,6 +44,49 @@ export interface NotificationIntegration {
     certificationName: string,
     expiryDate: string,
   ): Promise<void>;
+}
+
+/**
+ * PRC-M380: fallback when the expiry job has not run yet — an ACTIVE
+ * certification whose expiry date has been reached reads as EXPIRED
+ * (same `expiryDate <= today` rule as processExpiredCertifications).
+ */
+export function withEffectiveStatus(
+  cert: CertificationEntity,
+  today: string = new Date().toISOString().slice(0, 10),
+): CertificationEntity {
+  if (cert.status === CertificationStatus.ACTIVE && cert.expiryDate && cert.expiryDate <= today) {
+    return { ...cert, status: CertificationStatus.EXPIRED };
+  }
+  return cert;
+}
+
+/**
+ * PRC-M380: per-tenant daily expiry run for a scheduler. Idempotent (only
+ * ACTIVE certs are selected) and isolated: one tenant failing does not stop
+ * the others. Returns per-tenant counts and errors for the job log.
+ */
+export async function runCertificationExpiryJob(
+  service: Pick<TrainingService, 'processExpiredCertifications'>,
+  tenantIds: readonly string[],
+): Promise<{
+  expired: Record<string, number>;
+  failures: Array<{ tenantId: string; certificationId?: string; error: unknown }>;
+}> {
+  const expired: Record<string, number> = {};
+  const failures: Array<{ tenantId: string; certificationId?: string; error: unknown }> = [];
+  for (const tenantId of tenantIds) {
+    try {
+      const certs = await service.processExpiredCertifications(tenantId, undefined, {
+        onNotificationError: (certificationId, error) =>
+          failures.push({ tenantId, certificationId, error }),
+      });
+      expired[tenantId] = certs.length;
+    } catch (error) {
+      failures.push({ tenantId, error });
+    }
+  }
+  return { expired, failures };
 }
 
 /** PRC-L154: defense in depth — never let non-positive/unbounded paging reach SQL. */
@@ -85,6 +129,8 @@ export class TrainingService {
     private readonly attendanceRepository: TrainingAttendanceRepository,
     private readonly certificationRepository: CertificationRepository,
     private readonly notificationIntegration?: NotificationIntegration,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
   ) {}
 
   // ─── Training Programs ───────────────────────────────────────────────
@@ -308,6 +354,7 @@ export class TrainingService {
     tenantId: string,
     input: RecordTrainingAttendanceInput,
   ): Promise<TrainingAttendanceEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     const session = await this.sessionRepository.findById(input.sessionId, tenantId);
     if (!session) {
       throw new NotFoundError(`Training session with id '${input.sessionId}' not found`);
@@ -370,6 +417,7 @@ export class TrainingService {
     tenantId: string,
     input: IssueCertificationInput,
   ): Promise<CertificationEntity> {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     assertCalendarDates({ issuedDate: input.issuedDate, expiryDate: input.expiryDate });
     const program = await this.programRepository.findById(input.programId, tenantId);
     if (!program) {
@@ -427,7 +475,30 @@ export class TrainingService {
     if (!cert) {
       throw new NotFoundError(`Certification with id '${certificationId}' not found`);
     }
-    return cert;
+    return withEffectiveStatus(cert);
+  }
+
+  /**
+   * PRC-M377: undo a wrongful expiry. Only EXPIRED certifications whose expiry
+   * date has not actually passed may be reinstated to ACTIVE.
+   */
+  async reinstateCertification(
+    tenantId: string,
+    certificationId: string,
+  ): Promise<CertificationEntity> {
+    const cert = await this.getCertification(tenantId, certificationId);
+    if (cert.status !== CertificationStatus.EXPIRED) {
+      throw new BusinessRuleError(`Only EXPIRED certifications can be reinstated`);
+    }
+    const today = new Date().toISOString().split('T')[0]!;
+    if (cert.expiryDate != null && cert.expiryDate <= today) {
+      throw new BusinessRuleError(`Certification expiry date ${cert.expiryDate} has passed`);
+    }
+    const updated = await this.certificationRepository.update(certificationId, tenantId, {
+      status: CertificationStatus.ACTIVE,
+    });
+    if (!updated) throw new NotFoundError(`Certification with id '${certificationId}' not found`);
+    return updated;
   }
 
   /**
@@ -438,7 +509,12 @@ export class TrainingService {
     filter: CertificationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CertificationEntity>> {
-    return this.certificationRepository.list(tenantId, filter, clampTrainingPagination(pagination));
+    const result = await this.certificationRepository.list(
+      tenantId,
+      filter,
+      clampTrainingPagination(pagination),
+    );
+    return { ...result, data: result.data.map((cert) => withEffectiveStatus(cert)) };
   }
 
   /**
@@ -455,14 +531,27 @@ export class TrainingService {
   async processExpiredCertifications(
     tenantId: string,
     asOfDate?: string,
+    options: {
+      dryRun?: boolean;
+      /** PRC-M380: a notifier failure no longer aborts the batch; it is reported here. */
+      onNotificationError?: (certificationId: string, error: unknown) => void;
+    } = {},
   ): Promise<CertificationEntity[]> {
     assertCalendarDates({ asOfDate });
-    const checkDate = asOfDate ?? new Date().toISOString().split('T')[0]!;
+    const today = new Date().toISOString().split('T')[0]!;
+    // PRC-M377: a future asOfDate would irreversibly expire still-valid certificates.
+    if (asOfDate !== undefined && asOfDate > today) {
+      throw new ValidationError('Validation failed', [
+        { field: 'asOfDate', message: 'asOfDate must not be in the future', rule: 'max' },
+      ]);
+    }
+    const checkDate = asOfDate ?? today;
 
     const expiredCerts = await this.certificationRepository.findExpiredCertifications(
       tenantId,
       checkDate,
     );
+    if (options.dryRun) return expiredCerts;
 
     const updatedCerts: CertificationEntity[] = [];
 
@@ -475,14 +564,19 @@ export class TrainingService {
       if (updated) {
         updatedCerts.push(updated);
 
-        // Trigger notification
+        // Trigger notification. PRC-M380: the status change is already durable;
+        // one failing notification must not abort expiry for the rest.
         if (this.notificationIntegration) {
-          await this.notificationIntegration.sendCertificationExpiryNotification(
-            tenantId,
-            cert.staffId,
-            cert.certificationName,
-            cert.expiryDate!,
-          );
+          try {
+            await this.notificationIntegration.sendCertificationExpiryNotification(
+              tenantId,
+              cert.staffId,
+              cert.certificationName,
+              cert.expiryDate!,
+            );
+          } catch (error) {
+            options.onNotificationError?.(cert.id, error);
+          }
         }
       }
     }

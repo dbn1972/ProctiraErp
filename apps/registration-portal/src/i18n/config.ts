@@ -2,17 +2,18 @@
  * Internationalization configuration for the Registration Portal.
  *
  * Required by spec: English, Spanish, French, Arabic (Arabic is RTL).
- * Hebrew is included for parity with the rest of the ProctiraERP platform.
+ * A locale is listed only when `src/messages/<locale>.json` exists with full
+ * key parity to en.json (PRC-M053; enforced by i18n/catalogs.test.ts).
  */
 
 export const defaultLocale = 'en';
 
-export const locales = ['en', 'es', 'fr', 'ar', 'he'] as const;
+export const locales = ['en', 'es', 'fr', 'ar'] as const;
 
 export type Locale = (typeof locales)[number];
 
 /** Locales that use right-to-left text direction */
-export const rtlLocales: ReadonlySet<string> = new Set(['ar', 'he']);
+export const rtlLocales: ReadonlySet<string> = new Set(['ar']);
 
 /** Returns the text direction for a given locale */
 export function getDirection(locale: string): 'ltr' | 'rtl' {

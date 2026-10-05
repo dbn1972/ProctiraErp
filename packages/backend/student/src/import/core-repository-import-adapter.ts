@@ -10,7 +10,11 @@ import type {
   StudentRepository as CoreStudentRepository,
 } from '../student-repository.js';
 
-import type { StudentRecord, StudentRepository as ImportStudentRepository } from './types.js';
+import type {
+  ImportBulkOps,
+  StudentRecord,
+  StudentRepository as ImportStudentRepository,
+} from './types.js';
 
 function primaryContact(entity: StudentEntity, type: string): string | null {
   const contacts = entity.contacts.filter((c) => c.type === type);
@@ -89,7 +93,42 @@ function toEntityPatch(data: RecordInput): Partial<StudentEntity> {
 }
 
 export class CoreRepositoryImportAdapter implements ImportStudentRepository {
-  constructor(private readonly core: CoreStudentRepository) {}
+  /** PRC-M384: present only when the core store can run one DB transaction. */
+  readonly bulkImport?: (tenantId: string, ops: ImportBulkOps) => Promise<{ createdIds: string[] }>;
+
+  constructor(private readonly core: CoreStudentRepository) {
+    const bulk = core.bulkWrite?.bind(core);
+    if (bulk) {
+      this.bulkImport = async (tenantId, ops) => {
+        const result = await bulk(tenantId, {
+          creates: ops.creates.map((data) => this.toNewEntity(tenantId, data)),
+          updates: ops.updates.map(({ id, data }) => ({ id, data: toEntityPatch(data) })),
+        });
+        return { createdIds: result.created.map((e) => e.id) };
+      };
+    }
+  }
+
+  private toNewEntity(
+    tenantId: string,
+    data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>,
+  ) {
+    const patch = toEntityPatch(data);
+    return {
+      id: randomUUID(),
+      tenantId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      dateOfBirth: data.dateOfBirth,
+      gender: data.gender ?? '',
+      nationalId: data.nationalId,
+      nationality: data.nationality,
+      contacts: patch.contacts ?? [],
+      guardians: patch.guardians ?? [],
+      identityDocuments: [],
+      customData: patch.customData ?? {},
+    };
+  }
 
   async findById(tenantId: string, id: string): Promise<StudentRecord | null> {
     const entity = await this.core.findById(id, tenantId);
@@ -127,21 +166,7 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     tenantId: string,
     data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>,
   ): Promise<StudentRecord> {
-    const patch = toEntityPatch(data);
-    const entity = await this.core.create({
-      id: randomUUID(),
-      tenantId,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender ?? '',
-      nationalId: data.nationalId,
-      nationality: data.nationality,
-      contacts: patch.contacts ?? [],
-      guardians: patch.guardians ?? [],
-      identityDocuments: [],
-      customData: patch.customData ?? {},
-    });
+    const entity = await this.core.create(this.toNewEntity(tenantId, data));
     return toRecord(entity);
   }
 

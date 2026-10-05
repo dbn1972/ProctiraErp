@@ -174,11 +174,7 @@ import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
-import {
-  createScholarshipDownloadAuditRecorder,
-  createScholarshipDownloadReplayGuard,
-  type DownloadAuditService,
-} from './scholarship-download-controls.js';
+import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
@@ -358,13 +354,46 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
   );
 }
 
+/**
+ * PRC-M327: the invoice used to accept an offer must be the server-raised
+ * admissions invoice for that application, for exactly the offer fee.
+ */
+export function assertOfferFeeInvoiceMatchesOffer(
+  invoice: {
+    createdBy?: string | null;
+    description?: string | null;
+    amountCents: number;
+    currency: string;
+  },
+  offer: { applicationId: string; expectedAmount: number; expectedCurrency: string },
+): void {
+  if (
+    invoice.createdBy !== 'admissions-offer' ||
+    invoice.description !== `Admission application ${offer.applicationId}` ||
+    invoice.amountCents !== offerFeeAmountCents(offer.expectedAmount) ||
+    invoice.currency !== (offer.expectedCurrency || 'INR')
+  ) {
+    throw new BusinessRuleError('Offer fee invoice does not match this offer');
+  }
+}
 function assertOfferFeePaidHook() {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
   // PSP webhook / callback path; a client paymentRef is never payment proof.
-  return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+  return async (input: {
+    tenantId: string;
+    invoiceId: string;
+    applicationId: string;
+    offerId: string;
+    expectedAmount: number;
+    expectedCurrency: string;
+    paymentRef?: string | null;
+  }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    // PRC-M327: the invoice must be the admissions invoice for THIS application
+    // and match the offer fee exactly (no swapping in a cheaper/foreign invoice).
+    assertOfferFeeInvoiceMatchesOffer(invoice, input);
     assertOfferFeeInvoicePaid(invoice.status);
   };
 }
@@ -934,7 +963,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         ? linkedStudentIdsForParent
         : undefined;
       // PRC-L344: single-use download links are enforced through shared Redis (REDIS_URL) so
-      // they hold across replicas; every served download writes a durable audit_log row.
+      // they hold across replicas. Every served download writes one hash-chained access row
+      // through the scholarship document store (PRC-M353) before any bytes are sent.
       let downloadReplayRedis: RedisLikeForDownloadReplay | undefined;
       const scholarshipRedisUrl = process.env['REDIS_URL']?.trim();
       if (scholarshipRedisUrl) {
@@ -952,12 +982,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         redis: downloadReplayRedis,
         NODE_ENV: process.env['NODE_ENV'],
       });
-      const recordDownloadAudit = createScholarshipDownloadAuditRecorder(
-        () => (scope as unknown as { auditService?: DownloadAuditService }).auditService,
-      );
       await scope.register(scholarshipPlugin, {
         downloadReplayGuard,
-        recordDownloadAudit,
         repository,
         prefix: '/scholarships',
         documentStore,
@@ -998,7 +1024,6 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         documentStore,
         resolveLinkedStudentIds,
         downloadReplayGuard,
-        recordDownloadAudit,
       });
     },
   },

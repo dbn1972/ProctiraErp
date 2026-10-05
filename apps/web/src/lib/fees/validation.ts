@@ -108,6 +108,30 @@ export const refundFormSchema = z.object({
   reason: z.string().min(1, 'Reason is required').max(2000),
 });
 
+/** Payment methods staff can record against an invoice (PRC-M065). */
+export const STAFF_PAYMENT_METHODS = ['cash', 'upi', 'card'] as const;
+
+/**
+ * The `sandbox` method is only offered when explicitly enabled for a
+ * non-production deployment (`NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS=true`).
+ */
+export function isSandboxPaymentEnabled(): boolean {
+  return (
+    process.env['NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS'] === 'true' &&
+    process.env['NODE_ENV'] !== 'production'
+  );
+}
+
+/** Staff "record payment" — POST /fees/invoices/:id/pay (PRC-M065). */
+export const staffPaymentFormSchema = z.object({
+  invoiceId: z.string().regex(UUID, 'Invoice is required'),
+  method: z.enum([...STAFF_PAYMENT_METHODS, 'sandbox'], {
+    message: 'Select a payment method',
+  }),
+  amount: positiveAmount('Amount'),
+  idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
+});
+
 export const reconciliationFormSchema = z.object({
   csv: z.string().min(1, 'CSV is required'),
   filename: z.string().max(255).optional(),
@@ -158,6 +182,7 @@ export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
 export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
+export type StaffPaymentFormValues = z.input<typeof staffPaymentFormSchema>;
 export type ResolveReconExceptionFormValues = z.infer<typeof resolveReconExceptionFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
 export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;

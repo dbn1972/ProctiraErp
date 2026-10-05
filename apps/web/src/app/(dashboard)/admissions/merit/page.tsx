@@ -1,11 +1,16 @@
 import { getMeritList, listApplications } from '@/lib/api/admissions';
-import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
+import { loadAdmissionsLookups, pickSelectedLookup } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { MeritPanel } from '../_components/merit-panel';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdmissionsMeritPage() {
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function AdmissionsMeritPage(props: PageProps) {
+  const searchParams = (await props.searchParams) ?? {};
   const [{ institutions, periods, grades }, applications] = await Promise.all([
     loadAdmissionsLookups(),
     listApplications(),
@@ -15,9 +20,10 @@ export default async function AdmissionsMeritPage() {
     label: `${row.firstName} ${row.lastName}`.trim() || row.trackingNumber,
     searchText: `${row.firstName} ${row.lastName} ${row.trackingNumber}`,
   }));
-  const institutionId = institutions[0]?.id;
-  const academicPeriodId = periods[0]?.id;
-  const gradeId = grades[0]?.id;
+  // PRC-M070: rank the institution/period/grade the user selected (URL), not [0].
+  const institutionId = pickSelectedLookup(institutions, searchParams['institutionId']);
+  const academicPeriodId = pickSelectedLookup(periods, searchParams['academicPeriodId']);
+  const gradeId = pickSelectedLookup(grades, searchParams['gradeId']);
   const list =
     institutionId && academicPeriodId && gradeId
       ? await getMeritList({ institutionId, academicPeriodId, gradeId })
@@ -38,6 +44,7 @@ export default async function AdmissionsMeritPage() {
           periods={periods}
           grades={grades}
           list={list}
+          selected={{ institutionId, academicPeriodId, gradeId }}
           applications={applicationOptions}
         />
       </AdmissionsChrome>

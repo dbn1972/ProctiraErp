@@ -15,10 +15,7 @@ import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
-import type {
-  DownloadTokenReplayStore,
-  ScholarshipDocumentDownloadAuditRecorder,
-} from './document-bytes.js';
+import type { DownloadTokenReplayStore } from './document-bytes.js';
 import { registerScholarshipDocumentRoutes } from './document-routes.js';
 import { ScholarshipDocumentService } from './document-service.js';
 import {
@@ -54,8 +51,6 @@ export interface ScholarshipPluginOptions {
   resolveApplicantAttributes?: ApplicantAttributesLookup;
   /** PRC-L344: shared single-use store for document download links. */
   downloadReplayGuard?: DownloadTokenReplayStore;
-  /** PRC-L344: durable audit sink for every served document download. */
-  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 // Extend Fastify types
@@ -84,7 +79,6 @@ export const scholarshipPlugin = fp(
       applicantExists,
       resolveApplicantAttributes,
       downloadReplayGuard,
-      recordDownloadAudit,
     } = options;
 
     // Create scholarship service instance
@@ -119,7 +113,6 @@ export const scholarshipPlugin = fp(
       prefix,
       resolveLinkedStudentIds,
       downloadReplayGuard,
-      recordDownloadAudit,
     });
   },
   {

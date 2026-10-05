@@ -70,4 +70,18 @@ describe('W1-DATA-07 COMPLETE payroll reverse/replace (no overwrite)', () => {
     expect(current?.runId).toBe(second.runId);
     expect(current?.replacesRunId).toBe(first.runId);
   });
+  it('PRC-M369: a replace on one replica is visible to another sharing the store', async () => {
+    const store = new InMemoryStaffHrStore();
+    const repo = new InMemoryStaffRepository();
+    const a = new StaffHrService(store, new StaffService(repo));
+    const b = new StaffHrService(store, new StaffService(repo));
+    const tenantId = '00000000-0000-4000-8000-000000000001';
+    const first = await b.exportPayroll(tenantId, { month: '2026-10' });
+    // Warm replica B (previously memoized in-process).
+    expect((await b.exportPayroll(tenantId, { month: '2026-10' })).runId).toBe(first.runId);
+    const replaced = await a.exportPayroll(tenantId, { month: '2026-10', replace: true });
+    const seenByB = await b.exportPayroll(tenantId, { month: '2026-10' });
+    expect(seenByB.idempotent).toBe(true);
+    expect(seenByB.runId).toBe(replaced.runId);
+  });
 });

@@ -9,7 +9,8 @@
  *
  * Contract (PRC-H029 — matches `packages/backend/registration/src/routes.ts`, proxied by
  * the gateway under the `/registrations` prefix):
- *   GET /api/v1/registrations/{trackingNumber}/status?dob=YYYY-MM-DD
+ *   POST /api/v1/registrations/status  { trackingNumber, dateOfBirth }
+ *     (PRC-M331: DOB never travels in the URL / access logs)
  *     200 → RegistrationStatusResponse { trackingNumber, status, institutionName,
  *             applicantName, submittedAt, updatedAt, remarks?, waitlistPosition?,
  *             interviewBookings? }
@@ -110,16 +111,15 @@ export async function getApplicationByTrackingNumber(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
     return { kind: 'error', message: 'Date of birth is required (YYYY-MM-DD).' };
   }
-  const url =
-    `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/${encodeURIComponent(trimmed)}` +
-    `/status?dob=${encodeURIComponent(dob)}`;
+  // PRC-M331: DOB in the POST body, never in the URL / access logs.
+  const url = `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/status`;
   const fetcher = options.fetcher ?? fetch;
-
   let response: Response;
   try {
     response = await fetcher(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackingNumber: trimmed, dateOfBirth: dob }),
       cache: 'no-store',
       signal: options.signal,
     });

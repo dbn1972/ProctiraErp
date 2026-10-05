@@ -6,18 +6,44 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  StaffAssignmentEntity,
-  StaffAssignmentFilter,
-  StaffAssignmentRepository,
+import {
+  assertAllocationFits,
+  type AllocationGuard,
+  type StaffAssignmentEntity,
+  type StaffAssignmentFilter,
+  type StaffAssignmentRepository,
 } from './assignment-repository.js';
+
+function stripUndefined<T extends object>(data: T): Partial<T> {
+  return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/** PRC-M375: soft end — INACTIVE and end-dated today when already started. */
+export function endedFields(
+  entity: Pick<StaffAssignmentEntity, 'startDate' | 'endDate'>,
+  today: string = new Date().toISOString().slice(0, 10),
+): Pick<StaffAssignmentEntity, 'status' | 'endDate'> {
+  const endDate =
+    entity.startDate < today && (entity.endDate === null || entity.endDate > today)
+      ? today
+      : entity.endDate;
+  return { status: 'INACTIVE', endDate };
+}
 
 export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
   private assignments: Map<string, StaffAssignmentEntity> = new Map();
 
+  private forStaff(tenantId: string, staffId: string): StaffAssignmentEntity[] {
+    return [...this.assignments.values()].filter(
+      (a) => a.tenantId === tenantId && a.staffId === staffId,
+    );
+  }
   async create(
     data: Omit<StaffAssignmentEntity, 'createdAt' | 'updatedAt'>,
+    guard?: AllocationGuard,
   ): Promise<StaffAssignmentEntity> {
+    // No await between check and write: atomic on the single JS thread.
+    if (guard) assertAllocationFits(this.forStaff(data.tenantId, data.staffId), data, guard);
     const now = new Date();
     const entity: StaffAssignmentEntity = {
       ...data,
@@ -32,10 +58,18 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
     id: string,
     tenantId: string,
     data: Partial<StaffAssignmentEntity>,
+    guard?: AllocationGuard,
   ): Promise<StaffAssignmentEntity | null> {
     const existing = this.assignments.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
+    }
+    if (guard) {
+      assertAllocationFits(
+        this.forStaff(tenantId, existing.staffId),
+        { ...existing, ...stripUndefined(data), id },
+        guard,
+      );
     }
 
     const updated: StaffAssignmentEntity = {
@@ -165,7 +199,7 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
     if (!entity || entity.tenantId !== tenantId) {
       return false;
     }
-    this.assignments.delete(id);
+    this.assignments.set(id, { ...entity, ...endedFields(entity), updatedAt: new Date() });
     return true;
   }
 

@@ -86,7 +86,10 @@ export const UpsertTeacherCommentSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   subjectId: Type.String({ pattern: UUID_PATTERN, description: 'Subject UUID' }),
   academicPeriodId: Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
-  teacherId: Type.String({ pattern: UUID_PATTERN, description: 'Teacher (staff) UUID' }),
+  // PRC-M163: author is the authenticated user; a client-supplied teacherId is ignored.
+  teacherId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Deprecated; ignored (author = JWT sub)' }),
+  ),
   comment: Type.String({
     minLength: 1,
     maxLength: MAX_COMMENT_LENGTH,

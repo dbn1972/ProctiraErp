@@ -1,5 +1,6 @@
 /**
- * PRC-L344: every served scholarship document download writes a durable audit event, and the
+ * PRC-L344: every served scholarship document download writes exactly one durable access record
+ * (the PRC-M353 hash-chained access log, via the document store) before bytes are sent, and the
  * single-use jti guard is shared across gateway replicas (Redis SET NX EX).
  */
 import { Buffer } from 'node:buffer';
@@ -13,12 +14,14 @@ import {
   RedisDownloadTokenReplayGuard,
   type DownloadTokenReplayStore,
   type RedisLikeForDownloadReplay,
-  type ScholarshipDocumentDownloadAuditEvent,
-  type ScholarshipDocumentDownloadAuditRecorder,
   signDocumentDownloadToken,
 } from './document-bytes.js';
 import { InMemoryScholarshipDocumentBlobStore } from './document-blob-store.js';
-import { InMemoryScholarshipDocumentStore } from './document-store.js';
+import {
+  InMemoryScholarshipDocumentStore,
+  SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY,
+  type ScholarshipDocumentStore,
+} from './document-store.js';
 import { InMemoryScholarshipRepository } from './in-memory-repository.js';
 import { scholarshipPlugin } from './scholarship-plugin.js';
 
@@ -54,7 +57,7 @@ const repository = new InMemoryScholarshipRepository();
 
 async function buildReplica(options: {
   downloadReplayGuard?: DownloadTokenReplayStore;
-  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
+  documentStore?: ScholarshipDocumentStore;
   sub?: string;
 }): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -69,10 +72,9 @@ async function buildReplica(options: {
   await app.register(scholarshipPlugin, {
     repository,
     prefix: '/scholarships',
-    documentStore: documents,
+    documentStore: options.documentStore ?? documents,
     documentBlobs: blobs,
     downloadReplayGuard: options.downloadReplayGuard,
-    recordDownloadAudit: options.recordDownloadAudit,
   });
   await app.ready();
   return app;
@@ -135,38 +137,50 @@ describe('scholarship document download audit + shared replay guard (PRC-L344)',
     await Promise.all(apps.splice(0).map((app) => app.close()));
   });
 
-  it('records a durable audit event for every served download', async () => {
-    const events: ScholarshipDocumentDownloadAuditEvent[] = [];
-    const app = await buildReplica({
-      recordDownloadAudit: async (event) => {
-        events.push(event);
-      },
-    });
+  it('records exactly one durable access row for every served download', async () => {
+    const store = new InMemoryScholarshipDocumentStore();
+    const app = await buildReplica({ documentStore: store });
     apps.push(app);
     const documentId = await uploadDocument(app);
+    const downloadRows = () =>
+      store.audits.filter(
+        (entry) =>
+          entry.entityType === SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY &&
+          entry.metadata['action'] === 'token_download',
+      );
     const { token } = signDocumentDownloadToken({ tenantId: TENANT, documentId, sub: 'staff-1' });
     const res = await download(app, token);
     expect(res.statusCode).toBe(200);
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
+    // One access, one row: no second audit sink writes a duplicate for the same download.
+    expect(downloadRows()).toHaveLength(1);
+    expect(
+      store.audits.filter((entry) => entry.entityType === SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY),
+    ).toHaveLength(1);
+    expect(downloadRows()[0]).toMatchObject({
       tenantId: TENANT,
-      documentId,
+      entityId: documentId,
       userId: 'staff-1',
-      sessionUserId: 'staff-1',
-      userAgent: 'vitest',
-    });
-    expect(events[0]!.jti).toMatch(/.+/);
-    // A replayed link is refused and produces no further download record.
-    expect((await download(app, token)).statusCode).toBe(401);
-    expect(events).toHaveLength(1);
-  });
-
-  it('refuses to serve the document (503) when the audit sink fails', async () => {
-    const app = await buildReplica({
-      recordDownloadAudit: async () => {
-        throw new Error('audit store down');
+      metadata: {
+        event: 'scholarship.document.downloaded',
+        documentId,
+        linkUserId: 'staff-1',
+        sessionUserId: 'staff-1',
+        userAgent: 'vitest',
       },
     });
+    expect(downloadRows()[0]!.metadata['jti']).toMatch(/.+/);
+    expect(downloadRows()[0]!.metadata['requestId']).toMatch(/.+/);
+    // A replayed link is refused and produces no further download record.
+    expect((await download(app, token)).statusCode).toBe(401);
+    expect(downloadRows()).toHaveLength(1);
+  });
+
+  it('refuses to serve the document (503) when the access row cannot be written', async () => {
+    const store = new InMemoryScholarshipDocumentStore();
+    store.recordAccess = async () => {
+      throw new Error('audit store down');
+    };
+    const app = await buildReplica({ documentStore: store });
     apps.push(app);
     const documentId = await uploadDocument(app);
     const { token } = signDocumentDownloadToken({ tenantId: TENANT, documentId, sub: 'staff-1' });

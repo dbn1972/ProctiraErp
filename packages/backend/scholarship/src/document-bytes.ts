@@ -239,7 +239,10 @@ export function createDownloadTokenReplayGuard(env: {
   }
   return new DownloadTokenReplayGuard();
 }
-/** Durable audit record emitted for every served scholarship document download (PRC-L344). */
+/**
+ * Context recorded for every served scholarship document download (PRC-L344). Persisted as the
+ * single hash-chained access-log row via ScholarshipDocumentService.recordTokenDownload.
+ */
 export interface ScholarshipDocumentDownloadAuditEvent {
   tenantId: string;
   documentId: string;
@@ -252,9 +255,6 @@ export interface ScholarshipDocumentDownloadAuditEvent {
   userAgent: string | null;
   requestId: string;
 }
-export type ScholarshipDocumentDownloadAuditRecorder = (
-  event: ScholarshipDocumentDownloadAuditEvent,
-) => Promise<void>;
 const DOC_SIGNING_KEY_MISSING_MESSAGE =
   'SCHOLARSHIP_DOC_URL_SECRET is required in production. Scholarship document download links ' +
   'are unauthenticated except for this signed token, so no key may be defaulted. Set a strong, ' +

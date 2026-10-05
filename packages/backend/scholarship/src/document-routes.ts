@@ -30,7 +30,7 @@ import {
   createDownloadTokenReplayGuard,
   type DownloadTokenReplayStore,
   parseMultipartForm,
-  type ScholarshipDocumentDownloadAuditRecorder,
+  type ScholarshipDocumentDownloadAuditEvent,
   verifyDocumentDownloadToken,
 } from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
@@ -67,11 +67,6 @@ export interface ScholarshipDocumentRouteOptions {
    * production.
    */
   downloadReplayGuard?: DownloadTokenReplayStore;
-  /**
-   * Durable audit sink for every served download (PRC-L344). Required in production; when it
-   * fails the download is refused (503) rather than served unaudited.
-   */
-  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 function tenantIdOf(request: FastifyRequest): string | null {
@@ -107,12 +102,6 @@ export async function registerScholarshipDocumentRoutes(
   const replayGuard =
     options.downloadReplayGuard ??
     createDownloadTokenReplayGuard({ NODE_ENV: process.env['NODE_ENV'] });
-  const recordDownloadAudit = options.recordDownloadAudit;
-  if (!recordDownloadAudit && (process.env['NODE_ENV'] ?? '').trim() === 'production') {
-    throw new Error(
-      'Scholarship document downloads require a durable audit sink in production (PRC-L344).',
-    );
-  }
 
   if (!fastify.hasContentTypeParser('multipart/form-data')) {
     fastify.addContentTypeParser(
@@ -210,6 +199,13 @@ export async function registerScholarshipDocumentRoutes(
       const actor = await actorFor(request, tenantId);
       assertCanReadDocuments(actor, application);
       const data = await documentService.list(tenantId, application.id);
+      await documentService.recordAccess({
+        tenantId,
+        actor,
+        action: 'list',
+        applicationId: application.id,
+        documentId: null,
+      });
       return reply.send({ data });
     } catch (error) {
       return sendError(reply, error);
@@ -246,6 +242,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'download_link',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply.send({
           url: doc.url,
           expiresAt: doc.expiresAt,
@@ -285,6 +288,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'content',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply
           .header('content-type', file.mimeType)
           .header(
@@ -314,7 +324,7 @@ export async function registerScholarshipDocumentRoutes(
       const application = await loadApplication(tenantId, params.data.id);
       const actor = await actorFor(request, tenantId);
       assertCanDelete(actor, application);
-      await documentService.remove(tenantId, params.data.documentId, actor);
+      await documentService.remove(tenantId, params.data.documentId, actor, application);
       return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
@@ -445,7 +455,8 @@ export async function registerScholarshipDocumentRoutes(
       try {
         const claims = verifyDocumentDownloadToken(params.data.token);
         // A session presented with the link must be the user it was minted for.
-        const sessionUser = actorFromRequest(request).userId;
+        const sessionActor = actorFromRequest(request);
+        const sessionUser = sessionActor.userId;
         if (sessionUser && claims.sub && sessionUser !== claims.sub) {
           return reply.status(403).send({
             code: 'FORBIDDEN',
@@ -461,30 +472,33 @@ export async function registerScholarshipDocumentRoutes(
           });
         }
         const file = await documentService.readBytes(claims.tenantId, claims.documentId);
-        if (recordDownloadAudit) {
-          try {
-            await recordDownloadAudit({
-              tenantId: claims.tenantId,
-              documentId: claims.documentId,
-              userId: claims.sub || null,
-              sessionUserId: sessionUser || null,
-              jti: claims.jti,
-              ipAddress: request.ip,
-              userAgent: request.headers['user-agent'] ?? null,
-              requestId: String(request.id),
-            });
-          } catch (auditError) {
-            // PRC-L344: never serve an applicant document without a durable access record.
-            request.log.error(
-              { err: auditError, documentId: claims.documentId, tenantId: claims.tenantId },
-              'scholarship document download audit failed',
-            );
-            return reply.status(503).send({
-              code: 'AUDIT_UNAVAILABLE',
-              message: 'Download is temporarily unavailable',
-              statusCode: 503,
-            });
-          }
+        // PRC-L344 + PRC-M353: exactly one durable, hash-chained access record per served
+        // download, written before any bytes leave the process. No record, no document.
+        const downloadEvent: ScholarshipDocumentDownloadAuditEvent = {
+          tenantId: claims.tenantId,
+          documentId: claims.documentId,
+          userId: claims.sub || null,
+          sessionUserId: sessionUser || null,
+          jti: claims.jti,
+          ipAddress: sessionActor.ipAddress,
+          userAgent: request.headers['user-agent'] ?? null,
+          requestId: String(request.id),
+        };
+        try {
+          await documentService.recordTokenDownload(downloadEvent, {
+            applicationId: file.row.applicationId,
+            userName: sessionActor.userName,
+          });
+        } catch (auditError) {
+          request.log.error(
+            { err: auditError, documentId: claims.documentId, tenantId: claims.tenantId },
+            'scholarship document download audit failed',
+          );
+          return reply.status(503).send({
+            code: 'AUDIT_UNAVAILABLE',
+            message: 'Download is temporarily unavailable',
+            statusCode: 503,
+          });
         }
         request.log.info(
           {

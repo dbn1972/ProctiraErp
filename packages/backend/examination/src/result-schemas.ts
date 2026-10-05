@@ -30,6 +30,8 @@ export const RecordMarksSchema = Type.Object({
   entries: Type.Array(
     Type.Object({
       studentId: Type.String({ pattern: UUID_PATTERN }),
+      // PRC-M240: deprecated and ignored — gender/area are derived server-side
+      // from the student record and enrolling institution.
       gender: Type.Optional(
         Type.Union([Type.Literal('male'), Type.Literal('female'), Type.Literal('other')]),
       ),

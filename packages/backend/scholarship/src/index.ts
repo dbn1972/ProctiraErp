@@ -137,5 +137,4 @@ export type {
   DownloadTokenReplayStore,
   RedisLikeForDownloadReplay,
   ScholarshipDocumentDownloadAuditEvent,
-  ScholarshipDocumentDownloadAuditRecorder,
 } from './document-bytes.js';

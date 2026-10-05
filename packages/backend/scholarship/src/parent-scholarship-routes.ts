@@ -16,10 +16,7 @@ import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
-import type {
-  DownloadTokenReplayStore,
-  ScholarshipDocumentDownloadAuditRecorder,
-} from './document-bytes.js';
+import type { DownloadTokenReplayStore } from './document-bytes.js';
 import {
   authorizeApplicationCreate,
   registerScholarshipDocumentRoutes,
@@ -49,8 +46,6 @@ export interface ParentScholarshipRouteOptions {
   resolveApplicantAttributes?: ApplicantAttributesLookup;
   /** PRC-L344: shared single-use store for document download links. */
   downloadReplayGuard?: DownloadTokenReplayStore;
-  /** PRC-L344: durable audit sink for every served document download. */
-  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 async function actorFor(
@@ -290,7 +285,6 @@ export async function registerParentScholarshipRoutes(
     prefix,
     resolveLinkedStudentIds,
     downloadReplayGuard: options.downloadReplayGuard,
-    recordDownloadAudit: options.recordDownloadAudit,
   });
 }
 
@@ -306,8 +300,6 @@ export interface ParentScholarshipPluginOptions {
   resolveApplicantAttributes?: ApplicantAttributesLookup;
   /** PRC-L344: shared single-use store for document download links. */
   downloadReplayGuard?: DownloadTokenReplayStore;
-  /** PRC-L344: durable audit sink for every served document download. */
-  recordDownloadAudit?: ScholarshipDocumentDownloadAuditRecorder;
 }
 
 export const parentScholarshipPlugin = fp(
@@ -329,7 +321,6 @@ export const parentScholarshipPlugin = fp(
       resolveStudentInstitutionId: options.resolveStudentInstitutionId,
       resolveApplicantAttributes: options.resolveApplicantAttributes,
       downloadReplayGuard: options.downloadReplayGuard,
-      recordDownloadAudit: options.recordDownloadAudit,
     });
   },
   { name: '@proctira/backend-scholarship-parent', fastify: '5.x' },

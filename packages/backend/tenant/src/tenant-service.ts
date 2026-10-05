@@ -19,6 +19,7 @@ import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
+import { assertTenantConfigValues } from './config-validation.js';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -1005,7 +1006,7 @@ export class TenantService {
    */
   private mergeConfig(base: TenantConfig, override?: Partial<TenantConfig>): TenantConfig {
     if (!override) return base;
-
+    assertTenantConfigValues(override, base);
     return {
       branding: override.branding ? { ...base.branding, ...override.branding } : base.branding,
       locale: override.locale ? { ...base.locale, ...override.locale } : base.locale,
@@ -1022,7 +1023,9 @@ export class TenantService {
       security: override.security ? { ...base.security, ...override.security } : base.security,
       // theme is owned by the branding versioning pipeline — never
       // overwritten by a generic config update.
-      theme: override.theme ?? base.theme,
+      // PRC-M391: an override `theme` is ignored even if a caller bypasses
+      // the route schema.
+      theme: base.theme,
     };
   }
 }

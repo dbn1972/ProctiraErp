@@ -85,11 +85,13 @@ export class InMemoryAppraisalRepository implements AppraisalRepository {
     id: string,
     tenantId: string,
     data: Partial<AppraisalEntity>,
+    expectedStatus?: readonly AppraisalEntity['status'][],
   ): Promise<AppraisalEntity | null> {
     const existing = this.appraisals.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       return null;
     }
+    if (expectedStatus && !expectedStatus.includes(existing.status)) return null;
 
     const updated: AppraisalEntity = {
       ...existing,
