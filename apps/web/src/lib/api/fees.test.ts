@@ -56,15 +56,19 @@ describe('fees client — money mutations (PRC-M489)', () => {
     });
   });
   it('recordInvoicePayment unwraps the invoice and throws GatewayError on an empty body', async () => {
+    const payment = { method: 'cash' as const, amountCents: 125050, idempotencyKey: 'idem-1' };
     gatewayFetch.mockResolvedValueOnce(ok({ invoice: { id: 'inv-1', status: 'PAID' } }));
-    await expect(recordInvoicePayment('inv-1')).resolves.toMatchObject({ status: 'PAID' });
+    await expect(recordInvoicePayment('inv-1', payment)).resolves.toMatchObject({
+      status: 'PAID',
+    });
+    expect(gatewayFetch.mock.calls[0]![1]).toMatchObject({ method: 'POST', json: payment });
     gatewayFetch.mockResolvedValueOnce({
       ok: false,
       status: 409,
       data: null,
       error: { code: 'ALREADY_PAID', message: 'Already paid' },
     });
-    await expect(recordInvoicePayment('inv-1')).rejects.toMatchObject({
+    await expect(recordInvoicePayment('inv-1', payment)).rejects.toMatchObject({
       status: 409,
       code: 'ALREADY_PAID',
     });
