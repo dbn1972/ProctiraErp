@@ -96,6 +96,18 @@ export interface TenantOffboardJobEntity {
   updatedAt: Date;
 }
 
+/** Outcome of {@link PrivacyRepository.releaseStalledErasureExecution}. */
+export type ReleaseStalledErasureResult =
+  | { outcome: 'released'; erasure: ErasureRequestEntity; failedJobIds: string[] }
+  | { outcome: 'live_job'; jobId: string }
+  | { outcome: 'not_in_progress' };
+
+/** Anonymization job statuses that are still runnable by a worker. */
+export const NON_TERMINAL_ANONYMIZATION_JOB_STATUSES: readonly AnonymizationJobStatus[] = [
+  'queued',
+  'in_progress',
+];
+
 /** PRC-M322: marker stored in place of erased/applied correction values (column is NOT NULL). */
 export const CORRECTION_VALUE_REDACTED = '[REDACTED]';
 
@@ -147,6 +159,19 @@ export interface PrivacyRepository {
     patch: { reviewedBy: string; statusReason: string },
     job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null>;
+  /**
+   * PRC-M320 (review #554): manual `in_progress` -> `approved` for a stalled run. In ONE
+   * transaction: lock the request (must be `in_progress`) and its non-terminal anonymization
+   * jobs; if any job was started/queued after `staleBefore` it is still live and nothing is
+   * written (`live_job`). Otherwise every non-terminal job is marked `failed` (fencing the
+   * worker) and the request is moved back to `approved`.
+   */
+  releaseStalledErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    staleBefore: Date,
+  ): Promise<ReleaseStalledErasureResult>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
   listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]>;
 
@@ -187,6 +212,11 @@ export interface PrivacyRepository {
         'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
+    /**
+     * Compare-and-set guard: when set, the update applies only if the job is still in this
+     * status; otherwise `null` is returned and nothing is written (review #554).
+     */
+    options?: { expectedStatus?: AnonymizationJobEntity['status'] },
   ): Promise<AnonymizationJobEntity | null>;
   findAnonymizationJobById(id: string, tenantId: string): Promise<AnonymizationJobEntity | null>;
   listAnonymizationJobs(tenantId: string): Promise<AnonymizationJobEntity[]>;

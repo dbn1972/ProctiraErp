@@ -12,8 +12,12 @@ import {
 } from '@proctira/database';
 import type pg from 'pg';
 
-import { CORRECTION_VALUE_REDACTED } from './privacy-repository.js';
+import {
+  CORRECTION_VALUE_REDACTED,
+  NON_TERMINAL_ANONYMIZATION_JOB_STATUSES,
+} from './privacy-repository.js';
 import type {
+  ReleaseStalledErasureResult,
   AnonymizationJobEntity,
   CorrectionRequestEntity,
   ErasureRequestEntity,
@@ -594,6 +598,65 @@ export class PgPrivacyRepository implements PrivacyRepository {
       };
     });
   }
+  async releaseStalledErasureExecution(
+    requestId: string,
+    tenantId: string,
+    patch: { reviewedBy: string; statusReason: string },
+    staleBefore: Date,
+  ): Promise<ReleaseStalledErasureResult> {
+    await this.ensureSchema();
+    // Review #554: one withPgTenant transaction. Row locks on the request and on its open
+    // jobs make a concurrent worker claim (queued -> in_progress CAS) wait for this decision.
+    return this.withTenant(tenantId, async (client): Promise<ReleaseStalledErasureResult> => {
+      const request = await client.query(
+        `SELECT status FROM privacy_erasure_requests
+         WHERE id = $1 AND tenant_id = $2
+         FOR UPDATE`,
+        [requestId, tenantId],
+      );
+      const row = request.rows[0] as { status?: string } | undefined;
+      if (row?.status !== 'in_progress') return { outcome: 'not_in_progress' };
+      const open = await client.query(
+        `SELECT id, (COALESCE(started_at, created_at) > $3::timestamptz) AS live
+         FROM privacy_anonymization_jobs
+         WHERE tenant_id = $1 AND erasure_request_id = $2
+           AND status = ANY($4::text[])
+         ORDER BY created_at
+         FOR UPDATE`,
+        [tenantId, requestId, staleBefore, [...NON_TERMINAL_ANONYMIZATION_JOB_STATUSES]],
+      );
+      const jobs = open.rows as Array<{ id: unknown; live: unknown }>;
+      const live = jobs.find((j) => j.live === true);
+      if (live) return { outcome: 'live_job', jobId: String(live.id) };
+      const failedJobIds = jobs.map((j) => String(j.id));
+      if (failedJobIds.length > 0) {
+        await client.query(
+          `UPDATE privacy_anonymization_jobs SET
+             status = 'failed',
+             status_reason = 'Stalled run released for retry; job fenced',
+             completed_at = NOW(),
+             updated_at = NOW()
+           WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+          [tenantId, failedJobIds],
+        );
+      }
+      const released = await client.query(
+        `UPDATE privacy_erasure_requests SET
+           status = 'approved',
+           reviewed_by = $3,
+           status_reason = $4,
+           updated_at = NOW()
+         WHERE id = $1 AND tenant_id = $2 AND status = 'in_progress'
+         RETURNING *`,
+        [requestId, tenantId, patch.reviewedBy, patch.statusReason],
+      );
+      return {
+        outcome: 'released',
+        erasure: mapErasure(released.rows[0] as Record<string, unknown>),
+        failedJobIds,
+      };
+    });
+  }
   async updateAnonymizationJob(
     id: string,
     tenantId: string,
@@ -603,6 +666,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
         'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
+    options?: { expectedStatus?: AnonymizationJobEntity['status'] },
   ): Promise<AnonymizationJobEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -623,6 +687,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
            completed_at = $8,
            updated_at = NOW()
          WHERE id = $1 AND tenant_id = $2
+           AND ($9::text IS NULL OR status = $9::text)
          RETURNING *`,
         [
           id,
@@ -633,8 +698,11 @@ export class PgPrivacyRepository implements PrivacyRepository {
           data.residualNote !== undefined ? data.residualNote : cur.residualNote,
           data.startedAt !== undefined ? data.startedAt : cur.startedAt,
           data.completedAt !== undefined ? data.completedAt : cur.completedAt,
+          options?.expectedStatus ?? null,
         ],
       );
+      // Review #554: a CAS miss (job fenced/claimed by another writer) writes nothing.
+      if (!result.rows[0]) return null;
       return mapAnonymization(result.rows[0] as Record<string, unknown>);
     });
   }

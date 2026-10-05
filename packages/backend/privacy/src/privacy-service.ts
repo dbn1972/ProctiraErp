@@ -68,7 +68,8 @@ const ERASURE_TRANSITIONS: Record<ErasureStatus, readonly ErasureStatus[]> = {
   under_review: ['approved', 'rejected', 'cancelled'],
   approved: ['in_progress', 'blocked_legal_hold', 'cancelled'],
   // PRC-M320: in_progress -> approved is the retry path (automatic on failed/residual
-  // anonymization; manual for a run stuck after a worker crash).
+  // anonymization; manual only for a stalled run, whose jobs are fenced `failed` atomically
+  // by releaseStalledErasureExecution — review #554).
   in_progress: ['completed', 'blocked_legal_hold', 'approved'],
   blocked_legal_hold: ['approved', 'cancelled'],
   completed: [],
@@ -87,6 +88,13 @@ const MANUAL_ERASURE_TARGETS: readonly ErasureStatus[] = [
   'approved',
   'rejected',
   'cancelled',
+];
+
+/** Job statuses a worker must never re-run (review #554). */
+const TERMINAL_ANONYMIZATION_JOB_STATUSES: readonly AnonymizationJobEntity['status'][] = [
+  'completed',
+  'failed',
+  'blocked_legal_hold',
 ];
 
 const CORRECTION_TRANSITIONS: Record<CorrectionStatus, readonly CorrectionStatus[]> = {
@@ -133,7 +141,14 @@ export interface PrivacyServiceOptions {
   offboardPublisher?: PrivacyOffboardPublisher;
   /** PRC-M321: domain writer for rectification. Absent -> apply refuses with 501. */
   correctionApplier?: CorrectionApplier;
+  /**
+   * Review #554: a queued/in-progress anonymization job counts as stalled (and may be
+   * released by a manual `in_progress -> approved`) only after this long. Default 30 min.
+   */
+  stalledJobAfterMs?: number;
 }
+
+const DEFAULT_STALLED_JOB_AFTER_MS = 30 * 60 * 1000;
 
 export class PrivacyService implements DestructiveDeleteGuard {
   private readonly audit: PrivacyAuditPort;
@@ -146,6 +161,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
   readonly erasureExecutionAvailable: boolean;
   /** False when only the residual checklist wipe executor is present. */
   readonly tenantWipeAvailable: boolean;
+  private readonly stalledJobAfterMs: number;
 
   constructor(
     private readonly repository: PrivacyRepository,
@@ -159,6 +175,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.anonymizationPublisher = options.anonymizationPublisher;
     this.offboardPublisher = options.offboardPublisher;
     this.correctionApplier = options.correctionApplier;
+    this.stalledJobAfterMs = options.stalledJobAfterMs ?? DEFAULT_STALLED_JOB_AFTER_MS;
   }
 
   async placeLegalHold(
@@ -327,6 +344,10 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (!ERASURE_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(`Invalid erasure transition: ${existing.status} → ${toStatus}`);
     }
+    if (existing.status === 'in_progress') {
+      // Review #554: only `approved` is reachable here (MANUAL_ERASURE_TARGETS ∩ transitions).
+      return this.releaseStalledErasure(existing, actorId, statusReason, ctx);
+    }
     const updated = await this.repository.updateErasureRequest(
       requestId,
       tenantId,
@@ -354,6 +375,57 @@ export class PrivacyService implements DestructiveDeleteGuard {
       afterValues: { status: updated.status, statusReason: updated.statusReason },
     });
     return updated;
+  }
+
+  /**
+   * Manual `in_progress -> approved` (PRC-M320, review #554). Allowed only for a stalled run:
+   * every non-terminal job of the request must be older than the stall window. Those jobs are
+   * marked `failed` in the same transaction, so a late worker can neither anonymize nor
+   * complete the request afterwards. A live job keeps the request `in_progress` (409).
+   */
+  private async releaseStalledErasure(
+    existing: ErasureRequestEntity,
+    actorId: string,
+    statusReason: string | undefined,
+    ctx: PrivacyRequestContext | undefined,
+  ): Promise<ErasureRequestEntity> {
+    const staleBefore = new Date(Date.now() - this.stalledJobAfterMs);
+    const result = await this.repository.releaseStalledErasureExecution(
+      existing.id,
+      existing.tenantId,
+      {
+        reviewedBy: actorId,
+        statusReason: statusReason ?? 'Stalled erasure run released for retry',
+      },
+      staleBefore,
+    );
+    if (result.outcome === 'not_in_progress') {
+      throw new ConflictError(
+        `Erasure request '${existing.id}' changed concurrently; reload and retry`,
+      );
+    }
+    if (result.outcome === 'live_job') {
+      throw new ConflictError(
+        `Erasure request '${existing.id}' has a live anonymization job '${result.jobId}'; ` +
+          'wait for it to finish or fail before returning the request to approved',
+      );
+    }
+    await this.audit.record({
+      tenantId: existing.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: existing.id,
+      operation: 'UPDATE',
+      userId: actorId,
+      userName: actorId,
+      ipAddress: ipOf(ctx),
+      beforeValues: { status: existing.status },
+      afterValues: {
+        status: result.erasure.status,
+        statusReason: result.erasure.statusReason,
+        fencedJobIds: result.failedJobIds,
+      },
+    });
+    return result.erasure;
   }
 
   /**
@@ -452,16 +524,24 @@ export class PrivacyService implements DestructiveDeleteGuard {
         });
       } catch (error) {
         // PRC-M320: compensate so the request is retryable instead of stuck in_progress.
-        await this.repository.updateAnonymizationJob(job.id, tenantId, {
-          status: 'failed',
-          statusReason: 'Enqueue to anonymization worker failed',
-          completedAt: new Date(),
-        });
-        await this.revertErasureForRetry(
-          requestId,
+        // Review #554: CAS on `queued` — if a worker already claimed the job, it owns the run.
+        const compensated = await this.repository.updateAnonymizationJob(
+          job.id,
           tenantId,
-          'Enqueue to anonymization worker failed; retry execute',
+          {
+            status: 'failed',
+            statusReason: 'Enqueue to anonymization worker failed',
+            completedAt: new Date(),
+          },
+          { expectedStatus: 'queued' },
         );
+        if (compensated) {
+          await this.revertErasureForRetry(
+            requestId,
+            tenantId,
+            'Enqueue to anonymization worker failed; retry execute',
+          );
+        }
         throw error;
       }
       logger.info(
@@ -476,29 +556,78 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return (await this.repository.findErasureRequestById(requestId, tenantId))!;
   }
 
+  /**
+   * Durable-worker body. Review #554: every write is fenced so only the request's current run
+   * can finish it — the job is claimed and finalized by compare-and-set on its own status, the
+   * request must still be `in_progress`, and `completed` is written only by CAS from
+   * `in_progress`. A fenced (released/stale) run never touches the request; a CAS miss after
+   * the anonymizer ran is recorded as a conflict residual instead of claiming completion.
+   */
   async processAnonymizationJob(jobId: string, tenantId: string): Promise<AnonymizationJobEntity> {
     const job = await this.repository.findAnonymizationJobById(jobId, tenantId);
     if (!job) throw new NotFoundError(`Anonymization job '${jobId}' not found`);
-    if (job.status === 'completed' || job.status === 'failed') return job;
+    if (TERMINAL_ANONYMIZATION_JOB_STATUSES.includes(job.status)) return job;
+
+    // Review #554: a request that left `in_progress` (released, cancelled, held) no longer
+    // belongs to this job — fence it without anonymizing.
+    const request = await this.repository.findErasureRequestById(job.erasureRequestId, tenantId);
+    if (request?.status !== 'in_progress') {
+      const fenced = await this.repository.updateAnonymizationJob(
+        jobId,
+        tenantId,
+        {
+          status: 'failed',
+          statusReason: `Erasure request is '${request?.status ?? 'missing'}', not in_progress; job fenced without anonymizing`,
+          completedAt: new Date(),
+        },
+        { expectedStatus: job.status },
+      );
+      logger.warn(
+        { jobId, requestId: job.erasureRequestId, tenantId, requestStatus: request?.status },
+        'Anonymization job fenced: erasure request no longer in_progress',
+      );
+      return fenced ?? (await this.repository.findAnonymizationJobById(jobId, tenantId))!;
+    }
 
     if (await this.isOnLegalHold(job.tenantId, job.subjectType, job.subjectId)) {
-      await this.repository.updateAnonymizationJob(jobId, tenantId, {
-        status: 'blocked_legal_hold',
-        statusReason: 'Active legal hold blocks anonymization (fail-closed)',
-        completedAt: new Date(),
-      });
-      await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
-        status: 'blocked_legal_hold',
-        statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
-      });
+      const held = await this.repository.updateAnonymizationJob(
+        jobId,
+        tenantId,
+        {
+          status: 'blocked_legal_hold',
+          statusReason: 'Active legal hold blocks anonymization (fail-closed)',
+          completedAt: new Date(),
+        },
+        { expectedStatus: job.status },
+      );
+      if (!held) return (await this.repository.findAnonymizationJobById(jobId, tenantId))!;
+      await this.repository.updateErasureRequest(
+        job.erasureRequestId,
+        tenantId,
+        {
+          status: 'blocked_legal_hold',
+          statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
+        },
+        { expectedStatus: 'in_progress' },
+      );
       throw new BusinessRuleError(`Anonymization blocked: subject under legal hold (job ${jobId})`);
     }
 
-    await this.repository.updateAnonymizationJob(jobId, tenantId, {
-      status: 'in_progress',
-      startedAt: new Date(),
-      statusReason: 'Anonymization worker started',
-    });
+    // Claim (queued -> in_progress, or re-claim after a worker crash) by CAS on the read status.
+    const claimed = await this.repository.updateAnonymizationJob(
+      jobId,
+      tenantId,
+      {
+        status: 'in_progress',
+        startedAt: new Date(),
+        statusReason: 'Anonymization worker started',
+      },
+      { expectedStatus: job.status },
+    );
+    if (!claimed) {
+      logger.warn({ jobId, tenantId }, 'Anonymization job changed concurrently; claim skipped');
+      return (await this.repository.findAnonymizationJobById(jobId, tenantId))!;
+    }
 
     try {
       const result = await this.anonymizer.anonymize({
@@ -514,19 +643,31 @@ export class PrivacyService implements DestructiveDeleteGuard {
       // Fail closed: residuals must never be marked completed.
       const jobStatus = hasResidual ? 'failed' : 'completed';
 
-      const updated = await this.repository.updateAnonymizationJob(jobId, tenantId, {
-        status: jobStatus,
-        fieldsTouched: result.fieldsTouched,
-        residualNote,
-        statusReason: hasResidual
-          ? 'Anonymization left residuals (fail-closed; not marked completed)'
-          : 'Anonymization worker completed',
-        completedAt: new Date(),
-      });
+      let updated = await this.repository.updateAnonymizationJob(
+        jobId,
+        tenantId,
+        {
+          status: jobStatus,
+          fieldsTouched: result.fieldsTouched,
+          residualNote,
+          statusReason: hasResidual
+            ? 'Anonymization left residuals (fail-closed; not marked completed)'
+            : 'Anonymization worker completed',
+          completedAt: new Date(),
+        },
+        { expectedStatus: 'in_progress' },
+      );
 
+      if (!updated) {
+        // Fenced mid-run (stalled run released): the request belongs to another run now.
+        return this.recordFencedRunConflict(job, result.fieldsTouched, residualNote);
+      }
+
+      let requestStatus: ErasureStatus;
       if (hasResidual) {
         // PRC-M320: never claim completed; return to `approved` so execute can be retried.
         await this.revertErasureForRetry(job.erasureRequestId, tenantId, residualNote);
+        requestStatus = 'approved';
       } else {
         // PRC-M322: correction rows hold the subject's PII too; erase them with the subject.
         await this.repository.redactCorrectionValuesForSubject(
@@ -534,11 +675,41 @@ export class PrivacyService implements DestructiveDeleteGuard {
           job.subjectType,
           job.subjectId,
         );
-        await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
-          status: 'completed',
-          statusReason: 'Anonymization completed via durable worker',
-          completedAt: new Date(),
-        });
+        const completed = await this.repository.updateErasureRequest(
+          job.erasureRequestId,
+          tenantId,
+          {
+            status: 'completed',
+            statusReason: 'Anonymization completed via durable worker',
+            completedAt: new Date(),
+          },
+          { expectedStatus: 'in_progress' },
+        );
+        if (completed) {
+          requestStatus = 'completed';
+        } else {
+          // Review #554: the request moved while we ran — never overwrite it with `completed`.
+          const current = await this.repository.findErasureRequestById(
+            job.erasureRequestId,
+            tenantId,
+          );
+          requestStatus = current?.status ?? 'in_progress';
+          updated =
+            (await this.repository.updateAnonymizationJob(
+              jobId,
+              tenantId,
+              {
+                status: 'failed',
+                residualNote: `Conflict: erasure request was '${requestStatus}' when anonymization finished; completion not recorded`,
+                statusReason: 'Anonymization finished after the request left in_progress',
+              },
+              { expectedStatus: 'completed' },
+            )) ?? updated;
+          logger.error(
+            { jobId, requestId: job.erasureRequestId, tenantId, requestStatus },
+            'Anonymization finished but erasure request left in_progress; completion not recorded',
+          );
+        }
       }
 
       await this.audit.record({
@@ -551,35 +722,88 @@ export class PrivacyService implements DestructiveDeleteGuard {
         ipAddress: NO_REQUEST_IP,
         beforeValues: { status: 'in_progress' },
         afterValues: {
-          status: hasResidual ? 'approved' : 'completed',
-          jobStatus,
+          status: requestStatus,
+          jobStatus: updated.status,
           jobId,
           fieldsTouched: result.fieldsTouched,
-          residualNote,
+          residualNote: updated.residualNote,
         },
         metadata: { requestType: job.requestType, subjectType: job.subjectType },
       });
 
       logger.info(
-        { jobId, requestId: job.erasureRequestId, tenantId: job.tenantId, jobStatus },
-        hasResidual ? 'Anonymization job failed closed on residual' : 'Anonymization job completed',
+        {
+          jobId,
+          requestId: job.erasureRequestId,
+          tenantId: job.tenantId,
+          jobStatus: updated.status,
+        },
+        updated.status === 'completed'
+          ? 'Anonymization job completed'
+          : 'Anonymization job failed closed on residual',
       );
-      return updated!;
+      return updated;
     } catch (error) {
       if (error instanceof BusinessRuleError) throw error;
-      await this.repository.updateAnonymizationJob(jobId, tenantId, {
-        status: 'failed',
-        statusReason: error instanceof Error ? error.message : 'Anonymization failed',
-        completedAt: new Date(),
-      });
-      // PRC-M320: a thrown anonymizer leaves the request retryable, not stuck in_progress.
-      await this.revertErasureForRetry(
-        job.erasureRequestId,
+      const failed = await this.repository.updateAnonymizationJob(
+        jobId,
         tenantId,
-        'Anonymization failed; retry execute',
+        {
+          status: 'failed',
+          statusReason: error instanceof Error ? error.message : 'Anonymization failed',
+          completedAt: new Date(),
+        },
+        { expectedStatus: 'in_progress' },
       );
+      // PRC-M320: a thrown anonymizer leaves the request retryable, not stuck in_progress.
+      // Only the run that still owns the job may move the request (review #554).
+      if (failed) {
+        await this.revertErasureForRetry(
+          job.erasureRequestId,
+          tenantId,
+          'Anonymization failed; retry execute',
+        );
+      }
       throw error;
     }
+  }
+
+  /**
+   * Review #554: a run fenced while the anonymizer was executing. Its job is already `failed`
+   * (released) and the request belongs to another run, so record what this run touched as a
+   * residual/conflict on its own job and audit it — never write the request.
+   */
+  private async recordFencedRunConflict(
+    job: AnonymizationJobEntity,
+    fieldsTouched: string[],
+    residualNote: string | null,
+  ): Promise<AnonymizationJobEntity> {
+    const note =
+      'Conflict: run was fenced (released for retry) before it finished; request not modified' +
+      (residualNote ? `; residual: ${residualNote}` : '');
+    const annotated = await this.repository.updateAnonymizationJob(
+      job.id,
+      job.tenantId,
+      { fieldsTouched, residualNote: note },
+      { expectedStatus: 'failed' },
+    );
+    await this.audit.record({
+      tenantId: job.tenantId,
+      entityType: 'privacy_erasure',
+      entityId: job.erasureRequestId,
+      operation: 'UPDATE',
+      userId: job.actorId,
+      userName: job.actorId,
+      ipAddress: NO_REQUEST_IP,
+      beforeValues: { jobStatus: 'in_progress' },
+      afterValues: { jobStatus: 'failed', jobId: job.id, fieldsTouched, residualNote: note },
+      metadata: { requestType: job.requestType, subjectType: job.subjectType, conflict: true },
+    });
+    logger.error(
+      { jobId: job.id, requestId: job.erasureRequestId, tenantId: job.tenantId },
+      'Anonymization run finished after being fenced; recorded as conflict',
+    );
+    return annotated ?? (await this.repository.findAnonymizationJobById(job.id, job.tenantId))!;
   }
 
   /** PRC-M320: in_progress -> approved (CAS) so a failed run can be re-executed. */
