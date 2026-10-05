@@ -14,7 +14,12 @@ import {
   listExamSessions,
   listExaminationCandidates,
 } from '@/lib/api/examinations';
-import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
+import {
+  loadStaffDirectory,
+  loadStudentOptions,
+  withStaffLabels,
+  withStudentLabels,
+} from '@/lib/load-entity-labels';
 import { examinationCandidateLabel } from '@/lib/ux/display-references';
 
 interface PageProps {
@@ -26,7 +31,7 @@ export default async function ExaminationOpsPage(props: PageProps) {
   const examination = await getExamination(params.id);
   if (!examination) notFound();
 
-  const [sessions, seats, marks, reevaluations, candidates, studentOptions, staffOptions] =
+  const [sessions, seats, marks, reevaluations, candidates, studentOptions, staffDirectory] =
     await Promise.all([
       listExamSessions(examination.id),
       listExamSeating(examination.id),
@@ -34,8 +39,9 @@ export default async function ExaminationOpsPage(props: PageProps) {
       listExamReevaluations(examination.id),
       listExaminationCandidates(examination.id),
       loadStudentOptions(),
-      loadStaffOptions(),
+      loadStaffDirectory(),
     ]);
+  const staffOptions = staffDirectory.options;
 
   const invigilatorsBySession: Record<
     string,
@@ -47,14 +53,24 @@ export default async function ExaminationOpsPage(props: PageProps) {
     }),
   );
 
-  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  // PRC-M083: resolve candidates / staff beyond the first directory page by id.
+  const studentLabels = await withStudentLabels(
+    new Map(studentOptions.map((option) => [option.id, option.label])),
+    candidates.map((candidate) => candidate.studentId),
+  );
   const candidateOptions = candidates.map((candidate) => ({
     id: candidate.id,
     label: examinationCandidateLabel(studentLabels.get(candidate.studentId)),
     searchText: candidate.studentId,
   }));
   const candidateLabels = new Map(candidateOptions.map((option) => [option.id, option.label]));
-  const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
+  const staffLabels = await withStaffLabels(
+    new Map(staffOptions.map((option) => [option.id, option.label])),
+    [
+      ...Object.values(invigilatorsBySession).flatMap((rows) => rows.map((inv) => inv.staffId)),
+      ...reevaluations.map((row) => row.evaluatorId),
+    ],
+  );
 
   return (
     <ExamOpsPanel
@@ -67,6 +83,7 @@ export default async function ExaminationOpsPage(props: PageProps) {
       staffLabels={Object.fromEntries(staffLabels)}
       candidateLabels={Object.fromEntries(candidateLabels)}
       staffOptions={staffOptions}
+      staffTotal={staffDirectory.total}
       candidateOptions={candidateOptions}
     />
   );

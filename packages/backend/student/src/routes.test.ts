@@ -327,6 +327,28 @@ describe('Student Routes', () => {
       expect(json.data[0].firstName).toBe('Alice');
     });
 
+    it('returns only the requested ids in one call (PRC-M097)', async () => {
+      const ids: string[] = [];
+      for (const firstName of ['Ana', 'Ben', 'Cy']) {
+        const created = await app.inject({
+          method: 'POST',
+          url: '/students',
+          payload: { ...validCreateBody(), firstName },
+        });
+        ids.push(created.json().id);
+      }
+      const response = await app.inject({
+        method: 'GET',
+        url: `/students?ids=${ids[0]},${ids[2]},${ids[0]}`,
+      });
+      expect(response.statusCode).toBe(200);
+      const names = response.json().data.map((s: { firstName: string }) => s.firstName);
+      expect(names.sort()).toEqual(['Ana', 'Cy']);
+    });
+    it('rejects a malformed ids filter (PRC-M097)', async () => {
+      const response = await app.inject({ method: 'GET', url: '/students?ids=1;drop' });
+      expect(response.statusCode).toBe(400);
+    });
     it('should return empty array when no students exist', async () => {
       const response = await app.inject({
         method: 'GET',

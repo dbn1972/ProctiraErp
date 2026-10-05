@@ -278,6 +278,8 @@ describe('healthUiPlugin', () => {
         studentId: STUDENT,
         allergies: ['Peanuts'],
         chronicConditions: ['Asthma'],
+        // PRC-M088: no id fragment masquerading as a name.
+        studentName: '',
       });
 
       const detail = await app.inject({ method: 'GET', url: `/health/records/${STUDENT}` });

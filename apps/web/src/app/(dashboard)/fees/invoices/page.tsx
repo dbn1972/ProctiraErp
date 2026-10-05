@@ -13,6 +13,7 @@ import {
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { isSandboxPaymentEnabled } from '@/lib/fees/validation';
 import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -57,6 +58,9 @@ export default async function FeesInvoicesPage({
   const invoices = invoicesResult.ok ? invoicesResult.items : [];
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
+  // PRC-M065 / PRC-M089: sandbox is offered only when explicitly enabled and
+  // never in production; the server action re-checks the same gate.
+  const staffSandboxPayments = isSandboxPaymentEnabled();
 
   return (
     <div className="space-y-6 p-6">
@@ -127,7 +131,11 @@ export default async function FeesInvoicesPage({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (
-                      <PayInvoiceStaffButton invoiceId={invoice.id} currency={invoice.currency} />
+                      <PayInvoiceStaffButton
+                        invoiceId={invoice.id}
+                        currency={invoice.currency}
+                        sandboxEnabled={staffSandboxPayments}
+                      />
                     ) : null}
                     {invoice.status === 'open' && invoice.structureId ? (
                       <ConcessionDialog

@@ -129,17 +129,25 @@ export function RubricGradeForm({
   );
 }
 
+export const LMS_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export function fileTooLargeMessage(bytes: number): string {
+  const mb = (bytes / (1024 * 1024)).toFixed(1);
+  return `File is ${mb} MB; the upload limit is 5 MB.`;
+}
 export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const file = (event.currentTarget.elements.namedItem('file') as HTMLInputElement)?.files?.[0];
+    setMessage(null);
+    setError(null);
     if (!file) {
-      setMessage('Choose a file first.');
+      setError('Choose a file first.');
       return;
     }
     const allowed = [
@@ -151,11 +159,12 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ] as const;
     if (!allowed.includes(file.type as (typeof allowed)[number])) {
-      setMessage('Use PDF, image, text or DOCX.');
+      setError('Use PDF, image, text or DOCX.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage('File exceeds 5 MB.');
+    if (file.size > LMS_UPLOAD_MAX_BYTES) {
+      // PRC-M099: size errors are distinct and state the actual size.
+      setError(fileTooLargeMessage(file.size));
       return;
     }
     startTransition(async () => {
@@ -169,14 +178,25 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
         reader.onerror = () => reject(new Error('Could not read file'));
         reader.readAsDataURL(file);
       });
-      const result = await uploadLmsFileAction({
-        assignmentId,
-        filename: file.name,
-        mimeType: file.type as (typeof allowed)[number],
-        contentBase64,
-      });
-      setMessage(result.status === 'success' ? 'File uploaded.' : (result.message ?? 'Failed'));
-      if (result.status === 'success') router.refresh();
+      let result: Awaited<ReturnType<typeof uploadLmsFileAction>>;
+      try {
+        result = await uploadLmsFileAction({
+          assignmentId,
+          filename: file.name,
+          mimeType: file.type as (typeof allowed)[number],
+          contentBase64,
+        });
+      } catch {
+        // The Server Action transport rejects over-limit bodies before the action runs.
+        setError(fileTooLargeMessage(file.size));
+        return;
+      }
+      if (result.status === 'success') {
+        setMessage('File uploaded.');
+        router.refresh();
+        return;
+      }
+      setError(result.message ?? 'Upload failed.');
     });
   }
 
@@ -189,7 +209,17 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
     >
       <div className="space-y-1">
         <Label htmlFor="lms-file">Submission file</Label>
-        <Input id="lms-file" name="file" type="file" className="h-11" />
+        <Input
+          id="lms-file"
+          name="file"
+          type="file"
+          className="h-11"
+          aria-describedby="lms-file-hint"
+          aria-invalid={error ? true : undefined}
+        />
+        <p id="lms-file-hint" className="text-xs text-muted-foreground">
+          PDF, image, text or DOCX, up to 5 MB.
+        </p>
       </div>
       <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>
         Upload
@@ -197,6 +227,11 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
       {message ? (
         <span role="status" className="text-xs">
           {message}
+        </span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-xs text-destructive" data-testid="lms-file-error">
+          {error}
         </span>
       ) : null}
     </form>

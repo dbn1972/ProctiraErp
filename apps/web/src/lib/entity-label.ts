@@ -74,3 +74,20 @@ export function directoryLabel(
   const hit = map.get(id)?.trim();
   return hit ? hit : missingLabel;
 }
+
+/**
+ * PRC-M088: a person's display name from a directory label, falling back to
+ * a server-provided name only when it is a real name — never a UUID or an
+ * 8-character hex id fragment.
+ */
+export function personDisplayName(
+  label: string | null | undefined,
+  serverName: string | null | undefined,
+  unknownLabel: string,
+): string {
+  const fromDirectory = label?.trim();
+  if (fromDirectory) return fromDirectory;
+  const name = serverName?.trim() ?? '';
+  if (!name || isUuidLike(name) || /^[0-9a-f]{8}$/i.test(name)) return unknownLabel;
+  return name;
+}

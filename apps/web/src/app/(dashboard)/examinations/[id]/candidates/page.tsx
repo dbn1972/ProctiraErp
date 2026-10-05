@@ -23,7 +23,7 @@ import {
 import { RegisterCandidateDialog } from '@/components/examinations/exam-ops-controls';
 import { getExamination, listExaminationCandidates } from '@/lib/api/examinations';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { loadStudentDirectory, withStudentLabels } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,14 +38,19 @@ function formatDateTime(value: string): string {
 
 export default async function ExaminationCandidatesPage(props: PageProps) {
   const params = await props.params;
-  const [examination, candidates, studentOptions] = await Promise.all([
+  const [examination, candidates, studentDirectory] = await Promise.all([
     getExamination(params.id),
     listExaminationCandidates(params.id),
-    loadStudentOptions(),
+    loadStudentDirectory(),
   ]);
   if (!examination) notFound();
 
-  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const studentOptions = studentDirectory.options;
+  // PRC-M083: candidates beyond the first directory page are resolved by id.
+  const studentLabels = await withStudentLabels(
+    new Map(studentOptions.map((option) => [option.id, option.label])),
+    candidates.map((candidate) => candidate.studentId),
+  );
   const centerName = new Map(examination.centers.map((c) => [c.id, c.name]));
   const subjectCode = new Map(examination.subjects.map((s) => [s.id, s.code]));
 
@@ -58,7 +63,11 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
             {candidates.length.toLocaleString()} registered candidates.
           </CardDescription>
         </div>
-        <RegisterCandidateDialog examination={examination} studentOptions={studentOptions} />
+        <RegisterCandidateDialog
+          examination={examination}
+          studentOptions={studentOptions}
+          studentTotal={studentDirectory.total}
+        />
       </CardHeader>
       <CardContent>
         {candidates.length === 0 ? (

@@ -17,8 +17,9 @@ import {
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { dayLabel, formatPeriodWhen } from '@/lib/timetable/conflict-label';
 import { getStaff, listStaff } from '@/lib/api/staff';
-import { getStudent, listStudents } from '@/lib/api/students';
+import { listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from '@/lib/map-with-concurrency';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,9 +110,22 @@ export default async function SectionRosterPage(props: PageProps) {
     };
   });
   const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
-  for (const enrollment of enrollments) {
-    if (studentLabel.has(enrollment.studentId)) continue;
-    const student = await getStudent(enrollment.studentId).catch(() => null);
+  // PRC-M097: resolve only the ids the bounded list did not return, deduped and
+  // in parallel (capped) instead of one sequential round-trip per enrollment.
+  const missingStudentIds = [
+    ...new Set(enrollments.map((e) => e.studentId).filter((id) => !studentLabel.has(id))),
+  ];
+  // One batch request per 100 missing ids (GET /students?ids=...) instead of one per row.
+  const idChunks: string[][] = [];
+  for (let i = 0; i < missingStudentIds.length; i += 100) {
+    idChunks.push(missingStudentIds.slice(i, i + 100));
+  }
+  const missingStudents = (
+    await mapWithConcurrency(idChunks, LOOKUP_CONCURRENCY, (ids) =>
+      listStudents({ ids, pageSize: 100 }),
+    )
+  ).flatMap((batch) => batch.data);
+  for (const student of missingStudents) {
     if (!student) continue;
     rememberStudent(student);
     const label = formatPersonLabel(
@@ -129,12 +143,18 @@ export default async function SectionRosterPage(props: PageProps) {
   const staffLabel = new Map(
     (staffResult.data ?? []).map((s) => [s.id, formatPersonLabel(s.firstName, s.lastName)]),
   );
-  for (const meeting of meetings) {
-    if (!meeting.staffId || staffLabel.has(meeting.staffId)) continue;
-    const person = await getStaff(meeting.staffId).catch(() => null);
-    if (person) {
-      staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
-    }
+  const missingStaffIds = [
+    ...new Set(
+      meetings
+        .map((m) => m.staffId)
+        .filter((id): id is string => typeof id === 'string' && id !== '' && !staffLabel.has(id)),
+    ),
+  ];
+  const missingStaff = await mapWithConcurrency(missingStaffIds, LOOKUP_CONCURRENCY, (id) =>
+    getStaff(id).catch(() => null),
+  );
+  for (const person of missingStaff) {
+    if (person) staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
   }
   const roomLabel = new Map(
     (roomsResult.ok ? roomsResult.data : []).map((r) => [
@@ -144,17 +164,22 @@ export default async function SectionRosterPage(props: PageProps) {
   );
 
   const periodLabel = new Map<string, string>();
-  for (const schedule of schedulesResult.ok ? schedulesResult.data : []) {
-    const periods = await listPeriods(schedule.id);
-    if (!periods.ok) continue;
+  const bellSchedules = schedulesResult.ok ? schedulesResult.data : [];
+  const periodsBySchedule = await mapWithConcurrency(
+    bellSchedules,
+    LOOKUP_CONCURRENCY,
+    (schedule) => listPeriods(schedule.id),
+  );
+  bellSchedules.forEach((schedule, index) => {
+    const periods = periodsBySchedule[index];
+    if (!periods?.ok) return;
     for (const p of periods.data) {
       periodLabel.set(
         p.id,
         `${schedule.name} · ${formatPeriodWhen(p.name, p.startTime, p.endTime)}`,
       );
     }
-  }
-
+  });
   return (
     <div className="space-y-4" data-testid="institution-schedule-section">
       <div className="flex flex-wrap items-start justify-between gap-3">

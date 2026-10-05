@@ -284,7 +284,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                             className="text-sm font-semibold text-primary"
                             data-testid={`report-card-link-${job.id}`}
                           >
-                            PDF
+                            {/* PRC-M094: no PDF exists yet — preview only. */}
+                            Preview
                           </Link>
                         ) : null}
                         {job.status === 'FAILED' ? (

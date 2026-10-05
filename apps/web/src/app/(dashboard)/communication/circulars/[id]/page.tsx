@@ -12,7 +12,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { getCircular } from '@/lib/api/communication';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
-import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffLabelMap, loadStudentLabelMap, withPersonLabels } from '@/lib/load-entity-labels';
 import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { CircularAckPanel } from '../../_components/circular-ack-panel';
@@ -46,7 +46,11 @@ export default async function CircularDetailPage(props: PageProps) {
     );
   }
   const circular = lookup.circular;
-  const recipientLabels = new Map([...studentLabels, ...staffLabels]);
+  // PRC-M083: recipients beyond the first directory page are looked up by id.
+  const recipientLabels = await withPersonLabels(
+    new Map([...studentLabels, ...staffLabels]),
+    circular.acks.filter((ack) => !ack.recipientLabel).map((ack) => ack.recipientId),
+  );
 
   return (
     <div className="space-y-6 p-6">
