@@ -50,8 +50,12 @@ import {
   type ActionState,
 } from '../actions';
 import type { BulkResultEntryResponse } from '@/lib/api/assessments';
-import { parseResultsCsv } from '@/lib/assessments/results-csv';
 import { itemScoreError } from '@/lib/assessments/score-range';
+import {
+  parseResultsImport,
+  RESULTS_IMPORT_MAX_ROWS,
+  summarizeResultsImport,
+} from '@/lib/assessments/results-import';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 
 interface ItemMeta {
@@ -370,9 +374,17 @@ export function ResultsEntryGrid({
     URL.revokeObjectURL(url);
   }
 
-  /** Validate uploaded CSV rows (PRC-M572: shared parser, every row accounted for). */
+  /**
+   * PRC-M475 / PRC-M572: validate every row of the uploaded CSV with the same parser
+   * the confirm step uses. File-level problems (Excel upload, >5,000 rows, missing
+   * studentId column) throw so the import UI shows them and nothing is submitted.
+   */
   async function validateImportFile(file: File): Promise<ImportValidationResult> {
-    const parsed = parseResultsCsv(await file.text(), items);
+    const parsed = parseResultsImport(file.name, await file.text(), items);
+    if (parsed.fileErrors.length > 0) {
+      throw new Error(parsed.fileErrors.join(' '));
+    }
+    const summary = summarizeResultsImport(parsed);
     const itemNameSet = new Set(items.map((i) => i.name));
     const columnMappings: ImportColumnMapping[] = parsed.headers.map((h) => ({
       sourceColumn: h,
@@ -381,14 +393,18 @@ export function ResultsEntryGrid({
       valid: h === 'studentId' || itemNameSet.has(h),
     }));
     return {
-      totalRows: parsed.totalRows,
-      validRows: parsed.validRows,
-      errorRows: parsed.rejectedRows.length,
+      totalRows: summary.totalRows,
+      validRows: summary.validRows,
+      errorRows: summary.rejectedRows.length,
       warningRows: 0,
-      errors: parsed.rowErrors.map((e) => ({ ...e, severity: 'error' as const })),
-      preview: parsed.preview
-        .slice(0, 200)
-        .map((p) => ({ rowNumber: p.row, data: p.data, hasErrors: p.hasErrors, errors: [] })),
+      errors: summary.rowErrors.map((e) => ({ ...e, severity: 'error' as const })),
+      // Preview is a display aid only; validation above covered every row.
+      preview: parsed.rows.slice(0, 200).map((row) => ({
+        rowNumber: row.rowNumber,
+        data: row.data,
+        hasErrors: row.errors.length > 0,
+        errors: [],
+      })),
       columnMappings,
     };
   }
@@ -396,12 +412,17 @@ export function ResultsEntryGrid({
     if (!subjectId || !academicPeriodId) {
       throw new Error('Choose a subject and an academic period.');
     }
-    const parsed = parseResultsCsv(await file.text(), items);
-    // PRC-M572: rejected rows are reported as failures, never dropped silently.
-    const rejected = parsed.rejectedRows.length;
-    const rowsToImport = parsed.entries;
+    const parsed = parseResultsImport(file.name, await file.text(), items);
+    if (parsed.fileErrors.length > 0) {
+      throw new Error(parsed.fileErrors.join(' '));
+    }
+    // PRC-M475 / PRC-M572: a row with any invalid cell (or no scores) is rejected as a
+    // whole and counted as failed, never dropped silently.
+    const summary = summarizeResultsImport(parsed);
+    const rejectedRows = summary.rejectedRows.length;
+    const rowsToImport = summary.entries;
     if (rowsToImport.length === 0) {
-      return { success: 0, failed: rejected };
+      return { success: 0, failed: rejectedRows };
     }
     const result = await importResultsFromExcelAction({
       subjectId,
@@ -412,12 +433,11 @@ export function ResultsEntryGrid({
     if (result.status === 'success' && result.data) {
       return {
         success: result.data.successCount,
-        failed: result.data.errorCount + rejected,
+        failed: result.data.errorCount + rejectedRows,
       };
     }
-    return { success: 0, failed: rowsToImport.length + rejected };
+    return { success: 0, failed: rowsToImport.length + rejectedRows };
   }
-
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
@@ -615,8 +635,11 @@ export function ResultsEntryGrid({
             title="Import results"
             description={`Upload a CSV with columns: studentId, ${items
               .map((i) => i.name)
-              .join(', ')}. Up to 5,000 rows per file.`}
-            acceptedFileTypes={['.csv', '.xlsx']}
+              .join(
+                ', ',
+              )}. CSV only (save Excel sheets as CSV). Up to ${RESULTS_IMPORT_MAX_ROWS.toLocaleString()} rows per file.`}
+            // PRC-M475: CSV only — Excel files are binary and cannot be read as text.
+            acceptedFileTypes={['.csv']}
             maxFileSize={10 * 1024 * 1024}
             targetFields={[
               { name: 'studentId', label: 'Student', required: true },

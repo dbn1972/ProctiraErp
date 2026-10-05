@@ -156,13 +156,14 @@ export async function transitionGradeEntryAction(input: {
   id: string;
   action: GradeWorkflowAction;
   institutionId: string;
+  reason?: string;
 }): Promise<GradebookActionResult> {
   const parsed = transitionGradeFormSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid transition' };
   }
   try {
-    const row = await transitionGradeEntry(parsed.data.id, parsed.data.action);
+    const row = await transitionGradeEntry(parsed.data.id, parsed.data.action, parsed.data.reason);
     revalidatePath(`/institutions/${parsed.data.institutionId}/gradebook`);
     revalidatePath('/assessments/report-cards');
     return { ok: true, id: row.id, extra: { workflowStatus: row.metadata?.workflowStatus } };

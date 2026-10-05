@@ -1,6 +1,7 @@
 /**
  * Admissions CRM hub (Server Component).
  */
+import { LookupLoadError } from '@/components/route-state/lookup-load-error';
 import Link from 'next/link';
 
 import {
@@ -53,6 +54,7 @@ export default async function AdmissionsPage() {
       </div>
 
       <AdmissionsNav current="/admissions" />
+      <LookupLoadError failed={lookups.errors} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <StatusForm applications={applications} />

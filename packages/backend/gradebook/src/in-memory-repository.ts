@@ -218,6 +218,18 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     return next;
   }
 
+  async claimExportJob(tenantId: string, id: string, startedAt: string, staleBefore: string) {
+    // Synchronous check-and-set: no await between read and write, so it is atomic in-process.
+    const cur = this.jobs.get(id);
+    if (!cur || cur.tenantId !== tenantId) return null;
+    const claimable =
+      cur.status === 'QUEUED' ||
+      (cur.status === 'RUNNING' && (!cur.startedAt || cur.startedAt < staleBefore));
+    if (!claimable) return null;
+    const next: ExportJobEntity = { ...cur, status: 'RUNNING', startedAt, updatedAt: startedAt };
+    this.jobs.set(id, next);
+    return next;
+  }
   async listExportJobs(tenantId: string, jobType?: string) {
     return [...this.jobs.values()]
       .filter((j) => j.tenantId === tenantId && (!jobType || j.jobType === jobType))

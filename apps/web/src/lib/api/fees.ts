@@ -209,6 +209,33 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoi
   return throwIfMissing(result, 'Failed to create invoice');
 }
 
+/** PRC-M477: one bounded page of fee rows (server-side paging + filters). */
+export interface FeeListPageQuery {
+  page: number;
+  pageSize?: number;
+  status?: string;
+  studentId?: string;
+}
+
+function feePageQs(query: FeeListPageQuery): string {
+  const qs = new URLSearchParams();
+  qs.set('page', String(Math.max(1, Math.floor(query.page) || 1)));
+  qs.set('pageSize', String(Math.min(100, Math.max(1, query.pageSize ?? FEE_LIST_PAGE_SIZE))));
+  if (query.status) qs.set('status', query.status);
+  if (query.studentId) qs.set('studentId', query.studentId);
+  return qs.toString();
+}
+
+export const FEE_LIST_PAGE_SIZE = 50;
+
+export function listInvoicesPageResult(query: FeeListPageQuery): Promise<ListResult<FeeInvoice>> {
+  return fetchList<FeeInvoice>(`/fees/invoices?${feePageQs(query)}`, { next: { revalidate: 0 } });
+}
+
+export function listReceiptsPageResult(query: FeeListPageQuery): Promise<ListResult<FeeReceipt>> {
+  return fetchList<FeeReceipt>(`/fees/receipts?${feePageQs(query)}`, { next: { revalidate: 0 } });
+}
+
 export function listReceiptsResult(
   scope: 'parent' | 'staff' = 'staff',
 ): Promise<ListResult<FeeReceipt>> {

@@ -416,12 +416,13 @@ export async function listPublishedGradeEntries(filters?: {
 export async function transitionGradeEntry(
   id: string,
   action: GradeWorkflowAction,
+  reason?: string,
 ): Promise<GradeEntry> {
   const result = await gatewayFetch<GradeEntry>(
     `/gradebook/entries/${encodeURIComponent(id)}/transition`,
     {
       method: 'POST',
-      json: { action },
+      json: reason ? { action, reason } : { action },
     },
   );
   if (!result.data) {

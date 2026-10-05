@@ -15,6 +15,8 @@ const PERIOD = '44444444-4444-4444-8444-444444444444';
 describe('PRC-H022 timetable section institution ownership', () => {
   let app: FastifyInstance;
   let sectionId: string;
+  // PRC-M404: PUT requires If-Match with the section's current updatedAt.
+  let ifMatch: Record<string, string>;
   let caller: { id: string; roles: unknown[]; institutions?: string[] };
 
   beforeEach(async () => {
@@ -35,7 +37,9 @@ describe('PRC-H022 timetable section institution ownership', () => {
       payload: { institutionId: SCHOOL_A, academicPeriodId: PERIOD, name: '7-A', code: '7A' },
     });
     expect(created.statusCode).toBe(201);
-    sectionId = (created.json() as { id: string }).id;
+    const row = created.json() as { id: string; updatedAt: string };
+    sectionId = row.id;
+    ifMatch = { 'if-match': `"${row.updatedAt}"` };
   });
 
   afterEach(async () => {
@@ -45,6 +49,7 @@ describe('PRC-H022 timetable section institution ownership', () => {
   it('PUT and DELETE without institutionId are rejected (400)', async () => {
     const put = await app.inject({
       method: 'PUT',
+      headers: ifMatch,
       url: `/timetable/sections/${sectionId}`,
       payload: { name: '7-B' },
     });
@@ -57,6 +62,7 @@ describe('PRC-H022 timetable section institution ownership', () => {
   it('PUT and DELETE naming another institution 404 and leave the section intact', async () => {
     const put = await app.inject({
       method: 'PUT',
+      headers: ifMatch,
       url: `/timetable/sections/${sectionId}?institutionId=${SCHOOL_B}`,
       payload: { name: 'Hijacked' },
     });
@@ -74,6 +80,7 @@ describe('PRC-H022 timetable section institution ownership', () => {
   it('PUT and DELETE naming the owning institution succeed', async () => {
     const put = await app.inject({
       method: 'PUT',
+      headers: ifMatch,
       url: `/timetable/sections/${sectionId}?institutionId=${SCHOOL_A}`,
       payload: { name: '7-B' },
     });
@@ -114,6 +121,7 @@ describe('PRC-H022 timetable section institution ownership', () => {
       caller = otherSchoolPrincipal();
       const put = await app.inject({
         method: 'PUT',
+        headers: ifMatch,
         url: `/timetable/sections/${sectionId}?institutionId=${SCHOOL_A}`,
         payload: { name: 'Hijacked' },
       });

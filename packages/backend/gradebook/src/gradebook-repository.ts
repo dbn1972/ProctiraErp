@@ -224,6 +224,17 @@ export interface GradebookRepository {
     id: string,
     patch: Partial<ExportJobEntity>,
   ): Promise<ExportJobEntity | null>;
+  /**
+   * PRC-M270: atomically claim a job for processing. Moves QUEUED -> RUNNING (or re-claims a
+   * RUNNING row whose lease, measured from started_at, expired before `staleBefore`). Returns the
+   * claimed row, or null when another runner holds it / it is terminal / it does not exist.
+   */
+  claimExportJob(
+    tenantId: string,
+    id: string,
+    startedAt: string,
+    staleBefore: string,
+  ): Promise<ExportJobEntity | null>;
   listExportJobs(tenantId: string, jobType?: string): Promise<ExportJobEntity[]>;
 
   listSections(tenantId: string, filter?: ListSectionsFilter): Promise<SectionSummary[]>;
