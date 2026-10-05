@@ -34,7 +34,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "autoprefixer": "^10.6.1",
     "eslint-config-next": "14.2.35",
-    "fast-check": "^4.10.1",
+    "fast-check": "^4.10.2",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.4.0",
