@@ -11,7 +11,14 @@
  * Every statement runs under withPgTenant (RLS) and each domain runs inside a
  * SAVEPOINT so a missing table or failed statement is reported as a residual
  * for that domain instead of aborting the whole erasure. Anything not fully
- * handled is returned as a residual so the job fails closed.
+ * handled is returned as a residual so the job fails closed: after the domain
+ * anonymizers run, a coverage audit discovers every table linked to the
+ * subject (tenant-data-registry.ts) and reports any unhandled or unclassified
+ * table that still holds the subject's rows.
+ *
+ * Tenant wipe is deny-by-default: only tables the registry marks `wipe` are
+ * deleted; statutory, audit, privacy-evidence and FK-dependency tables are
+ * kept, and unclassified tables are left in place and reported as residual.
  */
 import { createHash } from 'node:crypto';
 
@@ -25,6 +32,14 @@ import type {
   TenantWipeExecutor,
   TenantWipeInput,
 } from './subject-anonymizer.js';
+import {
+  SUBJECT_LINK_COLUMNS,
+  SUBJECT_LINK_REGISTRY,
+  subjectKindFor,
+  tenantWipeDisposition,
+  type SubjectKind,
+  type TenantWipeDisposition,
+} from './tenant-data-registry.js';
 
 /** Pool accepted by withPgTenant. */
 export type PrivacyPgPool = Parameters<typeof withPgTenant>[0];
@@ -55,6 +70,11 @@ export interface DomainAnonymizeOutcome {
 
 export interface DomainSubjectAnonymizer {
   readonly domain: string;
+  /**
+   * Subject links (`table.column`, see SUBJECT_LINK_REGISTRY) this anonymizer
+   * fully handles. Only covered `handled` links are exempt from the coverage audit.
+   */
+  readonly covers?: readonly string[];
   appliesTo(subjectType: string): boolean;
   anonymize(
     client: PgQueryable,
@@ -75,6 +95,8 @@ function rowCount(res: unknown): number {
   return typeof n === 'number' ? n : 0;
 }
 
+const SAFE_IDENT = /^[a-z_][a-z0-9_]*$/;
+
 const isType =
   (...types: string[]) =>
   (subjectType: string) =>
@@ -82,12 +104,14 @@ const isType =
 
 export const studentAnonymizer: DomainSubjectAnonymizer = {
   domain: 'students',
+  covers: ['students.id'],
   appliesTo: isType('student'),
   async anonymize(client, input, token) {
     const res = await client.query(
       `UPDATE students
           SET first_name = 'Anonymised', last_name = $3, date_of_birth = DATE '1900-01-01',
-              national_id = NULL, custom_data = '{}'::jsonb, updated_at = now()
+              gender = 'other', national_id = NULL, custom_data = '{}'::jsonb,
+              search_vector = NULL, updated_at = now()
         WHERE id::text = $1 AND tenant_id::text = $2`,
       [input.subjectId, input.tenantId, `ANON-${token}`],
     );
@@ -99,8 +123,10 @@ export const studentAnonymizer: DomainSubjectAnonymizer = {
         'students.first_name',
         'students.last_name',
         'students.date_of_birth',
+        'students.gender',
         'students.national_id',
         'students.custom_data',
+        'students.search_vector',
       ],
     };
   },
@@ -108,12 +134,14 @@ export const studentAnonymizer: DomainSubjectAnonymizer = {
 
 export const staffAnonymizer: DomainSubjectAnonymizer = {
   domain: 'staff',
+  covers: ['staff.id'],
   appliesTo: isType('staff', 'employee', 'teacher'),
   async anonymize(client, input, token) {
     const res = await client.query(
       `UPDATE staff
           SET first_name = 'Anonymised', last_name = $3, identity_number = $3,
-              date_of_birth = DATE '1900-01-01', custom_data = '{}'::jsonb, updated_at = now()
+              date_of_birth = DATE '1900-01-01', custom_data = '{}'::jsonb,
+              search_vector = NULL, updated_at = now()
         WHERE id::text = $1 AND tenant_id::text = $2`,
       [input.subjectId, input.tenantId, `ANON-${token}`],
     );
@@ -127,6 +155,7 @@ export const staffAnonymizer: DomainSubjectAnonymizer = {
         'staff.identity_number',
         'staff.date_of_birth',
         'staff.custom_data',
+        'staff.search_vector',
       ],
     };
   },
@@ -170,6 +199,7 @@ export const guardianAnonymizer: DomainSubjectAnonymizer = {
 export function createStudentFilesAnonymizer(objectEraser?: ObjectEraser): DomainSubjectAnonymizer {
   return {
     domain: 'files',
+    covers: ['student_documents.student_id'],
     appliesTo: isType('student'),
     async anonymize(client, input) {
       const res = await client.query(
@@ -202,6 +232,57 @@ export function createStudentFilesAnonymizer(objectEraser?: ObjectEraser): Domai
   };
 }
 
+/**
+ * Student photo: object bytes erased via ObjectEraser, then the registry row is
+ * deleted. Without an eraser nothing is deleted (the key is the only pointer
+ * to the bytes) and a residual is reported.
+ */
+export function createStudentPhotoAnonymizer(objectEraser?: ObjectEraser): DomainSubjectAnonymizer {
+  return {
+    domain: 'photos',
+    covers: ['student_photos.student_id'],
+    appliesTo: isType('student'),
+    async anonymize(client, input) {
+      const res = await client.query(
+        `SELECT object_key FROM student_photos
+          WHERE student_id::text = $1 AND tenant_id::text = $2`,
+        [input.subjectId, input.tenantId],
+      );
+      const rows = (res.rows ?? []) as Array<{ object_key: unknown }>;
+      if (rows.length === 0) return { fieldsTouched: [] };
+      if (!objectEraser) {
+        return {
+          fieldsTouched: [],
+          residual: `photos: ${rows.length} stored photo object(s) not erased (no ObjectEraser configured)`,
+        };
+      }
+      for (const row of rows) {
+        await objectEraser.deleteObject(input.tenantId, String(row.object_key));
+      }
+      await client.query(
+        `DELETE FROM student_photos WHERE student_id::text = $1 AND tenant_id::text = $2`,
+        [input.subjectId, input.tenantId],
+      );
+      return { fieldsTouched: ['student_photos (rows + objects deleted)'] };
+    },
+  };
+}
+
+/** Sibling links name the subject's family relationships: deleted in both directions. */
+export const studentSiblingsAnonymizer: DomainSubjectAnonymizer = {
+  domain: 'siblings',
+  covers: ['student_siblings.student_id', 'student_siblings.sibling_id'],
+  appliesTo: isType('student'),
+  async anonymize(client, input) {
+    await client.query(
+      `DELETE FROM student_siblings
+        WHERE tenant_id::text = $2 AND (student_id::text = $1 OR sibling_id::text = $1)`,
+      [input.subjectId, input.tenantId],
+    );
+    return { fieldsTouched: ['student_siblings (rows deleted)'] };
+  },
+};
+
 /** Fees ledger / health records: retained under statutory retention (no mutation). */
 export function createRetainedRecordsAnonymizer(
   domain: 'fees' | 'health',
@@ -231,6 +312,8 @@ export function defaultDomainAnonymizers(
     guardianAnonymizer,
     staffAnonymizer,
     createStudentFilesAnonymizer(options.objectEraser),
+    createStudentPhotoAnonymizer(options.objectEraser),
+    studentSiblingsAnonymizer,
     createRetainedRecordsAnonymizer('fees', mode),
     createRetainedRecordsAnonymizer('health', mode),
   ];
@@ -274,6 +357,12 @@ export class PgDomainSubjectAnonymizer implements SubjectAnonymizer {
           );
         }
       }
+      const kind = subjectKindFor(input.subjectType);
+      if (kind) {
+        const covered = new Set(applicable.flatMap((d) => d.covers ?? []));
+        const residual = await auditSubjectCoverage(client, input, kind, covered);
+        if (residual) residuals.push(residual);
+      }
       return {
         fieldsTouched,
         ...(residuals.length > 0 ? { residualNote: residuals.join('; ') } : {}),
@@ -282,22 +371,93 @@ export class PgDomainSubjectAnonymizer implements SubjectAnonymizer {
   }
 }
 
+const MAX_LISTED_RESIDUAL_LINKS = 25;
+
+function errMessage(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).slice(0, 200);
+}
+
+/**
+ * Fail-closed coverage audit: discovers every column linking rows to the
+ * subject and probes each link that is not covered by an applied anonymizer,
+ * retained under statutory retention, or a pseudonymous key. Any remaining
+ * subject row (or a failed probe) is a residual, so the erasure job cannot be
+ * marked `completed` while child/staff PII is still present.
+ */
+async function auditSubjectCoverage(
+  client: PgQueryable,
+  input: AnonymizeSubjectInput,
+  kind: SubjectKind,
+  covered: ReadonlySet<string>,
+): Promise<string | undefined> {
+  const registry = new Map(SUBJECT_LINK_REGISTRY[kind].map((l) => [`${l.table}.${l.column}`, l]));
+  const sp = 'privacy_coverage_audit';
+  let discovered: Array<{ table: string; column: string; hasTenant: boolean }>;
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const res = await client.query(
+      `SELECT c.table_name, c.column_name,
+              EXISTS (SELECT 1 FROM information_schema.columns t
+                       WHERE t.table_schema = 'public' AND t.table_name = c.table_name
+                         AND t.column_name = 'tenant_id') AS has_tenant
+         FROM information_schema.columns c
+        WHERE c.table_schema = 'public'
+          AND (c.column_name = ANY($1::text[])
+               OR (c.table_name || '.' || c.column_name) = ANY($2::text[]))
+        ORDER BY c.table_name, c.column_name`,
+      [[...SUBJECT_LINK_COLUMNS[kind]], [...registry.keys()]],
+    );
+    discovered = ((res.rows ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      table: String(r['table_name']),
+      column: String(r['column_name']),
+      hasTenant: r['has_tenant'] === true || r['has_tenant'] === 't',
+    }));
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    return `coverage: subject-link discovery failed (${errMessage(err)}); erasure not verified`;
+  }
+
+  const remaining: string[] = [];
+  for (const { table, column, hasTenant } of discovered) {
+    const key = `${table}.${column}`;
+    const entry = registry.get(key);
+    if (entry?.handling === 'retained' || entry?.handling === 'pseudonymous') continue;
+    if (entry?.handling === 'handled' && covered.has(key)) continue;
+    const label = entry ? key : `${key} (unclassified)`;
+    if (!SAFE_IDENT.test(table) || !SAFE_IDENT.test(column)) {
+      remaining.push(`${label} (unsafe identifier, not probed)`);
+      continue;
+    }
+    await client.query(`SAVEPOINT ${sp}`);
+    try {
+      const res = await client.query(
+        `SELECT 1 FROM "${table}" WHERE "${column}"::text = $1` +
+          (hasTenant ? ' AND tenant_id::text = $2' : '') +
+          ' LIMIT 1',
+        hasTenant ? [input.subjectId, input.tenantId] : [input.subjectId],
+      );
+      await client.query(`RELEASE SAVEPOINT ${sp}`);
+      if ((res.rows ?? []).length > 0) remaining.push(label);
+    } catch (err) {
+      await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+      remaining.push(`${label} (probe failed: ${errMessage(err)})`);
+    }
+  }
+  if (remaining.length === 0) return undefined;
+  const listed = remaining.slice(0, MAX_LISTED_RESIDUAL_LINKS).join(', ');
+  const more =
+    remaining.length > MAX_LISTED_RESIDUAL_LINKS
+      ? ` (+${remaining.length - MAX_LISTED_RESIDUAL_LINKS} more)`
+      : '';
+  return `coverage: subject-linked rows not anonymised in ${listed}${more}`;
+}
+
 // ─── Tenant wipe ─────────────────────────────────────────────────────────────
 
-const SAFE_IDENT = /^[a-z_][a-z0-9_]*$/;
-
-/** Tables never deleted by a tenant wipe (control plane, privacy evidence, audit). */
-const PRESERVED_PREFIXES = ['privacy_', 'audit', 'tenants', 'schema_migrations', 'outbox'];
-
-/** Offboard checklist domain for a tenant-scoped table. */
+/** Offboard checklist domain for a tenant-scoped table (`unclassified` → never deleted). */
 export function classifyWipeTable(table: string): string {
-  if (/^(fee|fees_|parent_fee|payment|invoice|receipt|ledger)/.test(table)) return 'fees';
-  if (/^health/.test(table)) return 'health';
-  if (/^audit/.test(table)) return 'audit_archives';
-  if (/(_documents|_files|_attachments)$/.test(table)) return 'files_storage';
-  if (/^staff|^payroll|^hr_/.test(table)) return 'staff';
-  if (/^student|^guardian|^parent_|^enrol|^admission/.test(table)) return 'students';
-  return 'other';
+  return tenantWipeDisposition(table)?.domain ?? 'unclassified';
 }
 
 export interface PgTenantWipeExecutorOptions {
@@ -308,11 +468,15 @@ export interface PgTenantWipeExecutorOptions {
   maxPasses?: number;
 }
 
+type KeptDisposition = Exclude<TenantWipeDisposition, { action: 'wipe' }>;
+
 /**
- * Real tenant data destruction: deletes every row of `tenant_id` from all
- * tenant-scoped public tables (discovered from information_schema) under the
- * tenant's RLS context, in repeated passes so FK order resolves. Fees/health
- * are retained under `retain` mode; audit and privacy evidence are preserved.
+ * Real tenant data destruction, deny-by-default: deletes the tenant's rows only
+ * from tables TENANT_WIPE_REGISTRY marks `wipe`, under the tenant's RLS
+ * context, in repeated passes so FK order resolves. Statutory (fees, payroll,
+ * health), audit, privacy-evidence and FK-dependency tables are kept and
+ * reported as skipped; `manual` and unclassified tables are kept and reported
+ * as residual so the offboard job fails closed.
  */
 export class PgTenantWipeExecutor implements TenantWipeExecutor {
   constructor(
@@ -322,7 +486,6 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
 
   async wipe(input: TenantWipeInput): Promise<TenantWipeDomainResult[]> {
     const mode = this.options.financeHealthMode ?? 'retain';
-    const retained = new Set(mode === 'retain' ? ['fees', 'health'] : []);
     const maxPasses = this.options.maxPasses ?? 8;
 
     const outcome = await withPgTenant(this.pool, input.tenantId, async (client) => {
@@ -331,11 +494,12 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
           WHERE table_schema = 'public' AND column_name = 'tenant_id'
           ORDER BY table_name`,
       );
-      const tables = ((res.rows ?? []) as Array<{ table_name: unknown }>)
-        .map((r) => String(r.table_name))
-        .filter((t) => SAFE_IDENT.test(t))
-        .filter((t) => !PRESERVED_PREFIXES.some((p) => t.startsWith(p)));
-      const toWipe = tables.filter((t) => !retained.has(classifyWipeTable(t)));
+      const tables = ((res.rows ?? []) as Array<{ table_name: unknown }>).map((r) =>
+        String(r.table_name),
+      );
+      const toWipe = tables.filter(
+        (t) => SAFE_IDENT.test(t) && tenantWipeDisposition(t)?.action === 'wipe',
+      );
       const failed = new Map<string, string>();
       let pending = [...toWipe];
       for (let pass = 0; pass < maxPasses && pending.length > 0; pass += 1) {
@@ -360,42 +524,68 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       return { tables, failed };
     });
 
-    const byDomain = new Map<string, { tables: string[]; failed: string[] }>();
+    const wiped = new Map<string, { tables: string[]; failed: string[] }>();
+    const kept = new Map<string, { disposition: KeptDisposition; tables: string[] }>();
+    const unclassified: string[] = [];
     for (const table of outcome.tables) {
-      const domain = classifyWipeTable(table);
-      const entry = byDomain.get(domain) ?? { tables: [], failed: [] };
-      entry.tables.push(table);
-      if (outcome.failed.has(table)) entry.failed.push(table);
-      byDomain.set(domain, entry);
+      const disposition = SAFE_IDENT.test(table) ? tenantWipeDisposition(table) : undefined;
+      if (!disposition) {
+        unclassified.push(table);
+      } else if (disposition.action === 'wipe') {
+        const entry = wiped.get(disposition.domain) ?? { tables: [], failed: [] };
+        entry.tables.push(table);
+        if (outcome.failed.has(table)) entry.failed.push(table);
+        wiped.set(disposition.domain, entry);
+      } else {
+        const key = `${disposition.action}:${disposition.domain}`;
+        const entry = kept.get(key) ?? { disposition, tables: [] };
+        entry.tables.push(table);
+        kept.set(key, entry);
+      }
     }
 
     const results: TenantWipeDomainResult[] = [];
-    for (const [domain, entry] of [...byDomain.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      if (retained.has(domain)) {
+    for (const [domain, entry] of [...wiped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      results.push(
+        entry.failed.length > 0
+          ? {
+              domain,
+              status: 'residual',
+              note: `Delete failed for: ${entry.failed.join(', ')}`.slice(0, 500),
+            }
+          : { domain, status: 'completed', note: `${entry.tables.length} table(s) wiped` },
+      );
+    }
+    for (const { disposition, tables } of [...kept.values()].sort((a, b) =>
+      a.disposition.domain.localeCompare(b.disposition.domain),
+    )) {
+      const count = `${tables.length} table(s): ${tables.join(', ')}`;
+      if (disposition.action === 'manual') {
         results.push({
-          domain,
-          status: 'skipped',
-          note: `Retained under statutory retention (ERASURE_FINANCE_HEALTH_MODE=${mode}); ${entry.tables.length} table(s)`,
-        });
-      } else if (entry.failed.length > 0) {
-        results.push({
-          domain,
+          domain: disposition.domain,
           status: 'residual',
-          note: `Delete failed for: ${entry.failed.join(', ')}`.slice(0, 500),
+          note: `${disposition.basis}; not deleted — ${count}`.slice(0, 500),
         });
       } else {
+        const modeNote =
+          disposition.action === 'retain' ? ` (ERASURE_FINANCE_HEALTH_MODE=${mode})` : '';
         results.push({
-          domain,
-          status: 'completed',
-          note: `${entry.tables.length} table(s) wiped`,
+          domain: disposition.domain,
+          status: 'skipped',
+          note: `${disposition.basis}${modeNote}; ${count}`.slice(0, 500),
         });
       }
     }
-    results.push({
-      domain: 'audit_archives',
-      status: 'skipped',
-      note: 'Audit and privacy evidence preserved by policy',
-    });
+    if (unclassified.length > 0) {
+      results.push({
+        domain: 'unclassified',
+        status: 'residual',
+        note: `Not in the tenant wipe registry (deny by default); not deleted: ${unclassified.join(', ')}`.slice(
+          0,
+          500,
+        ),
+      });
+    }
     if (this.options.objectStoreWiper) {
       try {
         await this.options.objectStoreWiper.wipeTenant(input.tenantId);

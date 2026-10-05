@@ -88,9 +88,24 @@ export {
   PgDomainSubjectAnonymizer,
   PgTenantWipeExecutor,
   classifyWipeTable,
+  createStudentPhotoAnonymizer,
   defaultDomainAnonymizers,
   readFinanceHealthErasureMode,
+  studentSiblingsAnonymizer,
 } from './domain-anonymizers.js';
+export {
+  SUBJECT_LINK_COLUMNS,
+  SUBJECT_LINK_REGISTRY,
+  TENANT_WIPE_REGISTRY,
+  subjectKindFor,
+  tenantWipeDisposition,
+} from './tenant-data-registry.js';
+export type {
+  SubjectKind,
+  SubjectLink,
+  SubjectLinkHandling,
+  TenantWipeDisposition,
+} from './tenant-data-registry.js';
 export type {
   DomainSubjectAnonymizer,
   FinanceHealthErasureMode,
