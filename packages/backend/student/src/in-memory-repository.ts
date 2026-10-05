@@ -5,10 +5,16 @@
  * Implements the StudentRepository interface with a simple Map-based store.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { ConflictError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 
 import { ADMISSION_NUMBER_CONFLICT, admissionNoOf } from './admission-number.js';
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import type {
+  StudentBulkWrite,
+  StudentBulkWriteResult,
+  StudentEntity,
+  StudentFilter,
+  StudentRepository,
+} from './student-repository.js';
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: Map<string, StudentEntity> = new Map();
@@ -64,6 +70,28 @@ export class InMemoryStudentRepository implements StudentRepository {
     };
     this.students.set(id, updated);
     return updated;
+  }
+
+  /** PRC-M384: all-or-nothing — restores the pre-batch state on any failure. */
+  async bulkWrite(tenantId: string, ops: StudentBulkWrite): Promise<StudentBulkWriteResult> {
+    const snapshot = new Map(this.students);
+    try {
+      const created: StudentEntity[] = [];
+      const updated: StudentEntity[] = [];
+      for (const data of ops.creates) {
+        if (data.tenantId !== tenantId) throw new Error('bulkWrite tenant mismatch');
+        created.push(await this.create(data));
+      }
+      for (const { id, data } of ops.updates) {
+        const row = await this.update(id, tenantId, data);
+        if (!row) throw new NotFoundError(`Student with id '${id}' not found`);
+        updated.push(row);
+      }
+      return { created, updated };
+    } catch (error) {
+      this.students = snapshot;
+      throw error;
+    }
   }
 
   async findById(id: string, tenantId: string): Promise<StudentEntity | null> {

@@ -1,3 +1,4 @@
+import { TimetableVersionConflictError } from './timetable-errors.js';
 import type {
   AttendancePeriodSlot,
   BellScheduleEntity,
@@ -15,7 +16,6 @@ import type {
   ListSubstitutionsFilter,
   UpdateConcurrencyOpts,
 } from './timetable-repository.js';
-import { TimetableVersionConflictError } from './timetable-errors.js';
 
 /** Ensure OCC tokens always advance (same-ms Date.now collisions). */
 function nextUpdatedAt(previous: string): string {
@@ -249,6 +249,32 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   async createMeeting(row: SectionMeetingEntity) {
     this.meetings.set(row.id, row);
     return row;
+  }
+
+  /** PRC-M397: all-or-nothing; restores both maps on any failure. */
+  async insertClonedTimetable(
+    tenantId: string,
+    sections: SectionEntity[],
+    meetings: SectionMeetingEntity[],
+  ): Promise<void> {
+    const sectionSnapshot = new Map(this.sections);
+    const meetingSnapshot = new Map(this.meetings);
+    try {
+      for (const row of sections) {
+        if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+        await this.createSection(row);
+      }
+      for (const row of meetings) {
+        if (row.tenantId !== tenantId) throw new Error('clone tenant mismatch');
+        await this.createMeeting(row);
+      }
+    } catch (error) {
+      this.sections.clear();
+      for (const [k, v] of sectionSnapshot) this.sections.set(k, v);
+      this.meetings.clear();
+      for (const [k, v] of meetingSnapshot) this.meetings.set(k, v);
+      throw error;
+    }
   }
 
   async updateMeeting(

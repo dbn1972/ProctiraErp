@@ -186,4 +186,16 @@ export interface ReportCardJobRepository {
    * create→publish dual-write crash).
    */
   listByStatus(tenantId: string, status: ReportCardJobStatus): Promise<ReportCardJobEntity[]>;
+
+  /**
+   * PRC-M165: compare-and-set claim. Atomically moves the job to `processing`
+   * only when it is `queued`/`failed`, or `processing` but last touched before
+   * `staleBefore` (crashed worker). Returns null when another worker owns it or
+   * it is already completed.
+   */
+  claimForProcessing(
+    id: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity | null>;
 }

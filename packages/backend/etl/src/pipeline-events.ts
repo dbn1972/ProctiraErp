@@ -79,9 +79,13 @@ export interface PipelineEventPublisher {
  */
 export class InMemoryEventPublisher implements PipelineEventPublisher {
   public events: PipelineEvent[] = [];
-
+  /** PRC-M226: bounded ring buffer — oldest events are dropped beyond `maxEvents`. */
+  constructor(private readonly maxEvents: number = 1000) {}
   async publish(event: PipelineEvent): Promise<void> {
     this.events.push(event);
+    if (this.events.length > this.maxEvents) {
+      this.events.splice(0, this.events.length - this.maxEvents);
+    }
   }
 
   clear(): void {
