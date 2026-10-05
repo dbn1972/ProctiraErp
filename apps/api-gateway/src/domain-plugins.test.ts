@@ -105,7 +105,13 @@ describe('verifyOfferFeeInvoiceOwnershipHook (PRC-H079)', () => {
         return { ...base, ...overrides } as never;
       },
     }));
-  const input = { tenantId: 't-1', applicationId: 'app-1', invoiceId: 'inv-1' };
+  const input = {
+    tenantId: 't-1',
+    applicationId: 'app-1',
+    invoiceId: 'inv-1',
+    feeAmount: 10,
+    feeCurrency: 'INR',
+  };
 
   it("accepts the application's own offer-fee invoice", async () => {
     await expect(hookWith({})(input)).resolves.toBe(true);
@@ -117,8 +123,14 @@ describe('verifyOfferFeeInvoiceOwnershipHook (PRC-H079)', () => {
     ['another tenant', { tenantId: 't-2' }],
     ['a void invoice', { status: 'void' }],
     ['a written-off invoice', { status: 'written_off' }],
+    ['an invoice for a different amount (earlier offer)', { amountCents: 2000 }],
+    ['an invoice in a different currency', { currency: 'USD' }],
   ])('rejects %s', async (_label, overrides) => {
     await expect(hookWith(overrides)(input)).resolves.toBe(false);
+  });
+
+  it('rejects when the offer fee amount is not cent-representable', async () => {
+    await expect(hookWith({})({ ...input, feeAmount: 10.001 })).resolves.toBe(false);
   });
 
   it('rejects an unknown / cross-tenant invoice (404)', async () => {

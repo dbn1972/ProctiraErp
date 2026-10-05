@@ -7,7 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { BusinessRuleError } from '@proctira/common';
 import { describe, expect, it } from 'vitest';
 import { InMemoryRegistrationRepository } from '../in-memory-repository.js';
-import { AdmissionsPipelineService } from './pipeline-service.js';
+import {
+  AdmissionsPipelineService,
+  type VerifyOfferFeeInvoiceOwnership,
+} from './pipeline-service.js';
 import { InMemoryAdmissionsPipelineStore } from './pipeline-store.js';
 
 const TENANT = randomUUID();
@@ -18,11 +21,7 @@ const GRADE = randomUUID();
 function setup(
   opts: {
     feeHooks?: boolean;
-    verifyOwnership?: (input: {
-      tenantId: string;
-      applicationId: string;
-      invoiceId: string;
-    }) => Promise<boolean>;
+    verifyOwnership?: VerifyOfferFeeInvoiceOwnership;
   } = {},
 ) {
   const store = new InMemoryAdmissionsPipelineStore();
@@ -208,7 +207,16 @@ describe('PRC-H079 create-time offer invoice ownership', () => {
         offerFeeInvoiceId: foreign,
       }),
     ).rejects.toBeInstanceOf(BusinessRuleError);
-    expect(seen).toEqual([{ tenantId: TENANT, applicationId: app.id, invoiceId: foreign }]);
+    // The verifier receives the offer's fee so it can reject a different-amount invoice.
+    expect(seen).toEqual([
+      {
+        tenantId: TENANT,
+        applicationId: app.id,
+        invoiceId: foreign,
+        feeAmount: 500,
+        feeCurrency: 'INR',
+      },
+    ]);
   });
 
   it('fails closed when no ownership verifier is wired', async () => {

@@ -372,8 +372,9 @@ export function assertOfferFeePaidHook(
 
 /**
  * PRC-H079: a staff-supplied offerFeeInvoiceId at offer creation must be this application's
- * own admissions offer-fee invoice (same identity markers as createOfferFeeInvoiceHook) and
- * not void/written off. Unknown or foreign invoices (getInvoice 404 under tenant RLS) -> false.
+ * own admissions offer-fee invoice (same identity markers as createOfferFeeInvoiceHook,
+ * including the offer's amount and currency) and not void/written off. Unknown or foreign
+ * invoices (getInvoice 404 under tenant RLS) or an invalid fee amount -> false.
  */
 export function verifyOfferFeeInvoiceOwnershipHook(
   createReader: () => OfferFeeInvoiceReader = defaultOfferFeeInvoiceReader,
@@ -382,9 +383,13 @@ export function verifyOfferFeeInvoiceOwnershipHook(
     tenantId: string;
     applicationId: string;
     invoiceId: string;
+    feeAmount: number;
+    feeCurrency: string;
   }): Promise<boolean> => {
     let invoice: Awaited<ReturnType<OfferFeeInvoiceReader['getInvoice']>>;
+    let amountCents: number;
     try {
+      amountCents = offerFeeAmountCents(input.feeAmount);
       invoice = await createReader().getInvoice(input.tenantId, input.invoiceId);
     } catch {
       return false;
@@ -393,6 +398,8 @@ export function verifyOfferFeeInvoiceOwnershipHook(
       invoice.tenantId === input.tenantId &&
       invoice.createdBy === 'admissions-offer' &&
       invoice.description === `Admission application ${input.applicationId}` &&
+      invoice.amountCents === amountCents &&
+      invoice.currency === (input.feeCurrency || 'INR') &&
       invoice.status !== 'void' &&
       invoice.status !== 'written_off'
     );

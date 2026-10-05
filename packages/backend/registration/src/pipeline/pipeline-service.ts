@@ -119,6 +119,9 @@ export type VerifyOfferFeeInvoiceOwnership = (input: {
   tenantId: string;
   applicationId: string;
   invoiceId: string;
+  /** The new offer's fee (major units) and currency: the invoice must match both. */
+  feeAmount: number;
+  feeCurrency: string;
 }) => Promise<boolean>;
 
 export type ReconcileOfferResources = (input: {
@@ -413,26 +416,29 @@ export class AdmissionsPipelineService {
       }),
       classId: input.classId ?? null,
     };
+    const feeAmount = input.feeAmount ?? 0;
+    const feeCurrency = input.feeCurrency ?? 'INR';
     const offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
     if (offerFeeInvoiceId) {
       // PRC-H079: a staff-supplied invoice must be this application's own offer-fee
-      // invoice; otherwise another student's paid invoice could satisfy acceptance.
+      // invoice for THIS offer's amount/currency; otherwise another student's (or an
+      // earlier, different-amount offer's) paid invoice could satisfy acceptance.
       // No verifier wired -> fail closed (the invoice is raised server-side at send).
       const owned = this.verifyOfferFeeInvoiceOwnership
         ? await this.verifyOfferFeeInvoiceOwnership({
             tenantId,
             applicationId: application.id,
             invoiceId: offerFeeInvoiceId,
+            feeAmount,
+            feeCurrency,
           })
         : false;
       if (!owned) {
         throw new BusinessRuleError(
-          'offerFeeInvoiceId does not belong to this application; omit it to raise the offer fee invoice on send',
+          'offerFeeInvoiceId does not belong to this application and offer fee; omit it to raise the offer fee invoice on send',
         );
       }
     }
-    const feeAmount = input.feeAmount ?? 0;
-    const feeCurrency = input.feeCurrency ?? 'INR';
     const record: OfferRecord = {
       id: document.offerId,
       tenantId,
