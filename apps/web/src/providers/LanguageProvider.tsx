@@ -23,6 +23,7 @@
  * Design: Section C
  */
 
+import { DEFAULT_TENANT_TIMEZONE } from '@/lib/datetime/tenant-zoned';
 import React, {
   createContext,
   useCallback,
@@ -100,6 +101,11 @@ export interface LanguageProviderProps {
   storageKey?: string;
   /** Override initial locale for tests; takes precedence over persisted value. */
   defaultLocale?: Locale;
+  /**
+   * PRC-M492: tenant IANA timezone (server-resolved). Defaults to Asia/Kolkata so
+   * client-formatted dates match the school's wall clock rather than UTC.
+   */
+  timeZone?: string;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -284,6 +290,7 @@ export function LanguageProvider({
   messagesByLocale,
   storageKey,
   defaultLocale,
+  timeZone = DEFAULT_TENANT_TIMEZONE,
 }: LanguageProviderProps) {
   const resolvedStorageKey = useResolvedStorageKey(storageKey);
 
@@ -422,7 +429,7 @@ export function LanguageProvider({
         key={locale}
         locale={locale}
         messages={intlMessages as never}
-        timeZone="UTC"
+        timeZone={timeZone}
       >
         {children}
       </NextIntlClientProvider>

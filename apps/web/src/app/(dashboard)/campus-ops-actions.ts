@@ -1,5 +1,6 @@
 'use server';
 
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -113,17 +114,26 @@ export async function checkoutBarcodeAction(input: {
   barcode: string;
   patronUserId?: string;
   studentId?: string;
+  /** Wall-clock YYYY-MM-DD from the desk form (PRC-M573: no longer dropped). */
+  dueAt?: string;
 }): Promise<OpsActionState> {
   const parsed = z
     .object({
       barcode: z.string().min(1).max(64),
       patronUserId: z.string().min(1).max(128).optional(),
       studentId: z.string().min(1).max(128).optional(),
+      dueAt: z.string().max(64).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Barcode is required.' };
   try {
-    const loan = await checkoutLibraryByBarcode(parsed.data);
+    const dueAt = await toTenantUtcIso(parsed.data.dueAt);
+    const loan = await checkoutLibraryByBarcode({
+      barcode: parsed.data.barcode,
+      ...(parsed.data.patronUserId ? { patronUserId: parsed.data.patronUserId } : {}),
+      ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
+      ...(dueAt ? { dueAt } : {}),
+    });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', id: loan.id, message: 'Checked out by barcode.' };

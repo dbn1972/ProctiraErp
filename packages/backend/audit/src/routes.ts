@@ -449,6 +449,14 @@ export async function registerAuditRoutes(
   fastify.get(`${prefix}/dsar/:subjectId`, dsarExportHandler);
   fastify.post(`${prefix}/dsar/:subjectId/export`, dsarExportHandler);
 
+  // PRC-M576: GET /audit/entity-types — tenant-scoped distinct entity types.
+  // Registered before `/:id` so it is not captured as an entry id.
+  fastify.get(`${prefix}/entity-types`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = getTenantId(request);
+    const data = await auditService.listEntityTypes(tenantId);
+    return reply.status(200).send({ data });
+  });
+
   // GET /audit/:id - Get a single audit log entry
   fastify.get(`${prefix}/:id`, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
