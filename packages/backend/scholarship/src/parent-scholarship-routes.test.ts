@@ -12,6 +12,7 @@ const TENANT = '00000000-0000-4000-8000-0000000000a1';
 const CHILD = '00000000-0000-4000-8000-0000000000c1';
 const OTHER = '00000000-0000-4000-8000-0000000000c2';
 const INSTITUTION = '00000000-0000-4000-8000-0000000000d1';
+const AREA = '00000000-0000-4000-8000-0000000000e9';
 
 describe('parent scholarship routes', () => {
   let app: FastifyInstance;
@@ -82,6 +83,7 @@ describe('parent scholarship routes', () => {
       documentBlobs: blobs,
       resolveLinkedStudentIds: async () => [CHILD],
       resolveStudentInstitutionId: async () => INSTITUTION,
+      resolveApplicantAttributes: async () => ({ areaId: AREA, gender: 'female' }),
     });
     await app.ready();
 
@@ -105,6 +107,15 @@ describe('parent scholarship routes', () => {
       payload: { ...body, applicantId: CHILD, institutionId: OTHER },
     });
     expect(wrongInstitution.statusCode).toBe(422);
+    // PRC-L345: area/gender come from the student record; a contradicting body is refused.
+    const wrongGender = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: CHILD, gender: 'male' },
+    });
+    expect(wrongGender.statusCode).toBe(422);
+    const stored = await repository.findApplicationById(own.json().id as string, TENANT);
+    expect(stored).toMatchObject({ areaId: AREA, gender: 'female' });
 
     const other = await app.inject({
       method: 'POST',

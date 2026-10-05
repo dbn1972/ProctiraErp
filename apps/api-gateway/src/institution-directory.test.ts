@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boardLabelFromRows,
   loadInstitutionDirectoryContext,
+  scopeDirectoryContextToInstitutions,
   type InstitutionDirectoryContext,
 } from './institution-directory.js';
 
@@ -106,5 +107,39 @@ describe('loadInstitutionDirectoryContext', () => {
       attendanceAvailable: false,
       schools: {},
     });
+  });
+});
+describe('PRC-H004 scopeDirectoryContextToInstitutions', () => {
+  const context: InstitutionDirectoryContext = {
+    organizationName: 'Board',
+    boardLabel: 'CBSE',
+    studentsEnrolled: 300,
+    reportingToday: 2,
+    studentsAvailable: true,
+    staffAvailable: true,
+    attendanceAvailable: true,
+    schools: {
+      a: { studentCount: 100, staffCount: 5, attendancePercent: 90 },
+      b: { studentCount: 200, staffCount: 9, attendancePercent: 80 },
+      c: { studentCount: null, staffCount: 1, attendancePercent: null },
+    },
+  };
+  it('keeps only the caller schools and recomputes tenant KPIs from them', () => {
+    const scoped = scopeDirectoryContextToInstitutions(context, ['a', 'c']);
+    expect(Object.keys(scoped.schools).sort()).toEqual(['a', 'c']);
+    expect(scoped.studentsEnrolled).toBe(100);
+    expect(scoped.reportingToday).toBe(1);
+    expect(scoped.organizationName).toBe('Board');
+  });
+  it('an empty allowed set exposes no school and zero totals; null KPIs stay null', () => {
+    const scoped = scopeDirectoryContextToInstitutions(context, []);
+    expect(scoped.schools).toEqual({});
+    expect(scoped.studentsEnrolled).toBe(0);
+    const unknown = scopeDirectoryContextToInstitutions(
+      { ...context, studentsEnrolled: null, reportingToday: null },
+      ['a'],
+    );
+    expect(unknown.studentsEnrolled).toBeNull();
+    expect(unknown.reportingToday).toBeNull();
   });
 });

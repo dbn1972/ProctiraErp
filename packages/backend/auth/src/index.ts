@@ -71,6 +71,18 @@ export type {
   AssertAccessTokenNotRevokedOptions,
   RedisLikeForAccessTokenRevocation,
 } from './access-token-revocation.js';
+// PRC-H008 / PRC-H098: tenant-wide session revocation on suspension
+export {
+  DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+  MemoryTenantSessionRevocationStore,
+  RedisTenantSessionRevocationStore,
+  createTenantSessionRevocationStore,
+  isIssuedBeforeTenantRevocation,
+} from './tenant-session-revocation.js';
+export type {
+  RedisLikeForTenantSessionRevocation,
+  TenantSessionRevocationStore,
+} from './tenant-session-revocation.js';
 
 // Session Service
 export { SessionService } from './session-service.js';
@@ -147,10 +159,20 @@ export { keycloakAuthPlugin } from './keycloak/plugin.js';
 export type { KeycloakAuthPluginOptions } from './keycloak/plugin.js';
 export { registerKeycloakAuthRoutes } from './keycloak/routes.js';
 export type { KeycloakRouteConfig } from './keycloak/routes.js';
-export { PasswordLoginThrottle } from './keycloak/password-throttle.js';
+export {
+  PasswordLoginThrottle,
+  MemoryPasswordThrottleState,
+  RedisPasswordThrottleState,
+  createPasswordThrottleState,
+  decidePasswordThrottleStore,
+} from './keycloak/password-throttle.js';
 export { resolveTenantDirectory } from './tenant-directory.js';
 export type { TenantDirectoryEntry, TenantDirectoryReader } from './tenant-directory.js';
-export type { PasswordThrottleOptions } from './keycloak/password-throttle.js';
+export type {
+  PasswordThrottleOptions,
+  PasswordThrottleState,
+  RedisLikeForPasswordThrottle,
+} from './keycloak/password-throttle.js';
 export {
   KEYCLOAK_PROVIDER,
   KeycloakIdentityError,

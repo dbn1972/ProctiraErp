@@ -167,10 +167,18 @@ export interface DocumentDownloadClaims {
   exp: number;
 }
 /**
- * Single-use guard for download tokens (PRC-L344). Process-local: a shared
- * store is required for strict single-use across multiple gateway replicas.
+ * Single-use store for download-token jtis (PRC-L344). `consume` returns false when the jti was
+ * already used; implementations must throw (not return true) when the store is unavailable so
+ * the download fails closed.
  */
-export class DownloadTokenReplayGuard {
+export interface DownloadTokenReplayStore {
+  consume(jti: string, exp: number): boolean | Promise<boolean>;
+}
+/**
+ * Process-local single-use guard (dev/test, single replica). Production uses
+ * {@link RedisDownloadTokenReplayGuard} so single-use holds across gateway replicas.
+ */
+export class DownloadTokenReplayGuard implements DownloadTokenReplayStore {
   private readonly used = new Map<string, number>();
   constructor(private readonly maxEntries = 50_000) {}
   /** Returns false when the jti was already consumed. */
@@ -188,6 +196,65 @@ export class DownloadTokenReplayGuard {
   }
 }
 
+/** Minimal ioredis-compatible surface for SET key NX EX ttl (PRC-L344). */
+export interface RedisLikeForDownloadReplay {
+  set(
+    key: string,
+    value: string,
+    expiryMode: 'EX',
+    ttlSeconds: number,
+    existenceMode: 'NX',
+  ): Promise<string | null>;
+}
+/**
+ * Shared single-use guard (PRC-L344): `SET scholarship:doc-jti:<jti> 1 EX <ttl> NX` so a link
+ * consumed on one replica is rejected on every other. Redis errors propagate (fail closed).
+ */
+export class RedisDownloadTokenReplayGuard implements DownloadTokenReplayStore {
+  constructor(
+    private readonly redis: RedisLikeForDownloadReplay,
+    private readonly keyPrefix = 'scholarship:doc-jti:',
+  ) {}
+  async consume(jti: string, exp: number, nowSeconds = Date.now() / 1000): Promise<boolean> {
+    const ttlSeconds = Math.max(1, Math.ceil(exp - nowSeconds));
+    const result = await this.redis.set(`${this.keyPrefix}${jti}`, '1', 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+}
+/**
+ * Choose the jti replay store (PRC-L344): Redis when a shared client is injected; the
+ * process-local guard only outside production. Production without Redis refuses to boot,
+ * because a per-replica guard lets the same link be replayed once per replica.
+ */
+export function createDownloadTokenReplayGuard(env: {
+  redis?: RedisLikeForDownloadReplay;
+  NODE_ENV?: string;
+}): DownloadTokenReplayStore {
+  if (env.redis) return new RedisDownloadTokenReplayGuard(env.redis);
+  if ((env.NODE_ENV ?? '').trim().toLowerCase() === 'production') {
+    throw new Error(
+      'Scholarship document downloads require a shared replay store in production: set REDIS_URL ' +
+        'so single-use download links hold across gateway replicas (PRC-L344).',
+    );
+  }
+  return new DownloadTokenReplayGuard();
+}
+/**
+ * Context recorded for every served scholarship document download (PRC-L344). Persisted as the
+ * single hash-chained access-log row via ScholarshipDocumentService.recordTokenDownload.
+ */
+export interface ScholarshipDocumentDownloadAuditEvent {
+  tenantId: string;
+  documentId: string;
+  /** User the link was minted for; null for links minted without a session. */
+  userId: string | null;
+  /** Authenticated session user presenting the link, when any. */
+  sessionUserId: string | null;
+  jti: string;
+  ipAddress: string;
+  userAgent: string | null;
+  requestId: string;
+}
 const DOC_SIGNING_KEY_MISSING_MESSAGE =
   'SCHOLARSHIP_DOC_URL_SECRET is required in production. Scholarship document download links ' +
   'are unauthenticated except for this signed token, so no key may be defaulted. Set a strong, ' +
