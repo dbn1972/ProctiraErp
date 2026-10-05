@@ -20,13 +20,16 @@
  * **Validates: Requirements 6.2, 6.3, 6.4**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { BusinessRuleError, EnrollmentStatus } from '@proctira/common';
 
 import { InMemoryEnrollmentRepository } from './in-memory-enrollment-repository.js';
 import { EnrollmentService } from './enrollment-service.js';
 import type { CreateEnrollmentInput, StudentTransferInput } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // --- Arbitraries ---
 

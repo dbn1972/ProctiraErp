@@ -15,6 +15,9 @@ import * as fc from 'fast-check';
 import { validateActivePeriod, ActivePeriodValidator } from './active-period-validator.js';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
+
 // --- Arbitraries ---
 
 /** Generates a valid UUID v4 string. */

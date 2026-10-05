@@ -62,6 +62,7 @@ class SyncEngine {
   bool _running = false;
   bool _isFlushing = false;
   bool _rerunRequested = false;
+  Future<void>? _activeFlush;
   int _idleBackoffLevel = 0;
 
   /// Whether [start] has been called (and [stop] has not).
@@ -100,6 +101,11 @@ class SyncEngine {
     _periodicTimer = null;
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
+    // Wait for any in-flight flush (and a follow-up pass it already started)
+    // so callers can safely close the database after stop() returns.
+    while (_activeFlush != null) {
+      await _activeFlush;
+    }
   }
 
   /// Ask the engine to drain now (e.g. app resumed, user logged in). Ignored
@@ -412,6 +418,8 @@ class SyncEngine {
       );
     }
     _isFlushing = true;
+    final Completer<void> done = Completer<void>();
+    _activeFlush = done.future;
     try {
       if (!await _connectivity.isOnline()) {
         return const SyncFlushResult(
@@ -531,11 +539,15 @@ class SyncEngine {
       );
     } finally {
       _isFlushing = false;
+      if (identical(_activeFlush, done.future)) _activeFlush = null;
       _notifyChanged();
       if (_rerunRequested) {
         _rerunRequested = false;
+        // Starts synchronously up to its first await, so it registers as the
+        // new [_activeFlush] before [done] completes and stop() sees it.
         if (_running) unawaited(flushPending());
       }
+      done.complete();
     }
   }
 

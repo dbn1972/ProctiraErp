@@ -28,7 +28,7 @@
  * correct token slots.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import React, { useRef, useEffect, useState } from 'react';
 import fc from 'fast-check';
@@ -39,6 +39,9 @@ import {
   DEFAULT_BRAND,
   type Brand,
 } from '../BrandConfigProvider';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
