@@ -66,6 +66,13 @@ describe('PRC-L002 loadAdmissionsTimeZone', () => {
       'Asia/Kolkata',
     );
   });
+  it('casts the shared tenant parameter per column (TEXT id, UUID tenant_id)', async () => {
+    // Uncast, Postgres infers $1 as text and `tenant_id = $1` fails: "operator does not exist:
+    // uuid = text" (500 on offer accept in the E2E admissions chain).
+    const db = client('Asia/Kolkata', 'UTC');
+    await loadAdmissionsTimeZone(db, 't1');
+    expect(db.calls[0]).toMatch(/id = \$1::text AND tenant_id = \$1::uuid/);
+  });
   it('never elevates the transaction to platform scope', async () => {
     const db = client(undefined, 'Asia/Kolkata');
     await loadAdmissionsTimeZone(db, 't1');

@@ -44,10 +44,12 @@ export async function loadAdmissionsTimeZone(
   client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
   tenantId: string,
 ): Promise<string> {
+  // `id` is TEXT and `tenant_id` is UUID (db/sql/100): cast each use of the shared parameter, or
+  // Postgres infers $1 as text and `tenant_id = $1` fails with "operator does not exist".
   const settings = await client.query(
     `SELECT data->>'timezone' AS tz
        FROM control_plane_documents
-      WHERE collection = 'tenant.settings' AND id = $1 AND tenant_id = $1
+      WHERE collection = 'tenant.settings' AND id = $1::text AND tenant_id = $1::uuid
       LIMIT 1`,
     [tenantId],
   );

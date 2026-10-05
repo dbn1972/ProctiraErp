@@ -45,7 +45,7 @@ describeLive('PRC-L002 admissions tenant timezone (live Postgres)', () => {
     await withPgTenant(pool, SETTINGS_TENANT, async (client) => {
       await client.query(
         `INSERT INTO control_plane_documents (collection, id, tenant_id, data)
-         VALUES ('tenant.settings', $1, $1, $2::jsonb)
+         VALUES ('tenant.settings', $1::text, $1::uuid, $2::jsonb)
          ON CONFLICT (collection, id) DO UPDATE SET data = EXCLUDED.data`,
         [SETTINGS_TENANT, JSON.stringify({ tenantId: SETTINGS_TENANT, timezone: 'Asia/Kolkata' })],
       );
