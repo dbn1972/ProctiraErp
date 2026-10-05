@@ -22,6 +22,7 @@
  * mechanical.
  */
 
+import { useOptionalAuthScope } from '@/providers/AuthProvider';
 import { Link } from 'react-router-dom';
 import {
   CalendarCheck,
@@ -63,7 +64,9 @@ function staffUtilization(staffOnDuty: number, totalStaff: number): number {
 }
 
 export default function SchoolDashboard() {
-  const { data, isLoading, error } = useSchoolDashboard();
+  // PRC-M578: institution comes from the signed-in user's scope.
+  const scope = useOptionalAuthScope();
+  const { data, isLoading, error } = useSchoolDashboard(scope?.institution_id);
 
   const kpis = data?.kpis;
   const utilization = kpis ? staffUtilization(kpis.staffOnDuty, kpis.totalStaff) : 0;
@@ -146,19 +149,19 @@ export default function SchoolDashboard() {
         <div className="flex flex-wrap gap-3">
           <Button asChild data-testid="action-mark-attendance">
             <Link to="/app/attendance/today">
-              <CalendarCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+              <CalendarCheck className="me-2 h-4 w-4" aria-hidden="true" />
               Mark attendance
             </Link>
           </Button>
           <Button asChild variant="outline" data-testid="action-add-student">
             <Link to="/app/students/new">
-              <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+              <UserPlus className="me-2 h-4 w-4" aria-hidden="true" />
               Add student
             </Link>
           </Button>
           <Button asChild variant="ghost" data-testid="action-class-roster">
             <Link to="/app/students">
-              <GraduationCap className="mr-2 h-4 w-4" aria-hidden="true" />
+              <GraduationCap className="me-2 h-4 w-4" aria-hidden="true" />
               View class roster
             </Link>
           </Button>
@@ -188,7 +191,7 @@ export default function SchoolDashboard() {
                     {data.recentActivity.map((item) => (
                       <li
                         key={item.id}
-                        className="border-l-2 border-[hsl(var(--primary))] ps-3"
+                        className="border-s-2 border-[hsl(var(--primary))] ps-3"
                         data-testid="recent-activity-item"
                       >
                         <p className="text-sm font-medium text-[hsl(var(--foreground))]">

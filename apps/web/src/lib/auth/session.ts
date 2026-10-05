@@ -206,7 +206,8 @@ export async function resendMfa(mfaToken: string | null = null): Promise<SignInR
  * Performs a token refresh by calling the refresh route handler.
  * The refresh token is sent automatically via httpOnly cookie.
  */
-export async function refreshAccessToken(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+async function doRefresh(): Promise<boolean> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.REFRESH, {
       method: 'POST',
@@ -217,6 +218,22 @@ export async function refreshAccessToken(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+/**
+ * PRC-M493: single-flight refresh. Concurrent callers in this tab share one
+ * request, and tabs coordinate through the Web Locks API (when available) so
+ * two tabs never present the same rotating refresh token at once.
+ */
+export function refreshAccessToken(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  const run = locks?.request
+    ? locks.request('proctira-auth-refresh', () => doRefresh())
+    : doRefresh();
+  refreshInFlight = Promise.resolve(run).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }
 
 /** Client-safe session snapshot from GET /api/auth/session (no raw JWT). */

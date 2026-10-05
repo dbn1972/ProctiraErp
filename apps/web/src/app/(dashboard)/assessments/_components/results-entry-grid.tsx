@@ -51,7 +51,11 @@ import {
 } from '../actions';
 import type { BulkResultEntryResponse } from '@/lib/api/assessments';
 import { itemScoreError } from '@/lib/assessments/score-range';
-import { parseResultsImport, RESULTS_IMPORT_MAX_ROWS } from '@/lib/assessments/results-import';
+import {
+  parseResultsImport,
+  RESULTS_IMPORT_MAX_ROWS,
+  summarizeResultsImport,
+} from '@/lib/assessments/results-import';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 
 interface ItemMeta {
@@ -371,8 +375,8 @@ export function ResultsEntryGrid({
   }
 
   /**
-   * PRC-M475: validate every row of the uploaded CSV with the same parser the
-   * confirm step uses. File-level problems (Excel upload, >5,000 rows, missing
+   * PRC-M475 / PRC-M572: validate every row of the uploaded CSV with the same parser
+   * the confirm step uses. File-level problems (Excel upload, >5,000 rows, missing
    * studentId column) throw so the import UI shows them and nothing is submitted.
    */
   async function validateImportFile(file: File): Promise<ImportValidationResult> {
@@ -380,6 +384,7 @@ export function ResultsEntryGrid({
     if (parsed.fileErrors.length > 0) {
       throw new Error(parsed.fileErrors.join(' '));
     }
+    const summary = summarizeResultsImport(parsed);
     const itemNameSet = new Set(items.map((i) => i.name));
     const columnMappings: ImportColumnMapping[] = parsed.headers.map((h) => ({
       sourceColumn: h,
@@ -387,16 +392,12 @@ export function ResultsEntryGrid({
       required: h === 'studentId',
       valid: h === 'studentId' || itemNameSet.has(h),
     }));
-    const errors: ImportValidationResult['errors'] = parsed.rows.flatMap((row) =>
-      row.errors.map((e) => ({ ...e, severity: 'error' as const })),
-    );
-    const errorRows = parsed.rows.filter((row) => row.errors.length > 0).length;
     return {
-      totalRows: parsed.rows.length,
-      validRows: parsed.rows.length - errorRows,
-      errorRows,
+      totalRows: summary.totalRows,
+      validRows: summary.validRows,
+      errorRows: summary.rejectedRows.length,
       warningRows: 0,
-      errors,
+      errors: summary.rowErrors.map((e) => ({ ...e, severity: 'error' as const })),
       // Preview is a display aid only; validation above covered every row.
       preview: parsed.rows.slice(0, 200).map((row) => ({
         rowNumber: row.rowNumber,
@@ -415,17 +416,11 @@ export function ResultsEntryGrid({
     if (parsed.fileErrors.length > 0) {
       throw new Error(parsed.fileErrors.join(' '));
     }
-    // PRC-M475: a row with any invalid cell is rejected as a whole and counted as failed.
-    const rejectedRows = parsed.rows.filter((row) => row.errors.length > 0).length;
-    const rowsToImport = parsed.rows
-      .filter((row) => row.errors.length === 0)
-      .flatMap((row) =>
-        row.scores.map((s) => ({
-          studentId: row.studentId,
-          assessmentItemId: s.assessmentItemId,
-          score: s.score,
-        })),
-      );
+    // PRC-M475 / PRC-M572: a row with any invalid cell (or no scores) is rejected as a
+    // whole and counted as failed, never dropped silently.
+    const summary = summarizeResultsImport(parsed);
+    const rejectedRows = summary.rejectedRows.length;
+    const rowsToImport = summary.entries;
     if (rowsToImport.length === 0) {
       return { success: 0, failed: rejectedRows };
     }
