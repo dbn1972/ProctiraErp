@@ -51,6 +51,11 @@ export interface ScholarshipFeeOutbox {
   listDue(tenantId: string, now: Date, limit: number): Promise<ScholarshipFeeOutboxRow[]>;
   /** Pending + failed rows (reconcile view), oldest first. */
   listOpen(tenantId: string, limit: number): Promise<ScholarshipFeeOutboxRow[]>;
+  /** Pending + failed rows for one disbursement, oldest first (per-disbursement ordering). */
+  listOpenForDisbursement(
+    tenantId: string,
+    disbursementId: string,
+  ): Promise<ScholarshipFeeOutboxRow[]>;
   findById(tenantId: string, id: string): Promise<ScholarshipFeeOutboxRow | null>;
   markDone(tenantId: string, id: string): Promise<void>;
   /** Record a failed attempt; `status` stays pending (retry) or becomes failed (dead letter). */
@@ -109,6 +114,11 @@ export class InMemoryScholarshipFeeOutbox implements ScholarshipFeeOutbox {
     return this.sorted(tenantId)
       .filter((r) => r.status !== 'done')
       .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+  async listOpenForDisbursement(tenantId: string, disbursementId: string) {
+    return this.sorted(tenantId)
+      .filter((r) => r.disbursementId === disbursementId && r.status !== 'done')
       .map((r) => ({ ...r }));
   }
   async findById(tenantId: string, id: string) {
@@ -218,6 +228,18 @@ export class PgScholarshipFeeOutbox implements ScholarshipFeeOutbox {
           WHERE tenant_id = $1 AND status <> 'done'
           ORDER BY created_at ASC, id ASC LIMIT $2`,
         [tenantId, limit],
+      );
+      return res.rows.map((r) => mapRow(r as Record<string, unknown>));
+    });
+  }
+
+  async listOpenForDisbursement(tenantId: string, disbursementId: string) {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const res = await client.query(
+        `SELECT * FROM scholarship_fee_outbox
+          WHERE tenant_id = $1 AND disbursement_id = $2 AND status <> 'done'
+          ORDER BY created_at ASC, id ASC`,
+        [tenantId, disbursementId],
       );
       return res.rows.map((r) => mapRow(r as Record<string, unknown>));
     });

@@ -853,7 +853,7 @@ export class ScholarshipService {
       }
       assertMajorMatchesCents(updatedTx.amount, updatedTx.amountCents);
       // Best-effort immediate delivery; a failure stays pending for the retry worker.
-      if (enqueued) await this.dispatchFeeOutboxRow(enqueued);
+      if (enqueued) await this.dispatchFeeOutboxRowInOrder(enqueued);
       return updatedTx;
     }
 
@@ -942,10 +942,42 @@ export class ScholarshipService {
   }
 
   /**
+   * PRC-H084 immediate delivery that preserves per-disbursement ordering: when an
+   * older row for the same disbursement is still open (pending, or dead-lettered
+   * `failed`), the new row is left pending for the drain instead of overtaking it.
+   * Never throws; a failed ordering lookup also defers to the drain.
+   */
+  private async dispatchFeeOutboxRowInOrder(
+    row: ScholarshipFeeOutboxRow,
+  ): Promise<'done' | 'retry' | 'failed' | 'deferred'> {
+    const outbox = this.feeOutbox;
+    if (!outbox) return 'retry';
+    let olderOpen: boolean;
+    try {
+      olderOpen = (await outbox.listOpenForDisbursement(row.tenantId, row.disbursementId)).some(
+        (r) => r.id !== row.id,
+      );
+    } catch {
+      olderOpen = true;
+    }
+    if (olderOpen) {
+      this.feeOutboxRetryTenants.add(row.tenantId);
+      return 'deferred';
+    }
+    return this.dispatchFeeOutboxRow(row);
+  }
+
+  /**
    * PRC-H084: deliver one outbox row to the fee hook. Never throws: success marks
    * the row done; failure records the attempt with backoff, dead-lettering after
    * `feeOutboxMaxAttempts`. Hooks are disbursementId-idempotent, so a replay of
    * an already-applied row nets once.
+   *
+   * The row's event is checked against the disbursement's CURRENT status: a
+   * `disbursement.paid` row for a disbursement that is no longer `paid` (e.g.
+   * cancelled while the paid row was pending / dead-lettered) is marked done as a
+   * no-op so it can never net after the reversal; likewise a
+   * `disbursement.reversed` row never runs while the disbursement is `paid`.
    */
   async dispatchFeeOutboxRow(
     row: ScholarshipFeeOutboxRow,
@@ -961,7 +993,13 @@ export class ScholarshipService {
       const application = disbursement
         ? await this.repository.findApplicationById(disbursement.applicationId, row.tenantId)
         : null;
-      if (disbursement && application) {
+      // Superseded rows: the event no longer matches the current status -> no-op.
+      const superseded =
+        !!disbursement &&
+        (row.event === 'disbursement.paid'
+          ? disbursement.paymentStatus !== 'paid'
+          : disbursement.paymentStatus === 'paid');
+      if (disbursement && application && !superseded) {
         const program = await this.repository.findProgramById(application.programId, row.tenantId);
         const currency = program?.currency ?? 'INR';
         if (row.event === 'disbursement.paid') {

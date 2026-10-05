@@ -183,6 +183,49 @@ describe('disbursement fee outbox (PRC-H084)', () => {
     expect(fees.state.reversedCalls).toBe(2);
   });
 
+  it('fail-then-cancel: pending paid row never nets after the reversal', async () => {
+    const outbox = new InMemoryScholarshipFeeOutbox();
+    const { service, fees, id } = await setup(outbox);
+    fees.state.failPaid = 1;
+    await service.updateDisbursement(TENANT, id, { paymentStatus: 'paid', ...PAID });
+    expect(fees.netted.size).toBe(0);
+
+    // Cancel while the paid row is still pending: the reversal must not overtake it.
+    await service.updateDisbursement(TENANT, id, { paymentStatus: 'cancelled' });
+    expect(fees.state.reversedCalls).toBe(0);
+    const open = await service.listOpenFeeOutbox(TENANT);
+    expect(open.map((r) => [r.event, r.status])).toEqual([
+      ['disbursement.paid', 'pending'],
+      ['disbursement.reversed', 'pending'],
+    ]);
+
+    const r = await service.drainFeeOutboxRetries(FAR_FUTURE);
+    expect(r).toMatchObject({ processed: 2, done: 2 });
+    // The paid row is a no-op (disbursement is cancelled): no netting, no extra hook call.
+    expect(fees.state.paidCalls).toBe(1);
+    expect(fees.netted.size).toBe(0);
+    expect(await service.listOpenFeeOutbox(TENANT)).toEqual([]);
+  });
+
+  it('dead-lettered paid row replayed after cancel does not net', async () => {
+    const outbox = new InMemoryScholarshipFeeOutbox();
+    const { service, fees, id } = await setup(outbox, 1);
+    fees.state.failPaid = 1;
+    await service.updateDisbursement(TENANT, id, { paymentStatus: 'paid', ...PAID });
+    const [dead] = await service.listOpenFeeOutbox(TENANT);
+    expect(dead).toMatchObject({ event: 'disbursement.paid', status: 'failed' });
+
+    // An older dead-lettered row also defers immediate dispatch of the reversal.
+    await service.updateDisbursement(TENANT, id, { paymentStatus: 'cancelled' });
+    expect(fees.state.reversedCalls).toBe(0);
+
+    await service.drainFeeOutboxRetries(FAR_FUTURE);
+    await service.replayFeeOutbox(TENANT, { id: dead!.id, now: FAR_FUTURE });
+    expect(fees.state.paidCalls).toBe(1);
+    expect(fees.netted.size).toBe(0);
+    expect(await service.listOpenFeeOutbox(TENANT)).toEqual([]);
+  });
+
   it('outbox enqueue failure rolls back the status write', async () => {
     const outbox = new InMemoryScholarshipFeeOutbox();
     const { repo, service, fees, id } = await setup(outbox);
