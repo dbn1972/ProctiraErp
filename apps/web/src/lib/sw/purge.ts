@@ -13,7 +13,9 @@
  *
  * Best-effort and never throws: logout must not be blocked by storage errors.
  */
-import { purgeAllDrafts } from '@/lib/draft/useDraftAutosave';
+// Hook-free module: this file is reachable from server code via
+// lib/auth/session.ts, so it must never import a React hook module.
+import { purgeAllDrafts } from '@/lib/draft/storage';
 import { SW_CACHE_PREFIX, SW_PURGE_MESSAGE } from './pickStrategy';
 
 export async function purgeServiceWorkerCaches(): Promise<void> {

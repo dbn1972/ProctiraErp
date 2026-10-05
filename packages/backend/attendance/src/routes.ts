@@ -34,7 +34,6 @@ import {
   type AbsenceThresholdCheckQueryInput,
 } from './schemas.js';
 
-
 /**
  * Options for registering attendance routes.
  */
