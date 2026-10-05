@@ -240,7 +240,12 @@ export function sharedTimetableService(dependencies: DomainPluginDependencies): 
     const repository = createTimetableRepository();
     entry.timetable = {
       repository,
-      service: new TimetableService(repository, createTimetableOpsStore()),
+      service: new TimetableService(repository, createTimetableOpsStore(), {
+        // PRC-M101: a meeting/substitution may only use staff with an active
+        // assignment at the meeting's institution (same tenant).
+        staffBelongsToInstitution: (tenantId, staffId, institutionId) =>
+          sharedAssignmentRepository().hasActiveAssignmentAt(staffId, tenantId, institutionId),
+      }),
     };
   }
   return entry.timetable;
@@ -327,6 +332,16 @@ let mountedScholarshipRepository: ScholarshipRepository | null = null;
 function scholarshipRepositoryForFees(): ScholarshipRepository {
   mountedScholarshipRepository ??= createScholarshipRepository();
   return mountedScholarshipRepository;
+}
+/**
+ * PRC-M101: one staff-assignment repository per process, shared by the staff
+ * routes and the timetable staff-membership check (the in-memory fallback must
+ * see the same rows the staff routes wrote).
+ */
+let assignmentRepositorySingleton: ReturnType<typeof createAssignmentRepository> | undefined;
+function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
+  assignmentRepositorySingleton ??= createAssignmentRepository();
+  return assignmentRepositorySingleton;
 }
 /** Trusted dependencies composed once by the gateway root. */
 export interface DomainPluginDependencies {
@@ -957,7 +972,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // for both staff profiles and assignments.
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
-        assignmentRepository: createAssignmentRepository(),
+        assignmentRepository: sharedAssignmentRepository(),
         prefix: '/staff',
       });
     },
@@ -1072,6 +1087,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const shared = sharedTimetableService(dependencies);
       await scope.register(timetablePlugin, {
         repository: shared.repository,
+        // PRC-M101 staff-institution check is wired into the shared service.
         service: shared.service,
         prefix: '/timetable',
       });

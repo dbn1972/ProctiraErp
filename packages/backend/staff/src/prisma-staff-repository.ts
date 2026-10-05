@@ -25,6 +25,7 @@ import type {
   StaffRepository,
   StaffTransactionScope,
 } from './staff-repository.js';
+import { matchesStaffType } from './staff-type.js';
 
 const PROFILE_KEY = '__profile';
 
@@ -262,6 +263,7 @@ export class PrismaStaffRepository implements StaffRepository {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       // status/position live in custom_data → filter in-memory after fetch.
       const where: Record<string, unknown> = { tenantId, deletedAt: null };
+      if (filter.ids) where.id = { in: [...filter.ids] };
       if (filter.search) {
         const terms = filter.search.trim().split(/\s+/).filter(Boolean);
         if (terms.length > 0) {
@@ -286,6 +288,10 @@ export class PrismaStaffRepository implements StaffRepository {
       let entities = allRows.map(toEntity);
       if (filter.status) entities = entities.filter((s) => s.status === filter.status);
       if (filter.position) entities = entities.filter((s) => s.position === filter.position);
+      if (filter.staffType) {
+        const type = filter.staffType;
+        entities = entities.filter((s) => matchesStaffType(s.position, type));
+      }
 
       const totalItems = entities.length;
       const skip = (page - 1) * pageSize;

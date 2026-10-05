@@ -176,3 +176,99 @@ describe('PRC-L153 bulk staff attendance', () => {
     expect(pool.connect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PRC-M123 staff attendance integrity', () => {
+  async function hireOne(staffService: InstanceType<typeof StaffService>, i: number) {
+    return (
+      await staffService.create(TENANT, {
+        firstName: 'M',
+        lastName: `M${i}`,
+        dateOfBirth: '1990-01-01',
+        identityNumber: `M123-${i}-${randomUUID().slice(0, 6)}`,
+        contactPhone: '+15550000',
+        position: 'Teacher',
+      })
+    ).id;
+  }
+
+  it('re-saving an unchanged mark keeps the original markedBy; a changed one is re-attributed', async () => {
+    const { staffService, store, hr } = services();
+    const a = await hireOne(staffService, 1);
+    const b = await hireOne(staffService, 2);
+    const date = '2026-04-01';
+    await hr.markAttendanceBulk(
+      TENANT,
+      {
+        date,
+        marks: [
+          { staffId: a, status: 'present' },
+          { staffId: b, status: 'present' },
+        ],
+      },
+      'hr-1',
+    );
+    await hr.markAttendanceBulk(
+      TENANT,
+      {
+        date,
+        marks: [
+          { staffId: a, status: 'present' },
+          { staffId: b, status: 'absent' },
+        ],
+      },
+      'hr-2',
+    );
+    const rows = await store.listAttendance(TENANT, { date });
+    const by = Object.fromEntries(rows.map((r) => [r.staffId, r.markedBy]));
+    expect(by[a]).toBe('hr-1');
+    expect(by[b]).toBe('hr-2');
+  });
+
+  it('rejects a future date (400 ValidationError) and writes nothing', async () => {
+    const { staffService, store, hr } = services();
+    const a = await hireOne(staffService, 3);
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    await expect(
+      hr.markAttendanceBulk(
+        TENANT,
+        { date: future, marks: [{ staffId: a, status: 'present' }] },
+        'x',
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      hr.markAttendance(TENANT, { staffId: a, date: future, status: 'present' }, 'x'),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await store.listAttendance(TENANT, {})).toHaveLength(0);
+  });
+
+  it('PG upsert only re-attributes marked_by when the status changes', async () => {
+    const sqls: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        sqls.push(sql);
+        return { rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { query: client.query, connect: vi.fn(async () => client) };
+    const store = new PgStaffHrStore(pool as never);
+    const now = new Date();
+    await store.upsertAttendanceBulk([
+      {
+        id: randomUUID(),
+        tenantId: TENANT,
+        staffId: randomUUID(),
+        date: '2026-04-01',
+        status: 'present',
+        notes: null,
+        markedBy: 'hr-2',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    const insert = sqls.find((s) => s.startsWith('INSERT INTO staff_hr_attendance'))!;
+    expect(insert).toMatch(
+      /marked_by = CASE WHEN staff_hr_attendance\.status IS DISTINCT FROM EXCLUDED\.status/,
+    );
+  });
+});

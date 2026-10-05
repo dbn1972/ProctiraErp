@@ -524,6 +524,11 @@ export interface LmsRepository {
   ): Promise<DiscussionPostEntity>;
   findDiscussionPost(tenantId: string, id: string): Promise<DiscussionPostEntity | null>;
   listDiscussionPosts(tenantId: string, discussionId: string): Promise<DiscussionPostEntity[]>;
+  /** PRC-M108: posts for many discussions in one query (same order per thread). */
+  listDiscussionPostsFor(
+    tenantId: string,
+    discussionIds: string[],
+  ): Promise<DiscussionPostEntity[]>;
   setPostPinned(
     tenantId: string,
     postId: string,
@@ -546,6 +551,8 @@ export interface LmsRepository {
     data: Omit<LessonResourceEntity, 'createdAt'>,
   ): Promise<LessonResourceEntity>;
   listLessonResources(tenantId: string, lessonId: string): Promise<LessonResourceEntity[]>;
+  /** PRC-M108: resources for many lessons in one query (position order per lesson). */
+  listLessonResourcesFor(tenantId: string, lessonIds: string[]): Promise<LessonResourceEntity[]>;
 
   createContentItem(
     data: Omit<ContentItemEntity, 'createdAt' | 'updatedAt'>,

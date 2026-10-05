@@ -482,7 +482,11 @@ export class PgStaffHrStore implements StaffHrStore {
            id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
          ) VALUES ${tuples.join(',')}
          ON CONFLICT (tenant_id, staff_id, attendance_date)
-         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_by = EXCLUDED.marked_by, updated_at = now()
+         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes,
+           -- PRC-M123: re-saving an unchanged status keeps the original recorder.
+           marked_by = CASE WHEN staff_hr_attendance.status IS DISTINCT FROM EXCLUDED.status
+                            THEN EXCLUDED.marked_by ELSE staff_hr_attendance.marked_by END,
+           updated_at = now()
          RETURNING *`,
         values,
       );
@@ -498,7 +502,11 @@ export class PgStaffHrStore implements StaffHrStore {
            id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
          ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9)
          ON CONFLICT (tenant_id, staff_id, attendance_date)
-         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_by = EXCLUDED.marked_by, updated_at = now()
+         DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes,
+           -- PRC-M123: re-saving an unchanged status keeps the original recorder.
+           marked_by = CASE WHEN staff_hr_attendance.status IS DISTINCT FROM EXCLUDED.status
+                            THEN EXCLUDED.marked_by ELSE staff_hr_attendance.marked_by END,
+           updated_at = now()
          RETURNING *`,
         [
           record.id,

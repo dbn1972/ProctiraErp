@@ -159,7 +159,11 @@ export async function retryFailedDisbursementsAction(
       message: error instanceof Error ? error.message : 'Could not load disbursements.',
     };
   }
-  const byId = new Map(current.map((row) => [row.id, row]));
+  // PRC-M113: a failed list load is an error, never "every id not found".
+  if (!current.ok) {
+    return { status: 'error', message: 'Could not load disbursements.' };
+  }
+  const byId = new Map(current.items.map((row) => [row.id, row]));
   const results: RetryDisbursementResult[] = [];
   for (const id of unique) {
     const row = byId.get(id);

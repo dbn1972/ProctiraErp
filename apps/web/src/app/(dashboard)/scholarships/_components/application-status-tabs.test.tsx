@@ -31,10 +31,11 @@ describe('ApplicationStatusTabs (PRC-L053)', () => {
     const current = links.filter((l) => l.getAttribute('aria-current') === 'page');
     expect(current).toHaveLength(1);
     expect(current[0]).toHaveTextContent('Pending');
-    expect(current[0]).toHaveAttribute('href', '/scholarships/applications?page=2&status=PENDING');
+    // PRC-M114: switching status resets to the first page.
+    expect(current[0]).toHaveAttribute('href', '/scholarships/applications?status=PENDING');
     expect(within(nav).getByRole('link', { name: /All/ })).toHaveAttribute(
       'href',
-      '/scholarships/applications?page=2',
+      '/scholarships/applications',
     );
   });
 

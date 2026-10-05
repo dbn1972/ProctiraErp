@@ -5,6 +5,56 @@
  * approvals, and disbursements.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
+
+/** PRC-M113/M114: server-side filters + paging for scholarship lists. */
+export interface ScholarshipListParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  search?: string;
+  programId?: string;
+  paymentStatus?: string;
+}
+
+/** PRC-M114: UI application status tab -> backend status list (server-side filter). */
+export const APPLICATION_STATUS_QUERY: Record<ScholarshipApplication['status'], string> = {
+  PENDING: 'draft,withdrawn',
+  UNDER_REVIEW: 'submitted,under_review',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+};
+
+function listQuery(params: ScholarshipListParams): string {
+  const q = new URLSearchParams();
+  q.set('page', String(Math.max(1, Math.floor(params.page ?? 1))));
+  q.set('pageSize', String(Math.min(100, Math.max(1, Math.floor(params.pageSize ?? 20)))));
+  for (const key of ['status', 'search', 'programId', 'paymentStatus'] as const) {
+    const value = params[key];
+    if (value) q.set(key, value);
+  }
+  return `?${q.toString()}`;
+}
+
+function mapList<T>(
+  result: ListResult<Record<string, unknown>>,
+  map: (raw: Record<string, unknown>) => T,
+): ListResult<T> {
+  return result.ok ? { ...result, items: result.items.map(map) } : result;
+}
+
+/** PRC-M113: 404 -> null (not found); any other failure is an error, not "missing". */
+function throwUnlessNotFound(
+  result: { status: number; error?: { code?: string; message?: string } | null },
+  what: string,
+): null {
+  if (result.status === 404) return null;
+  throw new GatewayError({
+    status: result.status,
+    code: result.error?.code ?? 'GATEWAY_ERROR',
+    message: result.error?.message ?? `Failed to load ${what} (${result.status})`,
+  });
+}
 
 export interface ScholarshipProgram {
   id: string;
@@ -49,7 +99,7 @@ export interface ScholarshipDisbursement {
   currency: string;
   paymentDate: string;
   paymentMethod: 'BANK_TRANSFER' | 'CHEQUE' | 'CASH';
-  status: 'SCHEDULED' | 'PROCESSED' | 'FAILED';
+  status: 'SCHEDULED' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'CANCELLED';
 }
 
 export interface CreateScholarshipProgramInput {
@@ -137,11 +187,21 @@ function mapApplication(raw: Record<string, unknown>): ScholarshipApplication {
   };
 }
 
-function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement {
-  const paymentStatus = String(raw.status ?? raw.paymentStatus ?? 'SCHEDULED').toLowerCase();
-  let status: ScholarshipDisbursement['status'] = 'SCHEDULED';
-  if (paymentStatus === 'paid' || paymentStatus === 'processed') status = 'PROCESSED';
-  else if (paymentStatus === 'failed') status = 'FAILED';
+/** PRC-M111: every backend payment status keeps its own meaning. */
+const DISBURSEMENT_STATUS: Record<string, ScholarshipDisbursement['status']> = {
+  scheduled: 'SCHEDULED',
+  processing: 'PROCESSING',
+  paid: 'PROCESSED',
+  processed: 'PROCESSED',
+  failed: 'FAILED',
+  cancelled: 'CANCELLED',
+  canceled: 'CANCELLED',
+};
+
+export function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement {
+  const paymentStatus = String(raw.status ?? raw.paymentStatus ?? 'scheduled').toLowerCase();
+  const status: ScholarshipDisbursement['status'] =
+    DISBURSEMENT_STATUS[paymentStatus] ?? 'SCHEDULED';
 
   return {
     id: String(raw.id ?? ''),
@@ -158,12 +218,14 @@ function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement 
   };
 }
 
-export async function listScholarshipPrograms(): Promise<ScholarshipProgram[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/scholarships/programs', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return (result.data?.data ?? []).map(mapProgram);
+export async function listScholarshipPrograms(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipProgram>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/programs${listQuery({ pageSize: 100, ...params })}`,
+    { next: { revalidate: 0 } },
+  );
+  return mapList(result, mapProgram);
 }
 
 export async function getScholarshipProgram(id: string): Promise<ScholarshipProgram | null> {
@@ -174,7 +236,8 @@ export async function getScholarshipProgram(id: string): Promise<ScholarshipProg
       next: { revalidate: 0 },
     },
   );
-  return result.data ? mapProgram(result.data) : null;
+  if (result.ok && result.data) return mapProgram(result.data);
+  return throwUnlessNotFound(result, 'scholarship program');
 }
 
 export async function createScholarshipProgram(
@@ -232,12 +295,14 @@ export async function updateScholarshipProgram(
   return mapProgram(result.data);
 }
 
-export async function listScholarshipApplications(): Promise<ScholarshipApplication[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
-    '/scholarships/applications',
-    { throwOnError: false, next: { revalidate: 0 } },
+export async function listScholarshipApplications(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipApplication>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/applications${listQuery(params)}`,
+    { next: { revalidate: 0 } },
   );
-  return (result.data?.data ?? []).map(mapApplication);
+  return mapList(result, mapApplication);
 }
 
 export async function getScholarshipApplication(
@@ -250,7 +315,8 @@ export async function getScholarshipApplication(
       next: { revalidate: 0 },
     },
   );
-  return result.data ? mapApplication(result.data) : null;
+  if (result.ok && result.data) return mapApplication(result.data);
+  return throwUnlessNotFound(result, 'scholarship application');
 }
 
 async function decideApplication(
@@ -282,12 +348,14 @@ export function rejectScholarshipApplication(id: string, input: ApplicationDecis
   return decideApplication(id, 'reject', input);
 }
 
-export async function listScholarshipDisbursements(): Promise<ScholarshipDisbursement[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
-    '/scholarships/disbursements',
-    { throwOnError: false, next: { revalidate: 0 } },
+export async function listScholarshipDisbursements(
+  params: ScholarshipListParams = {},
+): Promise<ListResult<ScholarshipDisbursement>> {
+  const result = await fetchList<Record<string, unknown>>(
+    `/scholarships/disbursements${listQuery(params)}`,
+    { next: { revalidate: 0 } },
   );
-  return (result.data?.data ?? []).map(mapDisbursement);
+  return mapList(result, mapDisbursement);
 }
 
 export async function updateDisbursement(
@@ -309,4 +377,18 @@ export async function updateDisbursement(
     });
   }
   return mapDisbursement(result.data);
+}
+
+/** PRC-M111: money totals grouped per currency (never summed across currencies). */
+export function totalsByCurrency(
+  rows: ReadonlyArray<{ amount: number; currency: string }>,
+): Array<{ currency: string; total: number }> {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const currency = row.currency || 'INR';
+    totals.set(currency, (totals.get(currency) ?? 0) + row.amount);
+  }
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, total]) => ({ currency, total }));
 }

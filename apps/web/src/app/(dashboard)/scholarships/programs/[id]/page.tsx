@@ -10,6 +10,7 @@
  *
  * Validates: Requirement 11.1 — view scholarship program detail.
  */
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, Eye, FileText, Pencil, Users } from 'lucide-react';
@@ -142,13 +143,13 @@ function windowProgress(start: string, end: string): number | null {
 
 export default async function ScholarshipProgramPage(props: PageProps) {
   const params = await props.params;
-  const [program, allApps] = await Promise.all([
+  const [program, appsResult] = await Promise.all([
     getScholarshipProgram(params.id),
-    listScholarshipApplications(),
+    // PRC-M114: the program filter is applied by the API.
+    listScholarshipApplications({ programId: params.id, pageSize: 100 }),
   ]);
   if (!program) notFound();
-
-  const apps = allApps.filter((a) => a.programId === program.id);
+  const apps = appsResult.ok ? appsResult.items : [];
   const approved = apps.filter((a) => a.status === 'APPROVED').length;
   const pending = apps.filter((a) => a.status === 'PENDING' || a.status === 'UNDER_REVIEW').length;
   const rejected = apps.filter((a) => a.status === 'REJECTED').length;
@@ -264,7 +265,15 @@ export default async function ScholarshipProgramPage(props: PageProps) {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {recent.length === 0 ? (
+              {!appsResult.ok ? (
+                <div className="border-t p-4">
+                  <ListLoadFailure
+                    kind={appsResult.kind}
+                    status={appsResult.status}
+                    returnTo={`/scholarships/programs/${program.id}`}
+                  />
+                </div>
+              ) : recent.length === 0 ? (
                 <p className="border-t py-10 text-center text-sm text-muted-foreground">
                   No applications for this program yet.
                 </p>

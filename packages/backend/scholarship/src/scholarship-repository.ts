@@ -85,6 +85,8 @@ export interface ApplicationFilter {
   applicantIds?: string[];
   institutionId?: string;
   status?: ApplicationStatus;
+  /** PRC-M114: any of these statuses (UI groups e.g. submitted + under_review). */
+  statuses?: ApplicationStatus[];
   areaId?: string;
   gender?: string;
 }

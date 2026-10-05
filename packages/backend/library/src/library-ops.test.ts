@@ -117,14 +117,12 @@ describe('LibraryService holds + barcode + fines (G-916)', () => {
   });
 
   it('assesses an overdue fine using the policy cap and marks it paid', async () => {
-    const { service: lib } = service();
+    const { service: lib, repo } = service();
     await lib.upsertFinePolicy(TENANT_A, { centsPerDay: 500, capCents: 1000 });
     const item = await lib.createItem(TENANT_A, { title: 'Overdue Book', copies: 1 });
-    const loan = await lib.checkout(TENANT_A, {
-      itemId: item.id,
-      studentId: STUDENT_A,
-      dueAt: '2020-01-01T00:00:00.000Z',
-    });
+    const loan = await lib.checkout(TENANT_A, { itemId: item.id, studentId: STUDENT_A });
+    // PRC-M104: checkout refuses past due dates, so backdate the stored loan.
+    await repo.updateLoan(loan.id, TENANT_A, { dueAt: new Date('2020-01-01T00:00:00.000Z') });
 
     const assessed = await lib.assessFine(TENANT_A, 'librarian-1', { loanId: loan.id });
     expect(assessed.amountCents).toBe(1000);

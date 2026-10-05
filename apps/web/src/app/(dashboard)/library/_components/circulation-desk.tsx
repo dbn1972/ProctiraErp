@@ -22,6 +22,7 @@ import {
   returnLibraryLoanAction,
 } from '../../campus-actions';
 import { checkoutBarcodeAction, returnBarcodeAction } from '../../campus-ops-actions';
+import { libraryDueDateBounds } from '@/lib/validation/library-due-date';
 import type { LibraryItem } from '@/lib/api/library';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
@@ -40,6 +41,8 @@ export function CirculationDesk({
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
   const [lastLoanId, setLastLoanId] = useState<string | null>(null);
+  // PRC-M104: today .. today + loan policy; computed after hydration (clock-dependent).
+  const dueBounds = hydrated ? libraryDueDateBounds() : undefined;
 
   useEffect(() => {
     setHydrated(true);
@@ -65,7 +68,7 @@ export function CirculationDesk({
             barcode,
             patronUserId,
             studentId: studentId || undefined,
-            // PRC-M573: the due date applies to barcode checkouts too.
+            // PRC-M104 / PRC-M573: the due date applies to barcode checkouts too.
             dueAt: dueAt || undefined,
           })
         : await checkoutLibraryItemAction({
@@ -184,7 +187,14 @@ export function CirculationDesk({
               placeholder="Search student by name or code…"
             />
             <FormField id="checkout-due" label="Due date">
-              <Input id="checkout-due" name="dueAt" type="date" className="h-11 min-h-11" />
+              <Input
+                id="checkout-due"
+                name="dueAt"
+                type="date"
+                className="h-11 min-h-11"
+                min={dueBounds?.min}
+                max={dueBounds?.max}
+              />
             </FormField>
             <Button type="submit" disabled={pending} className="min-h-11">
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
