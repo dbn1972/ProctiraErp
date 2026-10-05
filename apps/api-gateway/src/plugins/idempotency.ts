@@ -20,7 +20,7 @@
  *   idempotency:{tenantId}:{userSub}:{key} → JSON { statusCode, headers, body, fingerprint }
  *     or { status: "completed_without_body", originalStatusCode?, fingerprint? }
  *   idempotency:{tenantId}:{userSub}:{key}:lock → request fingerprint (SET NX EX; refreshed
- *     while the handler runs)
+ *     while the handler runs, capped at maxLockHoldSeconds)
  * - PRC-M010: replay happens in preHandler (after auth/RBAC/rate limit); a key
  *   reused for a different method/path/body returns 422 IDEMPOTENCY_KEY_REUSED.
  * - PRC-M020: only 2xx and deterministic 4xx (400/404/409/410/422) are cached.
@@ -41,6 +41,13 @@ export interface IdempotencyOptions {
   ttlSeconds?: number;
   /** TTL for the in-flight lock in seconds (default: 60) */
   lockTtlSeconds?: number;
+  /**
+   * Longest a still-running handler keeps the in-flight lock alive by
+   * refreshing it, in seconds (default: 10 × lockTtlSeconds). After this the
+   * refresh stops and the lock lapses one TTL later, so a hung handler cannot
+   * pin its key at 409 forever.
+   */
+  maxLockHoldSeconds?: number;
   /** Header name for the idempotency key (default: 'idempotency-key') */
   headerName?: string;
   /**
@@ -198,6 +205,43 @@ function stopRefresh(state: IdempotencyRequestState | undefined): void {
   }
 }
 
+/** Default cap on in-flight lock refreshes, as a multiple of the lock TTL. */
+export const DEFAULT_LOCK_MAX_HOLD_TTLS = 10;
+
+/**
+ * PRC-M019: keep an in-flight lock alive while a slow handler runs, refreshing
+ * every TTL/2 so it never lapses mid-mutation. Refreshes stop once
+ * `maxHoldSeconds` of refreshing has elapsed: a handler that never completes
+ * (e.g. a hung upstream) must not hold its key forever. `onCapped` runs once
+ * when the cap is hit.
+ */
+export function startLockRefresh(input: {
+  redis: Pick<RedisClient, 'set'>;
+  lockKey: string;
+  fingerprint: string;
+  lockTtlSeconds: number;
+  maxHoldSeconds: number;
+  onError?: (err: unknown) => void;
+  onCapped?: () => void;
+}): ReturnType<typeof setInterval> {
+  const refreshMs = Math.max(1000, Math.floor((input.lockTtlSeconds * 1000) / 2));
+  const maxRefreshes = Math.max(1, Math.floor((input.maxHoldSeconds * 1000) / refreshMs));
+  let refreshes = 0;
+  const timer = setInterval(() => {
+    if (refreshes >= maxRefreshes) {
+      clearInterval(timer);
+      input.onCapped?.();
+      return;
+    }
+    refreshes += 1;
+    input.redis
+      .set(input.lockKey, input.fingerprint, 'EX', input.lockTtlSeconds)
+      .catch((err: unknown) => input.onError?.(err));
+  }, refreshMs);
+  timer.unref?.();
+  return timer;
+}
+
 /** Stable JSON (sorted object keys) so semantically equal bodies hash equally. */
 function stableStringify(value: unknown): string {
   if (value === undefined) return 'null';
@@ -275,6 +319,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   const {
     ttlSeconds = 86400, // 24 hours
     lockTtlSeconds = 60, // 1 minute lock for in-flight requests
+    maxLockHoldSeconds = lockTtlSeconds * DEFAULT_LOCK_MAX_HOLD_TTLS,
     headerName = 'idempotency-key',
     excludePaths = [],
   } = options;
@@ -382,14 +427,21 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
 
     const state: IdempotencyRequestState = { key: idempotencyKey, cacheKey, lockKey, fingerprint };
     // PRC-M019: keep the lock alive while a slow handler is still running so the
-    // TTL can never lapse mid-mutation and admit a second execution.
-    const refreshMs = Math.max(1000, Math.floor((lockTtlSeconds * 1000) / 2));
-    state.refreshTimer = setInterval(() => {
-      redis.set(lockKey, fingerprint, 'EX', lockTtlSeconds).catch((err: unknown) => {
-        request.log.warn({ err }, 'idempotency lock refresh failed');
-      });
-    }, refreshMs);
-    state.refreshTimer.unref?.();
+    // TTL can never lapse mid-mutation and admit a second execution — but only
+    // up to maxLockHoldSeconds, so a hung handler cannot hold the key forever.
+    state.refreshTimer = startLockRefresh({
+      redis,
+      lockKey,
+      fingerprint,
+      lockTtlSeconds,
+      maxHoldSeconds: maxLockHoldSeconds,
+      onError: (err) => request.log.warn({ err }, 'idempotency lock refresh failed'),
+      onCapped: () =>
+        request.log.warn(
+          { url, maxLockHoldSeconds },
+          'idempotency lock refresh cap reached; lock will lapse after its TTL',
+        ),
+    });
     (request as unknown as { [STATE]?: IdempotencyRequestState })[STATE] = state;
   });
 

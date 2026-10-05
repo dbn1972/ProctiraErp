@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import idempotencyPlugin, {
   InMemoryIdempotencyStore,
   isCacheableIdempotentStatus,
+  startLockRefresh,
   type RedisClient,
 } from './idempotency.js';
 
@@ -892,5 +893,78 @@ describe('idempotency scoping, atomic lock and cacheability (PRC-M010/M019/M020)
     for (const code of [401, 403, 408, 423, 429, 500, 503]) {
       expect(isCacheableIdempotentStatus(code)).toBe(false);
     }
+  });
+});
+describe('in-flight lock refresh cap (PRC-M019 follow-up)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  it('startLockRefresh stops after maxHoldSeconds and reports the cap once', async () => {
+    vi.useFakeTimers();
+    const set = vi.fn(async () => 'OK');
+    const onCapped = vi.fn();
+    // TTL 60s → refresh every 30s; cap 120s → exactly 4 refreshes.
+    startLockRefresh({
+      redis: { set },
+      lockKey: 'k:lock',
+      fingerprint: 'fp',
+      lockTtlSeconds: 60,
+      maxHoldSeconds: 120,
+      onCapped,
+    });
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(set).toHaveBeenCalledTimes(3);
+    expect(set).toHaveBeenLastCalledWith('k:lock', 'fp', 'EX', 60);
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(set).toHaveBeenCalledTimes(4);
+    expect(onCapped).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('a hung handler cannot pin its key at 409 past the cap', async () => {
+    // Fake only interval timers + Date so Fastify inject still runs normally.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, {
+      storeMode: 'memory',
+      lockTtlSeconds: 10,
+      maxLockHoldSeconds: 30,
+    });
+    let calls = 0;
+    let release: (() => void) | undefined;
+    let entered: (() => void) | undefined;
+    const handlerEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    app.post('/hang', async () => {
+      calls += 1;
+      if (calls === 1) {
+        entered?.();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return { ok: true, call: calls };
+    });
+    await app.ready();
+    const send = () =>
+      app.inject({
+        method: 'POST',
+        url: '/hang',
+        headers: { 'idempotency-key': 'hung-key' },
+        payload: { a: 1 },
+      });
+    const hung = send();
+    await handlerEntered;
+    // Within the cap the refreshed lock still blocks a duplicate.
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect((await send()).statusCode).toBe(409);
+    // Past cap + one TTL the lock has lapsed, so a retry executes.
+    await vi.advanceTimersByTimeAsync(30_000);
+    const retry = await send();
+    expect(retry.statusCode).toBe(200);
+    expect(calls).toBe(2);
+    release?.();
+    await hung;
+    await app.close();
   });
 });
