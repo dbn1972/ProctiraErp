@@ -259,8 +259,39 @@ describe('PRC-H079 offer fee payment proof', () => {
   });
 });
 
-describe('PRC-H079 create-time offer invoice ownership', () => {
-  it('rejects a staff-supplied invoice that the verifier says is not this application', async () => {
+describe('PRC-H079 offer invoice ownership (persisted invoice ids)', () => {
+  /**
+   * PRC-M327 forbids a client offerFeeInvoiceId at create, so the only way a draft
+   * carries one is a row persisted before that change. Seed such a legacy draft.
+   */
+  async function legacyDraft(ctx: ReturnType<typeof setup>, invoiceId: string) {
+    const app = await ctx.application();
+    const draft = await ctx.service.createOffer(TENANT, { applicationId: app.id, feeAmount: 500 });
+    const row = (await ctx.store.findOffer(TENANT, draft.id))!;
+    await ctx.store.updateOffer({ ...row, offerFeeInvoiceId: invoiceId });
+    return { app, draft };
+  }
+
+  it('rejects a client-supplied invoice at create even when the verifier would accept it', async () => {
+    const seen: unknown[] = [];
+    const ctx = setup({
+      verifyOwnership: async (input) => {
+        seen.push(input);
+        return true;
+      },
+    });
+    const app = await ctx.application();
+    await expect(
+      ctx.service.createOffer(TENANT, {
+        applicationId: app.id,
+        feeAmount: 500,
+        offerFeeInvoiceId: randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(seen).toEqual([]);
+  });
+
+  it('refuses to send a legacy draft whose invoice the verifier says is not this offer', async () => {
     const seen: unknown[] = [];
     const ctx = setup({
       verifyOwnership: async (input) => {
@@ -268,15 +299,9 @@ describe('PRC-H079 create-time offer invoice ownership', () => {
         return false;
       },
     });
-    const app = await ctx.application();
     const foreign = randomUUID();
-    await expect(
-      ctx.service.createOffer(TENANT, {
-        applicationId: app.id,
-        feeAmount: 500,
-        offerFeeInvoiceId: foreign,
-      }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    const { app, draft } = await legacyDraft(ctx, foreign);
+    await expect(ctx.service.sendOffer(TENANT, draft.id)).rejects.toBeInstanceOf(BusinessRuleError);
     // The verifier receives the offer's fee so it can reject a different-amount invoice.
     expect(seen).toEqual([
       {
@@ -287,30 +312,22 @@ describe('PRC-H079 create-time offer invoice ownership', () => {
         feeCurrency: 'INR',
       },
     ]);
+    expect((await ctx.store.findOffer(TENANT, draft.id))?.status).toBe('draft');
   });
 
-  it('fails closed when no ownership verifier is wired', async () => {
+  it('fails closed on a legacy draft invoice when no ownership verifier is wired', async () => {
     const ctx = setup();
-    const app = await ctx.application();
-    await expect(
-      ctx.service.createOffer(TENANT, {
-        applicationId: app.id,
-        feeAmount: 500,
-        offerFeeInvoiceId: randomUUID(),
-      }),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    const { draft } = await legacyDraft(ctx, randomUUID());
+    await expect(ctx.service.sendOffer(TENANT, draft.id)).rejects.toBeInstanceOf(BusinessRuleError);
   });
 
-  it("keeps the application's own verified invoice", async () => {
+  it("keeps a legacy draft's own verified invoice on send", async () => {
     const ctx = setup({ verifyOwnership: async () => true });
-    const app = await ctx.application();
     const own = randomUUID();
-    const offer = await ctx.service.createOffer(TENANT, {
-      applicationId: app.id,
-      feeAmount: 500,
-      offerFeeInvoiceId: own,
-    });
-    expect(offer.offerFeeInvoiceId).toBe(own);
+    const { draft } = await legacyDraft(ctx, own);
+    const sent = await ctx.service.sendOffer(TENANT, draft.id);
+    expect(sent.status).toBe('sent');
+    expect(sent.offerFeeInvoiceId).toBe(own);
   });
 
   it('needs no verifier when the invoice is left to be raised on send', async () => {
@@ -318,5 +335,7 @@ describe('PRC-H079 create-time offer invoice ownership', () => {
     const app = await ctx.application();
     const offer = await ctx.service.createOffer(TENANT, { applicationId: app.id, feeAmount: 500 });
     expect(offer.offerFeeInvoiceId).toBeNull();
+    const sent = await ctx.service.sendOffer(TENANT, offer.id);
+    expect(sent.offerFeeInvoiceId).toBeTruthy();
   });
 });
