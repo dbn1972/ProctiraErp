@@ -49,6 +49,21 @@ regexes = [
   # the standalone student app. Referenced by zero non-test files; no deployment
   # manifest or .env template uses it. Retained because PR range history is scanned.
   '''standalone-test-secret-0123456789abcdef''',
+
+  # apps/web/src/lib/api/fees.idempotency.test.ts (branch history, PRC-H058, commit 8fbef06c)
+  # Fixed UUID sent as the Idempotency-Key header in a refund/concession test; the
+  # test asserts the header is forwarded unchanged. Referenced by zero non-test files.
+  '''7a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d''',
+
+  # apps/web/src/lib/fees/actions.idempotency.test.ts (branch history, PRC-H058, commit 8c84f873)
+  # Fixed UUID idempotency key for the money Server Action tests. Referenced by
+  # zero non-test files.
+  '''3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b''',
+
+  # apps/api-gateway/src/tenant-suspension-lifecycle.test.ts (branch history, PRC-H008, commit e278cec5)
+  # Placeholder admin password in an in-memory tenant-provisioning fixture
+  # (email a@b.example); never sent to a real IdP. Referenced by zero non-test files.
+  '''pw-123456789''',
 ]
 
 paths = [
