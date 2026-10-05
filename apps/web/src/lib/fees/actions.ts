@@ -29,17 +29,18 @@ import {
   feeStructureFormSchema,
   parseStudentIdList,
   reconciliationFormSchema,
-  recordPaymentFormSchema,
   refundFormSchema,
   reminderSendFormSchema,
   reminderSuppressionFormSchema,
   resolveReconExceptionFormSchema,
   scholarshipNettingFormSchema,
+  isSandboxPaymentEnabled,
+  staffPaymentFormSchema,
+  type StaffPaymentFormValues,
   type BulkInvoiceFormValues,
   type ConcessionFormValues,
   type FeeStructureFormValues,
   type ReconciliationFormValues,
-  type RecordPaymentFormValues,
   type RefundFormValues,
   type ReminderSendFormValues,
   type ReminderSuppressionFormValues,
@@ -211,15 +212,13 @@ export async function refundInvoiceAction(
   }
 }
 
-/** PRC-M089: sandbox charges for staff are off unless explicitly enabled. */
-function staffSandboxPaymentsEnabled(): boolean {
-  return process.env['FEES_STAFF_SANDBOX_PAYMENTS']?.trim().toLowerCase() === 'true';
-}
-
-export async function recordStaffPaymentAction(
-  values: RecordPaymentFormValues,
+export async function payInvoiceStaffAction(
+  values: StaffPaymentFormValues,
 ): Promise<ActionResult<{ id: string }>> {
-  const parsed = recordPaymentFormSchema.safeParse(values);
+  // PRC-M065 / PRC-M089: validate invoice id, a real method, a positive
+  // (possibly partial) amount, a reference for real methods and an idempotency
+  // key; sandbox is refused unless explicitly enabled (never in production).
+  const parsed = staffPaymentFormSchema.safeParse(values);
   if (!parsed.success) {
     return {
       success: false,
@@ -227,8 +226,12 @@ export async function recordStaffPaymentAction(
       fieldErrors: flattenZod(parsed.error),
     };
   }
-  if (parsed.data.method === 'sandbox' && !staffSandboxPaymentsEnabled()) {
-    return { success: false, error: 'Sandbox payments are disabled in this environment.' };
+  if (parsed.data.method === 'sandbox' && !isSandboxPaymentEnabled()) {
+    return {
+      success: false,
+      error: 'Sandbox payments are disabled in this environment',
+      fieldErrors: [{ field: 'method', message: 'Select cash, UPI or card' }],
+    };
   }
   try {
     const invoice = await recordInvoicePayment(parsed.data.invoiceId, {

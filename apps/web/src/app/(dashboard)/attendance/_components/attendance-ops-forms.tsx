@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
-import { Button, Input, Label } from '@proctira/ui/components';
+import { Button, Input, Label, Textarea } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
 import {
@@ -80,6 +81,46 @@ export function AttendanceOpsForms({
   const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
   const classLabels = new Map(classOptions.map((o) => [o.id, o.label]));
   const [error, setError] = useState<string | null>(null);
+  // PRC-M077: every approve/reject is confirmed, may carry a decision note,
+  // and surfaces a failure instead of silently refreshing.
+  const [pendingDecision, setPendingDecision] = useState<{
+    target: 'regularisation' | 'leave';
+    id: string;
+    decision: 'approve' | 'reject';
+  } | null>(null);
+  const [decisionNote, setDecisionNote] = useState('');
+
+  function askDecision(
+    target: 'regularisation' | 'leave',
+    id: string,
+    decision: 'approve' | 'reject',
+  ) {
+    setError(null);
+    setDecisionNote('');
+    setPendingDecision({ target, id, decision });
+  }
+
+  function confirmDecision() {
+    if (!pendingDecision) return;
+    const { target, id, decision } = pendingDecision;
+    const note = decisionNote.trim() || undefined;
+    startTransition(async () => {
+      const result =
+        target === 'regularisation'
+          ? await decideRegularisationAction(id, decision, note)
+          : await decideLeaveAction(id, decision, note);
+      if (result.status === 'error') {
+        setError(
+          result.message ??
+            `Could not ${decision} the ${target === 'leave' ? 'leave request' : 'regularisation'}.`,
+        );
+        setPendingDecision(null);
+        return;
+      }
+      setPendingDecision(null);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="space-y-8" data-testid="attendance-ops-panel">
@@ -197,12 +238,7 @@ export function AttendanceOpsForms({
                     type="button"
                     size="sm"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideRegularisationAction(row.id, 'approve');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('regularisation', row.id, 'approve')}
                   >
                     Approve
                   </Button>
@@ -211,12 +247,7 @@ export function AttendanceOpsForms({
                     size="sm"
                     variant="outline"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideRegularisationAction(row.id, 'reject');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('regularisation', row.id, 'reject')}
                   >
                     Reject
                   </Button>
@@ -333,12 +364,7 @@ export function AttendanceOpsForms({
                     type="button"
                     size="sm"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideLeaveAction(row.id, 'approve');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('leave', row.id, 'approve')}
                   >
                     Approve
                   </Button>
@@ -347,12 +373,7 @@ export function AttendanceOpsForms({
                     size="sm"
                     variant="outline"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideLeaveAction(row.id, 'reject');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('leave', row.id, 'reject')}
                   >
                     Reject
                   </Button>
@@ -362,6 +383,32 @@ export function AttendanceOpsForms({
           ))
         )}
       </ul>
+      <ConfirmActionDialog
+        open={pendingDecision !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDecision(null);
+        }}
+        title={
+          pendingDecision
+            ? `${pendingDecision.decision === 'approve' ? 'Approve' : 'Reject'} this ${pendingDecision.target === 'leave' ? 'leave request' : 'regularisation'}?`
+            : ''
+        }
+        description="This changes the attendance register and attendance percentages. The decision and note are recorded in the audit trail."
+        confirmLabel={pendingDecision?.decision === 'reject' ? 'Reject' : 'Approve'}
+        destructive={pendingDecision?.decision === 'reject'}
+        pending={pending}
+        onConfirm={confirmDecision}
+        testId="attendance-decision-confirm"
+      >
+        <Label htmlFor="attendance-decision-note">Decision note (optional)</Label>
+        <Textarea
+          id="attendance-decision-note"
+          value={decisionNote}
+          maxLength={2000}
+          rows={3}
+          onChange={(event) => setDecisionNote(event.target.value)}
+        />
+      </ConfirmActionDialog>
     </div>
   );
 }

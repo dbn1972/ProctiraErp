@@ -10,6 +10,7 @@
  *   /api/v1/attendance/config/:id         (institution config)
  */
 import { gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -122,13 +123,13 @@ export async function getClassRoster(
   classId: string,
   academicPeriodId: string,
   date: string,
-): Promise<RosterEntry[]> {
+): Promise<ListResult<RosterEntry>> {
   const params = new URLSearchParams({ classId, academicPeriodId, date });
-  const result = await gatewayFetch<{ data: RosterEntry[] }>(
-    `/attendance/roster?${params.toString()}`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+  // PRC-M076: a failed roster load must not render as "no students".
+  return fetchList<RosterEntry>(`/attendance/roster?${params.toString()}`, {
+    method: 'GET',
+    next: { revalidate: 0 },
+  });
 }
 
 export async function getAttendanceConfig(institutionId: string): Promise<AttendanceConfig | null> {
@@ -205,12 +206,11 @@ export interface LeaveRequest {
   reason: string | null;
 }
 
-export async function listRegularisations(): Promise<RegularisationRequest[]> {
-  const result = await gatewayFetch<{ data: RegularisationRequest[] }>(
-    '/attendance/regularisation',
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+export async function listRegularisations(): Promise<ListResult<RegularisationRequest>> {
+  return fetchList<RegularisationRequest>('/attendance/regularisation', {
+    method: 'GET',
+    next: { revalidate: 0 },
+  });
 }
 
 export async function createRegularisation(input: {
@@ -243,13 +243,11 @@ export async function decideRegularisation(
   return result.data;
 }
 
-export async function listLeaveRequests(): Promise<LeaveRequest[]> {
-  const result = await gatewayFetch<{ data: LeaveRequest[] }>('/attendance/leave-requests', {
+export async function listLeaveRequests(): Promise<ListResult<LeaveRequest>> {
+  return fetchList<LeaveRequest>('/attendance/leave-requests', {
     method: 'GET',
-    throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 export async function createLeaveRequest(input: {

@@ -153,7 +153,11 @@
     "mfaPrintCodes": "طباعة الرموز",
     "mfaAcknowledgement": "لقد حفظت رموز النسخ الاحتياطي في مكان آمن.",
     "mfaAcknowledgementHelp": "لن ترى هذه الرموز مرة أخرى بعد إكمال الإعداد.",
-    "mfaFinishSetup": "إنهاء الإعداد"
+    "mfaFinishSetup": "إنهاء الإعداد",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "لوحة التحكم",

@@ -1,60 +1,140 @@
 /**
  * @vitest-environment jsdom
  *
- * PRC-M089: staff record payment — method, partial amount, reference and a
- * stable idempotency key; sandbox only when enabled.
+ * PRC-M065 / PRC-M089: staff payment control records real methods with a
+ * (partial) amount, a reference and a stable idempotency key; no sandbox
+ * option unless the server enables it.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 
-const m = vi.hoisted(() => ({ recordStaffPaymentAction: vi.fn() }));
+const payInvoiceStaffAction = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/hooks/useHydrated', () => ({ useHydrated: () => true }));
-vi.mock('@/lib/fees/actions', () => ({ recordStaffPaymentAction: m.recordStaffPaymentAction }));
+vi.mock('@/lib/fees/actions', () => ({
+  payInvoiceStaffAction: (...args: unknown[]) => payInvoiceStaffAction(...args),
+}));
 
 import { PayInvoiceStaffButton } from './pay-invoice-staff-button';
-import { recordPaymentFormSchema } from '@/lib/fees/validation';
+import { staffPaymentFormSchema } from '@/lib/fees/validation';
+
+const INVOICE = '11111111-2222-4333-8444-555555555555';
 
 afterEach(cleanup);
-const ID = '11111111-1111-4111-8111-111111111111';
 
-describe('PayInvoiceStaffButton (PRC-M089)', () => {
-  it('hides sandbox unless enabled and submits method/amount/reference/key', async () => {
-    m.recordStaffPaymentAction.mockResolvedValue({ success: false, error: 'Network' });
-    render(<PayInvoiceStaffButton invoiceId={ID} amountCents={100_000} />);
+describe('PayInvoiceStaffButton (PRC-M065 / PRC-M089)', () => {
+  beforeEach(() => {
+    payInvoiceStaffAction.mockReset();
+    payInvoiceStaffAction.mockResolvedValue({ success: true, data: { id: INVOICE } });
+  });
+
+  it('does not label or offer sandbox payments by default', () => {
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} />);
     expect(screen.getByTestId('staff-pay-invoice').textContent).toBe('Record payment');
     fireEvent.click(screen.getByTestId('staff-pay-invoice'));
-    expect(screen.queryByLabelText(/Sandbox/)).toBeNull();
-    fireEvent.click(screen.getByLabelText('UPI'));
-    fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: '400.50' } });
-    fireEvent.change(screen.getByLabelText(/UPI transaction id/), { target: { value: 'UTR123' } });
-    fireEvent.submit(screen.getByTestId('staff-pay-form'));
-    await waitFor(() => expect(m.recordStaffPaymentAction).toHaveBeenCalledTimes(1));
-    const first = m.recordStaffPaymentAction.mock.calls[0]![0];
+    const values = Array.from(
+      (screen.getByTestId('staff-pay-method') as HTMLSelectElement).options,
+    ).map((o) => o.value);
+    expect(values).toEqual(['', 'cash', 'upi', 'card']);
+  });
+
+  it('offers sandbox only when the server enables it', () => {
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} sandboxEnabled />);
+    fireEvent.click(screen.getByTestId('staff-pay-invoice'));
+    const values = Array.from(
+      (screen.getByTestId('staff-pay-method') as HTMLSelectElement).options,
+    ).map((o) => o.value);
+    expect(values).toContain('sandbox');
+  });
+
+  it('starts with a blank amount instead of prefilling the invoice face amount', () => {
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} />);
+    fireEvent.click(screen.getByTestId('staff-pay-invoice'));
+    expect((screen.getByTestId('staff-pay-amount') as HTMLInputElement).value).toBe('');
+  });
+
+  it('submits the chosen method, amount, reference and an idempotency key', async () => {
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} />);
+    fireEvent.click(screen.getByTestId('staff-pay-invoice'));
+    fireEvent.change(screen.getByLabelText('Payment method'), { target: { value: 'cash' } });
+    fireEvent.change(screen.getByLabelText('Amount received (INR)'), {
+      target: { value: '500.00' },
+    });
+    fireEvent.change(screen.getByLabelText('Receipt book number'), {
+      target: { value: 'RB-1042' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('staff-pay-confirm-confirm'));
+    });
+    expect(payInvoiceStaffAction).toHaveBeenCalledWith({
+      invoiceId: INVOICE,
+      method: 'cash',
+      amount: '500.00',
+      reference: 'RB-1042',
+      idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+  });
+
+  it('labels the reference for UPI and reuses the idempotency key on retry', async () => {
+    payInvoiceStaffAction.mockResolvedValue({ success: false, error: 'Network' });
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} />);
+    fireEvent.click(screen.getByTestId('staff-pay-invoice'));
+    fireEvent.change(screen.getByLabelText('Payment method'), { target: { value: 'upi' } });
+    fireEvent.change(screen.getByLabelText('Amount received (INR)'), {
+      target: { value: '400.50' },
+    });
+    fireEvent.change(screen.getByLabelText('UPI transaction id'), {
+      target: { value: 'UTR123' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('staff-pay-confirm-confirm'));
+    });
+    expect(payInvoiceStaffAction).toHaveBeenCalledTimes(1);
+    const first = payInvoiceStaffAction.mock.calls[0]![0];
     expect(first).toMatchObject({
-      invoiceId: ID,
+      invoiceId: INVOICE,
       method: 'upi',
-      amount: 400.5,
+      amount: '400.50',
       reference: 'UTR123',
     });
-    // Retry reuses the same idempotency key.
-    fireEvent.submit(screen.getByTestId('staff-pay-form'));
-    await waitFor(() => expect(m.recordStaffPaymentAction).toHaveBeenCalledTimes(2));
-    expect(m.recordStaffPaymentAction.mock.calls[1]![0].idempotencyKey).toBe(first.idempotencyKey);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('staff-pay-confirm-confirm'));
+    });
+    expect(payInvoiceStaffAction).toHaveBeenCalledTimes(2);
+    expect(payInvoiceStaffAction.mock.calls[1]![0].idempotencyKey).toBe(first.idempotencyKey);
   });
 
-  it('offers sandbox only when enabled', () => {
-    render(<PayInvoiceStaffButton invoiceId={ID} sandboxEnabled />);
+  it('shows field errors returned by the action', async () => {
+    payInvoiceStaffAction.mockResolvedValue({
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: [
+        { field: 'amount', message: 'Amount is required' },
+        { field: 'reference', message: 'Reference is required' },
+      ],
+    });
+    render(<PayInvoiceStaffButton invoiceId={INVOICE} />);
     fireEvent.click(screen.getByTestId('staff-pay-invoice'));
-    expect(screen.getByLabelText(/Sandbox/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('staff-pay-confirm-confirm'));
+    });
+    expect(screen.getByRole('alert').textContent).toBe('Validation failed');
+    expect(screen.getByText('Amount is required')).toBeTruthy();
+    expect(screen.getByText('Reference is required')).toBeTruthy();
   });
 
-  it('schema requires a reference for cash/UPI', () => {
-    const base = { invoiceId: ID, amount: 10, idempotencyKey: ID };
-    expect(recordPaymentFormSchema.safeParse({ ...base, method: 'cash' }).success).toBe(false);
-    expect(
-      recordPaymentFormSchema.safeParse({ ...base, method: 'cash', reference: 'RB-1' }).success,
-    ).toBe(true);
-    expect(recordPaymentFormSchema.safeParse({ ...base, method: 'sandbox' }).success).toBe(true);
+  it('schema requires a reference for cash/UPI/card but not sandbox', () => {
+    const base = { invoiceId: INVOICE, amount: 10, idempotencyKey: INVOICE };
+    for (const method of ['cash', 'upi', 'card'] as const) {
+      expect(staffPaymentFormSchema.safeParse({ ...base, method }).success).toBe(false);
+      expect(staffPaymentFormSchema.safeParse({ ...base, method, reference: '  ' }).success).toBe(
+        false,
+      );
+      expect(staffPaymentFormSchema.safeParse({ ...base, method, reference: 'RB-1' }).success).toBe(
+        true,
+      );
+    }
+    expect(staffPaymentFormSchema.safeParse({ ...base, method: 'sandbox' }).success).toBe(true);
   });
 });

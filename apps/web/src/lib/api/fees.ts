@@ -447,22 +447,35 @@ export async function resolveReconciliationException(
 }
 
 /**
- * PRC-M089: record a staff-collected payment (method, partial amount,
- * reference) with a client idempotency key so a double submit pays once.
+ * PRC-M065 / PRC-M089: record a staff-collected payment (method, partial
+ * amount, reference) with a client idempotency key so a double submit pays
+ * once. Only fields the gateway's `PayInvoiceSchema` accepts are sent.
  */
+export interface RecordInvoicePaymentInput {
+  method: 'cash' | 'upi' | 'card' | 'sandbox';
+  amountCents: number;
+  idempotencyKey: string;
+  /** UPI transaction id / card approval code / receipt-book number (1–100 chars). */
+  reference?: string;
+}
+
 export async function recordInvoicePayment(
   invoiceId: string,
-  input: {
-    method: 'cash' | 'upi' | 'sandbox';
-    amountCents: number;
-    idempotencyKey: string;
-    reference?: string;
-  },
+  input: RecordInvoicePaymentInput,
 ): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
-    method: 'POST',
-    json: input,
-  });
+  const reference = input.reference?.trim();
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: {
+        method: input.method,
+        amountCents: input.amountCents,
+        idempotencyKey: input.idempotencyKey,
+        ...(reference ? { reference } : {}),
+      },
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 

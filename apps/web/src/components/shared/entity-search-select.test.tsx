@@ -1,68 +1,86 @@
 /**
- * PRC-L228: EntitySearchSelect submits ids, filters by label and shows an
- * explicit empty state instead of a raw id field.
+ * @vitest-environment jsdom
+ *
+ * PRC-M063: EntitySearchSelect distinguishes load failure / loading from an
+ * empty directory, blocks empty required submissions, and supports the ARIA
+ * combobox keyboard pattern.
  */
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import React from 'react';
+
 import { EntitySearchSelect } from './entity-search-select';
 
 const options = [
-  { id: 'id-1', label: 'ADM-1 · Asha', searchText: 'asha adm-1' },
-  { id: 'id-2', label: 'ADM-2 · Ravi' },
+  { id: 's-1', label: 'Asha Rao' },
+  { id: 's-2', label: 'Arjun Mehta' },
+  { id: 's-3', label: 'Bina Das' },
 ];
 
-describe('EntitySearchSelect', () => {
-  it('filters options by label and reports the chosen id', () => {
-    const onValueChange = vi.fn();
+describe('EntitySearchSelect (PRC-M063)', () => {
+  it('renders an alert (not the empty message) when the directory failed to load', () => {
     render(
       <EntitySearchSelect
-        id="s"
-        name="studentId"
-        label="Student"
-        options={options}
-        onValueChange={onValueChange}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText('Student search'), { target: { value: 'ravi' } });
-    const select = screen.getByLabelText('Student', { selector: 'select' });
-    expect(Array.from((select as HTMLSelectElement).options).map((o) => o.value)).toEqual([
-      '',
-      'id-2',
-    ]);
-    fireEvent.change(select, { target: { value: 'id-2' } });
-    expect(onValueChange).toHaveBeenCalledWith('id-2');
-    expect(screen.getByTestId('s-selected-label')).toHaveTextContent('ADM-2 · Ravi');
-  });
-
-  it('shows the empty message and submits an empty value when no options exist', () => {
-    const { container } = render(
-      <EntitySearchSelect
-        id="s"
+        id="student"
         name="studentId"
         label="Student"
         options={[]}
-        emptyMessage="Nothing here"
+        error="Could not load students."
+        required
       />,
     );
-    expect(screen.getByRole('status')).toHaveTextContent('Nothing here');
-    expect(container.querySelector<HTMLInputElement>('input[name="studentId"]')?.value).toBe('');
+    expect(screen.getByRole('alert').textContent).toBe('Could not load students.');
+    expect(screen.queryByText(/No directory entries loaded/)).toBeNull();
   });
 
-  it('combobox mode selects an option and stores its id in the hidden input', () => {
+  it('shows a loading status distinct from the empty message', () => {
+    render(<EntitySearchSelect id="s" name="sid" label="Student" options={[]} loading />);
+    expect(screen.getByRole('status').textContent).toBe('Loading directory…');
+  });
+
+  it('blocks submission of a required field when no option can be chosen', () => {
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <EntitySearchSelect id="s" name="sid" label="Student" options={[]} required />
+        <button type="submit">Save</button>
+      </form>,
+    );
+    const select = screen.getByLabelText('Student') as HTMLSelectElement;
+    expect(select.required).toBe(true);
+    expect(select.checkValidity()).toBe(false);
+  });
+
+  it('supports ArrowDown / Enter / Escape in combobox mode', () => {
+    const onValueChange = vi.fn();
     const { container } = render(
       <EntitySearchSelect
-        id="c"
-        name="studentId"
+        id="s"
+        name="sid"
         label="Student"
         options={options}
         presentation="combobox"
+        onValueChange={onValueChange}
       />,
     );
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'asha' } });
-    fireEvent.click(screen.getByRole('option', { name: 'ADM-1 · Asha' }));
-    expect(container.querySelector<HTMLInputElement>('input[name="studentId"]')?.value).toBe(
-      'id-1',
-    );
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'a' } });
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input.getAttribute('aria-activedescendant')).toBe('s-option-1');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onValueChange).toHaveBeenLastCalledWith('s-2');
+    expect((input as HTMLInputElement).value).toBe('Arjun Mehta');
+    expect(
+      (container.querySelector('input[type="hidden"][name="sid"]') as HTMLInputElement).value,
+    ).toBe('s-2');
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    fireEvent.change(input, { target: { value: 'b' } });
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
 
@@ -87,7 +105,8 @@ describe('EntitySearchSelect remote search (PRC-M083)', () => {
         onOptionSelected={onOptionSelected}
       />,
     );
-    expect(screen.getByText(/Showing 2 of 101/)).toBeTruthy();
+    // Main (#541) grew the shared fixture to three seeded options.
+    expect(screen.getByText(/Showing 3 of 101/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Student search'), { target: { value: 'zoya' } });
     const select = screen.getByLabelText('Student', { selector: 'select' }) as HTMLSelectElement;
     await vi.waitFor(() =>

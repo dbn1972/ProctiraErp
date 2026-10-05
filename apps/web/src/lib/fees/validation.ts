@@ -82,24 +82,6 @@ export const bulkInvoiceFormSchema = z
     { message: 'Choose a class or add students to invoice', path: ['classId'] },
   );
 
-/**
- * PRC-M089: staff "Record payment". Real methods need a reference (UPI txn id
- * or receipt-book number); `sandbox` is only accepted when the server enables it.
- */
-export const recordPaymentFormSchema = z
-  .object({
-    invoiceId: z.string().regex(UUID, 'Invoice is required'),
-    method: z.enum(['cash', 'upi', 'sandbox']),
-    amount: positiveAmount('Amount'),
-    reference: z.string().trim().max(100, 'Reference is too long').optional(),
-    idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
-  })
-  .refine((d) => d.method === 'sandbox' || Boolean(d.reference && d.reference.length > 0), {
-    message: 'Reference is required (UPI transaction id or receipt number)',
-    path: ['reference'],
-  });
-export type RecordPaymentFormValues = z.infer<typeof recordPaymentFormSchema>;
-
 export const concessionFormSchema = z
   .object({
     studentId: z.string().regex(UUID, 'Student must be a UUID'),
@@ -137,6 +119,53 @@ export const refundFormSchema = z.object({
   amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
   reason: z.string().min(1, 'Reason is required').max(2000),
 });
+
+/** Payment methods staff can record against an invoice (PRC-M065). */
+export const STAFF_PAYMENT_METHODS = ['cash', 'upi', 'card'] as const;
+export type StaffPaymentMethod = (typeof STAFF_PAYMENT_METHODS)[number] | 'sandbox';
+
+function envFlagEnabled(name: string): boolean {
+  return process.env[name]?.trim().toLowerCase() === 'true';
+}
+
+/**
+ * The `sandbox` method is only offered/accepted when explicitly enabled for a
+ * non-production deployment (PRC-M065 / PRC-M089). `FEES_STAFF_SANDBOX_PAYMENTS`
+ * is the canonical server-side flag; `NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS` is
+ * still honoured for deployments configured before the two were reconciled.
+ * A production build refuses sandbox regardless of either flag.
+ *
+ * Evaluate on the server (page / server action) and pass the result to client
+ * components as a prop; the server-only flag is not visible in the browser.
+ */
+export function isSandboxPaymentEnabled(): boolean {
+  if (process.env['NODE_ENV'] === 'production') return false;
+  return (
+    envFlagEnabled('FEES_STAFF_SANDBOX_PAYMENTS') ||
+    envFlagEnabled('NEXT_PUBLIC_FEES_SANDBOX_PAYMENTS')
+  );
+}
+
+/**
+ * Staff "record payment" — POST /fees/invoices/:id/pay (PRC-M065, PRC-M089).
+ * Real methods need a reference (UPI transaction id, card approval code or
+ * receipt-book number); `sandbox` is gated server-side by
+ * `isSandboxPaymentEnabled()`.
+ */
+export const staffPaymentFormSchema = z
+  .object({
+    invoiceId: z.string().regex(UUID, 'Invoice is required'),
+    method: z.enum([...STAFF_PAYMENT_METHODS, 'sandbox'], {
+      message: 'Select a payment method',
+    }),
+    amount: positiveAmount('Amount'),
+    reference: z.string().trim().max(100, 'Reference is too long').optional(),
+    idempotencyKey: z.string().regex(UUID, 'Missing idempotency key'),
+  })
+  .refine((d) => d.method === 'sandbox' || Boolean(d.reference && d.reference.length > 0), {
+    message: 'Reference is required (UPI transaction id, card approval code or receipt number)',
+    path: ['reference'],
+  });
 
 /** PRC-M092: header/row shape, size and unit are checked before any batch is created. */
 export const reconciliationFormSchema = z
@@ -204,6 +233,7 @@ export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
 export type ReconciliationFormValues = z.input<typeof reconciliationFormSchema>;
+export type StaffPaymentFormValues = z.input<typeof staffPaymentFormSchema>;
 export type ResolveReconExceptionFormValues = z.infer<typeof resolveReconExceptionFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
 export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;

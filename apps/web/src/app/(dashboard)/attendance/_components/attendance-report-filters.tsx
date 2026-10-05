@@ -22,6 +22,7 @@ import {
 } from '@proctira/ui/components';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { EntityLabelOption } from '@/lib/entity-label';
+import { addDaysToIsoDate, todayInTimeZone } from '@/lib/datetime/tenant-zoned';
 import {
   exportAttendanceReportAction,
   getAttendanceReportAction,
@@ -47,6 +48,8 @@ interface AttendanceReportFiltersProps {
   studentOptions?: EntityLabelOption[];
   /** Student directory size when `studentOptions` is a capped page. */
   studentTotal?: number;
+  /** PRC-M078: today in the tenant timezone (server-computed). */
+  today?: string;
 }
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
@@ -56,9 +59,10 @@ export function AttendanceReportFilters({
   classes = [],
   studentOptions = [],
   studentTotal,
+  today: tenantToday,
 }: AttendanceReportFiltersProps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = tenantToday ?? todayInTimeZone();
+  const monthAgo = addDaysToIsoDate(today, -30);
   const [scope, setScope] = useState<'student' | 'class' | 'institution'>('institution');
   const [institutionId, setInstitutionId] = useState('');
   const [classId, setClassId] = useState('');

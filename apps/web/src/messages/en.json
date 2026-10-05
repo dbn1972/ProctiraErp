@@ -153,7 +153,11 @@
     "mfaPrintCodes": "Print codes",
     "mfaAcknowledgement": "I have saved my backup codes in a secure location.",
     "mfaAcknowledgementHelp": "You won't see these codes again after you finish setup.",
-    "mfaFinishSetup": "Finish setup"
+    "mfaFinishSetup": "Finish setup",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "Dashboard",
