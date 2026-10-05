@@ -13,6 +13,10 @@ import {
 } from './identity.js';
 import { keycloakAuthPlugin } from './plugin.js';
 
+// Each test generates a 2048-bit RSA key pair. Runs in ~0.4s locally, but hit 5.9s on loaded
+// CI runners (Integration Tests on #537, #547, #553) and tripped vitest's 5s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 const issuer = 'http://localhost:8180/realms/proctira';
 const config = {
   issuer,
