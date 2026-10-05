@@ -50,9 +50,25 @@ function isUndefinedTable(error: unknown): boolean {
   );
 }
 
-function isUniqueViolation(error: unknown): boolean {
+/**
+ * PRC-M264/M267: only these natural-key races are reported as a generic 409.
+ * Any other unique violation (e.g. credit-rule `(tenant_id, code)`) keeps the
+ * driver's own "duplicate key … unique constraint" error.
+ *   - `grade_entries_upsert_uidx` (db/sql/004): grade-entry natural key
+ *   - `transcript_issuances_tenant_id_student_id_version_key` (db/sql/003,
+ *     implicit name of `UNIQUE (tenant_id, student_id, version)`)
+ */
+export const GRADEBOOK_CONCURRENT_KEY_CONSTRAINTS: ReadonlySet<string> = new Set([
+  'grade_entries_upsert_uidx',
+  'transcript_issuances_tenant_id_student_id_version_key',
+]);
+export function isConcurrentKeyViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, constraint } = error as { code?: string; constraint?: string };
   return (
-    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505'
+    code === '23505' &&
+    typeof constraint === 'string' &&
+    GRADEBOOK_CONCURRENT_KEY_CONSTRAINTS.has(constraint)
   );
 }
 
@@ -80,7 +96,7 @@ async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
     if (isUndefinedTable(error)) {
       throw new GradebookSchemaMissingError();
     }
-    if (isUniqueViolation(error)) {
+    if (isConcurrentKeyViolation(error)) {
       // PRC-M264/M267: concurrent create of the same natural key -> 409, not 500.
       throw new ConflictError('A record with the same key was created concurrently');
     }
