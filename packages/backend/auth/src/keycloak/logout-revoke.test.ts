@@ -13,6 +13,10 @@ import { MemoryAccessTokenRevocationStore } from '../access-token-revocation.js'
 import { keycloakAuthPlugin } from './plugin.js';
 import { registerKeycloakAuthRoutes } from './routes.js';
 
+// Each test generates a 2048-bit RSA key pair (mockJwks). That takes well under 1s locally but
+// hit 5.8s on a loaded CI runner and tripped the 5s default (CI run 37201204102).
+vi.setConfig({ testTimeout: 30_000 });
+
 function toBase64Url(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
 }

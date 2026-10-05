@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 
 import * as fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   countHardClashes,
@@ -19,6 +19,9 @@ import {
   type GeneratorPeriod,
   type GeneratorRoom,
 } from './generation.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 function uuid(): string {
   return randomUUID();

@@ -227,18 +227,27 @@ export async function registerStudents360Routes(
     '/attendance-heatmap',
     '/documents',
   ];
-  const is360Url = (url: string): boolean => {
-    const path = url.split('?')[0] ?? url;
-    return path.startsWith(`${prefix}/`) && STUDENTS_360_SEGMENTS.some((seg) => path.includes(seg));
-  };
+  // Classify by the *matched route pattern*, not the raw request URL. The gateway mounts this
+  // plugin under `/api/v1`, so a `request.url.startsWith(prefix)` test never matched in
+  // production and the whole gate was skipped. The route pattern also ignores query strings and
+  // percent-encoding (Fastify routes on the decoded path), same as staff `hr-routes.ts`.
+  const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const STUDENTS_360_ROUTE = new RegExp(
+    `${escapeRegExp(prefix)}/:id(?:${STUDENTS_360_SEGMENTS.map(escapeRegExp).join('|')})(?:/|$)`,
+  );
+  const routePathOf = (request: FastifyRequest): string =>
+    request.routeOptions.url ?? request.url.split('?')[0] ?? request.url;
 
   fastify.addHook('preHandler', async (request, reply) => {
     const method = request.method.toUpperCase();
-    if (method === 'OPTIONS' || method === 'HEAD') return;
+    // HEAD is served by Fastify's auto-HEAD route from the GET handler, so it is a read and must
+    // pass the same gate (otherwise document filename/type/size leak without an ownership check).
+    if (method === 'OPTIONS') return;
 
     // Only govern students-360 routes; defer everything else (certificates, enrollment, import,
     // base roster) to their own gates.
-    if (!is360Url(request.url)) return;
+    const routePath = routePathOf(request);
+    if (!STUDENTS_360_ROUTE.test(routePath)) return;
 
     const tenantId = tenantOf(request);
     if (!tenantId) return; // handler returns TENANT_REQUIRED
@@ -278,7 +287,7 @@ export async function registerStudents360Routes(
 
     // Sensitive sub-resources: student documents may contain medical/legal records and are
     // restricted to medical/registrar staff — no portal reader and no non-medical staff.
-    const url = request.url;
+    const url = routePath;
     if (url.includes('/documents') && !isMedicalStaff(roles)) {
       forbid(reply, 'Forbidden: student documents require registrar/nurse/admin');
       return;

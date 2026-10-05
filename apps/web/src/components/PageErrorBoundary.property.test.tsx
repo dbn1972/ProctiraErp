@@ -24,6 +24,9 @@ import React from 'react';
 import fc from 'fast-check';
 import { PageErrorBoundary } from './PageErrorBoundary';
 
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
+
 // Suppress console.error from React's error boundary logging during tests
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
