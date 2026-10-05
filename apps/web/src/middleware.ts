@@ -394,7 +394,7 @@ export async function middleware(request: NextRequest) {
   // x-tenant-* values are stripped first so they can never select a tenant.
   const response = NextResponse.next({
     request: {
-      headers: withTrustedTenantHeader(request, hostTenant, hostTenant ? tenantConfig.slug : null),
+      headers: withTrustedTenantHeader(request, hostTenant),
     },
   });
   ensureCsrfCookie(request, response);
@@ -511,16 +511,16 @@ export function handleApiRequest(request: NextRequest): NextResponse {
  * request with the Host-derived tenant (or removes it when unresolved), so
  * route handlers and server components never see a spoofed tenant.
  */
-export function withTrustedTenantHeader(
-  request: NextRequest,
-  tenant: string | null,
-  /** PRC-M153: trusted slug from the resolved tenant config, forwarded as x-tenant-slug. */
-  slug: string | null = null,
-): Headers {
+export function withTrustedTenantHeader(request: NextRequest, tenant: string | null): Headers {
   const headers = new Headers(request.headers);
+  // PRC-M153: every client-sent x-tenant-* header is discarded.
   for (const name of TENANT_CONTEXT_REQUEST_HEADERS) headers.delete(name);
-  if (tenant) headers.set('x-tenant-id', tenant);
-  if (tenant && slug) headers.set('x-tenant-slug', slug);
+  if (tenant) {
+    headers.set('x-tenant-id', tenant);
+    // PRC-M066: X-Tenant-Slug drives the SSR theme lookup; it is the Host-resolved
+    // tenant, never the client's and never a gateway fallback such as `default`.
+    headers.set('x-tenant-slug', tenant);
+  }
   return headers;
 }
 

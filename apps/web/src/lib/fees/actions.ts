@@ -32,6 +32,9 @@ import {
   reminderSuppressionFormSchema,
   resolveReconExceptionFormSchema,
   scholarshipNettingFormSchema,
+  isSandboxPaymentEnabled,
+  staffPaymentFormSchema,
+  type StaffPaymentFormValues,
   type BulkInvoiceFormValues,
   type ConcessionFormValues,
   type FeeStructureFormValues,
@@ -178,10 +181,27 @@ export async function refundInvoiceAction(
 }
 
 export async function payInvoiceStaffAction(
-  invoiceId: string,
+  values: StaffPaymentFormValues,
 ): Promise<ActionResult<{ id: string }>> {
+  // PRC-M065: validate invoice id, a real method, a positive amount and an
+  // idempotency key; sandbox is refused unless explicitly enabled (non-prod).
+  const parsed = staffPaymentFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+  }
+  if (parsed.data.method === 'sandbox' && !isSandboxPaymentEnabled()) {
+    return {
+      success: false,
+      error: 'Sandbox payments are disabled',
+      fieldErrors: [{ field: 'method', message: 'Select cash, UPI or card' }],
+    };
+  }
   try {
-    const invoice = await recordInvoicePayment(invoiceId);
+    const invoice = await recordInvoicePayment(parsed.data.invoiceId, {
+      method: parsed.data.method,
+      amountCents: majorUnitsToCents(parsed.data.amount),
+      idempotencyKey: parsed.data.idempotencyKey,
+    });
     refreshFees();
     return { success: true, data: { id: invoice.id } };
   } catch (error) {

@@ -6,10 +6,23 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
-import { Alert, AlertDescription, Button, MfaCodeInput } from '@proctira/ui/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Input,
+  Label,
+  MfaCodeInput,
+} from '@proctira/ui/components';
 import { resendMfa, sanitizeReturnTo, verifyMfa } from '@/lib/auth';
 
 const CODE_LENGTH = 6;
+/** One-time backup codes are alphanumeric (optionally hyphen-grouped). */
+const BACKUP_CODE_PATTERN = /^[A-Z0-9-]{8,32}$/;
+
+function normaliseBackupCode(raw: string): string {
+  return raw.trim().replace(/\s+/g, '').toUpperCase();
+}
 
 /**
  * Multi-factor authentication code entry form.
@@ -24,6 +37,7 @@ export function MfaForm(): JSX.Element {
   const method = (searchParams.get('method') ?? searchParams.get('channel') ?? '').toLowerCase();
   const smsResend = method === 'sms';
 
+  const [mode, setMode] = useState<'totp' | 'backup'>('totp');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -35,13 +49,16 @@ export function MfaForm(): JSX.Element {
     setError(null);
     setStatus(null);
 
-    if (code.length !== CODE_LENGTH) {
-      setError(t('mfaIncomplete'));
+    const submitted = mode === 'backup' ? normaliseBackupCode(code) : code;
+    if (mode === 'backup' ? !BACKUP_CODE_PATTERN.test(submitted) : code.length !== CODE_LENGTH) {
+      setError(mode === 'backup' ? t('backupCodeIncomplete') : t('mfaIncomplete'));
       return;
     }
 
     setIsSubmitting(true);
-    const result = await verifyMfa(null, code);
+    // Backup codes go through the same challenge-bound verify route; the
+    // auth service decides whether the code is valid and single-use (PRC-M061).
+    const result = await verifyMfa(null, submitted);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -87,19 +104,49 @@ export function MfaForm(): JSX.Element {
       ) : null}
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-6">
-        <MfaCodeInput
-          value={code}
-          onChange={setCode}
-          disabled={isSubmitting || isResending}
-          autoFocus
-          ariaLabel={t('verificationCode')}
-          digitLabel={(n) => t('digitNumber', { number: n })}
-        />
+        {mode === 'backup' ? (
+          <div className="space-y-2">
+            <Label htmlFor="mfa-backup-code">{t('backupCodeLabel')}</Label>
+            <Input
+              id="mfa-backup-code"
+              name="backupCode"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
+              spellCheck={false}
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={isSubmitting || isResending}
+              className="h-12 min-h-12 font-mono tracking-widest"
+            />
+          </div>
+        ) : (
+          <MfaCodeInput
+            value={code}
+            onChange={setCode}
+            disabled={isSubmitting || isResending}
+            autoFocus
+            ariaLabel={t('verificationCode')}
+            digitLabel={(n) => t('digitNumber', { number: n })}
+          />
+        )}
 
         <Button type="submit" className="w-full" disabled={isSubmitting || isResending}>
           {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
           {isSubmitting ? t('verifying') : t('verify')}
         </Button>
+        <button
+          type="button"
+          className="inline-flex min-h-12 items-center text-sm font-medium text-primary hover:underline"
+          disabled={isSubmitting || isResending}
+          onClick={() => {
+            setMode((m) => (m === 'backup' ? 'totp' : 'backup'));
+            setCode('');
+            setError(null);
+          }}
+        >
+          {mode === 'backup' ? t('useAuthenticatorCode') : t('useBackupCode')}
+        </button>
       </form>
 
       <div className="mt-6 space-y-3 text-sm">

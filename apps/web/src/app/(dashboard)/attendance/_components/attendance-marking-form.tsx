@@ -44,6 +44,7 @@ import {
 } from '@/lib/validation/attendance-schema';
 
 import { markAttendanceAction, type ActionState } from '../actions';
+import { todayInTimeZone } from '@/lib/datetime/tenant-zoned';
 
 interface InstitutionOption {
   id: string;
@@ -74,6 +75,8 @@ interface AttendanceMarkingFormProps {
     date: string;
   };
   roster: RosterEntry[];
+  /** PRC-M078: today in the tenant timezone (server-computed) — the date picker max. */
+  today?: string;
 }
 
 interface RowState {
@@ -190,6 +193,7 @@ export function AttendanceMarkingForm({
   academicPeriods = [],
   defaults,
   roster,
+  today,
 }: AttendanceMarkingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -442,7 +446,7 @@ export function AttendanceMarkingForm({
             id="date"
             type="date"
             value={date}
-            max={new Date().toISOString().slice(0, 10)}
+            max={today ?? todayInTimeZone()}
             onChange={(e) => setDate(e.target.value)}
           />
         </div>

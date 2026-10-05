@@ -451,11 +451,27 @@ export async function resolveReconciliationException(
   return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
-export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice }>(`/fees/invoices/${invoiceId}/pay`, {
-    method: 'POST',
-    json: { method: 'sandbox' },
-  });
+export interface RecordInvoicePaymentInput {
+  method: 'cash' | 'upi' | 'card' | 'sandbox';
+  amountCents: number;
+  idempotencyKey: string;
+}
+
+export async function recordInvoicePayment(
+  invoiceId: string,
+  input: RecordInvoicePaymentInput,
+): Promise<FeeInvoice> {
+  const result = await gatewayFetch<{ invoice: FeeInvoice }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/pay`,
+    {
+      method: 'POST',
+      json: {
+        method: input.method,
+        amountCents: input.amountCents,
+        idempotencyKey: input.idempotencyKey,
+      },
+    },
+  );
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
 
