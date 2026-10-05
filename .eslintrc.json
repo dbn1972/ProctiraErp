@@ -133,6 +133,7 @@
     "*.js",
     "*.mjs",
     "vitest.config.ts",
+    "vitest.*.config.ts",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",

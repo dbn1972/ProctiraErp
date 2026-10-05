@@ -20,6 +20,7 @@ import type {
   EligibilityCriteria,
   FinancialInfo,
 } from './schemas.js';
+import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
   ApplicationFilter,
   ApplicationStatus,
@@ -688,11 +689,12 @@ export class PgScholarshipRepository implements ScholarshipRepository {
     id: string,
     tenantId: string,
     data: Partial<DisbursementEntity>,
+    inTx?: (tx: ScholarshipTxClient) => Promise<void>,
   ): Promise<DisbursementEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const existingResult = await client.query(
-        `SELECT * FROM scholarship_disbursements WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        `SELECT * FROM scholarship_disbursements WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
         [id, tenantId],
       );
       if (!existingResult.rows[0]) return null;
@@ -721,6 +723,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         ],
       );
       if (!result.rows[0]) return null;
+      // PRC-H084: outbox row commits (or rolls back) with the status write.
+      if (inTx) await inTx(client);
       return mapDisbursement(result.rows[0] as Record<string, unknown>);
     });
   }

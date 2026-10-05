@@ -5,9 +5,14 @@
  * "any paymentRef settles" behaviour is caught here.
  */
 import { BusinessRuleError } from '@proctira/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { assertOfferFeeInvoiceMatchesOffer, assertOfferFeeInvoicePaid } from './domain-plugins.js';
+import {
+  assertOfferFeeInvoiceMatchesOffer,
+  assertOfferFeeInvoicePaid,
+  assertOfferFeePaidHook,
+  verifyOfferFeeInvoiceOwnershipHook,
+} from './domain-plugins.js';
 
 describe('assertOfferFeeInvoicePaid (PRC-C002)', () => {
   it('passes only when the offer-fee invoice is genuinely paid', () => {
@@ -20,6 +25,133 @@ describe('assertOfferFeeInvoicePaid (PRC-C002)', () => {
       expect(() => assertOfferFeeInvoicePaid(status)).toThrow(BusinessRuleError);
     },
   );
+});
+
+/**
+ * PRC-H079: the real gateway hooks with an injected fees reader. The reader only exposes
+ * getInvoice, so a regression that re-adds a "record a sandbox payment" branch would fail
+ * to type-check, and an unpaid invoice with any client paymentRef must still be refused.
+ */
+describe('assertOfferFeePaidHook (PRC-H079)', () => {
+  const invoice = (status: string) => ({
+    id: 'inv-1',
+    tenantId: 't-1',
+    studentId: 's-1',
+    planId: null,
+    title: 'Admission offer fee',
+    description: 'Admission application app-1',
+    amountCents: 1000,
+    currency: 'INR',
+    status,
+    dueAt: null,
+    createdBy: 'admissions-offer',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    invoiceNumber: null,
+    structureId: null,
+  });
+  // PRC-M327: the hook also requires the invoice to match this offer (application, amount,
+  // currency), so these inputs match invoice() and the paid-status decision is what's tested.
+  const offerInput = {
+    tenantId: 't-1',
+    invoiceId: 'inv-1',
+    applicationId: 'app-1',
+    offerId: 'offer-1',
+    expectedAmount: 10,
+    expectedCurrency: 'INR',
+  };
+  const readerFor = (status: string) => {
+    const getInvoice = vi.fn(async () => invoice(status) as never);
+    return { getInvoice, factory: () => ({ getInvoice }) };
+  };
+
+  it('refuses an open invoice even when the client sends a paymentRef', async () => {
+    const r = readerFor('open');
+    const hook = assertOfferFeePaidHook(r.factory);
+    await expect(hook({ ...offerInput, paymentRef: 'SANDBOX-PAY' })).rejects.toBeInstanceOf(
+      BusinessRuleError,
+    );
+    expect(r.getInvoice).toHaveBeenCalledWith('t-1', 'inv-1');
+  });
+
+  it('passes a paid invoice', async () => {
+    const r = readerFor('paid');
+    await expect(assertOfferFeePaidHook(r.factory)(offerInput)).resolves.toBeUndefined();
+  });
+
+  it('refuses a paid invoice that does not match this offer (PRC-M327)', async () => {
+    const r = readerFor('paid');
+    await expect(
+      assertOfferFeePaidHook(r.factory)({ ...offerInput, applicationId: 'app-2' }),
+    ).rejects.toThrow(/does not match/);
+  });
+
+  it('propagates a missing invoice instead of passing', async () => {
+    const hook = assertOfferFeePaidHook(() => ({
+      getInvoice: async () => {
+        throw new Error('not found');
+      },
+    }));
+    await expect(hook({ ...offerInput, invoiceId: 'missing' })).rejects.toThrow('not found');
+  });
+});
+
+describe('verifyOfferFeeInvoiceOwnershipHook (PRC-H079)', () => {
+  const base = {
+    id: 'inv-1',
+    tenantId: 't-1',
+    studentId: 's-1',
+    planId: null,
+    title: 'Admission offer fee',
+    description: 'Admission application app-1',
+    amountCents: 1000,
+    currency: 'INR',
+    status: 'paid',
+    dueAt: null,
+    createdBy: 'admissions-offer',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    invoiceNumber: null,
+    structureId: null,
+  };
+  const hookWith = (overrides: Record<string, unknown> | Error) =>
+    verifyOfferFeeInvoiceOwnershipHook(() => ({
+      getInvoice: async () => {
+        if (overrides instanceof Error) throw overrides;
+        return { ...base, ...overrides } as never;
+      },
+    }));
+  const input = {
+    tenantId: 't-1',
+    applicationId: 'app-1',
+    invoiceId: 'inv-1',
+    feeAmount: 10,
+    feeCurrency: 'INR',
+  };
+
+  it("accepts the application's own offer-fee invoice", async () => {
+    await expect(hookWith({})(input)).resolves.toBe(true);
+  });
+
+  it.each([
+    ['another application', { description: 'Admission application app-2' }],
+    ['a tuition invoice', { createdBy: 'bursar-1' }],
+    ['another tenant', { tenantId: 't-2' }],
+    ['a void invoice', { status: 'void' }],
+    ['a written-off invoice', { status: 'written_off' }],
+    ['an invoice for a different amount (earlier offer)', { amountCents: 2000 }],
+    ['an invoice in a different currency', { currency: 'USD' }],
+  ])('rejects %s', async (_label, overrides) => {
+    await expect(hookWith(overrides)(input)).resolves.toBe(false);
+  });
+
+  it('rejects when the offer fee amount is not cent-representable', async () => {
+    await expect(hookWith({})({ ...input, feeAmount: 10.001 })).resolves.toBe(false);
+  });
+
+  it('rejects an unknown / cross-tenant invoice (404)', async () => {
+    await expect(hookWith(new Error('not found'))(input)).resolves.toBe(false);
+  });
 });
 
 describe('assertOfferFeeInvoiceMatchesOffer (PRC-M327)', () => {

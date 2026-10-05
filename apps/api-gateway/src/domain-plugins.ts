@@ -77,6 +77,7 @@ import {
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import {
+  buildSystemMoneyAuditSink,
   createFeesRepository,
   FeesService,
   feesPlugin,
@@ -132,6 +133,7 @@ import {
 import { reportCataloguePlugin } from '@proctira/backend-report';
 import {
   createScholarshipDocumentStore,
+  createScholarshipFeeOutbox,
   createScholarshipRepository,
   isPgScholarshipEnabled,
   linkedStudentIdsForParent,
@@ -499,9 +501,17 @@ export function assertOfferFeeInvoiceMatchesOffer(
     throw new BusinessRuleError('Offer fee invoice does not match this offer');
   }
 }
-function assertOfferFeePaidHook() {
+type OfferFeeInvoiceReader = Pick<FeesService, 'getInvoice'>;
+
+const defaultOfferFeeInvoiceReader = (): OfferFeeInvoiceReader =>
+  new FeesService(createFeesRepository());
+
+export function assertOfferFeePaidHook(
+  createReader: () => OfferFeeInvoiceReader = defaultOfferFeeInvoiceReader,
+) {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
-  // PSP webhook / callback path; a client paymentRef is never payment proof.
+  // PSP webhook / callback path; a client paymentRef is never payment proof. The reader is
+  // read-only by type (getInvoice only), so this hook cannot record a payment.
   return async (input: {
     tenantId: string;
     invoiceId: string;
@@ -512,12 +522,47 @@ function assertOfferFeePaidHook() {
     paymentRef?: string | null;
   }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
-    const fees = new FeesService(createFeesRepository());
-    const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    const invoice = await createReader().getInvoice(input.tenantId, input.invoiceId);
     // PRC-M327: the invoice must be the admissions invoice for THIS application
     // and match the offer fee exactly (no swapping in a cheaper/foreign invoice).
     assertOfferFeeInvoiceMatchesOffer(invoice, input);
     assertOfferFeeInvoicePaid(invoice.status);
+  };
+}
+
+/**
+ * PRC-H079: a staff-supplied offerFeeInvoiceId at offer creation must be this application's
+ * own admissions offer-fee invoice (same identity markers as createOfferFeeInvoiceHook,
+ * including the offer's amount and currency) and not void/written off. Unknown or foreign
+ * invoices (getInvoice 404 under tenant RLS) or an invalid fee amount -> false.
+ */
+export function verifyOfferFeeInvoiceOwnershipHook(
+  createReader: () => OfferFeeInvoiceReader = defaultOfferFeeInvoiceReader,
+) {
+  return async (input: {
+    tenantId: string;
+    applicationId: string;
+    invoiceId: string;
+    feeAmount: number;
+    feeCurrency: string;
+  }): Promise<boolean> => {
+    let invoice: Awaited<ReturnType<OfferFeeInvoiceReader['getInvoice']>>;
+    let amountCents: number;
+    try {
+      amountCents = offerFeeAmountCents(input.feeAmount);
+      invoice = await createReader().getInvoice(input.tenantId, input.invoiceId);
+    } catch {
+      return false;
+    }
+    return (
+      invoice.tenantId === input.tenantId &&
+      invoice.createdBy === 'admissions-offer' &&
+      invoice.description === `Admission application ${input.applicationId}` &&
+      invoice.amountCents === amountCents &&
+      invoice.currency === (input.feeCurrency || 'INR') &&
+      invoice.status !== 'void' &&
+      invoice.status !== 'written_off'
+    );
   };
 }
 
@@ -1130,6 +1175,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               (await createStudentRepository().findById(studentId, tenantId)) !== null
           : undefined,
         serviceOptions: {
+          // PRC-H084: status + outbox row in one txn; hooks delivered/retried from the outbox.
+          feeOutbox: createScholarshipFeeOutbox(),
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
             const amountCents = input.amountCents ?? majorUnitsToCents(input.amount);
@@ -1143,6 +1190,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                 amountCents,
                 currency: input.currency,
               },
+              // PRC-L306: netting audit is written inside the netting money transaction.
+              buildSystemMoneyAuditSink(input.tenantId, {
+                userId: 'scholarship-netting',
+                source: 'scholarship.disbursement.paid',
+              }),
             );
           },
           onDisbursementReversed: async (input) => {
@@ -1150,6 +1202,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               input.tenantId,
               'scholarship-netting',
               { disbursementId: input.disbursementId },
+              buildSystemMoneyAuditSink(input.tenantId, {
+                userId: 'scholarship-netting',
+                source: 'scholarship.disbursement.reversed',
+              }),
             );
           },
         },
@@ -1485,6 +1541,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assertOfferFeePaidHook(),
         undefined,
         reconcileAdmissionsOfferResourcesHook(),
+        verifyOfferFeeInvoiceOwnershipHook(),
       );
       await scope.register(parentPortalPlugin, {
         repository,
@@ -1522,6 +1579,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         createOfferFeeInvoice: createOfferFeeInvoiceHook(),
         assertOfferFeePaid: assertOfferFeePaidHook(),
         reconcileOfferResources: reconcileAdmissionsOfferResourcesHook(),
+        verifyOfferFeeInvoiceOwnership: verifyOfferFeeInvoiceOwnershipHook(),
         enrolOnAccept: createAdmissionsEnrolOnAccept(),
       });
     },

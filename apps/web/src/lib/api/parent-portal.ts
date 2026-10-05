@@ -655,7 +655,7 @@ export async function listGuardianOffers(): Promise<ParentAdmissionOffer[]> {
 
 export async function acceptGuardianOffer(
   id: string,
-  input: { paymentRef: string; offerFeeInvoiceId?: string },
+  input: { paymentRef?: string; offerFeeInvoiceId?: string },
 ): Promise<ParentAdmissionOffer> {
   const result = await gatewayFetch<ParentAdmissionOffer>(
     `/parent-portal/offers/${encodeURIComponent(id)}/accept`,
