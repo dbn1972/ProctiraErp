@@ -9,6 +9,7 @@ import 'session_roles.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
+import '../sync/unsynced_work.dart';
 import '../tenant/tenant_provider.dart';
 
 // ---------------------------------------------------------------------------
@@ -64,17 +65,30 @@ class AuthLogoutRequested extends AuthEvent {
 /// (server revoke, token wipe, selected student + cache purge, in-memory
 /// tenant reset) and then activates [tenantId]; the router sends the user
 /// to sign in against the new workspace.
+///
+/// The purge deletes the offline queue, so unless [discardUnsyncedWork] is
+/// set the bloc first tries to sync and, if anything is still unsynced,
+/// refuses the switch by emitting [AuthState.blockedWorkspaceSwitch]
+/// instead of purging.
 class AuthWorkspaceSwitchRequested extends AuthEvent {
   const AuthWorkspaceSwitchRequested({
     required this.tenantId,
     this.displayName,
+    this.discardUnsyncedWork = false,
   });
 
   final String tenantId;
   final String? displayName;
 
+  /// The user explicitly confirmed losing unsynced work on this device.
+  final bool discardUnsyncedWork;
+
   @override
-  List<Object?> get props => <Object?>[tenantId, displayName];
+  List<Object?> get props => <Object?>[
+    tenantId,
+    displayName,
+    discardUnsyncedWork,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +98,12 @@ class AuthWorkspaceSwitchRequested extends AuthEvent {
 enum AuthStatus { unknown, loading, authenticated, unauthenticated }
 
 class AuthState extends Equatable {
-  const AuthState({required this.status, this.userId, this.accessToken});
+  const AuthState({
+    required this.status,
+    this.userId,
+    this.accessToken,
+    this.blockedWorkspaceSwitch,
+  });
 
   const AuthState.unknown() : this(status: AuthStatus.unknown);
   const AuthState.loading() : this(status: AuthStatus.loading);
@@ -93,6 +112,17 @@ class AuthState extends Equatable {
   final AuthStatus status;
   final String? userId;
   final String? accessToken;
+
+  /// Set when the last workspace switch was refused because this device
+  /// holds unsynced work; the session is unchanged.
+  final UnsyncedWork? blockedWorkspaceSwitch;
+
+  AuthState _withBlockedSwitch(UnsyncedWork? blocked) => AuthState(
+    status: status,
+    userId: userId,
+    accessToken: accessToken,
+    blockedWorkspaceSwitch: blocked,
+  );
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
 
@@ -106,7 +136,12 @@ class AuthState extends Equatable {
       status != AuthStatus.unknown && status != AuthStatus.loading;
 
   @override
-  List<Object?> get props => <Object?>[status, userId, accessToken];
+  List<Object?> get props => <Object?>[
+    status,
+    userId,
+    accessToken,
+    blockedWorkspaceSwitch,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -122,8 +157,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     PushDeviceLifecycle? push,
     TenantProvider? tenantProvider,
     Future<void> Function()? purgeLocalFiles,
+    Future<UnsyncedWork> Function()? inspectUnsyncedWork,
+    Future<void> Function()? flushPendingWork,
+    Duration flushTimeout = const Duration(seconds: 15),
   }) : _storage = secureStorage,
        _purgeLocalFiles = purgeLocalFiles,
+       _inspectUnsyncedWork = inspectUnsyncedWork,
+       _flushPendingWork = flushPendingWork,
+       _flushTimeout = flushTimeout,
        _tenantProvider = tenantProvider,
        _push = push,
        _database = database,
@@ -146,6 +187,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   /// Deletes on-device files holding user data (captured documents,
   /// PRC-M046).
   final Future<void> Function()? _purgeLocalFiles;
+
+  /// Counts unsynced queue rows, conflicts and captures before a workspace
+  /// switch purges them.
+  final Future<UnsyncedWork> Function()? _inspectUnsyncedWork;
+
+  /// Best-effort drain of the offline queue before a workspace switch.
+  final Future<void> Function()? _flushPendingWork;
+  final Duration _flushTimeout;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -203,15 +252,40 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    await _signOutAndPurge();
-    emit(const AuthState.unauthenticated());
+    try {
+      await _signOutAndPurge();
+    } finally {
+      // Tokens may already be gone; never leave listeners waiting on a
+      // session that no longer exists. A purge error still reaches onError.
+      emit(const AuthState.unauthenticated());
+    }
   }
 
   Future<void> _onWorkspaceSwitch(
     AuthWorkspaceSwitchRequested event,
     Emitter<AuthState> emit,
   ) async {
-    await _signOutAndPurge();
+    // A repeated refusal must still emit, so drop any earlier marker.
+    if (state.blockedWorkspaceSwitch != null) {
+      emit(state._withBlockedSwitch(null));
+    }
+    if (!event.discardUnsyncedWork) {
+      final UnsyncedWork pending = await _syncThenInspect();
+      if (!pending.isEmpty) {
+        // Never purge unsynced work silently: keep the session and let the
+        // UI ask for explicit confirmation.
+        emit(state._withBlockedSwitch(pending));
+        return;
+      }
+    }
+    try {
+      await _signOutAndPurge();
+    } catch (_) {
+      // Do not activate the new workspace over a partial purge; the user
+      // is signed out and picks a workspace again.
+      emit(const AuthState.unauthenticated());
+      rethrow;
+    }
     final TenantProvider? tenant = _tenantProvider;
     if (tenant != null) {
       await tenant.setTenant(
@@ -225,6 +299,31 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     }
     emit(const AuthState.unauthenticated());
+  }
+
+  /// Drain the queue if possible, then count what is still unsynced. Any
+  /// inspection failure is reported as unknown so the switch fails closed.
+  Future<UnsyncedWork> _syncThenInspect() async {
+    final AppDatabase? database = _database;
+    final Future<UnsyncedWork> Function()? inspect =
+        _inspectUnsyncedWork ??
+        (database == null
+            ? null
+            : UnsyncedWorkInspector(database: database).inspect);
+    if (inspect == null) return const UnsyncedWork();
+    final Future<void> Function()? flush = _flushPendingWork;
+    if (flush != null) {
+      try {
+        await flush().timeout(_flushTimeout);
+      } catch (_) {
+        // Offline or slow: whatever is left is counted below.
+      }
+    }
+    try {
+      return await inspect();
+    } catch (_) {
+      return const UnsyncedWork.unknown();
+    }
   }
 
   /// Everything a sign-out must clear: push device, server session, tokens,

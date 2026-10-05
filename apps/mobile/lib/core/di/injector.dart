@@ -31,6 +31,7 @@ import '../sync/student_document_dispatcher.dart';
 import '../sync/sync_dispatcher.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_models.dart';
+import '../sync/unsynced_work.dart';
 import '../tenant/tenant_provider.dart';
 
 /// Global service locator. Use [configureDependencies] once at startup.
@@ -312,6 +313,15 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     purgeLocalFiles: () async {
       await capturedDocuments.purgeAll();
       await reportFiles.purgeAll();
+    },
+    // A workspace switch purges the offline queue: sync first, then refuse
+    // (pending explicit confirmation) if anything is still unsynced.
+    inspectUnsyncedWork: UnsyncedWorkInspector(
+      database: database,
+      countCapturedDocuments: capturedDocuments.count,
+    ).inspect,
+    flushPendingWork: () async {
+      await getIt<SyncEngine>().flushPending();
     },
   );
   getIt.registerSingleton<AuthBloc>(authBloc);

@@ -69,6 +69,17 @@ class CapturedDocumentStore {
     }
   }
 
+  /// Number of stored captures still awaiting upload.
+  Future<int> count() async {
+    final Directory dir = await _dir();
+    if (!await dir.exists()) return 0;
+    int n = 0;
+    await for (final FileSystemEntity entity in dir.list()) {
+      if (entity is File) n += 1;
+    }
+    return n;
+  }
+
   /// Remove every stored capture. Called on logout.
   Future<void> purgeAll() async {
     final Directory dir = await _dir();
