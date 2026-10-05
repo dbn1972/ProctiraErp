@@ -133,4 +133,57 @@ describe('timetable input validation (PRC-M399)', () => {
     expect(res.statusCode).toBe(400);
     await local.close();
   });
+
+  // Review #554: demand subjects are solver grouping keys (codes or UUIDs); e2e spec 50 sends 'math'.
+  describe('generation demand subjectId', () => {
+    const demandBody = (subjectId: unknown) => ({
+      institutionId: INST,
+      academicPeriodId: TERM,
+      demands: [
+        {
+          sectionId: '77777777-7777-4777-8777-777777777777',
+          subjectId,
+          staffId: '55555555-5555-4555-8555-555555555555',
+          periodsPerWeek: 1,
+        },
+      ],
+    });
+
+    it.each(['math', 'ENG-101', 'sci_lab.2', '99999999-9999-4999-8999-999999999999'])(
+      'accepts subject reference %s',
+      async (subjectId) => {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/timetable/generation-jobs',
+          payload: demandBody(subjectId),
+        });
+        // Schema accepts it; the job itself then fails on the (deliberately) missing bell schedule.
+        expect(res.statusCode).toBe(201);
+        expect(res.json().errorMessage).toMatch(/bell schedule/i);
+      },
+    );
+
+    it.each(['', ' math', 'math; drop table', '../x', 'a'.repeat(65), 42])(
+      'rejects malformed subject reference %j with 400',
+      async (subjectId) => {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/timetable/generation-jobs',
+          payload: demandBody(subjectId),
+        });
+        expect(res.statusCode).toBe(400);
+      },
+    );
+
+    it('still requires UUID section/staff ids on demands', async () => {
+      const body = demandBody('math');
+      body.demands[0]!.sectionId = 'section-a';
+      const res = await app.inject({
+        method: 'POST',
+        url: '/timetable/generation-jobs',
+        payload: body,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

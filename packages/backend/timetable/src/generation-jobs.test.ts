@@ -114,4 +114,38 @@ describe('generation jobs (PRC-M401)', () => {
     await new Promise((r) => setTimeout(r, 20));
     await expect(service.runGenerationJob(tenantId, demandInput, null)).resolves.toBeTruthy();
   });
+  it('subject codes group demands but are never persisted as meeting subject ids (#554)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'GEN',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        ...demandInput,
+        bellScheduleId: schedule.id,
+        persistMeetings: true,
+        demands: [{ ...demandInput.demands[0]!, subjectId: 'math', periodsPerWeek: 2 }],
+      },
+      null,
+    );
+    expect(job.status).toBe('done');
+    expect(job.assignedCount).toBe(2);
+    const meetings = await service.listMeetings(tenantId, { institutionId });
+    expect(meetings).toHaveLength(2);
+    expect(meetings.every((m) => m.subjectId === null)).toBe(true);
+  });
 });

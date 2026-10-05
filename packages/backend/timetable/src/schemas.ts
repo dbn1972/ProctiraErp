@@ -10,6 +10,15 @@ export const ISO_DATE_PATTERN = '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$
 
 const Uuid = () => Type.String({ pattern: UUID_PATTERN });
 
+/**
+ * Review #554: a generation demand's subject is a solver grouping key (spread a section's
+ * subject across days), never a DB reference — it is not persisted and never looked up, so it
+ * carries no tenant scope. Accept a subject UUID or a short subject code (e.g. `math`), but
+ * keep it a bounded identifier rather than free text.
+ */
+export const SUBJECT_REF_PATTERN = '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$';
+const SubjectRef = () => Type.String({ pattern: SUBJECT_REF_PATTERN, maxLength: 64 });
+
 /** True when `value` is a real YYYY-MM-DD calendar date (rejects 2025-02-30). */
 export function isValidIsoDate(value: string): boolean {
   if (!new RegExp(ISO_DATE_PATTERN).test(value)) return false;
@@ -168,7 +177,7 @@ export type CreateRoomInput = Static<typeof CreateRoomSchema>;
 const DemandSchema = Type.Object({
   id: Type.Optional(Type.String({ minLength: 1 })),
   sectionId: Uuid(),
-  subjectId: Uuid(),
+  subjectId: SubjectRef(),
   staffId: Uuid(),
   periodsPerWeek: Type.Integer({ minimum: 1, maximum: 20 }),
   preferredRoomId: Type.Optional(Type.Union([Uuid(), Type.Null()])),

@@ -20,7 +20,7 @@ import {
   type GeneratorPeriod,
   type GeneratorRoom,
 } from './generation.js';
-import { isValidIsoDate } from './schemas.js';
+import { isValidIsoDate, UUID_PATTERN } from './schemas.js';
 import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
 import {
   isTimetableClashError,
@@ -82,6 +82,7 @@ const GENERATION_STALE_MS = 15 * 60 * 1000;
 const GENERATION_STALE_MESSAGE = 'Generation interrupted (worker stopped); re-run the job';
 /** PRC-M401: per-process cap on concurrent solver runs (CPU-bound). */
 const DEFAULT_GENERATION_CONCURRENCY = 2;
+const UUID_RE = new RegExp(UUID_PATTERN);
 
 /** Client-safe failure text: domain validation messages pass through, internals do not. */
 function sanitizeGenerationError(error: unknown): string {
@@ -1036,7 +1037,8 @@ export class TimetableService {
               institutionId: input.institutionId,
               academicPeriodId: input.academicPeriodId,
               sectionId: assignment.sectionId,
-              subjectId: assignment.subjectId,
+              // Review #554: a demand subject may be a code; meetings keep only real subject ids.
+              subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
               staffId: assignment.staffId,
               periodId: assignment.periodId,
               roomId: assignment.roomId,
