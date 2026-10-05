@@ -98,8 +98,9 @@ export const CreateOfferSchema = Type.Object({
   applicationId: Uuid,
   meritListId: Type.Optional(Uuid),
   classId: Type.Optional(Uuid),
-  feeAmount: Type.Optional(Type.Number({ minimum: 0 })),
-  feeCurrency: Type.Optional(Type.String({ minLength: 3, maxLength: 8 })),
+  // PRC-M336: bounded amount; 2-decimal + ISO currency allow-list enforced in service.
+  feeAmount: Type.Optional(Type.Number({ minimum: 0, maximum: 10_000_000 })),
+  feeCurrency: Type.Optional(Type.String({ pattern: '^[A-Z]{3}$' })),
   expiresAt: Type.Optional(Type.String({ minLength: 1 })),
   offerFeeInvoiceId: Type.Optional(Uuid),
 });

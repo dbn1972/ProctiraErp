@@ -8,9 +8,11 @@ import {
   listDestinationConnections,
   resolveDestinationConnection,
 } from './connectors/connection-registry.js';
+import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import { registerETLRoutes } from './routes.js';
+import { MemoryDestination } from './test-support/memory-connector-factory.js';
 
 const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 const REGISTRY = JSON.stringify({
@@ -26,7 +28,7 @@ const REGISTRY = JSON.stringify({
   'bad id!': { type: 'postgresql', host: 'x', database: 'y', username: 'z' },
 });
 
-async function app() {
+async function app(connectorFactory?: ConnectorFactory) {
   const fastify = Fastify();
   fastify.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId = tenantId;
@@ -39,6 +41,7 @@ async function app() {
   await registerETLRoutes(fastify, {
     etlService: new ETLService(new InMemoryPipelineRepository(), {
       defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
+      connectorFactory,
     }),
     prefix: '/pipelines',
   });
@@ -87,7 +90,15 @@ describe('connection destinations (PRC-M109)', () => {
   });
 
   it('creates a pipeline from a connection id and rejects an unknown one', async () => {
-    const server = await app();
+    // Known ids resolve server-side to a postgresql destination; that connector
+    // is fail-closed (PRC-M222), so route resolved connections to a memory sink.
+    const server = await app({
+      createSource: (config) => defaultConnectorFactory.createSource(config),
+      createDestination: (config) =>
+        config.type === 'connection' && resolveDestinationConnection(config)
+          ? new MemoryDestination()
+          : defaultConnectorFactory.createDestination(config),
+    });
     const ok = await server.inject({
       method: 'POST',
       url: '/pipelines',
@@ -103,6 +114,20 @@ describe('connection destinations (PRC-M109)', () => {
     const bad = await server.inject({ method: 'POST', url: '/pipelines', payload: body('ghost') });
     expect(bad.statusCode).toBeGreaterThanOrEqual(400);
     expect(bad.statusCode).toBeLessThan(500);
+  });
+
+  it('fails closed (501) for a known connection while the postgresql destination is unimplemented', async () => {
+    const server = await app();
+    const res = await server.inject({
+      method: 'POST',
+      url: '/pipelines',
+      payload: body('warehouse'),
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.payload).not.toContain('s3cret');
+    expect(res.payload).not.toContain('dw.internal');
+    const list = await server.inject({ method: 'GET', url: '/pipelines' });
+    expect(list.json().data).toHaveLength(0);
   });
 
   it('offers no connections when the registry is unset or malformed', () => {

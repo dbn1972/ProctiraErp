@@ -33,6 +33,12 @@ export interface PipelineRepository {
 
   // Execution log operations
   createExecution(execution: PipelineExecution): Promise<PipelineExecution>;
+  /**
+   * PRC-M225: single-flight insert. Atomically creates the run row only when the
+   * pipeline has no `running` execution started after `staleBefore`; returns
+   * false (nothing written) when one is in progress.
+   */
+  createExecutionIfIdle(execution: PipelineExecution, staleBefore: Date): Promise<boolean>;
   updateExecution(id: string, updates: Partial<PipelineExecution>): Promise<PipelineExecution>;
   getExecution(id: string, tenantId: string): Promise<PipelineExecution | null>;
   listExecutions(

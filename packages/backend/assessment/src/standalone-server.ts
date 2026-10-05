@@ -12,70 +12,42 @@
  *   DATABASE_URL  - PostgreSQL connection string
  *   REDIS_URL     - Redis connection string
  *   KAFKA_BROKERS - Comma-separated Kafka broker list
- *   JWT_SECRET    - JWT verification secret
+ *   JWT_SECRET    - JWT verification secret (>= 32 chars, required)
+ *   JWT_ISSUER / JWT_AUDIENCE - optional claim checks
  */
 import { registerGracefulShutdown } from '@proctira/common';
 import { closeDatabaseResources } from '@proctira/database';
 import { observabilityPlugin } from '@proctira/observability';
-import Fastify from 'fastify';
 
-import { assessmentPlugin } from './assessment-plugin.js';
-import {
-  InMemoryGradingSchemeRepository,
-  InMemoryAssessmentItemRepository,
-  InMemoryOutcomeRepository,
-} from './in-memory-repository.js';
-import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
+import { buildStandaloneAssessmentApp, STANDALONE_SERVICE_NAME } from './standalone-app.js';
 
 const PORT = parseInt(process.env['PORT'] || '3023', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
 const LOG_LEVEL = process.env['LOG_LEVEL'] || 'info';
-const SERVICE_NAME = 'assessment';
+const SERVICE_NAME = STANDALONE_SERVICE_NAME;
 
 async function start() {
-  const app = Fastify({
+  // PRC-M167: repositories come from the shared factories (DATABASE_URL selects
+  // Postgres with one PrismaClient per process); every domain route needs a
+  // verified gateway JWT.
+  const app = await buildStandaloneAssessmentApp({
+    jwt: {
+      secret: process.env['JWT_SECRET'] ?? '',
+      issuer: process.env['JWT_ISSUER'] || undefined,
+      audience: process.env['JWT_AUDIENCE'] || undefined,
+    },
     logger: {
       level: LOG_LEVEL,
       transport: process.env['NODE_ENV'] === 'development' ? { target: 'pino-pretty' } : undefined,
     },
-    requestIdHeader: 'x-request-id',
-    genReqId: () => crypto.randomUUID(),
-  });
-
-  // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
-  // standalone deployments are scraped by infra/observability/prometheus.yml.
-  await app.register(observabilityPlugin, {
-    serviceName: SERVICE_NAME,
-    ignorePaths: ['/health', '/ready'],
-  });
-
-  // Health check endpoint (liveness)
-  app.get('/health', async (_request, reply) => {
-    return reply.status(200).send({
-      status: 'healthy',
-      service: SERVICE_NAME,
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      version: process.env['npm_package_version'] || '0.1.0',
-    });
-  });
-
-  // Readiness check
-  app.get('/ready', async (_request, reply) => {
-    return reply.status(200).send({
-      status: 'ready',
-      service: SERVICE_NAME,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Register the assessment domain plugin with repositories
-  await app.register(assessmentPlugin, {
-    prefix: '/assessments',
-    gradingSchemeRepository: new InMemoryGradingSchemeRepository(),
-    assessmentItemRepository: new InMemoryAssessmentItemRepository(),
-    outcomeRepository: new InMemoryOutcomeRepository(),
-    resultRepository: new InMemoryAssessmentResultRepository(),
+    // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
+    // standalone deployments are scraped by infra/observability/prometheus.yml.
+    beforeDomain: async (instance) => {
+      await instance.register(observabilityPlugin, {
+        serviceName: SERVICE_NAME,
+        ignorePaths: ['/health', '/ready'],
+      });
+    },
   });
 
   try {

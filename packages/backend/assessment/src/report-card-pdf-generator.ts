@@ -82,7 +82,8 @@ export class ReportCardPdfGenerator implements PdfGenerator {
             item.name || 'Assessment',
             fmt(item.score),
             item.maxScore > 0 ? fmt(item.maxScore, 0) : '-',
-            `${fmt(item.weight * 100, 0)}%`,
+            // PRC-M159: item weights are already percentages (40 = 40%).
+            `${fmt(item.weight, 0)}%`,
             fmt(item.weightedScore, 2),
           ]),
         );

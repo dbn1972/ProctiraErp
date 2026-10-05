@@ -22,6 +22,12 @@ import type {
   ApproveApplicationOutcome,
 } from './scholarship-repository.js';
 import { APPROVABLE_APPLICATION_STATUSES } from './scholarship-repository.js';
+import {
+  buildUtilizationReport,
+  inUtilizationRange,
+  type UtilizationAppAggregate,
+  type UtilizationDisbursementAggregate,
+} from './utilization-report.js';
 
 export class InMemoryScholarshipRepository implements ScholarshipRepository {
   private programs: Map<string, ScholarshipProgramEntity> = new Map();
@@ -437,122 +443,58 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     tenantId: string,
     filter: UtilizationReportFilter,
   ): Promise<UtilizationReportData> {
-    const programs = Array.from(this.programs.values()).filter((p) => p.tenantId === tenantId);
-    let apps = Array.from(this.applications.values()).filter((a) => a.tenantId === tenantId);
-    const disbursementsList = Array.from(this.disbursements.values()).filter(
-      (d) => d.tenantId === tenantId,
-    );
-
-    // Apply filters
-    if (filter.programId) {
-      apps = apps.filter((a) => a.programId === filter.programId);
-    }
-    if (filter.areaId) {
-      apps = apps.filter((a) => a.areaId === filter.areaId);
-    }
-    if (filter.gender) {
-      apps = apps.filter((a) => a.gender === filter.gender);
-    }
-    if (filter.institutionId) {
-      apps = apps.filter((a) => a.institutionId === filter.institutionId);
-    }
-
-    const approvedApps = apps.filter((a) => a.status === 'approved');
-    const approvedAppIds = new Set(approvedApps.map((a) => a.id));
-    const paidDisbursements = disbursementsList.filter(
-      (d) => approvedAppIds.has(d.applicationId) && d.paymentStatus === 'paid',
-    );
-
-    const totalAmountCents = paidDisbursements.reduce((sum, d) => sum + d.amountCents, 0);
-    const totalAmount = majorUnitsNumberFromCents(totalAmountCents);
-    const currency = programs.length > 0 && programs[0] ? programs[0].currency : 'USD';
-
-    // Build breakdown
     const groupBy = filter.groupBy ?? 'program';
-    const groupMap = new Map<
-      string,
-      { applicationCount: number; approvedCount: number; disbursedAmountCents: number }
-    >();
-
-    for (const app of apps) {
-      let key: string;
+    const totalPrograms = Array.from(this.programs.values()).filter(
+      (p) => p.tenantId === tenantId,
+    ).length;
+    const matches = (a: ScholarshipApplicationEntity) =>
+      a.tenantId === tenantId &&
+      (!filter.programId || a.programId === filter.programId) &&
+      (!filter.areaId || a.areaId === filter.areaId) &&
+      (!filter.gender || a.gender === filter.gender) &&
+      (!filter.institutionId || a.institutionId === filter.institutionId);
+    const keyFor = (a: ScholarshipApplicationEntity): string => {
       switch (groupBy) {
-        case 'program':
-          key = app.programId;
-          break;
         case 'area':
-          key = app.areaId ?? 'unknown';
-          break;
+          return a.areaId ?? 'unknown';
         case 'gender':
-          key = app.gender ?? 'unknown';
-          break;
+          return a.gender ?? 'unknown';
         case 'institution':
-          key = app.institutionId;
-          break;
+          return a.institutionId;
         default:
-          key = app.programId;
+          return a.programId;
       }
-
-      if (!groupMap.has(key)) {
-        groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmountCents: 0 });
-      }
-      const group = groupMap.get(key)!;
-      group.applicationCount++;
-      if (app.status === 'approved') {
-        group.approvedCount++;
-      }
-    }
-
-    // Add disbursement amounts to groups
-    for (const d of paidDisbursements) {
-      const app = this.applications.get(d.applicationId);
-      if (!app) continue;
-      let key: string;
-      switch (groupBy) {
-        case 'program':
-          key = app.programId;
-          break;
-        case 'area':
-          key = app.areaId ?? 'unknown';
-          break;
-        case 'gender':
-          key = app.gender ?? 'unknown';
-          break;
-        case 'institution':
-          key = app.institutionId;
-          break;
-        default:
-          key = app.programId;
-      }
-      const group = groupMap.get(key);
-      if (group) {
-        group.disbursedAmountCents += d.amountCents;
-      }
-    }
-
-    const breakdown = Array.from(groupMap.entries()).map(([key, data]) => ({
-      groupKey: groupBy,
-      groupValue: key,
-      applicationCount: data.applicationCount,
-      approvedCount: data.approvedCount,
-      disbursedAmountCents: data.disbursedAmountCents,
-      disbursedAmount: majorUnitsNumberFromCents(data.disbursedAmountCents),
-      utilizationRate:
-        data.applicationCount > 0
-          ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
-          : 0,
-    }));
-
-    return {
-      totalPrograms: programs.length,
-      totalApplications: apps.length,
-      totalApproved: approvedApps.length,
-      totalDisbursed: paidDisbursements.length,
-      totalAmount,
-      totalAmountCents,
-      currency,
-      breakdown,
     };
+    const apps = new Map<string, UtilizationAppAggregate>();
+    for (const a of this.applications.values()) {
+      if (!matches(a)) continue;
+      if (!inUtilizationRange(a.submittedAt.toISOString(), filter)) continue;
+      const k = keyFor(a);
+      const g = apps.get(k) ?? { groupValue: k, applicationCount: 0, approvedCount: 0 };
+      g.applicationCount++;
+      if (a.status === 'approved') g.approvedCount++;
+      apps.set(k, g);
+    }
+    const disb = new Map<string, UtilizationDisbursementAggregate>();
+    for (const d of this.disbursements.values()) {
+      if (d.tenantId !== tenantId || d.paymentStatus !== 'paid') continue;
+      if (!inUtilizationRange(d.paidDate ?? d.scheduledDate, filter)) continue;
+      const a = this.applications.get(d.applicationId);
+      if (!a || a.status !== 'approved' || !matches(a)) continue;
+      const program = this.programs.get(a.programId);
+      const currency = program?.currency ?? 'USD';
+      const k = `${keyFor(a)}\u0000${currency}`;
+      const g = disb.get(k) ?? {
+        groupValue: keyFor(a),
+        currency,
+        disbursedCount: 0,
+        amountCents: 0,
+      };
+      g.disbursedCount++;
+      g.amountCents += d.amountCents;
+      disb.set(k, g);
+    }
+    return buildUtilizationReport(groupBy, totalPrograms, [...apps.values()], [...disb.values()]);
   }
 
   // ─── Test Helpers ────────────────────────────────────────────────────────

@@ -369,3 +369,60 @@ describe('PRC-L158 training routes authz, tenant context and isolation', () => {
     ).toBe(200);
   });
 });
+
+describe('PRC-M377 process-expiry asOfDate guard, dryRun and reinstate', () => {
+  const addDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+
+  async function issue(a: FastifyInstance, expiryDate: string) {
+    const programId = await createProgram(a);
+    const res = await a.inject({
+      method: 'POST',
+      url: '/staff/training/certifications',
+      payload: {
+        staffId: STAFF_ID,
+        programId,
+        certificationName: 'First Aid',
+        issuedDate: '2020-01-01',
+        expiryDate,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().id as string;
+  }
+
+  const run = (a: FastifyInstance, payload: Record<string, unknown>) =>
+    a.inject({ method: 'POST', url: '/staff/training/certifications/process-expiry', payload });
+
+  it('future asOfDate -> 400 and nothing expires', async () => {
+    const { app: a } = await mount();
+    await issue(a, addDays(30));
+    const res = await run(a, { asOfDate: addDays(365) });
+    expect(res.statusCode).toBe(400);
+    expect((await run(a, {})).json().processedCount).toBe(0);
+  });
+
+  it('garbage asOfDate / dryRun -> 400', async () => {
+    const { app: a } = await mount();
+    expect((await run(a, { asOfDate: 'yesterday' })).statusCode).toBe(400);
+    expect((await run(a, { dryRun: 'yes' })).statusCode).toBe(400);
+  });
+
+  it('dryRun lists but does not expire', async () => {
+    const { app: a } = await mount();
+    await issue(a, addDays(-1));
+    const dry = await run(a, { dryRun: true });
+    expect(dry.json()).toMatchObject({ dryRun: true, processedCount: 1 });
+    // Still selectable (persisted status untouched) on the real run.
+    expect((await run(a, {})).json().processedCount).toBe(1);
+  });
+
+  it('reinstate refuses truly expired certs and non-EXPIRED certs', async () => {
+    const { app: a } = await mount();
+    const id = await issue(a, addDays(-1));
+    const reinstate = () =>
+      a.inject({ method: 'POST', url: `/staff/training/certifications/${id}/reinstate` });
+    expect((await reinstate()).statusCode).toBe(422);
+    await run(a, {});
+    expect((await reinstate()).statusCode).toBe(422);
+  });
+});

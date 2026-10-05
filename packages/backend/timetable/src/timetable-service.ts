@@ -1031,12 +1031,25 @@ export class TimetableService {
       );
     }
   }
-  /** G-5 — clone published sections + meetings into a target academic period. */
+  /**
+   * G-5 — clone sections + meetings into a target academic period.
+   *
+   * PRC-M397:
+   * - meetings are remapped onto the TARGET period's bell schedule (same
+   *   schedule code, else the institution's only target schedule) by
+   *   `periodOrder`; any unmappable meeting fails the whole clone;
+   * - cloned sections are DRAFT with `publishedAt` cleared;
+   * - clash validation runs against target-period meetings + the plan;
+   * - all rows are written in one repository transaction (all-or-nothing);
+   * - resume-safe: target sections that already exist but have no meetings
+   *   receive their meetings;
+   * - an audit entry is recorded.
+   */
   async cloneForAcademicPeriod(
     tenantId: string,
     sourcePeriodId: string,
     targetPeriodId: string,
-    options: { dryRun?: boolean } = {},
+    options: { dryRun?: boolean; actorId?: string | null } = {},
   ): Promise<{ sectionsCloned: number; meetingsCloned: number }> {
     if (sourcePeriodId === targetPeriodId) {
       throw new ValidationError('Source and target academic periods must differ');
@@ -1045,51 +1058,142 @@ export class TimetableService {
     const existingTarget = await this.repo.listSections(tenantId, {
       academicPeriodId: targetPeriodId,
     });
-    const existingKeys = new Set(
-      existingTarget.map((s) => `${s.institutionId}|${s.code}`.toLowerCase()),
-    );
-    if (options.dryRun) {
-      const toClone = sections.filter(
-        (s) => !existingKeys.has(`${s.institutionId}|${s.code}`.toLowerCase()),
-      );
-      const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
-      const sectionIds = new Set(toClone.map((s) => s.id));
-      const meetingsPlanned = meetings.filter((m) => sectionIds.has(m.sectionId)).length;
-      return { sectionsCloned: toClone.length, meetingsCloned: meetingsPlanned };
-    }
-    let sectionsCloned = 0;
-    let meetingsCloned = 0;
+    const keyOf = (s: SectionEntity) => `${s.institutionId}|${s.code}`.toLowerCase();
+    const targetByKey = new Map(existingTarget.map((s) => [keyOf(s), s]));
+    const targetMeetings = await this.repo.listMeetings(tenantId, {
+      academicPeriodId: targetPeriodId,
+    });
+    const targetSectionsWithMeetings = new Set(targetMeetings.map((m) => m.sectionId));
+
+    const now = nowIso();
+    const newSections: SectionEntity[] = [];
+    /** source section id -> target section id (new, or existing-but-empty for resume). */
     const sectionIdMap = new Map<string, string>();
     for (const section of sections) {
-      const key = `${section.institutionId}|${section.code}`.toLowerCase();
-      if (existingKeys.has(key)) continue;
+      const existing = targetByKey.get(keyOf(section));
+      if (existing) {
+        if (!targetSectionsWithMeetings.has(existing.id)) sectionIdMap.set(section.id, existing.id);
+        continue;
+      }
       const newId = randomUUID();
       sectionIdMap.set(section.id, newId);
-      await this.repo.createSection({
+      newSections.push({
         ...section,
         id: newId,
         academicPeriodId: targetPeriodId,
         status: 'DRAFT' as SectionPublishStatus,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
       });
-      sectionsCloned += 1;
     }
-    const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
-    for (const meeting of meetings) {
-      const newSectionId = sectionIdMap.get(meeting.sectionId);
-      if (!newSectionId) continue;
-      await this.repo.createMeeting({
+
+    const sourceMeetings = (
+      await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId })
+    ).filter((m) => sectionIdMap.has(m.sectionId));
+    const mapPeriod = await this.buildPeriodMapper(tenantId, targetPeriodId);
+    const unmapped: string[] = [];
+    const newMeetings: SectionMeetingEntity[] = [];
+    for (const meeting of sourceMeetings) {
+      const periodId = await mapPeriod(meeting.institutionId, meeting.periodId);
+      if (!periodId) {
+        unmapped.push(meeting.id);
+        continue;
+      }
+      newMeetings.push({
         ...meeting,
         id: randomUUID(),
-        sectionId: newSectionId,
+        sectionId: sectionIdMap.get(meeting.sectionId)!,
         academicPeriodId: targetPeriodId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        periodId,
+        createdAt: now,
+        updatedAt: now,
       });
-      meetingsCloned += 1;
     }
-    return { sectionsCloned, meetingsCloned };
+    if (unmapped.length > 0) {
+      throw new ValidationError(
+        `${unmapped.length} meeting(s) cannot be mapped to a bell period of the target academic period; create the target bell schedule (same code and period orders) first`,
+      );
+    }
+
+    // Clash validation against what already exists in the target + the plan.
+    const accumulated: SectionMeetingEntity[] = [...targetMeetings];
+    for (const candidate of newMeetings) {
+      const conflicts = detectMeetingClashes(
+        accumulated.filter((m) => m.institutionId === candidate.institutionId),
+        candidate,
+      );
+      if (conflicts.length > 0) {
+        const reasons = [...new Set(conflicts.map((c) => c.reason))].join(', ');
+        throw new TimetableClashError(
+          `Cloned timetable clash on day ${candidate.dayOfWeek} period ${candidate.periodId} (${reasons})`,
+          conflicts,
+        );
+      }
+      accumulated.push(candidate);
+    }
+
+    const result = { sectionsCloned: newSections.length, meetingsCloned: newMeetings.length };
+    if (options.dryRun) return result;
+
+    await this.repo.insertClonedTimetable(tenantId, newSections, newMeetings);
+    this.recordAudit({
+      tenantId,
+      action: 'timetable.clone_period',
+      entityType: 'academic_period',
+      entityId: targetPeriodId,
+      actorId: options.actorId ?? null,
+      details: { sourcePeriodId, targetPeriodId, ...result },
+    });
+    return result;
+  }
+
+  /**
+   * PRC-M397: resolve a source bell period to the target academic period's
+   * bell period with the same `periodOrder`. Target schedule = same code as
+   * the source schedule, else the institution's only target schedule.
+   */
+  private async buildPeriodMapper(
+    tenantId: string,
+    targetPeriodId: string,
+  ): Promise<(institutionId: string, sourcePeriodId: string) => Promise<string | null>> {
+    const cache = new Map<string, string | null>();
+    const targetSchedules = new Map<string, BellScheduleEntity[]>();
+    const targetPeriods = new Map<string, PeriodEntity[]>();
+    return async (institutionId, sourcePeriodId) => {
+      const cacheKey = `${institutionId}|${sourcePeriodId}`;
+      if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+      let mapped: string | null = null;
+      const period = await this.repo.getPeriod(tenantId, sourcePeriodId);
+      const sourceSchedule = period
+        ? await this.repo.getBellSchedule(tenantId, period.bellScheduleId)
+        : null;
+      if (period && sourceSchedule) {
+        if (!targetSchedules.has(institutionId)) {
+          targetSchedules.set(
+            institutionId,
+            await this.repo.listBellSchedules(tenantId, {
+              institutionId,
+              academicPeriodId: targetPeriodId,
+            }),
+          );
+        }
+        const candidates = targetSchedules.get(institutionId)!;
+        const schedule =
+          candidates.find((c) => c.code.toLowerCase() === sourceSchedule.code.toLowerCase()) ??
+          (candidates.length === 1 ? candidates[0] : undefined);
+        if (schedule) {
+          if (!targetPeriods.has(schedule.id)) {
+            targetPeriods.set(schedule.id, await this.repo.listPeriods(tenantId, schedule.id));
+          }
+          mapped =
+            targetPeriods.get(schedule.id)!.find((p) => p.periodOrder === period.periodOrder)?.id ??
+            null;
+        }
+      }
+      cache.set(cacheKey, mapped);
+      return mapped;
+    };
   }
 }
 

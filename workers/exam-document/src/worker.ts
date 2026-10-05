@@ -6,9 +6,9 @@
  * queue backend retains unacked messages (RabbitMQ) or a shared durable store
  * (InMemoryDurableQueueAdapter for proofs).
  */
+import type { ExamDocumentJobPayload } from '@proctira/backend-examination';
 import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
 import { EXAM_DOCUMENT_CONSUME_TOPIC, EXAM_DOCUMENT_JOB_TYPE } from '@proctira/queue-abstraction';
-import type { ExamDocumentJobPayload } from '@proctira/backend-examination';
 
 export interface ExamDocumentWorkerLogger {
   info(obj: Record<string, unknown>, msg: string): void;
@@ -16,7 +16,11 @@ export interface ExamDocumentWorkerLogger {
 }
 
 export interface ExamDocumentJobProcessor {
-  processJob(tenantId: string, jobId: string): Promise<unknown>;
+  processJob(
+    tenantId: string,
+    jobId: string,
+    options?: { rethrowRetryable?: boolean },
+  ): Promise<unknown>;
 }
 
 export interface ExamDocumentWorkerOptions {
@@ -77,7 +81,8 @@ export function createExamDocumentWorker(options: ExamDocumentWorkerOptions): Ex
             { tenantId: message.tenantId, jobId, messageId: message.id },
             'exam-document worker processing job',
           );
-          await options.processor.processJob(message.tenantId, jobId);
+          // PRC-M235: transient failures throw so the queue redelivers / dead-letters.
+          await options.processor.processJob(message.tenantId, jobId, { rethrowRetryable: true });
           options.logger?.info(
             { tenantId: message.tenantId, jobId },
             'exam-document worker completed job',

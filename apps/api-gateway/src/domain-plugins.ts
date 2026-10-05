@@ -360,13 +360,46 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
   );
 }
 
+/**
+ * PRC-M327: the invoice used to accept an offer must be the server-raised
+ * admissions invoice for that application, for exactly the offer fee.
+ */
+export function assertOfferFeeInvoiceMatchesOffer(
+  invoice: {
+    createdBy?: string | null;
+    description?: string | null;
+    amountCents: number;
+    currency: string;
+  },
+  offer: { applicationId: string; expectedAmount: number; expectedCurrency: string },
+): void {
+  if (
+    invoice.createdBy !== 'admissions-offer' ||
+    invoice.description !== `Admission application ${offer.applicationId}` ||
+    invoice.amountCents !== offerFeeAmountCents(offer.expectedAmount) ||
+    invoice.currency !== (offer.expectedCurrency || 'INR')
+  ) {
+    throw new BusinessRuleError('Offer fee invoice does not match this offer');
+  }
+}
 function assertOfferFeePaidHook() {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
   // PSP webhook / callback path; a client paymentRef is never payment proof.
-  return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+  return async (input: {
+    tenantId: string;
+    invoiceId: string;
+    applicationId: string;
+    offerId: string;
+    expectedAmount: number;
+    expectedCurrency: string;
+    paymentRef?: string | null;
+  }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    // PRC-M327: the invoice must be the admissions invoice for THIS application
+    // and match the offer fee exactly (no swapping in a cheaper/foreign invoice).
+    assertOfferFeeInvoiceMatchesOffer(invoice, input);
     assertOfferFeeInvoicePaid(invoice.status);
   };
 }
