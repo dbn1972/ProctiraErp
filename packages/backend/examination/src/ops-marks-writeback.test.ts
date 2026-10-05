@@ -210,7 +210,19 @@ describe('ops marks write-back (PRC-H057)', () => {
     );
     await ops.assignReevaluation(TENANT, examId, req.id, { evaluatorId: randomUUID() }, MODERATOR);
     await ops.completeReevaluation(TENANT, examId, req.id, { revisedMarks: 82 }, MODERATOR);
-    expect(certificateCalls).toEqual([[candidateId]]);
+    // Certificates are keyed by the RESULT-STORE candidate id (what publication
+    // gradeResults carry and the document repository filters by), not the
+    // registration id.
+    const [resultCandidate] = await results.getCandidates(examId, TENANT);
+    const resultCandidateId = resultCandidate!.id;
+    expect(resultCandidateId).not.toBe(candidateId);
+    expect(certificateCalls).toEqual([[resultCandidateId]]);
+    const publication = await results.getPublicationResult(examId, TENANT);
+    const certificateTargets = publication!.gradeResults.filter((g) =>
+      certificateCalls[0]!.includes(g.candidateId),
+    );
+    expect(certificateTargets).toHaveLength(1);
+    expect(certificateTargets[0]).toMatchObject({ studentId, subjectId, score: 82 });
     const audit = (await ops.listAudits(TENANT, examId)).find(
       (a) => a.action === 'reevaluation.complete',
     );
@@ -255,6 +267,94 @@ describe('ops marks write-back (PRC-H057)', () => {
     expect((await results.getPublicationResult(examId, TENANT))?.gradeResults[0]).toMatchObject({
       score: 82,
     });
+  });
+
+  it('re-evaluation write-back failure never marks the request completed (retryable)', async () => {
+    const { store } = rewire();
+    await enterVariancePair();
+    await ops.resolveMarks(TENANT, examId, { candidateId, subjectId, finalMarks: 75 }, MODERATOR);
+    await publisher.publishResults(TENANT, examId);
+    const req = await ops.requestReevaluation(
+      TENANT,
+      examId,
+      { candidateId, subjectId, originalMarks: 75 },
+      MODERATOR,
+    );
+    await ops.assignReevaluation(TENANT, examId, req.id, { evaluatorId: randomUUID() }, MODERATOR);
+
+    // Write-back fails, and so would any compensating ops-store update.
+    const originalUpsert = results.upsertCandidates.bind(results);
+    const originalUpdate = store.updateReevaluation.bind(store);
+    const statusWrites: string[] = [];
+    results.upsertCandidates = async () => {
+      throw new Error('result store down');
+    };
+    store.updateReevaluation = async (tenantId, id, patch) => {
+      if (patch.status) statusWrites.push(patch.status);
+      if (patch.status === 'assigned') throw new Error('ops store down');
+      return originalUpdate(tenantId, id, patch);
+    };
+    await expect(
+      ops.completeReevaluation(TENANT, examId, req.id, { revisedMarks: 82 }, MODERATOR),
+    ).rejects.toThrow('result store down');
+    expect(statusWrites).toEqual([]);
+    expect((await store.findReevaluation(TENANT, req.id))!.status).toBe('assigned');
+
+    // Retry succeeds once the result store recovers.
+    results.upsertCandidates = originalUpsert;
+    store.updateReevaluation = originalUpdate;
+    const done = await ops.completeReevaluation(
+      TENANT,
+      examId,
+      req.id,
+      { revisedMarks: 82 },
+      MODERATOR,
+    );
+    expect(done.status).toBe('completed');
+    expect((await results.getPublicationResult(examId, TENANT))?.gradeResults[0]).toMatchObject({
+      score: 82,
+    });
+  });
+
+  it('compensation deletes a candidate row the unit created (no phantom candidate)', async () => {
+    const { store } = rewire();
+    // No resolved marks yet -> no result-store candidate row for this student.
+    expect(await results.getCandidates(examId, TENANT)).toEqual([]);
+    const req = await ops.requestReevaluation(
+      TENANT,
+      examId,
+      { candidateId, subjectId },
+      MODERATOR,
+    );
+    await ops.assignReevaluation(TENANT, examId, req.id, { evaluatorId: randomUUID() }, MODERATOR);
+
+    const originalUpdate = store.updateReevaluation.bind(store);
+    store.updateReevaluation = async (tenantId, id, patch) => {
+      if (patch.status === 'completed') throw new Error('ops store down');
+      return originalUpdate(tenantId, id, patch);
+    };
+    await expect(
+      ops.completeReevaluation(TENANT, examId, req.id, { revisedMarks: 82 }, MODERATOR),
+    ).rejects.toThrow('ops store down');
+    store.updateReevaluation = originalUpdate;
+
+    expect(await results.getCandidates(examId, TENANT)).toEqual([]);
+    expect((await store.findReevaluation(TENANT, req.id))!.status).toBe('assigned');
+  });
+
+  it('resolve after publish: republish failure removes the newly created candidate row', async () => {
+    let fail = false;
+    const { store } = rewire({ failRepublish: () => fail });
+    // Published with no marks rows yet (registration only -> incomplete).
+    await publisher.publishResults(TENANT, examId);
+    await enterVariancePair();
+    fail = true;
+    await expect(
+      ops.resolveMarks(TENANT, examId, { candidateId, subjectId, finalMarks: 75 }, MODERATOR),
+    ).rejects.toThrow('republish failed');
+    expect(await results.getCandidates(examId, TENANT)).toEqual([]);
+    const pair = await store.findMarksPair(TENANT, examId, candidateId, subjectId);
+    expect(pair.every((p) => p.finalMarks === null)).toBe(true);
   });
 
   it('write-back failure on resolve restores the marks pair to unresolved', async () => {

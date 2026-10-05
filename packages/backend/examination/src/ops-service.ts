@@ -82,13 +82,15 @@ export interface ExamOpsServiceDeps {
    */
   republish?: (tenantId: string, examinationId: string) => Promise<unknown>;
   /**
-   * PRC-H057: regenerate result certificates for candidates (registration ids)
-   * whose marks changed after publication. Invoked after the marks unit commits.
+   * PRC-H057: regenerate result certificates for candidates whose marks changed
+   * after publication. Ids are RESULT-STORE candidate ids (the `candidateId` on
+   * publication gradeResults that the document layer filters by), not
+   * registration ids. Invoked after the marks unit commits.
    */
   regenerateCertificates?: (
     tenantId: string,
     examinationId: string,
-    registrationIds: string[],
+    candidateIds: string[],
   ) => Promise<unknown>;
   varianceTolerance?: number;
   onAudit?: (entry: ExamOpsAuditRecord) => void | Promise<void>;
@@ -444,6 +446,11 @@ export class ExamOpsService {
    * a failure in write-back or republish restores the candidate row, restores the
    * ops-store row, and re-publishes the restored marks. Certificates are
    * regenerated only after the unit commits.
+   *
+   * `opsOrder: 'after'` runs the ops mutation last (after write-back and
+   * republish) so a terminal ops state (re-evaluation `completed`) is only
+   * written once the marks landed; if write-back and its compensation both
+   * fail, the ops row is untouched and the operation stays retryable.
    */
   private async applyFinalMarksUnit(
     tenantId: string,
@@ -452,6 +459,7 @@ export class ExamOpsService {
     subjectId: string,
     marks: number,
     opsMutation: OpsMutation,
+    opsOrder: 'before' | 'after' = 'before',
   ): Promise<FinalMarksWriteBack> {
     if (!this.results) {
       await opsMutation();
@@ -477,11 +485,21 @@ export class ExamOpsService {
     const snapshot = current ? structuredClone(current) : null;
     const previous = current?.subjectResults.find((r) => r.subjectId === subjectId);
     const published = (await results.getPublicationResult(examinationId, tenantId)) !== null;
+    // Result-store candidate id: publication gradeResults (and so certificate
+    // generation) are keyed by this id, not by the registration id.
     const candidateId = current?.id ?? randomUUID();
     const subjectResults = (current?.subjectResults ?? []).filter((r) => r.subjectId !== subjectId);
     subjectResults.push({ candidateId, subjectId, score: marks, isComplete: true });
 
-    const compensateOps = await opsMutation();
+    // Restore the result store to its before-state. When the unit created the
+    // candidate row (no snapshot), delete it rather than leaving a placeholder.
+    const restoreCandidate = (): Promise<void> =>
+      snapshot
+        ? results.upsertCandidates(tenantId, [snapshot])
+        : results.deleteCandidates(tenantId, examinationId, [registration.studentId]);
+
+    let compensateOps: (() => Promise<void>) | null =
+      opsOrder === 'before' ? await opsMutation() : null;
     let candidateWritten = false;
     let republishAttempted = false;
     try {
@@ -501,33 +519,22 @@ export class ExamOpsService {
         republishAttempted = true;
         await this.republish(tenantId, examinationId);
       }
+      if (opsOrder === 'after') compensateOps = await opsMutation();
     } catch (error: unknown) {
       // Compensate in reverse order; keep the original error.
       if (candidateWritten) {
-        await results
-          .upsertCandidates(tenantId, [
-            snapshot ?? {
-              id: candidateId,
-              examinationId,
-              studentId: registration.studentId,
-              centerId: registration.centerId,
-              gender: 'other',
-              areaId: registration.centerId,
-              subjectResults: [],
-            },
-          ])
-          .catch(() => undefined);
+        await restoreCandidate().catch(() => undefined);
         if (republishAttempted && this.republish) {
           await this.republish(tenantId, examinationId).catch(() => undefined);
         }
       }
-      await compensateOps().catch(() => undefined);
+      if (compensateOps) await compensateOps().catch(() => undefined);
       throw error;
     }
     let certificates: FinalMarksWriteBack['certificates'] = 'skipped';
     if (published && this.regenerateCertificates) {
       try {
-        await this.regenerateCertificates(tenantId, examinationId, [registrationId]);
+        await this.regenerateCertificates(tenantId, examinationId, [candidateId]);
         certificates = 'requested';
       } catch {
         // Marks + publication are committed; a failed request is surfaced in the audit
@@ -845,7 +852,10 @@ export class ExamOpsService {
       throw new BusinessRuleError(`Cannot complete a re-evaluation in '${existing.status}' status`);
     }
     // PRC-H057: completion, write-back and republish are one unit; any failure
-    // compensates and leaves the request retryable in 'assigned'.
+    // compensates and leaves the request retryable in 'assigned'. Write-back and
+    // republish run BEFORE the request is flipped to 'completed' (opsOrder
+    // 'after'), so a failed write-back whose compensation also fails can never
+    // leave a 'completed' request without its marks.
     const notes = [existing.notes, input.notes?.trim()].filter(Boolean).join('\n') || null;
     let updated: ExamReevaluationRecord | null = null;
     let writeBack: FinalMarksWriteBack;
@@ -871,6 +881,7 @@ export class ExamOpsService {
             });
           };
         },
+        'after',
       );
     } catch (error: unknown) {
       await this.auditFailure(

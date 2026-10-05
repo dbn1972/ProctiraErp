@@ -119,15 +119,16 @@ export const examinationPlugin = fp(
               }
             : undefined,
           // PRC-H057: revised marks after publication -> regenerate that candidate's certificate.
+          // `candidateIds` are result-store candidate ids (publication gradeResults key).
           regenerateCertificates:
             documentRepository && pdfGenerator
-              ? async (tenantId, examinationId, registrationIds) => {
+              ? async (tenantId, examinationId, candidateIds) => {
                   if (!certificateGenerator) {
                     throw new Error('Document generation service is not initialised');
                   }
                   return certificateGenerator.requestGeneration(tenantId, examinationId, {
                     documentType: 'result_certificate',
-                    candidateIds: registrationIds,
+                    candidateIds,
                   });
                 }
               : undefined,
