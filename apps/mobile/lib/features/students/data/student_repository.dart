@@ -118,8 +118,14 @@ class StudentRepository {
     if (api == null) return 0;
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
-    final List<Student> remote = await _cacheSync.fetchAll(api);
-    await _cacheSync.replaceScope(db, tenantId: tenantId, remote: remote);
+    final ({List<Student> students, bool complete}) remote = await _cacheSync
+        .fetchAll(api);
+    await _cacheSync.replaceScope(
+      db,
+      tenantId: tenantId,
+      remote: remote.students,
+      prune: remote.complete,
+    );
     return remote.length;
   }
 

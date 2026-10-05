@@ -154,21 +154,29 @@ class InstitutionRepository {
     final String? tenantId = _scope(null);
     if (api == null || tenantId == null) return 0;
     final List<Institution> all = <Institution>[];
+    bool complete = false;
     for (int page = 1; page <= maxPages; page++) {
       final List<Institution> batch = await api.listInstitutions(
         page: page,
         pageSize: pageSize,
       );
       all.addAll(batch);
-      if (batch.length < pageSize) break;
+      if (batch.length < pageSize) {
+        complete = true;
+        break;
+      }
     }
     final Database db = await _database.database;
     await db.transaction((Transaction txn) async {
-      await txn.delete(
-        'institutions_cache',
-        where: 'tenant_id = ?',
-        whereArgs: <Object>[tenantId],
-      );
+      // Hitting [maxPages] with a full last page means rows may remain on
+      // the server: upsert only, never drop rows that were not fetched.
+      if (complete) {
+        await txn.delete(
+          'institutions_cache',
+          where: 'tenant_id = ?',
+          whereArgs: <Object>[tenantId],
+        );
+      }
       for (final Institution i in all) {
         await txn.insert(
           'institutions_cache',

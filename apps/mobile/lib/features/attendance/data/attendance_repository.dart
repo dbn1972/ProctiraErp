@@ -171,15 +171,14 @@ class AttendanceRepository {
     final StudentApi? api = _studentApi;
     if (refresh && api != null) {
       try {
-        final List<Student> remote = await _cacheSync.fetchAll(
-          api,
-          institutionId: institutionId,
-        );
+        final ({List<Student> students, bool complete}) remote =
+            await _cacheSync.fetchAll(api, institutionId: institutionId);
         await _cacheSync.replaceScope(
           db,
           tenantId: tenantId,
           institutionId: institutionId,
-          remote: remote,
+          remote: remote.students,
+          prune: remote.complete,
         );
         refreshed = true;
       } on ApiException catch (error) {

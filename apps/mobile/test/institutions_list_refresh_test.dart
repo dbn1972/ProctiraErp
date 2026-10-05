@@ -108,6 +108,23 @@ void main() {
     expect(repo.refreshAll(), throwsA(isA<DioException>()));
   });
 
+  test('refreshAll capped by maxPages upserts without dropping rows', () async {
+    final _FakeApi api = _FakeApi(<Institution>[
+      for (int i = 0; i < 5; i++) _inst('$i'),
+    ]);
+    final InstitutionRepository repo = InstitutionRepository(
+      database: db,
+      tenantProvider: tenant,
+      api: api,
+    );
+    expect(await repo.refreshAll(pageSize: 2), 5);
+
+    // Server order changed; the capped fetch only sees the first page.
+    api.items = <Institution>[_inst('4'), _inst('3'), _inst('2')];
+    expect(await repo.refreshAll(pageSize: 2, maxPages: 1), 2);
+    expect((await repo.list()).length, 5);
+  });
+
   Future<void> pumpScreen(WidgetTester tester, _FakeApi api) async {
     getIt.registerSingleton<InstitutionRepository>(
       InstitutionRepository(database: db, tenantProvider: tenant, api: api),

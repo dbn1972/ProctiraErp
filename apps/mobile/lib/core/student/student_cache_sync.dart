@@ -35,7 +35,11 @@ class StudentCacheSync {
   final int maxPages;
 
   /// Fetch every page of students for [institutionId] (all when null).
-  Future<List<Student>> fetchAll(
+  ///
+  /// `complete` is false when [maxPages] was reached and the last page was
+  /// still full: the server may hold more rows, so callers must not prune
+  /// what they did not see (pass it to [replaceScope]'s `prune`).
+  Future<({List<Student> students, bool complete})> fetchAll(
     StudentApi api, {
     String? institutionId,
   }) async {
@@ -47,18 +51,20 @@ class StudentCacheSync {
         institutionId: institutionId,
       );
       all.addAll(batch);
-      if (batch.length < pageSize) break;
+      if (batch.length < pageSize) return (students: all, complete: true);
     }
-    return all;
+    return (students: all, complete: false);
   }
 
   /// Replace the cached rows in scope ([tenantId] + optional
   /// [institutionId]) with [remote]. Returns the number of pruned rows.
+  /// With [prune] false (truncated fetch) rows are only upserted.
   Future<int> replaceScope(
     Database db, {
     required String tenantId,
     String? institutionId,
     required List<Student> remote,
+    bool prune = true,
   }) async {
     final String scopeWhere = institutionId == null
         ? 'tenant_id = ?'
@@ -91,6 +97,7 @@ class StudentCacheSync {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
+      if (!prune) return;
       for (final String id in existingPayload.keys) {
         if (!seen.contains(id)) {
           pruned += await txn.delete(
