@@ -33,6 +33,17 @@ import {
   type StudentPortalBinding,
 } from './student-portal-access.js';
 import type { StudentService } from './student-service.js';
+import { UUID_PATTERN } from './uuid-pattern.js';
+
+const STUDENT_ID_RE = new RegExp(UUID_PATTERN);
+
+/** PRC-M097: `ids` batch filter — up to 100 comma-separated UUIDs, deduped. */
+function parseIdsFilter(raw: string | undefined): string[] | undefined | null {
+  if (raw === undefined || raw === '') return undefined;
+  const ids = [...new Set(raw.split(','))];
+  if (ids.length > 100 || !ids.every((id) => STUDENT_ID_RE.test(id))) return null;
+  return ids;
+}
 
 function getRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -369,6 +380,14 @@ export async function registerStudentRoutes(
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
+      const ids = parseIdsFilter(query.ids);
+      if (ids === null) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'ids must be up to 100 comma-separated UUIDs',
+          statusCode: 400,
+        });
+      }
       try {
         // PRC-C010: listing all students is a staff surface; portal roles are denied.
         const roles = getRoles(request);
@@ -382,6 +401,7 @@ export async function registerStudentRoutes(
             gender: query.gender,
             search: query.search,
             institutionId: query.institutionId,
+            ids,
           },
           { page, pageSize, sortBy, sortOrder },
         );

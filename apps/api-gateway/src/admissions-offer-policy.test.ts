@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loadAdmissionsTimeZone,
   DEFAULT_TENANT_TIMEZONE,
   formatAdmissionNumber,
   offerFeeAmountCents,
@@ -33,5 +34,48 @@ describe('PRC-L002 admissions offer money and calendar rules', () => {
     expect(resolveTenantTimeZone('')).toBe(DEFAULT_TENANT_TIMEZONE);
     expect(resolveTenantTimeZone(42)).toBe(DEFAULT_TENANT_TIMEZONE);
     expect(resolveTenantTimeZone('Europe/London')).toBe('Europe/London');
+  });
+});
+describe('PRC-L002 loadAdmissionsTimeZone', () => {
+  function client(settingsTz: unknown, localeTz: unknown, flatTz: unknown = null) {
+    const calls: string[] = [];
+    return {
+      calls,
+      async query(sql: string) {
+        calls.push(sql);
+        if (sql.includes('control_plane_documents')) {
+          return { rows: settingsTz === undefined ? [] : [{ tz: settingsTz }] };
+        }
+        return { rows: [{ locale_tz: localeTz, flat_tz: flatTz }] };
+      },
+    };
+  }
+  it('prefers the admin tenant-settings zone over tenants.config', async () => {
+    const db = client('Asia/Kolkata', 'UTC');
+    await expect(loadAdmissionsTimeZone(db, 't1')).resolves.toBe('Asia/Kolkata');
+    expect(db.calls).toHaveLength(1);
+  });
+  it('skips invalid settings and falls back to config locale, then flat config, then default', async () => {
+    await expect(loadAdmissionsTimeZone(client('Not/AZone', 'Asia/Dubai'), 't1')).resolves.toBe(
+      'Asia/Dubai',
+    );
+    await expect(
+      loadAdmissionsTimeZone(client(undefined, null, 'Europe/London'), 't1'),
+    ).resolves.toBe('Europe/London');
+    await expect(loadAdmissionsTimeZone(client(undefined, '', null), 't1')).resolves.toBe(
+      'Asia/Kolkata',
+    );
+  });
+  it('casts the shared tenant parameter per column (TEXT id, UUID tenant_id)', async () => {
+    // Uncast, Postgres infers $1 as text and `tenant_id = $1` fails: "operator does not exist:
+    // uuid = text" (500 on offer accept in the E2E admissions chain).
+    const db = client('Asia/Kolkata', 'UTC');
+    await loadAdmissionsTimeZone(db, 't1');
+    expect(db.calls[0]).toMatch(/id = \$1::text AND tenant_id = \$1::uuid/);
+  });
+  it('never elevates the transaction to platform scope', async () => {
+    const db = client(undefined, 'Asia/Kolkata');
+    await loadAdmissionsTimeZone(db, 't1');
+    expect(db.calls.join('\n')).not.toMatch(/platform_admin|set_config/);
   });
 });

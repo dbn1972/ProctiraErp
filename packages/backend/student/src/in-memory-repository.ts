@@ -132,6 +132,10 @@ export class InMemoryStudentRepository implements StudentRepository {
     if (filter.gender) {
       items = items.filter((entity) => entity.gender === filter.gender);
     }
+    if (filter.ids) {
+      const wanted = new Set(filter.ids);
+      items = items.filter((entity) => wanted.has(entity.id));
+    }
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();
       items = items.filter(

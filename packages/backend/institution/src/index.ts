@@ -70,6 +70,10 @@ export {
   asTenantScopedResolver,
   GATEWAY_DEMO_TENANT_ID,
   isPgAreaHierarchyEnabled,
+  MemoryAreaHierarchyVersionStore,
+  RedisAreaHierarchyVersionStore,
+  configureAreaHierarchyVersionStore,
+  publishAreaHierarchyChanged,
 } from './area-hierarchy/index.js';
 export type {
   CreateAreaInput,
@@ -80,6 +84,7 @@ export type {
   AreaHierarchyRoutesOptions,
   RegisterableArea,
   AreaHierarchyResolverConfig,
+  AreaHierarchyVersionStore,
 } from './area-hierarchy/index.js';
 
 // Infrastructure Hierarchy

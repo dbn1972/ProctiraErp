@@ -28,22 +28,33 @@ import {
   authPlugin,
   createAccessTokenRevocationStore,
   createKeycloakIdentityStore,
+  createTenantSessionRevocationStore,
+  DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+  isIssuedBeforeTenantRevocation,
   createOtpChallengeStore,
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
   InviteService,
+  createPasswordThrottleState,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
   OtpService,
+  PasswordLoginThrottle,
   rbacPlugin,
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
   type AccessTokenRevocationStore,
+  type TenantSessionRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
-import { asTenantScopedResolver, createAreaHierarchyResolver } from '@proctira/backend-institution';
+import {
+  asTenantScopedResolver,
+  configureAreaHierarchyVersionStore,
+  createAreaHierarchyResolver,
+  RedisAreaHierarchyVersionStore,
+} from '@proctira/backend-institution';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import {
   isPublicRegistrationPath,
@@ -107,9 +118,13 @@ import {
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
+  isBlockingTenantStatus,
   isRequestTenantSuspended,
   noteTenantStatusChange,
   resolveTenantBlocked,
+  startRedisTenantStatusBus,
+  tenantSuspendBlocksAuth,
+  type TenantStatusBus,
 } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
@@ -128,6 +143,10 @@ export interface BuildAppOptions {
    * omitted, tenant creation fails closed instead of creating a tenant without its admin.
    */
   tenantAdminProvisioner?: TenantAdminProvisioner;
+  /** PRC-H008: tenant-wide session revocation store override (tests / DI). */
+  tenantSessionRevocationStore?: TenantSessionRevocationStore;
+  /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
+  tenantSuspendBlocksAuth?: boolean;
 }
 
 /**
@@ -333,6 +352,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   if (!app.hasDecorator('accessTokenRevocationStore')) {
     app.decorate('accessTokenRevocationStore', accessTokenRevocationStore);
   }
+  // PRC-H008 / PRC-H098: TENANT_SUSPEND_BLOCK_AUTH (default true, fail closed) blocks login,
+  // refresh and every authenticated request for a suspended/decommissioned tenant, and suspension
+  // revokes the tenant's sessions through a shared (Redis) revocation epoch.
+  const suspendBlocksAuth = options.tenantSuspendBlocksAuth ?? tenantSuspendBlocksAuth();
+  const tenantSessionRevocation =
+    options.tenantSessionRevocationStore ??
+    createTenantSessionRevocationStore({
+      redis: rateLimitRedis,
+      NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+    });
 
   // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
   await app.register(paginationCapPlugin);
@@ -475,6 +504,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // PRC-H008 / PRC-H098: suspended tenants cannot sign in or refresh.
+      tenantAuthGate: suspendBlocksAuth ? (tenantId) => resolveTenantBlocked(tenantId) : undefined,
+      tenantSessionRevocation: suspendBlocksAuth ? tenantSessionRevocation : undefined,
+      // PRC-H043: the /password failure budget is shared across replicas through the same
+      // Redis client as rate limiting; production without Redis refuses to boot.
+      passwordThrottle: new PasswordLoginThrottle({
+        state: createPasswordThrottleState({
+          redis: rateLimitRedis,
+          NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+        }),
+      }),
     });
   } else {
     await app.register(authPlugin, {
@@ -692,6 +732,51 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     requireJwtTenantWhenAuthenticated: true,
   });
 
+  // 8-pre. PRC-H008 / PRC-H098 — with TENANT_SUSPEND_BLOCK_AUTH (default) a suspended tenant's
+  // sessions are revoked: every authenticated /api/v1 request is refused while suspended, and a
+  // token issued before the suspension stays revoked after reactivation.
+  if (suspendBlocksAuth) {
+    app.addHook('onRequest', async (request, reply) => {
+      const url = request.url.split('?')[0]!;
+      if (!url.startsWith('/api/v1/')) return;
+      if (isPublicRegistrationPath(url)) return;
+      if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+      const user = request.user as
+        { tenantId?: string; iat?: number; tenantStatus?: string } | null | undefined;
+      const tenantId = user?.tenantId;
+      if (!tenantId) return;
+      let blocked: boolean;
+      let revokedAt: number | null;
+      try {
+        blocked =
+          isRequestTenantSuspended(tenantId, user) || (await resolveTenantBlocked(tenantId));
+        revokedAt = blocked
+          ? null
+          : await tenantSessionRevocation.tenantSessionsRevokedAt(tenantId);
+      } catch (error) {
+        request.log.error({ err: error, tenantId }, 'tenant status lookup failed');
+        return reply.status(503).send({
+          code: 'TENANT_STATUS_UNAVAILABLE',
+          message: 'Tenant status could not be verified; try again shortly',
+          statusCode: 503,
+        });
+      }
+      if (blocked) {
+        return reply.status(403).send({
+          code: 'TENANT_SUSPENDED',
+          message: 'Tenant is suspended; its sessions are revoked',
+          statusCode: 403,
+        });
+      }
+      if (isIssuedBeforeTenantRevocation(user?.iat, revokedAt)) {
+        return reply.status(401).send({
+          code: 'SESSION_REVOKED',
+          message: 'This session was ended; sign in again',
+          statusCode: 401,
+        });
+      }
+    });
+  }
   // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth); reads stay allowed.
   // PRC-H008 / PRC-H098: status is resolved from the tenant store (TTL cache, invalidated on
   // lifecycle transitions — wired after tenantLifecyclePlugin below), not only an env list.
@@ -840,6 +925,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
+  // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
+  configureAreaHierarchyVersionStore(
+    rateLimitRedis ? new RedisAreaHierarchyVersionStore(rateLimitRedis) : undefined,
+  );
   const areaResolver = createAreaHierarchyResolver();
   await app.register(rbacPlugin, {
     registry: rbacRegistry,
@@ -903,13 +993,27 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return tenant?.status ?? null;
     };
     configureTenantStatusSource(ownSource);
-    app.tenantService.onStatusChange((tenantId, status) => {
+    // PRC-H008: Redis pub/sub so other replicas enforce a transition without waiting for the TTL.
+    let statusBus: TenantStatusBus | undefined;
+    if (rateLimitRedis) {
+      statusBus = await startRedisTenantStatusBus(rateLimitRedis, app.log);
+    }
+    app.tenantService.onStatusChange(async (tenantId, status) => {
       noteTenantStatusChange(tenantId, status);
+      if (suspendBlocksAuth && isBlockingTenantStatus(status)) {
+        // PRC-H098: revoke every session issued up to now (refresh included) for this tenant.
+        await tenantSessionRevocation.revokeTenantSessions(
+          tenantId,
+          Math.floor(Date.now() / 1000),
+          DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+        );
+      }
+      await statusBus?.publish(tenantId, status);
     });
-    app.addHook('onClose', () => {
+    app.addHook('onClose', async () => {
       // Only disarm the gate if this app's source is still the one installed.
       if (currentTenantStatusSource() === ownSource) configureTenantStatusSource(null);
-      return Promise.resolve();
+      await statusBus?.close().catch(() => undefined);
     });
   }
 

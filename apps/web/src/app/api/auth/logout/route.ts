@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import {
   clearCookieOptions,
   clearRefreshTokenCookieOptions,
-  getAuthServiceUrl,
+  getGatewayUrl,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth/session';
 import { resolveTenantForRequest } from '@/lib/api/request-tenant';
@@ -15,10 +15,15 @@ import { resolveTenantForRequest } from '@/lib/api/request-tenant';
  * Notifies the upstream auth-service so it can invalidate the session and
  * revoke refresh tokens, then clears all auth cookies on the response. The
  * client is expected to navigate to /login after calling this route.
+ *
+ * PRC-L282: uses the gateway's authenticated `POST /api/v1/auth/logout` (Bearer
+ * access token, refresh token in the JSON body — never in a query string) instead
+ * of the unauthenticated GET redirect endpoint.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const jar = await cookies();
   const accessToken = jar.get(AUTH_COOKIES.ACCESS_TOKEN)?.value;
+  const refreshToken = jar.get(AUTH_COOKIES.REFRESH_TOKEN)?.value;
   // PRC-H027: tenant comes from the Host, never from a client header. When the
   // Host does not resolve (localhost / bare domain without a fallback slug) we
   // fall back to the access token's own tenant claim so upstream revocation
@@ -30,13 +35,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   if (accessToken && tenantId) {
     try {
-      await fetch(`${getAuthServiceUrl()}/auth/logout`, {
+      await fetch(new URL('/api/v1/auth/logout', getGatewayUrl()).toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Tenant-ID': tenantId,
           Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
         cache: 'no-store',
       });
     } catch {
