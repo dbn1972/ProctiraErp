@@ -163,9 +163,7 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       target: { value: 'postgresql://loader:pw@dw.internal/dw' },
     });
     fireEvent.submit(screen.getByLabelText('Source connection string').closest('form')!);
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('/etl/pipelines', expect.anything()),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/pipelines', expect.anything()));
     const json = fetchMock.mock.calls[0]![1].json as {
       source: Record<string, unknown>;
       destination: Record<string, unknown>;
