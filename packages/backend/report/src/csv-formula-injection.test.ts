@@ -5,6 +5,12 @@ describe('PRC-M341 CSV formula injection', () => {
   it.each(['=1+1', '+SUM(A1)', '-2+3', '@cmd', '\tx', '\rx'])('neutralises %j', (v) => {
     expect(escapeCsv(v).replace(/^"|"$/g, '').startsWith("'")).toBe(true);
   });
+  it.each(['-5', '-12.5', '42', '0.75'])('leaves plain number %j untouched', (v) => {
+    expect(escapeCsv(v)).toBe(v);
+  });
+  it('does not double-prefix an already neutralised value', () => {
+    expect(escapeCsv("'=1+1")).toBe("'=1+1");
+  });
 
   it("exports '=1+1' as \"'=1+1\"", () => {
     const csv = generateCsv({
