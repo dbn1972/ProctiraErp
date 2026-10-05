@@ -9,7 +9,7 @@
 
 import { withCsrfHeader } from '@/lib/auth/csrf';
 import { purgeServiceWorkerCaches } from '@/lib/sw/purge';
-import { purgeAllDrafts } from '@/lib/draft/useDraftAutosave';
+import { purgeAllDrafts } from '@/lib/draft/storage';
 import { setSyncIdentity } from '@/lib/sync/identity';
 import { clearSyncQueue } from '@/lib/sync/syncQueue';
 
