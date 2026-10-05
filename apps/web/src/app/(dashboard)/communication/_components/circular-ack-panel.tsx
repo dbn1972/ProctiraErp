@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-import { Button, FormField, Input } from '@proctira/ui/components';
+import { Button, FormField } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 
@@ -13,10 +13,17 @@ export function CircularAckPanel({
   circularId,
   status,
   ackRate,
+  pendingRecipients = [],
 }: {
   circularId: string;
   status: string;
   ackRate: number;
+  /**
+   * PRC-M071: staff record an acknowledgement on behalf of a recipient chosen
+   * from the circular's pending list (no free-text ids). The gateway records
+   * the acting staff member from the session.
+   */
+  pendingRecipients?: Array<{ id: string; label: string }>;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -78,14 +85,30 @@ export function CircularAckPanel({
         onConfirm={onConfirmSend}
         testId="send-circular-confirm"
       />
-      <form onSubmit={onAck} className="flex flex-wrap items-end gap-2">
-        <FormField id="ack-recipient" label="Recipient id">
-          <Input id="ack-recipient" name="recipientId" required disabled={!hydrated || pending} />
-        </FormField>
-        <Button type="submit" variant="outline" disabled={!hydrated || pending}>
-          Record ack
-        </Button>
-      </form>
+      {pendingRecipients.length > 0 ? (
+        <form onSubmit={onAck} className="flex flex-wrap items-end gap-2">
+          <FormField id="ack-recipient" label="Record acknowledgement on behalf of">
+            <select
+              id="ack-recipient"
+              name="recipientId"
+              required
+              defaultValue=""
+              disabled={!hydrated || pending}
+              className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Select recipient…</option>
+              {pendingRecipients.map((recipient) => (
+                <option key={recipient.id} value={recipient.id}>
+                  {recipient.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <Button type="submit" variant="outline" disabled={!hydrated || pending}>
+            Record ack
+          </Button>
+        </form>
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

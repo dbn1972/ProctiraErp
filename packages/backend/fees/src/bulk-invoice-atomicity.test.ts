@@ -1,5 +1,6 @@
 /**
- * PRC-M250: bulk invoicing is per-student atomic, set-based, and surfaces roster errors.
+ * PRC-M250: bulk invoicing is set-based and surfaces roster errors. Atomicity is
+ * whole-batch (PRC-M086): a failure part-way persists nothing.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -12,7 +13,7 @@ const CLASS_ID = '00000000-0000-4000-8000-0000000000e1';
 const S = (n: number) => `00000000-0000-4000-8000-0000000001${String(n).padStart(2, '0')}`;
 
 describe('PRC-M250 bulk invoicing', () => {
-  it('failure on student k rolls back that student invoice + journal; earlier students stay', async () => {
+  it('failure on student k rolls back the whole batch; a re-run is not blocked and then skips', async () => {
     const repository = new InMemoryFeesRepository();
     const service = new FeesService(repository);
     repository.seedClassRoster(TENANT, { classId: CLASS_ID }, [S(1), S(2), S(3)]);
@@ -32,21 +33,27 @@ describe('PRC-M250 bulk invoicing', () => {
     await expect(
       service.bulkInvoiceClass(TENANT, 'staff', { structureId: structure.id, classId: CLASS_ID }),
     ).rejects.toThrow('injected journal failure');
-    const invoices = await repository.listInvoicesForTenant(TENANT);
-    expect(invoices.map((i) => i.studentId)).toEqual([S(1)]);
-    const ledger = await repository.listLedgerForInvoice(TENANT, invoices[0]!.id);
-    expect(ledger.length).toBeGreaterThan(0);
-
-    // re-run after the fault: student 1 skipped, others created (set-based existing check)
+    // PRC-M086: whole-batch transaction — nothing (invoice or journal) persists.
+    expect(await repository.listInvoicesForTenant(TENANT)).toHaveLength(0);
+    // re-run after the fault creates everyone; a further run skips them all
+    // (set-based existing-invoice check).
     repository.postLedgerEntries = realPost;
     const rerun = await service.bulkInvoiceClass(TENANT, 'staff', {
       structureId: structure.id,
       classId: CLASS_ID,
     });
-    expect(rerun.skipped).toEqual([S(1)]);
-    expect(rerun.created).toHaveLength(2);
+    expect(rerun.skipped).toEqual([]);
+    expect(rerun.created).toHaveLength(3);
+    const third = await service.bulkInvoiceClass(TENANT, 'staff', {
+      structureId: structure.id,
+      classId: CLASS_ID,
+    });
+    expect(third.created).toHaveLength(0);
+    expect([...third.skipped].sort()).toEqual([S(1), S(2), S(3)]);
+    for (const inv of await repository.listInvoicesForTenant(TENANT)) {
+      expect((await repository.listLedgerForInvoice(TENANT, inv.id)).length).toBeGreaterThan(0);
+    }
   });
-
   it('roster SQL error surfaces (no silent empty class)', async () => {
     const pool: PgPoolLike = {
       query: async (text: string) => {

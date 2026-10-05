@@ -49,6 +49,28 @@ describe('grading threshold coverage (PRC-H114)', () => {
     ).rejects.toThrow(/gap/);
   });
 
+  it('PRC-M162: a gapped scheme is a 422 and 49.5 on 0–49 / 50–100 bands gets a grade', async () => {
+    const err = await service
+      .createGradingScheme(tenantId, {
+        name: 'Gapped-M162',
+        type: 'numeric',
+        minValue: 0,
+        maxValue: 100,
+        thresholds: [
+          { grade: 'F', minScore: 0, maxScore: 40 },
+          { grade: 'P', minScore: 50, maxScore: 100 },
+        ],
+      })
+      .catch((e: unknown) => e);
+    expect((err as { statusCode?: number }).statusCode).toBe(422);
+    expect(
+      assignGradeForScore(49.5, [
+        { grade: 'F', minScore: 0, maxScore: 49 },
+        { grade: 'P', minScore: 50, maxScore: 100 },
+      ]).grade,
+    ).toBe('F');
+  });
+
   it('rejects overlapping bands', async () => {
     await expect(
       create([

@@ -183,3 +183,10 @@ export type {
   TenantSettingsRoutesOptions,
   TenantSettingsStore,
 } from './tenant-settings.js';
+export {
+  KeycloakTenantAdminProvisioner,
+  RolesAndSettingsSeeder,
+  TenantAdminProvisioningNotConfiguredError,
+  loadKeycloakAdminConfig,
+} from './tenant-provisioner.js';
+export type { KeycloakAdminConfig, TenantDefaultsSeeder } from './tenant-provisioner.js';

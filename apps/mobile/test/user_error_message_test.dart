@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:proctira_mobile/core/di/injector.dart';
 import 'package:proctira_mobile/core/errors/user_error_message.dart';
 import 'package:proctira_mobile/core/l10n/app_localizations.dart';
@@ -68,6 +69,19 @@ void main() {
       'format': const FormatException('Unexpected character at 1'),
       'state': StateError('Bad state: secret internals'),
       'arbitrary': Exception('boom at /srv/app/x.ts:12'),
+      'api 403': const PermanentApiException(
+        'DioException [bad response]: 403',
+        statusCode: 403,
+      ),
+      'api 500': const TransientApiException(
+        'PrismaClientKnownRequestError at /srv/x.ts',
+        statusCode: 500,
+      ),
+      'api offline': TransientApiException(
+        'SocketException: errno 111',
+        cause: _dio(DioExceptionType.connectionError),
+      ),
+      'type error': TypeError(),
     };
     cases.forEach((String name, Object error) {
       test('$name maps to a safe message', () {

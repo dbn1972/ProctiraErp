@@ -481,3 +481,73 @@ test('repo fixture: gate passes against a minimal on-disk tree', () => {
   const report = evaluateDrift({ root });
   assert.equal(report.ok, true, report.errors.join('; '));
 });
+
+/**
+ * Regression: Prisma migration creates staff_assignments.subject_id NOT NULL and
+ * db/sql/098 later runs `ALTER COLUMN subject_id DROP NOT NULL`. Layers apply in
+ * order (prisma migrate deploy, then db/sql), so the live column is NULLable. The
+ * merge used to keep the stricter NOT NULL, which passed a non-null Prisma field
+ * that crashed at runtime ("Error converting field subjectId … found null").
+ */
+function staffAssignmentTree(prismaSubjectField) {
+  const root = mkdtempSync(join(tmpdir(), 'w1-data-04-sa-'));
+  mkdirSync(join(root, 'packages/shared/database/prisma/migrations/m1'), { recursive: true });
+  mkdirSync(join(root, 'packages/shared/database/prisma/migrations/m2'), { recursive: true });
+  mkdirSync(join(root, 'db/sql'), { recursive: true });
+  mkdirSync(join(root, 'tools/scripts'), { recursive: true });
+  writeFileSync(
+    join(root, 'packages/shared/database/prisma/schema.prisma'),
+    `${SAMPLE_PRISMA}
+model StaffAssignment {
+  id        String  @id @db.Uuid
+  ${prismaSubjectField}
+  @@map("staff_assignments")
+}
+`,
+  );
+  writeFileSync(join(root, 'db/sql/066_auth_session_tables.sql'), SAMPLE_SQL);
+  writeFileSync(
+    join(root, 'db/sql/098_staff_identity_link.sql'),
+    'ALTER TABLE staff_assignments ALTER COLUMN subject_id DROP NOT NULL;\n',
+  );
+  writeFileSync(join(root, 'tools/scripts/apply-sql.sh'), APPLY_OK);
+  writeFileSync(join(root, 'db/README.md'), README_OK);
+  writeFileSync(
+    join(root, 'packages/shared/database/prisma/migrations/m1/migration.sql'),
+    'CREATE TABLE tenants (id UUID PRIMARY KEY, name VARCHAR(255), slug VARCHAR(100) UNIQUE, config JSONB, status VARCHAR(20), created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ, deleted_at TIMESTAMPTZ);\n',
+  );
+  writeFileSync(
+    join(root, 'packages/shared/database/prisma/migrations/m2/migration.sql'),
+    'CREATE TABLE "staff_assignments" ("id" UUID NOT NULL, "subject_id" UUID NOT NULL, CONSTRAINT "staff_assignments_pkey" PRIMARY KEY ("id"));\n',
+  );
+  const authority = {
+    ...AUTHORITY_OK,
+    tables: {
+      ...AUTHORITY_OK.tables,
+      tenants: { authority: 'prisma', mirrorOk: true, reason: 'test' },
+      staff_assignments: { authority: 'prisma' },
+    },
+  };
+  writeFileSync(join(root, AUTHORITY_REL), JSON.stringify(authority, null, 2));
+  return root;
+}
+
+test('later-layer DROP NOT NULL wins: nullable Prisma field passes', () => {
+  const report = evaluateDrift({
+    root: staffAssignmentTree('subjectId String? @map("subject_id") @db.Uuid'),
+  });
+  assert.equal(report.ok, true, report.errors.join('; '));
+});
+
+test('later-layer DROP NOT NULL wins: non-null Prisma field is drift', () => {
+  const report = evaluateDrift({
+    root: staffAssignmentTree('subjectId String  @map("subject_id") @db.Uuid'),
+  });
+  assert.equal(report.ok, false);
+  assert.ok(
+    report.errors.some((e) =>
+      /staff_assignments.*subject_id.*nullability drift Prisma=NOT NULL SQL=NULL/.test(e),
+    ),
+    report.errors.join('; '),
+  );
+});

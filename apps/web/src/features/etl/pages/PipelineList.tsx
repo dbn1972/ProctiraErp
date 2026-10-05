@@ -2,8 +2,8 @@
  * PipelineList — displays all ETL pipelines with status, schedule, and execution info.
  *
  * Wired to the ETL Service API (Task 60A.6 / Task 23):
- *   - GET /api/v1/etl/pipelines
- *   - DELETE /api/v1/etl/pipelines/:id
+ *   - GET /api/v1/pipelines
+ *   - DELETE /api/v1/pipelines/:id
  *   - POST /api/v1/etl/pipelines/:id/execute (trigger manual run)
  *
  * Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6
@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { etlPaths } from '../etl-api-paths';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -128,9 +129,7 @@ export default function PipelineList() {
       params.set('page', String(page));
       params.set('pageSize', '20');
 
-      const result = await browserGatewayFetch<PipelineListResponse>(
-        `/etl/pipelines?${params.toString()}`,
-      );
+      const result = await browserGatewayFetch<PipelineListResponse>(etlPaths.pipelines(params));
       setPipelines(result.data);
       setTotalPages(result.meta.totalPages);
       setTotal(result.meta.total);
@@ -151,7 +150,7 @@ export default function PipelineList() {
 
   const handleTriggerRun = async (pipelineId: string) => {
     try {
-      await browserGatewayFetch(`/etl/pipelines/${pipelineId}/execute`, {
+      await browserGatewayFetch(etlPaths.execute(pipelineId), {
         method: 'POST',
       });
       // Refresh list to show updated status
@@ -168,7 +167,7 @@ export default function PipelineList() {
   const handleDelete = async (pipelineId: string) => {
     if (!window.confirm('Are you sure you want to delete this pipeline?')) return;
     try {
-      await browserGatewayFetch(`/etl/pipelines/${pipelineId}`, {
+      await browserGatewayFetch(etlPaths.pipeline(pipelineId), {
         method: 'DELETE',
       });
       fetchPipelines();
@@ -247,14 +246,14 @@ export default function PipelineList() {
           <table className="w-full text-sm" data-testid="pipeline-list-table">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Source</th>
-                <th className="px-4 py-3 text-left font-medium">Destination</th>
+                <th className="px-4 py-3 text-start font-medium">Name</th>
+                <th className="px-4 py-3 text-start font-medium">Source</th>
+                <th className="px-4 py-3 text-start font-medium">Destination</th>
                 <th className="px-4 py-3 text-center font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Schedule</th>
-                <th className="px-4 py-3 text-left font-medium">Last Run</th>
-                <th className="px-4 py-3 text-left font-medium">Next Run</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-start font-medium">Schedule</th>
+                <th className="px-4 py-3 text-start font-medium">Last Run</th>
+                <th className="px-4 py-3 text-start font-medium">Next Run</th>
+                <th className="px-4 py-3 text-end font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -297,7 +296,7 @@ export default function PipelineList() {
                   <td className="px-4 py-3 text-muted-foreground">
                     {formatDate(pipeline.nextRunAt)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-end">
                     <div className="flex justify-end gap-1">
                       <button
                         onClick={() => handleTriggerRun(pipeline.id)}

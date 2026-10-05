@@ -5,6 +5,7 @@
  * Implementations can use Prisma, in-memory stores, or other backends.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 
 /**
  * Contact information for a student.
@@ -65,6 +66,29 @@ export interface StudentFilter {
   search?: string;
   /** When set, only students enrolled at this institution are returned. */
   institutionId?: string;
+  /** When set, only these student ids are returned (batch label lookup). */
+  ids?: string[];
+}
+
+/** PRC-L365: optimistic-concurrency precondition for student updates. */
+export interface StudentUpdateOptions {
+  /** The `updatedAt` the caller last read; a mismatch rejects the write (409). */
+  expectedUpdatedAt?: Date;
+}
+
+/**
+ * PRC-L365: thrown when an If-Match / expectedUpdatedAt precondition is stale.
+ * Maps to HTTP 409 via the shared ConflictError.
+ */
+export class StaleStudentUpdateError extends ConflictError {
+  constructor(id: string) {
+    super(`Student '${id}' was modified by another request; reload and retry`);
+  }
+}
+
+/** True when `stored` matches the caller's precondition at millisecond precision. */
+export function updatedAtMatches(stored: Date, expected: Date): boolean {
+  return stored.getTime() === expected.getTime();
 }
 
 /**
@@ -74,8 +98,18 @@ export interface StudentRepository {
   /** Create a new student */
   create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity>;
 
-  /** Update an existing student */
-  update(id: string, tenantId: string, data: Partial<StudentEntity>): Promise<StudentEntity | null>;
+  /**
+   * Update an existing student.
+   * PRC-L365: when `options.expectedUpdatedAt` is set the write is conditional —
+   * implementations must re-check the stored `updatedAt` atomically with the
+   * write and throw `StaleStudentUpdateError` when it differs.
+   */
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentEntity>,
+    options?: StudentUpdateOptions,
+  ): Promise<StudentEntity | null>;
 
   /** Find a student by ID within a tenant */
   findById(id: string, tenantId: string): Promise<StudentEntity | null>;
@@ -105,4 +139,22 @@ export interface StudentRepository {
    * Format: ADM-{YYYY}-{seq} (seq is monotonic per tenant).
    */
   allocateAdmissionNumber(tenantId: string): Promise<string>;
+
+  /**
+   * PRC-M384: apply all creates + updates in ONE database transaction
+   * (all-or-nothing). Missing update targets abort the whole batch.
+   * Optional — callers must fall back (and not claim transactional semantics)
+   * when an implementation does not provide it.
+   */
+  bulkWrite?(tenantId: string, ops: StudentBulkWrite): Promise<StudentBulkWriteResult>;
+}
+
+export interface StudentBulkWrite {
+  creates: Array<Omit<StudentEntity, 'createdAt' | 'updatedAt'>>;
+  updates: Array<{ id: string; data: Partial<StudentEntity> }>;
+}
+
+export interface StudentBulkWriteResult {
+  created: StudentEntity[];
+  updated: StudentEntity[];
 }

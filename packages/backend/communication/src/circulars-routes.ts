@@ -25,8 +25,10 @@ import {
   type DeliveryLogQuery,
 } from './circular-schemas.js';
 import type { CircularsService } from './circulars-service.js';
+import { hasCommunicationAccess } from './communication-access.js';
 import {
   communicationActorId,
+  communicationRequestRoles,
   enforceCommunicationRouteAccess,
 } from './communication-http-guard.js';
 import { MAX_PAGE_LIMIT, parsePageQuery } from './pagination.js';
@@ -297,15 +299,29 @@ export async function registerCircularRoutes(
       }
       const recipientId = bodyResult.data.recipientId ?? actorId;
       if (recipientId !== actorId) {
-        const linked = recipientBinding
-          ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
-          : [];
-        if (!linked.includes(recipientId)) {
-          return reply.status(403).send({
-            code: 'FORBIDDEN',
-            message: 'You can only acknowledge for yourself or a linked student',
-            statusCode: 403,
-          });
+        // PRC-M071: staff (communication.staff) may record an acknowledgement
+        // on behalf of a recipient; that is logged with the acting subject.
+        const isStaff = hasCommunicationAccess(
+          communicationRequestRoles(request),
+          'communication.staff',
+        );
+        if (isStaff) {
+          request.log.info(
+            { circularId: paramsResult.data.id, recipientId, ackedBy: actorId, tenantId },
+            'circular acknowledged on behalf of recipient',
+          );
+        } else {
+          // PRC-M188: portal principals may ack for themselves or a linked student.
+          const linked = recipientBinding
+            ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
+            : [];
+          if (!linked.includes(recipientId)) {
+            return reply.status(403).send({
+              code: 'FORBIDDEN',
+              message: 'You can only acknowledge for yourself or a linked student',
+              statusCode: 403,
+            });
+          }
         }
       }
       try {

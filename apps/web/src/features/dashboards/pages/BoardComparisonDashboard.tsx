@@ -17,6 +17,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { DashboardLoadError } from '../DashboardLoadError';
 import {
   CartesianGrid,
   Legend,
@@ -157,7 +158,7 @@ function TrendChartCard({
 /* ------------------------------------------------------------------ */
 
 export default function BoardComparisonDashboard() {
-  const { data, isLoading } = useBoardComparisonData();
+  const { data, isLoading, error } = useBoardComparisonData();
 
   const allBoards: ReadonlyArray<BoardComparisonBoard> = data?.boards ?? [];
   const allMetrics: ReadonlyArray<BoardComparisonMetric> = data?.metrics ?? [];
@@ -242,6 +243,9 @@ export default function BoardComparisonDashboard() {
       (row) => selectedBoardIds.includes(row.boardId) && selectedMetricIds.includes(row.metricId),
     );
   }, [data, selectedBoardIds, selectedMetricIds]);
+
+  // PRC-M577: render the real failure instead of sample data.
+  if (error) return <DashboardLoadError title="Board Comparison" error={error} />;
 
   return (
     <div className="space-y-6 p-6" data-testid="board-comparison-dashboard">

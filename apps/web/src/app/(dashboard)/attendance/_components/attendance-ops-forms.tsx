@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
-import { Button, Input, Label } from '@proctira/ui/components';
+import { Button, Input, Label, Textarea } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
 import {
@@ -18,13 +19,13 @@ import {
 const uuid = z.string().uuid();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+// PRC-M081: the attendance record and its current ("from") status are
+// resolved server-side from student + class + date — no pasted ids.
 const regularisationSchema = z.object({
-  attendanceId: uuid,
   studentId: uuid,
   institutionId: uuid,
   classId: uuid,
   attendanceDate: isoDate,
-  fromStatus: z.string().min(1),
   toStatus: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'EARLY_DEPARTURE']),
   reason: z.string().max(2000).optional(),
 });
@@ -40,6 +41,10 @@ const leaveSchema = z.object({
   attachmentUrl: z.string().url().optional().or(z.literal('')),
 });
 
+function labelFor(map: Map<string, string>, id: string, fallback: string): string {
+  return map.get(id) ?? fallback;
+}
+
 export function AttendanceOpsForms({
   regularisations,
   leaves,
@@ -51,6 +56,7 @@ export function AttendanceOpsForms({
   regularisations: Array<{
     id: string;
     studentId: string;
+    classId?: string;
     fromStatus: string;
     toStatus: string;
     status: string;
@@ -59,6 +65,7 @@ export function AttendanceOpsForms({
   leaves: Array<{
     id: string;
     studentId: string;
+    classId?: string;
     fromDate: string;
     toDate: string;
     status: string;
@@ -71,7 +78,49 @@ export function AttendanceOpsForms({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
+  const classLabels = new Map(classOptions.map((o) => [o.id, o.label]));
   const [error, setError] = useState<string | null>(null);
+  // PRC-M077: every approve/reject is confirmed, may carry a decision note,
+  // and surfaces a failure instead of silently refreshing.
+  const [pendingDecision, setPendingDecision] = useState<{
+    target: 'regularisation' | 'leave';
+    id: string;
+    decision: 'approve' | 'reject';
+  } | null>(null);
+  const [decisionNote, setDecisionNote] = useState('');
+
+  function askDecision(
+    target: 'regularisation' | 'leave',
+    id: string,
+    decision: 'approve' | 'reject',
+  ) {
+    setError(null);
+    setDecisionNote('');
+    setPendingDecision({ target, id, decision });
+  }
+
+  function confirmDecision() {
+    if (!pendingDecision) return;
+    const { target, id, decision } = pendingDecision;
+    const note = decisionNote.trim() || undefined;
+    startTransition(async () => {
+      const result =
+        target === 'regularisation'
+          ? await decideRegularisationAction(id, decision, note)
+          : await decideLeaveAction(id, decision, note);
+      if (result.status === 'error') {
+        setError(
+          result.message ??
+            `Could not ${decision} the ${target === 'leave' ? 'leave request' : 'regularisation'}.`,
+        );
+        setPendingDecision(null);
+        return;
+      }
+      setPendingDecision(null);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="space-y-8" data-testid="attendance-ops-panel">
@@ -89,12 +138,10 @@ export function AttendanceOpsForms({
           setError(null);
           const fd = new FormData(event.currentTarget);
           const parsed = regularisationSchema.safeParse({
-            attendanceId: fd.get('attendanceId'),
             studentId: fd.get('studentId'),
             institutionId: fd.get('institutionId'),
             classId: fd.get('classId'),
             attendanceDate: fd.get('attendanceDate'),
-            fromStatus: fd.get('fromStatus'),
             toStatus: fd.get('toStatus'),
             reason: String(fd.get('reason') ?? '') || undefined,
           });
@@ -113,10 +160,10 @@ export function AttendanceOpsForms({
         }}
       >
         <h3 className="text-base font-semibold sm:col-span-2">Request regularisation</h3>
-        <div className="space-y-1">
-          <Label htmlFor="attendanceId">Attendance record id</Label>
-          <Input id="attendanceId" name="attendanceId" required />
-        </div>
+        <p className="text-sm text-muted-foreground sm:col-span-2" id="regularisation-help">
+          Pick the student, class and date. The recorded mark is looked up automatically and used as
+          the current status.
+        </p>
         <EntitySearchSelect
           id="studentId"
           name="studentId"
@@ -141,10 +188,6 @@ export function AttendanceOpsForms({
         <div className="space-y-1">
           <Label htmlFor="attendanceDate">Date</Label>
           <Input id="attendanceDate" name="attendanceDate" type="date" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="fromStatus">From status</Label>
-          <Input id="fromStatus" name="fromStatus" defaultValue="ABSENT" required />
         </div>
         <div className="space-y-1">
           <Label htmlFor="toStatus">To status</Label>
@@ -183,6 +226,10 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
+                {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.attendanceDate} · {row.fromStatus} → {row.toStatus} · {row.status}
               </span>
               {row.status === 'requested' ? (
@@ -191,12 +238,7 @@ export function AttendanceOpsForms({
                     type="button"
                     size="sm"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideRegularisationAction(row.id, 'approve');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('regularisation', row.id, 'approve')}
                   >
                     Approve
                   </Button>
@@ -205,12 +247,7 @@ export function AttendanceOpsForms({
                     size="sm"
                     variant="outline"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideRegularisationAction(row.id, 'reject');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('regularisation', row.id, 'reject')}
                   >
                     Reject
                   </Button>
@@ -314,6 +351,10 @@ export function AttendanceOpsForms({
               className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
             >
               <span>
+                <span className="font-medium">
+                  {labelFor(studentLabels, row.studentId, 'Unknown student')}
+                </span>
+                {row.classId ? ` · ${labelFor(classLabels, row.classId, 'Unknown class')}` : ''} ·{' '}
                 {row.fromDate}–{row.toDate} · {row.status}
                 {row.reason ? ` · ${row.reason}` : ''}
               </span>
@@ -323,12 +364,7 @@ export function AttendanceOpsForms({
                     type="button"
                     size="sm"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideLeaveAction(row.id, 'approve');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('leave', row.id, 'approve')}
                   >
                     Approve
                   </Button>
@@ -337,12 +373,7 @@ export function AttendanceOpsForms({
                     size="sm"
                     variant="outline"
                     disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await decideLeaveAction(row.id, 'reject');
-                        router.refresh();
-                      })
-                    }
+                    onClick={() => askDecision('leave', row.id, 'reject')}
                   >
                     Reject
                   </Button>
@@ -352,6 +383,32 @@ export function AttendanceOpsForms({
           ))
         )}
       </ul>
+      <ConfirmActionDialog
+        open={pendingDecision !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDecision(null);
+        }}
+        title={
+          pendingDecision
+            ? `${pendingDecision.decision === 'approve' ? 'Approve' : 'Reject'} this ${pendingDecision.target === 'leave' ? 'leave request' : 'regularisation'}?`
+            : ''
+        }
+        description="This changes the attendance register and attendance percentages. The decision and note are recorded in the audit trail."
+        confirmLabel={pendingDecision?.decision === 'reject' ? 'Reject' : 'Approve'}
+        destructive={pendingDecision?.decision === 'reject'}
+        pending={pending}
+        onConfirm={confirmDecision}
+        testId="attendance-decision-confirm"
+      >
+        <Label htmlFor="attendance-decision-note">Decision note (optional)</Label>
+        <Textarea
+          id="attendance-decision-note"
+          value={decisionNote}
+          maxLength={2000}
+          rows={3}
+          onChange={(event) => setDecisionNote(event.target.value)}
+        />
+      </ConfirmActionDialog>
     </div>
   );
 }

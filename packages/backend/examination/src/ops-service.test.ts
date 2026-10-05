@@ -100,6 +100,40 @@ describe('ExamOpsService', () => {
     candidateId = registration.id;
   });
 
+  it('PRC-M230: client tolerance is ignored and marks above maxScore are 422', async () => {
+    await ops.recordDoubleEntry(
+      TENANT,
+      examId,
+      { candidateId, subjectId, entryNo: 1, marks: 40 },
+      ACTOR,
+    );
+    const second = await ops.recordDoubleEntry(
+      TENANT,
+      examId,
+      { candidateId, subjectId, entryNo: 2, marks: 90, tolerance: 1e9 } as never,
+      MARKER_2,
+    );
+    expect(second.varianceFlag).toBe(true);
+
+    const otherSubject = (await repository.findById(examId, TENANT))!.subjects[1]!.id;
+    await expect(
+      ops.recordDoubleEntry(
+        TENANT,
+        examId,
+        { candidateId, subjectId: otherSubject, entryNo: 1, marks: 101 },
+        ACTOR,
+      ),
+    ).rejects.toMatchObject({ statusCode: 422 });
+    await expect(
+      ops.resolveMarks(
+        TENANT,
+        examId,
+        { candidateId, subjectId, finalMarks: 150 },
+        { userId: randomUUID(), roles: ['moderator'] },
+      ),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
   it('rejects a room double-booked for overlapping sessions', async () => {
     const first = await ops.createSession(
       TENANT,

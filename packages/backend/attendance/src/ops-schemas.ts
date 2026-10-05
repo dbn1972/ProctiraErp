@@ -17,11 +17,20 @@ const UUID_PATTERN =
  * supplied fromStatus must match the current status).
  */
 export const CreateRegularisationSchema = Type.Object({
-  attendanceId: Type.String({ pattern: UUID_PATTERN }),
+  /**
+   * PRC-M081: optional. The record is resolved server-side from
+   * student + class + date; when supplied (PRC-M170) it must be a UUID that
+   * names that same record.
+   */
+  attendanceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   studentId: Type.String({ minLength: 1 }),
   institutionId: Type.String({ minLength: 1 }),
   classId: Type.String({ minLength: 1 }),
   attendanceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
+  /**
+   * PRC-M081/PRC-M170: the stored status is always used; when supplied this
+   * acts as an optimistic-concurrency check and must equal the stored status.
+   */
   fromStatus: Type.Optional(Type.String({ minLength: 1 })),
   toStatus: StatusUnion,
   reason: Type.Optional(Type.String({ maxLength: 2000 })),

@@ -26,6 +26,7 @@
  */
 
 import { Briefcase, Calendar, ChevronRight, Scale, School, TrendingUp, Users } from 'lucide-react';
+import { DashboardLoadError } from '../DashboardLoadError';
 import { useNavigate } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -249,12 +250,15 @@ function EnrollmentTrendCard({ trend, loading }: EnrollmentTrendCardProps) {
 
 export default function CountryDashboard() {
   const navigate = useNavigate();
-  const { data, isLoading } = useCountryDashboardData();
+  const { data, isLoading, error } = useCountryDashboardData();
 
   const kpis = data?.kpis ?? [];
   const boards = data?.boards ?? [];
   const states = data?.states ?? [];
   const enrollmentTrend = data?.enrollmentTrend ?? [];
+
+  // PRC-M577: render the real failure instead of sample data.
+  if (error) return <DashboardLoadError title="Country Dashboard" error={error} />;
 
   return (
     <div className="space-y-6 p-6" data-testid="country-dashboard">

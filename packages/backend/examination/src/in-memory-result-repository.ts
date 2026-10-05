@@ -6,12 +6,19 @@
  * Every map is keyed by `${tenantId}:${examinationId}` so cross-tenant reads
  * return empty results (PRC-L469), mirroring RLS on the Prisma repository.
  */
+import { BusinessRuleError, ConflictError } from '@proctira/common';
+
 import type {
   ResultRepository,
   ExaminationCandidate,
   PublicationResult,
   AcademicRecordUpdate,
   ResultAnalysis,
+} from './result-repository.js';
+import {
+  MARKS_LOCKED_MESSAGE,
+  fingerprintCandidates,
+  mergeSubjectResults,
 } from './result-repository.js';
 
 function key(tenantId: string, examinationId: string): string {
@@ -52,7 +59,44 @@ export class InMemoryResultRepository implements ResultRepository {
     }
   }
 
-  async savePublicationResult(result: PublicationResult): Promise<void> {
+  async mergeCandidateMarks(
+    tenantId: string,
+    examinationId: string,
+    candidates: ExaminationCandidate[],
+  ): Promise<void> {
+    // Synchronous check + merge: atomic within the JS thread (PRC-M239).
+    const k = key(tenantId, examinationId);
+    if (this.publicationResults.has(k)) throw new BusinessRuleError(MARKS_LOCKED_MESSAGE);
+    const list = this.candidates.get(k) ?? [];
+    for (const candidate of candidates) {
+      const idx = list.findIndex((c) => c.studentId === candidate.studentId);
+      const current = idx >= 0 ? list[idx] : undefined;
+      const id = current?.id ?? candidate.id;
+      const merged: ExaminationCandidate = {
+        ...candidate,
+        id,
+        subjectResults: mergeSubjectResults(
+          current?.subjectResults ?? [],
+          candidate.subjectResults,
+          id,
+        ),
+      };
+      if (idx >= 0) list[idx] = merged;
+      else list.push(merged);
+    }
+    this.candidates.set(k, list);
+  }
+
+  async savePublicationResult(
+    result: PublicationResult,
+    options: { candidatesFingerprint?: string } = {},
+  ): Promise<void> {
+    if (options.candidatesFingerprint !== undefined) {
+      const current = this.candidates.get(key(result.tenantId, result.examinationId)) ?? [];
+      if (fingerprintCandidates(current) !== options.candidatesFingerprint) {
+        throw new ConflictError('Marks changed while results were being published; retry');
+      }
+    }
     this.publicationResults.set(key(result.tenantId, result.examinationId), result);
   }
 

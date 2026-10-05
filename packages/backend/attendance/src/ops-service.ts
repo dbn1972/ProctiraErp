@@ -11,7 +11,11 @@ import {
 } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { AttendanceRepository, AttendanceWriteOp } from './attendance-repository.js';
+import type {
+  AttendanceRepository,
+  AttendanceWriteOp,
+  StudentAttendanceEntity,
+} from './attendance-repository.js';
 import type {
   CreateLeaveRequestInput,
   CreateRegularisationInput,
@@ -100,9 +104,31 @@ export class AttendanceOpsService {
     input: CreateRegularisationInput,
     actor: OpsActor,
   ): Promise<RegularisationRecord> {
-    // PRC-M170: the stored record is the source of truth for the claim.
-    const record = await this.attendance.findStudentAttendanceById(tenantId, input.attendanceId);
-    if (!record) throw new NotFoundError(`Attendance record '${input.attendanceId}' not found`);
+    // PRC-M081: resolve the attendance record server-side (tenant-scoped) so
+    // the requester never has to paste a record id. PRC-M170: a supplied id
+    // must name that same record, and the stored record is the source of
+    // truth for the claim (student / class / institution / date / status).
+    let record: StudentAttendanceEntity | null;
+    if (input.attendanceId) {
+      record = await this.attendance.findStudentAttendanceById(tenantId, input.attendanceId);
+      if (!record) {
+        throw new NotFoundError('attendanceId does not match the record for this student and date');
+      }
+    } else {
+      record = await this.attendance.findStudentAttendance(
+        tenantId,
+        input.studentId,
+        input.classId,
+        input.attendanceDate,
+        null,
+        null,
+      );
+      if (!record) {
+        throw new NotFoundError(
+          'No attendance record exists for this student, class and date; mark attendance first',
+        );
+      }
+    }
     if (
       record.studentId !== input.studentId ||
       record.classId !== input.classId ||
@@ -115,7 +141,7 @@ export class AttendanceOpsService {
       throw new ConflictError('Attendance status changed; reload and retry');
     }
     if (record.status === input.toStatus) {
-      throw new BusinessRuleError('Attendance record already has the requested status');
+      throw new BusinessRuleError(`Attendance is already ${record.status}`);
     }
     const now = nowIso();
     return this.store.createRegularisation({

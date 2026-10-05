@@ -12,6 +12,8 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 /** Default clock-skew tolerance (5 minutes). */
 export const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
 
@@ -41,11 +43,7 @@ export interface WebhookSignedHeaders extends WebhookSignatureParts {
 }
 
 export type WebhookVerifyFailureReason =
-  | 'malformed'
-  | 'expired'
-  | 'replay'
-  | 'bad_signature'
-  | 'replay_store_unavailable';
+  'malformed' | 'expired' | 'replay' | 'bad_signature' | 'replay_store_unavailable';
 
 export type WebhookVerifyResult = { ok: true } | { ok: false; reason: WebhookVerifyFailureReason };
 
@@ -159,7 +157,7 @@ function parseUnixSeconds(raw: string | number): number | null {
 }
 
 function isProductionEnv(nodeEnv: string | undefined): boolean {
-  return (nodeEnv ?? process.env['NODE_ENV'] ?? '').toLowerCase() === 'production';
+  return isProductionNodeEnv(nodeEnv ?? process.env['NODE_ENV']);
 }
 
 /**

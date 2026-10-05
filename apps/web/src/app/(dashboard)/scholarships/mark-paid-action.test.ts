@@ -4,6 +4,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/api/scholarships', () => ({
   approveScholarshipApplication: vi.fn(),
   createScholarshipProgram: vi.fn(),
+  listScholarshipDisbursements: vi.fn(),
   rejectScholarshipApplication: vi.fn(),
   updateDisbursement: vi.fn(),
   updateScholarshipProgram: vi.fn(),

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { writeBoardExportArtifacts } from './board-export-generator.js';
 import {
@@ -86,6 +86,8 @@ function actorId(requestUser?: { id?: string; sub?: string }): string | null {
 }
 
 const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
+/** PRC-M270: a RUNNING board export older than this is considered abandoned and re-claimable. */
+const BOARD_EXPORT_LEASE_MS = 10 * 60 * 1000;
 
 /**
  * PRC-H065: `metadata.prep.candidates` holds the full export cohort (names, national IDs, marks)
@@ -1160,13 +1162,18 @@ export class GradebookService {
       throw new BusinessRuleError(`No compliance pack for board ${packCode}`);
     }
 
+    // PRC-M270: atomic claim with a lease so concurrent /process calls cannot both generate.
     const started = nowIso();
-    let running =
-      (await this.repo.updateExportJob(tenantId, job.id, {
-        status: 'RUNNING',
-        startedAt: started,
-        updatedAt: started,
-      })) ?? job;
+    const staleBefore = new Date(Date.now() - BOARD_EXPORT_LEASE_MS).toISOString();
+    const claimed = await this.repo.claimExportJob(tenantId, job.id, started, staleBefore);
+    if (!claimed) {
+      const latest = await this.repo.getExportJob(tenantId, job.id);
+      if (latest && latest.status !== 'QUEUED' && latest.status !== 'RUNNING') {
+        return toPublicBoardExportJob(latest);
+      }
+      throw new ConflictError(`Board export job ${jobId} is already being processed`);
+    }
+    let running = claimed;
 
     try {
       const artifacts = writeBoardExportArtifacts({

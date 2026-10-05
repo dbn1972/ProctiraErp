@@ -2,7 +2,13 @@
  * Communication service client — campaigns and emergency blasts.
  */
 import { GatewayError, gatewayFetch } from './gateway';
-import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
+import {
+  classifyListFailure,
+  fetchList,
+  itemsOrEmpty,
+  type ListFailureKind,
+  type ListResult,
+} from './list-result';
 
 export interface CommunicationCampaign {
   id: string;
@@ -120,12 +126,9 @@ export async function sendCampaign(id: string): Promise<SendCampaignResult> {
   return result.data;
 }
 
-export async function listEmergencyBlasts(): Promise<EmergencyBlast[]> {
-  const result = await gatewayFetch<{ data: EmergencyBlast[] }>('/communication/emergency', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+/** PRC-M076: preserves why the list is empty (denied / unavailable vs none). */
+export async function listEmergencyBlasts(): Promise<ListResult<EmergencyBlast>> {
+  return fetchList<EmergencyBlast>('/communication/emergency', { next: { revalidate: 0 } });
 }
 
 export async function createEmergencyBlast(
@@ -246,15 +249,22 @@ export interface CreateCircularInput {
   createdBy?: string;
 }
 
-export async function listCirculars(): Promise<CommunicationCircular[]> {
-  const result = await gatewayFetch<{ data: CommunicationCircular[] }>('/communication/circulars', {
-    throwOnError: false,
+/** PRC-M076: preserves why the list is empty (denied / unavailable vs none). */
+export async function listCirculars(): Promise<ListResult<CommunicationCircular>> {
+  return fetchList<CommunicationCircular>('/communication/circulars', {
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
 }
 
-export async function getCircular(id: string): Promise<CommunicationCircular | null> {
+export type CircularLookup =
+  | { ok: true; circular: CommunicationCircular }
+  | { ok: false; kind: ListFailureKind; status: number };
+
+/**
+ * PRC-M076: distinguish 404 (no such circular) from 401/403/5xx so a denial or
+ * an outage is not rendered as "not found".
+ */
+export async function getCircular(id: string): Promise<CircularLookup> {
   const result = await gatewayFetch<CommunicationCircular>(
     `/communication/circulars/${encodeURIComponent(id)}`,
     {
@@ -262,7 +272,9 @@ export async function getCircular(id: string): Promise<CommunicationCircular | n
       next: { revalidate: 0 },
     },
   );
-  return result.ok ? result.data : null;
+  if (result.ok && result.data) return { ok: true, circular: result.data };
+  const status = result.ok ? 404 : result.status;
+  return { ok: false, kind: classifyListFailure(status), status };
 }
 
 export async function createCircular(input: CreateCircularInput): Promise<CommunicationCircular> {
@@ -321,17 +333,16 @@ export async function listDeliveryLogs(
     status?: string;
     sourceType?: string;
   } = {},
-): Promise<DeliveryLogEntry[]> {
+): Promise<ListResult<DeliveryLogEntry>> {
   const params = new URLSearchParams();
   if (filters.channel) params.set('channel', filters.channel);
   if (filters.status) params.set('status', filters.status);
   if (filters.sourceType) params.set('sourceType', filters.sourceType);
   const qs = params.toString();
-  const result = await gatewayFetch<{ data: DeliveryLogEntry[] }>(
-    `/communication/delivery-log${qs ? `?${qs}` : ''}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+  // PRC-M076: a delivery-log outage must not look like "nothing failed".
+  return fetchList<DeliveryLogEntry>(`/communication/delivery-log${qs ? `?${qs}` : ''}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function retryDeliveryLog(id: string): Promise<DeliveryLogEntry> {

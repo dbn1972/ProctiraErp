@@ -13,6 +13,10 @@ import {
 } from './identity.js';
 import { keycloakAuthPlugin } from './plugin.js';
 
+// Each test generates a 2048-bit RSA key pair. Runs in ~0.4s locally, but hit 5.9s on loaded
+// CI runners (Integration Tests on #537, #547, #553) and tripped vitest's 5s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 const issuer = 'http://localhost:8180/realms/proctira';
 const config = {
   issuer,
@@ -91,6 +95,29 @@ describe('Keycloak identity projection (PRC-L283)', () => {
     await app.close();
   });
 
+  it('authenticated requests in one session read the identity store once (per-sid cache)', async () => {
+    const store = new InMemoryKeycloakIdentityStore();
+    const { app, token } = await appWith(store);
+    store.findTenantById = vi.fn().mockResolvedValue({ id: 'tenant-claim' });
+    const first = await app.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    const findIdentity = vi.spyOn(store, 'findIdentity');
+    for (let i = 0; i < 3; i += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().tenantId).toBe(first.json().tenantId);
+    }
+    expect(findIdentity).not.toHaveBeenCalled();
+    await app.close();
+  });
   it('identity mapping rejection -> 401', async () => {
     const store = new InMemoryKeycloakIdentityStore();
     store.findTenantById = vi.fn().mockResolvedValue(null);

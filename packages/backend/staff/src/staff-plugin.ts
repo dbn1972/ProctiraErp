@@ -25,6 +25,7 @@ import type { StaffHrStore } from './hr-store.js';
 import type { StaffLeaveRepository } from './leave-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
+import { resolvePayrollProrationPolicy, type PayrollProrationPolicy } from './payroll-compute.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
 import type { StaffRepository } from './staff-repository.js';
@@ -52,6 +53,11 @@ export interface StaffPluginOptions {
   appraisalWorkflowIntegration?: WorkflowIntegration;
   /** Optional notification integration for certification expiry alerts */
   trainingNotificationIntegration?: NotificationIntegration;
+  /**
+   * PRC-H089: mid-month offboard pay policy. Defaults to `process.env.PAYROLL_PRORATION`
+   * ('calendar_days' when unset). An unknown value fails plugin registration.
+   */
+  payrollProration?: PayrollProrationPolicy;
   /** Route prefix for staff (default: '/staff') */
   prefix?: string;
 }
@@ -81,6 +87,9 @@ export const staffPlugin = fp(
 
     // Decorate fastify with the staff service
     fastify.decorate('staffService', staffService);
+    // PRC-M374: every HR sub-record must reference a staff row in the caller's tenant.
+    const staffExists = async (tenantId: string, staffId: string) =>
+      (await repository.findById(staffId, tenantId)) !== null;
 
     // Encapsulate each route module that installs plugin-wide preHandlers so
     // `fp` does not leak staff RBAC onto other gateway domains (W1-SEC-02).
@@ -93,7 +102,7 @@ export const staffPlugin = fp(
 
     // Register assignment routes if repository is provided
     if (assignmentRepository) {
-      const assignmentService = new StaffAssignmentService(assignmentRepository);
+      const assignmentService = new StaffAssignmentService(assignmentRepository, staffExists);
       fastify.decorate('staffAssignmentService', assignmentService);
 
       await fastify.register(async (scope) => {
@@ -104,19 +113,21 @@ export const staffPlugin = fp(
       });
     }
 
-    const leaveService = new StaffLeaveService(leaveRepository);
+    const leaveService = new StaffLeaveService(leaveRepository, staffExists);
     fastify.decorate('staffLeaveService', leaveService);
     await fastify.register(async (scope) => {
       await registerStaffLeaveRoutes(scope, {
         leaveService,
         prefix,
-        staffExists: async (tenantId, staffId) =>
-          (await repository.findById(staffId, tenantId)) !== null,
+        staffExists,
       });
     });
 
     const hrStore = options.hrStore ?? createStaffHrStore();
-    const hrService = new StaffHrService(hrStore, staffService);
+    const hrService = new StaffHrService(hrStore, staffService, {
+      payrollProration:
+        options.payrollProration ?? resolvePayrollProrationPolicy(process.env.PAYROLL_PRORATION),
+    });
     fastify.decorate('staffHrService', hrService);
     await fastify.register(async (scope) => {
       await registerStaffHrRoutes(scope, { hrService, prefix });
@@ -128,6 +139,7 @@ export const staffPlugin = fp(
       appraisalRepos.templateRepository,
       appraisalRepos.appraisalRepository,
       options.appraisalWorkflowIntegration,
+      staffExists,
     );
     fastify.decorate('staffAppraisalService', appraisalService);
     await fastify.register(async (scope) => {
@@ -144,6 +156,7 @@ export const staffPlugin = fp(
       trainingRepos.attendanceRepository,
       trainingRepos.certificationRepository,
       options.trainingNotificationIntegration,
+      staffExists,
     );
     fastify.decorate('staffTrainingService', trainingService);
     await fastify.register(async (scope) => {

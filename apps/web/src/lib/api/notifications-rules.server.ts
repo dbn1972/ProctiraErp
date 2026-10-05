@@ -105,11 +105,14 @@ export async function updateNotificationRule(
   ruleId: string,
   input: UpdateNotificationRuleInput,
 ): Promise<{ rule: NotificationRule | null; error?: string }> {
-  const result = await gatewayFetch<NotificationRule>(`/notifications/rules/${ruleId}`, {
-    method: 'PUT',
-    json: input,
-    throwOnError: false,
-  });
+  const result = await gatewayFetch<NotificationRule>(
+    `/notifications/rules/${encodeURIComponent(ruleId)}`,
+    {
+      method: 'PUT',
+      json: input,
+      throwOnError: false,
+    },
+  );
   if (result.ok && result.data) {
     return { rule: result.data };
   }
@@ -119,7 +122,7 @@ export async function updateNotificationRule(
 export async function deleteNotificationRule(
   ruleId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const result = await gatewayFetch<null>(`/notifications/rules/${ruleId}`, {
+  const result = await gatewayFetch<null>(`/notifications/rules/${encodeURIComponent(ruleId)}`, {
     method: 'DELETE',
     throwOnError: false,
   });

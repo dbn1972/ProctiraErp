@@ -153,7 +153,11 @@
     "mfaPrintCodes": "కోడ్‌లను ప్రింట్ చేయండి",
     "mfaAcknowledgement": "నేను నా బ్యాకప్ కోడ్‌లను సురక్షిత ప్రదేశంలో సేవ్ చేశాను.",
     "mfaAcknowledgementHelp": "మీరు సెటప్‌ను పూర్తి చేసిన తర్వాత ఈ కోడ్‌లను మళ్ళీ చూడలేరు.",
-    "mfaFinishSetup": "సెటప్‌ను పూర్తి చేయండి"
+    "mfaFinishSetup": "సెటప్‌ను పూర్తి చేయండి",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "డాష్‌బోర్డ్",
@@ -670,7 +674,8 @@
     "accessDeniedTitle": "యాక్సెస్ నిరాకరించబడింది",
     "accessDeniedHelp": "మీకు యాక్సెస్ ఉండాలని భావిస్తే మీ నిర్వాహకుడిని సంప్రదించండి.",
     "returnToDashboard": "డాష్‌బోర్డ్‌కు తిరిగి వెళ్ళు",
-    "tableAriaLabel": "ఆరోగ్య రికార్డులు"
+    "tableAriaLabel": "ఆరోగ్య రికార్డులు",
+    "unknownStudent": "తెలియని విద్యార్థి"
   },
   "workflows": {
     "title": "వర్క్‌ఫ్లో నిర్వచనాలు",

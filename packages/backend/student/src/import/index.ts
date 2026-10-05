@@ -21,6 +21,7 @@ export type {
   StudentRecord,
   StudentRepository,
   ImportQueue,
+  ImportProgressStore,
 } from './types.js';
 export { MAX_IMPORT_FILE_SIZE, ASYNC_THRESHOLD_ROWS } from './types.js';
 
@@ -64,6 +65,13 @@ export type {
 // In-memory implementations (for testing)
 export { InMemoryStudentRepository } from './in-memory-student-repository.js';
 export { InMemoryImportQueue } from './in-memory-import-queue.js';
+export {
+  CacheImportProgressStore,
+  InMemoryImportProgressStore,
+  createImportProgressStoreFromEnv,
+  IMPORT_PROGRESS_TTL_SECONDS,
+} from './progress-store.js';
+export type { ImportProgressCache } from './progress-store.js';
 
 // Durable import queue spine (W2-JOB-06)
 export { QueueImportQueue } from './queue-import-queue.js';

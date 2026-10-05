@@ -33,6 +33,7 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
     this.additionalData,
     this.documentIds,
     this.draftApplicationId,
+    this.academicRecord,
   });
 
   final String programId;
@@ -43,6 +44,9 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
   /// When set, finalize this draft instead of posting a new application.
   final String? draftApplicationId;
 
+  /// Current school record from the form; synced into the draft.
+  final ScholarshipAcademicRecord? academicRecord;
+
   @override
   List<Object?> get props => <Object?>[
     programId,
@@ -50,6 +54,7 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
     additionalData,
     documentIds,
     draftApplicationId,
+    academicRecord,
   ];
 }
 
@@ -71,6 +76,7 @@ class ScholarshipState extends Equatable {
     this.applications = const <ScholarshipApplication>[],
     this.studentId = '',
     this.errorMessage,
+    this.fromCache = false,
   });
 
   final ScholarshipStatus status;
@@ -79,12 +85,16 @@ class ScholarshipState extends Equatable {
   final String studentId;
   final String? errorMessage;
 
+  /// Data is saved offline copy, not a live answer (PRC-M043).
+  final bool fromCache;
+
   ScholarshipState copyWith({
     ScholarshipStatus? status,
     List<ScholarshipProgram>? programs,
     List<ScholarshipApplication>? applications,
     String? studentId,
     String? errorMessage,
+    bool? fromCache,
   }) {
     return ScholarshipState(
       status: status ?? this.status,
@@ -92,6 +102,7 @@ class ScholarshipState extends Equatable {
       applications: applications ?? this.applications,
       studentId: studentId ?? this.studentId,
       errorMessage: errorMessage,
+      fromCache: fromCache ?? this.fromCache,
     );
   }
 
@@ -102,6 +113,7 @@ class ScholarshipState extends Equatable {
     applications,
     studentId,
     errorMessage,
+    fromCache,
   ];
 }
 
@@ -127,7 +139,11 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
     try {
       final List<ScholarshipProgram> programs = await _repository.getPrograms();
       emit(
-        state.copyWith(status: ScholarshipStatus.loaded, programs: programs),
+        state.copyWith(
+          status: ScholarshipStatus.loaded,
+          programs: programs,
+          fromCache: _repository.lastServedFromCache,
+        ),
       );
     } catch (error) {
       emit(
@@ -169,6 +185,7 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
         state.copyWith(
           status: ScholarshipStatus.loaded,
           applications: applications,
+          fromCache: _repository.lastServedFromCache,
         ),
       );
     } catch (error) {
@@ -214,6 +231,19 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
 
       final String? draftId = event.draftApplicationId;
       if (draftId != null && draftId.isNotEmpty) {
+        // Edits made after the first upload must reach the server before
+        // finalize (PRC-M044).
+        final ScholarshipAcademicRecord? record = event.academicRecord;
+        if (record != null) {
+          final Object? statement = event.additionalData?['personalStatement'];
+          final Object? income = event.additionalData?['familyIncome'];
+          await _repository.updateDraftApplication(
+            applicationId: draftId,
+            academicRecord: record,
+            personalStatement: statement is String ? statement : null,
+            familyIncome: income is num ? income.toDouble() : null,
+          );
+        }
         await _repository.finalizeApplication(draftId);
       } else {
         await _repository.submitApplication(

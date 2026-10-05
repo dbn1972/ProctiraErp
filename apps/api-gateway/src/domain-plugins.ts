@@ -100,10 +100,16 @@ import {
   createAreaHierarchyDb,
   createInstitutionRepository,
   institutionPlugin,
+  type RolloverExtras,
   type RolloverSummary,
 } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
-import { createLmsRepository, LmsService, lmsPlugin } from '@proctira/backend-lms';
+import {
+  createLmsRepository,
+  LmsService,
+  lmsPlugin,
+  type LmsRepository,
+} from '@proctira/backend-lms';
 import {
   createNotificationDeliveryPublisherFromEnv,
   createNotificationStack,
@@ -113,8 +119,11 @@ import { createParentPortalRepository, parentPortalPlugin } from '@proctira/back
 import {
   createPrivacyQueuePublishersFromEnv,
   createPrivacyRepository,
+  PgDomainSubjectAnonymizer,
+  PgTenantWipeExecutor,
   PrivacyService,
   privacyPlugin,
+  readFinanceHealthErasureMode,
 } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
@@ -133,6 +142,7 @@ import {
   linkedStudentIdsForParent,
   scholarshipPlugin,
   parentScholarshipPlugin,
+  type RedisLikeForDownloadReplay,
   type ScholarshipRepository,
 } from '@proctira/backend-scholarship';
 import {
@@ -148,6 +158,8 @@ import {
 } from '@proctira/backend-student';
 import {
   createTimetableRepository,
+  createTimetableOpsStore,
+  type TimetableRepository,
   TimetableService,
   timetablePlugin,
 } from '@proctira/backend-timetable';
@@ -164,6 +176,7 @@ import type { FastifyInstance } from 'fastify';
 
 import {
   formatAdmissionNumber,
+  loadAdmissionsTimeZone,
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
@@ -177,7 +190,9 @@ import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
+import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 
@@ -199,6 +214,118 @@ function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
  * PRC-H020: the fees netting routes verify disbursements against the repository
  * mounted by the scholarship registrar (same instance in in-memory mode).
  */
+/**
+ * PRC-L320: one Timetable/LMS service instance per gateway app, shared by the
+ * mounted domain plugin and the institution rollover clone hooks (keyed on the
+ * per-app dependencies object so separate test apps never share state).
+ */
+const sharedDomainServices = new WeakMap<
+  DomainPluginDependencies,
+  {
+    timetable?: { service: TimetableService; repository: TimetableRepository };
+    lms?: { service: LmsService; repository: LmsRepository };
+  }
+>();
+function sharedServicesFor(dependencies: DomainPluginDependencies) {
+  let entry = sharedDomainServices.get(dependencies);
+  if (!entry) {
+    entry = {};
+    sharedDomainServices.set(dependencies, entry);
+  }
+  return entry;
+}
+export function sharedTimetableService(dependencies: DomainPluginDependencies): {
+  service: TimetableService;
+  repository: TimetableRepository;
+} {
+  const entry = sharedServicesFor(dependencies);
+  if (!entry.timetable) {
+    const repository = createTimetableRepository();
+    entry.timetable = {
+      repository,
+      service: new TimetableService(repository, createTimetableOpsStore()),
+    };
+  }
+  return entry.timetable;
+}
+export function sharedLmsService(dependencies: DomainPluginDependencies): {
+  service: LmsService;
+  repository: LmsRepository;
+} {
+  const entry = sharedServicesFor(dependencies);
+  if (!entry.lms) {
+    const repository = createLmsRepository();
+    entry.lms = { repository, service: new LmsService(repository) };
+  }
+  return entry.lms;
+}
+/**
+ * PRC-L318: claim-first rollover ledger hooks over `academic_rollover_runs`.
+ * The claim is a single INSERT … ON CONFLICT so exactly one concurrent
+ * same-key request wins; a previously `failed` row may be re-claimed.
+ */
+export function createRolloverClaimHooks(
+  pool: NonNullable<ReturnType<typeof getSharedPgPool>>,
+): Pick<RolloverExtras, 'claimRolloverRun' | 'finishRolloverRun'> {
+  return {
+    claimRolloverRun: (input) =>
+      withPgTenant(pool, input.tenantId, async (client) => {
+        const claimed = await client.query(
+          `INSERT INTO academic_rollover_runs (
+             id, tenant_id, source_period_id, target_period_id, actor_id,
+             dry_run, idempotency_key, request, summary, status
+           ) VALUES (
+             gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4,
+             false, $5, $6::jsonb, '{}'::jsonb, 'running'
+           )
+           ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+           DO UPDATE SET status = 'running',
+                         actor_id = EXCLUDED.actor_id,
+                         source_period_id = EXCLUDED.source_period_id,
+                         target_period_id = EXCLUDED.target_period_id,
+                         request = EXCLUDED.request
+             WHERE academic_rollover_runs.status = 'failed'
+           RETURNING id`,
+          [
+            input.tenantId,
+            input.sourcePeriodId,
+            input.targetPeriodId,
+            input.actorId,
+            input.idempotencyKey,
+            JSON.stringify(input.request),
+          ],
+        );
+        const claimedRow = claimed.rows[0] as { id: string } | undefined;
+        if (claimedRow) return { state: 'claimed' as const, runId: claimedRow.id };
+        const existing = await client.query(
+          `SELECT status, summary FROM academic_rollover_runs
+            WHERE tenant_id = $1::uuid AND idempotency_key = $2
+            LIMIT 1`,
+          [input.tenantId, input.idempotencyKey],
+        );
+        const row = existing.rows[0] as { status: string; summary: RolloverSummary } | undefined;
+        return row?.status === 'completed'
+          ? { state: 'completed' as const, summary: row.summary }
+          : { state: 'running' as const };
+      }),
+    finishRolloverRun: async (input) => {
+      await withPgTenant(pool, input.tenantId, async (client) => {
+        await client.query(
+          `UPDATE academic_rollover_runs
+              SET status = $3,
+                  summary = COALESCE($4::jsonb, summary)
+            WHERE id = $1::uuid AND tenant_id = $2::uuid`,
+          [
+            input.runId,
+            input.tenantId,
+            input.status,
+            input.summary ? JSON.stringify(input.summary) : null,
+          ],
+        );
+      });
+    },
+  };
+}
 let mountedScholarshipRepository: ScholarshipRepository | null = null;
 function scholarshipRepositoryForFees(): ScholarshipRepository {
   mountedScholarshipRepository ??= createScholarshipRepository();
@@ -384,13 +511,46 @@ export function assertOfferFeeInvoicePaid(invoiceStatus: string): void {
   );
 }
 
+/**
+ * PRC-M327: the invoice used to accept an offer must be the server-raised
+ * admissions invoice for that application, for exactly the offer fee.
+ */
+export function assertOfferFeeInvoiceMatchesOffer(
+  invoice: {
+    createdBy?: string | null;
+    description?: string | null;
+    amountCents: number;
+    currency: string;
+  },
+  offer: { applicationId: string; expectedAmount: number; expectedCurrency: string },
+): void {
+  if (
+    invoice.createdBy !== 'admissions-offer' ||
+    invoice.description !== `Admission application ${offer.applicationId}` ||
+    invoice.amountCents !== offerFeeAmountCents(offer.expectedAmount) ||
+    invoice.currency !== (offer.expectedCurrency || 'INR')
+  ) {
+    throw new BusinessRuleError('Offer fee invoice does not match this offer');
+  }
+}
 function assertOfferFeePaidHook() {
   // PRC-H079 / PRC-C002: read-only verification. Payment is recorded only by the verified
   // PSP webhook / callback path; a client paymentRef is never payment proof.
-  return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+  return async (input: {
+    tenantId: string;
+    invoiceId: string;
+    applicationId: string;
+    offerId: string;
+    expectedAmount: number;
+    expectedCurrency: string;
+    paymentRef?: string | null;
+  }) => {
     // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    // PRC-M327: the invoice must be the admissions invoice for THIS application
+    // and match the offer fee exactly (no swapping in a cheaper/foreign invoice).
+    assertOfferFeeInvoiceMatchesOffer(invoice, input);
     assertOfferFeeInvoicePaid(invoice.status);
   };
 }
@@ -536,11 +696,7 @@ async function createAdmissionsEnrollment(
       );
       const seq = Number((counter.rows[0] as { last_value: number }).last_value);
       // PRC-L002: admission-number year and enrolment date follow the tenant's local calendar.
-      const tenantTz = await client.query(
-        `SELECT config->'locale'->>'timezone' AS tz FROM tenants WHERE id = $1::uuid`,
-        [input.tenantId],
-      );
-      const timeZone = (tenantTz.rows[0] as { tz?: string | null } | undefined)?.tz;
+      const timeZone = await loadAdmissionsTimeZone(client, input.tenantId);
       const acceptedAt = new Date();
       const admissionNo = formatAdmissionNumber(acceptedAt, timeZone, seq);
       await client.query(
@@ -672,15 +828,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       '/institution-subjects',
       '/infrastructure',
     ],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
       const feesForRollover = new FeesService(createFeesRepository());
       // PRC-L320: timetable/LMS clone hooks are wired directly (no catch-and-zero
-      // fallback that reported success with zero counts on an import failure).
-      const timetableForRollover = new TimetableService(createTimetableRepository());
-      const lmsForRollover = new LmsService(createLmsRepository());
+      // fallback) and reuse the SAME service instances the timetable/LMS domain
+      // plugins mount, rather than constructing private copies.
+      const timetableForRollover = sharedTimetableService(dependencies).service;
+      const lmsForRollover = sharedLmsService(dependencies).service;
       const copyTimetable = (
         tenantId: string,
         _actorId: string,
@@ -741,6 +898,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                   return row?.summary ?? null;
                 })
             : undefined,
+          // PRC-L318: claim-first ledger (insert `running` before executing, then
+          // complete/fail). Needs the `running` status in the ledger CHECK, so it
+          // is opt-in until that migration is applied everywhere.
+          ...(pgPool && process.env['ROLLOVER_LEDGER_CLAIM_FIRST'] === 'true'
+            ? createRolloverClaimHooks(pgPool)
+            : {}),
           recordRolloverRun: pgPool
             ? async (input) => {
                 await withPgTenant(pgPool, input.tenantId, async (client) => {
@@ -851,6 +1014,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         outboxStore: documentOutboxHandle?.outboxStore,
         examOpsStore,
         prefix: '/examinations',
+        // PRC-L104: exam calendar-date rules run in the tenant's configured timezone.
+        timeZone: createTenantTimeZoneResolver({ sources: pgTenantTimeZoneSources() }),
       });
     },
   },
@@ -889,11 +1054,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'timetable',
     proxyPrefixes: ['/timetable'],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // Raw pg against 003_sis_timetable_schedule_schema.sql when DATABASE_URL
       // is set; in-memory otherwise. No Prisma on this path.
+      // PRC-L320: mount the shared instance (also used by institution rollover).
+      const shared = sharedTimetableService(dependencies);
       await scope.register(timetablePlugin, {
-        repository: createTimetableRepository(),
+        repository: shared.repository,
+        service: shared.service,
         prefix: '/timetable',
       });
     },
@@ -939,10 +1107,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'lms',
     proxyPrefixes: ['/lms'],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // G-801/G-802/G-915: Pg when DATABASE_URL (026 + 038); else in-memory.
+      // PRC-L320: mount the shared instance (also used by institution rollover).
+      const shared = sharedLmsService(dependencies);
       await scope.register(lmsPlugin, {
-        repository: createLmsRepository(),
+        repository: shared.repository,
+        service: shared.service,
         prefix: '/lms',
       });
     },
@@ -964,7 +1135,28 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const resolveLinkedStudentIds = isPgScholarshipEnabled()
         ? linkedStudentIdsForParent
         : undefined;
+      // PRC-L344: single-use download links are enforced through shared Redis (REDIS_URL) so
+      // they hold across replicas. Every served download writes one hash-chained access row
+      // through the scholarship document store (PRC-M353) before any bytes are sent.
+      let downloadReplayRedis: RedisLikeForDownloadReplay | undefined;
+      const scholarshipRedisUrl = process.env['REDIS_URL']?.trim();
+      if (scholarshipRedisUrl) {
+        const { default: Redis } = await import('ioredis');
+        const redis = new Redis(scholarshipRedisUrl, {
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
+        downloadReplayRedis = redis;
+        scope.addHook('onClose', async () => {
+          await redis.quit();
+        });
+      }
+      const downloadReplayGuard = createScholarshipDownloadReplayGuard({
+        redis: downloadReplayRedis,
+        NODE_ENV: process.env['NODE_ENV'],
+      });
       await scope.register(scholarshipPlugin, {
+        downloadReplayGuard,
         repository,
         prefix: '/scholarships',
         documentStore,
@@ -1004,6 +1196,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/parent-portal/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        downloadReplayGuard,
       });
     },
   },
@@ -1444,9 +1637,39 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           await queueHandle.disconnect();
         });
       }
+      // PRC-H077: real per-domain anonymizers + tenant wipe on Postgres. Without
+      // a pool, erasure/offboard stay 'not implemented' (501) — never faked.
+      const privacyPool = getSharedPgPool();
+      const financeHealthMode = readFinanceHealthErasureMode();
       await scope.register(privacyPlugin, {
         repository: sharedPrivacyRepository,
         prefix: '/privacy',
+        ...(privacyPool
+          ? {
+              anonymizer: new PgDomainSubjectAnonymizer(privacyPool, { financeHealthMode }),
+              tenantWipeExecutor: new PgTenantWipeExecutor(privacyPool, { financeHealthMode }),
+            }
+          : {}),
+        // PRC-M323: privacy lifecycle writes land in the platform audit trail.
+        audit: {
+          record: async (event) => {
+            const auditService = (
+              scope as unknown as {
+                auditService?: {
+                  recordAudit: (input: Record<string, unknown>) => Promise<unknown>;
+                };
+              }
+            ).auditService;
+            if (!auditService) {
+              scope.log.warn(
+                { entityType: event.entityType, entityId: event.entityId },
+                'privacy audit event dropped: auditService not registered',
+              );
+              return;
+            }
+            await auditService.recordAudit({ ...event });
+          },
+        },
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
         // PRC-H078: in-process consumers (dedicated connections) for both job types.

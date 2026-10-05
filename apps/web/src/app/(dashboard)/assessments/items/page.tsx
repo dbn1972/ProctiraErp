@@ -83,6 +83,8 @@ export default async function AssessmentItemsPage(props: PageProps) {
             </p>
           ) : (
             <AssessmentItemsForm
+              // Remount per pair so defaultValues reflect the freshly loaded items (PRC-M069).
+              key={`${subjectId}:${academicPeriodId}`}
               schemes={schemesResponse.data.map((s) => ({
                 id: s.id,
                 name: s.name,

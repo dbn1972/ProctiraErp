@@ -1,7 +1,19 @@
 /**
  * G-914 — attendance heatmap aggregation from daily records.
- * Formula matches GET /attendance/percentage: (present + late) / total * 100.
+ * Formula matches GET /attendance/percentage (attendance-service.ts, G-919):
+ * (present + late + 0.5 * earlyDeparture) / total * 100.
  */
+
+/** Same partial-credit weight as the attendance module (PRC-M385). */
+export const EARLY_DEPARTURE_WEIGHT = 0.5;
+/** PRC-M385: max inclusive span of a heatmap request. */
+export const HEATMAP_MAX_DAYS = 366;
+
+/** Inclusive day count between two ISO dates (UTC). */
+export function heatmapSpanDays(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`);
+  return Math.floor(ms / 86_400_000) + 1;
+}
 export type HeatSlot = 'present' | 'half' | 'absent' | 'empty';
 
 export interface AttendanceDayInput {
@@ -25,6 +37,7 @@ export interface HeatmapResult {
   absentCount: number;
   lateCount: number;
   excusedCount: number;
+  earlyDepartureCount: number;
   days: HeatmapDay[];
 }
 
@@ -44,6 +57,8 @@ function rankStatus(status: string): number {
   switch (status) {
     case 'ABSENT':
       return 3;
+    case 'EARLY_DEPARTURE':
+      return 2;
     case 'LATE':
       return 2;
     case 'EXCUSED':
@@ -57,7 +72,7 @@ function rankStatus(status: string): number {
 
 function slotFor(status: string | null): HeatSlot {
   if (status === 'ABSENT') return 'absent';
-  if (status === 'LATE') return 'half';
+  if (status === 'LATE' || status === 'EARLY_DEPARTURE') return 'half';
   if (status === 'PRESENT' || status === 'EXCUSED') return 'present';
   return 'empty';
 }
@@ -77,6 +92,10 @@ export function aggregateAttendanceHeatmap(
   from: string,
   to: string,
 ): HeatmapResult {
+  // Defense in depth: never materialise an unbounded day array.
+  if (heatmapSpanDays(from, to) > HEATMAP_MAX_DAYS) {
+    throw new RangeError(`Heatmap range exceeds ${HEATMAP_MAX_DAYS} days`);
+  }
   const byDate = new Map<string, string[]>();
   for (const rec of records) {
     if (rec.date < from || rec.date > to) continue;
@@ -103,8 +122,17 @@ export function aggregateAttendanceHeatmap(
   const excusedCount = records.filter(
     (r) => r.date >= from && r.date <= to && r.status === 'EXCUSED',
   ).length;
+  const earlyDepartureCount = records.filter(
+    (r) => r.date >= from && r.date <= to && r.status === 'EARLY_DEPARTURE',
+  ).length;
   const attendancePercentage =
-    totalRecords === 0 ? 0 : Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
+    totalRecords === 0
+      ? 0
+      : Math.round(
+          ((presentCount + lateCount + EARLY_DEPARTURE_WEIGHT * earlyDepartureCount) /
+            totalRecords) *
+            10000,
+        ) / 100;
   const absencePercentage =
     totalRecords === 0 ? 0 : Math.round((absentCount / totalRecords) * 10000) / 100;
 
@@ -118,6 +146,7 @@ export function aggregateAttendanceHeatmap(
     absentCount,
     lateCount,
     excusedCount,
+    earlyDepartureCount,
     days,
   };
 }

@@ -266,7 +266,27 @@ export class AttendanceService {
       errors: [],
     };
 
+    // PRC-M574: every record must belong to the class roster for this period and
+    // date, so a client cannot post one class's students under another classId.
+    const enrolled = new Set(
+      (
+        await this.repository.getClassRoster(
+          tenantId,
+          input.classId,
+          input.academicPeriodId,
+          input.date,
+        )
+      ).map((entry) => entry.studentId),
+    );
+
     for (const record of input.records) {
+      if (!enrolled.has(record.studentId)) {
+        result.errors.push({
+          studentId: record.studentId,
+          message: `Student is not enrolled in class '${input.classId}' for this period and date`,
+        });
+        continue;
+      }
       try {
         const existing = await this.repository.findStudentAttendance(
           tenantId,

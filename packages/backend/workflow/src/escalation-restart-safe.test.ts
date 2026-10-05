@@ -112,6 +112,8 @@ describe('workflow escalation restart-safe spine', () => {
 
     // scheduleEscalation already published via QueueEscalationPublisher
     expect(store.pendingCount).toBeGreaterThanOrEqual(1);
+    // PRC-H110: the in-memory adapter honours the 1-minute delay; fast-forward.
+    for (const entry of store.pending) entry.availableAt = Date.now();
 
     let hangResolve!: () => void;
     const hang = new Promise<void>((r) => {

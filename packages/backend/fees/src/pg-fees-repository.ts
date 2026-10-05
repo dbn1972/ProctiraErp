@@ -714,6 +714,17 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
+  async classExists(tenantId: string, classId: string): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT 1 FROM classes WHERE id = $1::uuid AND tenant_id = $2::uuid AND deleted_at IS NULL`,
+        [classId, tenantId],
+      );
+      return result.rows.length > 0;
+    });
+  }
+
   async listStudentIdsForScope(
     tenantId: string,
     scope: { classId?: string | null; gradeId?: string | null },

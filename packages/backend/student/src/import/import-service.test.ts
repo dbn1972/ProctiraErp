@@ -431,13 +431,13 @@ describe('ImportService', () => {
 
   describe('getImportProgress', () => {
     it('should return null for unknown job ID', async () => {
-      const progress = await service.getImportProgress('non-existent-job');
+      const progress = await service.getImportProgress(TENANT_ID, 'non-existent-job');
       expect(progress).toBeNull();
     });
 
     it('should return progress for a queued job', async () => {
       // Simulate a queued job
-      await queue.updateProgress('job-123', {
+      await queue.updateProgress(TENANT_ID, 'job-123', {
         jobId: 'job-123',
         status: 'processing',
         totalRows: 500,
@@ -446,7 +446,7 @@ describe('ImportService', () => {
         startedAt: new Date().toISOString(),
       });
 
-      const progress = await service.getImportProgress('job-123');
+      const progress = await service.getImportProgress(TENANT_ID, 'job-123');
       expect(progress).toBeDefined();
       expect(progress!.status).toBe('processing');
       expect(progress!.progressPercent).toBe(50);

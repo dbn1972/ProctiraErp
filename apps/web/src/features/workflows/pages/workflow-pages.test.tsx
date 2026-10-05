@@ -142,4 +142,24 @@ describe('WorkflowInbox pagination', () => {
     render(<WorkflowInbox />);
     expect(await screen.findByText('Inbox unavailable')).toBeInTheDocument();
   });
+  it('asks the server for my assigned instances with priority filter (PRC-M491)', async () => {
+    fetchMock.mockResolvedValue({
+      data: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 },
+    });
+    render(<WorkflowInbox />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const first = new URLSearchParams(String(fetchMock.mock.calls[0]![0]).split('?')[1]);
+    expect(first.get('mine')).toBe('true');
+    const prioritySelect = screen
+      .getAllByRole('combobox')
+      .find((el) => Array.from((el as HTMLSelectElement).options).some((o) => o.value === 'high'))!;
+    await act(async () => {
+      fireEvent.change(prioritySelect, { target: { value: 'high' } });
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const second = new URLSearchParams(String(fetchMock.mock.calls[1]![0]).split('?')[1]);
+    expect(second.get('priority')).toBe('high');
+    expect(second.get('page')).toBe('1');
+  });
 });

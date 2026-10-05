@@ -12,6 +12,8 @@ export interface LmsPluginOptions {
   repository: LmsRepository;
   /** Route prefix (default: '/lms') */
   prefix?: string;
+  /** PRC-L320: pre-built service shared with in-process callers (rollover). */
+  service?: LmsService;
 }
 
 declare module 'fastify' {
@@ -23,7 +25,7 @@ declare module 'fastify' {
 export const lmsPlugin = fp(
   async function lmsPluginImpl(fastify: FastifyInstance, options: LmsPluginOptions) {
     const { repository, prefix = '/lms' } = options;
-    const lmsService = new LmsService(repository);
+    const lmsService = options.service ?? new LmsService(repository);
     fastify.decorate('lmsService', lmsService);
     await registerLmsRoutes(fastify, { lmsService, prefix });
   },

@@ -153,7 +153,11 @@
     "mfaPrintCodes": "ಕೋಡ್‌ಗಳನ್ನು ಮುದ್ರಿಸಿ",
     "mfaAcknowledgement": "ನಾನು ನನ್ನ ಬ್ಯಾಕಪ್ ಕೋಡ್‌ಗಳನ್ನು ಸುರಕ್ಷಿತ ಸ್ಥಳದಲ್ಲಿ ಉಳಿಸಿದ್ದೇನೆ.",
     "mfaAcknowledgementHelp": "ಸೆಟಪ್ ಮುಗಿಸಿದ ನಂತರ ನೀವು ಈ ಕೋಡ್‌ಗಳನ್ನು ಮತ್ತೆ ನೋಡಲು ಸಾಧ್ಯವಿಲ್ಲ.",
-    "mfaFinishSetup": "ಸೆಟಪ್ ಪೂರ್ಣಗೊಳಿಸಿ"
+    "mfaFinishSetup": "ಸೆಟಪ್ ಪೂರ್ಣಗೊಳಿಸಿ",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
@@ -670,7 +674,8 @@
     "accessDeniedTitle": "ಪ್ರವೇಶ ನಿರಾಕರಿಸಲಾಗಿದೆ",
     "accessDeniedHelp": "ನಿಮಗೆ ಪ್ರವೇಶ ಇರಬೇಕೆಂದು ಭಾವಿಸಿದರೆ ನಿಮ್ಮ ನಿರ್ವಾಹಕರನ್ನು ಸಂಪರ್ಕಿಸಿ.",
     "returnToDashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ಗೆ ಹಿಂತಿರುಗಿ",
-    "tableAriaLabel": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು"
+    "tableAriaLabel": "ಆರೋಗ್ಯ ದಾಖಲೆಗಳು",
+    "unknownStudent": "ಅಜ್ಞಾತ ವಿದ್ಯಾರ್ಥಿ"
   },
   "workflows": {
     "title": "ವರ್ಕ್‌ಫ್ಲೋ ವ್ಯಾಖ್ಯಾನಗಳು",

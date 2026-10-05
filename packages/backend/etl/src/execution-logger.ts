@@ -49,7 +49,7 @@ export interface ExecutionSummary {
   executionId: string;
   pipelineId: string;
   tenantId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'completed_with_errors' | 'failed';
   startedAt: Date;
   completedAt: Date;
   totalDurationMs: number;
@@ -214,7 +214,8 @@ export class ExecutionLogger {
           executionId,
           tenantId,
           message: `Row ${err.row}: ${err.message}${err.field ? ` (field: ${err.field})` : ''}`,
-          metadata: { row: err.row, field: err.field, data: err.data },
+          // PRC-M224: row index/field only — never source row values (PII) in logs.
+          metadata: { row: err.row, field: err.field },
         };
         this.sink.error(errorEntry);
       }
@@ -259,7 +260,8 @@ export class ExecutionLogger {
           executionId,
           tenantId,
           message: `Row ${err.row}: ${err.message}`,
-          metadata: { row: err.row, data: err.data },
+          // PRC-M224: row index only — never row values (PII) in logs.
+          metadata: { row: err.row },
         };
         this.sink.error(errorEntry);
       }
@@ -301,6 +303,35 @@ export class ExecutionLogger {
   /**
    * Log a pipeline execution failure.
    */
+  /**
+   * PRC-M223: a stored schedule could not be registered (e.g. invalid cron); the
+   * pipeline stays readable/editable but is not scheduled.
+   */
+  logScheduleSkipped(pipelineId: string, tenantId: string, reason: string): void {
+    this.sink.warn({
+      timestamp: new Date(),
+      level: 'warn',
+      phase: 'pipeline',
+      pipelineId,
+      executionId: '',
+      tenantId,
+      message: `Schedule not registered: ${reason}`,
+    });
+  }
+
+  /** PRC-M226: a scheduled run (or the tick) failed outside an execution. */
+  logScheduledRunError(pipelineId: string, tenantId: string, message: string): void {
+    this.sink.error({
+      timestamp: new Date(),
+      level: 'error',
+      phase: 'pipeline',
+      pipelineId,
+      executionId: '',
+      tenantId,
+      message: `Scheduled run failed: ${message}`,
+    });
+  }
+
   logExecutionFailure(
     executionId: string,
     pipelineId: string,

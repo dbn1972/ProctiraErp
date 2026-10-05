@@ -15,6 +15,8 @@ class Student implements Versioned {
     this.dateOfBirth,
     this.gender,
     this.institutionId,
+    this.className,
+    this.grade,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -28,6 +30,13 @@ class Student implements Versioned {
   final String? dateOfBirth;
   final String? gender;
   final String? institutionId;
+
+  /// Current class / section label, when the API includes enrollment
+  /// placement (PRC-M031). Used to filter the attendance roster offline.
+  final String? className;
+
+  /// Current grade label, when supplied by the API.
+  final String? grade;
   final String createdAt;
   final String updatedAt;
 
@@ -51,8 +60,22 @@ class Student implements Versioned {
       dateOfBirth: json['dateOfBirth'] as String?,
       gender: json['gender'] as String?,
       institutionId: json['institutionId'] as String?,
+      className: _firstString(json, const <String>[
+        'className',
+        'sectionName',
+        'class',
+      ]),
+      grade: _firstString(json, const <String>['grade', 'gradeName']),
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
     );
+  }
+
+  static String? _firstString(Map<String, dynamic> json, List<String> keys) {
+    for (final String key in keys) {
+      final Object? value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
   }
 }

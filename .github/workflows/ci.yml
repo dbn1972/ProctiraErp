@@ -12,7 +12,10 @@ on:
   push:
     branches: [main, develop, 'release/**']
   pull_request:
-    branches: [main, develop]
+    # integration/**: PRs into a merge train need the same gates as PRs into
+    # main. Without this, "green" on a train PR excludes lint, typecheck, unit,
+    # integration, tenant-isolation and security scans.
+    branches: [main, develop, 'integration/**']
 
 concurrency:
   # Include sha so a queued-but-never-started run cannot hold the group forever
@@ -911,6 +914,11 @@ jobs:
           CI: true
           REQUIRE_LIVE_TESTS: '1'
           LIVE_TEST_MIN_EXECUTED: '10'
+          # PRC-L499: staff live-PG suites must execute (not just count toward the minimum).
+          LIVE_TEST_REQUIRED_FILES: >-
+            packages/backend/staff/src/pg-leave-repository.live.test.ts,
+            packages/backend/staff/src/hr-pg-and-routes.live.test.ts,
+            packages/backend/staff/src/staff-import-transaction.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)

@@ -31,10 +31,30 @@ async function seedTenant(tenantId: string): Promise<void> {
   await ensurePgTestTenant(pool!, tenantId);
 }
 
+/** JWT subjects used by the end-to-end case (PRC-M490: the actor comes from the token). */
+const SUBMITTER_SUB = 'user-1';
+const APPROVER_SUB = 'admin-1';
+
+/** Headers the test auth hook maps onto `request.user` (sub + role ids). */
+const asUser = (sub: string, roleIds: readonly string[] = []) => ({
+  'x-test-user': sub,
+  'x-test-roles': roleIds.join(','),
+});
+
 async function buildApp(tenantId: string): Promise<FastifyInstance> {
   const app = Fastify();
   app.addHook('onRequest', async (request) => {
     (request as typeof request & { tenantId: string }).tenantId = tenantId;
+    // Stand-in for the gateway auth plugin: production `request.user` is a JwtPayload whose
+    // `roles` are RoleAssignment objects, so mirror that shape (same as routes-actor.test.ts).
+    const sub = request.headers['x-test-user'];
+    if (typeof sub === 'string' && sub.length > 0) {
+      const roles = String(request.headers['x-test-roles'] ?? '')
+        .split(',')
+        .filter((roleId) => roleId.length > 0)
+        .map((roleId) => ({ roleId, roleName: roleId.toUpperCase(), areaId: 'area-1' }));
+      (request as typeof request & { user: unknown }).user = { sub, roles };
+    }
   });
   await app.register(workflowPlugin, {
     repository: new PgWorkflowRepository(pool!),
@@ -49,7 +69,14 @@ const definitionBody = {
   name: 'Transfer approval',
   entityType: 'student_transfer',
   states: [
-    { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
+    // `draft` is assigned to a specific user, later states to the `admin` role id.
+    {
+      id: 'draft',
+      name: 'Draft',
+      type: 'INITIAL',
+      assigneeType: 'user',
+      assigneeId: SUBMITTER_SUB,
+    },
     {
       id: 'review',
       name: 'Review',
@@ -114,13 +141,26 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     const submit = await app.inject({
       method: 'POST',
       url: `/workflow-engine/instances/${instance.id}/transition`,
-      payload: { action: 'submit', actorId: 'user-1', comments: 'please review' },
+      headers: asUser(SUBMITTER_SUB),
+      // A body actorId is ignored over HTTP; the audit must record the JWT subject.
+      payload: { action: 'submit', actorId: 'spoofed-actor', comments: 'please review' },
     });
     expect(submit.statusCode).toBe(200);
+
+    // The submitter does not hold the `admin` role, so it cannot act on `review`.
+    const notAssignee = await app.inject({
+      method: 'POST',
+      url: `/workflow-engine/instances/${instance.id}/transition`,
+      headers: asUser(SUBMITTER_SUB),
+      payload: { action: 'approve' },
+    });
+    expect(notAssignee.statusCode).toBe(403);
+
     const approve = await app.inject({
       method: 'POST',
       url: `/workflow-engine/instances/${instance.id}/transition`,
-      payload: { action: 'approve', actorId: 'admin-1' },
+      headers: asUser(APPROVER_SUB, ['admin']),
+      payload: { action: 'approve' },
     });
     expect(approve.statusCode).toBe(200);
     expect((approve.json() as { status: string }).status).toBe('COMPLETED');
@@ -133,6 +173,11 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     const auditBody = audit.json() as { data?: unknown[] } | unknown[];
     const records = Array.isArray(auditBody) ? auditBody : (auditBody.data ?? []);
     expect(records).toHaveLength(2);
+    expect(
+      (records as { action: string; actorId: string }[])
+        .map((r) => `${r.action}:${r.actorId}`)
+        .sort(),
+    ).toEqual([`approve:${APPROVER_SUB}`, `submit:${SUBMITTER_SUB}`]);
 
     const caseRes = await app.inject({
       method: 'POST',
@@ -154,6 +199,7 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     const fetched = await again.inject({
       method: 'GET',
       url: `/workflow-engine/instances/${instance.id}`,
+      headers: asUser(APPROVER_SUB, ['admin']),
     });
     expect(fetched.statusCode).toBe(200);
     expect((fetched.json() as { status: string }).status).toBe('COMPLETED');

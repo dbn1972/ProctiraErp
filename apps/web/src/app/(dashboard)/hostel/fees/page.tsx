@@ -11,6 +11,7 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { listHostelFeeStructures, listHostels } from '@/lib/api/hostel';
+import { formatMoney } from '@/lib/format-money';
 import { HostelFeeStructureForm } from '../_components/fee-structure-form';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ export default async function HostelFeesPage() {
                     {row.roomType} · {row.termLabel}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {row.amountCents} {row.currency}
+                    {formatMoney(row.amountCents, row.currency)}
                   </p>
                 </li>
               ))}
