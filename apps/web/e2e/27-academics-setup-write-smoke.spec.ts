@@ -15,6 +15,8 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** Server Action + route refresh can exceed 15s on loaded CI runners (fits the 90s CI test timeout). */
+const UI_WRITE_TIMEOUT = 30_000;
 const GATEWAY_URL =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
@@ -158,8 +160,10 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
     await dialog.getByLabel('Code').fill(code);
     await dialog.getByLabel('Order').fill('9');
     await dialog.getByRole('button', { name: /create grade/i }).click();
-    await expect(dialog).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByText(`Grade ${code}`)).toBeVisible({ timeout: 15_000 });
+    // The create Server Action stayed pending (button disabled, no error) past 15s on a
+    // loaded CI runner; give the action + router.refresh() the same budget as other writes.
+    await expect(dialog).toBeHidden({ timeout: UI_WRITE_TIMEOUT });
+    await expect(page.getByText(`Grade ${code}`)).toBeVisible({ timeout: UI_WRITE_TIMEOUT });
   });
 
   test('infrastructure hierarchy persists and renders', async ({ page, request }) => {
