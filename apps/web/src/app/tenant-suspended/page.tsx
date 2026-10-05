@@ -24,7 +24,7 @@ export default function TenantSuspendedPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Access to this school&apos;s workspace is paused. Contact your school administrator or
-          Proctira support to restore access. No data has been changed.
+          platform support to restore access. No data has been changed.
         </p>
       </div>
       <Button asChild variant="outline">

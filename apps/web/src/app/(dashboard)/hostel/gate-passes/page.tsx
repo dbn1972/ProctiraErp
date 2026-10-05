@@ -11,7 +11,7 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { getTenantSettings } from '@/lib/api/admin.server';
-import { formatInTimeZone } from '@/lib/datetime/zoned';
+import { formatDateTimeWithZone } from '@/lib/datetime/zoned';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -30,12 +30,7 @@ export default async function HostelGatePassesPage() {
   ]);
   // PRC-M478: capture and display gate-pass times in the tenant timezone.
   const timeZone = tenant.settings?.timezone ?? null;
-  const formatTime = (iso: string) =>
-    formatInTimeZone(iso, timeZone, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZoneName: 'short',
-    } as Intl.DateTimeFormatOptions);
+  const formatTime = (iso: string) => formatDateTimeWithZone(iso, timeZone);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
