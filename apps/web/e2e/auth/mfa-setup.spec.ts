@@ -26,6 +26,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { setupFakeTenantSession } from '../fixtures/fake-session';
 import { runAxe } from '../helpers/axe';
 
 const SETUP_PATHS = ['/auth/mfa-setup', '/mfa-setup', '/mfa/setup'];
@@ -63,9 +64,19 @@ async function findSetupRoute(page: import('@playwright/test').Page): Promise<st
 }
 
 test.describe('auth — MFA setup (QR + backup codes)', () => {
+  // PRC-H019: `/mfa-setup` enrols a TOTP secret for the signed-in user, so the
+  // middleware no longer treats it as public. Anonymous visitors go to login.
+  test('redirects anonymous visitors to login', async ({ page }) => {
+    await page.goto('/mfa-setup');
+    await expect(page).toHaveURL(/\/login\?returnTo=%2Fmfa-setup$/);
+  });
+
   test('renders QR, secret, and 10 backup codes; finish CTA gated on acknowledgement', async ({
     page,
   }) => {
+    // Enrolment is for the signed-in user (PRC-H019), so start with a session.
+    await setupFakeTenantSession(page);
+
     // Mock the upstream enrolment endpoint. We match both the local
     // route handler shape and the upstream contract so the test is
     // robust whichever client path the screen takes.
