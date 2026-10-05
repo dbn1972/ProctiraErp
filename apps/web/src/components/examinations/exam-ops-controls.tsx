@@ -57,9 +57,12 @@ const REGISTRABLE: ReadonlySet<Examination['status']> = new Set(['DRAFT', 'SCHED
 export function RegisterCandidateDialog({
   examination,
   studentOptions = [],
+  studentTotal,
 }: {
   examination: Examination;
   studentOptions?: EntityLabelOption[];
+  /** Student directory size when `studentOptions` is a capped page (PRC-M083). */
+  studentTotal?: number;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -119,6 +122,8 @@ export function RegisterCandidateDialog({
               name="studentId"
               label="Student"
               options={studentOptions}
+              remoteSearch="student"
+              totalAvailable={studentTotal}
               required
             />
             <div className="space-y-1.5">

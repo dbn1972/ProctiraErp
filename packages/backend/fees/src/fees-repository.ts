@@ -353,6 +353,11 @@ export interface FeesRepository {
     tenantId: string,
     scope: { classId?: string | null; gradeId?: string | null },
   ): Promise<string[]>;
+  /**
+   * PRC-M087: true only when `classId` is a live row of the tenant's
+   * `classes` table (not a timetable section id).
+   */
+  classExists(tenantId: string, classId: string): Promise<boolean>;
 
   createFeeStructure(
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,

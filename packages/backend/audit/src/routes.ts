@@ -22,6 +22,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { AuditLogEntry, AuditRetentionConfig, ArchivalResult } from './audit-repository.js';
 import type { AuditService } from './audit-service.js';
 import {
   RecordAuditSchema,
@@ -29,13 +30,7 @@ import {
   QueryAuditLogsSchema,
   AuditEntryParamsSchema,
   SetRetentionConfigSchema,
-  type RecordAuditInput,
-  type RecordAuditBatchInput,
-  type QueryAuditLogsInput,
-  type AuditEntryParams,
-  type SetRetentionConfigInput,
 } from './schemas.js';
-import type { AuditLogEntry, AuditRetentionConfig, ArchivalResult } from './audit-repository.js';
 
 /**
  * Options for registering audit routes.
@@ -398,8 +393,11 @@ export async function registerAuditRoutes(
     }
   });
 
-  // GET /audit/dsar/:subjectId — G-734 Data Subject Access Request export
-  fastify.get(`${prefix}/dsar/:subjectId`, async (request: FastifyRequest, reply: FastifyReply) => {
+  // G-734 Data Subject Access Request export. PRC-M084: every export
+  // (POST is the explicit UI action; GET kept for API compatibility) writes
+  // an audit row with the actor, subject and entry count *before* the
+  // package is returned, so an unaudited export is impossible (fail closed).
+  const dsarExportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const subjectId = String((request.params as { subjectId?: string }).subjectId ?? '').trim();
       if (!subjectId) {
@@ -411,6 +409,24 @@ export async function registerAuditRoutes(
       }
       const tenantId = getTenantId(request);
       const pack = await auditService.exportDataSubjectPackage(tenantId, subjectId);
+      const { userId, userName } = getUserInfo(request);
+      await auditService.recordAudit({
+        tenantId,
+        entityType: 'dsar_export',
+        entityId: subjectId,
+        operation: 'CREATE',
+        userId,
+        userName,
+        ipAddress: getClientIp(request),
+        beforeValues: null,
+        afterValues: {
+          subjectId,
+          entryCount: pack.entryCount,
+          truncated: pack.truncated,
+          exportedAt: pack.exportedAt,
+        },
+        metadata: { action: 'dsar_export', method: request.method },
+      });
       return reply.status(200).send({
         subjectId: pack.subjectId,
         tenantId: pack.tenantId,
@@ -429,7 +445,9 @@ export async function registerAuditRoutes(
       }
       throw error;
     }
-  });
+  };
+  fastify.get(`${prefix}/dsar/:subjectId`, dsarExportHandler);
+  fastify.post(`${prefix}/dsar/:subjectId/export`, dsarExportHandler);
 
   // GET /audit/:id - Get a single audit log entry
   fastify.get(`${prefix}/:id`, async (request: FastifyRequest, reply: FastifyReply) => {

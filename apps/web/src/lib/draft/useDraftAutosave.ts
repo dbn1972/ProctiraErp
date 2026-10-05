@@ -41,6 +41,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { buildDraftKey, readDraft, removeDraft, writeDraft, type DraftEnvelope } from './storage';
+
+// Storage primitives live in the hook-free `./storage` module so
+// server-reachable code (e.g. `lib/sw/purge.ts`) can use them without
+// pulling React hooks into the server graph. Re-exported here so existing
+// importers of `@/lib/draft/useDraftAutosave` keep working.
+export { buildDraftKey, purgeAllDrafts } from './storage';
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 /**
@@ -54,24 +62,7 @@ export const DRAFT_AUTOSAVE_MAX_INTERVAL_MS = 30_000;
 /** Default autosave debounce when the caller omits `intervalMs`. */
 export const DRAFT_AUTOSAVE_DEFAULT_INTERVAL_MS = 30_000;
 
-/** Schema version stamped on every persisted draft. Bump when shape changes. */
-const DRAFT_SCHEMA_VERSION = 1;
-
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-/**
- * The on-disk shape. We persist a small envelope so that future
- * migrations can detect a stale schema and discard the draft rather
- * than handing malformed data back to the form.
- */
-interface DraftEnvelope<T> {
-  /** Schema version. Older envelopes are discarded silently. */
-  v: number;
-  /** ISO 8601 UTC timestamp of the last write. */
-  savedAt: string;
-  /** The form values as supplied by the caller. */
-  values: T;
-}
 
 /**
  * Public return shape of `useDraftAutosave`. The wizard reads
@@ -113,100 +104,23 @@ export interface DraftAutosave<T> {
   restore: () => T | null;
 }
 
-// ─── Internal helpers ────────────────────────────────────────────────────────
-
-/**
- * The configured brand prefix for storage namespacing. Matches the
- * convention in `lib/sync/syncQueue.ts` so multi-tenant deployments
- * keep their drafts isolated. Falls back to `proctira` when the env
- * is missing (e.g. SSR, tests).
- */
-function getBrand(): string {
-  if (typeof process !== 'undefined' && process.env) {
-    const brand = process.env['NEXT_PUBLIC_BRAND'] ?? process.env['OPENEMIS_BRAND'];
-    if (brand && brand.length > 0) return brand;
-  }
-  return 'proctira';
-}
-
-/**
- * Capture the current route segment so the storage key can be
- * scoped to the page that owns the draft. Drafts under
- * `/registration/form` should not collide with drafts under, say,
- * `/app/students/new` even if both forms reuse the same `formId`.
- *
- * SSR safe: returns `'_'` outside the browser.
- */
-function getRoute(): string {
-  if (typeof window === 'undefined') return '_';
-  // `window.location.pathname` is stable across re-renders within a
-  // SPA navigation because `useDraftAutosave` is mounted inside a
-  // route component and unmounted on route exit. We deliberately do
-  // not subscribe to pathname changes — the key should remain frozen
-  // for the life of the form mount.
-  return window.location.pathname || '/';
-}
-
-/** Build the localStorage key for a given form id at the current route. */
-export function buildDraftKey(formId: string): string {
-  return `${getBrand()}-draft:${getRoute()}:${formId}`;
-}
-
-/**
- * Read the current draft from storage. Returns `null` when storage
- * is unavailable, the slot is empty, or the persisted envelope is
- * malformed / stale.
- */
-function readDraft<T>(key: string): DraftEnvelope<T> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      (parsed as { v?: unknown }).v !== DRAFT_SCHEMA_VERSION
-    ) {
-      // Stale schema — discard so we never hand malformed data to the form.
-      window.localStorage.removeItem(key);
-      return null;
-    }
-    return parsed as DraftEnvelope<T>;
-  } catch {
-    // SecurityError (private mode), QuotaExceededError, or invalid JSON.
-    return null;
-  }
-}
-
-/** Write a draft envelope, swallowing storage errors silently. */
-function writeDraft<T>(key: string, values: T): void {
-  if (typeof window === 'undefined') return;
-  const envelope: DraftEnvelope<T> = {
-    v: DRAFT_SCHEMA_VERSION,
-    savedAt: new Date().toISOString(),
-    values,
-  };
-  try {
-    window.localStorage.setItem(key, JSON.stringify(envelope));
-  } catch {
-    // Quota or permission denial — surfacing this would block the form
-    // for users on private-mode browsers, which is worse than a
-    // best-effort save. Sync_Queue still owns the durable replay path.
-  }
-}
-
-/** Delete a draft, swallowing storage errors silently. */
-function removeDraft(key: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // No-op (see writeDraft for rationale).
-  }
-}
-
 // ─── Public hook ─────────────────────────────────────────────────────────────
+
+/** Optional scoping / lifetime controls for `useDraftAutosave`. */
+export interface DraftAutosaveOptions {
+  /**
+   * Identity scope embedded in the storage key, normally
+   * `<tenantId>:<userId>` (PRC-M079).
+   */
+  scope?: string;
+  /** Discard drafts older than this many milliseconds (PRC-M079). */
+  ttlMs?: number;
+  /**
+   * When true the hook neither reads nor writes storage. Use while the
+   * form has no stable identity (e.g. no user scope or no selection).
+   */
+  disabled?: boolean;
+}
 
 /**
  * Auto-save in-progress form data to `localStorage` and rehydrate on
@@ -222,7 +136,9 @@ function removeDraft(key: string): void {
 export function useDraftAutosave<T>(
   formId: string,
   intervalMs: number = DRAFT_AUTOSAVE_DEFAULT_INTERVAL_MS,
+  options: DraftAutosaveOptions = {},
 ): DraftAutosave<T> {
+  const { scope, ttlMs, disabled = false } = options;
   // Clamp the interval to the AC ceiling. Negative or NaN values fall
   // through to the default; ergonomics over strict validation.
   const safeInterval =
@@ -235,30 +151,44 @@ export function useDraftAutosave<T>(
   // mid-form. Both `formId` and the route should be stable for a
   // given form mount; if the caller passes a different `formId` we
   // pick it up via the useRef + effect dance below.
-  const keyRef = useRef<string>(buildDraftKey(formId));
-  useEffect(() => {
-    keyRef.current = buildDraftKey(formId);
-  }, [formId]);
-
-  const [hydrated, setHydrated] = useState<DraftEnvelope<T> | null>(() =>
-    readDraft<T>(keyRef.current),
-  );
-
-  // Rehydrate after mount so SSR renders match the server's empty
-  // state and the client picks up the stored draft on hydrate. We
-  // deliberately re-read in an effect: `useState`'s initializer runs
-  // on the server during Next's SSR pass, where `window` may be
-  // unavailable. The effect only runs in the browser.
-  useEffect(() => {
-    setHydrated(readDraft<T>(keyRef.current));
-  }, []);
-
+  // `null` key = storage disabled for this mount.
+  const keyRef = useRef<string | null>(disabled ? null : buildDraftKey(formId, scope));
   // Debounce machinery. We keep both the timer and the most recent
   // pending value in refs so the public callbacks remain referentially
   // stable and we never miss a final save when the component unmounts
   // mid-debounce.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<T | null>(null);
+  const ttlRef = useRef<number | undefined>(ttlMs);
+  ttlRef.current = ttlMs;
+
+  const [hydrated, setHydrated] = useState<DraftEnvelope<T> | null>(() =>
+    keyRef.current ? readDraft<T>(keyRef.current, ttlMs) : null,
+  );
+
+  // Rehydrate after mount so SSR renders match the server's empty
+  // state and the client picks up the stored draft on hydrate. We
+  // deliberately re-read in an effect: `useState`'s initializer runs
+  // on the server during Next's SSR pass, where `window` may be
+  // unavailable. The effect only runs in the browser. It also re-runs
+  // when the key changes (PRC-M080) so a draft for one selection is
+  // never presented under another selection.
+  useEffect(() => {
+    const nextKey = disabled ? null : buildDraftKey(formId, scope);
+    if (nextKey !== keyRef.current) {
+      // Persist any pending edit under the key it was made for before switching.
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (pendingRef.current !== null && keyRef.current) {
+        writeDraft<T>(keyRef.current, pendingRef.current);
+      }
+      pendingRef.current = null;
+    }
+    keyRef.current = nextKey;
+    setHydrated(keyRef.current ? readDraft<T>(keyRef.current, ttlRef.current) : null);
+  }, [formId, scope, disabled]);
 
   const flushPending = useCallback(() => {
     if (timerRef.current !== null) {
@@ -266,7 +196,7 @@ export function useDraftAutosave<T>(
       timerRef.current = null;
     }
     if (pendingRef.current !== null) {
-      writeDraft<T>(keyRef.current, pendingRef.current);
+      if (keyRef.current) writeDraft<T>(keyRef.current, pendingRef.current);
       pendingRef.current = null;
     }
   }, []);
@@ -281,7 +211,7 @@ export function useDraftAutosave<T>(
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         if (pendingRef.current !== null) {
-          writeDraft<T>(keyRef.current, pendingRef.current);
+          if (keyRef.current) writeDraft<T>(keyRef.current, pendingRef.current);
           pendingRef.current = null;
         }
       }, safeInterval);
@@ -303,12 +233,12 @@ export function useDraftAutosave<T>(
       timerRef.current = null;
     }
     pendingRef.current = null;
-    removeDraft(keyRef.current);
+    if (keyRef.current) removeDraft(keyRef.current);
     setHydrated(null);
   }, []);
 
   const restore = useCallback((): T | null => {
-    const env = readDraft<T>(keyRef.current);
+    const env = keyRef.current ? readDraft<T>(keyRef.current, ttlRef.current) : null;
     setHydrated(env);
     return env?.values ?? null;
   }, []);

@@ -257,8 +257,16 @@ export interface PlatformItemResult<T> {
   errorCode?: string;
 }
 
-async function fetchPlatformItem<T>(path: string): Promise<PlatformItemResult<T>> {
-  const result = await gatewayFetch<T>(path, { throwOnError: false, next: { revalidate: 0 } });
+async function fetchPlatformItem<T>(
+  path: string,
+  method: 'GET' | 'POST' = 'GET',
+): Promise<PlatformItemResult<T>> {
+  const result = await gatewayFetch<T>(
+    path,
+    method === 'GET'
+      ? { throwOnError: false, next: { revalidate: 0 } }
+      : { method, json: {}, throwOnError: false, cache: 'no-store' },
+  );
   const source = scaffoldSourceFromResponse(result.ok, result.status);
   if (result.status === 403) {
     return { data: null, source, access: 'forbidden', errorCode: result.error?.code };
@@ -340,15 +348,22 @@ export interface DsarPackage {
   entries: AuditLogEntry[];
 }
 
-/** `GET /audit-logs/dsar/:subjectId` — every entry where the subject is the entity or the actor. */
+/**
+ * `POST /audit-logs/dsar/:subjectId/export` — every entry where the subject is
+ * the entity or the actor. PRC-M084: explicit, audited export action.
+ */
 export async function exportDsarPackage(
   subjectId: string,
-): Promise<PlatformItemResult<DsarPackage>> {
+): Promise<PlatformItemResult<DsarPackage> & { raw?: unknown }> {
   const raw = await fetchPlatformItem<
     Omit<DsarPackage, 'entries'> & { entries: Record<string, unknown>[] }
-  >(`/audit-logs/dsar/${encodeURIComponent(subjectId)}`);
+  >(`/audit-logs/dsar/${encodeURIComponent(subjectId)}/export`, 'POST');
   if (!raw.data) return { ...raw, data: null };
-  return { ...raw, data: { ...raw.data, entries: raw.data.entries.map(mapAuditEntry) } };
+  return {
+    ...raw,
+    raw: raw.data,
+    data: { ...raw.data, entries: raw.data.entries.map(mapAuditEntry) },
+  };
 }
 
 // ─── Tenant lifecycle ────────────────────────────────────────────────────

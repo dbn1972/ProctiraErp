@@ -17,6 +17,8 @@
  */
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { personDisplayName } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import {
   Eye,
   HeartPulse,
@@ -104,8 +106,16 @@ export default async function HealthRecordsPage() {
       </section>
     );
   }
-  const records = result.items;
-
+  // PRC-M088: names come from the student directory, never an id fragment.
+  const studentLabels = await loadStudentLabelMap(result.items.map((r) => r.studentId));
+  const records = result.items.map((r) => ({
+    ...r,
+    studentName: personDisplayName(
+      studentLabels.get(r.studentId),
+      r.studentName,
+      t('unknownStudent'),
+    ),
+  }));
   const total = records.length;
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;
   const withChronic = records.filter((r) => (r.chronicConditions?.length ?? 0) > 0).length;

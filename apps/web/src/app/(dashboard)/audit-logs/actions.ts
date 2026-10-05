@@ -7,7 +7,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { GatewayError } from '@/lib/api/gateway';
-import { runAuditArchival, saveAuditRetention } from '@/lib/api/platform.server';
+import {
+  runAuditArchival,
+  saveAuditRetention,
+  verifyAuditChain,
+  type AuditChainVerification,
+} from '@/lib/api/platform.server';
 
 export interface AuditActionState {
   status: 'idle' | 'success' | 'error';
@@ -67,4 +72,16 @@ export async function runArchivalAction(): Promise<AuditActionState> {
   } catch (error) {
     return fail(error, 'Could not run archival');
   }
+}
+
+/**
+ * PRC-M085: full hash-chain verification is an explicit action, not part of
+ * every audit-log page load, so page latency does not grow with the table.
+ */
+export async function verifyAuditChainAction(): Promise<{
+  verification: AuditChainVerification | null;
+  forbidden: boolean;
+}> {
+  const result = await verifyAuditChain();
+  return { verification: result.data ?? null, forbidden: result.access === 'forbidden' };
 }

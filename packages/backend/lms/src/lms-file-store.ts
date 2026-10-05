@@ -27,7 +27,49 @@ export const LMS_ALLOWED_MIME = new Set([
   'video/mp4',
 ]);
 
-export function assertAllowedUpload(mimeType: string, byteSize: number): void {
+/** Base64 inflates by 4/3; this keeps a 5 MB file + JSON envelope under the route limit. */
+export const LMS_UPLOAD_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+
+function startsWith(bytes: Uint8Array, signature: readonly number[], offset = 0): boolean {
+  if (bytes.length < offset + signature.length) return false;
+  return signature.every((value, index) => bytes[offset + index] === value);
+}
+
+const ascii = (text: string): number[] => Array.from(text, (ch) => ch.charCodeAt(0));
+
+/**
+ * PRC-M099: the declared MIME type must match the file's magic bytes, so an
+ * executable renamed/declared as PDF (or any other allow-listed type) is refused.
+ */
+export function contentMatchesMime(mimeType: string, bytes: Uint8Array): boolean {
+  switch (mimeType) {
+    case 'application/pdf':
+      return startsWith(bytes, ascii('%PDF-'));
+    case 'image/png':
+      return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    case 'image/jpeg':
+      return startsWith(bytes, [0xff, 0xd8, 0xff]);
+    case 'image/webp':
+      return startsWith(bytes, ascii('RIFF')) && startsWith(bytes, ascii('WEBP'), 8);
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      return startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]);
+    case 'video/mp4':
+      return startsWith(bytes, ascii('ftyp'), 4);
+    case 'text/plain': {
+      // Text must not carry a known binary signature or NUL bytes in its head.
+      if (startsWith(bytes, ascii('MZ')) || startsWith(bytes, [0x7f, 0x45, 0x4c, 0x46])) {
+        return false;
+      }
+      const head = bytes.subarray(0, Math.min(bytes.length, 8192));
+      return !head.includes(0);
+    }
+    default:
+      return false;
+  }
+}
+
+export function assertAllowedUpload(mimeType: string, byteSize: number, bytes?: Uint8Array): void {
   if (byteSize > MAX_BYTES) {
     throw Object.assign(new Error('File exceeds 5 MB'), { code: 'FILE_TOO_LARGE' });
   }
@@ -37,6 +79,11 @@ export function assertAllowedUpload(mimeType: string, byteSize: number): void {
   if (!LMS_ALLOWED_MIME.has(mimeType)) {
     throw Object.assign(new Error(`MIME type not allowed: ${mimeType}`), {
       code: 'MIME_NOT_ALLOWED',
+    });
+  }
+  if (bytes && !contentMatchesMime(mimeType, bytes)) {
+    throw Object.assign(new Error(`File content does not match ${mimeType}`), {
+      code: 'MIME_MISMATCH',
     });
   }
 }
