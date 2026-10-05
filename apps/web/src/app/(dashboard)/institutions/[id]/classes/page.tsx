@@ -48,6 +48,8 @@ interface ClassesData {
   grades: Grade[];
   periods: AcademicPeriod[];
   error: string | null;
+  /** PRC-M096: grades API failed — say so instead of a misleading empty state. */
+  gradesError: boolean;
 }
 
 export default async function InstitutionClassesPage(props: ClassesPageProps) {
@@ -56,19 +58,15 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
   const data = await loadClasses(params.id);
   const activePeriod = data.periods.find((period) => period.status === 'active') ?? data.periods[0];
   const periodParam = searchParams.period ?? activePeriod?.id ?? 'all';
-  const gradeParam = searchParams.grade ?? 'senior';
+  // PRC-M096: default to every grade; the old hard-coded "Classes 9-12" view
+  // hid all sections of primary-only institutions.
+  const gradeParam = searchParams.grade ?? 'all';
   const periodScoped =
     periodParam === 'all'
       ? data.classes
       : data.classes.filter((section) => section.academicPeriodId === periodParam);
   const visibleClasses = periodScoped
-    .filter((section) => {
-      const grade = data.grades.find((item) => item.id === section.gradeId);
-      if (gradeParam === 'all') return true;
-      if (gradeParam === 'senior')
-        return grade != null && ['9', '10', '11', '12'].includes(grade.code);
-      return section.gradeId === gradeParam;
-    })
+    .filter((section) => gradeParam === 'all' || section.gradeId === gradeParam)
     .slice()
     .sort((a, b) => {
       const left = data.grades.find((item) => item.id === a.gradeId);
@@ -120,6 +118,39 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
                   className="font-semibold underline"
                 >
                   Retry
+                </Link>
+              </p>
+            </div>
+          ) : data.gradesError ? (
+            <div className="px-6 py-8" role="alert" data-testid="classes-grades-error">
+              <p className="font-medium">Grades could not be loaded</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sections cannot be grouped by grade right now.{' '}
+                <Link
+                  href={`/institutions/${params.id}/classes`}
+                  className="font-semibold underline"
+                >
+                  Retry
+                </Link>
+              </p>
+            </div>
+          ) : null}
+          {data.error ? null : visibleClasses.length === 0 && periodScoped.length > 0 ? (
+            <div
+              className="flex flex-col items-center justify-center gap-2 py-14 text-center"
+              role="status"
+              data-testid="classes-filtered-empty"
+            >
+              <Layers className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+              <p className="text-base font-semibold">No sections match this grade</p>
+              <p className="text-sm text-muted-foreground">
+                {periodScoped.length} {periodScoped.length === 1 ? 'section is' : 'sections are'}{' '}
+                hidden by the grade filter.{' '}
+                <Link
+                  href={`/institutions/${params.id}/classes?grade=all${periodParam !== 'all' ? `&period=${periodParam}` : ''}`}
+                  className="font-semibold underline"
+                >
+                  Show all grades
                 </Link>
               </p>
             </div>
@@ -230,17 +261,22 @@ async function loadStaffOptions() {
 
 async function loadClasses(institutionId: string): Promise<ClassesData> {
   try {
+    let gradesError = false;
     const [classes, grades, periods] = await Promise.all([
       listClassesByInstitution(institutionId),
-      listGrades().catch(() => [] as Grade[]),
+      listGrades().catch(() => {
+        gradesError = true;
+        return [] as Grade[];
+      }),
       listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
     ]);
-    return { classes, grades, periods, error: null };
+    return { classes, grades, periods, error: null, gradesError };
   } catch (error) {
     return {
       classes: [],
       grades: [],
       periods: [],
+      gradesError: false,
       error:
         error instanceof ApiClientError
           ? error.message

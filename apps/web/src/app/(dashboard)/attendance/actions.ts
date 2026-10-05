@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 
 import {
   calculateAttendancePercentage,
+  exportAttendanceReport,
   createLeaveRequest,
   createRegularisation,
   decideLeaveRequest,
@@ -21,6 +22,8 @@ import {
   type StudentAttendanceStatus,
 } from '@/lib/api/attendance';
 import { GatewayError } from '@/lib/api/gateway';
+import { withStudentLabels } from '@/lib/load-entity-labels';
+import { toAttendanceReportCsv } from '@/lib/attendance/report-csv';
 import {
   attendanceMarkingFormSchema,
   attendanceReportFiltersSchema,
@@ -94,9 +97,64 @@ export async function markAttendanceAction(
   }
 }
 
+/** Report result plus student names for per-student rows (PRC-M082). */
+export type AttendanceReportView = AttendancePercentageResult & {
+  studentLabels: Record<string, string>;
+};
+
+async function studentLabelsFor(result: AttendancePercentageResult): Promise<Map<string, string>> {
+  const ids = (result.studentRows ?? []).map((row) => row.studentId);
+  if (ids.length === 0) return new Map();
+  return withStudentLabels(new Map(), ids);
+}
+
+/**
+ * PRC-M082: server-side, audited CSV export. The gateway records the export
+ * (POST /attendance/reports/export) and the CSV is built here with names.
+ */
+export async function exportAttendanceReportAction(
+  values: AttendanceReportFiltersValues,
+  scopeLabel: string,
+): Promise<ActionState<{ filename: string; csv: string }>> {
+  const parsed = attendanceReportFiltersSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'Please fix the highlighted fields.',
+    };
+  }
+  try {
+    const result = await exportAttendanceReport({
+      scope: parsed.data.scope,
+      ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
+      ...(parsed.data.classId ? { classId: parsed.data.classId } : {}),
+      ...(parsed.data.institutionId ? { institutionId: parsed.data.institutionId } : {}),
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+    });
+    if (!result) return { status: 'error', message: 'Export returned no data.' };
+    const labels = await studentLabelsFor(result);
+    const csv = toAttendanceReportCsv(
+      result,
+      { startDate: parsed.data.startDate, endDate: parsed.data.endDate },
+      scopeLabel.slice(0, 200),
+      labels,
+    );
+    return {
+      status: 'success',
+      data: {
+        filename: `attendance-${result.scope}-${parsed.data.startDate}-${parsed.data.endDate}.csv`,
+        csv,
+      },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Failed to export attendance report');
+  }
+}
+
 export async function getAttendanceReportAction(
   values: AttendanceReportFiltersValues,
-): Promise<ActionState<AttendancePercentageResult>> {
+): Promise<ActionState<AttendanceReportView>> {
   const parsed = attendanceReportFiltersSchema.safeParse(values);
   if (!parsed.success) {
     return {
@@ -121,22 +179,18 @@ export async function getAttendanceReportAction(
         message: 'No attendance data is available for the selected scope.',
       };
     }
-    return { status: 'success', data: result };
+    const labels = await studentLabelsFor(result);
+    return { status: 'success', data: { ...result, studentLabels: Object.fromEntries(labels) } };
   } catch (error) {
-    return toErrorState<AttendancePercentageResult>(
-      error,
-      'Failed to calculate attendance percentage',
-    );
+    return toErrorState<AttendanceReportView>(error, 'Failed to calculate attendance percentage');
   }
 }
 
 export async function createRegularisationAction(input: {
-  attendanceId: string;
   studentId: string;
   institutionId: string;
   classId: string;
   attendanceDate: string;
-  fromStatus: string;
   toStatus: StudentAttendanceStatus;
   reason?: string;
 }): Promise<ActionState<{ id: string }>> {
