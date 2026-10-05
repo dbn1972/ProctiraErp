@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/errors/offline_fallback.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
@@ -190,7 +191,10 @@ class ExaminationRepository {
 
       await _cacheExaminations(tenantId, studentId, exams);
       return exams;
-    } on DioException {
+    } on DioException catch (error) {
+      // Only an unreachable server may fall back to cache; 401/403/404 and
+      // server errors are real answers and must surface (PRC-M562).
+      if (!isOfflineError(error)) rethrow;
       return _getCachedExaminations(
         tenantId,
         studentId,
@@ -226,7 +230,8 @@ class ExaminationRepository {
 
       await _cacheResults(tenantId, studentId, results);
       return results;
-    } on DioException {
+    } on DioException catch (error) {
+      if (!isOfflineError(error)) rethrow;
       return _getCachedResults(tenantId, studentId);
     }
   }

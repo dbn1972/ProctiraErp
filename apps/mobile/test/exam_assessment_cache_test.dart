@@ -224,4 +224,42 @@ void main() {
       await bloc.close();
     });
   });
+
+  test('PR #542: exam 403 surfaces instead of serving cached data', () async {
+    final _Ctx ctx = await _bootstrap();
+    FakeReply? override;
+    final ExaminationRepository repo = ExaminationRepository(
+      database: ctx.db,
+      tenantProvider: ctx.tenant,
+      cacheCrypto: ctx.crypto,
+      dio: fakeDio(
+        (RequestOptions o) =>
+            override ??
+            (o.path.endsWith('/results')
+                ? const FakeReply(200, <String, dynamic>{
+                    'data': <Object>[_examResult],
+                  })
+                : const FakeReply(200, <String, dynamic>{
+                    'data': <Object>[_exam],
+                  })),
+      ),
+    );
+    // Seed both caches with a live fetch.
+    await repo.getExaminations(studentId: 'stu-1');
+    await repo.getResults(studentId: 'stu-1');
+
+    override = const FakeReply(403, <String, dynamic>{'message': 'Forbidden'});
+    await expectLater(
+      repo.getExaminations(studentId: 'stu-1'),
+      throwsA(isA<DioException>()),
+    );
+    await expectLater(
+      repo.getResults(studentId: 'stu-1'),
+      throwsA(isA<DioException>()),
+    );
+
+    override = const FakeReply.fail(DioExceptionType.connectionError);
+    expect(await repo.getExaminations(studentId: 'stu-1'), hasLength(1));
+    expect(await repo.getResults(studentId: 'stu-1'), hasLength(1));
+  });
 }
