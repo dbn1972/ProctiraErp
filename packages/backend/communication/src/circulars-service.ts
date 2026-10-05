@@ -28,15 +28,39 @@ function ackRate(total: number, count: number): number {
   return Math.round((count / total) * 1000) / 1000;
 }
 
+/**
+ * Audit event for a staff-recorded (proxy) circular acknowledgement. Same
+ * sink + in-process log pattern as `CommunicationAuditEvent` (G-604).
+ */
+export interface CircularAuditEvent {
+  action: 'circular.ack_on_behalf';
+  tenantId: string;
+  /** Circular id. */
+  resourceId: string;
+  /** Staff member (session subject) who recorded the acknowledgement. */
+  actorId: string;
+  recipientId: string;
+  reason: string;
+  at: Date;
+}
+export type CircularAuditSink = (event: CircularAuditEvent) => void | Promise<void>;
+
 export class CircularsService {
   private readonly whatsapp: WhatsAppChannelAdapter;
+  private readonly auditSink: CircularAuditSink | null;
+  /** In-process audit trail (unit tests / honesty when no durable sink is wired). */
+  readonly localAuditLog: CircularAuditEvent[] = [];
 
   constructor(
     private readonly store: CircularStore,
-    options: { whatsappAdapter?: WhatsAppChannelAdapter } = {},
+    options: {
+      whatsappAdapter?: WhatsAppChannelAdapter;
+      auditSink?: CircularAuditSink | null;
+    } = {},
   ) {
     // W1-ARCH-08: default via policy factory — never silent createSandboxWhatsAppAdapter().
     this.whatsapp = options.whatsappAdapter ?? createWhatsAppAdapter();
+    this.auditSink = options.auditSink ?? null;
   }
 
   async createCircular(tenantId: string, input: CreateCircularInput): Promise<CircularView> {
@@ -179,6 +203,55 @@ export class CircularsService {
     }
     await this.store.updateAck(tenantId, ack.id, { acknowledgedAt: new Date() });
     return this.getCircular(tenantId, circularId);
+  }
+
+  /**
+   * Owner decision (PR #548): an admin records an acknowledgement on behalf of
+   * a recipient. Authorization (admin-only) is enforced by the route; this
+   * method requires a non-empty reason and writes the audit entry BEFORE the
+   * ack is stored, so no proxy acknowledgement can exist without its audit
+   * row (a failing durable sink fails the request and records nothing).
+   * Re-recording an already acknowledged recipient is a no-op (no audit).
+   */
+  async ackCircularOnBehalf(
+    tenantId: string,
+    circularId: string,
+    recipientId: string,
+    by: { actorId: string; reason: string },
+  ): Promise<CircularView> {
+    const reason = by.reason.trim();
+    if (!reason) {
+      throw new ValidationError('A reason is required to record an acknowledgement on behalf', [
+        { field: 'reason', rule: 'required', message: 'Reason is required' },
+      ]);
+    }
+    if (!by.actorId) throw new ValidationError('Acting staff member is required');
+    const circular = await this.getCircular(tenantId, circularId);
+    if (!circular.requiresAck) {
+      throw new BusinessRuleError('This circular does not require acknowledgement');
+    }
+    const ack = await this.store.findAck(tenantId, circularId, recipientId);
+    if (!ack) {
+      throw new NotFoundError('No acknowledgement is pending for that recipient on this circular');
+    }
+    if (ack.acknowledgedAt) return circular;
+    const at = new Date();
+    await this.recordAudit({
+      action: 'circular.ack_on_behalf',
+      tenantId,
+      resourceId: circularId,
+      actorId: by.actorId,
+      recipientId,
+      reason,
+      at,
+    });
+    await this.store.updateAck(tenantId, ack.id, { acknowledgedAt: at });
+    return this.getCircular(tenantId, circularId);
+  }
+
+  private async recordAudit(event: CircularAuditEvent): Promise<void> {
+    if (this.auditSink) await this.auditSink(event);
+    this.localAuditLog.push(event);
   }
 
   async listDeliveryLogs(

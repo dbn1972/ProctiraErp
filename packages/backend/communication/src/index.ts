@@ -65,6 +65,7 @@ export { registerCommunicationRoutes } from './routes.js';
 export type { CommunicationRoutesOptions } from './routes.js';
 
 export { CircularsService } from './circulars-service.js';
+export type { CircularAuditEvent, CircularAuditSink } from './circulars-service.js';
 export { registerCircularRoutes, type CircularRecipientBinding } from './circulars-routes.js';
 export { InMemoryCircularStore } from './circular-store.js';
 export { PgCircularStore, ensureCircularSchema } from './pg-circular-store.js';
@@ -84,7 +85,12 @@ export type {
   WhatsAppSendRequest,
   WhatsAppSendResult,
 } from './whatsapp-adapter.js';
-export { CreateCircularSchema, AckCircularSchema } from './circular-schemas.js';
+export {
+  CreateCircularSchema,
+  AckCircularSchema,
+  AckCircularOnBehalfSchema,
+  ACK_ON_BEHALF_REASON_MAX,
+} from './circular-schemas.js';
 
 export {
   normalizeCommunicationRoles,

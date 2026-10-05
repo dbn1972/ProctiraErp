@@ -25,7 +25,7 @@ const library = vi.hoisted(() => ({
   returnLibraryLoan: vi.fn(),
 }));
 const communication = vi.hoisted(() => ({
-  ackCircular: vi.fn(),
+  ackCircularOnBehalf: vi.fn(),
   confirmEmergencyBlast: vi.fn(),
   createCampaign: vi.fn(),
   createCircular: vi.fn(),

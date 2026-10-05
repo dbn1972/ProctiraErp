@@ -3,7 +3,7 @@ import fp from 'fastify-plugin';
 
 import type { CircularStore } from './circular-store.js';
 import { registerCircularRoutes, type CircularRecipientBinding } from './circulars-routes.js';
-import { CircularsService } from './circulars-service.js';
+import { CircularsService, type CircularAuditSink } from './circulars-service.js';
 import type { CommunicationRepository } from './communication-repository.js';
 import { CommunicationService, type CommunicationAuditSink } from './communication-service.js';
 import { createCircularStore } from './create-circular-store.js';
@@ -20,6 +20,8 @@ export interface CommunicationPluginOptions {
   prefix?: string;
   /** PRC-M188: guardian → linked-student ids allowed for circular acks. */
   recipientBinding?: CircularRecipientBinding;
+  /** Durable audit for admin-recorded (on-behalf) circular acknowledgements. */
+  circularAuditSink?: CircularAuditSink | null;
 }
 
 declare module 'fastify' {
@@ -39,6 +41,7 @@ export const communicationPlugin = fp(
     const circularsService = new CircularsService(circularStore, {
       // W1-ARCH-08: policy factory — not raw createSandboxWhatsAppAdapter().
       whatsappAdapter: options.whatsappAdapter ?? createWhatsAppAdapter(),
+      auditSink: options.circularAuditSink ?? null,
     });
     const communicationService = new CommunicationService(repository, {
       deliveryAdapter,

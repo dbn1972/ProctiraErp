@@ -56,6 +56,7 @@ import {
   communicationPlugin,
   createCommunicationRepository,
   createDeliveryAdapterFromEnv,
+  type CircularAuditEvent,
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
@@ -490,6 +491,45 @@ function gradebookAuditSink() {
             gradebookAuditId: entry.id,
           },
           timestamp: new Date(entry.at),
+        }),
+      );
+    });
+  };
+}
+
+/**
+ * Owner decision (PR #548): admin-recorded (on-behalf) circular
+ * acknowledgements are written to the hash-chained `audit_log_entries` with
+ * the acting staff member, recipient, circular and reason. Null without a
+ * shared Pg pool (in-memory dev) — the package keeps its in-process log.
+ */
+function circularAuditSink() {
+  const pool = getSharedPgPool();
+  if (!pool) return null;
+  return async (event: CircularAuditEvent) => {
+    await withPgTenant(pool, event.tenantId, async (client) => {
+      await appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId: event.tenantId,
+          entityType: 'circular_ack',
+          entityId: event.resourceId,
+          operation: 'UPDATE',
+          userId: event.actorId,
+          userName: event.actorId,
+          ipAddress: 'unknown',
+          afterValues: {
+            circularId: event.resourceId,
+            recipientId: event.recipientId,
+            recordedBy: event.actorId,
+            reason: event.reason,
+            onBehalf: true,
+          },
+          metadata: {
+            regulated: `communication.${event.action}`,
+            action: event.action,
+          },
+          timestamp: event.at,
         }),
       );
     });
@@ -1407,6 +1447,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         deliveryAdapter: createDeliveryAdapterFromEnv(),
         prefix: '/communication',
+        // Owner decision (PR #548): durable audit for admin on-behalf acks.
+        circularAuditSink: circularAuditSink(),
         // PRC-M188: guardians may acknowledge circulars only for linked students.
         recipientBinding: {
           listLinkedRecipientIds: async (tenantId, actorId) => {

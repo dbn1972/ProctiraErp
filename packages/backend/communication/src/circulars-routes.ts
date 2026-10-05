@@ -5,6 +5,7 @@
  * GET      /communication/circulars/:id
  * POST     /communication/circulars/:id/send
  * POST     /communication/circulars/:id/ack
+ * POST     /communication/circulars/:id/ack-on-behalf   (admin; reason + audit)
  * GET      /communication/delivery-log
  * POST     /communication/delivery-log/:id/retry
  */
@@ -13,12 +14,14 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  AckCircularOnBehalfSchema,
   AckCircularSchema,
   CircularParamsSchema,
   CreateCircularSchema,
   DeliveryLogParamsSchema,
   DeliveryLogQuerySchema,
   type AckCircularInput,
+  type AckCircularOnBehalfInput,
   type CircularParams,
   type CreateCircularInput,
   type DeliveryLogParams,
@@ -299,33 +302,87 @@ export async function registerCircularRoutes(
       }
       const recipientId = bodyResult.data.recipientId ?? actorId;
       if (recipientId !== actorId) {
-        // PRC-M071: staff (communication.staff) may record an acknowledgement
-        // on behalf of a recipient; that is logged with the acting subject.
-        const isStaff = hasCommunicationAccess(
-          communicationRequestRoles(request),
-          'communication.staff',
-        );
-        if (isStaff) {
-          request.log.info(
-            { circularId: paramsResult.data.id, recipientId, ackedBy: actorId, tenantId },
-            'circular acknowledged on behalf of recipient',
-          );
-        } else {
-          // PRC-M188: portal principals may ack for themselves or a linked student.
-          const linked = recipientBinding
-            ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
-            : [];
-          if (!linked.includes(recipientId)) {
-            return reply.status(403).send({
-              code: 'FORBIDDEN',
-              message: 'You can only acknowledge for yourself or a linked student',
-              statusCode: 403,
-            });
-          }
+        // PRC-M188: a normal ack is for the caller or a linked student only.
+        // Staff-recorded acks for anyone else use the explicit, admin-gated and
+        // audited `POST /circulars/:id/ack-on-behalf` (owner decision, PR #548).
+        const linked = recipientBinding
+          ? await recipientBinding.listLinkedRecipientIds(tenantId, actorId)
+          : [];
+        if (!linked.includes(recipientId)) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'You can only acknowledge for yourself or a linked student',
+            statusCode: 403,
+          });
         }
       }
       try {
         const row = await circularsService.ackCircular(tenantId, paramsResult.data.id, recipientId);
+        return reply.status(200).send(formatCircular(row));
+      } catch (error: unknown) {
+        if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/circulars/:id/ack-on-behalf`,
+    async function ackCircularOnBehalfHandler(
+      request: FastifyRequest<{ Params: CircularParams; Body: AckCircularOnBehalfInput }>,
+      reply: FastifyReply,
+    ) {
+      // Owner decision (PR #548): admin-only (`communication.admin`), required
+      // reason, audit row naming the acting staff member.
+      const actorId = communicationActorId(request);
+      if (
+        !actorId ||
+        !hasCommunicationAccess(communicationRequestRoles(request), 'communication.admin')
+      ) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Only an administrator can record an acknowledgement on behalf of a recipient',
+          statusCode: 403,
+        });
+      }
+      const paramsResult = validate(CircularParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid circular ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(AckCircularOnBehalfSchema, request.body);
+      if (!bodyResult.success || !bodyResult.data.reason.trim()) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'recipientId and a reason are required',
+          statusCode: 400,
+          errors: bodyResult.success
+            ? [{ field: 'reason', rule: 'required', message: 'Reason is required' }]
+            : bodyResult.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      try {
+        const row = await circularsService.ackCircularOnBehalf(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data.recipientId,
+          { actorId, reason: bodyResult.data.reason },
+        );
+        request.log.info(
+          {
+            circularId: paramsResult.data.id,
+            recipientId: bodyResult.data.recipientId,
+            ackedBy: actorId,
+            tenantId,
+          },
+          'circular acknowledgement recorded on behalf of recipient',
+        );
         return reply.status(200).send(formatCircular(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());

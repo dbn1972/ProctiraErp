@@ -59,6 +59,20 @@ export const AckCircularSchema = Type.Object({
 });
 export type AckCircularInput = Static<typeof AckCircularSchema>;
 
+/** Upper bound for the staff-supplied reason on a proxy acknowledgement. */
+export const ACK_ON_BEHALF_REASON_MAX = 500;
+
+/**
+ * Owner decision (PR #548): a tenant admin may record an acknowledgement on
+ * behalf of a recipient (e.g. from a signed paper slip). Both the recipient
+ * and a reason are required; the reason is written to the audit trail.
+ */
+export const AckCircularOnBehalfSchema = Type.Object({
+  recipientId: Type.String({ minLength: 1, maxLength: 128 }),
+  reason: Type.String({ minLength: 1, maxLength: ACK_ON_BEHALF_REASON_MAX }),
+});
+export type AckCircularOnBehalfInput = Static<typeof AckCircularOnBehalfSchema>;
+
 export const DeliveryLogQuerySchema = Type.Object({
   channel: Type.Optional(
     Type.Union([
