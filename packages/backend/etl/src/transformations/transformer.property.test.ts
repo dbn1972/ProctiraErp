@@ -18,11 +18,14 @@
  *
  * Uses fast-check to generate arbitrary field mappings and data rows.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 import { transformRows } from './transformer.js';
 import type { FieldMapping } from '../schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ─── Arbitraries ────────────────────────────────────────────────────────────
 

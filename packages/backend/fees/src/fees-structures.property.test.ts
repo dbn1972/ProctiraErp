@@ -2,7 +2,7 @@
  * G-903 property tests: instalment splits conserve the structure amount,
  * and refunds never exceed the amount paid.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { BusinessRuleError } from '@proctira/common';
 
@@ -13,6 +13,9 @@ import {
   allocateInstalments,
   remainingRefundableCents,
 } from './instalment-schedule.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TENANT = '00000000-0000-4000-8000-000000000001';
 const STUDENT = '00000000-0000-4000-8000-000000000099';

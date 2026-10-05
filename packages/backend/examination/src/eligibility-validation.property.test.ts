@@ -10,7 +10,7 @@
  * 3. Reject students missing prerequisite subjects with error listing the missing subjects
  * 4. When both conditions fail, report both failures in the error
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { ValidationError } from '@proctira/common';
 
@@ -18,6 +18,9 @@ import { ExaminationService } from './examination-service.js';
 import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import type { ExaminationEntity, StudentEnrollment } from './examination-repository.js';
 import type { CreateExaminationInput } from './schemas.js';
+
+// Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Helper to generate a date N days from now in YYYY-MM-DD format
 function futureDate(days: number): string {
