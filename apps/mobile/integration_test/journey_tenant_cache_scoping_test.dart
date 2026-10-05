@@ -99,16 +99,31 @@ void main() {
       final _GatewayTenantContractStub stub = _GatewayTenantContractStub();
       getIt<Dio>().httpClientAdapter = stub;
 
-      final List<CachedStudent> results =
-          await tester.runAsync(
-            () => getIt<StudentRepository>().searchStudents(),
-          ) ??
-          <CachedStudent>[];
+      // The rejection must surface to the caller instead of looking like an
+      // empty roster (PRC-M043). Caught inside runAsync because the binding
+      // reports (rather than rethrows) errors escaping the callback.
+      ApiException? failure;
+      List<CachedStudent>? results;
+      await tester.runAsync(() async {
+        try {
+          results = await getIt<StudentRepository>().searchStudents();
+        } on ApiException catch (error) {
+          failure = error;
+        }
+      });
 
       expect(stub.requests, isNotEmpty);
       expect(stub.requests.first.headers['X-Tenant-ID'], 'tenant-b');
       expect(stub.rejected, 1);
-      expect(results, isEmpty);
+      expect(results, isNull);
+      expect(
+        failure,
+        isA<PermanentApiException>().having(
+          (PermanentApiException e) => e.statusCode,
+          'statusCode',
+          403,
+        ),
+      );
       expect(await tableRowCount(harness.database, 'students_cache'), 0);
     },
   );

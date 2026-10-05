@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:proctira_mobile/core/notifications/fcm_service.dart';
+import 'package:proctira_mobile/features/reports/presentation/report_detail_screen.dart';
+import 'package:proctira_mobile/features/reports/presentation/reports_screen.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'helpers/test_setup.dart';
@@ -79,7 +81,22 @@ void main() {
     // markRead runs on real sqflite IO; let the push that follows it settle.
     await tester.pumpAndSettle(const Duration(milliseconds: 500));
     expect(currentJourneyPath(), '/reports/enrollment-summary');
-    expect(find.text('Enrollment summary'), findsWidgets);
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) => w is ReportDetailScreen && w.id == 'enrollment-summary',
+      ),
+      findsOneWidget,
+    );
+    // Default builds hide predefined placeholder tables (PRC-M045); preview
+    // builds render the report itself.
+    if (ReportsScreen.showPreviewReports) {
+      expect(find.text('Enrollment summary'), findsWidgets);
+    } else {
+      expect(
+        find.text("This report isn't available in the app yet."),
+        findsOneWidget,
+      );
+    }
   });
 
   testWidgets(

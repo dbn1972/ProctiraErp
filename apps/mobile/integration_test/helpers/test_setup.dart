@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -101,6 +102,27 @@ void _stubPlatformChannels() {
   _platformChannelsStubbed = true;
 }
 
+/// Unsigned JWT-shaped access token carrying [roles] in the `roles` claim
+/// (`[{roleId, roleName}]`, as minted by the backend token service). The
+/// client only reads the claim for UI gating (PRC-M040); it never verifies
+/// the signature, so a placeholder segment is enough.
+String journeyAccessToken({
+  String subject = 'test-user',
+  List<String> roles = const <String>['teacher'],
+}) {
+  String segment(Object value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+  final String header = segment(<String, String>{'alg': 'none', 'typ': 'JWT'});
+  final String claims = segment(<String, Object>{
+    'sub': subject,
+    'roles': <Map<String, String>>[
+      for (final String role in roles)
+        <String, String>{'roleId': role, 'roleName': role},
+    ],
+  });
+  return '$header.$claims.sig';
+}
+
 /// Bundle of test doubles that journey tests can introspect after the app has
 /// been pumped. The fixture owns the DB / connectivity / dispatcher so the
 /// test can assert against them and tear them down deterministically.
@@ -122,16 +144,21 @@ class JourneyHarness {
 
   /// Manually mark the user as authenticated so the router redirects past
   /// `/login`. Useful for journey tests that don't want to drive the form.
+  ///
+  /// Defaults to a staff session ([journeyAccessToken] with a `teacher`
+  /// role): the router's role gating (PRC-M040) fails closed on opaque
+  /// tokens and would bounce staff routes such as `/students` and
+  /// `/reports/*` back to `/`.
   Future<void> markAuthenticated({
     String userId = 'test-user',
-    String accessToken = 'test-access',
+    String? accessToken,
     String refreshToken = 'test-refresh',
   }) async {
     final AuthBloc bloc = authBloc;
     bloc.add(
       AuthLoggedIn(
         userId: userId,
-        accessToken: accessToken,
+        accessToken: accessToken ?? journeyAccessToken(),
         refreshToken: refreshToken,
       ),
     );
