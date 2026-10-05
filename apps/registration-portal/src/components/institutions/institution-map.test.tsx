@@ -17,6 +17,10 @@ vi.mock('next-intl', () => ({
 
 const { InstitutionMap } = await import('./institution-map');
 
+// The paging test renders 200+ rows; it took 9.8s on a loaded CI runner (CI run on 6a7d318e)
+// against vitest's 5s default, while it runs in under 1s locally.
+vi.setConfig({ testTimeout: 30_000 });
+
 function school(i: number): InstitutionLocation {
   return {
     id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
