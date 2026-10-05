@@ -55,8 +55,9 @@ interface StaffAssignmentRow {
   tenantId: string;
   staffId: string;
   institutionId: string;
-  subjectId: string;
-  classId: string;
+  /** Nullable in the DB since db/sql/098 (administrative assignments). */
+  subjectId: string | null;
+  classId: string | null;
   role: string;
   allocationPercentage: number;
   startDate: Date;
@@ -204,8 +205,8 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     tenantId: string,
     staffId: string,
     institutionId: string,
-    subjectId: string,
-    classId: string,
+    subjectId: string | null,
+    classId: string | null,
     startDate: string,
     endDate: string | null,
     excludeId?: string,

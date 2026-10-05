@@ -459,6 +459,41 @@ function formatPlan(entity: {
   };
 }
 
+/**
+ * PRC-M477: opt-in pagination + filters for fee list endpoints. When neither `page`
+ * nor `pageSize` is sent the full list is returned (existing consumers); otherwise the
+ * response is bounded and carries `meta`. The gateway pagination cap rejects
+ * pageSize > 100 before this runs.
+ */
+export function pageFeeList<T>(
+  items: T[],
+  query: unknown,
+  match: { status?: (item: T) => string | null | undefined; studentId?: (item: T) => string },
+): {
+  data: T[];
+  meta?: { page: number; pageSize: number; totalItems: number; totalPages: number };
+} {
+  const q = (query ?? {}) as Record<string, unknown>;
+  const text = (key: string): string | undefined => {
+    const v = q[key];
+    return typeof v === 'string' && v ? v : undefined;
+  };
+  const status = text('status');
+  const studentId = text('studentId');
+  let filtered = items;
+  if (status && match.status) filtered = filtered.filter((i) => match.status!(i) === status);
+  if (studentId && match.studentId)
+    filtered = filtered.filter((i) => match.studentId!(i) === studentId);
+  if (q['page'] === undefined && q['pageSize'] === undefined) return { data: filtered };
+  const page = Math.max(1, Math.floor(Number(q['page'] ?? 1)) || 1);
+  const pageSize = Math.min(100, Math.max(1, Math.floor(Number(q['pageSize'] ?? 50)) || 50));
+  const totalItems = filtered.length;
+  return {
+    data: filtered.slice((page - 1) * pageSize, page * pageSize),
+    meta: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) },
+  };
+}
+
 function formatInvoice(entity: {
   id: string;
   tenantId: string;
@@ -623,7 +658,11 @@ export const feesPlugin = fp(
           return id == null || id === institutionId;
         });
       }
-      return reply.status(200).send({ data: invoices.map(formatInvoice) });
+      const paged = pageFeeList(invoices, request.query, {
+        status: (inv) => inv.status,
+        studentId: (inv) => inv.studentId,
+      });
+      return reply.status(200).send({ ...paged, data: paged.data.map(formatInvoice) });
     });
 
     fastify.post(
@@ -811,7 +850,8 @@ export const feesPlugin = fp(
         return reply.status(200).send({ data: receipts.map(formatReceipt) });
       }
       const receipts = await feesService.listReceipts(tenantId);
-      return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      const paged = pageFeeList(receipts, request.query, {});
+      return reply.status(200).send({ ...paged, data: paged.data.map(formatReceipt) });
     });
 
     fastify.get(

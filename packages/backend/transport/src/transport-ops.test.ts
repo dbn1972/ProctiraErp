@@ -1,7 +1,7 @@
 /**
  * G-920 — transport ops service tests (GPS ingest, attendance, fees link, alerts).
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, onTestFinished, vi } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 
 import { InMemoryTransportRepository } from './in-memory-repository.js';
@@ -167,6 +167,12 @@ describe('TransportService ops (G-920)', () => {
   });
 
   it('evaluates delay alerts from a late synthetic ping', async () => {
+    // PRC-M446: ingest rejects stale timestamps, so pin the clock to the trip day.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-09T08:01:00.000Z'));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const { route, vehicle } = await seededRoute();
     await service.createDriverAssignment(TENANT, {
       vehicleId: vehicle.id,
