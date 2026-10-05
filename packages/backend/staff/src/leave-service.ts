@@ -1,13 +1,14 @@
 /**
  * Staff HR leave service — create, list, approve/reject with balances (G-206).
  */
-import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
   InsufficientLeaveBalanceError,
   LeaveBalanceMissingError,
   LeaveNotPendingError,
+  type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
   type StaffLeaveStatus,
@@ -59,6 +60,67 @@ export class StaffLeaveService {
     balanceDays: number,
   ) {
     return this.repository.setBalance(tenantId, staffId, leaveType, balanceDays);
+  }
+
+  /**
+   * PRC-H091: bulk opening-balance import. Rows are validated up-front (duplicate
+   * staffId+leaveType, staff existence in the tenant); any error rejects the whole batch.
+   * Writes use the repository's single-transaction upsert when available.
+   */
+  async importOpeningBalances(
+    tenantId: string,
+    rows: readonly { staffId: string; leaveType: StaffLeaveType; balanceDays: number }[],
+    staffExists: (tenantId: string, staffId: string) => Promise<boolean>,
+    options: { dryRun?: boolean } = {},
+  ): Promise<{ dryRun: boolean; imported: number; balances: StaffLeaveBalanceEntity[] }> {
+    const errors: { field: string; rule: string; message: string }[] = [];
+    const seen = new Map<string, number>();
+    rows.forEach((row, i) => {
+      const key = `${row.staffId}:${row.leaveType}`;
+      const prior = seen.get(key);
+      if (prior !== undefined) {
+        errors.push({
+          field: `rows[${i}]`,
+          rule: 'duplicate',
+          message: `Duplicate ${row.leaveType} balance for staff '${row.staffId}' (also rows[${prior}])`,
+        });
+      } else {
+        seen.set(key, i);
+      }
+    });
+    const uniqueStaff = [...new Set(rows.map((r) => r.staffId))];
+    const missing = new Set<string>();
+    for (const staffId of uniqueStaff) {
+      if (!(await staffExists(tenantId, staffId))) missing.add(staffId);
+    }
+    rows.forEach((row, i) => {
+      if (missing.has(row.staffId)) {
+        errors.push({
+          field: `rows[${i}].staffId`,
+          rule: 'not_found',
+          message: `Staff with id '${row.staffId}' not found`,
+        });
+      }
+    });
+    if (errors.length > 0) {
+      throw new ValidationError(
+        'Opening-balance import rejected; no balances were written',
+        errors,
+      );
+    }
+    if (options.dryRun) return { dryRun: true, imported: 0, balances: [] };
+    let balances: StaffLeaveBalanceEntity[];
+    if (this.repository.setBalancesAtomic) {
+      balances = await this.repository.setBalancesAtomic(tenantId, rows);
+    } else {
+      balances = [];
+      for (const row of rows) {
+        balances.push(
+          await this.repository.setBalance(tenantId, row.staffId, row.leaveType, row.balanceDays),
+        );
+      }
+    }
+    return { dryRun: false, imported: balances.length, balances };
   }
 
   async createLeave(tenantId: string, input: CreateStaffLeaveInput) {

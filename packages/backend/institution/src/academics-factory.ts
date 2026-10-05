@@ -128,6 +128,12 @@ export class TenantPartitionedInfrastructureStore implements InfrastructureStore
   listRepairRequests(institutionId: string) {
     return this.part().listRepairRequests(institutionId);
   }
+  findRepairRequest(id: string) {
+    return this.part().findRepairRequest(id);
+  }
+  updateRepairRequestStatus(...args: Parameters<InfrastructureStore['updateRepairRequestStatus']>) {
+    return this.part().updateRepairRequestStatus(...args);
+  }
 }
 
 export class TenantPartitionedConditionOptionStore implements ConditionOptionStore {

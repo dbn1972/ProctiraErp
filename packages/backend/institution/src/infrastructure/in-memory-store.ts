@@ -111,6 +111,22 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return { ...record };
   }
 
+  async findRepairRequest(id: string): Promise<RepairRequestRecord | null> {
+    const row = this.repairs.find((r) => r.id === id);
+    return row ? { ...row } : null;
+  }
+
+  async updateRepairRequestStatus(
+    id: string,
+    fromStatus: RepairRequestRecord['status'],
+    toStatus: RepairRequestRecord['status'],
+  ): Promise<RepairRequestRecord | null> {
+    const row = this.repairs.find((r) => r.id === id && r.status === fromStatus);
+    if (!row) return null;
+    row.status = toStatus;
+    return { ...row };
+  }
+
   async listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
     return this.repairs
       .filter((row) => row.institutionId === institutionId)
