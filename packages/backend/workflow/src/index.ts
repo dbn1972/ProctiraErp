@@ -11,8 +11,8 @@
  */
 
 // Plugin
-export { workflowPlugin } from './workflow-plugin.js';
-export type { WorkflowPluginOptions } from './workflow-plugin.js';
+export { workflowPlugin, readRejectUnwiredEscalations } from './workflow-plugin.js';
+export type { WorkflowPluginOptions, WorkflowEscalationHealth } from './workflow-plugin.js';
 
 // Service
 export { WorkflowService } from './workflow-service.js';

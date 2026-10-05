@@ -110,6 +110,14 @@ export interface StaffLeaveRepository {
     balanceDays: number,
   ): Promise<StaffLeaveBalanceEntity>;
   /**
+   * PRC-H091: upsert many opening balances in ONE transaction (all-or-nothing).
+   * Optional; callers fall back to sequential `setBalance`.
+   */
+  setBalancesAtomic?(
+    tenantId: string,
+    rows: readonly { staffId: string; leaveType: StaffLeaveType; balanceDays: number }[],
+  ): Promise<StaffLeaveBalanceEntity[]>;
+  /**
    * Atomically add `deltaDays` (negative to consume). Must lock the balance row
    * (`SELECT … FOR UPDATE`) and throw {@link InsufficientLeaveBalanceError}
    * when the result would be negative.

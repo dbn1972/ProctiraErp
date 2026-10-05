@@ -61,6 +61,8 @@ class _ScholarshipApplicationFormState
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _statementCtrl = TextEditingController();
   final TextEditingController _incomeCtrl = TextEditingController();
+  final TextEditingController _schoolCtrl = TextEditingController();
+  String? _educationLevel;
   bool _agreedToTerms = false;
   bool _started = false;
   bool _loadingProgram = true;
@@ -100,8 +102,14 @@ class _ScholarshipApplicationFormState
       }
       final bool uploadsAvailable = await repository
           .scholarshipDocumentUploadsAvailable();
+      final String? schoolName = await repository
+          .institutionNameForStudent(widget.studentId)
+          .catchError((Object _) => null);
       if (!mounted) {
         return;
+      }
+      if (_schoolCtrl.text.isEmpty && schoolName != null) {
+        _schoolCtrl.text = schoolName;
       }
       setState(() {
         _program = program;
@@ -124,6 +132,7 @@ class _ScholarshipApplicationFormState
     _documents?.dispose();
     _statementCtrl.dispose();
     _incomeCtrl.dispose();
+    _schoolCtrl.dispose();
     super.dispose();
   }
 
@@ -145,10 +154,28 @@ class _ScholarshipApplicationFormState
     );
   }
 
+  ScholarshipAcademicRecord? get _academicRecord {
+    final String school = _schoolCtrl.text.trim();
+    final String? level = _educationLevel;
+    if (school.isEmpty || level == null) return null;
+    return ScholarshipAcademicRecord(
+      institutionName: school,
+      educationLevel: level,
+    );
+  }
+
   Future<String> _ensureDraft() async {
     final String? existing = _draftApplicationId;
     if (existing != null && existing.isNotEmpty) {
       return existing;
+    }
+    // Validate before creating the draft so it never carries an empty
+    // statement or placeholder school (PRC-M044).
+    final ScholarshipAcademicRecord? record = _academicRecord;
+    if (!(_formKey.currentState?.validate() ?? false) || record == null) {
+      throw StateError(
+        'Complete your statement and school details before uploading documents.',
+      );
     }
     final ScholarshipRepository repository = context
         .read<ScholarshipRepository>();
@@ -165,6 +192,7 @@ class _ScholarshipApplicationFormState
       programId: widget.programId,
       studentId: widget.studentId,
       institutionId: institutionId,
+      academicRecord: record,
       personalStatement: _statementCtrl.text.trim(),
       familyIncome: income,
     );
@@ -250,6 +278,7 @@ class _ScholarshipApplicationFormState
         draftApplicationId: _documentUploadsAvailable
             ? _draftApplicationId
             : null,
+        academicRecord: _academicRecord,
         additionalData: <String, dynamic>{
           'personalStatement': _statementCtrl.text.trim(),
           if (_incomeCtrl.text.trim().isNotEmpty)

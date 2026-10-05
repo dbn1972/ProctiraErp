@@ -8,6 +8,7 @@
  * Charter: Section 6 (Tenant Model)
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { TenantStatus, TenantConfig, ThemeTokens } from './schemas.js';
 
 // ─── Entity Types ────────────────────────────────────────────────────────────
@@ -125,6 +126,11 @@ export interface TenantRepository {
 
   /** Create a new tenant */
   createTenant(data: Omit<TenantEntity, 'createdAt' | 'updatedAt'>): Promise<TenantEntity>;
+  /**
+   * PRC-H099: remove a tenant that never left 'provisioning' (rollback). Hard
+   * delete so the slug can be reused; must refuse any other status.
+   */
+  discardProvisioningTenant?(id: string): Promise<boolean>;
 
   /** Update an existing tenant */
   updateTenant(id: string, data: Partial<TenantEntity>): Promise<TenantEntity | null>;

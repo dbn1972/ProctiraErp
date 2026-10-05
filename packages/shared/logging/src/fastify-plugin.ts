@@ -1,3 +1,4 @@
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import type { DestinationStream, Logger } from 'pino';
@@ -75,7 +76,7 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   } = options;
 
   const baseLogger = createLogger({ name, level, destination });
-  const isProduction = process.env['NODE_ENV'] === 'production';
+  const isProduction = isProductionNodeEnv(process.env['NODE_ENV']);
   // PRC-L353: body logging is refused in production regardless of the option.
   const shouldLogBody = logBody && !isProduction;
   if (logBody && isProduction) {

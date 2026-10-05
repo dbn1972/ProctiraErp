@@ -186,6 +186,11 @@ export interface ReportCardJobRepository {
    * create→publish dual-write crash).
    */
   listByStatus(tenantId: string, status: ReportCardJobStatus): Promise<ReportCardJobEntity[]>;
+  /**
+   * PRC-H039: distinct tenant ids that have jobs in `status` (control-plane,
+   * cross-tenant; returns ids only). Used by the worker's boot reclaim.
+   */
+  listTenantIdsWithStatus?(status: ReportCardJobStatus): Promise<string[]>;
 
   /**
    * PRC-M165: compare-and-set claim. Atomically moves the job to `processing`

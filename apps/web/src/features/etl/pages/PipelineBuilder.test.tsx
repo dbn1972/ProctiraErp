@@ -10,8 +10,6 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const STORED_SECRET = 'postgresql://etl:stored-secret@db.internal:5432/src';
-
 const fetchMock = vi.fn();
 vi.mock('@/lib/api/browser-gateway', () => ({
   browserGatewayFetch: (...args: unknown[]) => fetchMock(...args),
@@ -54,8 +52,25 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       return {
         id: 'p1',
         name: 'Nightly sync',
-        source: { type: 'postgresql', connectionString: STORED_SECRET, query: 'SELECT 1' },
-        destination: { type: 'postgresql', connectionString: STORED_SECRET, table: 't' },
+        // API shape: secrets come back as the redaction placeholder.
+        source: {
+          type: 'postgresql',
+          host: 'db.internal',
+          port: 5432,
+          database: 'src',
+          username: 'etl',
+          password: '__REDACTED__',
+          query: 'SELECT 1',
+        },
+        destination: {
+          type: 'postgresql',
+          host: 'dw.internal',
+          port: 5432,
+          database: 'dw',
+          username: 'loader',
+          password: '__REDACTED__',
+          table: 't',
+        },
         fieldMappings: [],
         schedule: null,
         retryPolicy: { maxRetries: 3, backoffMs: 1000 },
@@ -74,7 +89,8 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
     expect(source.value).toBe('');
     expect(source.required).toBe(false);
     expect(source.getAttribute('aria-describedby')).toBe('etl-source-connection-hint');
-    expect(container.innerHTML).not.toContain('stored-secret');
+    expect(container.innerHTML).not.toContain('__REDACTED__');
+    expect(container.innerHTML).toContain('etl@db.internal:5432/src');
 
     fireEvent.submit(source.closest('form')!);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/pipelines/p1', expect.anything()));
@@ -83,10 +99,18 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       source: Record<string, unknown>;
       destination: Record<string, unknown>;
     };
-    // The API restores only the placeholder, so a saved secret is echoed as it.
-    expect(json.source.connectionString).toBe('__REDACTED__');
-    expect(json.destination.connectionString).toBe('__REDACTED__');
-    expect(JSON.stringify(json)).not.toContain('stored-secret');
+    // Saved target unchanged + placeholder password → the API restores the secret.
+    expect(json.source).toMatchObject({
+      type: 'postgresql',
+      host: 'db.internal',
+      port: 5432,
+      database: 'src',
+      username: 'etl',
+      password: '__REDACTED__',
+      query: 'SELECT 1',
+    });
+    expect(json.source).not.toHaveProperty('connectionString');
+    expect(json.destination).toMatchObject({ host: 'dw.internal', password: '__REDACTED__' });
   });
 
   it('omits a blank credential on update when nothing was stored', async () => {
@@ -96,7 +120,15 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
         id: 'p2',
         name: 'CSV import',
         source: { type: 'csv', query: '' },
-        destination: { type: 'postgresql', connectionString: '__REDACTED__', table: 't' },
+        destination: {
+          type: 'postgresql',
+          host: 'dw.internal',
+          port: 5432,
+          database: 'dw',
+          username: 'loader',
+          password: '__REDACTED__',
+          table: 't',
+        },
         fieldMappings: [],
         schedule: null,
         retryPolicy: { maxRetries: 3, backoffMs: 1000 },
@@ -116,6 +148,34 @@ describe('PRC-H115 — PipelineBuilder credential handling', () => {
       destination: Record<string, unknown>;
     };
     expect(json.source).not.toHaveProperty('connectionString');
-    expect(json.destination.connectionString).toBe('__REDACTED__');
+    expect(json.source).not.toHaveProperty('password');
+    expect(json.destination.password).toBe('__REDACTED__');
+  });
+
+  it('parses a new PostgreSQL URL into the API host/password schema', async () => {
+    fetchMock.mockResolvedValue({});
+    renderAt('/pipelines/new');
+    fireEvent.change(screen.getByLabelText(/pipeline name/i), { target: { value: 'New' } });
+    fireEvent.change(screen.getByLabelText('Source connection string'), {
+      target: { value: 'postgresql://etl:s3cr%40t@db.internal:6543/src' },
+    });
+    fireEvent.change(screen.getByLabelText('Destination connection string'), {
+      target: { value: 'postgresql://loader:pw@dw.internal/dw' },
+    });
+    fireEvent.submit(screen.getByLabelText('Source connection string').closest('form')!);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/pipelines', expect.anything()));
+    const json = fetchMock.mock.calls[0]![1].json as {
+      source: Record<string, unknown>;
+      destination: Record<string, unknown>;
+    };
+    expect(json.source).toMatchObject({
+      type: 'postgresql',
+      host: 'db.internal',
+      port: 6543,
+      database: 'src',
+      username: 'etl',
+      password: 's3cr@t',
+    });
+    expect(json.destination).toMatchObject({ host: 'dw.internal', port: 5432, password: 'pw' });
   });
 });

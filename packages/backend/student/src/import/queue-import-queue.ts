@@ -5,15 +5,17 @@
  * consumer can call ImportService.processQueuedImport — surviving
  * gateway/worker restarts when the backend retains unacked messages.
  *
- * Progress snapshots remain in-process (honest residual); the job payload
- * itself is durable on the queue.
+ * PRC-H092: progress snapshots go through an ImportProgressStore keyed by
+ * (tenantId, jobId) — Redis-backed when REDIS_URL is set, so every gateway
+ * instance answers polls identically.
  */
 import { randomUUID } from 'node:crypto';
 
 import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
 import { STUDENT_IMPORT_JOB_TYPE } from '@proctira/queue-abstraction';
 
-import type { ImportOptions, ImportProgress, ImportQueue } from './types.js';
+import { InMemoryImportProgressStore } from './progress-store.js';
+import type { ImportOptions, ImportProgress, ImportProgressStore, ImportQueue } from './types.js';
 
 /** Payload carried on `student.import` queue messages. */
 export interface StudentImportJobPayload {
@@ -28,9 +30,11 @@ export interface StudentImportJobPayload {
  * Durable import queue: progress Map for polling + QueueAdapter for jobs.
  */
 export class QueueImportQueue implements ImportQueue {
-  private readonly progress = new Map<string, ImportProgress>();
-
-  constructor(private readonly queue: QueueAdapter) {}
+  constructor(
+    private readonly queue: QueueAdapter,
+    /** PRC-H092: persisted (Redis) progress so any instance can answer polls. */
+    private readonly progressStore: ImportProgressStore = new InMemoryImportProgressStore(),
+  ) {}
 
   async enqueue(
     tenantId: string,
@@ -61,16 +65,15 @@ export class QueueImportQueue implements ImportQueue {
     await this.queue.dispatch(message);
   }
 
-  async getProgress(jobId: string): Promise<ImportProgress | null> {
-    return this.progress.get(jobId) ?? null;
+  async getProgress(tenantId: string, jobId: string): Promise<ImportProgress | null> {
+    return this.progressStore.get(tenantId, jobId);
   }
 
-  async updateProgress(jobId: string, progress: Partial<ImportProgress>): Promise<void> {
-    const existing = this.progress.get(jobId);
-    if (existing) {
-      this.progress.set(jobId, { ...existing, ...progress });
-    } else {
-      this.progress.set(jobId, progress as ImportProgress);
-    }
+  async updateProgress(
+    tenantId: string,
+    jobId: string,
+    progress: Partial<ImportProgress>,
+  ): Promise<void> {
+    await this.progressStore.update(tenantId, jobId, progress);
   }
 }

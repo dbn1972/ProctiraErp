@@ -12,12 +12,19 @@
  */
 import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { v4 as uuidv4 } from 'uuid';
 
 import { admissionNoOf } from './admission-number.js';
 import { dateOfBirthError } from './date-of-birth.js';
 import type { CreateStudentInput, MergeStudentsInput, UpdateStudentInput } from './schemas.js';
-import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
+import type {
+  StudentEntity,
+  StudentFilter,
+  StudentRepository,
+  StudentUpdateOptions,
+} from './student-repository.js';
+import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
 
 function assertValidDateOfBirth(value: string): void {
   const message = dateOfBirthError(value);
@@ -55,7 +62,7 @@ export class StudentService {
   ) {
     // PRC-L502: never fail open on legal hold in production — soft-delete and
     // merge would otherwise skip the privacy gate silently.
-    if (process.env['NODE_ENV'] === 'production' && !assertDestructiveDeleteAllowed) {
+    if (isProductionNodeEnv(process.env['NODE_ENV']) && !assertDestructiveDeleteAllowed) {
       throw new Error(
         'StudentService requires assertDestructiveDeleteAllowed (legal-hold gate) in production',
       );
@@ -133,11 +140,25 @@ export class StudentService {
    * @throws NotFoundError if student not found
    * @throws ConflictError if national ID uniqueness violated
    */
-  async update(tenantId: string, id: string, input: UpdateStudentInput): Promise<StudentEntity> {
+  async update(
+    tenantId: string,
+    id: string,
+    input: UpdateStudentInput,
+    options: StudentUpdateOptions = {},
+  ): Promise<StudentEntity> {
     if (input.dateOfBirth !== undefined) assertValidDateOfBirth(input.dateOfBirth);
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Student with id '${id}' not found`);
+    }
+    // PRC-L365: fail fast on a stale precondition; the repository re-checks
+    // atomically with the write so a concurrent update between here and there
+    // still yields 409 rather than a lost update.
+    if (
+      options.expectedUpdatedAt &&
+      !updatedAtMatches(existing.updatedAt, options.expectedUpdatedAt)
+    ) {
+      throw new StaleStudentUpdateError(id);
     }
 
     // Check national ID uniqueness if it's being changed
@@ -197,7 +218,7 @@ export class StudentService {
       updateData.customData = mergedCustom;
     }
 
-    const updated = await this.repository.update(id, tenantId, updateData);
+    const updated = await this.repository.update(id, tenantId, updateData, options);
     if (!updated) {
       throw new NotFoundError(`Student with id '${id}' not found`);
     }

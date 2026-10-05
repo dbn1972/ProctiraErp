@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/offline_data_banner.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/student/student_route.dart';
 import '../../students/data/student_repository.dart';
@@ -79,9 +80,16 @@ class _ProgramsView extends StatelessWidget {
               if (state.programs.isEmpty) {
                 return const _EmptyView();
               }
-              return _ProgramsList(
+              final Widget list = _ProgramsList(
                 programs: state.programs,
                 studentId: studentId,
+              );
+              if (!state.fromCache) return list;
+              return Column(
+                children: <Widget>[
+                  const OfflineDataBanner(),
+                  Expanded(child: list),
+                ],
               );
           }
         },
@@ -149,7 +157,9 @@ class _ProgramCard extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    context.push(withStudentQuery('/scholarships/apply/${program.id}', id));
+    unawaited(
+      context.push(withStudentQuery('/scholarships/apply/${program.id}', id)),
+    );
   }
 
   @override

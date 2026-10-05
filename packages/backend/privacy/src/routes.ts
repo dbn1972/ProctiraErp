@@ -281,6 +281,16 @@ export async function registerPrivacyRoutes(
 ): Promise<void> {
   const { privacyService, prefix = '/privacy' } = options;
 
+  // PRC-H077: lets admin clients surface 'not implemented' erasure/offboard state.
+  fastify.get(`${prefix}/capabilities`, async (request, reply) => {
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
+    return reply.status(200).send({
+      erasureExecutionAvailable: privacyService.erasureExecutionAvailable,
+      tenantWipeAvailable: privacyService.tenantWipeAvailable,
+    });
+  });
+
   fastify.post(`${prefix}/legal-holds`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;

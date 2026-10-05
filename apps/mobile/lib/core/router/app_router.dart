@@ -34,6 +34,7 @@ import '../../features/tenant/presentation/tenant_selection_screen.dart';
 import '../auth/auth_bloc.dart';
 import '../di/injector.dart';
 import '../student/selected_student_store.dart';
+import '../auth/session_roles.dart';
 import '../tenant/tenant_provider.dart';
 
 /// GoRouter configuration with auth + tenant guards.
@@ -270,11 +271,23 @@ class AppRouter {
 
   GoRouter get config => _config;
 
-  String? _redirect(BuildContext context, GoRouterState state) {
-    final TenantProvider tenant = getIt<TenantProvider>();
-    final AuthState auth = _authBloc.state;
-    final String location = state.matchedLocation;
+  String? _redirect(BuildContext context, GoRouterState state) =>
+      resolveRedirect(
+        auth: _authBloc.state,
+        hasTenant: getIt<TenantProvider>().hasTenant,
+        location: state.matchedLocation,
+        uri: state.uri,
+      );
 
+  /// Pure redirect policy (tenant -> auth -> role gating), testable without
+  /// building screens.
+  @visibleForTesting
+  static String? resolveRedirect({
+    required AuthState auth,
+    required bool hasTenant,
+    required String location,
+    required Uri uri,
+  }) {
     // Wait for bootstrap before redirecting.
     if (!auth.isResolved) {
       return null;
@@ -283,25 +296,39 @@ class AppRouter {
     final bool atTenant = location == '/tenant';
     final bool atLogin = location == '/login';
 
-    if (!tenant.hasTenant) {
+    if (!hasTenant) {
       return atTenant ? null : '/tenant';
     }
 
     if (!auth.isAuthenticated) {
-      return atLogin ? null : loginLocationFor(state.uri);
+      return atLogin ? null : loginLocationFor(uri);
     }
 
     if (atLogin) {
-      return safeReturnPath(state.uri.queryParameters['from']) ?? '/';
+      final String? back = safeReturnPath(uri.queryParameters['from']);
+      if (back != null &&
+          isStaffRoute(Uri.parse(back).path) &&
+          !auth.canUseStaffFeatures) {
+        return _homeFor(auth);
+      }
+      return back ?? '/';
+    }
+    // Role gating (PRC-M040): portal users cannot open staff screens,
+    // including via deep link.
+    if (isStaffRoute(location) && !auth.canUseStaffFeatures) {
+      return _homeFor(auth);
     }
 
     // Profile → workspace switch lands on `/tenant?switch=1`. Without the
     // query, an already-configured session still returns home.
-    if (atTenant && state.uri.queryParameters['switch'] != '1') {
+    if (atTenant && uri.queryParameters['switch'] != '1') {
       return '/';
     }
     return null;
   }
+
+  static String _homeFor(AuthState auth) =>
+      isPortalOnly(auth.roles) ? '/parent' : '/';
 
   /// `/login` location that remembers [target] so a logged-out cold-start
   /// deep link resumes after sign-in (PRC-L006).

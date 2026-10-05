@@ -914,6 +914,11 @@ jobs:
           CI: true
           REQUIRE_LIVE_TESTS: '1'
           LIVE_TEST_MIN_EXECUTED: '10'
+          # PRC-L499: staff live-PG suites must execute (not just count toward the minimum).
+          LIVE_TEST_REQUIRED_FILES: >-
+            packages/backend/staff/src/pg-leave-repository.live.test.ts,
+            packages/backend/staff/src/hr-pg-and-routes.live.test.ts,
+            packages/backend/staff/src/staff-import-transaction.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)

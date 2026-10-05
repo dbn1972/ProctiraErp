@@ -8,6 +8,7 @@ import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
   withPgTenant,
+  withPlatformScope,
   type PgQueryable,
 } from '@proctira/database';
 import type pg from 'pg';
@@ -25,6 +26,7 @@ import type {
   OffboardChecklistItem,
   ListPage,
   PrivacyRepository,
+  StuckPrivacyJobRef,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
 import type {
@@ -719,6 +721,35 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!result.rows[0]) return null;
       return mapAnonymization(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  /**
+   * PRC-H078: cross-tenant stuck-job scan under platform scope. NOTE: the 078
+   * tenant_isolation policies on the job tables have no app.platform_admin
+   * escape yet, so until that migration lands this returns no rows (fail
+   * closed: nothing is retried cross-tenant).
+   */
+  async listStuckQueuedJobs(olderThan: Date, limit: number): Promise<StuckPrivacyJobRef[]> {
+    await this.ensureSchema();
+    return withPlatformScope(this.pool as unknown as PgQueryable, async (client) => {
+      const result = await client.query(
+        `SELECT 'anonymization' AS kind, id, tenant_id FROM privacy_anonymization_jobs
+          WHERE status = 'queued' AND updated_at < $1
+         UNION ALL
+         SELECT 'offboard' AS kind, id, tenant_id FROM privacy_tenant_offboard_jobs
+          WHERE status = 'queued' AND updated_at < $1
+         LIMIT $2`,
+        [olderThan, limit],
+      );
+      return result.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          kind: r.kind === 'offboard' ? 'offboard' : 'anonymization',
+          id: String(r.id),
+          tenantId: String(r.tenant_id),
+        };
+      });
     });
   }
 

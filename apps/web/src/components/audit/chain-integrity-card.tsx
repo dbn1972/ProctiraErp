@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { verifyAuditChainAction } from '@/app/(dashboard)/audit-logs/actions';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { AuditChainVerification } from '@/lib/api/platform.server';
 
 function formatTimestamp(iso: string): string {
@@ -39,6 +40,9 @@ type State =
 export function ChainIntegrityCard() {
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [pending, startTransition] = useTransition();
+  // A click on the server-rendered button before hydration is lost; keep it
+  // disabled until handlers are attached.
+  const hydrated = useHydrated();
   const verification = state.kind === 'done' ? state.verification : null;
   const Icon = verification ? (verification.valid ? ShieldCheck : ShieldAlert) : ShieldQuestion;
 
@@ -92,8 +96,9 @@ export function ChainIntegrityCard() {
           size="sm"
           variant="outline"
           onClick={verify}
-          disabled={pending}
+          disabled={!hydrated || pending}
           data-testid="chain-verify"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           {pending ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {pending ? 'Verifying…' : verification ? 'Verify again' : 'Verify chain'}

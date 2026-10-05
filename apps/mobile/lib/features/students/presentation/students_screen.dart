@@ -5,6 +5,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
+import '../../../core/student/student_cache_sync.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/student_repository.dart';
@@ -36,10 +37,35 @@ class _StudentsScreenState extends State<StudentsScreen> {
     _future = _repository.searchStudents();
   }
 
+  /// True when the last explicit refresh could not reach the server and the
+  /// list shows saved data (PRC-M042 / PRC-M043).
+  bool _showingSaved = false;
+
   void _runSearch() {
     setState(() {
       _future = _repository.searchStudents(query: _searchCtrl.text);
     });
+  }
+
+  /// Explicit refresh: pull the full roster from the server, then search.
+  void _refresh() {
+    setState(() {
+      _future = _refreshAndSearch();
+    });
+  }
+
+  Future<List<CachedStudent>> _refreshAndSearch() async {
+    try {
+      await _repository.refreshFromServer();
+      _showingSaved = false;
+    } on ApiException catch (error) {
+      if (!isConnectivityFailure(error)) rethrow;
+      _showingSaved = true;
+    }
+    return _repository.searchStudents(
+      query: _searchCtrl.text,
+      seedFromApi: false,
+    );
   }
 
   @override
@@ -66,8 +92,8 @@ class _StudentsScreenState extends State<StudentsScreen> {
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.refresh),
-                    tooltip: 'Refresh',
-                    onPressed: _runSearch,
+                    tooltip: 'Refresh from server',
+                    onPressed: _refresh,
                   ),
                 ),
               ),
@@ -92,6 +118,32 @@ class _StudentsScreenState extends State<StudentsScreen> {
                       }
                       final List<CachedStudent> students =
                           snapshot.data ?? const <CachedStudent>[];
+                      final Widget? savedBanner = _showingSaved
+                          ? Semantics(
+                              liveRegion: true,
+                              child: const ListTile(
+                                leading: Icon(Icons.cloud_off_outlined),
+                                title: Text(
+                                  "You're offline. Showing saved students.",
+                                ),
+                              ),
+                            )
+                          : null;
+                      if (students.isEmpty && savedBanner != null) {
+                        return Column(
+                          children: <Widget>[
+                            savedBanner,
+                            const Expanded(
+                              child: _StateMessage(
+                                icon: Icons.groups_outlined,
+                                title: 'No saved students',
+                                message:
+                                    'Connect to the network and tap refresh.',
+                              ),
+                            ),
+                          ],
+                        );
+                      }
                       if (students.isEmpty) {
                         return const _StateMessage(
                           icon: Icons.groups_outlined,
@@ -101,7 +153,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
                               'then pull the latest roster.',
                         );
                       }
-                      return ListView.separated(
+                      final Widget list = ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                         itemBuilder: (BuildContext context, int index) {
                           final CachedStudent s = students[index];
@@ -112,6 +164,13 @@ class _StudentsScreenState extends State<StudentsScreen> {
                         },
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemCount: students.length,
+                      );
+                      if (savedBanner == null) return list;
+                      return Column(
+                        children: <Widget>[
+                          savedBanner,
+                          Expanded(child: list),
+                        ],
                       );
                     },
               ),
