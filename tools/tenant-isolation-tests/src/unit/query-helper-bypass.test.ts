@@ -357,6 +357,7 @@ describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
       'guc-binder': 0,
       'ddl-ensure': 0,
       'health-probe': 0,
+      'catalog-probe': 0,
       'platform-catalog': 0,
     };
 
