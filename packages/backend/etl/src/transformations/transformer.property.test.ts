@@ -13,7 +13,7 @@
  *    the separator
  * 4. format transformations correctly apply template strings with {field}
  *    placeholders
- * 5. Rows with transformation errors still produce output (with raw values)
+ * 5. Rows with transformation errors are rejected (never loaded with raw values, PRC-M227)
  *    and report errors
  *
  * Uses fast-check to generate arbitrary field mappings and data rows.
@@ -520,7 +520,7 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
   });
 
   describe('error handling - rows with transformation errors', () => {
-    it('rows with errors still produce output with raw values and report errors', () => {
+    it('rows with errors are rejected and errors are reported', () => {
       fc.assert(
         fc.property(
           fc.record({
@@ -541,12 +541,10 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
 
             const result = transformRows(rows, mappings);
 
-            // Row is still present in output
-            expect(result.rows.length).toBe(1);
-            // Valid field is mapped correctly
-            expect(result.rows[0]!.name).toBe(validField);
-            // Failed field falls back to raw value
-            expect(result.rows[0]!.price).toBe(invalidNumeric);
+            // PRC-M227: the errored row is rejected, never loaded with raw values
+            expect(result.rows.length).toBe(0);
+            expect(result.rejectedRows).toEqual([0]);
+            void validField;
             // Error is reported
             expect(result.errorCount).toBe(1);
             expect(result.errors.length).toBe(1);
@@ -559,7 +557,7 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
       );
     });
 
-    it('multiple rows with mixed success/failure all produce output', () => {
+    it('multiple rows with mixed success/failure output only successful rows', () => {
       fc.assert(
         fc.property(
           fc.array(
@@ -587,8 +585,8 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
 
             const result = transformRows(rows, mappings);
 
-            // All rows produce output regardless of errors
-            expect(result.rows.length).toBe(inputs.length);
+            // PRC-M227: only fully transformed rows are output
+            expect(result.rows.length).toBe(inputs.filter((i) => i.shouldSucceed).length);
 
             // Count expected errors
             const expectedErrors = inputs.filter((i) => !i.shouldSucceed).length;
@@ -598,14 +596,14 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
             const expectedTransformed = inputs.filter((i) => i.shouldSucceed).length;
             expect(result.transformedCount).toBe(expectedTransformed);
 
-            // Each error row retains its raw value
-            inputs.forEach((input, idx) => {
-              if (input.shouldSucceed) {
-                expect(result.rows[idx]!.amount).toBe(Number(input.value));
-              } else {
-                expect(result.rows[idx]!.amount).toBe(input.value);
-              }
+            // PRC-M227: output holds only successful rows (in order); failures are rejected
+            const ok = inputs.filter((i) => i.shouldSucceed);
+            ok.forEach((input, idx) => {
+              expect(result.rows[idx]!.amount).toBe(Number(input.value));
             });
+            expect(result.rejectedRows).toEqual(
+              inputs.flatMap((input, idx) => (input.shouldSucceed ? [] : [idx])),
+            );
           },
         ),
         { numRuns: 50 },
@@ -643,7 +641,8 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
             const rowsWithErrors = errorRowIndices.size;
 
             expect(result.transformedCount).toBe(inputs.length - rowsWithErrors);
-            expect(result.rows.length).toBe(inputs.length);
+            expect(result.rows.length).toBe(inputs.length - rowsWithErrors);
+            expect(result.rejectedRows.length).toBe(rowsWithErrors);
           },
         ),
         { numRuns: 50 },

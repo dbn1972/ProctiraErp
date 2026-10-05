@@ -19,6 +19,16 @@ function truncate(value: string, max = LABEL_MAX): string {
   return `${trimmed.slice(0, max - 1)}…`;
 }
 
+/** PRC-M224: drop query string / fragment / userinfo (tokens often live there). */
+export function stripQuery(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  } catch {
+    return url.split(/[?#]/)[0] ?? '';
+  }
+}
+
 function sourceLabel(source: DataSourceConfig): string {
   switch (source.type) {
     case 'csv':
@@ -26,9 +36,10 @@ function sourceLabel(source: DataSourceConfig): string {
     case 'excel':
       return truncate(source.filePath ?? source.sheetName ?? 'inline-excel');
     case 'postgresql':
-      return truncate(`${source.database}:${source.query}`);
+      // PRC-M224: never echo query text (may embed literals / identifiers).
+      return truncate(`${source.database}:query`);
     case 'rest_api':
-      return truncate(source.url);
+      return truncate(stripQuery(source.url));
     default:
       return 'unknown-source';
   }
@@ -41,7 +52,7 @@ function destinationLabel(destination: DataDestinationConfig): string {
         destination.schema ? `${destination.schema}.${destination.table}` : destination.table,
       );
     case 'rest_api':
-      return truncate(destination.url);
+      return truncate(stripQuery(destination.url));
     default:
       return 'unknown-destination';
   }
