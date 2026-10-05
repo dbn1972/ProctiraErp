@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PRC-M046: never back up scanned identity documents awaiting upload.
+     PRC-M045: never back up downloaded reports (student PII). Reports are
+     written sealed to cacheDir/reports, which Auto Backup never copies; the
+     explicit excludes below keep that true if the location changes and
+     cover plaintext copies an earlier build wrote to app_flutter/reports. -->
+<full-backup-content>
+    <exclude domain="file" path="pending_documents/" />
+    <exclude domain="file" path="reports/" />
+    <exclude domain="root" path="cache/reports/" />
+    <exclude domain="root" path="app_flutter/reports/" />
+</full-backup-content>
