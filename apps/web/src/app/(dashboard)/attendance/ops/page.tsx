@@ -13,6 +13,7 @@ import { formatCodeNameLabel, formatPersonLabel, type EntityLabelOption } from '
 import { listAcademicPeriods, listClassesByInstitution } from '@/lib/institutions/api';
 
 import { AttendanceOpsForms } from '../_components/attendance-ops-forms';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
@@ -86,7 +87,7 @@ async function loadAttendanceOpsLookups(): Promise<{
 }
 
 export default async function AttendanceOpsPage() {
-  const [regularisations, leaves, lookups] = await Promise.all([
+  const [regularisationsResult, leavesResult, lookups] = await Promise.all([
     listRegularisations(),
     listLeaveRequests(),
     loadAttendanceOpsLookups(),
@@ -122,9 +123,31 @@ export default async function AttendanceOpsPage() {
       ) : null}
       <Card>
         <CardContent className="p-6">
+          {/* PRC-M076: a failed read must not look like an empty approval queue. */}
+          {!regularisationsResult.ok || !leavesResult.ok ? (
+            <div className="mb-4">
+              <ListLoadFailure
+                kind={
+                  !regularisationsResult.ok
+                    ? regularisationsResult.kind
+                    : leavesResult.ok
+                      ? 'unavailable'
+                      : leavesResult.kind
+                }
+                status={
+                  !regularisationsResult.ok
+                    ? regularisationsResult.status
+                    : leavesResult.ok
+                      ? 0
+                      : leavesResult.status
+                }
+                returnTo="/attendance/ops"
+              />
+            </div>
+          ) : null}
           <AttendanceOpsForms
-            regularisations={regularisations}
-            leaves={leaves}
+            regularisations={regularisationsResult.ok ? regularisationsResult.items : []}
+            leaves={leavesResult.ok ? leavesResult.items : []}
             studentOptions={lookups.studentOptions}
             institutionOptions={lookups.institutionOptions}
             classOptions={lookups.classOptions}

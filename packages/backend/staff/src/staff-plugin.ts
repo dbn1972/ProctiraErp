@@ -81,6 +81,9 @@ export const staffPlugin = fp(
 
     // Decorate fastify with the staff service
     fastify.decorate('staffService', staffService);
+    // PRC-M374: every HR sub-record must reference a staff row in the caller's tenant.
+    const staffExists = async (tenantId: string, staffId: string) =>
+      (await repository.findById(staffId, tenantId)) !== null;
 
     // Encapsulate each route module that installs plugin-wide preHandlers so
     // `fp` does not leak staff RBAC onto other gateway domains (W1-SEC-02).
@@ -93,7 +96,7 @@ export const staffPlugin = fp(
 
     // Register assignment routes if repository is provided
     if (assignmentRepository) {
-      const assignmentService = new StaffAssignmentService(assignmentRepository);
+      const assignmentService = new StaffAssignmentService(assignmentRepository, staffExists);
       fastify.decorate('staffAssignmentService', assignmentService);
 
       await fastify.register(async (scope) => {
@@ -104,14 +107,13 @@ export const staffPlugin = fp(
       });
     }
 
-    const leaveService = new StaffLeaveService(leaveRepository);
+    const leaveService = new StaffLeaveService(leaveRepository, staffExists);
     fastify.decorate('staffLeaveService', leaveService);
     await fastify.register(async (scope) => {
       await registerStaffLeaveRoutes(scope, {
         leaveService,
         prefix,
-        staffExists: async (tenantId, staffId) =>
-          (await repository.findById(staffId, tenantId)) !== null,
+        staffExists,
       });
     });
 
@@ -128,6 +130,7 @@ export const staffPlugin = fp(
       appraisalRepos.templateRepository,
       appraisalRepos.appraisalRepository,
       options.appraisalWorkflowIntegration,
+      staffExists,
     );
     fastify.decorate('staffAppraisalService', appraisalService);
     await fastify.register(async (scope) => {
@@ -144,6 +147,7 @@ export const staffPlugin = fp(
       trainingRepos.attendanceRepository,
       trainingRepos.certificationRepository,
       options.trainingNotificationIntegration,
+      staffExists,
     );
     fastify.decorate('staffTrainingService', trainingService);
     await fastify.register(async (scope) => {

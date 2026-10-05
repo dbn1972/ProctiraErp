@@ -54,15 +54,21 @@ describe('getApplicationByTrackingNumber', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, init] = fetcher.mock.calls[0] as [RequestInfo | URL, RequestInit?];
     expect(REGISTRATION_API_PREFIX).toBe('/api/v1/registrations');
-    expect(String(url)).toContain(`/api/v1/registrations/REG-A1B2C3D4/status?dob=${DOB}`);
-    expect(init?.method).toBe('GET');
+    // PRC-M331: POST with DOB in the body; nothing sensitive in the URL.
+    expect(String(url)).toContain('/api/v1/registrations/status');
+    expect(String(url)).not.toContain(DOB);
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      trackingNumber: 'REG-A1B2C3D4',
+      dateOfBirth: DOB,
+    });
   });
-
-  it('encodes special characters in the tracking number path segment', async () => {
+  it('sends the tracking number in the body, not a path segment', async () => {
     const fetcher = makeFetcher({ jsonValue: {} });
     await getApplicationByTrackingNumber('REG/with space', DOB, { fetcher });
-    const [url] = fetcher.mock.calls[0] as [RequestInfo | URL, RequestInit?];
-    expect(String(url)).toContain('REG%2Fwith%20space/status');
+    const [url, init] = fetcher.mock.calls[0] as [RequestInfo | URL, RequestInit?];
+    expect(String(url)).not.toContain('REG');
+    expect(JSON.parse(String(init?.body)).trackingNumber).toBe('REG/with space');
   });
 
   it('maps a RegistrationStatusResponse on 200', async () => {

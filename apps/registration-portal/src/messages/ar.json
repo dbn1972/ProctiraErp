@@ -53,7 +53,9 @@
     "primary": "ابتدائي",
     "secondary": "ثانوي",
     "tvet": "تقني ومهني",
-    "preschool": "تمهيدي"
+    "preschool": "تمهيدي",
+    "typesUnavailable": "تعذر تحميل أنواع المدارس الآن.",
+    "browseAll": "تصفح كل المدارس"
   },
   "registration": {
     "title": "تسجيل الطالب",
@@ -138,7 +140,11 @@
     "serviceUnavailableTitle": "الخدمة غير متاحة مؤقتًا",
     "serviceUnavailableMessage": "تعذّر تحميل المدارس الآن. يُرجى المحاولة مرة أخرى بعد قليل.",
     "retry": "إعادة المحاولة",
-    "loadingMap": "جارٍ تحميل الخريطة…"
+    "loadingMap": "جارٍ تحميل الخريطة…",
+    "invalidFilterTitle": "نوع المدرسة هذا غير متاح",
+    "invalidFilterMessage": "الرابط يستخدم نوع مدرسة غير معروف. اختر نوعًا صالحًا.",
+    "showAll": "عرض كل المدارس",
+    "loadMore": "تحميل المزيد من المدارس"
   },
   "tracking": {
     "title": "تتبع طلبك",
@@ -163,7 +169,11 @@
     "statusUnderReview": "قيد المراجعة",
     "statusApproved": "مقبول",
     "statusRejected": "مرفوض",
-    "statusWaitlisted": "في قائمة الانتظار"
+    "statusWaitlisted": "في قائمة الانتظار",
+    "invalidRequest": "رابط التتبع هذا غير صالح. تحقق من رقم التتبع وحاول مرة أخرى.",
+    "serviceUnavailable": "تعذر التحقق من طلبك الآن. يرجى المحاولة بعد بضع دقائق.",
+    "rateLimited": "محاولات كثيرة جدًا لرقم التتبع هذا. يرجى الانتظار 15 دقيقة ثم المحاولة.",
+    "retry": "إعادة المحاولة"
   },
   "errors": {
     "validation": "يلزم تصحيح بعض البيانات قبل المتابعة.",

@@ -20,20 +20,36 @@ export function sha256Hex(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+/**
+ * PRC-M382: OWASP CSV-injection guard — text starting with = + - @ tab or CR is
+ * prefixed with a single quote; numbers and plain numeric strings are untouched.
+ */
+export function csvSafeText(text: string): string {
+  if (/^-?\d+(\.\d+)?$/.test(text)) return text;
+  return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+}
+
 function cell(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
-  return String(value);
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+  return csvSafeText(String(value));
 }
 
-function escapeCsv(field: string): string {
-  if (/[",\n\r]/.test(field)) return `"${field.replace(/"/g, '""')}"`;
-  return field;
+/**
+ * PRC-M341: neutralise spreadsheet formula injection. Cells starting with
+ * `=`, `+`, `-`, `@`, TAB or CR are prefixed with a single quote so Excel /
+ * Sheets treat them as text, then RFC 4180 quoting is applied.
+ */
+export function escapeCsv(field: string): string {
+  const safe = /^[=+\-@\t\r]/.test(field) ? `'${field}` : field;
+  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  return safe;
 }
 
 export function generateCsv(table: ReportTable): Buffer {
   const headers = table.columns.map((c) => c.label);
-  const lines = [headers.map(escapeCsv).join(',')];
+  const lines = [headers.map((h) => escapeCsv(csvSafeText(h))).join(',')];
   for (const row of table.rows) {
     lines.push(table.columns.map((col) => escapeCsv(cell(row[col.name]))).join(','));
   }

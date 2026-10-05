@@ -148,7 +148,10 @@ export interface UtilizationReportData {
   totalAmount: number;
   /** W1-DATA-09: paid disbursements summed in integer cents. */
   totalAmountCents: number;
+  /** Single currency, 'MIXED' when paid totals span currencies (see currencyTotals). */
   currency: string;
+  /** PRC-M352: paid totals per programme currency. */
+  currencyTotals: { currency: string; totalAmountCents: number; totalAmount: number }[];
   breakdown: UtilizationBreakdownItem[];
 }
 

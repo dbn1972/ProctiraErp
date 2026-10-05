@@ -350,7 +350,7 @@ export function registerCatalogueRoutes(
     if (!tenantId) return tenantMissing(reply);
     if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
     try {
-      const result = await service.runDue(new Date());
+      const result = await service.runDue(tenantId, new Date()); // PRC-M340
       return reply.send(result);
     } catch (error: unknown) {
       return sendError(reply, error);
@@ -466,7 +466,15 @@ export function registerCatalogueRoutes(
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
     try {
-      const dashboard = await service.dashboard(tenantId, resolveRoles(request), role ?? null);
+      // PRC-M344: pass the real caller id (no 'system' fallback) so parent
+      // aggregates are scoped to their own linked children.
+      const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+      const dashboard = await service.dashboard(
+        tenantId,
+        resolveRoles(request),
+        role ?? null,
+        user?.sub ?? user?.userId ?? null,
+      );
       return reply.send(dashboard);
     } catch (error: unknown) {
       return sendError(reply, error);

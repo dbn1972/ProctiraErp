@@ -12,7 +12,10 @@ on:
   push:
     branches: [main, develop, 'release/**']
   pull_request:
-    branches: [main, develop]
+    # integration/**: PRs into a merge train need the same gates as PRs into
+    # main. Without this, "green" on a train PR excludes lint, typecheck, unit,
+    # integration, tenant-isolation and security scans.
+    branches: [main, develop, 'integration/**']
 
 concurrency:
   # Include sha so a queued-but-never-started run cannot hold the group forever

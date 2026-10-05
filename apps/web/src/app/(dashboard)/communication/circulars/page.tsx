@@ -11,12 +11,26 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listCirculars } from '@/lib/api/communication';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CommunicationCircularsPage() {
   await requireSession();
-  const circulars = await listCirculars();
+  const result = await listCirculars();
+  if (!result.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Circulars</h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/communication/circulars"
+        />
+      </div>
+    );
+  }
+  const circulars = result.items;
 
   return (
     <div className="space-y-6 p-6">

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, ClipboardCopy } from 'lucide-react';
+import { clearRegistrationDrafts, LAST_TRACKING_NUMBER_KEY } from '@/lib/registration-draft';
 
 /**
  * Client-side success card. Reads the tracking number that
@@ -19,7 +20,11 @@ export function SuccessCard() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setTrackingNumber(window.sessionStorage.getItem('registration:lastTrackingNumber'));
+    // PRC-M054: read the tracking number once, then clear it and any remaining
+    // drafts so nothing about the applicant stays in this tab's storage.
+    setTrackingNumber(window.sessionStorage.getItem(LAST_TRACKING_NUMBER_KEY));
+    window.sessionStorage.removeItem(LAST_TRACKING_NUMBER_KEY);
+    clearRegistrationDrafts(window.sessionStorage);
   }, []);
 
   function handleCopy() {

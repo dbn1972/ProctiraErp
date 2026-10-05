@@ -109,25 +109,49 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return job;
   }
 
+  async claimJob(
+    jobId: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<DocumentGenerationJob | null> {
+    // Synchronous check-and-set: atomic within the JS thread (PRC-M235).
+    const existing = this.jobs.get(jobId);
+    if (!existing || existing.tenantId !== tenantId) return null;
+    const stale =
+      existing.status === 'processing' && !!existing.startedAt && existing.startedAt < staleBefore;
+    if (existing.status !== 'queued' && !stale) return null;
+    const claimed: DocumentGenerationJob = {
+      ...existing,
+      status: 'processing',
+      startedAt: new Date(),
+    };
+    this.jobs.set(jobId, claimed);
+    return claimed;
+  }
+
   async updateJob(
     jobId: string,
-    _tenantId: string,
+    tenantId: string,
     updates: Partial<DocumentGenerationJob>,
   ): Promise<DocumentGenerationJob | null> {
     const existing = this.jobs.get(jobId);
-    if (!existing) return null;
+    // Tenant-scoped: another tenant's job is a miss.
+    if (!existing || existing.tenantId !== tenantId) return null;
 
     const updated = { ...existing, ...updates };
     this.jobs.set(jobId, updated);
     return updated;
   }
 
-  async getJob(jobId: string, _tenantId: string): Promise<DocumentGenerationJob | null> {
-    return this.jobs.get(jobId) ?? null;
+  async getJob(jobId: string, tenantId: string): Promise<DocumentGenerationJob | null> {
+    const job = this.jobs.get(jobId);
+    return job && job.tenantId === tenantId ? job : null;
   }
 
-  async listJobs(examinationId: string, _tenantId: string): Promise<DocumentGenerationJob[]> {
-    return Array.from(this.jobs.values()).filter((job) => job.examinationId === examinationId);
+  async listJobs(examinationId: string, tenantId: string): Promise<DocumentGenerationJob[]> {
+    return Array.from(this.jobs.values()).filter(
+      (job) => job.examinationId === examinationId && job.tenantId === tenantId,
+    );
   }
 
   /** Test helper: clear all data */

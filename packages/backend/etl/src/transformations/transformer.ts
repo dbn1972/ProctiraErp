@@ -4,11 +4,14 @@
  * Applies field mapping and transformation rules to extracted data rows.
  * Supports: type_cast, lookup, concatenate, format, custom transformations.
  */
-import type { FieldMapping, TransformationType } from '../schemas.js';
 import type { DataRow } from '../connectors/types.js';
+import type { FieldMapping, TransformationType } from '../schemas.js';
 
 export interface TransformationResult {
+  /** Fully transformed rows only — rows with any mapping error are excluded (PRC-M227). */
   rows: DataRow[];
+  /** Source row indices rejected (dead-lettered) because a mapping failed. */
+  rejectedRows: number[];
   transformedCount: number;
   errorCount: number;
   errors: TransformError[];
@@ -28,6 +31,7 @@ export function transformRows(
   fieldMappings: FieldMapping[],
 ): TransformationResult {
   const transformedRows: DataRow[] = [];
+  const rejectedRows: number[] = [];
   const errors: TransformError[] = [];
   let transformedCount = 0;
 
@@ -48,19 +52,19 @@ export function transformRows(
           message,
         });
         rowHasError = true;
-        // Still set the raw value on error so the row isn't incomplete
-        destRow[mapping.destinationField] = sourceRow[mapping.sourceField] ?? null;
       }
     }
-
-    transformedRows.push(destRow);
-    if (!rowHasError) {
+    // PRC-M227: never load a row with raw (untransformed) values — dead-letter it.
+    if (rowHasError) {
+      rejectedRows.push(rowIndex);
+    } else {
+      transformedRows.push(destRow);
       transformedCount++;
     }
   }
-
   return {
     rows: transformedRows,
+    rejectedRows,
     transformedCount,
     errorCount: errors.length,
     errors,

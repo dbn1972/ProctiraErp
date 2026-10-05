@@ -36,12 +36,12 @@ export default async function BellSchedulesPage(props: PageProps) {
     periodName = resolveEntityLabel(academicPeriodId, {}, 'Academic period');
   }
 
-  let defaultInstitutionId = '';
+  let institutionChoices: Array<{ id: string; name: string }> = [];
   try {
     const institutions = await listInstitutions({ pageSize: 50 });
-    defaultInstitutionId = institutions[0]?.id ?? '';
+    institutionChoices = institutions.map((inst) => ({ id: inst.id, name: inst.name }));
   } catch {
-    defaultInstitutionId = '';
+    institutionChoices = [];
   }
 
   const schedulesResult = await listBellSchedules({ academicPeriodId });
@@ -106,14 +106,14 @@ export default async function BellSchedulesPage(props: PageProps) {
           <Card>
             <CardContent className="space-y-4 p-6">
               <h2 className="text-lg font-bold tracking-tight">Create bell schedule</h2>
-              {!defaultInstitutionId ? (
+              {institutionChoices.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Register an institution before creating a bell schedule.
                 </p>
               ) : (
                 <BellScheduleCreateForm
                   academicPeriodId={academicPeriodId}
-                  institutionId={defaultInstitutionId}
+                  institutions={institutionChoices}
                 />
               )}
             </CardContent>

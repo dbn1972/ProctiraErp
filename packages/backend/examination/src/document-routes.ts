@@ -131,13 +131,18 @@ export async function registerDocumentRoutes(
       }
 
       try {
-        const job = await documentGenerationService.requestGeneration(
+        // PRC-M236: large "all candidates" requests are split into chunk jobs.
+        const batch = await documentGenerationService.requestGenerationBatch(
           tenantId,
           paramsResult.data.examinationId,
           bodyResult.data,
         );
 
-        return reply.status(202).send(serializeJob(job));
+        return reply.status(202).send({
+          ...serializeJob(batch.jobs[0]!),
+          chunkCount: batch.chunkCount,
+          jobIds: batch.jobs.map((j) => j.id),
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

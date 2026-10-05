@@ -108,7 +108,10 @@ export interface ImportResult {
   duplicates: DuplicateMatch[];
   /** Echoed when options.dryRun was true (G-307). */
   dryRun?: boolean;
-  /** True when commit used all-or-nothing batch semantics (G-307). */
+  /**
+   * True only when the commit ran in a single DB transaction (PRC-M384).
+   * False when the store lacks bulkImport and best-effort compensation was used.
+   */
   transactional?: boolean;
 }
 
@@ -197,6 +200,20 @@ export interface StudentRepository {
    * Required for transactional import semantics.
    */
   delete(tenantId: string, id: string): Promise<boolean>;
+
+  /**
+   * PRC-M384: apply the whole batch in one DB transaction (all-or-nothing).
+   * When absent the importer falls back to compensation and reports
+   * `transactional: false`.
+   */
+  bulkImport?(tenantId: string, ops: ImportBulkOps): Promise<{ createdIds: string[] }>;
+}
+
+export type ImportCreateInput = Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>;
+
+export interface ImportBulkOps {
+  creates: ImportCreateInput[];
+  updates: Array<{ id: string; data: Partial<ImportCreateInput> }>;
 }
 
 /**

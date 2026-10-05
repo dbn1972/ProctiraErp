@@ -146,6 +146,18 @@ export interface DocumentRepository {
   ): Promise<DocumentGenerationJob>;
 
   /** Update a document generation job */
+  /**
+   * PRC-M235: compare-and-set claim — atomically moves a `queued` job (or a
+   * `processing` job whose claim started before `staleBefore`, i.e. a crashed
+   * worker) to `processing`. Returns null when the job is missing, owned by
+   * another tenant, or already claimed/finished (duplicate deliveries no-op).
+   */
+  claimJob(
+    jobId: string,
+    tenantId: string,
+    staleBefore: Date,
+  ): Promise<DocumentGenerationJob | null>;
+
   updateJob(
     jobId: string,
     tenantId: string,

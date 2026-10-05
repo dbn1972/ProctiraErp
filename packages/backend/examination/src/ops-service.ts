@@ -37,6 +37,7 @@ import type {
   ExamSessionRecord,
 } from './ops-store.js';
 import type { ResultRepository } from './result-repository.js';
+import { UNKNOWN_AREA_ID } from './result-repository.js';
 import { generateSeatingPlan } from './seating-generator.js';
 
 export const DEFAULT_VARIANCE_TOLERANCE = 2;
@@ -125,6 +126,21 @@ export interface MarksPairView {
   variance: number | null;
   finalMarks: number | null;
   resolved: boolean;
+}
+
+/** PRC-M230: reject marks above the subject's maximum score (422). */
+function assertMarksWithinSubject(
+  exam: { subjects: ReadonlyArray<{ id: string; maxScore: number }> },
+  subjectId: string,
+  marks: number,
+  field: string,
+): void {
+  const subject = exam.subjects.find((s) => s.id === subjectId);
+  if (subject && marks > subject.maxScore) {
+    throw new BusinessRuleError(
+      `${field} (${marks}) exceeds the subject maximum score (${subject.maxScore})`,
+    );
+  }
 }
 
 export class ExamOpsService {
@@ -332,10 +348,37 @@ export class ExamOpsService {
     actor: ExamOpsActor,
   ): Promise<ExamSeatingRecord[]> {
     const exam = await this.requireExam(tenantId, examinationId);
-    const registrations = await this.examinations.listCandidateRegistrations(
+    const sessionId = input.sessionId ?? null;
+    let sessionSubjectId: string | null = null;
+    if (sessionId) {
+      const session = await this.store.findSession(tenantId, sessionId);
+      if (!session || session.examinationId !== examinationId) {
+        throw new NotFoundError(`Exam session '${sessionId}' not found`);
+      }
+      sessionSubjectId = session.subjectId;
+    }
+
+    // PRC-M238: once admit cards are issued, seat numbers are printed on them;
+    // regenerating requires an explicit, audited `force`.
+    const admitCardsIssued = this.documents
+      ? (await this.documents.listJobs(examinationId, tenantId)).some(
+          (j) => j.documentType === 'admit_card' && j.status === 'completed',
+        )
+      : false;
+    if (admitCardsIssued && !input.force) {
+      throw new ConflictError(
+        'Admit cards have already been generated for this examination; pass force=true to regenerate seating',
+      );
+    }
+
+    const allRegistrations = await this.examinations.listCandidateRegistrations(
       examinationId,
       tenantId,
     );
+    // PRC-M238: a session-scoped run seats only candidates sitting that session.
+    const registrations = sessionSubjectId
+      ? allRegistrations.filter((r) => r.subjectIds.includes(sessionSubjectId))
+      : allRegistrations;
     const docs = this.documents
       ? await this.documents.getDocumentCandidates(examinationId, tenantId)
       : [];
@@ -358,14 +401,6 @@ export class ExamOpsService {
 
     const generated = generateSeatingPlan(candidates, input.seatsPerRoom);
     const now = new Date();
-    const sessionId = input.sessionId ?? null;
-    if (sessionId) {
-      const session = await this.store.findSession(tenantId, sessionId);
-      if (!session || session.examinationId !== examinationId) {
-        throw new NotFoundError(`Exam session '${sessionId}' not found`);
-      }
-    }
-
     const seats: ExamSeatingRecord[] = generated.map((seat) => ({
       id: randomUUID(),
       tenantId,
@@ -383,7 +418,7 @@ export class ExamOpsService {
       generatedAt: now,
     }));
 
-    const saved = await this.store.replaceSeatingGuarded(tenantId, examinationId, seats);
+    const saved = await this.store.replaceSeatingGuarded(tenantId, examinationId, seats, sessionId);
     await this.audit(
       tenantId,
       examinationId,
@@ -391,7 +426,11 @@ export class ExamOpsService {
       'exam_seating',
       examinationId,
       actor.userId,
-      { count: saved.length },
+      {
+        count: saved.length,
+        sessionId,
+        forcedAfterAdmitCards: admitCardsIssued && input.force === true,
+      },
     );
     return saved;
   }
@@ -435,8 +474,9 @@ export class ExamOpsService {
         examinationId,
         studentId: registration.studentId,
         centerId: current?.centerId ?? registration.centerId,
-        gender: current?.gender ?? 'other',
-        areaId: current?.areaId ?? registration.centerId,
+        // PRC-M240: never invent a gender; 'unknown' is its own analysis bucket.
+        gender: current?.gender ?? 'unknown',
+        areaId: current?.areaId ?? UNKNOWN_AREA_ID,
         subjectResults,
       },
     ]);
@@ -524,8 +564,12 @@ export class ExamOpsService {
       }
     }
 
+    // PRC-M230: marks are bounded by the subject maximum.
+    assertMarksWithinSubject(exam, input.subjectId, input.marks, 'marks');
+
     const first = pair.find((e) => e.entryNo === 1);
-    const tolerance = input.tolerance ?? this.varianceTolerance;
+    // PRC-M230: server-side tolerance only — any client-supplied value is ignored.
+    const tolerance = this.varianceTolerance;
     let varianceFlag = false;
     if (input.entryNo === 2 && first) {
       varianceFlag = Math.abs(first.marks - input.marks) > tolerance;
@@ -569,10 +613,11 @@ export class ExamOpsService {
     input: ResolveMarksInput,
     actor: ExamOpsActor,
   ): Promise<MarksPairView> {
-    await this.requireExam(tenantId, examinationId);
+    const exam = await this.requireExam(tenantId, examinationId);
     if (!isModeratorRole(actor.roles)) {
       throw new AppError('Resolving marks variance requires a moderator role', 'FORBIDDEN', 403);
     }
+    assertMarksWithinSubject(exam, input.subjectId, input.finalMarks, 'finalMarks');
     const pair = await this.store.findMarksPair(
       tenantId,
       examinationId,
@@ -716,7 +761,7 @@ export class ExamOpsService {
     input: CompleteReevaluationInput,
     actor: ExamOpsActor,
   ): Promise<ExamReevaluationRecord> {
-    await this.requireExam(tenantId, examinationId);
+    const exam = await this.requireExam(tenantId, examinationId);
     const existing = await this.store.findReevaluation(tenantId, requestId);
     if (!existing || existing.examinationId !== examinationId) {
       throw new NotFoundError(`Re-evaluation request '${requestId}' not found`);
@@ -724,6 +769,7 @@ export class ExamOpsService {
     if (existing.status !== 'assigned') {
       throw new BusinessRuleError(`Cannot complete a re-evaluation in '${existing.status}' status`);
     }
+    assertMarksWithinSubject(exam, existing.subjectId, input.revisedMarks, 'revisedMarks');
     // PRC-H057: write revised marks back (and re-publish) before marking the
     // request completed, so a failure leaves it retryable in 'assigned'.
     const writeBack = await this.writeBackFinalMarks(

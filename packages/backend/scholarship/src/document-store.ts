@@ -43,7 +43,12 @@ export interface ScholarshipDocumentAudit {
   userName: string;
   ipAddress: string;
   metadata: Record<string, unknown>;
+  /** Defaults to 'scholarship_application_document'. */
+  entityType?: string;
 }
+
+/** PRC-M353: entity type for read/download access-log rows (one CREATE per access). */
+export const SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY = 'scholarship_application_document_access';
 
 export interface ScholarshipDocumentStore {
   insert(
@@ -67,6 +72,8 @@ export interface ScholarshipDocumentStore {
     },
     audit: ScholarshipDocumentAudit,
   ): Promise<ScholarshipApplicationDocument | null>;
+  /** PRC-M353: durable access-log row for list/download/content/token redemption. */
+  recordAccess(audit: ScholarshipDocumentAudit): Promise<void>;
 }
 
 export class InMemoryScholarshipDocumentStore implements ScholarshipDocumentStore {
@@ -137,5 +144,8 @@ export class InMemoryScholarshipDocumentStore implements ScholarshipDocumentStor
     row.reviewedAt = new Date();
     this.audits.push(audit);
     return row;
+  }
+  async recordAccess(audit: ScholarshipDocumentAudit): Promise<void> {
+    this.audits.push(audit);
   }
 }

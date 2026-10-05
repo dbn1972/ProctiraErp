@@ -81,3 +81,29 @@ export function wallClockToUtcIso(value: string, timeZone: string): string | nul
   if (secondOffset !== firstOffset) utc = guess - secondOffset;
   return new Date(utc).toISOString();
 }
+
+/**
+ * PRC-M078: today's calendar date (YYYY-MM-DD) in `timeZone`. Date-only
+ * business values (attendance day, report range) must come from the
+ * institution/tenant zone, not the UTC instant: at 01:30 IST it is already
+ * the next day although UTC is still on the previous one.
+ */
+export function todayInTimeZone(timeZone?: string | null, now: Date = new Date()): string {
+  const zone = timeZone && isValidTimeZone(timeZone) ? timeZone : DEFAULT_TENANT_TIMEZONE;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Add `days` (may be negative) to a YYYY-MM-DD calendar date. */
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}

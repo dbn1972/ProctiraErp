@@ -31,13 +31,15 @@ export default getRequestConfig(async () => {
   try {
     messages = await loadMessages(resolvedLocale);
   } catch {
+    // PRC-M053: when falling back to default messages, also report the default
+    // locale so lang/dir match the text actually rendered.
+    resolvedLocale = defaultLocale;
     try {
       messages = await loadMessages(defaultLocale);
     } catch {
       messages = {};
     }
   }
-
   return {
     locale: resolvedLocale,
     messages,

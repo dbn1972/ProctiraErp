@@ -15,6 +15,8 @@ import type { DocumentUploadMetadata } from '@/lib/api';
 import { isValidInstitutionId } from '@/lib/validation';
 import {
   createSubmissionKey,
+  DRAFT_STORAGE_PREFIX,
+  hasApplicantData,
   stripDocumentContent,
   toPersistedDraft,
 } from '@/lib/registration-draft';
@@ -85,7 +87,7 @@ interface RegistrationContextValue {
 
 const RegistrationContext = createContext<RegistrationContextValue | null>(null);
 
-const storageKey = (institutionType: string) => `registration-draft:${institutionType}`;
+const storageKey = (institutionType: string) => `${DRAFT_STORAGE_PREFIX}${institutionType}`;
 
 /**
  * Provides the multi-step registration form state.
@@ -148,10 +150,16 @@ export function RegistrationProvider({
     }
   }, [institutionType, searchParams]);
 
-  // Persist on every change — metadata only (never document bytes).
+  // Persist on every change — metadata only (never document bytes). A pristine
+  // draft (e.g. right after reset on successful submit) is removed, not stored
+  // (PRC-M054), so no applicant PII lingers on shared devices.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      if (!hasApplicantData(draft)) {
+        window.sessionStorage.removeItem(storageKey(institutionType));
+        return;
+      }
       window.sessionStorage.setItem(
         storageKey(institutionType),
         JSON.stringify(toPersistedDraft(draft)),

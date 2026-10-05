@@ -18,6 +18,7 @@
  * self-contained and fully functional in the meantime.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { NotFoundError } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
@@ -28,6 +29,8 @@ import type {
   StudentFilter,
   StudentGuardian,
   IdentityDocument,
+  StudentBulkWrite,
+  StudentBulkWriteResult,
   StudentRepository,
 } from './student-repository.js';
 
@@ -129,6 +132,8 @@ function toEntity(row: StudentRow): StudentEntity {
   };
 }
 
+type StudentTx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
+
 export class PrismaStudentRepository implements StudentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -145,7 +150,42 @@ export class PrismaStudentRepository implements StudentRepository {
   }
 
   private createInTx(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
-    return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
+    return withTenantTransaction(this.prisma, data.tenantId, (tx) => this.createWith(tx, data));
+  }
+
+  /**
+   * PRC-M384: all-or-nothing import batch in a single tenant transaction —
+   * any unique violation or missing update target rolls back every row.
+   */
+  async bulkWrite(tenantId: string, ops: StudentBulkWrite): Promise<StudentBulkWriteResult> {
+    try {
+      return await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+        const created: StudentEntity[] = [];
+        const updated: StudentEntity[] = [];
+        for (const data of ops.creates) {
+          if (data.tenantId !== tenantId) throw new Error('bulkWrite tenant mismatch');
+          created.push(await this.createWith(tx, data));
+        }
+        for (const { id, data } of ops.updates) {
+          const row = await this.updateWith(tx, id, tenantId, data);
+          if (!row) throw new NotFoundError(`Student with id '${id}' not found`);
+          updated.push(row);
+        }
+        return { created, updated };
+      });
+    } catch (err) {
+      rethrowUniqueViolation(
+        err,
+        'Student with this admission number or national ID already exists',
+      );
+    }
+  }
+
+  private async createWith(
+    tx: StudentTx,
+    data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StudentEntity> {
+    {
       const customData = buildCustomData(data) as Prisma.InputJsonValue;
       const row = (await tx.student.create({
         data: {
@@ -171,7 +211,7 @@ export class PrismaStudentRepository implements StudentRepository {
       }
 
       return toEntity(row);
-    });
+    }
   }
 
   async update(
@@ -194,7 +234,18 @@ export class PrismaStudentRepository implements StudentRepository {
     tenantId: string,
     data: Partial<StudentEntity>,
   ): Promise<StudentEntity | null> {
-    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+    return withTenantTransaction(this.prisma, tenantId, (tx) =>
+      this.updateWith(tx, id, tenantId, data),
+    );
+  }
+
+  private async updateWith(
+    tx: StudentTx,
+    id: string,
+    tenantId: string,
+    data: Partial<StudentEntity>,
+  ): Promise<StudentEntity | null> {
+    {
       const existingRow = (await tx.student.findFirst({
         where: { id, tenantId, deletedAt: null },
       })) as StudentRow | null;
@@ -236,7 +287,7 @@ export class PrismaStudentRepository implements StudentRepository {
         `;
       }
       return toEntity(row);
-    });
+    }
   }
 
   async findById(id: string, tenantId: string): Promise<StudentEntity | null> {
