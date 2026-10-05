@@ -18,8 +18,10 @@ export interface StaffAssignmentEntity {
   tenantId: string;
   staffId: string;
   institutionId: string;
-  subjectId: string;
-  classId: string;
+  /** NULL for administrative assignments (principal, additional charge) — db/sql/098. */
+  subjectId: string | null;
+  /** NULL for administrative assignments — db/sql/098. */
+  classId: string | null;
   role: string;
   allocationPercentage: number; // 1-100
   startDate: string; // ISO date string (YYYY-MM-DD)
@@ -132,13 +134,14 @@ export interface StaffAssignmentRepository {
    * Find overlapping assignments for the same staff member at the same
    * institution-subject-class combination within a date range.
    * Used to enforce the non-overlap constraint (Requirement 7.2).
+   * A null subject/class matches only rows where that column IS NULL.
    */
   findOverlapping(
     tenantId: string,
     staffId: string,
     institutionId: string,
-    subjectId: string,
-    classId: string,
+    subjectId: string | null,
+    classId: string | null,
     startDate: string,
     endDate: string | null,
     excludeId?: string,

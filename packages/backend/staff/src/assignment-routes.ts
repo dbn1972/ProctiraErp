@@ -43,8 +43,8 @@ function formatAssignmentResponse(entity: {
   id: string;
   staffId: string;
   institutionId: string;
-  subjectId: string;
-  classId: string;
+  subjectId: string | null;
+  classId: string | null;
   role: string;
   allocationPercentage: number;
   startDate: string;
