@@ -113,11 +113,20 @@ export class PgTenantRepository implements TenantRepository {
     // PRC-H099: the RLS-bound `tenants` row is what tenant-scoped tables FK to
     // and what RLS binds app.tenant_id against — write it first, under the new
     // tenant's own GUC (021 policy: id = app.tenant_id).
+    //
+    // The row may already exist: shared provisioning, registration, migrations and
+    // seeds create `tenants` rows first and write the document afterwards (the
+    // contract db/sql/100's FK encodes). That is not a conflict to fail on, so the
+    // insert is idempotent and we remember whether this call created the row — only
+    // a row we created may be discarded on rollback.
+    let insertedRow = false;
     if (UUID_RE.test(entity.id)) {
-      await withPgTenant(this.assertPool(), entity.id, (client) =>
+      const res = await withPgTenant(this.assertPool(), entity.id, (client) =>
         client.query(
           `INSERT INTO tenants (id, name, slug, config, status, created_at, updated_at)
-           VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6, $6)`,
+           VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6, $6)
+           ON CONFLICT (id) DO NOTHING
+           RETURNING id`,
           [
             entity.id,
             entity.name,
@@ -128,13 +137,21 @@ export class PgTenantRepository implements TenantRepository {
           ],
         ),
       );
+      insertedRow = res.rows.length > 0;
     }
+    let stored: TenantEntity;
     try {
-      return await this.tenants.put(entity.id, entity);
+      stored = await this.tenants.put(entity.id, entity);
     } catch (err) {
-      await this.discardProvisioningTenant(entity.id).catch(() => undefined);
+      if (insertedRow) {
+        await this.discardProvisioningTenant(entity.id).catch(() => undefined);
+      }
       throw err;
     }
+    // A pre-existing row now has an authoritative document; keep the columns both
+    // stores hold (notably `legal_hold`, db/sql/067) in agreement, as updateTenant does.
+    if (!insertedRow) await this.mirrorToTenantRow(stored);
+    return stored;
   }
 
   /** PRC-H099: hard-delete a never-active tenant (row + document) on rollback. */
@@ -224,8 +241,8 @@ export class PgTenantRepository implements TenantRepository {
    * stores hold, so those are the ones that can disagree. `slug` is never changed by
    * `updateTenant`, and the six lifecycle fields have no columns here.
    *
-   * A no-op when the row does not exist (a tenant created through `createTenant` with
-   * no corresponding row), and it deliberately does not touch a soft-deleted row: a
+   * A no-op when the row does not exist (a document predating PRC-H099, when
+   * `createTenant` wrote no row), and it deliberately does not touch a soft-deleted row: a
    * permanently deleted tenant must not be un-deleted by a later write.
    */
   private async mirrorToTenantRow(tenant: TenantEntity): Promise<void> {
