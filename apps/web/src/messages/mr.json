@@ -153,7 +153,11 @@
     "mfaPrintCodes": "कोड प्रिंट करा",
     "mfaAcknowledgement": "मी माझे बॅकअप कोड सुरक्षित ठिकाणी जतन केले आहेत.",
     "mfaAcknowledgementHelp": "सेटअप पूर्ण केल्यानंतर तुम्ही हे कोड पुन्हा पाहू शकणार नाही.",
-    "mfaFinishSetup": "सेटअप पूर्ण करा"
+    "mfaFinishSetup": "सेटअप पूर्ण करा",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "डॅशबोर्ड",

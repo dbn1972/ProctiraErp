@@ -7,6 +7,7 @@
  * `admission_waitlist_entries` / `admission_interview_*` tables from
  * db/sql/014_admissions_crm_schema.sql under RLS (G-717).
  */
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface WaitlistEntry {
@@ -73,10 +74,20 @@ export interface AdmissionsCrmStore {
    * Returns null when the queue is empty.
    */
   dequeueWaitlistHead(tenantId: string, institutionId: string): Promise<WaitlistEntry | null>;
+  /**
+   * PRC-M329: remove an application's waitlist entry (on any transition out of
+   * `waitlisted`). Returns true when an entry was removed.
+   */
+  removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean>;
   createSlot(input: CreateSlotInput): Promise<InterviewSlot>;
   listSlots(tenantId: string, institutionId?: string): Promise<InterviewSlot[]>;
   findSlot(id: string, tenantId: string): Promise<InterviewSlot | null>;
   listBookingsForSlot(tenantId: string, slotId: string): Promise<InterviewBooking[]>;
+  /**
+   * Book atomically: returns the existing booking for (slot, application) if
+   * any, else enforces capacity and inserts. Missing/closed slot -> NotFound;
+   * full slot -> BusinessRuleError (PRC-M334).
+   */
   bookSlot(input: BookSlotInput): Promise<InterviewBooking>;
   listBookingsForApplication(tenantId: string, applicationId: string): Promise<InterviewBooking[]>;
 }
@@ -133,6 +144,14 @@ export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
     return head;
   }
 
+  async removeWaitlistEntry(tenantId: string, applicationId: string): Promise<boolean> {
+    const before = this.waitlist.length;
+    this.waitlist = this.waitlist.filter(
+      (row) => !(row.tenantId === tenantId && row.applicationId === applicationId),
+    );
+    return this.waitlist.length !== before;
+  }
+
   async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {
     const now = new Date();
     const slot: InterviewSlot = {
@@ -171,6 +190,25 @@ export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
   }
 
   async bookSlot(input: BookSlotInput): Promise<InterviewBooking> {
+    // PRC-M334: synchronous (no await) existing-booking + capacity check + insert.
+    const existing = this.bookings.find(
+      (row) =>
+        row.tenantId === input.tenantId &&
+        row.slotId === input.slotId &&
+        row.applicationId === input.applicationId &&
+        row.status === 'booked',
+    );
+    if (existing) return existing;
+    const slot = this.slots.find(
+      (row) => row.id === input.slotId && row.tenantId === input.tenantId,
+    );
+    if (!slot || slot.status !== 'open') {
+      throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
+    }
+    const booked = this.bookings.filter(
+      (row) => row.tenantId === input.tenantId && row.slotId === slot.id && row.status === 'booked',
+    ).length;
+    if (booked >= slot.capacity) throw new BusinessRuleError('Interview slot is at capacity');
     const now = new Date();
     const booking: InterviewBooking = {
       id: uuidv4(),

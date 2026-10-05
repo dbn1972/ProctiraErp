@@ -29,6 +29,42 @@ export const MAX_BATCH_SIZE = 500;
 /** Maximum allowed generation duration in milliseconds (60 seconds) */
 export const MAX_GENERATION_DURATION_MS = 60_000;
 
+/** PRC-M236: optional collaborators. */
+export interface DocumentGenerationServiceOptions {
+  /** Receives duration-budget breaches (MAX_GENERATION_DURATION_MS). */
+  logger?: { warn(obj: Record<string, unknown>, msg: string): void };
+}
+
+/** PRC-M236: one requested generation split into ≤ MAX_BATCH_SIZE chunk jobs. */
+export interface DocumentGenerationBatch {
+  jobs: DocumentGenerationJob[];
+  chunkCount: number;
+  totalCandidates: number;
+}
+
+/** PRC-M235: options for one processing attempt. */
+export interface ProcessDocumentJobOptions {
+  /** Queue workers set this so transient failures propagate and the broker redelivers. */
+  rethrowRetryable?: boolean;
+}
+
+/** PRC-M235: a `processing` claim older than this belongs to a crashed worker. */
+export const STALE_PROCESSING_MS = 15 * 60 * 1000;
+
+/** PRC-M235: user-facing text stored for unexpected (non-domain) failures. */
+export const GENERIC_DOCUMENT_FAILURE =
+  'Document generation failed due to a temporary error; it will be retried.';
+
+/**
+ * PRC-M235: domain errors (4xx AppErrors) are permanent and their curated
+ * message is safe to show; anything else is transient and its raw text (stack,
+ * SQL, driver detail) is never stored or returned.
+ */
+export function isPermanentDocumentError(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return typeof status === 'number' && status >= 400 && status < 500;
+}
+
 /**
  * Input for requesting document generation.
  */
@@ -98,6 +134,7 @@ export class DocumentGenerationService {
      * relay publishes — no dual-write createJob→publishDocumentTask.
      */
     private readonly outboxStore?: OutboxStore,
+    private readonly options: DocumentGenerationServiceOptions = {},
   ) {}
 
   /**
@@ -169,6 +206,19 @@ export class DocumentGenerationService {
     examinationId: string,
     input: GenerateDocumentsInput,
   ): Promise<DocumentGenerationJob> {
+    return (await this.requestGenerationBatch(tenantId, examinationId, input)).jobs[0]!;
+  }
+
+  /**
+   * PRC-M236: like {@link requestGeneration} but returns every chunk job. When
+   * "all candidates" resolves to more than MAX_BATCH_SIZE, the work is split into
+   * ceil(n / MAX_BATCH_SIZE) jobs instead of silently dropping the remainder.
+   */
+  async requestGenerationBatch(
+    tenantId: string,
+    examinationId: string,
+    input: GenerateDocumentsInput,
+  ): Promise<DocumentGenerationBatch> {
     const errors: FieldError[] = [];
 
     // Fetch examination
@@ -202,25 +252,42 @@ export class DocumentGenerationService {
       resolvedCandidateIds = candidates.map((c) => c.id);
     }
 
-    // Enforce batch size limit on resolved candidates
-    if (resolvedCandidateIds.length > MAX_BATCH_SIZE) {
-      resolvedCandidateIds = resolvedCandidateIds.slice(0, MAX_BATCH_SIZE);
+    // PRC-M236: split into chunks rather than truncating to MAX_BATCH_SIZE.
+    // Seating plans are exam-wide (not per candidate), so they stay one job.
+    const chunks: string[][] = [];
+    if (input.documentType === 'seating_plan' || resolvedCandidateIds.length <= MAX_BATCH_SIZE) {
+      chunks.push(resolvedCandidateIds);
+    } else {
+      for (let i = 0; i < resolvedCandidateIds.length; i += MAX_BATCH_SIZE) {
+        chunks.push(resolvedCandidateIds.slice(i, i + MAX_BATCH_SIZE));
+      }
     }
 
-    // Create job
+    const jobs: DocumentGenerationJob[] = [];
+    for (const chunk of chunks) {
+      jobs.push(await this.createQueuedJob(tenantId, examinationId, input.documentType, chunk));
+    }
+    return { jobs, chunkCount: jobs.length, totalCandidates: resolvedCandidateIds.length };
+  }
+
+  private async createQueuedJob(
+    tenantId: string,
+    examinationId: string,
+    documentType: DocumentType,
+    candidateIds: string[],
+  ): Promise<DocumentGenerationJob> {
     const job: DocumentGenerationJob = {
       id: uuidv4(),
       tenantId,
       examinationId,
-      documentType: input.documentType,
+      documentType,
       status: 'queued',
-      candidateIds: resolvedCandidateIds,
-      totalCandidates: resolvedCandidateIds.length,
+      candidateIds,
+      totalCandidates: candidateIds.length,
       processedCount: 0,
       failedCount: 0,
       createdAt: new Date(),
     };
-
     const savedJob = this.outboxStore
       ? await this.documentRepository.createJobWithOutbox(
           job,
@@ -250,20 +317,29 @@ export class DocumentGenerationService {
    *
    * @throws NotFoundError if job not found
    */
-  async processJob(tenantId: string, jobId: string): Promise<DocumentGenerationJob> {
+  async processJob(
+    tenantId: string,
+    jobId: string,
+    processOptions: ProcessDocumentJobOptions = {},
+  ): Promise<DocumentGenerationJob> {
     const startTime = Date.now();
 
-    // Get the job
-    const job = await this.documentRepository.getJob(jobId, tenantId);
-    if (!job) {
+    // Get the job (tenant-scoped; another tenant's job is a 404)
+    const current = await this.documentRepository.getJob(jobId, tenantId);
+    if (!current) {
       throw new NotFoundError(`Document generation job '${jobId}' not found`);
     }
 
-    // Update status to processing
-    await this.documentRepository.updateJob(jobId, tenantId, {
-      status: 'processing',
-      startedAt: new Date(),
-    });
+    // PRC-M235: claim queued -> processing atomically; completed/processing/failed
+    // jobs are never re-run by a duplicate delivery or a repeated /process call.
+    const job = await this.documentRepository.claimJob(
+      jobId,
+      tenantId,
+      new Date(Date.now() - STALE_PROCESSING_MS),
+    );
+    if (!job) {
+      return (await this.documentRepository.getJob(jobId, tenantId)) ?? current;
+    }
 
     try {
       // Fetch examination info
@@ -333,6 +409,19 @@ export class DocumentGenerationService {
       }
 
       const durationMs = Date.now() - startTime;
+      // PRC-M236: surface breaches of the per-batch generation budget.
+      if (durationMs > MAX_GENERATION_DURATION_MS) {
+        this.options.logger?.warn(
+          {
+            tenantId,
+            jobId,
+            documentType: job.documentType,
+            durationMs,
+            budgetMs: MAX_GENERATION_DURATION_MS,
+          },
+          'exam document generation exceeded its duration budget',
+        );
+      }
 
       // Tenant-prefixed key; the blob store decides where bytes live
       // (in-memory by default, object storage when an adapter is wired).
@@ -351,16 +440,27 @@ export class DocumentGenerationService {
       return updatedJob!;
     } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
+      if (isPermanentDocumentError(error)) {
+        // Domain rule failure: terminal, curated message is safe to surface.
+        const updatedJob = await this.documentRepository.updateJob(jobId, tenantId, {
+          status: 'failed',
+          errorMessage: (error as Error).message,
+          durationMs,
+          completedAt: new Date(),
+        });
+        return updatedJob!;
+      }
+
+      // PRC-M235: transient — release the claim so the job stays retriable and
+      // store only a sanitised message (no stack / SQL / driver text).
       const updatedJob = await this.documentRepository.updateJob(jobId, tenantId, {
-        status: 'failed',
-        errorMessage,
+        status: 'queued',
+        errorMessage: GENERIC_DOCUMENT_FAILURE,
         durationMs,
-        completedAt: new Date(),
       });
-
-      return updatedJob!;
+      if (processOptions.rethrowRetryable) throw error;
+      return updatedJob ?? job;
     }
   }
 

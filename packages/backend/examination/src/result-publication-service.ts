@@ -21,17 +21,25 @@ import {
 } from '@proctira/common';
 
 import type { ExaminationRepository, ExaminationGradingScheme } from './examination-repository.js';
-import type {
-  ResultRepository,
-  ExaminationCandidate,
-  CandidateGradeResult,
-  IncompleteRecord,
-  PublicationResult,
-  ResultAnalysis,
-  AnalysisBreakdown,
-  ScoreDistributionBucket,
-  AcademicRecordUpdate,
+import {
+  UNKNOWN_AREA_ID,
+  fingerprintCandidates,
+  normalizeCandidateGender,
+  type ResultRepository,
+  type ExaminationCandidate,
+  type CandidateGradeResult,
+  type IncompleteRecord,
+  type PublicationResult,
+  type ResultAnalysis,
+  type AnalysisBreakdown,
+  type ScoreDistributionBucket,
+  type AcademicRecordUpdate,
+  type CandidateSubjectResult,
+  type CandidateGender,
 } from './result-repository.js';
+
+/** PRC-M240: parallel enrollment lookups per batch. */
+const DEMOGRAPHICS_LOOKUP_CONCURRENCY = 20;
 
 /** Marks entry payload (see RecordMarksSchema). */
 export interface RecordMarksInput {
@@ -59,6 +67,8 @@ export class ResultPublicationService {
     private readonly options: {
       /** PRC-H057: unresolved double-entry variance pairs block publication. */
       countUnresolvedVariances?: (tenantId: string, examinationId: string) => Promise<number>;
+      /** PRC-M236: receives MAX_PUBLICATION_DURATION_MS breaches. */
+      logger?: { warn(obj: Record<string, unknown>, msg: string): void };
     } = {},
   ) {}
 
@@ -214,7 +224,13 @@ export class ResultPublicationService {
     }
 
     const durationMs = Date.now() - startTime;
-
+    // PRC-M236: surface breaches of the publication duration budget.
+    if (durationMs > MAX_PUBLICATION_DURATION_MS) {
+      this.options.logger?.warn(
+        { tenantId, examinationId, durationMs, budgetMs: MAX_PUBLICATION_DURATION_MS },
+        'exam result publication exceeded its duration budget',
+      );
+    }
     // Build publication result
     const publicationResult: PublicationResult = {
       examinationId,
@@ -229,7 +245,10 @@ export class ResultPublicationService {
     };
 
     // Save publication result
-    await this.resultRepository.savePublicationResult(publicationResult);
+    // PRC-M239: reject the publish (409) if marks changed after the snapshot above.
+    await this.resultRepository.savePublicationResult(publicationResult, {
+      candidatesFingerprint: fingerprintCandidates(storedCandidates),
+    });
 
     // Requirement 10.4: Update student academic records
     const academicUpdates: AcademicRecordUpdate[] = gradeResults.map((gr) => ({
@@ -357,7 +376,9 @@ export class ResultPublicationService {
       candidateMap,
       (result) => {
         const candidate = candidateMap.get(result.candidateId);
-        return candidate?.areaId ?? 'unknown';
+        // PRC-M240: the nil-UUID sentinel is the explicit 'unknown' area bucket.
+        const areaId = candidate?.areaId;
+        return !areaId || areaId === UNKNOWN_AREA_ID ? 'unknown' : areaId;
       },
       (areaId) => areaId,
       minScore,
@@ -453,6 +474,11 @@ export class ResultPublicationService {
     const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r]));
     const existing = await this.resultRepository.getCandidates(examinationId, tenantId);
     const existingByStudent = new Map(existing.map((c) => [c.studentId, c]));
+    // PRC-M240: resolve gender/area from the student record (client values ignored).
+    const demographics = await this.resolveDemographics(
+      tenantId,
+      input.entries.map((e) => e.studentId).filter((id) => registrationByStudent.has(id)),
+    );
 
     const errors: FieldError[] = [];
     const upserts: ExaminationCandidate[] = [];
@@ -482,9 +508,9 @@ export class ResultPublicationService {
       }
       const current = existingByStudent.get(entry.studentId);
       const candidateId = current?.id ?? randomUUID();
-      const results = new Map(
-        (current?.subjectResults ?? []).map((r) => [r.subjectId, r] as const),
-      );
+      // PRC-M239: send only this entry's subjects; the repository merges them per
+      // subject into the locked stored row (no stale-snapshot overwrite).
+      const results = new Map<string, CandidateSubjectResult>();
       const seenSubjects = new Set<string>();
       entry.marks.forEach((mark, markIndex) => {
         if (seenSubjects.has(mark.subjectId)) {
@@ -526,8 +552,8 @@ export class ResultPublicationService {
         examinationId,
         studentId: entry.studentId,
         centerId: registration.centerId,
-        gender: current?.gender ?? entry.gender ?? 'other',
-        areaId: current?.areaId ?? entry.areaId ?? registration.centerId,
+        gender: demographics.get(entry.studentId)?.gender ?? current?.gender ?? 'unknown',
+        areaId: demographics.get(entry.studentId)?.areaId ?? current?.areaId ?? UNKNOWN_AREA_ID,
         subjectResults: [...results.values()],
       });
     });
@@ -536,8 +562,35 @@ export class ResultPublicationService {
       throw new ValidationError('Marks entry failed validation', errors);
     }
 
-    await this.resultRepository.upsertCandidates(tenantId, upserts);
+    // PRC-M239: published-check + per-subject merge happen atomically under a lock.
+    await this.resultRepository.mergeCandidateMarks(tenantId, examinationId, upserts);
     return { candidateCount: upserts.length, subjectResultCount };
+  }
+
+  /**
+   * PRC-M240: gender + area per student from the enrollment port (student record
+   * and enrolling institution). Unresolved values become 'unknown' / UNKNOWN_AREA_ID.
+   */
+  private async resolveDemographics(
+    tenantId: string,
+    studentIds: string[],
+  ): Promise<Map<string, { gender: CandidateGender; areaId: string }>> {
+    const unique = [...new Set(studentIds)];
+    const out = new Map<string, { gender: CandidateGender; areaId: string }>();
+    for (let i = 0; i < unique.length; i += DEMOGRAPHICS_LOOKUP_CONCURRENCY) {
+      const slice = unique.slice(i, i + DEMOGRAPHICS_LOOKUP_CONCURRENCY);
+      const rows = await Promise.all(
+        slice.map((id) => this.examinationRepository.getStudentEnrollment(id, tenantId)),
+      );
+      slice.forEach((id, k) => {
+        const e = rows[k];
+        out.set(id, {
+          gender: normalizeCandidateGender(e?.gender),
+          areaId: e?.areaId || UNKNOWN_AREA_ID,
+        });
+      });
+    }
+    return out;
   }
 
   /** Recorded (pre- or post-publication) marks per candidate. */

@@ -17,6 +17,8 @@ import type {
   VerifyQualificationInput,
 } from './hr-schemas.js';
 import type {
+  AttendanceListFilter,
+  PageWindow,
   StaffAttendanceRecord,
   StaffContractRecord,
   StaffContractStatus,
@@ -211,7 +213,6 @@ function importRowError(line: number, error: unknown): ImportRowError {
 
 export class StaffHrService {
   /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
-  private readonly payrollRuns = new Map<string, PayrollExportResult>();
 
   private readonly payrollProration: PayrollProrationPolicy;
 
@@ -227,6 +228,20 @@ export class StaffHrService {
     await this.staffService.getById(tenantId, input.staffId);
     const record = await this.store.createContract(buildContractRecord(tenantId, input));
     return withRenewalAlert(record);
+  }
+
+  /** PRC-M379: windowed list with total. */
+  async listContractsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    const page = await this.store.listContractsPage(tenantId, staffId, window);
+    return { rows: page.rows.map((row) => withRenewalAlert(row)), total: page.total };
+  }
+
+  async listQualificationsPage(tenantId: string, staffId: string | undefined, window: PageWindow) {
+    return this.store.listQualificationsPage(tenantId, staffId, window);
+  }
+
+  async listAttendancePage(tenantId: string, filter: AttendanceListFilter, window: PageWindow) {
+    return this.store.listAttendancePage(tenantId, filter, window);
   }
 
   async listContracts(tenantId: string, staffId?: string): Promise<ContractView[]> {
@@ -650,12 +665,9 @@ export class StaffHrService {
   }
 
   async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
-    const cacheKey = `${tenantId}:${query.month}`;
+    // PRC-M369: no process-local memo. The store is authoritative so a
+    // reverse/replace on another replica is never masked by a stale run.
     if (!query.replace) {
-      const prior = this.payrollRuns.get(cacheKey);
-      if (prior) {
-        return { ...prior, idempotent: true };
-      }
       const stored = await this.store.findPayrollExport(tenantId, query.month);
       if (stored) {
         const result: PayrollExportResult = {
@@ -667,12 +679,8 @@ export class StaffHrService {
           idempotent: true,
           trialBalance: JSON.parse(stored.trialBalanceJson) as PayrollLedgerTrial,
         };
-        this.payrollRuns.set(cacheKey, result);
         return result;
       }
-    } else {
-      // Correction path: drop memoized current so we recompute and reverse/replace.
-      this.payrollRuns.delete(cacheKey);
     }
 
     const { from, to } = monthRange(query.month);
@@ -826,7 +834,6 @@ export class StaffHrService {
     } else {
       await this.store.savePayrollExport(exportRecord);
     }
-    this.payrollRuns.set(cacheKey, result);
 
     // eslint-disable-next-line no-console
     console.info(

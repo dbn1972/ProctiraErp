@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 import {
   InsufficientLeaveBalanceError,
+  LeaveBalanceMissingError,
+  LeaveNotPendingError,
   type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
@@ -17,6 +19,7 @@ import {
   type CreateStaffLeaveInput,
   type DecideStaffLeaveInput,
 } from './leave-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
 export function inclusiveLeaveDays(startDate: string, endDate: string): number {
@@ -33,7 +36,11 @@ function requiresBalance(leaveType: StaffLeaveType): boolean {
 }
 
 export class StaffLeaveService {
-  constructor(private readonly repository: StaffLeaveRepository) {}
+  constructor(
+    private readonly repository: StaffLeaveRepository,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
+  ) {}
 
   async getBalance(tenantId: string, staffId: string, leaveType: StaffLeaveType) {
     return this.repository.getBalance(tenantId, staffId, leaveType);
@@ -117,6 +124,7 @@ export class StaffLeaveService {
   }
 
   async createLeave(tenantId: string, input: CreateStaffLeaveInput) {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     if (input.endDate < input.startDate) {
       throw new BusinessRuleError('End date must be on or after start date');
     }
@@ -147,6 +155,11 @@ export class StaffLeaveService {
     });
   }
 
+  /** PRC-M379: bounded list with total. */
+  async listLeavesPage(tenantId: string, window: { limit: number; offset: number }) {
+    return this.repository.listLeavesPage(tenantId, window);
+  }
+
   async listLeaves(tenantId: string) {
     return this.repository.listLeaves(tenantId);
   }
@@ -164,37 +177,36 @@ export class StaffLeaveService {
     if (leave.status !== 'pending') {
       throw new ConflictError(`Leave is already ${leave.status}`);
     }
-
     const status = input.status as StaffLeaveStatus;
-
-    if (status === 'approved' && requiresBalance(leave.leaveType)) {
-      const days = inclusiveLeaveDays(leave.startDate, leave.endDate);
-      // G-718: the decrement itself is the authoritative check — the repository
-      // locks the balance row (FOR UPDATE) and rejects a negative result, so two
-      // concurrent approvals cannot both consume the same days.
-      // PRC-H091: a missing balance row is a configuration gap, not "0 days".
-      const balance = await this.repository.getBalance(tenantId, leave.staffId, leave.leaveType);
-      if (!balance) {
+    const debitDays =
+      status === 'approved' && requiresBalance(leave.leaveType)
+        ? inclusiveLeaveDays(leave.startDate, leave.endDate)
+        : null;
+    // PRC-M372: lock + pending check + balance debit + guarded status update run
+    // in one transaction, so concurrent approvals debit once and a failed status
+    // write rolls the debit back.
+    try {
+      const updated = await this.repository.decideLeaveAtomically(tenantId, leaveId, {
+        status,
+        decidedBy: actorId,
+        decidedAt: new Date(),
+        debitDays,
+      });
+      if (!updated) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+      return updated;
+    } catch (error) {
+      if (error instanceof LeaveNotPendingError) throw new ConflictError(error.message);
+      if (error instanceof InsufficientLeaveBalanceError) {
+        throw new BusinessRuleError(error.message);
+      }
+      if (error instanceof LeaveBalanceMissingError) {
+        // PRC-H091: a missing balance row is a configuration gap, not "0 days".
         throw new BusinessRuleError(
           `No ${leave.leaveType} leave balance is configured for staff '${leave.staffId}'; ` +
             'set it via PUT /staff/:id/leave-balances before approving',
         );
       }
-      try {
-        await this.repository.adjustBalance(tenantId, leave.staffId, leave.leaveType, -days);
-      } catch (error) {
-        if (error instanceof InsufficientLeaveBalanceError) {
-          throw new BusinessRuleError(error.message);
-        }
-        throw error;
-      }
+      throw error;
     }
-
-    const updated = await this.repository.updateLeave(leaveId, tenantId, {
-      status,
-      decidedBy: actorId,
-      decidedAt: new Date(),
-    });
-    return updated!;
   }
 }

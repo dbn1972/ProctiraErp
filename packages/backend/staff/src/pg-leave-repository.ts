@@ -11,9 +11,13 @@ import {
 } from '@proctira/database';
 import type pg from 'pg';
 
+import type { PagedRows, PageWindow } from './hr-store.js';
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import {
   InsufficientLeaveBalanceError,
+  LeaveBalanceMissingError,
+  LeaveNotPendingError,
+  type DecideLeaveAtomicInput,
   type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
@@ -107,6 +111,25 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
         ],
       );
       return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM staff_leave_requests WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      const result = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE tenant_id = $1
+          ORDER BY created_at DESC, id LIMIT $2 OFFSET $3`,
+        [tenantId, window.limit, window.offset],
+      );
+      return {
+        rows: result.rows.map((row) => mapLeave(row as Record<string, unknown>)),
+        total: Number((count.rows[0] as { total?: unknown } | undefined)?.total ?? 0),
+      };
     });
   }
 
@@ -264,6 +287,51 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
         [tenantId, staffId, leaveType, next],
       );
       return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
+  }
+  async decideLeaveAtomically(
+    tenantId: string,
+    leaveId: string,
+    input: DecideLeaveAtomicInput,
+  ): Promise<StaffLeaveEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const locked = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+        [leaveId, tenantId],
+      );
+      if (!locked.rows[0]) return null;
+      const leave = mapLeave(locked.rows[0] as Record<string, unknown>);
+      if (leave.status !== 'pending') throw new LeaveNotPendingError(leave.status);
+      if (input.debitDays !== null && input.debitDays > 0) {
+        const bal = await client.query(
+          `SELECT balance_days FROM staff_leave_balances
+           WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
+           LIMIT 1
+           FOR UPDATE`,
+          [tenantId, leave.staffId, leave.leaveType],
+        );
+        if (!bal.rows[0]) throw new LeaveBalanceMissingError(leave.staffId, leave.leaveType);
+        const current = Number((bal.rows[0] as { balance_days: unknown }).balance_days);
+        const next = current - input.debitDays;
+        if (next < 0) {
+          throw new InsufficientLeaveBalanceError(leave.leaveType, input.debitDays, current);
+        }
+        await client.query(
+          `UPDATE staff_leave_balances SET balance_days = $4, updated_at = now()
+           WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3`,
+          [tenantId, leave.staffId, leave.leaveType, next],
+        );
+      }
+      const result = await client.query(
+        `UPDATE staff_leave_requests
+         SET status = $3, decided_by = $4, decided_at = $5, updated_at = now()
+         WHERE id = $1 AND tenant_id = $2 AND status = 'pending'
+         RETURNING *`,
+        [leaveId, tenantId, input.status, input.decidedBy, input.decidedAt],
+      );
+      if (!result.rows[0]) throw new LeaveNotPendingError(leave.status);
+      return mapLeave(result.rows[0] as Record<string, unknown>);
     });
   }
 }

@@ -3,7 +3,15 @@ import { getTranslations } from 'next-intl/server';
 import { InstitutionMap } from '@/components/institutions/institution-map';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
-import { getInstitutions, type InstitutionFilters, type InstitutionLocation } from '@/lib/api';
+import Link from 'next/link';
+import {
+  getInstitutionFilters,
+  getInstitutions,
+  type InstitutionFilterOptions,
+  type InstitutionFilters,
+  type InstitutionLocation,
+} from '@/lib/api';
+import { resolveTypeFilter } from '@/lib/institution-filters';
 import { serverTransport } from '@/lib/gateway';
 import { MAX_PUBLIC_PAGE_SIZE } from '@/lib/pagination';
 
@@ -15,26 +23,30 @@ export default async function SchoolsPage({
   const t = await getTranslations('institutions');
   const query = await searchParams;
   const typeId = typeof query.typeId === 'string' ? query.typeId : undefined;
-  const initialFilters: InstitutionFilters = typeId ? { typeId } : {};
-  let institutions: InstitutionLocation[] = [];
-  let initialError = false;
+  // PRC-M051/M056: filter options come from the dedicated endpoint (all active
+  // institutions), not from the first page of results.
+  let options: InstitutionFilterOptions | null = null;
   try {
-    const response = await getInstitutions(
-      { ...initialFilters, pageSize: MAX_PUBLIC_PAGE_SIZE },
-      serverTransport,
-    );
-    institutions = response.data;
+    options = await getInstitutionFilters(serverTransport);
   } catch {
-    initialError = true;
+    options = null;
   }
-
-  const areasMap = new Map<string, string>();
-  const typesMap = new Map<string, string>();
-  const gradesSet = new Set<string>();
-  for (const institution of institutions) {
-    if (institution.areaName) areasMap.set(institution.areaId, institution.areaName);
-    if (institution.typeName) typesMap.set(institution.typeId, institution.typeName);
-    institution.availableGrades?.forEach((grade) => gradesSet.add(grade));
+  const typeFilter = resolveTypeFilter(typeId, options);
+  const initialFilters: InstitutionFilters = typeId && typeFilter !== 'invalid' ? { typeId } : {};
+  let institutions: InstitutionLocation[] = [];
+  let initialTotal = 0;
+  let initialError = options === null;
+  if (typeFilter !== 'invalid') {
+    try {
+      const response = await getInstitutions(
+        { ...initialFilters, pageSize: MAX_PUBLIC_PAGE_SIZE },
+        serverTransport,
+      );
+      institutions = response.data;
+      initialTotal = response.meta.totalItems;
+    } catch {
+      initialError = true;
+    }
   }
 
   return (
@@ -47,14 +59,28 @@ export default async function SchoolsPage({
             <p className="mt-2 text-sm text-gray-600">{t('subtitle')}</p>
           </div>
           <div className="mt-6">
-            <InstitutionMap
-              initialInstitutions={institutions}
-              initialAreas={Array.from(areasMap, ([id, name]) => ({ id, name }))}
-              initialTypes={Array.from(typesMap, ([id, name]) => ({ id, name }))}
-              initialGrades={Array.from(gradesSet, (id) => ({ id, name: id }))}
-              initialFilters={initialFilters}
-              initialError={initialError}
-            />
+            {typeFilter === 'invalid' ? (
+              <div
+                role="alert"
+                className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+              >
+                <p className="font-semibold">{t('invalidFilterTitle')}</p>
+                <p className="mt-1">{t('invalidFilterMessage')}</p>
+                <Link href="/schools" className="btn-secondary mt-3 inline-flex">
+                  {t('showAll')}
+                </Link>
+              </div>
+            ) : (
+              <InstitutionMap
+                initialInstitutions={institutions}
+                initialTotal={initialTotal}
+                initialAreas={options?.areas ?? []}
+                initialTypes={options?.types ?? []}
+                initialGrades={(options?.grades ?? []).map((id) => ({ id, name: id }))}
+                initialFilters={initialFilters}
+                initialError={initialError}
+              />
+            )}
           </div>
         </div>
       </main>

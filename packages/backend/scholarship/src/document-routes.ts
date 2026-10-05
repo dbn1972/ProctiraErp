@@ -191,6 +191,13 @@ export async function registerScholarshipDocumentRoutes(
       const actor = await actorFor(request, tenantId);
       assertCanReadDocuments(actor, application);
       const data = await documentService.list(tenantId, application.id);
+      await documentService.recordAccess({
+        tenantId,
+        actor,
+        action: 'list',
+        applicationId: application.id,
+        documentId: null,
+      });
       return reply.send({ data });
     } catch (error) {
       return sendError(reply, error);
@@ -227,6 +234,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'download_link',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply.send({
           url: doc.url,
           expiresAt: doc.expiresAt,
@@ -266,6 +280,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'content',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply
           .header('content-type', file.mimeType)
           .header(
@@ -295,7 +316,7 @@ export async function registerScholarshipDocumentRoutes(
       const application = await loadApplication(tenantId, params.data.id);
       const actor = await actorFor(request, tenantId);
       assertCanDelete(actor, application);
-      await documentService.remove(tenantId, params.data.documentId, actor);
+      await documentService.remove(tenantId, params.data.documentId, actor, application);
       return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
@@ -442,6 +463,18 @@ export async function registerScholarshipDocumentRoutes(
           });
         }
         const file = await documentService.readBytes(claims.tenantId, claims.documentId);
+        const sessionActor = actorFromRequest(request);
+        await documentService.recordAccess({
+          tenantId: claims.tenantId,
+          actor: {
+            userId: claims.sub || sessionActor.userId,
+            userName: sessionActor.userName,
+            ipAddress: sessionActor.ipAddress,
+          },
+          action: 'token_download',
+          applicationId: file.row.applicationId,
+          documentId: claims.documentId,
+        });
         request.log.info(
           {
             event: 'scholarship.document.downloaded',

@@ -17,6 +17,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { getClassRoster, type RosterEntry } from '@/lib/api/attendance';
+import type { ListResult } from '@/lib/api/list-result';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { listAcademicPeriods, listInstitutions, type AcademicPeriod } from '@/lib/api/institutions';
 import { listAttendancePeriods } from '@/lib/api/timetable';
 import { listClassesByInstitution } from '@/lib/institutions/api';
@@ -24,6 +26,8 @@ import type { ClassSection } from '@/lib/institutions/types';
 
 import { AttendanceMarkingForm } from './_components/attendance-marking-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { todayInTimeZone } from '@/lib/datetime/tenant-zoned';
+import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,27 +48,30 @@ export default async function AttendancePage(props: PageProps) {
   const institutionId = readStringParam(searchParams, 'institutionId');
   const classId = readStringParam(searchParams, 'classId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
-  const today = new Date().toISOString().slice(0, 10);
+  // PRC-M078: "today" is the tenant-timezone calendar day, not the UTC date.
+  const today = todayInTimeZone(await resolveTenantTimezone());
   const date = readStringParam(searchParams, 'date') || today;
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
-  const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
-    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
-    institutionId
-      ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
-      : Promise.resolve<ClassSection[]>([]),
-    institutionId
-      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-      : Promise.resolve<AcademicPeriod[]>([]),
-    classId && academicPeriodId
-      ? getClassRoster(classId, academicPeriodId, date)
-      : Promise.resolve<RosterEntry[]>([]),
-    institutionId
-      ? listAttendancePeriods({ institutionId, dayOfWeek })
-      : Promise.resolve({ ok: true as const, data: [] }),
-  ]);
+  const [institutions, classes, academicPeriods, rosterResult, publishedPeriods] =
+    await Promise.all([
+      listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+      institutionId
+        ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
+        : Promise.resolve<ClassSection[]>([]),
+      institutionId
+        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        : Promise.resolve<AcademicPeriod[]>([]),
+      classId && academicPeriodId
+        ? getClassRoster(classId, academicPeriodId, date)
+        : Promise.resolve<ListResult<RosterEntry>>({ ok: true, items: [] }),
+      institutionId
+        ? listAttendancePeriods({ institutionId, dayOfWeek })
+        : Promise.resolve({ ok: true as const, data: [] }),
+    ]);
 
+  const roster = rosterResult.ok ? rosterResult.items : [];
   const publishedSlots = publishedPeriods.ok === true ? publishedPeriods.data : [];
 
   return (
@@ -143,6 +150,16 @@ export default async function AttendancePage(props: PageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* PRC-M076: a failed roster read must not look like a class with no students. */}
+          {!rosterResult.ok ? (
+            <div className="mb-4">
+              <ListLoadFailure
+                kind={rosterResult.kind}
+                status={rosterResult.status}
+                returnTo="/attendance"
+              />
+            </div>
+          ) : null}
           <AttendanceMarkingForm
             institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
             classes={classes.map((c) => ({ id: c.id, name: c.name }))}
@@ -158,6 +175,7 @@ export default async function AttendancePage(props: PageProps) {
               date,
             }}
             roster={roster}
+            today={today}
           />
         </CardContent>
       </Card>

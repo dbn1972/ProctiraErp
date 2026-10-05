@@ -9,12 +9,15 @@ import { lookup } from 'node:dns/promises';
 import type { RestApiDestinationConfig } from '../schemas.js';
 
 import { assertPublicHttpsUrl, safeFetch } from './safe-fetch.js';
-import type { DestinationConnector, DataRow, LoadResult, LoadError } from './types.js';
+import type { DestinationConnector, DataRow, LoadContext, LoadResult, LoadError } from './types.js';
+
+/** PRC-M224: cap on remote error text kept per failed batch. */
+const REMOTE_ERROR_BODY_MAX = 200;
 
 export class RestApiDestinationConnector implements DestinationConnector {
   constructor(private readonly config: RestApiDestinationConfig) {}
 
-  async load(rows: DataRow[]): Promise<LoadResult> {
+  async load(rows: DataRow[], context: LoadContext = {}): Promise<LoadResult> {
     if (rows.length === 0) {
       return { loadedCount: 0, errorCount: 0, errors: [] };
     }
@@ -24,18 +27,23 @@ export class RestApiDestinationConnector implements DestinationConnector {
     let loadedCount = 0;
     const errors: LoadError[] = [];
 
-    for (const batch of batches) {
+    for (const [batchIndex, batch] of batches.entries()) {
       try {
-        const response = await this.sendBatch(batch);
+        // PRC-M225: stable per (run, batch) so a retried run does not double-post.
+        const idempotencyKey = context.idempotencyKey
+          ? `${context.idempotencyKey}:${batchIndex}`
+          : undefined;
+        const response = await this.sendBatch(batch, idempotencyKey);
         if (response.ok) {
           loadedCount += batch.length;
         } else {
-          const errorText = await response.text();
+          // PRC-M224: remote bodies can echo the payload; keep a short prefix only.
+          const errorText = (await response.text()).slice(0, REMOTE_ERROR_BODY_MAX);
           for (let i = 0; i < batch.length; i++) {
             errors.push({
               row: loadedCount + i,
               message: `API error: ${response.status} - ${errorText}`,
-              data: batch[i] ?? null,
+              data: null,
             });
           }
         }
@@ -45,7 +53,7 @@ export class RestApiDestinationConnector implements DestinationConnector {
           errors.push({
             row: loadedCount + i,
             message,
-            data: batch[i] ?? null,
+            data: null,
           });
         }
       }
@@ -71,8 +79,9 @@ export class RestApiDestinationConnector implements DestinationConnector {
     return { valid: true };
   }
 
-  private async sendBatch(batch: DataRow[]): Promise<Response> {
+  private async sendBatch(batch: DataRow[], idempotencyKey?: string): Promise<Response> {
     const headers = this.buildHeaders();
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     const method = this.config.method ?? 'POST';
 
     // PRC-C003: SSRF-guarded — a tenant-authored destination URL can no longer exfiltrate to

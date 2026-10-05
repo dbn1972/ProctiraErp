@@ -9,7 +9,8 @@
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useFieldArray, useForm } from 'react-hook-form';
 
 import {
@@ -78,6 +79,9 @@ export function AssessmentItemsForm({
 }: AssessmentItemsFormProps) {
   const [serverState, setServerState] = useState<ActionState<{ totalWeight: number }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isReloading, startReload] = useTransition();
 
   const form = useForm<AssessmentItemsFormValues>({
     resolver: zodResolver(assessmentItemsFormSchema),
@@ -108,6 +112,25 @@ export function AssessmentItemsForm({
   const watchedScheme = watch('gradingSchemeId');
   const watchedSubject = watch('subjectId');
   const watchedPeriod = watch('academicPeriodId');
+
+  // PRC-M069: items on screen belong to the subject/period pair loaded from
+  // the URL. Saving replaces that pair's items server-side, so a changed pair
+  // must reload its own items before Save is allowed.
+  const pairMatchesLoaded =
+    Boolean(defaultSubjectId && defaultAcademicPeriodId) &&
+    watchedSubject === defaultSubjectId &&
+    watchedPeriod === defaultAcademicPeriodId;
+
+  function reloadPair(nextSubjectId: string, nextPeriodId: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    if (nextSubjectId) params.set('subjectId', nextSubjectId);
+    else params.delete('subjectId');
+    if (nextPeriodId) params.set('academicPeriodId', nextPeriodId);
+    else params.delete('academicPeriodId');
+    startReload(() => {
+      router.replace(`/assessments/items?${params.toString()}`);
+    });
+  }
 
   const totalWeight = watchedItems.reduce((sum, item) => sum + (Number(item?.weight) || 0), 0);
   const weightDelta = totalWeight - 100;
@@ -168,7 +191,10 @@ export function AssessmentItemsForm({
         >
           <Select
             value={watchedSubject || undefined}
-            onValueChange={(value) => setValue('subjectId', value, { shouldValidate: true })}
+            onValueChange={(value) => {
+              setValue('subjectId', value, { shouldValidate: true });
+              reloadPair(value, watchedPeriod);
+            }}
           >
             <SelectTrigger id="subjectId" aria-label="Subject">
               <SelectValue placeholder="Select subject" />
@@ -201,7 +227,10 @@ export function AssessmentItemsForm({
         >
           <Select
             value={watchedPeriod || undefined}
-            onValueChange={(value) => setValue('academicPeriodId', value, { shouldValidate: true })}
+            onValueChange={(value) => {
+              setValue('academicPeriodId', value, { shouldValidate: true });
+              reloadPair(watchedSubject, value);
+            }}
           >
             <SelectTrigger id="academicPeriodId" aria-label="Academic period">
               <SelectValue placeholder="Select period" />
@@ -399,8 +428,19 @@ export function AssessmentItemsForm({
         )}
       </div>
 
-      <div className="flex justify-end gap-3">
-        <Button type="submit" disabled={isPending}>
+      <div className="flex items-center justify-end gap-3">
+        {!pairMatchesLoaded ? (
+          <p
+            className="text-sm text-muted-foreground"
+            role="status"
+            data-testid="items-pair-reloading"
+          >
+            {isReloading
+              ? 'Loading items for the selected subject and period…'
+              : 'Select both a subject and a period to load their items before saving.'}
+          </p>
+        ) : null}
+        <Button type="submit" disabled={isPending || isReloading || !pairMatchesLoaded}>
           {isPending ? 'Saving…' : 'Save items'}
         </Button>
       </div>

@@ -1,16 +1,20 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 import { GraduationCap, FileText, Search, Upload, CheckCircle2 } from 'lucide-react';
 import { DesignSystemApplyCta } from '@/components/design-system-apply-cta';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { getInstitutionFilters } from '@/lib/api';
+import { serverTransport } from '@/lib/gateway';
+import { typeTileHref } from '@/lib/institution-filters';
 
 /**
  * Public-facing landing page for the Registration Portal.
  *
  * Matches the Figma design (45-registration-landing.md):
  *   - Hero with primary "Apply" and secondary "Track" CTAs
- *   - Stats bar
+
  *   - "How it works" 4-step section
  *   - Important dates / footer
  *
@@ -22,8 +26,9 @@ export default function HomePage() {
       <Header />
 
       <main className="flex-1">
+        {/* PRC-M052: no hard-coded stats or "admissions open" claim — there is no
+            public, tenant-scoped source for these figures or the admission window. */}
         <Hero />
-        <StatsBar />
         <HowItWorks />
         <InstitutionTypePicker />
       </main>
@@ -44,10 +49,6 @@ function Hero() {
       <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
         <div className="grid items-center gap-12 lg:grid-cols-[1.15fr_.85fr]">
           <div>
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3.5 py-1.5 text-xs font-bold text-primary-700">
-              <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('stats.open')}
-            </span>
             <h1 className="text-3xl font-extrabold leading-[1.12] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">
               {t('heroTitle')}
             </h1>
@@ -134,28 +135,6 @@ function FeatureRow({
   );
 }
 
-function StatsBar() {
-  const t = useTranslations('landing.stats');
-  const stats = [
-    { value: '12,847', label: t('schools') },
-    { value: '2.5M', label: t('students') },
-    { value: '98%', label: t('processed') },
-    { value: '✓', label: t('open') },
-  ];
-  return (
-    <section className="bg-white shadow-sm">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-6 sm:grid-cols-4 sm:px-6 lg:px-8">
-        {stats.map((s) => (
-          <div key={s.label} className="text-center">
-            <p className="text-2xl font-bold text-primary-700 sm:text-3xl">{s.value}</p>
-            <p className="mt-1 text-xs text-gray-500 sm:text-sm">{s.label}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function HowItWorks() {
   const t = useTranslations('landing');
   const steps = [
@@ -195,27 +174,33 @@ function HowItWorks() {
   );
 }
 
-function InstitutionTypePicker() {
-  const t = useTranslations('landing');
-  // Public registration is keyed by institution type (primary / secondary / TVET / preschool).
-  // The server resolves the actual institution + form configuration.
-  const types = [
-    { id: 'primary', label: t('primary') },
-    { id: 'secondary', label: t('secondary') },
-    { id: 'tvet', label: t('tvet') },
-    { id: 'preschool', label: t('preschool') },
-  ];
+async function InstitutionTypePicker() {
+  const t = await getTranslations('landing');
+  // PRC-M051: tiles come from the tenant's real institution types and link with
+  // the real type id, so /schools?typeId=… actually matches institutions.
+  let types: Array<{ id: string; label: string }> | null = null;
+  try {
+    const options = await getInstitutionFilters(serverTransport);
+    types = options.types.map((type) => ({ id: type.id, label: type.name }));
+  } catch {
+    types = null;
+  }
   return (
     <section id="apply" className="bg-white py-16 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <h2 className="text-center text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl">
           {t('selectInstitutionType')}
         </h2>
+        {types === null ? (
+          <p role="status" className="mt-6 text-center text-sm text-gray-600">
+            {t('typesUnavailable')}
+          </p>
+        ) : null}
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {types.map((type) => (
+          {(types ?? []).map((type) => (
             <Link
               key={type.id}
-              href={`/schools?typeId=${encodeURIComponent(type.id)}`}
+              href={typeTileHref(type)}
               className="group flex flex-col items-center rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm transition-all hover:border-primary-300 hover:shadow-md"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary-600 transition-colors group-hover:bg-primary-100">
@@ -226,6 +211,12 @@ function InstitutionTypePicker() {
               </span>
             </Link>
           ))}
+          <Link
+            href="/schools"
+            className="group flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm font-semibold text-primary-700 hover:border-primary-300"
+          >
+            {t('browseAll')}
+          </Link>
         </div>
       </div>
     </section>
