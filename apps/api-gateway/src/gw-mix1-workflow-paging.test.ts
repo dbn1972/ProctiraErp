@@ -96,4 +96,19 @@ describe('checkApprovalDecider (PRC-M021)', () => {
       checkApprovalDecider({ roles: ['admin'] }, 'u1', { ...ctx, approverRole: null }),
     ).toEqual({ ok: false, code: 'WORKFLOW_STEP_NOT_ASSIGNED' });
   });
+  it('matches roleId only: a tenant custom role NAMED "Super Admin" is refused', () => {
+    // Tenant custom roles get a UUID roleId; roleName is tenant-editable text.
+    const customId = '6f1c2b8e-0d4a-4c1e-9a77-2f5b3c8d9e10';
+    expect(
+      checkApprovalDecider({ roles: [{ roleId: customId, roleName: 'Super Admin' }] }, 'u1', ctx),
+    ).toEqual({ ok: false, code: 'WORKFLOW_STEP_NOT_ASSIGNED' });
+    // A custom role named like the step's approver role does not match it either.
+    expect(
+      checkApprovalDecider({ roles: [{ roleId: customId, roleName: 'Principal' }] }, 'u1', ctx),
+    ).toEqual({ ok: false, code: 'WORKFLOW_STEP_NOT_ASSIGNED' });
+    // The platform roleId still decides, whatever its display name.
+    expect(
+      checkApprovalDecider({ roles: [{ roleId: 'super_admin', roleName: 'Ops' }] }, 'u1', ctx),
+    ).toEqual({ ok: true });
+  });
 });

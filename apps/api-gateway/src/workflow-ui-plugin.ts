@@ -113,15 +113,18 @@ function normalizeRole(role: string): string {
     .replace(/[\s-]+/g, '_');
 }
 
-/** Every role id AND role name the caller holds, normalised. */
+/**
+ * Every role id the caller holds, normalised. Only the stable `roleId` is used
+ * (same rule as the workflow engine's `roleKeyOf`, #556): `roleName` is
+ * tenant-editable display text, so a custom role NAMED "Super Admin" must not
+ * pass `WORKFLOW_PLATFORM_DECIDER_ROLES` or match a step's approver role.
+ * Plain string roles are role ids.
+ */
 function callerRoleKeys(user: JwtUserLike | undefined): Set<string> {
   const keys = new Set<string>();
   for (const role of user?.roles ?? []) {
-    if (typeof role === 'string') keys.add(normalizeRole(role));
-    else {
-      if (role.roleId) keys.add(normalizeRole(role.roleId));
-      if (role.roleName) keys.add(normalizeRole(role.roleName));
-    }
+    const roleId = typeof role === 'string' ? role : role.roleId;
+    if (typeof roleId === 'string' && roleId.trim()) keys.add(normalizeRole(roleId));
   }
   return keys;
 }
