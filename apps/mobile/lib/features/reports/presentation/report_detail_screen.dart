@@ -24,13 +24,14 @@ class ReportDetailScreen extends StatefulWidget {
   const ReportDetailScreen({
     super.key,
     required this.id,
-    this.saveFile = saveReportToAppStorage,
+    this.saveFile,
   });
 
   final String id;
 
-  /// Where downloaded bytes are written (injectable for tests).
-  final ReportFileSaver saveFile;
+  /// Where downloaded bytes are written (injectable for tests). Defaults to
+  /// the sealed, backup-excluded [ReportFileStore].
+  final ReportFileSaver? saveFile;
 
   @override
   State<ReportDetailScreen> createState() => _ReportDetailScreenState();
@@ -83,7 +84,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         });
         return;
       }
-      await widget.saveFile(widget.id, bytes);
+      final ReportFileSaver save =
+          widget.saveFile ?? getIt<ReportFileStore>().save;
+      await save(widget.id, bytes);
       if (!mounted) return;
       setState(() => _downloading = false);
       ScaffoldMessenger.of(context).showSnackBar(

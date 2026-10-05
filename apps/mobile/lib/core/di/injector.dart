@@ -69,6 +69,8 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     crypto: cacheCrypto,
   );
   getIt.registerSingleton<CapturedDocumentStore>(capturedDocuments);
+  final ReportFileStore reportFiles = ReportFileStore(crypto: cacheCrypto);
+  getIt.registerSingleton<ReportFileStore>(reportFiles);
 
   final AppDatabase database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
@@ -309,7 +311,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     tenantProvider: tenantProvider,
     purgeLocalFiles: () async {
       await capturedDocuments.purgeAll();
-      await purgeSavedReports();
+      await reportFiles.purgeAll();
     },
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
