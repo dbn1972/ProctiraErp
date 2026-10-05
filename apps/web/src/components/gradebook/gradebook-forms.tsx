@@ -21,12 +21,15 @@ export function GradeEntryForm({
   defaultStudentId = '',
   studentOptions = [],
   comments = [],
+  creditRuleOptions = [],
 }: {
   institutionId: string;
   sectionId: string;
   defaultStudentId?: string;
   studentOptions?: EntityLabelOption[];
   comments?: CommentsBankItem[];
+  /** PRC-M473: credit rules from `/gradebook/credit-rules`; no hard-coded default. */
+  creditRuleOptions?: Array<{ code: string; name: string }>;
 }) {
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -58,7 +61,8 @@ export function GradeEntryForm({
             studentId,
             assessmentCode: assessmentCode || null,
             numericScore,
-            creditRuleCode: creditRuleCode || 'CBSE-CORE',
+            // PRC-M473: no invented default rule; the server applies its own when null.
+            creditRuleCode: creditRuleCode || null,
             remark: remark.trim() || null,
             commentBankId,
           });
@@ -93,7 +97,14 @@ export function GradeEntryForm({
         />
         <div className="space-y-1.5">
           <Label htmlFor="assessmentCode">Assessment / course code</Label>
-          <Input id="assessmentCode" name="assessmentCode" defaultValue="MATH" required />
+          <Input
+            id="assessmentCode"
+            name="assessmentCode"
+            defaultValue=""
+            placeholder="e.g. course or assessment code"
+            maxLength={100}
+            required
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="numericScore">Numeric score (0–100)</Label>
@@ -108,8 +119,23 @@ export function GradeEntryForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="creditRuleCode">Credit rule code</Label>
-          <Input id="creditRuleCode" name="creditRuleCode" defaultValue="CBSE-CORE" />
+          <Label htmlFor="creditRuleCode">Credit rule</Label>
+          <select
+            id="creditRuleCode"
+            name="creditRuleCode"
+            defaultValue=""
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            data-testid="grade-credit-rule"
+          >
+            <option value="">
+              {creditRuleOptions.length === 0 ? 'No credit rules configured' : 'None'}
+            </option>
+            {creditRuleOptions.map((rule) => (
+              <option key={rule.code} value={rule.code}>
+                {rule.name ? `${rule.code} · ${rule.name}` : rule.code}
+              </option>
+            ))}
+          </select>
         </div>
         <CommentsBankPicker
           comments={comments}
