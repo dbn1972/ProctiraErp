@@ -309,7 +309,7 @@ export async function previewBulkInvoiceStructure(
   input: { classId?: string; gradeId?: string; studentIds?: string[] },
 ): Promise<BulkInvoicePreview> {
   const result = await gatewayFetch<BulkInvoicePreview>(
-    `/fees/structures/${structureId}/bulk-invoice/preview`,
+    `/fees/structures/${encodeURIComponent(structureId)}/bulk-invoice/preview`,
     { method: 'POST', json: input },
   );
   return throwIfMissing(result, 'Failed to preview bulk invoice');
