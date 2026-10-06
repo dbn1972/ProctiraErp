@@ -62,6 +62,8 @@ const RETAINED: Record<RetainedDomain, readonly string[]> = {
     'parent_fee_receipts',
     'scholarship_compliance_records',
     'scholarship_disbursements',
+    // 109: disbursement → fees netting events; cascades from the retained disbursement.
+    'scholarship_fee_outbox',
     'scholarship_programs',
     'transport_fee_links',
     'transport_fee_structures',
@@ -98,6 +100,8 @@ const PRESERVED: Record<PreservedDomain, readonly string[]> = {
     'audit_log_entries',
     'audit_retention_configs',
     'enrollment_history',
+    // 111: append-only published-result versions (no runtime DELETE grant).
+    'examination_publication_versions',
     'fee_reminder_send_audits',
     'grade_change_audit',
     'grade_change_audit_orphan_quarantine',
@@ -119,6 +123,8 @@ const PRESERVED: Record<PreservedDomain, readonly string[]> = {
   // deleting them would silently destroy or rewrite the kept records.
   retained_dependencies: [
     'enrollments',
+    // Parent of the preserved examination_publication_versions (111, FK without cascade).
+    'examinations',
     'grade_entries',
     'hostels',
     'institution_infrastructure',
@@ -221,7 +227,6 @@ const WIPE: Record<string, readonly string[]> = {
     'examination_document_jobs',
     'examination_publications',
     'examination_result_analyses',
-    'examinations',
   ],
   files_storage: [
     'lms_assignment_files',
@@ -254,6 +259,8 @@ const WIPE: Record<string, readonly string[]> = {
   integrations: [
     'developer_portal_api_keys',
     'developer_portal_webhook_deliveries',
+    // 113: envelope-encrypted signing secrets; child of developer_portal_webhooks.
+    'developer_portal_webhook_signing_secrets',
     'developer_portal_webhooks',
     'etl_pipeline_runs',
     'etl_pipelines',
@@ -312,6 +319,8 @@ const WIPE: Record<string, readonly string[]> = {
     'student_admission_counters',
     'student_consents',
     'student_discipline_incidents',
+    // 112: durable import progress (may carry row data).
+    'student_import_jobs',
     'student_merges',
     'student_siblings',
     'students',
