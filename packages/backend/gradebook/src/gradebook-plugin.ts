@@ -3,8 +3,16 @@ import fp from 'fastify-plugin';
 
 import { createGradebookExtrasStore } from './extras-factory.js';
 import type { GradebookExtrasStore } from './extras-store.js';
-import type { GradebookRepository } from './gradebook-repository.js';
-import { GradebookService, type GradebookAuditSink } from './gradebook-service.js';
+import {
+  isGradebookSectionMembership,
+  type GradebookRepository,
+  type GradebookSectionMembership,
+} from './gradebook-repository.js';
+import {
+  GradebookService,
+  type GradebookAuditSink,
+  type StaffActiveAssignmentCheck,
+} from './gradebook-service.js';
 import { registerGradebookRoutes } from './routes.js';
 import { prepareTranscriptSigningAtStartup } from './signed-download.js';
 
@@ -25,6 +33,14 @@ export interface GradebookPluginOptions {
   studentBinding?: GradebookStudentBinding;
   /** PRC-M266: durable audit writer (shared audit log). */
   auditSink?: GradebookAuditSink | null;
+  /**
+   * PRC-H066: teacher-section / student-enrollment lookups for grade writes. Defaults to the
+   * repository when it implements them (Pg + in-memory both do). When none is available,
+   * production-like envs fail closed (503) on grade writes.
+   */
+  sectionMembership?: GradebookSectionMembership | null;
+  /** PRC-H066: section teachers must also hold an active staff assignment at the school. */
+  staffHasActiveAssignmentAt?: StaffActiveAssignmentCheck | null;
 }
 
 declare module 'fastify' {
@@ -46,6 +62,10 @@ export const gradebookPlugin = fp(
     const extras = options.extras ?? createGradebookExtrasStore();
     const service = new GradebookService(options.repository, extras, {
       auditSink: options.auditSink ?? null,
+      sectionMembership:
+        options.sectionMembership ??
+        (isGradebookSectionMembership(options.repository) ? options.repository : null),
+      staffHasActiveAssignmentAt: options.staffHasActiveAssignmentAt ?? null,
     });
     fastify.decorate('gradebookService', service);
     await registerGradebookRoutes(fastify, {

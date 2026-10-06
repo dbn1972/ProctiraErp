@@ -79,7 +79,14 @@ async function createStudent(request: APIRequestContext): Promise<string> {
     },
   });
   expect(res.status(), await res.text()).toBe(201);
-  return (await res.json()).id as string;
+  const studentId = (await res.json()).id as string;
+  // PRC-H066: grade entry/submit require the student to be enrolled in the grade's section.
+  const enroll = await request.post(
+    `${GATEWAY_URL}/api/v1/timetable/sections/${SECTION_A}/enrollments`,
+    { headers: headers(), data: { studentId } },
+  );
+  expect(enroll.status(), await enroll.text()).toBe(201);
+  return studentId;
 }
 
 async function putEntry(
