@@ -30,8 +30,10 @@ import type {
 } from './result-repository.js';
 import {
   MARKS_LOCKED_MESSAGE,
+  UNKNOWN_AREA_ID,
   fingerprintCandidates,
   mergeSubjectResults,
+  normalizeCandidateGender,
 } from './result-repository.js';
 
 type Tx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
@@ -50,8 +52,9 @@ function rowToCandidate(row: {
   examinationId: string;
   studentId: string;
   centerId: string;
-  gender: string;
-  areaId: string;
+  /** Nullable in the Prisma model; a missing value is the 'unknown' bucket (PRC-M240). */
+  gender: string | null;
+  areaId: string | null;
   subjectResults: unknown;
 }): ExaminationCandidate {
   return {
@@ -59,8 +62,8 @@ function rowToCandidate(row: {
     examinationId: row.examinationId,
     studentId: row.studentId,
     centerId: row.centerId,
-    gender: row.gender as ExaminationCandidate['gender'],
-    areaId: row.areaId,
+    gender: normalizeCandidateGender(row.gender),
+    areaId: row.areaId ?? UNKNOWN_AREA_ID,
     subjectResults: Array.isArray(row.subjectResults)
       ? (row.subjectResults as unknown as CandidateSubjectResult[])
       : [],
