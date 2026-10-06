@@ -38,12 +38,15 @@ export {
 
 export {
   EmptyAcademicVisibilityStore,
+  InMemoryAcademicVisibilityStore,
   STUDENT_SELF_BINDING_ASSUMPTION,
   UUID_RE,
+  selectBoundStudentId,
   summariseAttendance,
 } from './academic-visibility.js';
 export type {
   AcademicVisibilityStore,
+  InMemoryStudentIdentityRecord,
   AcademicList,
   AttendancePayload,
   GradesPayload,

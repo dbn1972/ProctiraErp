@@ -12,7 +12,6 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   EmptyAcademicVisibilityStore,
   STUDENT_SELF_BINDING_ASSUMPTION,
-  UUID_RE,
   type AcademicVisibilityStore,
 } from './academic-visibility.js';
 import type {
@@ -34,9 +33,9 @@ import type {
 
 export { STUDENT_SELF_BINDING_ASSUMPTION };
 
+/** Student principal for self-service reads. Bound by id only (PRC-H075); email is not an identity link. */
 export interface StudentActor {
   userId: string;
-  email?: string | null;
 }
 
 function receiptNumberFor(paymentId: string): string {
@@ -942,14 +941,18 @@ export class ParentPortalService {
     return { invoice: updatedInvoice!, payment, receipt };
   }
 
+  /**
+   * PRC-H075: the store binds only on an explicit identity link and throws `ConflictError`
+   * (409) when the link is ambiguous. There is deliberately no fallback here — not email,
+   * not contacts, and not "treat the sub as a students.id" when the store found nothing.
+   */
   async resolveStudentSelfId(tenantId: string, actor: StudentActor): Promise<string> {
-    const mapped = await this.academicStore.resolveStudentId(
-      tenantId,
-      actor.userId,
-      actor.email ?? null,
-    );
+    // `routes.getActorId` yields 'anonymous' for a principal without an id; never look that up.
+    if (!actor.userId || actor.userId === 'anonymous') {
+      throw new NotFoundError('Student record not found for this account');
+    }
+    const mapped = await this.academicStore.resolveStudentId(tenantId, actor.userId);
     if (mapped) return mapped;
-    if (UUID_RE.test(actor.userId)) return actor.userId;
     throw new NotFoundError('Student record not found for this account');
   }
 
