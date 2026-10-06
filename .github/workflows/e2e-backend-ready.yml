@@ -316,11 +316,14 @@ jobs:
         # healthy (E2E_REQUIRE_LIVE=1) fails the job and therefore the PR.
         run: |
           ARGS=()
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.skip_stack }}" == "true" ]]; then
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" && "${INPUT_SKIP_STACK}" == "true" ]]; then
             ARGS+=(--skip-stack)
           fi
           bash tools/scripts/run-e2e-backend-ready.sh "${ARGS[@]}"
         env:
+          # PRC-M256: dispatch inputs via env, not inline in the script.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SKIP_STACK: ${{ inputs.skip_stack }}
           DATABASE_URL: ${{ env.DATABASE_URL }}
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           REDIS_URL: ${{ env.REDIS_URL }}
@@ -380,7 +383,7 @@ jobs:
       - name: Download shard blob reports
         id: blobs
         continue-on-error: true
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: e2e-backend-ready-blob-*
           path: all-blob-reports

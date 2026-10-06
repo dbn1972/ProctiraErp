@@ -23,7 +23,7 @@ import {
   isGradeLockedError,
   isTranscriptImmutableError,
 } from './gradebook-errors.js';
-import type { GradebookService } from './gradebook-service.js';
+import type { GradeWriteActor, GradebookService } from './gradebook-service.js';
 import {
   BulkTransitionGradeEntriesSchema,
   ComputeClassRankSchema,
@@ -68,8 +68,12 @@ function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | unde
   return tenantId;
 }
 
-function requestUser(request: FastifyRequest): { id?: string; sub?: string } | undefined {
-  return (request as FastifyRequest & { user?: { id?: string; sub?: string } }).user;
+/**
+ * The authenticated principal. PRC-H066: grade-write paths hand the full principal (roles +
+ * institutions) to the service so it can enforce section/school scope.
+ */
+function requestUser(request: FastifyRequest): GradeWriteActor | undefined {
+  return (request as FastifyRequest & { user?: GradeWriteActor }).user;
 }
 
 function requestRoles(request: FastifyRequest): unknown {

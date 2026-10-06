@@ -65,15 +65,16 @@ describe('PgAuditRepository (live)', () => {
   );
 
   it.skipIf(!pool || !ownerPool)('stores retention config and archives expired rows', async () => {
+    // PRC-M175: archival runs as the runtime role (DATABASE_URL = proctira_app) through the
+    // SECURITY DEFINER function; it must not need DELETE on audit_log_entries.
     const repo = new PgAuditRepository(pool!);
-    const ownerRepo = new PgAuditRepository(ownerPool!);
     const tenantId = randomUUID();
     await ensurePgTestTenant(pool!, tenantId);
     const old = new Date();
     old.setMonth(old.getMonth() - 24);
-
+    const oldId = randomUUID();
     await repo.create({
-      id: randomUUID(),
+      id: oldId,
       tenantId,
       entityType: 'staff',
       entityId: randomUUID(),
@@ -95,13 +96,43 @@ describe('PgAuditRepository (live)', () => {
     });
     expect(await repo.getArchivalCandidateCount(tenantId)).toBe(1);
 
-    const result = await ownerRepo.archiveExpiredEntries(tenantId);
+    const result = await repo.archiveExpiredEntries(tenantId);
     expect(result.archivedCount).toBe(1);
+    expect(result.destination).toBe('s3://audit-archive');
     expect((await repo.query({ tenantId, page: 1, pageSize: 10 })).meta.totalItems).toBe(0);
-
     const cfg = await repo.getRetentionConfig(tenantId);
     expect(cfg?.lastArchivalAt).toBeInstanceOf(Date);
+    // Archived row is still readable and the chain verifies across active + archive.
+    expect((await repo.findById(tenantId, oldId))?.id).toBe(oldId);
+    expect((await repo.verifyChain(tenantId)).valid).toBe(true);
   });
+
+  it.skipIf(!pool || !ownerPool)(
+    'runtime role still cannot DELETE audit rows directly',
+    async () => {
+      const tenantId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
+      const client = await pool!.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        await client.query(`SELECT set_config('app.audit_archival', '1', true)`);
+        await expect(
+          client.query(`DELETE FROM audit_log_entries WHERE tenant_id = $1`, [tenantId]),
+        ).rejects.toThrow(/permission denied/i);
+        await client.query('ROLLBACK');
+        // The function refuses a tenant other than the bound one.
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        await expect(
+          client.query(`SELECT * FROM audit_archive_expired_entries($1)`, [randomUUID()]),
+        ).rejects.toThrow(/must match/i);
+      } finally {
+        await client.query('ROLLBACK').catch(() => undefined);
+        client.release();
+      }
+    },
+  );
 });
 
 describe('PgAuditRepository hash chain (live, G-913)', () => {

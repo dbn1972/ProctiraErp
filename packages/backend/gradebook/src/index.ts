@@ -57,10 +57,17 @@ export {
 } from './gradebook-errors.js';
 
 export { GradebookService } from './gradebook-service.js';
-export type { GradebookAuditEntry, GradebookAuditSink } from './gradebook-service.js';
+export type {
+  GradebookAuditEntry,
+  GradebookAuditSink,
+  GradebookServiceOptions,
+  GradeWriteActor,
+  StaffActiveAssignmentCheck,
+} from './gradebook-service.js';
 export {
   assertGradebookAccess,
   hasGradebookAccess,
+  hasInstitutionWideGradeWriteRole,
   normalizeRoles,
   type GradebookAction,
 } from './gradebook-access.js';
@@ -121,8 +128,10 @@ export {
   isPgGradebookEnabled,
 } from './pg-gradebook-repository.js';
 
+export { isGradebookSectionMembership } from './gradebook-repository.js';
 export type {
   GradebookRepository,
+  GradebookSectionMembership,
   GradeChangeAuditContext,
   GradeEntryEntity,
   CreditRuleEntity,

@@ -20,7 +20,6 @@ import type {
   PlanEntity,
   SubscriptionEntity,
   EntitlementEntity,
-  UsageEntity,
   PlanFilter,
   BillingRepository,
 } from './billing-repository.js';
@@ -43,9 +42,49 @@ function assertIntegerCentsPrice(label: string, value: number | null | undefined
   }
 }
 
+/** Days in a UTC calendar month (month is 0-based). */
+function daysInUtcMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
+/**
+ * PRC-M185: add calendar months with end-of-month clamping (31 Jan + 1 → 28/29 Feb, never
+ * 3 Mar). `anchorDay` keeps the original billing day across short months (28 Feb → 31 Mar).
+ */
+export function addMonthsClamped(date: Date, months: number, anchorDay = date.getUTCDate()): Date {
+  const total = date.getUTCMonth() + months;
+  const year = date.getUTCFullYear() + Math.floor(total / 12);
+  const month = ((total % 12) + 12) % 12;
+  const day = Math.min(anchorDay, daysInUtcMonth(year, month));
+  return new Date(
+    Date.UTC(
+      year,
+      month,
+      day,
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds(),
+    ),
+  );
+}
+
+/** Safety bound when catching up on long-idle subscriptions (100 years of monthly periods). */
+const MAX_PERIOD_CATCH_UP = 1200;
+
 /**
  * Service handling billing business logic.
  */
+/** A suspended subscription whose trial window has passed (PRC-M185 trial lapse). */
+function isLapsedTrial(sub: SubscriptionEntity, now: Date = new Date()): boolean {
+  if (sub.status !== 'suspended' || !sub.trialEndsAt) return false;
+  return new Date(sub.trialEndsAt).getTime() <= now.getTime();
+}
+
+function timeOf(value: Date | string | null | undefined): number | null {
+  return value == null ? null : new Date(value).getTime();
+}
+
 export class BillingService {
   constructor(private readonly repository: BillingRepository) {}
 
@@ -129,6 +168,18 @@ export class BillingService {
       throw new NotFoundError(`Plan with id '${id}' not found`);
     }
 
+    // PRC-M186: feature/quota edits reach existing subscribers (added keys granted, removed
+    // keys revoked, lowered limits enforced).
+    if (input.features !== undefined || input.quotas !== undefined) {
+      const subscribers = await this.repository.listSubscriptionsByStatus(
+        ['active', 'trial', 'suspended'],
+        id,
+      );
+      for (const sub of subscribers) {
+        await this.provisionEntitlements(sub.tenantId, sub.id, updated);
+      }
+    }
+
     return updated;
   }
 
@@ -185,8 +236,7 @@ export class BillingService {
     }
 
     const now = new Date();
-    const periodEnd = new Date(now);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const periodEnd = addMonthsClamped(now, 1);
 
     const startTrial = input.startTrial && plan.trialDays > 0;
     let trialEndsAt: Date | null = null;
@@ -225,7 +275,8 @@ export class BillingService {
       throw new NotFoundError(`Subscription with id '${subscriptionId}' not found`);
     }
 
-    if (subscription.status !== 'trial') {
+    // PRC-M185 review #2: a trial the lifecycle suspended on expiry can still convert to paid.
+    if (subscription.status !== 'trial' && !isLapsedTrial(subscription)) {
       throw new BusinessRuleError('Only trial subscriptions can be activated');
     }
 
@@ -280,7 +331,8 @@ export class BillingService {
       status: 'cancelled',
       cancelledAt: new Date(),
     });
-
+    // PRC-M186: a cancelled subscription grants nothing.
+    await this.repository.deleteEntitlementsBySubscription(subscriptionId);
     return updated!;
   }
 
@@ -302,6 +354,8 @@ export class BillingService {
 
     const updated = await this.repository.updateSubscription(subscriptionId, {
       status: 'active',
+      // A reactivated lapsed trial is a paid subscription now; don't keep reporting the trial.
+      ...(isLapsedTrial(subscription) ? { trialEndsAt: null } : {}),
     });
 
     return updated!;
@@ -374,7 +428,6 @@ export class BillingService {
     });
 
     // Re-provision entitlements from the new plan
-    await this.repository.deleteEntitlementsBySubscription(subscription.id);
     await this.provisionEntitlements(tenantId, subscription.id, newPlan);
 
     return updated!;
@@ -442,7 +495,6 @@ export class BillingService {
     });
 
     // Re-provision entitlements from the new plan
-    await this.repository.deleteEntitlementsBySubscription(subscription.id);
     await this.provisionEntitlements(tenantId, subscription.id, newPlan);
 
     return {
@@ -459,12 +511,18 @@ export class BillingService {
    * Checks both feature flags and quota-based entitlements.
    */
   async checkEntitlement(tenantId: string, feature: string): Promise<EntitlementResponse> {
-    const subscription = await this.repository.findActiveSubscription(tenantId);
-    if (!subscription) {
+    const found = await this.repository.findActiveSubscription(tenantId);
+    if (!found) {
       return {
         allowed: false,
         reason: 'No active subscription',
       };
+    }
+    // PRC-M185: a lapsed trial is not entitled; usage is read for the current period.
+    const subscription = await this.refreshLifecycle(found);
+    // Review #9: keyed off trialEndsAt, so the reason survives the persisted suspension.
+    if (isLapsedTrial(subscription)) {
+      return { allowed: false, reason: 'Trial has expired' };
     }
 
     // Check if subscription is suspended
@@ -475,7 +533,7 @@ export class BillingService {
       };
     }
 
-    const entitlement = await this.repository.findEntitlement(tenantId, feature);
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, feature);
     if (!entitlement) {
       return {
         allowed: false,
@@ -532,8 +590,8 @@ export class BillingService {
    * @returns QuotaResult indicating whether the increment was allowed
    */
   async enforceQuota(tenantId: string, metric: string, increment: number): Promise<QuotaResult> {
-    const subscription = await this.repository.findActiveSubscription(tenantId);
-    if (!subscription) {
+    const found = await this.repository.findActiveSubscription(tenantId);
+    if (!found) {
       return {
         allowed: false,
         used: 0,
@@ -542,9 +600,21 @@ export class BillingService {
         reason: 'No active subscription',
       };
     }
+    // PRC-M185: usage accrues against the current (rolled) period; suspended/expired trials
+    // cannot consume quota.
+    const subscription = await this.refreshLifecycle(found);
+    if (subscription.status === 'suspended') {
+      return {
+        allowed: false,
+        used: 0,
+        limit: 0,
+        remaining: 0,
+        reason: isLapsedTrial(subscription) ? 'Trial has expired' : 'Subscription is suspended',
+      };
+    }
 
-    // Find the quota limit for this metric
-    const entitlement = await this.repository.findEntitlement(tenantId, metric);
+    // Find the quota limit for this metric (only rows owned by the current subscription)
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, metric);
     const limit = entitlement?.quotaLimit ?? 0;
 
     // Get or create usage record for current period
@@ -596,16 +666,16 @@ export class BillingService {
     periodStart?: Date,
     periodEnd?: Date,
   ): Promise<UsageResponse> {
-    const subscription = await this.repository.findActiveSubscription(tenantId);
-    if (!subscription) {
+    const found = await this.repository.findActiveSubscription(tenantId);
+    if (!found) {
       throw new NotFoundError(`No active subscription found for tenant '${tenantId}'`);
     }
-
+    const subscription = await this.refreshLifecycle(found);
     const start = periodStart ?? subscription.currentPeriodStart;
     const end = periodEnd ?? subscription.currentPeriodEnd;
 
     const usage = await this.repository.getUsage(tenantId, metric, start, end);
-    const entitlement = await this.repository.findEntitlement(tenantId, metric);
+    const entitlement = await this.currentEntitlement(tenantId, subscription.id, metric);
 
     return {
       tenantId,
@@ -617,10 +687,112 @@ export class BillingService {
     };
   }
 
+  // ─── Subscription Lifecycle (PRC-M185) ───────────────────────────────────
+
+  /**
+   * Bring one subscription up to date with the clock:
+   *  - a trial past trialEndsAt becomes `suspended` (fail closed until payment/activation)
+   *  - an active/trial subscription past currentPeriodEnd advances to the period containing
+   *    now (end-of-month clamped, anchored on the original billing day), so usage resets
+   * Persists only when something changed. Safe to call on every read and from the sweep.
+   */
+  async refreshLifecycle(
+    subscription: SubscriptionEntity,
+    now: Date = new Date(),
+    attempt = 0,
+  ): Promise<SubscriptionEntity> {
+    const changes: Partial<SubscriptionEntity> = {};
+    let status = subscription.status;
+    const trialEndsAt = subscription.trialEndsAt ? new Date(subscription.trialEndsAt) : null;
+    if (status === 'trial' && trialEndsAt && trialEndsAt.getTime() <= now.getTime()) {
+      status = 'suspended';
+      changes.status = 'suspended';
+    }
+    if (subscription.status === 'active' || subscription.status === 'trial') {
+      let start = new Date(subscription.currentPeriodStart);
+      let end = new Date(subscription.currentPeriodEnd);
+      const anchorDay = new Date(subscription.createdAt ?? start).getUTCDate();
+      let steps = 0;
+      while (end.getTime() <= now.getTime() && steps < MAX_PERIOD_CATCH_UP) {
+        start = end;
+        end = addMonthsClamped(start, 1, anchorDay);
+        steps += 1;
+      }
+      if (steps > 0) {
+        changes.currentPeriodStart = start;
+        changes.currentPeriodEnd = end;
+      }
+    }
+    if (Object.keys(changes).length === 0) return subscription;
+    // Review #8: re-read before writing so a concurrent activate/suspend/cancel committed after
+    // our snapshot is not overwritten (e.g. re-suspending a just-paid subscription). If the row
+    // moved on, recompute from the fresh state instead of applying stale changes.
+    const fresh = await this.repository.findSubscriptionById(subscription.id);
+    // Never write through a by-id lookup that resolves outside the snapshot's tenant.
+    if (!fresh || fresh.tenantId !== subscription.tenantId) return subscription;
+    if (
+      fresh.status !== subscription.status ||
+      timeOf(fresh.trialEndsAt) !== timeOf(subscription.trialEndsAt) ||
+      timeOf(fresh.currentPeriodEnd) !== timeOf(subscription.currentPeriodEnd)
+    ) {
+      return attempt < 2 ? this.refreshLifecycle(fresh, now, attempt + 1) : fresh;
+    }
+    const updated = await this.repository.updateSubscription(subscription.id, changes);
+    return updated ?? { ...subscription, ...changes, status };
+  }
+
+  /**
+   * Scheduled sweep: expire lapsed trials and roll billing periods for every open
+   * subscription (wired by billingPlugin). Per-subscription failures are isolated.
+   */
+  async runLifecycleSweep(
+    now: Date = new Date(),
+    scope: { tenantId?: string } = {},
+  ): Promise<{
+    checked: number;
+    expiredTrials: number;
+    rolledPeriods: number;
+    failures: number;
+  }> {
+    // Platform sweep across tenants by default; `scope.tenantId` limits it to one tenant.
+    const subs = (await this.repository.listSubscriptionsByStatus(['trial', 'active'])).filter(
+      (sub) => scope.tenantId === undefined || sub.tenantId === scope.tenantId,
+    );
+    let expiredTrials = 0;
+    let rolledPeriods = 0;
+    let failures = 0;
+    for (const sub of subs) {
+      try {
+        const next = await this.refreshLifecycle(sub, now);
+        if (sub.status === 'trial' && next.status === 'suspended') expiredTrials += 1;
+        if (
+          new Date(next.currentPeriodEnd).getTime() !== new Date(sub.currentPeriodEnd).getTime()
+        ) {
+          rolledPeriods += 1;
+        }
+      } catch {
+        failures += 1;
+      }
+    }
+    return { checked: subs.length, expiredTrials, rolledPeriods, failures };
+  }
+
   // ─── Private Helpers ─────────────────────────────────────────────────────
+
+  /** PRC-M186: an entitlement counts only when it belongs to the tenant's current subscription. */
+  private async currentEntitlement(
+    tenantId: string,
+    subscriptionId: string,
+    featureKey: string,
+  ): Promise<EntitlementEntity | null> {
+    const entitlement = await this.repository.findEntitlement(tenantId, featureKey);
+    return entitlement && entitlement.subscriptionId === subscriptionId ? entitlement : null;
+  }
 
   /**
    * Provision entitlements for a tenant based on a plan's features and quotas.
+   * PRC-M186: replaces the tenant's whole entitlement set so keys from a previous plan or
+   * subscription never survive.
    */
   private async provisionEntitlements(
     tenantId: string,
@@ -653,7 +825,14 @@ export class BillingService {
       });
     }
 
+    // Review #7: upsert-then-prune. Keys that stay are rewritten in place (bound to the new
+    // subscription) before anything is removed, so concurrent checks never see an empty set;
+    // only keys absent from the plan are pruned afterwards.
     await this.repository.upsertEntitlements(entitlements);
+    await this.repository.pruneEntitlements(
+      tenantId,
+      entitlements.map((e) => e.featureKey),
+    );
   }
 
   /**

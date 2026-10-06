@@ -14,10 +14,10 @@ function git(cwd, ...args) {
 
 test('gitleaks scans the complete pull-request commit graph', () => {
   const workflow = readFileSync(join(root, '.github/workflows/security-scans.yml'), 'utf8');
-  assert.match(
-    workflow,
-    /--log-opts "\$\{\{ github\.event\.pull_request\.base\.sha \}\}\.\.\$\{\{ github\.event\.pull_request\.head\.sha \}\}"/,
-  );
+  // PRC-M256: event values reach the script through env, not inline expressions.
+  assert.match(workflow, /PR_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+  assert.match(workflow, /PR_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.match(workflow, /--log-opts "\$\{PR_BASE_SHA\}\.\.\$\{PR_HEAD_SHA\}"/);
   assert.doesNotMatch(workflow, /--no-merges|--first-parent/);
 });
 

@@ -105,6 +105,35 @@ export type SectionSummary = {
   status: string;
 };
 
+/**
+ * PRC-H066: section membership lookups that scope grade writes.
+ *
+ * - Teacher binding: the principal is linked to a staff row (`staff.user_id`, 098) that is the
+ *   section's `primary_teacher_id` or the `teacher_staff_id` of an active `section_meetings` row.
+ * - Student binding: the student has an `ENROLLED` row in `section_enrollments`.
+ */
+export interface GradebookSectionMembership {
+  /** Staff ids linked to any of `principalIds` that teach `sectionId` (empty when none). */
+  listTeacherStaffIdsForSection(
+    tenantId: string,
+    sectionId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]>;
+  isStudentEnrolledInSection(
+    tenantId: string,
+    sectionId: string,
+    studentId: string,
+  ): Promise<boolean>;
+}
+
+export function isGradebookSectionMembership(value: unknown): value is GradebookSectionMembership {
+  const candidate = value as Partial<GradebookSectionMembership> | null | undefined;
+  return (
+    typeof candidate?.listTeacherStaffIdsForSection === 'function' &&
+    typeof candidate.isStudentEnrolledInSection === 'function'
+  );
+}
+
 export type ListGradeEntriesFilter = {
   sectionId?: string;
   studentId?: string;

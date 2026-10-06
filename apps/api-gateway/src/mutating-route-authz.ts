@@ -300,6 +300,38 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     resource: 'notification',
     deferredDomainGuard: false,
   },
+  // PRC-H048: global marketplace moderation and developer docs are platform
+  // control-plane actions, not tenant `developer:*` rights. The `platform`
+  // resource admits PLATFORM_ADMIN_ROLE_IDS only; the developer-portal package
+  // re-checks the same role IDs and rejects self-review.
+  {
+    id: 'developer.marketplace.review',
+    pathPrefix: '/api/v1/developer/submissions',
+    pathSuffix: '/review',
+    resource: 'platform',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'marketplace.review',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'developer.marketplace.publish',
+    pathPrefix: '/api/v1/developer/submissions',
+    pathSuffix: '/publish',
+    resource: 'platform',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'marketplace.publish',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'developer.docs.manage',
+    pathPrefix: '/api/v1/developer/docs',
+    resource: 'platform',
+    methods: ['POST', 'PATCH', 'PUT', 'DELETE'],
+    domainAction: 'developer-docs.manage',
+    deferredDomainGuard: false,
+  },
 ];
 
 /** Full inventory: overrides first, then per-segment defaults. */

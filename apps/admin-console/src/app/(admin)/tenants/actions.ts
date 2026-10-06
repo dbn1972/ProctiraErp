@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import { createTenant, tenantAction, type TenantLifecycleAction } from '@/lib/api/tenants';
+import { resourceIdSchema } from '@/lib/api/path-segment';
+import { TENANT_LIFECYCLE_ACTIONS, createTenant, tenantAction } from '@/lib/api/tenants';
 import { requireRole } from '@/lib/auth/server';
 import { HOSTING_REGION_VALUES } from '@/lib/hosting-regions';
 
@@ -20,6 +21,17 @@ const createTenantSchema = z.object({
   region: z.enum(HOSTING_REGION_VALUES, { error: 'Select a hosting region.' }),
 });
 
+/** PRC-M004: same minimum as the lifecycle dialog and the gateway. */
+const TENANT_LIFECYCLE_REASON_MIN = 10;
+const lifecycleSchema = z.object({
+  id: resourceIdSchema,
+  action: z.enum(TENANT_LIFECYCLE_ACTIONS),
+  reason: z
+    .string()
+    .trim()
+    .min(TENANT_LIFECYCLE_REASON_MIN, 'Provide at least 10 characters of justification.')
+    .max(500),
+});
 export interface CreateTenantState {
   error?: string;
   fieldErrors?: Record<string, string>;
@@ -68,12 +80,17 @@ export async function createTenantAction(
 export async function tenantLifecycleAction(formData: FormData): Promise<void> {
   await requireRole('tenants');
 
-  const id = String(formData.get('id') ?? '');
-  const action = String(formData.get('action') ?? '') as TenantLifecycleAction;
-  const reason = String(formData.get('reason') ?? '');
-
-  if (!id || !action) return;
-
+  // PRC-M001/PRC-M004: id/action become gateway path segments and the reason is an audit
+  // requirement, so all three are validated here, not only by the button's disabled state.
+  const parsed = lifecycleSchema.safeParse({
+    id: formData.get('id'),
+    action: formData.get('action'),
+    reason: formData.get('reason'),
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? 'Invalid tenant lifecycle request.');
+  }
+  const { id, action, reason } = parsed.data;
   const result = await tenantAction(id, action, reason);
   // PRC-H002: surface failed writes (incl. unreachable gateway) instead of silently revalidating.
   if (!result.ok) throw new Error(result.error ?? 'Tenant action failed.');

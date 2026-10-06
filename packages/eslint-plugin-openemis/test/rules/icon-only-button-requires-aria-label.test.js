@@ -13,6 +13,24 @@ const ruleTester = new RuleTester({
 
 ruleTester.run('icon-only-button-requires-aria-label', rule, {
   valid: [
+    // ── PRC-M221: native <button> with a name / spread props ───────────────
+    {
+      code: '<button aria-label="Close"><XIcon /></button>',
+    },
+    {
+      code: '<button type="button"><TrashIcon /><span className="sr-only">Delete</span></button>',
+    },
+    {
+      // Native <button> forwarding opaque props may receive aria-label → skipped.
+      code: '<button {...props}><XIcon /></button>',
+    },
+    {
+      // Object-literal spread that statically supplies a name.
+      code: '<Button {...{ "aria-label": "Close" }}><XIcon /></Button>',
+    },
+    {
+      code: '<button>Save</button>',
+    },
     // ── Accessible name via aria-label ────────────────────────────────────
     {
       code: '<Button aria-label="Delete row"><TrashIcon /></Button>',
@@ -88,6 +106,28 @@ ruleTester.run('icon-only-button-requires-aria-label', rule, {
   ],
 
   invalid: [
+    // ── Review #13: spreads that cannot carry a name keep reporting ───────
+    {
+      code: '<Button {...props}><TrashIcon /></Button>',
+      errors: [{ messageId: 'missingAccessibleName' }],
+    },
+    {
+      code: '<button {...{ className: "p-2" }}><XIcon /></button>',
+      errors: [{ messageId: 'missingAccessibleName' }],
+    },
+    // ── PRC-M221: bare native <button> with only an icon ──────────────────
+    {
+      code: '<button><XIcon /></button>',
+      errors: [{ messageId: 'missingAccessibleName' }],
+    },
+    {
+      code: '<button type="button" onClick={close}> <TrashIcon /> </button>',
+      errors: [{ messageId: 'missingAccessibleName' }],
+    },
+    {
+      code: 'import { X } from \'lucide-react\';\n<button className="p-2"><X /></button>',
+      errors: [{ messageId: 'missingAccessibleName' }],
+    },
     // ── Plain icon-only Button ────────────────────────────────────────────
     {
       code: '<Button><TrashIcon /></Button>',

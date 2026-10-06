@@ -15,10 +15,21 @@ import { developerPortalPlugin } from './developer-portal-plugin.js';
 import type { WebhookEntity } from './developer-portal-repository.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
+import type { WebhookDeliveryJobPayload } from './queue-webhook-delivery-publisher.js';
 import { parseWebhookFanOutEvents } from './webhook-event-fanout.js';
+import {
+  MemoryWebhookReplayStore,
+  WEBHOOK_NONCE_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  verifyWebhookSignatureSecure,
+} from './webhook-signature.js';
+import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const TENANT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const TENANT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+const SECRET_A = 'whsec_tenant_a_signing_secret_0123456789';
 
 function webhook(id: string, tenantId: string, url: string): WebhookEntity {
   return {
@@ -35,18 +46,34 @@ function webhook(id: string, tenantId: string, url: string): WebhookEntity {
   };
 }
 
-async function buildApp() {
+async function buildApp(secretA: string | null = SECRET_A) {
   const store = new InMemoryDurableQueueStore();
   const publisherQueue = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
   await publisherQueue.connect();
   const repository = new InMemoryDeveloperPortalRepository();
-  await repository.createWebhook(webhook('wh-a', TENANT_A, 'https://a.example.test/hook'));
-  await repository.createWebhook(webhook('wh-b', TENANT_B, 'https://b.example.test/hook'));
+  // PRC-M211: secrets live in the envelope store (113); secretA = null → legacy hash-only row.
+  const { secrets } = createTestWebhookSigningSecrets();
+  const whA = await repository.createWebhook(
+    webhook('wh-a', TENANT_A, 'https://a.example.test/hook'),
+  );
+  if (secretA) await secrets.storeSigningSecret(whA, secretA);
+  const whB = await repository.createWebhook(
+    webhook('wh-b', TENANT_B, 'https://b.example.test/hook'),
+  );
+  await secrets.storeSigningSecret(whB, `${SECRET_A}-wh-b`);
+  const jobs: WebhookDeliveryJobPayload[] = [];
+  const realPublisher = new QueueWebhookDeliveryPublisher(publisherQueue);
   const posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
   const app = Fastify();
   await app.register(developerPortalPlugin, {
     repository,
-    deliveryPublisher: new QueueWebhookDeliveryPublisher(publisherQueue),
+    signingSecretResolver: secrets,
+    deliveryPublisher: {
+      enqueueDelivery: async (job, delayMs) => {
+        jobs.push(job);
+        await realPublisher.enqueueDelivery(job, delayMs);
+      },
+    },
     deliveryWorkerQueue: new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 }),
     fanOutEvents: ['student.enrolled'],
     createFanOutQueue: () => new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 }),
@@ -59,7 +86,7 @@ async function buildApp() {
     await publisherQueue.disconnect();
   });
   await app.ready();
-  return { app, publisherQueue, repository, posts, store };
+  return { app, publisherQueue, repository, posts, store, jobs };
 }
 
 async function waitFor(pred: () => boolean | Promise<boolean>, timeoutMs = 3000) {
@@ -110,6 +137,40 @@ describe('PRC-H046 webhook fan-out + delivery worker wiring', () => {
     // Cross-tenant: tenant B's webhook got no delivery row and no POST.
     const b = await built.repository.listDeliveries({ webhookId: 'wh-b' }, 1, 10);
     expect(b.total).toBe(0);
+    // PRC-M211: the receiver verifies the HMAC with its secret; the queue never saw it.
+    const post = built.posts[0]!;
+    const verified = await verifyWebhookSignatureSecure({
+      payload: post.body,
+      secret: SECRET_A,
+      signature: post.headers[WEBHOOK_SIGNATURE_HEADER]!,
+      timestamp: post.headers[WEBHOOK_TIMESTAMP_HEADER]!,
+      nonce: post.headers[WEBHOOK_NONCE_HEADER]!,
+      nodeEnv: 'test',
+      replayStore: new MemoryWebhookReplayStore(),
+    });
+    expect(verified).toEqual({ ok: true });
+    expect(built.jobs.length).toBeGreaterThan(0);
+    expect(JSON.stringify(built.jobs)).not.toContain(SECRET_A);
+    expect(built.jobs.every((j) => !('signingSecret' in j))).toBe(true);
+  });
+
+  it('never sends unsigned: a hash-only legacy webhook delivery fails closed (PRC-M211)', async () => {
+    const built = await buildApp(null);
+    app = built.app;
+    await built.publisherQueue.publish({
+      id: 'evt-2',
+      tenantId: TENANT_A,
+      type: 'student.enrolled',
+      payload: { studentId: 'stu-2' },
+      timestamp: new Date().toISOString(),
+    });
+    expect(
+      await waitFor(async () => {
+        const { data } = await built.repository.listDeliveries({ webhookId: 'wh-a' }, 1, 10);
+        return data[0]?.status === 'failed';
+      }),
+    ).toBe(true);
+    expect(built.posts).toHaveLength(0);
   });
 
   it('stops worker and fan-out subscriber on close', async () => {

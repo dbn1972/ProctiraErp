@@ -28,6 +28,14 @@ describe('gradebook routes G-907', () => {
       name: 'Class 10-A',
       status: 'PUBLISHED',
     });
+    // PRC-H066: the acting teacher is assigned to SECTION and STUDENT is enrolled in it.
+    repo.seedSectionTeacher({
+      tenantId: TENANT,
+      sectionId: SECTION,
+      staffId: 'staff-actor-1',
+      principalId: 'actor-1',
+    });
+    repo.seedSectionEnrollment({ tenantId: TENANT, sectionId: SECTION, studentId: STUDENT });
     app = Fastify({ logger: false });
     app.addHook('onRequest', async (request) => {
       const rolesHeader = request.headers['x-roles'];

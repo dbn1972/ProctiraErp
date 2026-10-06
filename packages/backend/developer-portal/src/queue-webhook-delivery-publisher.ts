@@ -14,8 +14,10 @@ export interface WebhookDeliveryJobPayload {
   url: string;
   event: string;
   body: Record<string, unknown>;
-  /** Optional plaintext signing secret (only when caller still has it). */
-  signingSecret?: string;
+  /*
+   * PRC-M211: no signing secret here. The worker loads the sealed secret from the webhook row,
+   * so plaintext secrets never sit in the broker.
+   */
   attempt: number;
 }
 
@@ -34,7 +36,10 @@ export class OutboxWebhookDeliveryPublisher implements WebhookDeliveryPublisher 
   constructor(private readonly outbox: OutboxStore) {}
 
   async enqueueDelivery(job: WebhookDeliveryJobPayload, delayMs = 0): Promise<void> {
-    const { signingSecret: _secret, ...persisted } = job;
+    // PRC-M211: the payload type carries no secret; strip a legacy field defensively anyway.
+    const { signingSecret: _secret, ...persisted } = job as WebhookDeliveryJobPayload & {
+      signingSecret?: string;
+    };
     await this.outbox.enqueue({
       id: randomUUID(),
       tenantId: job.tenantId,

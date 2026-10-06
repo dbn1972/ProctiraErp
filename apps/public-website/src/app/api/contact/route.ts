@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { NextResponse } from 'next/server';
 
 import { allowContactRequest, resolveClientKey } from '@/lib/contact-rate-limit';
@@ -8,17 +10,32 @@ import {
   readBodyWithLimit,
   resolveWebhookUrl,
 } from '@/lib/contact-request-guard';
+import { CONTACT_FALLBACK_EMAIL, maskEmailForLog } from '@/lib/contact-delivery';
 import { validateContactInput } from '@/lib/contact-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function forwardToWebhook(payload: {
+/** PRC-M049: transient CRM failures are retried before the visitor is told it failed. */
+const WEBHOOK_ATTEMPTS = 3;
+const WEBHOOK_RETRY_BASE_MS = 250;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type ContactPayload = {
   name: string;
   email: string;
   organization: string;
   message: string;
-}): Promise<'forwarded' | 'skipped' | 'failed'> {
+};
+
+type ForwardOutcome = 'forwarded' | 'skipped' | 'failed';
+
+/** PRC-M049: retry transient failures (network/5xx/429); 4xx other than 429 is final. */
+async function forwardToWebhook(
+  payload: ContactPayload,
+  requestId: string,
+): Promise<ForwardOutcome> {
   if (!process.env.CONTACT_WEBHOOK_URL?.trim()) return 'skipped';
   const webhookUrl = resolveWebhookUrl();
   if (!webhookUrl) {
@@ -26,7 +43,20 @@ async function forwardToWebhook(payload: {
     console.warn('[contact] CONTACT_WEBHOOK_URL ignored: must be a valid https URL');
     return 'failed';
   }
+  for (let attempt = 1; attempt <= WEBHOOK_ATTEMPTS; attempt += 1) {
+    const outcome = await forwardOnce(webhookUrl, payload, requestId, attempt);
+    if (outcome !== 'retry') return outcome;
+    if (attempt < WEBHOOK_ATTEMPTS) await sleep(WEBHOOK_RETRY_BASE_MS * 2 ** (attempt - 1));
+  }
+  return 'failed';
+}
 
+async function forwardOnce(
+  webhookUrl: URL,
+  payload: ContactPayload,
+  requestId: string,
+  attempt: number,
+): Promise<'forwarded' | 'failed' | 'retry'> {
   try {
     const response = await fetch(webhookUrl, {
       method: 'POST',
@@ -37,6 +67,7 @@ async function forwardToWebhook(payload: {
       },
       body: JSON.stringify({
         ...payload,
+        requestId,
         source: 'public-website/contact',
         receivedAt: new Date().toISOString(),
       }),
@@ -48,19 +79,21 @@ async function forwardToWebhook(payload: {
     if (!response.ok) {
       // eslint-disable-next-line no-console
       console.warn('[contact] webhook forward failed', {
+        requestId,
+        attempt,
         status: response.status,
-        messageLength: payload.message.length,
       });
-      return 'failed';
+      return response.status >= 500 || response.status === 429 ? 'retry' : 'failed';
     }
     return 'forwarded';
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('[contact] webhook forward error', {
+      requestId,
+      attempt,
       message: error instanceof Error ? error.message : 'unknown',
-      messageLength: payload.message.length,
     });
-    return 'failed';
+    return 'retry';
   }
 }
 
@@ -68,8 +101,11 @@ async function forwardToWebhook(payload: {
  * Contact API.
  *
  * Validates the payload (shared with the client form), applies a process-local
- * rate limit, optionally forwards to CONTACT_WEBHOOK_URL (CRM/ticketing), and
- * emits a structured log entry without echoing the message body.
+ * rate limit and forwards to CONTACT_WEBHOOK_URL (CRM/ticketing) with retries.
+ *
+ * PRC-M049: the visitor is only told the message was received when the CRM accepted it;
+ * otherwise the route answers 503 with a fallback address. PRC-M050: logs carry a request id,
+ * a masked email and the message length only.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   for (const verdict of [checkSameOrigin(request.headers), checkJsonContentType(request.headers)]) {
@@ -114,25 +150,29 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: message, errors: result.errors }, { status: 400 });
   }
 
-  const forward = await forwardToWebhook(result.value);
-
-  // Log metadata only (no message body).
+  const requestId = randomUUID();
+  const forward = await forwardToWebhook(result.value, requestId);
+  // PRC-M050: no name, organisation, raw email or message body in logs.
   // eslint-disable-next-line no-console
   console.info('[contact] new submission', {
-    name: result.value.name,
-    email: result.value.email,
-    organization: result.value.organization,
+    requestId,
+    email: maskEmailForLog(result.value.email),
     messageLength: result.value.message.length,
     webhook: forward,
     receivedAt: new Date().toISOString(),
   });
-
-  return NextResponse.json(
-    {
-      ok: true,
-      // Honesty for operators: accepted locally even if webhook failed/skipped.
-      forwarded: forward === 'forwarded',
-    },
-    { status: 202 },
-  );
+  if (forward !== 'forwarded') {
+    // PRC-M049: nothing durable holds the message, so never claim it was received.
+    return NextResponse.json(
+      {
+        ok: false,
+        forwarded: false,
+        requestId,
+        fallbackEmail: CONTACT_FALLBACK_EMAIL,
+        error: `We could not deliver your message right now. Please email ${CONTACT_FALLBACK_EMAIL} or try again later.`,
+      },
+      { status: 503, headers: { 'Retry-After': '60' } },
+    );
+  }
+  return NextResponse.json({ ok: true, forwarded: true, requestId }, { status: 202 });
 }

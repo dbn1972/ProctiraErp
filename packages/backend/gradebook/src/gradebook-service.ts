@@ -1,7 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  BusinessRuleError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+  isProductionLike,
+  isSchoolBoundPrincipal,
+  principalInstitutions,
+} from '@proctira/common';
 
 import { writeBoardExportArtifacts } from './board-export-generator.js';
 import {
@@ -26,6 +36,7 @@ import {
   transitionGradeWorkflow,
   type GradeWorkflowAction,
 } from './grade-workflow.js';
+import { hasInstitutionWideGradeWriteRole } from './gradebook-access.js';
 import { GradeLockedError } from './gradebook-errors.js';
 import type {
   CreditRuleEntity,
@@ -33,9 +44,11 @@ import type {
   GpaSnapshotEntity,
   GradeEntryEntity,
   GradebookRepository,
+  GradebookSectionMembership,
   ListGradeEntriesFilter,
   ListSectionsFilter,
   ListTranscriptsFilter,
+  SectionSummary,
   TranscriptIssuanceEntity,
 } from './gradebook-repository.js';
 import {
@@ -111,18 +124,160 @@ export type GradebookAuditSink = (entry: GradebookAuditEntry) => Promise<void>;
 /** In-process mirror cap (listAudits) — the durable sink is the system of record. */
 export const GRADEBOOK_AUDIT_MEMORY_CAP = 1000;
 
+/**
+ * PRC-H066: the authenticated caller of a grade write. Routes pass `request.user`; the
+ * section-scope checks run whenever an actor is supplied. Internal/system callers that pass no
+ * actor (tests, workers) keep the legacy unscoped behaviour.
+ */
+export type GradeWriteActor = {
+  id?: string;
+  sub?: string;
+  roles?: unknown;
+  institutions?: unknown;
+};
+
+/** PRC-H066: optional staff→institution assignment check (staff_assignments, active today). */
+export type StaffActiveAssignmentCheck = (
+  tenantId: string,
+  staffId: string,
+  institutionId: string,
+) => Promise<boolean>;
+
+export interface GradebookServiceOptions {
+  auditSink?: GradebookAuditSink | null;
+  /** PRC-H066: teacher-section / student-enrollment lookups for grade writes. */
+  sectionMembership?: GradebookSectionMembership | null;
+  /** PRC-H066: when set, a section teacher must also hold an active assignment at the school. */
+  staffHasActiveAssignmentAt?: StaffActiveAssignmentCheck | null;
+  /** Defaults to `process.env.NODE_ENV`; production-like envs fail closed without membership. */
+  nodeEnv?: string;
+}
+
+type GradeWriteKind = 'entry' | 'submit' | 'moderate';
+
 export class GradebookService {
   private auditLog: GradebookAuditEntry[] = [];
   private readonly extras: GradebookExtrasStore;
   private readonly auditSink: GradebookAuditSink | null;
+  private readonly sectionMembership: GradebookSectionMembership | null;
+  private readonly staffHasActiveAssignmentAt: StaffActiveAssignmentCheck | null;
+  private readonly nodeEnv: string | undefined;
 
   constructor(
     private readonly repo: GradebookRepository,
     extras?: GradebookExtrasStore,
-    options: { auditSink?: GradebookAuditSink | null } = {},
+    options: GradebookServiceOptions = {},
   ) {
     this.extras = extras ?? new InMemoryGradebookExtrasStore();
     this.auditSink = options.auditSink ?? null;
+    this.sectionMembership = options.sectionMembership ?? null;
+    this.staffHasActiveAssignmentAt = options.staffHasActiveAssignmentAt ?? null;
+    this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /**
+   * PRC-H066: authorise a grade write against the grade's section.
+   *  1. School-bound principals may only write grades of sections in their institutions.
+   *  2. Teacher-only roles must be the section's assigned teacher (primary teacher or active
+   *     meeting teacher) and, when wired, hold an active staff assignment at that school.
+   *     Registrar/principal/admin-class roles (roleId match) are institution-wide.
+   *  3. Entry upsert and submit require the student to be enrolled in the section.
+   * Returns the section so callers do not re-read it.
+   */
+  private async assertGradeWriteScope(
+    tenantId: string,
+    actor: GradeWriteActor,
+    sectionId: string | null,
+    studentId: string,
+    kind: GradeWriteKind,
+  ): Promise<SectionSummary | null> {
+    const institutionWide = hasInstitutionWideGradeWriteRole(actor.roles);
+    const schoolBound = isSchoolBoundPrincipal(actor);
+    if (!sectionId) {
+      if (kind === 'entry') {
+        throw new ValidationError('sectionId is required for grade entry');
+      }
+      // Legacy section-less rows: only tenant-wide (not school-bound) institution-wide roles
+      // may move them, since no school or teacher binding can be established.
+      if (institutionWide && !schoolBound) return null;
+      throw new ForbiddenError(
+        'Grade entry has no section; it cannot be transitioned by this role',
+      );
+    }
+    const section = await this.repo.getSection(tenantId, sectionId);
+    if (!section) {
+      throw new NotFoundError(`Section ${sectionId} not found`);
+    }
+    if (schoolBound && !principalInstitutions(actor).includes(section.institutionId)) {
+      throw new ForbiddenError('Forbidden: section belongs to an institution outside your scope');
+    }
+    const needsTeacher = !institutionWide;
+    const needsEnrollment = kind === 'entry' || kind === 'submit';
+    if (!needsTeacher && !needsEnrollment) return section;
+
+    const membership = this.sectionMembership;
+    if (!membership) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Grade write scope lookup is not configured; grade writes are unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return section;
+    }
+
+    if (needsTeacher) {
+      const principalIds = [actor.id, actor.sub].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      );
+      const staffIds = principalIds.length
+        ? await membership.listTeacherStaffIdsForSection(tenantId, section.id, principalIds)
+        : [];
+      if (staffIds.length === 0) {
+        throw new ForbiddenError('Forbidden: you are not an assigned teacher of this section');
+      }
+      const assignmentCheck = this.staffHasActiveAssignmentAt;
+      if (assignmentCheck) {
+        let assigned = false;
+        for (const staffId of staffIds) {
+          if (await assignmentCheck(tenantId, staffId, section.institutionId)) {
+            assigned = true;
+            break;
+          }
+        }
+        if (!assigned) {
+          throw new ForbiddenError(
+            'Forbidden: no active staff assignment at the institution of this section',
+          );
+        }
+      }
+    }
+
+    if (needsEnrollment) {
+      const enrolled = await membership.isStudentEnrolledInSection(tenantId, section.id, studentId);
+      if (!enrolled) {
+        throw new BusinessRuleError(
+          `Student ${studentId} is not enrolled in section ${section.id}`,
+        );
+      }
+    }
+    return section;
+  }
+
+  private async assertTransitionScope(
+    tenantId: string,
+    entry: GradeEntryEntity,
+    action: GradeWorkflowAction,
+    actor: GradeWriteActor,
+  ): Promise<void> {
+    await this.assertGradeWriteScope(
+      tenantId,
+      actor,
+      entry.sectionId,
+      entry.studentId,
+      action === 'submit' ? 'submit' : 'moderate',
+    );
   }
 
   listAudits(tenantId: string): GradebookAuditEntry[] {
@@ -350,12 +505,21 @@ export class GradebookService {
   async upsertGradeEntry(
     tenantId: string,
     input: UpsertGradeEntryInput,
-    user?: { id?: string; sub?: string },
+    user?: GradeWriteActor,
   ): Promise<GradeEntryEntity> {
     if (input.numericScore == null && !input.letterGrade) {
       throw new ValidationError('numericScore or letterGrade is required');
     }
-    if (input.sectionId) {
+    if (user) {
+      // PRC-H066: sectionId required; teacher must teach it; student must be enrolled in it.
+      await this.assertGradeWriteScope(
+        tenantId,
+        user,
+        input.sectionId ?? null,
+        input.studentId,
+        'entry',
+      );
+    } else if (input.sectionId) {
       const section = await this.repo.getSection(tenantId, input.sectionId);
       if (!section) {
         throw new NotFoundError(`Section ${input.sectionId} not found`);
@@ -494,13 +658,16 @@ export class GradebookService {
     tenantId: string,
     entryId: string,
     action: GradeWorkflowAction,
-    user?: { id?: string; sub?: string },
+    user?: GradeWriteActor,
     reason?: string | null,
   ): Promise<GradeEntryEntity> {
     const entry = await this.repo.getGradeEntry(tenantId, entryId);
     if (!entry) {
       throw new NotFoundError(`Grade entry ${entryId} not found`);
     }
+    // PRC-H066: the caller must be in scope for the entry's section (and, on submit, the
+    // student must still be enrolled in it).
+    if (user) await this.assertTransitionScope(tenantId, entry, action, user);
     const current = readGradeWorkflowStatus(entry.metadata, entry.lockedAt, entry.publishedAt);
     const next = transitionGradeWorkflow(current, action);
     const now = nowIso();
@@ -571,8 +738,17 @@ export class GradebookService {
     tenantId: string,
     ids: string[],
     action: GradeWorkflowAction,
-    user?: { id?: string; sub?: string },
+    user?: GradeWriteActor,
   ): Promise<GradeEntryEntity[]> {
+    if (user) {
+      // PRC-H066: authorise every entry before mutating any, so an out-of-scope id in the
+      // batch cannot leave a partially applied bulk transition behind.
+      for (const id of ids) {
+        const entry = await this.repo.getGradeEntry(tenantId, id);
+        if (!entry) throw new NotFoundError(`Grade entry ${id} not found`);
+        await this.assertTransitionScope(tenantId, entry, action, user);
+      }
+    }
     const out: GradeEntryEntity[] = [];
     for (const id of ids) {
       out.push(await this.transitionGradeEntry(tenantId, id, action, user));
