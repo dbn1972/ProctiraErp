@@ -52,6 +52,21 @@ export type {
   RedisLikeForReplay,
 } from './developer-portal-service.js';
 
+// PRC-M211 / PRC-H046: envelope-encrypted signing secrets (db/sql/113)
+export {
+  EnvelopeWebhookSigningSecrets,
+  InMemoryWebhookSigningSecretStore,
+  PgWebhookSigningSecretStore,
+  WebhookSigningSecretUnavailableError,
+  WEBHOOK_SIGNING_SECRETS_TABLE,
+} from './webhook-signing-secrets.js';
+export type {
+  WebhookSecretKmsClient,
+  WebhookSigningSecretFailureReason,
+  WebhookSigningSecretRecord,
+  WebhookSigningSecretStore,
+  WebhookSigningSecretWriter,
+} from './webhook-signing-secrets.js';
 // Durable webhook delivery spine (W2-JOB-07)
 export {
   OutboxWebhookDeliveryPublisher,

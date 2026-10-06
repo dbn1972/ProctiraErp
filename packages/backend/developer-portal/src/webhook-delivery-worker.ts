@@ -12,6 +12,7 @@ import {
 } from '@proctira/queue-abstraction';
 
 import type { WebhookDeliveryJobPayload } from './queue-webhook-delivery-publisher.js';
+import { WebhookSigningSecretUnavailableError } from './webhook-signing-secrets.js';
 
 export interface WebhookDeliveryWorkerLogger {
   info(obj: Record<string, unknown>, msg: string): void;
@@ -88,7 +89,29 @@ export function createWebhookDeliveryWorker(
           if (message.tenantId !== message.payload.tenantId) {
             throw new Error(`Webhook delivery tenant mismatch on message ${message.id}`);
           }
-          await options.processor.processQueuedDelivery(message.payload.tenantId, message.payload);
+          try {
+            await options.processor.processQueuedDelivery(
+              message.payload.tenantId,
+              message.payload,
+            );
+          } catch (err) {
+            // PRC-M211: the attempt is already recorded as failed (never sent unsigned);
+            // log the reason and ack — a redelivery cannot succeed until the secret is rotated.
+            if (err instanceof WebhookSigningSecretUnavailableError) {
+              options.logger?.error(
+                {
+                  tenantId: message.payload.tenantId,
+                  deliveryId: message.payload.deliveryId,
+                  webhookId: message.payload.webhookId,
+                  reason: err.reason,
+                  error: err.message,
+                },
+                'webhook-delivery worker failed job: signing secret unavailable',
+              );
+              return;
+            }
+            throw err;
+          }
           options.logger?.info(
             { deliveryId: message.payload.deliveryId },
             'webhook-delivery worker completed job',

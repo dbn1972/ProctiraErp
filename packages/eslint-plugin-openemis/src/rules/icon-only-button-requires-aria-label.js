@@ -1,6 +1,6 @@
 /**
- * @fileoverview ESLint rule that flags any `<Button>` or `<IconButton>` (or
- * any element marked `data-icon-only`) whose only visible child is an icon
+ * @fileoverview ESLint rule that flags any native `<button>`, `<Button>` or `<IconButton>`
+ * (or any element marked `data-icon-only`) whose only visible child is an icon
  * component when no accessible name is provided. Charter / Design §K
  * (Accessibility, Requirement 37.4): "Icon-only buttons require an
  * `aria-label`; a custom ESLint rule `icon-only-button-requires-aria-label`
@@ -41,7 +41,8 @@
 
 'use strict';
 
-const DEFAULT_BUTTON_COMPONENTS = ['Button', 'IconButton'];
+// PRC-M221: the native DOM <button> is checked too (the documented `<button><Icon/></button>`).
+const DEFAULT_BUTTON_COMPONENTS = ['button', 'Button', 'IconButton'];
 const DEFAULT_ICON_PACKAGES = [
   'lucide-react',
   'react-icons',
@@ -100,6 +101,8 @@ function findAttribute(openingElement, name) {
  * time. We are conservative: a JSXExpressionContainer is considered "present"
  * unless its expression is a literal empty string / null / undefined / false.
  */
+const ACCESSIBLE_NAME_PROPS = new Set(['aria-label', 'aria-labelledby', 'title']);
+
 function attributeHasMeaningfulValue(attr) {
   if (!attr) return false;
   // Bare boolean attribute (`<Button aria-label />`) is not meaningful.
@@ -368,6 +371,32 @@ module.exports = {
       return iconCount >= 1;
     }
 
+    /**
+     * Whether a JSX spread could supply aria-label / aria-labelledby / title:
+     *  - object literal: only if it statically has one of those keys (or a nested spread)
+     *  - opaque value (`{...props}`) on a native `<button>`: yes — wrapper components forward
+     *    props there and the label cannot be resolved statically
+     *  - opaque value on a design-system Button/IconButton: no, keep reporting (pre-PRC-M221
+     *    behavior; pass the accessible name explicitly)
+     */
+    function spreadMayCarryAccessibleName(attr, openingElement) {
+      if (attr.type !== 'JSXSpreadAttribute') return false;
+      const arg = attr.argument;
+      if (arg && arg.type === 'ObjectExpression') {
+        return arg.properties.some((prop) => {
+          if (prop.type !== 'Property') return true;
+          const key =
+            prop.key.type === 'Identifier'
+              ? prop.key.name
+              : prop.key.type === 'Literal'
+                ? String(prop.key.value)
+                : null;
+          return key === null || ACCESSIBLE_NAME_PROPS.has(key);
+        });
+      }
+      return getJsxName(openingElement.name) === 'button';
+    }
+
     function hasAccessibleNameAttribute(openingElement) {
       if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-label'))) return true;
       if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-labelledby')))
@@ -409,6 +438,8 @@ module.exports = {
 
         // Self-closing buttons can never be icon-only — there are no children.
         if (opening.selfClosing) return;
+        // PRC-M221: skip only spreads that can carry an accessible name (review #13).
+        if (opening.attributes.some((attr) => spreadMayCarryAccessibleName(attr, opening))) return;
 
         if (!isIconOnly(node.children)) return;
 

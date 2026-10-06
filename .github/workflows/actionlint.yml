@@ -21,6 +21,8 @@ on:
       - 'tools/scripts/assert-reusable-ci-assets.mjs'
       - 'tools/scripts/assert-reusable-ci-assets.test.mjs'
       - 'tools/scripts/validate-observability.mjs'
+      - 'tools/scripts/check-workflow-script-injection.mjs'
+      - 'tools/scripts/check-workflow-script-injection.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -30,6 +32,8 @@ on:
       - 'tools/scripts/assert-reusable-ci-assets.mjs'
       - 'tools/scripts/assert-reusable-ci-assets.test.mjs'
       - 'tools/scripts/validate-observability.mjs'
+      - 'tools/scripts/check-workflow-script-injection.mjs'
+      - 'tools/scripts/check-workflow-script-injection.test.mjs'
 
 permissions:
   contents: read
@@ -54,6 +58,11 @@ jobs:
 
       - name: Unit-test reusable CI asset gate
         run: node --test tools/scripts/assert-reusable-ci-assets.test.mjs
+      # PRC-M256: no inputs/event/needs-outputs/matrix expressions inlined into run: scripts.
+      - name: Unit-test workflow script-injection gate
+        run: node --test tools/scripts/check-workflow-script-injection.test.mjs
+      - name: Fail on expressions interpolated into run scripts (PRC-M256)
+        run: node tools/scripts/check-workflow-script-injection.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

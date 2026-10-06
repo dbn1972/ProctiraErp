@@ -79,7 +79,9 @@ test.describe('Public Website — contact API (Next route, always-on)', () => {
     expect(response.status()).toBe(400);
   });
 
-  test('contact API accepts a valid payload (webhook optional)', async ({ request }) => {
+  test('contact API never claims delivery without a CRM webhook (PRC-M049)', async ({
+    request,
+  }) => {
     const response = await request.post('/api/contact', {
       data: {
         name: 'Enterprise Tester',
@@ -88,11 +90,22 @@ test.describe('Public Website — contact API (Next route, always-on)', () => {
         message: 'Please schedule a district pilot briefing next month.',
       },
     });
-    expect(response.status()).toBe(202);
-    const body = (await response.json()) as { ok?: boolean; forwarded?: boolean };
-    expect(body.ok).toBe(true);
-    // Without CONTACT_WEBHOOK_URL, forwarded stays false — do not invent CRM success.
-    expect(typeof body.forwarded).toBe('boolean');
+    const body = (await response.json()) as {
+      ok?: boolean;
+      forwarded?: boolean;
+      fallbackEmail?: string;
+      requestId?: string;
+    };
+    expect(typeof body.requestId).toBe('string');
+    if (response.status() === 202) {
+      // CONTACT_WEBHOOK_URL is configured and the CRM accepted the message.
+      expect(body).toMatchObject({ ok: true, forwarded: true });
+    } else {
+      // No webhook (CI default) or CRM down: an honest 503 with a fallback address.
+      expect(response.status()).toBe(503);
+      expect(body).toMatchObject({ ok: false, forwarded: false });
+      expect(body.fallbackEmail).toMatch(/@/);
+    }
   });
 });
 test.describe('Public Website — security headers & contact origin guard', () => {

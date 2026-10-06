@@ -36,9 +36,10 @@ jobs:
           fetch-depth: 0
 
       - name: Check PR size
+        env:
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
         run: |
-          ADDITIONS=${{ github.event.pull_request.additions }}
-          DELETIONS=${{ github.event.pull_request.deletions }}
           TOTAL=$((ADDITIONS + DELETIONS))
           echo "PR size: ${TOTAL} lines (${ADDITIONS}+/${DELETIONS}-)"
           if [ "$TOTAL" -gt 1000 ]; then

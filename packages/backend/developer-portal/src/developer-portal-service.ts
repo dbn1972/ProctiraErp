@@ -48,6 +48,11 @@ import {
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
 import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
+import {
+  WebhookSigningSecretUnavailableError,
+  type WebhookSigningSecretResolver,
+  type WebhookSigningSecretWriter,
+} from './webhook-signing-secrets.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
@@ -129,15 +134,19 @@ export type WebhookHttpFetch = (
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-/** PRC-H046: port returning the decrypted webhook signing secret (or undefined). */
-export interface WebhookSigningSecretResolver {
-  resolveSigningSecret(webhook: WebhookEntity): Promise<string | undefined>;
+export type { WebhookSigningSecretResolver, WebhookSigningSecretWriter };
+
+function isSigningSecretWriter(value: unknown): value is WebhookSigningSecretWriter {
+  return (
+    typeof (value as WebhookSigningSecretWriter | undefined)?.storeSigningSecret === 'function'
+  );
 }
 
 export class DeveloperPortalService {
   private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
   private readonly httpFetch: WebhookHttpFetch;
   private readonly signingSecretResolver: WebhookSigningSecretResolver | undefined;
+  private readonly signingSecretWriter: WebhookSigningSecretWriter | undefined;
   /** W1-SEC-08: nonce replay store for inbound signature verification. */
   private readonly replayStore: WebhookReplayStore | null | undefined;
 
@@ -150,14 +159,25 @@ export class DeveloperPortalService {
       /** Injected replay store (Redis in prod / memory in non-prod). */
       replayStore?: WebhookReplayStore | null;
       /**
-       * PRC-H046: resolves the decrypted signing secret for a webhook at send
-       * time (secrets are never carried in queue/outbox payloads). Absent →
-       * fan-out deliveries are unsigned until encrypted secret storage lands.
+       * PRC-H046 / PRC-M211: resolves the decrypted signing secret for a webhook at send
+       * time (secrets are never carried in queue/outbox payloads). Signing is mandatory:
+       * absent or failing → the delivery fails closed, never unsigned.
        */
       signingSecretResolver?: WebhookSigningSecretResolver;
+      /**
+       * Stores the envelope-encrypted secret on create/rotate. Defaults to the resolver when
+       * it also implements the writer (EnvelopeWebhookSigningSecrets). Absent → create and
+       * secret rotation fail with 503 instead of registering an unsignable webhook.
+       */
+      signingSecretWriter?: WebhookSigningSecretWriter;
     },
   ) {
     this.signingSecretResolver = options?.signingSecretResolver;
+    this.signingSecretWriter =
+      options?.signingSecretWriter ??
+      (isSigningSecretWriter(options?.signingSecretResolver)
+        ? options.signingSecretResolver
+        : undefined);
     this.deliveryPublisher = options?.deliveryPublisher;
     this.replayStore = options?.replayStore;
     this.httpFetch =
@@ -396,7 +416,7 @@ export class DeveloperPortalService {
     accountId: string,
     tenantId: string,
     input: CreateWebhookInput,
-  ): Promise<WebhookEntity> {
+  ): Promise<WebhookEntity & { signingSecret?: string }> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -405,7 +425,6 @@ export class DeveloperPortalService {
     if (account.status !== 'active') {
       throw new BusinessRuleError('Cannot create webhook for inactive account');
     }
-
     // Check webhook limit (per account + tenant, matching API key scoping)
     const existing = await this.repository.listWebhooks({ accountId, tenantId }, 1, 1);
     if (existing.total >= this.config.maxWebhooksPerAccount) {
@@ -417,10 +436,10 @@ export class DeveloperPortalService {
     // Generate secret if not provided
     const secret = input.secret ?? generateApiKey();
     const secretHash = hashApiKey(secret);
-
     const now = new Date();
+    const id = uuidv4();
     const webhook: WebhookEntity = {
-      id: uuidv4(),
+      id,
       tenantId,
       accountId,
       url: input.url,
@@ -431,8 +450,28 @@ export class DeveloperPortalService {
       createdAt: now,
       updatedAt: now,
     };
+    const writer = this.requireSigningSecretWriter();
+    const created = await this.repository.createWebhook(webhook);
+    // PRC-M211: the envelope row references the webhook row (FK), so it is written second; a
+    // failed write removes the webhook rather than leaving one that can never be signed.
+    try {
+      await writer.storeSigningSecret(created, secret);
+    } catch (err) {
+      await this.repository.deleteWebhook(created.id).catch(() => undefined);
+      throw err;
+    }
+    // The plaintext is returned once (server-generated secrets are otherwise unknowable).
+    return input.secret === undefined ? { ...created, signingSecret: secret } : created;
+  }
 
-    return this.repository.createWebhook(webhook);
+  private requireSigningSecretWriter(): WebhookSigningSecretWriter {
+    if (!this.signingSecretWriter) {
+      throw new WebhookSigningSecretUnavailableError(
+        'not_configured',
+        'Webhook signing secret storage is not configured; webhooks cannot be registered',
+      );
+    }
+    return this.signingSecretWriter;
   }
 
   async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
@@ -469,7 +508,12 @@ export class DeveloperPortalService {
     > = {};
     if (input.url !== undefined) updates.url = input.url;
     if (input.events !== undefined) updates.events = input.events;
-    if (input.secret !== undefined) updates.secretHash = hashApiKey(input.secret);
+    if (input.secret !== undefined) {
+      // PRC-M211: rotate the envelope first (retires the previous version) so the hash and
+      // the signing secret never disagree after a failed rotation.
+      await this.requireSigningSecretWriter().storeSigningSecret(webhook, input.secret);
+      updates.secretHash = hashApiKey(input.secret);
+    }
     if (input.description !== undefined) updates.description = input.description;
     if (input.active !== undefined) updates.active = input.active;
 
@@ -491,7 +535,6 @@ export class DeveloperPortalService {
     webhookId: string,
     event: string,
     payload: Record<string, unknown>,
-    signingSecret?: string,
   ): Promise<WebhookDeliveryEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
     if (!webhook) {
@@ -528,7 +571,6 @@ export class DeveloperPortalService {
         url: webhook.url,
         event,
         body: payload,
-        signingSecret,
         attempt: 0,
       });
     }
@@ -589,13 +631,51 @@ export class DeveloperPortalService {
       'x-proctira-event': job.event,
       'x-proctira-delivery': job.deliveryId,
     };
-    const signingSecret =
-      job.signingSecret ?? (await this.signingSecretResolver?.resolveSigningSecret(webhook));
-    if (signingSecret) {
-      // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
-      // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
-      Object.assign(headers, createWebhookSignatureHeaders(body, signingSecret).headers);
+    // PRC-M211: signing is mandatory. The secret is resolved at send time through the
+    // WebhookSigningSecretResolver port (envelope table 113) — never the queue message. A
+    // missing resolver, missing/retired row, KMS failure or authentication failure fails the
+    // attempt permanently (no unsigned delivery) and surfaces the reason to the worker log.
+    let signingSecret: string | undefined;
+    let signingFailure: WebhookSigningSecretUnavailableError | undefined;
+    try {
+      if (!this.signingSecretResolver) {
+        throw new WebhookSigningSecretUnavailableError(
+          'not_configured',
+          'Webhook signing secret resolver is not configured',
+        );
+      }
+      signingSecret = await this.signingSecretResolver.resolveSigningSecret(webhook);
+      if (!signingSecret) {
+        throw new WebhookSigningSecretUnavailableError(
+          'missing',
+          `Webhook ${webhook.id} has no signing secret`,
+        );
+      }
+    } catch (err) {
+      signingFailure =
+        err instanceof WebhookSigningSecretUnavailableError
+          ? err
+          : new WebhookSigningSecretUnavailableError(
+              'undecryptable',
+              `Webhook ${webhook.id} signing secret could not be resolved`,
+            );
     }
+    if (signingFailure || !signingSecret) {
+      await this.repository.updateDelivery(job.deliveryId, {
+        status: 'failed',
+        httpStatus: null,
+        attempts: delivery.attempts + 1,
+        lastAttemptAt: new Date(),
+        nextRetryAt: null,
+      });
+      throw (
+        signingFailure ??
+        new WebhookSigningSecretUnavailableError('missing', 'Webhook signing secret missing')
+      );
+    }
+    // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
+    // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
+    Object.assign(headers, createWebhookSignatureHeaders(body, signingSecret).headers);
 
     // Only the HTTP attempt is guarded. Recording the failure and scheduling
     // the retry happen exactly once, outside the try: a scheduling error (e.g.
@@ -752,6 +832,11 @@ export class DeveloperPortalService {
     if (account.status !== 'active') {
       throw new BusinessRuleError('Cannot submit plugin from inactive account');
     }
+    // PRC-M219: a published plugin name belongs to the account that published it.
+    const listed = await this.repository.getListingByName(input.name);
+    if (listed && listed.accountId !== accountId) {
+      throw new ConflictError(`Plugin name '${input.name}' is owned by another developer account`);
+    }
 
     const submission: PluginSubmissionEntity = {
       id: uuidv4(),
@@ -839,10 +924,17 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Only approved plugins can be published');
     }
 
+    // PRC-M219: never overwrite another account's listing; a same-owner re-publish is a
+    // version update that keeps installs, ratings and the original publish date.
+    const existing = await this.repository.getListingByName(submission.name);
+    if (existing && existing.accountId !== submission.accountId) {
+      throw new ConflictError(
+        `Plugin name '${submission.name}' is owned by another developer account`,
+      );
+    }
     // Get account for author name
     const account = await this.repository.getAccountById(submission.accountId);
     const authorName = account?.name ?? 'Unknown';
-
     // Create marketplace listing
     const now = new Date();
     const listing: MarketplaceListingEntity = {
@@ -857,16 +949,23 @@ export class DeveloperPortalService {
       screenshots: submission.screenshots,
       tags: submission.tags,
       license: submission.license,
-      installs: 0,
-      averageRating: 0,
-      ratingCount: 0,
-      publishedAt: now,
+      installs: existing?.installs ?? 0,
+      averageRating: existing?.averageRating ?? 0,
+      ratingCount: existing?.ratingCount ?? 0,
+      publishedAt: existing?.publishedAt ?? now,
       updatedAt: now,
     };
-
     await this.repository.createListing(listing);
-    await this.repository.updateSubmissionStatus(submissionId, 'published');
-
+    try {
+      const marked = await this.repository.updateSubmissionStatus(submissionId, 'published');
+      if (!marked) throw new NotFoundError(`Plugin submission '${submissionId}' not found`);
+    } catch (error) {
+      // PRC-M219: listings are not in the same store as submissions, so undo the listing
+      // write rather than leave a live listing for an unpublished submission.
+      if (existing) await this.repository.createListing(existing);
+      else await this.repository.deleteListing(listing.name);
+      throw error;
+    }
     return listing;
   }
 

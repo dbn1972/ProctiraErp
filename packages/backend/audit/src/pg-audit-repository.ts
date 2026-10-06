@@ -3,8 +3,9 @@
  * + 028_audit_hash_chain.sql (G-913).
  *
  * Append-only: the table trigger rejects UPDATE and only allows DELETE while
- * `app.audit_archival = '1'` is bound — which this class does exclusively
- * inside {@link archiveExpiredEntries}. Every insert extends the tenant's
+ * `app.audit_archival = '1'` is bound — which only the SECURITY DEFINER function
+ * `audit_archive_expired_entries` (db/sql/119, PRC-M175) does, called from
+ * {@link archiveExpiredEntries}. Every insert extends the tenant's
  * sha256 hash chain (see audit-hash.ts) under a row lock on audit_chain_heads.
  */
 import { withPlatformScope, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
@@ -159,7 +160,15 @@ export class PgAuditRepository implements AuditRepository {
         `SELECT * FROM audit_log_entries WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
         [tenantId, id],
       );
-      const row = res.rows[0] as Record<string, unknown> | undefined;
+      let row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) {
+        // PRC-M175: an archived entry is still the same audit record.
+        const archived = await client.query(
+          `SELECT * FROM audit_log_archive WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+          [tenantId, id],
+        );
+        row = archived.rows[0] as Record<string, unknown> | undefined;
+      }
       return row ? mapEntry(row) : null;
     });
   }
@@ -200,49 +209,39 @@ export class PgAuditRepository implements AuditRepository {
     });
   }
 
+  /**
+   * PRC-M175: archival runs through the `audit_archive_expired_entries` SECURITY DEFINER
+   * function (db/sql/119). The runtime role (proctira_app) has no DELETE on audit_log_entries;
+   * the function enforces the bound tenant, takes cutoff/destination from the stored retention
+   * config, copies rows (chain columns intact) to audit_log_archive and stamps last_archival_at.
+   */
   async archiveExpiredEntries(tenantId: string): Promise<ArchivalResult> {
     const config = await this.getRetentionConfig(tenantId);
     if (!config || !config.archivalEnabled) {
       return { archivedCount: 0, cutoffDate: new Date(), destination: '', executedAt: new Date() };
     }
-    const cutoffDate = cutoffFor(config);
     const executedAt = new Date();
     return this.scoped(tenantId, async (client) => {
       // PRC-M085: exclusive vs. chain verification (see verifyChain).
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [chainLockKey(tenantId)]);
-      await client.query(`SELECT set_config('app.audit_archival', '1', true)`);
-      const moved = await client.query(
-        `WITH moved AS (
-           DELETE FROM audit_log_entries
-           WHERE tenant_id = $1 AND occurred_at < $2
-           RETURNING *
-         )
-         INSERT INTO audit_log_archive (
-           id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-           ip_address, occurred_at, before_values, after_values, metadata, created_at,
-           chain_seq, prev_hash, entry_hash, archived_at, destination
-         )
-         SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-                ip_address, occurred_at, before_values, after_values, metadata, created_at,
-                chain_seq, prev_hash, entry_hash, now(), $3
-         FROM moved
-         RETURNING id`,
-        [tenantId, cutoffDate, config.archivalDestination],
+      // PRC-M175: the move runs inside the owner-executed definer function (119).
+      const res = await client.query(
+        `SELECT archived_count, cutoff_at, destination FROM audit_archive_expired_entries($1)`,
+        [tenantId],
       );
-      await client.query(
-        `UPDATE audit_retention_configs SET last_archival_at = $2, updated_at = now()
-         WHERE tenant_id = $1`,
-        [tenantId, executedAt],
-      );
+      const row = (res.rows[0] ?? {}) as {
+        archived_count?: number;
+        cutoff_at?: Date | string | null;
+        destination?: string | null;
+      };
       return {
-        archivedCount: moved.rows.length,
-        cutoffDate,
-        destination: config.archivalDestination ?? 'audit_log_archive',
+        archivedCount: Number(row.archived_count ?? 0),
+        cutoffDate: row.cutoff_at ? new Date(row.cutoff_at) : cutoffFor(config),
+        destination: row.destination ?? config.archivalDestination ?? 'audit_log_archive',
         executedAt,
       };
     });
   }
-
   async getArchivalCandidateCount(tenantId: string): Promise<number> {
     const config = await this.getRetentionConfig(tenantId);
     if (!config || !config.archivalEnabled) return 0;
