@@ -80,6 +80,7 @@ BEGIN
   IF v_blocked IS NULL THEN
     FOR r IN
       SELECT cl.relname AS table_name, a.attname AS column_name,
+             format_type(a.atttypid, a.atttypmod) AS column_type,
              ref.relname AS ref_table
         FROM pg_constraint con
         JOIN pg_class cl  ON cl.oid = con.conrelid
@@ -92,10 +93,13 @@ BEGIN
          AND array_length(con.conkey, 1) = 1
          AND NOT (ref.relname = 'tenants' AND a.attname = 'tenant_id')
     LOOP
+      -- Compare in the FK column's own type (uuid or text) so its index is usable;
+      -- casting the column to text would seq-scan every referencing table.
       EXECUTE format(
-        'SELECT EXISTS (SELECT 1 FROM %I WHERE %I::text = $1)',
+        'SELECT EXISTS (SELECT 1 FROM %I WHERE %I = $1::%s)',
         r.table_name,
-        r.column_name
+        r.column_name,
+        r.column_type
       ) INTO v_hit USING CASE r.ref_table
                            WHEN 'students' THEN v_student
                            WHEN 'staff' THEN v_staff
