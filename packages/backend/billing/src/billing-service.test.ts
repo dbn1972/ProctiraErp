@@ -630,6 +630,53 @@ describe('BillingService subscription lifecycle (PRC-M185)', () => {
     expect((await svc.getSubscription(sub.id)).status).toBe('suspended');
   });
 
+  it('keeps reporting "Trial has expired" after the suspension is persisted (review #9)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-01T00:00:00Z'));
+    const { svc, plan } = await setup(14);
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id, startTrial: true });
+    vi.setSystemTime(new Date(sub.trialEndsAt!.getTime() + 1000));
+    await svc.runLifecycleSweep();
+    expect((await svc.getSubscription(sub.id)).status).toBe('suspended');
+    expect(await svc.checkEntitlement(tenant, 'reports')).toMatchObject({
+      allowed: false,
+      reason: 'Trial has expired',
+    });
+    expect(await svc.enforceQuota(tenant, 'api_calls', 1)).toMatchObject({
+      allowed: false,
+      reason: 'Trial has expired',
+    });
+  });
+  it('activates a trial-lapsed suspended subscription and clears trialEndsAt (review #2)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-01T00:00:00Z'));
+    const { svc, plan } = await setup(14);
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id, startTrial: true });
+    vi.setSystemTime(new Date(sub.trialEndsAt!.getTime() + 60_000));
+    await svc.runLifecycleSweep();
+    expect((await svc.getSubscription(sub.id)).status).toBe('suspended');
+    const activated = await svc.activateSubscription(sub.id);
+    expect(activated).toMatchObject({ status: 'active', trialEndsAt: null });
+    expect((await svc.checkEntitlement(tenant, 'reports')).allowed).toBe(true);
+    // A non-trial suspension (non-payment) still goes through reactivate, not activate.
+    await svc.suspendSubscription(sub.id);
+    await expect(svc.activateSubscription(sub.id)).rejects.toThrow(
+      'Only trial subscriptions can be activated',
+    );
+  });
+  it('a stale lifecycle snapshot cannot re-suspend a concurrently activated trial (review #8)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-01T00:00:00Z'));
+    const { svc, plan } = await setup(14);
+    const sub = await svc.subscribeTenant({ tenantId: tenant, planId: plan.id, startTrial: true });
+    const staleSnapshot = { ...(await svc.getSubscription(sub.id)) };
+    vi.setSystemTime(new Date(sub.trialEndsAt!.getTime() + 1000));
+    // Payment lands between the sweep's read and its write.
+    await svc.activateSubscription(sub.id);
+    const result = await svc.refreshLifecycle(staleSnapshot);
+    expect(result.status).toBe('active');
+    expect((await svc.getSubscription(sub.id)).status).toBe('active');
+  });
   it('usage resets after the period boundary', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
@@ -674,6 +721,40 @@ describe('BillingService entitlement lifecycle (PRC-M186)', () => {
     return plan;
   }
 
+  it('plan edits upsert before pruning, so kept features never disappear (review #7)', async () => {
+    const repo = new InMemoryBillingRepository();
+    const svc = new BillingService(repo);
+    const plan = await activePlan(svc, {
+      features: [
+        { featureKey: 'reports', enabled: true },
+        { featureKey: 'legacy', enabled: true },
+      ],
+    });
+    await svc.subscribeTenant({ tenantId: tenant, planId: plan.id });
+    const seenDuringPrune: string[] = [];
+    const originalPrune = repo.pruneEntitlements.bind(repo);
+    repo.pruneEntitlements = async (tenantId, keep) => {
+      seenDuringPrune.push(
+        ...(await repo.findEntitlementsByTenant(tenantId)).map((e) => e.featureKey),
+      );
+      return originalPrune(tenantId, keep);
+    };
+    repo.deleteEntitlementsByTenant = async () => {
+      throw new Error('delete-all must not be used for plan replacement');
+    };
+    await svc.updatePlan(plan.id, {
+      features: [
+        { featureKey: 'reports', enabled: true },
+        { featureKey: 'exports', enabled: true },
+      ],
+    });
+    expect(seenDuringPrune.sort()).toEqual(['exports', 'legacy', 'reports']);
+    expect((await repo.findEntitlementsByTenant(tenant)).map((e) => e.featureKey).sort()).toEqual([
+      'exports',
+      'reports',
+    ]);
+    expect((await svc.checkEntitlement(tenant, 'legacy')).allowed).toBe(false);
+  });
   it('Enterprise -> cancel -> Starter denies enterprise-only features', async () => {
     const svc = new BillingService(new InMemoryBillingRepository());
     const enterprise = await activePlan(svc, {

@@ -217,6 +217,14 @@ export class PgBillingRepository implements BillingRepository {
     }
   }
 
+  async pruneEntitlements(tenantId: string, keepFeatureKeys: readonly string[]): Promise<void> {
+    const keep = new Set(keepFeatureKeys);
+    const rows = await this.entitlements.byTenant(tenantId);
+    for (const row of rows) {
+      if (keep.has(row.featureKey)) continue;
+      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey));
+    }
+  }
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
     const rows = await this.entitlements.where({ subscriptionId } as Partial<EntitlementEntity>);
     for (const row of rows) {

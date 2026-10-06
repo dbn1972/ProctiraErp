@@ -171,6 +171,8 @@ export interface BillingRepository {
 
   /** PRC-M186: delete every entitlement row for a tenant (plan replacement). */
   deleteEntitlementsByTenant(tenantId: string): Promise<void>;
+  /** PRC-M186: delete a tenant's entitlement rows whose feature key is not in `keepFeatureKeys`. */
+  pruneEntitlements(tenantId: string, keepFeatureKeys: readonly string[]): Promise<void>;
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 

@@ -75,6 +75,16 @@ const MAX_PERIOD_CATCH_UP = 1200;
 /**
  * Service handling billing business logic.
  */
+/** A suspended subscription whose trial window has passed (PRC-M185 trial lapse). */
+function isLapsedTrial(sub: SubscriptionEntity, now: Date = new Date()): boolean {
+  if (sub.status !== 'suspended' || !sub.trialEndsAt) return false;
+  return new Date(sub.trialEndsAt).getTime() <= now.getTime();
+}
+
+function timeOf(value: Date | string | null | undefined): number | null {
+  return value == null ? null : new Date(value).getTime();
+}
+
 export class BillingService {
   constructor(private readonly repository: BillingRepository) {}
 
@@ -265,7 +275,8 @@ export class BillingService {
       throw new NotFoundError(`Subscription with id '${subscriptionId}' not found`);
     }
 
-    if (subscription.status !== 'trial') {
+    // PRC-M185 review #2: a trial the lifecycle suspended on expiry can still convert to paid.
+    if (subscription.status !== 'trial' && !isLapsedTrial(subscription)) {
       throw new BusinessRuleError('Only trial subscriptions can be activated');
     }
 
@@ -343,6 +354,8 @@ export class BillingService {
 
     const updated = await this.repository.updateSubscription(subscriptionId, {
       status: 'active',
+      // A reactivated lapsed trial is a paid subscription now; don't keep reporting the trial.
+      ...(isLapsedTrial(subscription) ? { trialEndsAt: null } : {}),
     });
 
     return updated!;
@@ -507,7 +520,8 @@ export class BillingService {
     }
     // PRC-M185: a lapsed trial is not entitled; usage is read for the current period.
     const subscription = await this.refreshLifecycle(found);
-    if (subscription.status === 'suspended' && found.status === 'trial') {
+    // Review #9: keyed off trialEndsAt, so the reason survives the persisted suspension.
+    if (isLapsedTrial(subscription)) {
       return { allowed: false, reason: 'Trial has expired' };
     }
 
@@ -595,7 +609,7 @@ export class BillingService {
         used: 0,
         limit: 0,
         remaining: 0,
-        reason: found.status === 'trial' ? 'Trial has expired' : 'Subscription is suspended',
+        reason: isLapsedTrial(subscription) ? 'Trial has expired' : 'Subscription is suspended',
       };
     }
 
@@ -685,6 +699,7 @@ export class BillingService {
   async refreshLifecycle(
     subscription: SubscriptionEntity,
     now: Date = new Date(),
+    attempt = 0,
   ): Promise<SubscriptionEntity> {
     const changes: Partial<SubscriptionEntity> = {};
     let status = subscription.status;
@@ -709,6 +724,18 @@ export class BillingService {
       }
     }
     if (Object.keys(changes).length === 0) return subscription;
+    // Review #8: re-read before writing so a concurrent activate/suspend/cancel committed after
+    // our snapshot is not overwritten (e.g. re-suspending a just-paid subscription). If the row
+    // moved on, recompute from the fresh state instead of applying stale changes.
+    const fresh = await this.repository.findSubscriptionById(subscription.id);
+    if (!fresh) return subscription;
+    if (
+      fresh.status !== subscription.status ||
+      timeOf(fresh.trialEndsAt) !== timeOf(subscription.trialEndsAt) ||
+      timeOf(fresh.currentPeriodEnd) !== timeOf(subscription.currentPeriodEnd)
+    ) {
+      return attempt < 2 ? this.refreshLifecycle(fresh, now, attempt + 1) : fresh;
+    }
     const updated = await this.repository.updateSubscription(subscription.id, changes);
     return updated ?? { ...subscription, ...changes, status };
   }
@@ -791,8 +818,14 @@ export class BillingService {
       });
     }
 
-    await this.repository.deleteEntitlementsByTenant(tenantId);
+    // Review #7: upsert-then-prune. Keys that stay are rewritten in place (bound to the new
+    // subscription) before anything is removed, so concurrent checks never see an empty set;
+    // only keys absent from the plan are pruned afterwards.
     await this.repository.upsertEntitlements(entitlements);
+    await this.repository.pruneEntitlements(
+      tenantId,
+      entitlements.map((e) => e.featureKey),
+    );
   }
 
   /**

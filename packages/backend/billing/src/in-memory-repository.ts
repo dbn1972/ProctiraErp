@@ -247,6 +247,13 @@ export class InMemoryBillingRepository implements BillingRepository {
     this.entitlements = this.entitlements.filter((e) => e.tenantId !== tenantId);
   }
 
+  async pruneEntitlements(tenantId: string, keepFeatureKeys: readonly string[]): Promise<void> {
+    const keep = new Set(keepFeatureKeys);
+    this.entitlements = this.entitlements.filter(
+      (e) => e.tenantId !== tenantId || keep.has(e.featureKey),
+    );
+  }
+
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
   async getOrCreateUsage(
