@@ -101,6 +101,8 @@ function findAttribute(openingElement, name) {
  * time. We are conservative: a JSXExpressionContainer is considered "present"
  * unless its expression is a literal empty string / null / undefined / false.
  */
+const ACCESSIBLE_NAME_PROPS = new Set(['aria-label', 'aria-labelledby', 'title']);
+
 function attributeHasMeaningfulValue(attr) {
   if (!attr) return false;
   // Bare boolean attribute (`<Button aria-label />`) is not meaningful.
@@ -369,6 +371,32 @@ module.exports = {
       return iconCount >= 1;
     }
 
+    /**
+     * Whether a JSX spread could supply aria-label / aria-labelledby / title:
+     *  - object literal: only if it statically has one of those keys (or a nested spread)
+     *  - opaque value (`{...props}`) on a native `<button>`: yes — wrapper components forward
+     *    props there and the label cannot be resolved statically
+     *  - opaque value on a design-system Button/IconButton: no, keep reporting (pre-PRC-M221
+     *    behavior; pass the accessible name explicitly)
+     */
+    function spreadMayCarryAccessibleName(attr, openingElement) {
+      if (attr.type !== 'JSXSpreadAttribute') return false;
+      const arg = attr.argument;
+      if (arg && arg.type === 'ObjectExpression') {
+        return arg.properties.some((prop) => {
+          if (prop.type !== 'Property') return true;
+          const key =
+            prop.key.type === 'Identifier'
+              ? prop.key.name
+              : prop.key.type === 'Literal'
+                ? String(prop.key.value)
+                : null;
+          return key === null || ACCESSIBLE_NAME_PROPS.has(key);
+        });
+      }
+      return getJsxName(openingElement.name) === 'button';
+    }
+
     function hasAccessibleNameAttribute(openingElement) {
       if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-label'))) return true;
       if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-labelledby')))
@@ -410,9 +438,8 @@ module.exports = {
 
         // Self-closing buttons can never be icon-only — there are no children.
         if (opening.selfClosing) return;
-        // PRC-M221: `{...props}` may carry aria-label / aria-labelledby / title, which cannot
-        // be resolved statically; skip rather than report a false positive.
-        if (opening.attributes.some((attr) => attr.type === 'JSXSpreadAttribute')) return;
+        // PRC-M221: skip only spreads that can carry an accessible name (review #13).
+        if (opening.attributes.some((attr) => spreadMayCarryAccessibleName(attr, opening))) return;
 
         if (!isIconOnly(node.children)) return;
 
