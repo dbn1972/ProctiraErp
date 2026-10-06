@@ -82,11 +82,19 @@ describe('PRC-L356 SQS queue resolution', () => {
     const s = sqsWith((name) => {
       if (name === 'GetQueueUrlCommand') throw awsError('QueueDoesNotExist');
       if (name === 'CreateQueueCommand') return { QueueUrl: `${PREFIX}/tenant-${T1}-x` };
+      if (name === 'GetQueueAttributesCommand') return { Attributes: { QueueArn: 'arn:dlq' } };
       return {};
     });
     await s.connect();
     await s.adapter.publish(msg());
-    expect(s.calls).toEqual(['GetQueueUrlCommand', 'CreateQueueCommand', 'SendMessageCommand']);
+    // PRC-M364: DLQ created first and wired via RedrivePolicy
+    expect(s.calls).toEqual([
+      'GetQueueUrlCommand',
+      'CreateQueueCommand',
+      'GetQueueAttributesCommand',
+      'CreateQueueCommand',
+      'SendMessageCommand',
+    ]);
   });
 
   it('QueueDoesNotExist does not create queues in production by default', async () => {

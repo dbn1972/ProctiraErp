@@ -42,22 +42,52 @@ export class OutboxWebhookDeliveryPublisher implements WebhookDeliveryPublisher 
       aggregateId: job.deliveryId,
       eventType: WEBHOOK_DELIVERY_JOB_TYPE,
       payload: persisted,
+      // PRC-M360: the retry backoff is scheduled by the outbox (availableAt);
+      // no transport delay is requested, so backends without delayed delivery
+      // (Kafka, SQS FIFO / >15 min) relay the row unchanged once it is due.
       metadata: {
         correlationId: job.deliveryId,
-        delay: delayMs > 0 ? delayMs : undefined,
         maxRetries: 5,
         retryCount: job.attempt,
       },
       dispatchMode: 'dispatch',
-      availableAt: delayMs > 0 ? new Date(Date.now() + delayMs) : undefined,
+      ...(delayMs > 0 ? { availableAt: new Date(Date.now() + delayMs) } : {}),
     });
   }
 }
 
+export interface QueueWebhookDeliveryPublisherOptions {
+  /**
+   * Outbox used for delayed (retry) deliveries. When set, any delay is
+   * scheduled via the outbox `availableAt` and the broker never sees a delay,
+   * which is required for backends that refuse delayed delivery (Kafka; SQS
+   * FIFO or > 15 min). Without it a delayed enqueue relies on broker delay and
+   * rejects with QueueUnsupportedOperationError on those backends.
+   */
+  delayedVia?: OutboxStore;
+}
+
+/**
+ * Direct broker publisher (tests / single-process tooling). Production wiring
+ * (`createWebhookDeliveryPublisherFromEnv`) uses OutboxWebhookDeliveryPublisher.
+ */
 export class QueueWebhookDeliveryPublisher implements WebhookDeliveryPublisher {
-  constructor(private readonly queue: QueueAdapter) {}
+  private readonly delayed: OutboxWebhookDeliveryPublisher | undefined;
+
+  constructor(
+    private readonly queue: QueueAdapter,
+    options: QueueWebhookDeliveryPublisherOptions = {},
+  ) {
+    this.delayed = options.delayedVia
+      ? new OutboxWebhookDeliveryPublisher(options.delayedVia)
+      : undefined;
+  }
 
   async enqueueDelivery(job: WebhookDeliveryJobPayload, delayMs = 0): Promise<void> {
+    if (delayMs > 0 && this.delayed) {
+      await this.delayed.enqueueDelivery(job, delayMs);
+      return;
+    }
     const message: QueueMessage<WebhookDeliveryJobPayload> = {
       id: randomUUID(),
       tenantId: job.tenantId,
@@ -66,12 +96,10 @@ export class QueueWebhookDeliveryPublisher implements WebhookDeliveryPublisher {
       timestamp: new Date().toISOString(),
       metadata: {
         correlationId: job.deliveryId,
-        delay: delayMs > 0 ? delayMs : undefined,
         maxRetries: 5,
         retryCount: job.attempt,
       },
     };
-
     await this.queue.dispatch(message, delayMs > 0 ? { delay: delayMs } : undefined);
   }
 }

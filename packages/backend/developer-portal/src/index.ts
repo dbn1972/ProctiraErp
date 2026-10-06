@@ -58,6 +58,7 @@ export {
   QueueWebhookDeliveryPublisher,
 } from './queue-webhook-delivery-publisher.js';
 export type {
+  QueueWebhookDeliveryPublisherOptions,
   WebhookDeliveryJobPayload,
   WebhookDeliveryPublisher,
 } from './queue-webhook-delivery-publisher.js';

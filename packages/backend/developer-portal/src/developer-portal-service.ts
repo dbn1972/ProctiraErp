@@ -597,29 +597,25 @@ export class DeveloperPortalService {
       Object.assign(headers, createWebhookSignatureHeaders(body, signingSecret).headers);
     }
 
+    // Only the HTTP attempt is guarded. Recording the failure and scheduling
+    // the retry happen exactly once, outside the try: a scheduling error (e.g.
+    // a transport that refuses delayed delivery) must not count the attempt
+    // twice or loop back into another re-enqueue (review #5 on PR #555).
+    let failedStatus: number | null;
     try {
       const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
       if (res.ok) {
         await this.markDeliverySuccess(job.deliveryId, res.status);
         return;
       }
-      const updated = await this.markDeliveryFailed(job.deliveryId, res.status);
-      if (updated.status === 'pending' && this.deliveryPublisher) {
-        const delayMs = Math.pow(2, updated.attempts) * 30000;
-        await this.deliveryPublisher.enqueueDelivery(
-          { ...job, attempt: updated.attempts },
-          delayMs,
-        );
-      }
+      failedStatus = res.status;
     } catch {
-      const updated = await this.markDeliveryFailed(job.deliveryId, null);
-      if (updated.status === 'pending' && this.deliveryPublisher) {
-        const delayMs = Math.pow(2, updated.attempts) * 30000;
-        await this.deliveryPublisher.enqueueDelivery(
-          { ...job, attempt: updated.attempts },
-          delayMs,
-        );
-      }
+      failedStatus = null;
+    }
+    const updated = await this.markDeliveryFailed(job.deliveryId, failedStatus);
+    if (updated.status === 'pending' && this.deliveryPublisher) {
+      const delayMs = Math.pow(2, updated.attempts) * 30000;
+      await this.deliveryPublisher.enqueueDelivery({ ...job, attempt: updated.attempts }, delayMs);
     }
   }
 
