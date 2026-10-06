@@ -11,7 +11,10 @@
  *
  * For production use with full signature validation, integrate @node-saml/node-saml.
  */
+import { deflateRawSync } from 'node:zlib';
+
 import { v4 as uuidv4 } from 'uuid';
+
 import type {
   ExternalAuthProvider,
   SAMLProviderConfig,
@@ -36,10 +39,20 @@ const DEFAULT_ATTRIBUTE_MAPPING = {
  */
 export interface SAMLResponseParser {
   /**
+   * PRC-M587: must be `true` only for parsers that verify the XML signature
+   * (Response/Assertion, XSW-safe), Conditions/NotOnOrAfter and audience —
+   * e.g. an adapter over @node-saml/node-saml. SAMLProvider refuses any other.
+   */
+  readonly verifiesSignature?: boolean;
+  /**
    * Parse and validate a SAML response.
    * Returns the extracted attributes and name ID.
    */
-  parseResponse(samlResponse: string, config: SAMLProviderConfig): Promise<SAMLParsedResponse>;
+  parseResponse(
+    samlResponse: string,
+    config: SAMLProviderConfig,
+    context?: { expectedInResponseTo: string },
+  ): Promise<SAMLParsedResponse>;
 }
 
 /**
@@ -54,6 +67,10 @@ export interface SAMLParsedResponse {
   sessionIndex?: string;
   /** Extracted attributes from the assertion */
   attributes: Record<string, string | string[]>;
+  /** PRC-M587: Response@InResponseTo (must equal the AuthnRequest ID). */
+  inResponseTo?: string;
+  /** PRC-M587: Assertion@ID, used for replay detection. */
+  assertionId?: string;
 }
 
 /**
@@ -62,6 +79,8 @@ export interface SAMLParsedResponse {
  * For production, use @node-saml/node-saml for full signature validation.
  */
 export class DefaultSAMLResponseParser implements SAMLResponseParser {
+  /** PRC-M587: regex extraction only — never accepted by SAMLProvider. */
+  readonly verifiesSignature = false;
   async parseResponse(
     samlResponse: string,
     config: SAMLProviderConfig,
@@ -182,13 +201,26 @@ export class SAMLProvider implements ExternalAuthProvider {
   private readonly attributeMapping: Required<NonNullable<SAMLProviderConfig['attributeMapping']>>;
 
   // Store relay states for validation
-  private readonly pendingRequests = new Map<string, { tenantId: string; createdAt: number }>();
-
+  private readonly pendingRequests = new Map<
+    string,
+    { tenantId: string; requestId: string; createdAt: number }
+  >();
+  /** PRC-M587: consumed Assertion IDs (replay cache, pruned with pending requests). */
+  private readonly seenAssertions = new Map<string, number>();
   constructor(config: SAMLProviderConfig, responseParser?: SAMLResponseParser) {
+    // PRC-M587: refuse to run without a signature-verifying parser. The built-in
+    // regex parser accepts forged, unsigned assertions.
+    if (!responseParser || responseParser.verifiesSignature !== true) {
+      throw new ExternalAuthError(
+        'SAML provider requires a signature-verifying response parser (e.g. @node-saml/node-saml adapter)',
+        config.providerId,
+        'SAML_UNVERIFIED_PARSER',
+      );
+    }
     this.config = config;
     this.providerId = config.providerId;
     this.displayName = config.displayName;
-    this.responseParser = responseParser ?? new DefaultSAMLResponseParser();
+    this.responseParser = responseParser;
     this.attributeMapping = {
       email: config.attributeMapping?.email ?? DEFAULT_ATTRIBUTE_MAPPING.email,
       displayName: config.attributeMapping?.displayName ?? DEFAULT_ATTRIBUTE_MAPPING.displayName,
@@ -206,14 +238,14 @@ export class SAMLProvider implements ExternalAuthProvider {
     const relayState = uuidv4();
 
     // Store relay state for callback validation
-    this.pendingRequests.set(relayState, { tenantId, createdAt: Date.now() });
+    this.pendingRequests.set(relayState, { tenantId, requestId, createdAt: Date.now() });
     this.cleanupPendingRequests();
 
     // Generate AuthnRequest XML
     const authnRequest = this.generateAuthnRequest(requestId);
 
     // Encode for HTTP-Redirect binding (deflate + base64 + URL encode)
-    const encoded = Buffer.from(authnRequest, 'utf-8').toString('base64');
+    const encoded = deflateRawSync(Buffer.from(authnRequest, 'utf-8')).toString('base64');
 
     const params = new URLSearchParams({
       SAMLRequest: encoded,
@@ -238,30 +270,50 @@ export class SAMLProvider implements ExternalAuthProvider {
       );
     }
 
-    // Validate relay state if present
-    if (params.relayState) {
-      const storedRequest = this.pendingRequests.get(params.relayState);
-      if (!storedRequest) {
-        throw new ExternalAuthError(
-          'Invalid or expired relay state',
-          this.providerId,
-          'SAML_INVALID_RELAY_STATE',
-        );
-      }
-
-      this.pendingRequests.delete(params.relayState);
-
-      if (storedRequest.tenantId !== tenantId) {
-        throw new ExternalAuthError(
-          'Tenant mismatch in SAML callback',
-          this.providerId,
-          'SAML_TENANT_MISMATCH',
-        );
-      }
+    // PRC-M587: RelayState is mandatory (no unsolicited IdP-initiated logins)
+    // and single-use; the response must answer this exact AuthnRequest.
+    if (!params.relayState) {
+      throw new ExternalAuthError(
+        'SAML RelayState is required',
+        this.providerId,
+        'SAML_MISSING_RELAY_STATE',
+      );
+    }
+    const storedRequest = this.pendingRequests.get(params.relayState);
+    if (!storedRequest) {
+      throw new ExternalAuthError(
+        'Invalid or expired relay state',
+        this.providerId,
+        'SAML_INVALID_RELAY_STATE',
+      );
+    }
+    this.pendingRequests.delete(params.relayState);
+    if (storedRequest.tenantId !== tenantId) {
+      throw new ExternalAuthError(
+        'Tenant mismatch in SAML callback',
+        this.providerId,
+        'SAML_TENANT_MISMATCH',
+      );
     }
 
-    // Parse and validate the SAML response
-    const parsed = await this.responseParser.parseResponse(params.samlResponse, this.config);
+    const parsed = await this.responseParser.parseResponse(params.samlResponse, this.config, {
+      expectedInResponseTo: storedRequest.requestId,
+    });
+    if (parsed.inResponseTo !== storedRequest.requestId) {
+      throw new ExternalAuthError(
+        'SAML response does not answer the pending AuthnRequest',
+        this.providerId,
+        'SAML_IN_RESPONSE_TO_MISMATCH',
+      );
+    }
+    if (!parsed.assertionId || this.seenAssertions.has(parsed.assertionId)) {
+      throw new ExternalAuthError(
+        'SAML assertion is missing an ID or was already used',
+        this.providerId,
+        'SAML_ASSERTION_REPLAY',
+      );
+    }
+    this.seenAssertions.set(parsed.assertionId, Date.now());
 
     // Extract user profile from attributes
     const profile = this.buildProfile(parsed);
@@ -342,6 +394,10 @@ export class SAMLProvider implements ExternalAuthProvider {
       if (data.createdAt < tenMinutesAgo) {
         this.pendingRequests.delete(state);
       }
+    }
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [id, at] of this.seenAssertions.entries()) {
+      if (at < dayAgo) this.seenAssertions.delete(id);
     }
   }
 }

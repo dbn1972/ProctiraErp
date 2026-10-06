@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
-  // Match Next's automatic JSX runtime so component tests can render TSX.
+  // Component tests (*.test.tsx): Next's tsconfig uses jsx=preserve, so match
+  // Next's automatic JSX runtime here so component tests can render TSX.
   esbuild: { jsx: 'automatic' },
   test: {
     globals: true,

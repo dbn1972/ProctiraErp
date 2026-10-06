@@ -3,10 +3,14 @@
  * Communications officers / registrars / admins manage campaigns and circulars.
  * Authenticated principals may acknowledge circulars (communication.portal).
  * Teachers / empty roles denied on staff actions (fail closed).
+ * `communication.admin` (tenant admins / principals only — the holders of the
+ * gateway `communication: manage` grant) gates privileged actions such as
+ * recording a circular acknowledgement on behalf of a recipient.
  */
 import { AppError } from '@proctira/common';
 
-export type CommunicationAction = 'communication.staff' | 'communication.portal';
+export type CommunicationAction =
+  'communication.staff' | 'communication.portal' | 'communication.admin';
 
 const ADMIN_ROLES = [
   'admin',
@@ -54,9 +58,10 @@ export function hasCommunicationAccess(
   }
   const normalized = normalizeCommunicationRoles(roles);
   if (normalized.length === 0) return false;
-  return normalized.some((role) =>
-    (COMMUNICATION_STAFF_ROLES as readonly string[]).includes(role),
-  );
+  if (action === 'communication.admin') {
+    return normalized.some((role) => (ADMIN_ROLES as readonly string[]).includes(role));
+  }
+  return normalized.some((role) => (COMMUNICATION_STAFF_ROLES as readonly string[]).includes(role));
 }
 
 export function assertCommunicationAccess(

@@ -128,8 +128,8 @@ describe('AttendanceOpsService (G-919)', () => {
         institutionId: INSTITUTION_ID,
         classId: CLASS_ID,
         attendanceDate: '2024-06-12',
-        // A client-typed value is ignored.
-        fromStatus: 'ABSENT',
+        // No client-typed fromStatus: it is taken from the stored record
+        // (a stale supplied value is rejected with 409 — PRC-M170).
         toStatus: 'PRESENT',
       },
       { userId: 't', roles: ['teacher'] },

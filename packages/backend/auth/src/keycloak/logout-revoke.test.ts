@@ -165,7 +165,11 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     expect(revoke).toHaveBeenCalled();
-    for (const call of revoke.mock.calls) expect(call[2]).toBeLessThanOrEqual(600);
+    for (const call of revoke.mock.calls.filter((c) => c[0] === 'jti')) {
+      expect(call[2]).toBeLessThanOrEqual(600);
+    }
+    // PRC-M499: sid TTL tracks the SSO session max, not the access-token TTL.
+    expect(revoke).toHaveBeenCalledWith('sid', 'sid-long', 36_000);
   });
 
   it('denylists refresh jti only when it belongs to the verified session', async () => {
@@ -314,6 +318,114 @@ describe('Keycloak /logout revocation (W1-SEC-09)', () => {
     });
 
     fetchMock.mockRestore();
+  });
+
+  describe('PRC-M499 session-length revocation + refresh denylist', () => {
+    function setup(privateKeyPem: string, store: MemoryAccessTokenRevocationStore) {
+      const now = Math.floor(Date.now() / 1000);
+      const accessToken = signRs256(
+        {
+          sub: 'kc-user',
+          iss: issuer,
+          azp: 'proctira-gateway',
+          jti: 'jti-a',
+          sid: 'sid-m499',
+          iat: now,
+          exp: now + 300,
+        },
+        privateKeyPem,
+      );
+      const refreshToken = unsigned({
+        sub: 'kc-user',
+        jti: 'jti-r',
+        sid: 'sid-m499',
+        exp: now + 30_000,
+      });
+      return { accessToken, refreshToken };
+    }
+
+    it('POST /logout denylists sid for SSO max, calls IdP backchannel logout, then /refresh is 401', async () => {
+      const privateKeyPem = mockJwks();
+      const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+      const store = new MemoryAccessTokenRevocationStore();
+      const revoke = vi.spyOn(store, 'revoke');
+      const { accessToken, refreshToken } = setup(privateKeyPem, store);
+      const app = Fastify();
+      apps.push(app);
+      // POST /logout is authenticated (PRC-L282): the bearer is verified by the plugin.
+      await app.register(keycloakAuthPlugin, {
+        config: routeConfigBase,
+        revocationStore: store,
+        excludePaths: ['/api/v1/auth/logout'],
+      });
+      await registerKeycloakAuthRoutes(app, {
+        ...routeConfigBase,
+        revocationStore: store,
+        ssoSessionMaxSeconds: 7200,
+      });
+      await app.ready();
+
+      const out = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/logout',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { refreshToken },
+      });
+      expect(out.statusCode).toBe(200);
+      expect(revoke).toHaveBeenCalledWith('sid', 'sid-m499', 7200);
+      expect(revoke).toHaveBeenCalledWith('jti', 'jti-r', 7200);
+      const backchannel = fetchMock.mock.calls.find(
+        (c) =>
+          String(c[0]).endsWith('/protocol/openid-connect/logout') &&
+          (c[1] as RequestInit)?.method === 'POST',
+      );
+      expect(backchannel).toBeDefined();
+      expect(String((backchannel![1] as RequestInit).body)).toContain('refresh_token=');
+
+      fetchMock.mockClear();
+      const refreshed = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/refresh',
+        payload: { refreshToken },
+      });
+      expect(refreshed.statusCode).toBe(401);
+      expect(refreshed.json()).toMatchObject({ code: 'KEYCLOAK_SESSION_REVOKED' });
+      // The refresh grant never reached Keycloak.
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/token'))).toBe(false);
+    });
+
+    it('/refresh of a denylisted sid is rejected; store failure fails closed', async () => {
+      mockJwks();
+      const store = new MemoryAccessTokenRevocationStore();
+      await store.revoke('sid', 'sid-dead', 600);
+      const app = Fastify();
+      apps.push(app);
+      await registerKeycloakAuthRoutes(app, { ...routeConfigBase, revocationStore: store });
+      const dead = unsigned({
+        sid: 'sid-dead',
+        jti: 'x',
+        exp: Math.floor(Date.now() / 1000) + 600,
+      });
+      const r1 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/refresh',
+        payload: { refreshToken: dead },
+      });
+      expect(r1.statusCode).toBe(401);
+
+      vi.spyOn(store, 'isRevoked').mockRejectedValue(new Error('redis down'));
+      const live = unsigned({
+        sid: 'sid-live',
+        jti: 'y',
+        exp: Math.floor(Date.now() / 1000) + 600,
+      });
+      const r2 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/refresh',
+        payload: { refreshToken: live },
+      });
+      expect(r2.statusCode).toBe(401);
+    });
   });
 });
 

@@ -4,7 +4,7 @@ import fp from 'fastify-plugin';
 import { createGradebookExtrasStore } from './extras-factory.js';
 import type { GradebookExtrasStore } from './extras-store.js';
 import type { GradebookRepository } from './gradebook-repository.js';
-import { GradebookService } from './gradebook-service.js';
+import { GradebookService, type GradebookAuditSink } from './gradebook-service.js';
 import { registerGradebookRoutes } from './routes.js';
 import { prepareTranscriptSigningAtStartup } from './signed-download.js';
 
@@ -23,6 +23,8 @@ export interface GradebookPluginOptions {
   prefix?: string;
   /** PRC-C006: portal self-scope binding. */
   studentBinding?: GradebookStudentBinding;
+  /** PRC-M266: durable audit writer (shared audit log). */
+  auditSink?: GradebookAuditSink | null;
 }
 
 declare module 'fastify' {
@@ -42,7 +44,9 @@ export const gradebookPlugin = fp(
       },
     });
     const extras = options.extras ?? createGradebookExtrasStore();
-    const service = new GradebookService(options.repository, extras);
+    const service = new GradebookService(options.repository, extras, {
+      auditSink: options.auditSink ?? null,
+    });
     fastify.decorate('gradebookService', service);
     await registerGradebookRoutes(fastify, {
       service,

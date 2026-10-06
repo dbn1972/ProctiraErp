@@ -17,6 +17,7 @@ import type {
   EmergencyBlastEntity,
   EmergencyStatus,
 } from './communication-repository.js';
+import { DEFAULT_PAGE, type PageRequest } from './pagination.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -138,12 +139,16 @@ export class PgCommunicationRepository implements CommunicationRepository {
     return mapCampaignRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async listCampaigns(tenantId: string): Promise<CampaignEntity[]> {
+  async listCampaigns(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CampaignEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
-      `SELECT * FROM comms_campaigns WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId],
+      `SELECT * FROM comms_campaigns WHERE tenant_id = $1
+        ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      [tenantId, page.limit + 1, page.offset],
     );
     return result.rows.map((row) => mapCampaignRow(row as Record<string, unknown>));
   }
@@ -227,12 +232,16 @@ export class PgCommunicationRepository implements CommunicationRepository {
     return mapEmergencyRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async listEmergencyBlasts(tenantId: string): Promise<EmergencyBlastEntity[]> {
+  async listEmergencyBlasts(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<EmergencyBlastEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
-      `SELECT * FROM comms_emergency_blasts WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId],
+      `SELECT * FROM comms_emergency_blasts WHERE tenant_id = $1
+        ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      [tenantId, page.limit + 1, page.offset],
     );
     return result.rows.map((row) => mapEmergencyRow(row as Record<string, unknown>));
   }

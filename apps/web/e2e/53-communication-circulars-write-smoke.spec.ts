@@ -2,7 +2,9 @@
  * Communication circulars — WhatsApp sandbox, ack, delivery log (Wave 9 / G-922).
  *
  * Ungated: communication overview and circulars pages render with a heading.
- * Gated (E2E_BACKEND_READY): circular → send → ack; tenant B isolation.
+ * Gated (E2E_BACKEND_READY): circular → send → admin records an ack on behalf
+ * of a recipient (reason required, audited; the normal ack stays bound to the
+ * caller — PR #548 owner decision); tenant B isolation.
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
@@ -129,10 +131,22 @@ test.describe('Communication circulars — live chain (E2E_BACKEND_READY)', () =
     expect(logs.status()).toBe(200);
     expect((await logs.json()).data.length).toBeGreaterThan(0);
 
+    // The normal ack is bound to the session: acking for someone else is 403.
+    const boundAck = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/circulars/${created.id}/ack`,
+      { headers: headers(), data: { recipientId: 'staff-e2e-1' } },
+    );
+    expect(boundAck.status(), await boundAck.text()).toBe(403);
+    // Recording on behalf needs a reason.
+    const noReason = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/circulars/${created.id}/ack-on-behalf`,
+      { headers: headers(), data: { recipientId: 'staff-e2e-1' } },
+    );
+    expect(noReason.status(), await noReason.text()).toBe(400);
     const acked = await postOk(
       request,
-      `/communication/circulars/${created.id}/ack`,
-      { recipientId: 'staff-e2e-1' },
+      `/communication/circulars/${created.id}/ack-on-behalf`,
+      { recipientId: 'staff-e2e-1', reason: 'Signed paper slip returned (E2E)' },
       200,
     );
     expect(acked.ackCount).toBe(1);

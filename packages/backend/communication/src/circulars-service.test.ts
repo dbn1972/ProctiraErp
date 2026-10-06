@@ -32,7 +32,7 @@ describe('CircularsService (G-922)', () => {
     const sent = await service.sendCircular(TENANT_A, circular.id);
     expect(sent.status).toBe('sent');
 
-    const logs = await service.listDeliveryLogs(TENANT_A, { channel: 'whatsapp' });
+    const logs = (await service.listDeliveryLogs(TENANT_A, { channel: 'whatsapp' })).data;
     expect(logs).toHaveLength(2);
     expect(logs.every((row) => row.status === 'sent')).toBe(true);
     expect(logs[0]!.providerRef).toMatch(/^sandbox-wa:/);
@@ -41,7 +41,7 @@ describe('CircularsService (G-922)', () => {
     expect(afterAck.ackCount).toBe(1);
     expect(afterAck.ackRate).toBe(0.5);
 
-    expect(await service.listCirculars(TENANT_B)).toHaveLength(0);
+    expect((await service.listCirculars(TENANT_B)).data).toHaveLength(0);
     await expect(service.getCircular(TENANT_B, circular.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 

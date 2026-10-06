@@ -2,8 +2,9 @@
  * Attendance ops — regularisation, leave, ingest, EARLY_DEPARTURE (Wave 9 / G-919).
  *
  * Ungated: the ops page renders with a heading.
- * Gated (E2E_BACKEND_READY): mark ABSENT → regularise approve → leave approve
- * → register device → ingest twice (idempotent) → tenant B deny.
+ * Gated (E2E_BACKEND_READY): mark ABSENT → regularise (requester self-approve
+ * is 403) → a second actor approves → leave approve → register device →
+ * ingest twice (idempotent) → tenant B deny.
  */
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -16,8 +17,16 @@ const GATEWAY_URL =
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+/** Requester subject used by `postOk` (default `headers()` sub). */
+const REQUESTER_SUB = 'e2e-admin';
+/**
+ * Second staff actor for the regularisation decision: ops-service blocks the
+ * requester from deciding their own request (two-person control), so approval
+ * is done by a different signed subject with an approver role.
+ */
+const APPROVER_SUB = 'e2e-attendance-approver';
 
-function headers(tenantId = TENANT_A, sub = 'e2e-admin') {
+function headers(tenantId = TENANT_A, sub = REQUESTER_SUB) {
   const token = createSignedJwt({
     sub,
     email: `${sub}@tenant-a.test`,
@@ -64,9 +73,10 @@ async function postOk(
   expected: number,
   tenantId = TENANT_A,
   extraHeaders: Record<string, string> = {},
+  sub = REQUESTER_SUB,
 ) {
   const res = await request.post(`${GATEWAY_URL}/api/v1${path}`, {
-    headers: { ...headers(tenantId), ...extraHeaders },
+    headers: { ...headers(tenantId, sub), ...extraHeaders },
     data,
   });
   expect(res.status(), `${path}: ${await res.text()}`).toBe(expected);
@@ -199,7 +209,21 @@ test.describe('Attendance ops — live chain (E2E_BACKEND_READY)', () => {
       },
       201,
     );
-    const approved = await postOk(request, `/attendance/regularisation/${reg.id}/approve`, {}, 200);
+    // Two-person control: the requester cannot decide their own regularisation.
+    const selfApprove = await request.post(
+      `${GATEWAY_URL}/api/v1/attendance/regularisation/${reg.id}/approve`,
+      { headers: headers(TENANT_A, REQUESTER_SUB), data: {} },
+    );
+    expect(selfApprove.status(), await selfApprove.text()).toBe(403);
+    const approved = await postOk(
+      request,
+      `/attendance/regularisation/${reg.id}/approve`,
+      {},
+      200,
+      TENANT_A,
+      {},
+      APPROVER_SUB,
+    );
     expect(approved.status).toBe('approved');
 
     const leave = await postOk(

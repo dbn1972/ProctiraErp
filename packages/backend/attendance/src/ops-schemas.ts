@@ -8,17 +8,29 @@ const StatusUnion = Type.Union([
   Type.Literal('EARLY_DEPARTURE'),
 ]);
 
+const UUID_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
+/**
+ * PRC-M170: attendanceId must be a UUID; studentId/classId/attendanceDate are
+ * verified against the stored record and fromStatus is derived from it (a
+ * supplied fromStatus must match the current status).
+ */
 export const CreateRegularisationSchema = Type.Object({
   /**
    * PRC-M081: optional. The record is resolved server-side from
-   * student + class + date; when supplied it must match that record.
+   * student + class + date; when supplied (PRC-M170) it must be a UUID that
+   * names that same record.
    */
-  attendanceId: Type.Optional(Type.String({ minLength: 1 })),
+  attendanceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   studentId: Type.String({ minLength: 1 }),
   institutionId: Type.String({ minLength: 1 }),
   classId: Type.String({ minLength: 1 }),
   attendanceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
-  /** PRC-M081: ignored — always taken from the stored record. */
+  /**
+   * PRC-M081/PRC-M170: the stored status is always used; when supplied this
+   * acts as an optimistic-concurrency check and must equal the stored status.
+   */
   fromStatus: Type.Optional(Type.String({ minLength: 1 })),
   toStatus: StatusUnion,
   reason: Type.Optional(Type.String({ maxLength: 2000 })),

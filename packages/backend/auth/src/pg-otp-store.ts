@@ -65,6 +65,20 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
     );
   }
 
+  /** PRC-M498: recent challenges for caps/lockout (tenant-scoped). */
+  async listRecent(filter: {
+    tenantId: string;
+    userId?: string;
+    phone?: string;
+    since: Date;
+  }): Promise<OtpChallengeRecord[]> {
+    const criteria: Partial<OtpChallengeRecord> = {};
+    if (filter.userId !== undefined) criteria.userId = filter.userId;
+    if (filter.phone !== undefined) criteria.phone = filter.phone;
+    const rows = await this.challenges.where(criteria, filter.tenantId);
+    return rows.filter((r) => new Date(r.createdAt).getTime() >= filter.since.getTime());
+  }
+
   async consume(id: string): Promise<void> {
     const row = await this.findById(id);
     if (!row) return;

@@ -5,8 +5,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/storage/secure_storage.dart';
+import '../../../core/student/selected_student_store.dart';
 import '../../../core/sync/unsynced_work.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../../core/tenant/tenant_switch.dart';
 
 /// Stub tenant selection screen. The full tenant directory + onboarding flow
 /// is built later; this scaffold lets a developer or QA configure a tenant id
@@ -64,7 +68,35 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
       await _switchWorkspace(auth, tenantId, displayName);
       return;
     }
-    await tenant.setTenant(tenantId: tenantId, displayName: displayName);
+    // Not signed in (or the same workspace). PRC-M565: a different tenant
+    // wipes the prior tenant's session + caches, but never unsynced offline
+    // work without the same explicit confirmation as a signed-in switch.
+    final TenantSwitcher switcher = TenantSwitcher(
+      tenantProvider: tenant,
+      storage: getIt<SecureStorage>(),
+      database: getIt<AppDatabase>(),
+      selectedStudent: getIt<SelectedStudentStore>(),
+    );
+    TenantSwitchResult result = await switcher.switchTo(
+      tenantId: tenantId,
+      displayName: displayName,
+    );
+    final UnsyncedWork? blocked = result.blockedBy;
+    if (blocked != null) {
+      if (!mounted) return;
+      final bool discard = await _confirmDiscard(blocked, signedIn: false);
+      if (!discard) return;
+      result = await switcher.switchTo(
+        tenantId: tenantId,
+        displayName: displayName,
+        discardUnsyncedWork: true,
+      );
+    }
+    if (result.purged) {
+      // Tokens are gone: re-resolve auth so the router sends the user to
+      // sign in for the new workspace.
+      auth?.add(const AuthBootstrapRequested());
+    }
     if (!mounted) {
       return;
     }
@@ -150,7 +182,12 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
     return settled;
   }
 
-  Future<bool> _confirmDiscard(UnsyncedWork work) async {
+  /// [signedIn] is false for the signed-out [TenantSwitcher] path, where
+  /// keeping the work means signing back in to the current workspace.
+  Future<bool> _confirmDiscard(
+    UnsyncedWork work, {
+    bool signedIn = true,
+  }) async {
     final bool? discard = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -158,10 +195,15 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
         return AlertDialog(
           title: const Text('Unsynced work on this device'),
           content: Text(
-            '${work.describe()}\n\n'
-            'Switching workspace signs you out and permanently deletes it '
-            'from this device. To keep it, stay here, connect to the '
-            'internet and let it sync first.',
+            signedIn
+                ? '${work.describe()}\n\n'
+                      'Switching workspace signs you out and permanently '
+                      'deletes it from this device. To keep it, stay here, '
+                      'connect to the internet and let it sync first.'
+                : '${work.describe()}\n\n'
+                      'Switching workspace permanently deletes it from this '
+                      'device. To keep it, stay here, sign in to your current '
+                      'workspace and let it sync first.',
           ),
           actions: <Widget>[
             TextButton(

@@ -11,6 +11,9 @@ import {
   isValidInstitutionId,
   isValidPhone,
   isValidTrackingNumber,
+  configuredCustomFieldEntries,
+  maxDateOfBirth,
+  validateCustomFieldValue,
   validateFile,
   validateRequiredFields,
 } from './validation';
@@ -106,6 +109,59 @@ describe('isValidDateOfBirth', () => {
     expect(isValidDateOfBirth('2018/03/15')).toBe(false);
     expect(isValidDateOfBirth('2024-02-31')).toBe(false);
     expect(isValidDateOfBirth('not-a-date')).toBe(false);
+  });
+  it('PRC-L018: rejects future dates and implausibly old dates', () => {
+    expect(isValidDateOfBirth('2999-01-01')).toBe(false);
+    expect(isValidDateOfBirth('1900-01-01')).toBe(false);
+    const today = new Date('2026-06-01T00:00:00Z');
+    expect(isValidDateOfBirth('2026-06-01', { today })).toBe(true);
+    expect(isValidDateOfBirth('2026-06-02', { today })).toBe(false);
+    expect(isValidDateOfBirth('1990-01-01', { today, maxAgeYears: 30 })).toBe(false);
+    expect(maxDateOfBirth(today)).toBe('2026-06-01');
+  });
+});
+
+describe('PRC-L019 validateCustomFieldValue', () => {
+  it('enforces pattern on text fields (whole value)', () => {
+    const f = { id: 'pin', type: 'text', validation: { pattern: '[0-9]{6}' } };
+    expect(validateCustomFieldValue(f, '560001')).toBeNull();
+    expect(validateCustomFieldValue(f, '5600011')).toBe('invalid_format');
+    expect(validateCustomFieldValue(f, 'abc')).toBe('invalid_format');
+  });
+  it('enforces minLength / maxLength', () => {
+    const f = { id: 'n', type: 'textarea', validation: { minLength: 3, maxLength: 5 } };
+    expect(validateCustomFieldValue(f, 'ab')).toBe('too_short');
+    expect(validateCustomFieldValue(f, 'abcdef')).toBe('too_long');
+    expect(validateCustomFieldValue(f, 'abcd')).toBeNull();
+  });
+  it('enforces numeric type and min / max', () => {
+    const f = { id: 'age', type: 'number', validation: { min: 3, max: 18 } };
+    expect(validateCustomFieldValue(f, 'x')).toBe('invalid_number');
+    expect(validateCustomFieldValue(f, '2')).toBe('out_of_range');
+    expect(validateCustomFieldValue(f, '19')).toBe('out_of_range');
+    expect(validateCustomFieldValue(f, '10')).toBeNull();
+  });
+  it('validates date fields and leaves empty values to the required check', () => {
+    expect(validateCustomFieldValue({ id: 'd', type: 'date' }, '2024-13-99')).toBe('invalid_date');
+    expect(
+      validateCustomFieldValue({ id: 'd', type: 'text', validation: { minLength: 2 } }, ''),
+    ).toBeNull();
+  });
+  it('ignores a malformed configured pattern instead of throwing', () => {
+    expect(
+      validateCustomFieldValue({ id: 'x', type: 'text', validation: { pattern: '(' } }, 'a'),
+    ).toBeNull();
+  });
+});
+
+describe('PRC-L019 configuredCustomFieldEntries', () => {
+  it('drops answers for fields not in the current published form', () => {
+    expect(
+      configuredCustomFieldEntries({ keep: 'a', stale: 'b' }, [
+        { id: 'keep', type: 'text' },
+        { id: 'photo', type: 'file' },
+      ]),
+    ).toEqual([{ fieldId: 'keep', value: 'a' }]);
   });
 });
 

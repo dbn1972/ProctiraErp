@@ -57,7 +57,7 @@ export {
 } from './gradebook-errors.js';
 
 export { GradebookService } from './gradebook-service.js';
-export type { GradebookAuditEntry } from './gradebook-service.js';
+export type { GradebookAuditEntry, GradebookAuditSink } from './gradebook-service.js';
 export {
   assertGradebookAccess,
   hasGradebookAccess,

@@ -103,7 +103,15 @@ describe('Keycloak sign-in for suspended tenants (PRC-H008)', () => {
   it('OIDC callback for a suspended tenant is 403', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(tokenResponse()));
     const app = await buildRoutes({ tenantAuthGate: () => Promise.resolve(true) });
-    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/callback?code=abc' });
+    // PRC-M500: the callback must present the browser-bound state cookie issued by /login.
+    const login = await app.inject({ method: 'GET', url: '/api/v1/auth/login' });
+    const cookie = String(login.headers['set-cookie']).split(';')[0]!;
+    const state = new URL(String(login.headers.location)).searchParams.get('state')!;
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/auth/callback?code=abc&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('TENANT_SUSPENDED');
     await app.close();

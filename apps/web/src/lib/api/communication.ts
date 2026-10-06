@@ -309,19 +309,28 @@ export async function sendCircular(id: string): Promise<CommunicationCircular> {
   return result.data;
 }
 
-export async function ackCircular(id: string, recipientId: string): Promise<CommunicationCircular> {
+/**
+ * Owner decision (PR #548): an administrator records an acknowledgement on
+ * behalf of a recipient (e.g. a returned paper slip). The gateway requires a
+ * reason and audits the acting staff member from the session.
+ */
+export async function ackCircularOnBehalf(
+  id: string,
+  recipientId: string,
+  reason: string,
+): Promise<CommunicationCircular> {
   const result = await gatewayFetch<CommunicationCircular>(
-    `/communication/circulars/${encodeURIComponent(id)}/ack`,
+    `/communication/circulars/${encodeURIComponent(id)}/ack-on-behalf`,
     {
       method: 'POST',
-      json: { recipientId },
+      json: { recipientId, reason },
     },
   );
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'ACK_FAILED',
-      message: result.error?.message ?? 'Failed to acknowledge circular',
+      message: result.error?.message ?? 'Failed to record acknowledgement',
     });
   }
   return result.data;
