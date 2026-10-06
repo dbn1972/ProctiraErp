@@ -3,17 +3,40 @@
  *
  * Used for testing and local development without a database.
  */
-import type {
-  ThemeRepository,
-  ThemeEntity,
-  ThemeRevisionEntity,
-  ThemeFilter,
+import type { ThemeLevel, ThemeStatus } from './schemas.js';
+import {
+  PLATFORM_THEME_OWNER_SENTINEL,
+  ThemeRevisionConflictError,
+  type ThemeRepository,
+  type ThemeEntity,
+  type ThemeRevisionEntity,
+  type ThemeFilter,
+  type ThemeRevisionCommitUpdate,
 } from './theme-repository.js';
-import type { ThemeLevel } from './schemas.js';
 
 export class InMemoryThemeRepository implements ThemeRepository {
   private themes: Map<string, ThemeEntity> = new Map();
   private revisions: Map<string, ThemeRevisionEntity> = new Map();
+
+  // ─── Platform default theme ─────────────────────────────────────────────────
+
+  async createPlatformTheme(
+    entity: Omit<ThemeEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ThemeEntity> {
+    if (entity.level !== 'platform' || entity.tenantId !== PLATFORM_THEME_OWNER_SENTINEL) {
+      throw new Error('createPlatformTheme requires a platform-level, platform-owned entity');
+    }
+    return this.createTheme(entity);
+  }
+
+  async findPlatformTheme(): Promise<ThemeEntity | null> {
+    for (const theme of this.themes.values()) {
+      if (theme.level === 'platform' && theme.tenantId === PLATFORM_THEME_OWNER_SENTINEL) {
+        return theme;
+      }
+    }
+    return null;
+  }
 
   // ─── Themes ─────────────────────────────────────────────────────────────────
 
@@ -133,5 +156,35 @@ export class InMemoryThemeRepository implements ThemeRepository {
       }
     }
     return max;
+  }
+  async commitRevision(
+    revision: ThemeRevisionEntity,
+    themeUpdate: ThemeRevisionCommitUpdate,
+    options: { requireStatusIn?: readonly ThemeStatus[] } = {},
+  ): Promise<ThemeEntity> {
+    // Single synchronous critical section: checks and both writes happen with no
+    // await in between, which is the in-memory equivalent of one transaction.
+    const theme = this.themes.get(revision.themeId);
+    if (!theme) {
+      throw new ThemeRevisionConflictError('theme_missing', `Theme not found: ${revision.themeId}`);
+    }
+    if (options.requireStatusIn && !options.requireStatusIn.includes(theme.status)) {
+      throw new ThemeRevisionConflictError(
+        'status_changed',
+        `Theme ${theme.id} is ${theme.status}`,
+      );
+    }
+    for (const rev of this.revisions.values()) {
+      if (rev.themeId === revision.themeId && rev.revisionNumber === revision.revisionNumber) {
+        throw new ThemeRevisionConflictError(
+          'revision_number_taken',
+          `Revision ${revision.revisionNumber} already exists for theme ${revision.themeId}`,
+        );
+      }
+    }
+    this.revisions.set(revision.id, revision);
+    const updated: ThemeEntity = { ...theme, ...themeUpdate, updatedAt: new Date() };
+    this.themes.set(theme.id, updated);
+    return updated;
   }
 }

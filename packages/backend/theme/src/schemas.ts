@@ -40,20 +40,50 @@ export type ThemeStatus = Static<typeof ThemeStatusSchema>;
 // ─── Color Token (HSL format) ─────────────────────────────────────────────────
 
 /**
- * HSL color string pattern: hsl(0-360, 0-100%, 0-100%) or hex #rrggbb
+ * Strict color grammar (PRC-M393/M394): hex #rgb/#rrggbb/#rrggbbaa, hsl()/hsla()
+ * or rgb()/rgba(). Anything else (named colors, `red; } body{...}`, url(...))
+ * is rejected so tokens are safe to interpolate into CSS.
  */
+export const COLOR_VALUE_PATTERN =
+  '^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})' +
+  '|hsla?\\(\\s*\\d{1,3}\\s*[,\\s]\\s*\\d{1,3}%\\s*[,\\s]\\s*\\d{1,3}%\\s*(?:[,/]\\s*(?:0|1|0?\\.\\d+|\\d{1,3}%)\\s*)?\\)' +
+  '|rgba?\\(\\s*\\d{1,3}\\s*[,\\s]\\s*\\d{1,3}\\s*[,\\s]\\s*\\d{1,3}\\s*(?:[,/]\\s*(?:0|1|0?\\.\\d+|\\d{1,3}%)\\s*)?\\))$';
 const ColorValueSchema = Type.String({
   minLength: 4,
   maxLength: 50,
-  description: 'Color value in HSL (e.g., hsl(220, 70%, 50%)) or hex (e.g., #3366cc)',
+  pattern: COLOR_VALUE_PATTERN,
+  description: 'Color value: hex (#3366cc), hsl(220, 70%, 50%) or rgb(51, 102, 204)',
 });
-
+/** Token key names: identifier-like only (PRC-M394). */
+export const TOKEN_KEY_PATTERN = '^[a-zA-Z0-9_-]{1,64}$';
+const TokenKey = () => Type.String({ pattern: TOKEN_KEY_PATTERN });
+/** CSS length: 0, or a number with px/rem/em/% unit (PRC-M394). */
+export const CSS_LENGTH_PATTERN = '^(?:0|\\d{1,4}(?:\\.\\d{1,3})?(?:px|rem|em|%))$';
+/**
+ * box-shadow grammar subset: `none` or lengths/colors/`inset` separated by
+ * spaces/commas. No semicolons, braces, colons, slashes, quotes or url() so values cannot break out of a
+ * declaration or load remote resources (PRC-M394).
+ */
+export const CSS_SHADOW_PATTERN = '^(?!.*url\\()(?:none|[-0-9a-zA-Z.,#%()\\s]{1,200})$';
+/** Font family list: letters, digits, spaces, commas, hyphen, underscore, single quotes. */
+export const FONT_FAMILY_PATTERN = "^[a-zA-Z0-9 ,'_-]{1,255}$";
+/** Asset URLs must be https (no javascript:, data:, http:) (PRC-M394). */
+export const HTTPS_URL_PATTERN = '^https://[^\\s"\'<>()\\\\`]+$';
 // ─── Typography Config ────────────────────────────────────────────────────────
 
 export const TypographyConfigSchema = Type.Object({
-  fontFamily: Type.String({ minLength: 1, maxLength: 255, description: 'Primary font family' }),
+  fontFamily: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    pattern: FONT_FAMILY_PATTERN,
+    description: 'Primary font family',
+  }),
   fontFamilyHeading: Type.Optional(
-    Type.String({ maxLength: 255, description: 'Heading font family' }),
+    Type.String({
+      maxLength: 255,
+      pattern: FONT_FAMILY_PATTERN,
+      description: 'Heading font family',
+    }),
   ),
   baseFontSize: Type.Number({
     minimum: 12,
@@ -87,20 +117,23 @@ export type SpacingConfig = Static<typeof SpacingConfigSchema>;
 // ─── Theme Tokens ─────────────────────────────────────────────────────────────
 
 export const ThemeTokensSchema = Type.Object({
-  colors: Type.Record(Type.String(), ColorValueSchema, {
+  colors: Type.Record(TokenKey(), ColorValueSchema, {
     description:
       'Color tokens (e.g., primary, secondary, background, surface, error, warning, success)',
+    additionalProperties: false,
   }),
   typography: TypographyConfigSchema,
   spacing: SpacingConfigSchema,
   borderRadius: Type.Optional(
-    Type.Record(Type.String(), Type.String(), {
+    Type.Record(TokenKey(), Type.String({ pattern: CSS_LENGTH_PATTERN }), {
       description: 'Border radius tokens (e.g., sm, md, lg, full)',
+      additionalProperties: false,
     }),
   ),
   shadows: Type.Optional(
-    Type.Record(Type.String(), Type.String(), {
+    Type.Record(TokenKey(), Type.String({ pattern: CSS_SHADOW_PATTERN }), {
       description: 'Shadow tokens (e.g., sm, md, lg, xl)',
+      additionalProperties: false,
     }),
   ),
   darkMode: Type.Optional(Type.Boolean({ description: 'Whether dark mode is enabled' })),
@@ -111,9 +144,17 @@ export type ThemeTokens = Static<typeof ThemeTokensSchema>;
 // ─── Theme Assets ─────────────────────────────────────────────────────────────
 
 export const ThemeAssetsSchema = Type.Object({
-  logoUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'Logo URL' })),
+  logoUrl: Type.Optional(
+    Type.String({ maxLength: 2048, pattern: HTTPS_URL_PATTERN, description: 'Logo URL (https)' }),
+  ),
   logoAlt: Type.Optional(Type.String({ maxLength: 255, description: 'Logo alt text' })),
-  faviconUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'Favicon URL' })),
+  faviconUrl: Type.Optional(
+    Type.String({
+      maxLength: 2048,
+      pattern: HTTPS_URL_PATTERN,
+      description: 'Favicon URL (https)',
+    }),
+  ),
 });
 
 export type ThemeAssets = Static<typeof ThemeAssetsSchema>;

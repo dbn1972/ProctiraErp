@@ -109,6 +109,9 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   'custom-fields': 'institution',
   dashboards: 'report',
   privacy: 'platform',
+  // PRC-M387: parked survey package (G-605) is pre-mapped so that, once mounted,
+  // /surveys is gated by the `survey` resource instead of the unmapped default.
+  surveys: 'survey',
 };
 
 /**
@@ -162,8 +165,11 @@ export const PLATFORM_PATH_SEGMENTS = new Set([
   'admin',
 ]);
 
-/** Role IDs that may access the platform admin console (G-104). */
-export const PLATFORM_ADMIN_ROLE_IDS = new Set(['platform_admin', 'super-admin']);
+/**
+ * Role IDs that may access the platform admin console (G-104). Defined once in
+ * @proctira/common so domain packages (theme, PRC-M395) share the exact set.
+ */
+export { PLATFORM_ADMIN_ROLE_IDS } from '@proctira/common';
 
 /** Map HTTP method → PermissionAction. */
 export function actionForMethod(method: string): PermissionAction {

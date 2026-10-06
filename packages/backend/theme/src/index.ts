@@ -17,8 +17,8 @@ export { themePlugin } from './theme-plugin.js';
 export type { ThemePluginOptions } from './theme-plugin.js';
 
 // Service
-export { ThemeService } from './theme-service.js';
-export type { ThemeServiceConfig } from './theme-service.js';
+export { ThemeService, PLATFORM_THEME_TENANT_ID } from './theme-service.js';
+export type { ThemeServiceConfig, ThemeCallerContext } from './theme-service.js';
 
 // Repository
 export type {
@@ -26,7 +26,9 @@ export type {
   ThemeRevisionEntity,
   ThemeFilter,
   ThemeRepository,
+  ThemeRevisionCommitUpdate,
 } from './theme-repository.js';
+export { ThemeRevisionConflictError, PLATFORM_THEME_OWNER_SENTINEL } from './theme-repository.js';
 
 // In-memory repository (for testing)
 export { InMemoryThemeRepository } from './in-memory-repository.js';

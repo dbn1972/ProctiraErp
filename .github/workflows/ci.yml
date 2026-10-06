@@ -921,6 +921,28 @@ jobs:
             packages/backend/staff/src/staff-import-transaction.live.test.ts
           NODE_ENV: test
 
+      # PRC-M367 / #555 review #6: the tenant plugin is resolution-only, so a
+      # handler that skips withTenantTransaction must see zero rows under FORCE
+      # RLS. The proof creates its own role/table, so it runs against a
+      # throwaway database, and the JSON check fails the step if it skipped.
+      - name: Live proof - tenant GUC scope under FORCE RLS (PRC-M367)
+        run: |
+          set -euo pipefail
+          SUPER=postgresql://postgres:postgres@localhost:5432/postgres
+          psql "$SUPER" -v ON_ERROR_STOP=1 -q -c 'DROP DATABASE IF EXISTS prc_m367_live' -c 'CREATE DATABASE prc_m367_live'
+          pnpm --filter @proctira/tenant exec vitest run src/__tests__/tenant-guc-scope.live.test.ts \
+            --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/prc-m367.json"
+          node -e '
+            const r = require(process.argv[1]);
+            if (r.numPassedTests < 2 || r.numFailedTests > 0 || r.numPendingTests > 0) {
+              console.error("PRC-M367 live proof did not execute: " + JSON.stringify({ passed: r.numPassedTests, failed: r.numFailedTests, skipped: r.numPendingTests }));
+              process.exit(1);
+            }
+          ' "$RUNNER_TEMP/prc-m367.json"
+        env:
+          TENANT_GUC_LIVE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/prc_m367_live
+          NODE_ENV: test
+
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)
         run: bash tools/scripts/assert-runtime-database-role.sh
         env:
