@@ -45,9 +45,22 @@ async function setup(publisherFor: (outbox: InMemoryOutboxStore, q: QueueAdapter
   const broker = noDelayAdapter();
   const repository = new InMemoryDeveloperPortalRepository();
   const httpFetch = vi.fn(async () => ({ status: 503, ok: false }));
+  const secrets = new Map<string, string>();
   const service = new DeveloperPortalService(repository, undefined, {
     deliveryPublisher: publisherFor(outbox, broker.queue) as OutboxWebhookDeliveryPublisher,
     httpFetch,
+    // PRC-M211 (main #549): webhook create requires secret storage and every
+    // send is signed, so the test supplies an in-memory writer/resolver pair.
+    signingSecretWriter: {
+      async storeSigningSecret(webhook: { id: string }, secret: string) {
+        secrets.set(webhook.id, secret);
+      },
+    },
+    signingSecretResolver: {
+      async resolveSigningSecret(webhook: { id: string }) {
+        return secrets.get(webhook.id);
+      },
+    },
   });
   const account = await service.createAccount({ name: 'OEM', email: 'oem@example.com' });
   await service.createWebhook(account.id, TENANT_ID, {
