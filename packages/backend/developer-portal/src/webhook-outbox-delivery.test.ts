@@ -44,6 +44,8 @@ describe('PRC-H046 webhook fan-out via outbox', () => {
           return 'decrypted-test-secret';
         },
       },
+      // PRC-M211: webhook create requires secret storage (signing is mandatory).
+      signingSecretWriter: { async storeSigningSecret() {} },
     });
     const account = await service.createAccount({ name: 'OEM', email: 'oem@example.com' });
     await service.createWebhook(account.id, TENANT_ID, {

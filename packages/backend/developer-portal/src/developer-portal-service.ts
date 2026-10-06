@@ -43,12 +43,16 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
-import { openWebhookSecret, sealWebhookSecret } from './webhook-secret-crypto.js';
 import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
 import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
+import {
+  WebhookSigningSecretUnavailableError,
+  type WebhookSigningSecretResolver,
+  type WebhookSigningSecretWriter,
+} from './webhook-signing-secrets.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
@@ -130,15 +134,19 @@ export type WebhookHttpFetch = (
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-/** PRC-H046: port returning the decrypted webhook signing secret (or undefined). */
-export interface WebhookSigningSecretResolver {
-  resolveSigningSecret(webhook: WebhookEntity): Promise<string | undefined>;
+export type { WebhookSigningSecretResolver, WebhookSigningSecretWriter };
+
+function isSigningSecretWriter(value: unknown): value is WebhookSigningSecretWriter {
+  return (
+    typeof (value as WebhookSigningSecretWriter | undefined)?.storeSigningSecret === 'function'
+  );
 }
 
 export class DeveloperPortalService {
   private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
   private readonly httpFetch: WebhookHttpFetch;
   private readonly signingSecretResolver: WebhookSigningSecretResolver | undefined;
+  private readonly signingSecretWriter: WebhookSigningSecretWriter | undefined;
   /** W1-SEC-08: nonce replay store for inbound signature verification. */
   private readonly replayStore: WebhookReplayStore | null | undefined;
 
@@ -151,14 +159,25 @@ export class DeveloperPortalService {
       /** Injected replay store (Redis in prod / memory in non-prod). */
       replayStore?: WebhookReplayStore | null;
       /**
-       * PRC-H046: resolves the decrypted signing secret for a webhook at send
-       * time (secrets are never carried in queue/outbox payloads). Absent →
-       * fan-out deliveries are unsigned until encrypted secret storage lands.
+       * PRC-H046 / PRC-M211: resolves the decrypted signing secret for a webhook at send
+       * time (secrets are never carried in queue/outbox payloads). Signing is mandatory:
+       * absent or failing → the delivery fails closed, never unsigned.
        */
       signingSecretResolver?: WebhookSigningSecretResolver;
+      /**
+       * Stores the envelope-encrypted secret on create/rotate. Defaults to the resolver when
+       * it also implements the writer (EnvelopeWebhookSigningSecrets). Absent → create and
+       * secret rotation fail with 503 instead of registering an unsignable webhook.
+       */
+      signingSecretWriter?: WebhookSigningSecretWriter;
     },
   ) {
     this.signingSecretResolver = options?.signingSecretResolver;
+    this.signingSecretWriter =
+      options?.signingSecretWriter ??
+      (isSigningSecretWriter(options?.signingSecretResolver)
+        ? options.signingSecretResolver
+        : undefined);
     this.deliveryPublisher = options?.deliveryPublisher;
     this.replayStore = options?.replayStore;
     this.httpFetch =
@@ -426,16 +445,33 @@ export class DeveloperPortalService {
       url: input.url,
       events: input.events,
       secretHash,
-      // PRC-M211: sealed (not hashed) so the delivery worker can sign with it.
-      secretCiphertext: sealWebhookSecret(secret, { webhookId: id, tenantId }),
       description: input.description ?? null,
       active: input.active ?? true,
       createdAt: now,
       updatedAt: now,
     };
+    const writer = this.requireSigningSecretWriter();
     const created = await this.repository.createWebhook(webhook);
+    // PRC-M211: the envelope row references the webhook row (FK), so it is written second; a
+    // failed write removes the webhook rather than leaving one that can never be signed.
+    try {
+      await writer.storeSigningSecret(created, secret);
+    } catch (err) {
+      await this.repository.deleteWebhook(created.id).catch(() => undefined);
+      throw err;
+    }
     // The plaintext is returned once (server-generated secrets are otherwise unknowable).
     return input.secret === undefined ? { ...created, signingSecret: secret } : created;
+  }
+
+  private requireSigningSecretWriter(): WebhookSigningSecretWriter {
+    if (!this.signingSecretWriter) {
+      throw new WebhookSigningSecretUnavailableError(
+        'not_configured',
+        'Webhook signing secret storage is not configured; webhooks cannot be registered',
+      );
+    }
+    return this.signingSecretWriter;
   }
 
   async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
@@ -468,19 +504,15 @@ export class DeveloperPortalService {
     }
 
     const updates: Partial<
-      Pick<
-        WebhookEntity,
-        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
-      >
+      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
     > = {};
     if (input.url !== undefined) updates.url = input.url;
     if (input.events !== undefined) updates.events = input.events;
     if (input.secret !== undefined) {
+      // PRC-M211: rotate the envelope first (retires the previous version) so the hash and
+      // the signing secret never disagree after a failed rotation.
+      await this.requireSigningSecretWriter().storeSigningSecret(webhook, input.secret);
       updates.secretHash = hashApiKey(input.secret);
-      updates.secretCiphertext = sealWebhookSecret(input.secret, {
-        webhookId: webhook.id,
-        tenantId: webhook.tenantId,
-      });
     }
     if (input.description !== undefined) updates.description = input.description;
     if (input.active !== undefined) updates.active = input.active;
@@ -600,21 +632,35 @@ export class DeveloperPortalService {
       'x-proctira-delivery': job.deliveryId,
     };
     // PRC-M211: signing is mandatory. The secret is resolved at send time through the
-    // WebhookSigningSecretResolver port (PRC-H046) or the sealed column on the webhook row —
-    // never the queue message. A missing or undecryptable secret fails the delivery
-    // permanently instead of sending it unsigned.
-    let signingSecret: string | null = null;
+    // WebhookSigningSecretResolver port (envelope table 113) — never the queue message. A
+    // missing resolver, missing/retired row, KMS failure or authentication failure fails the
+    // attempt permanently (no unsigned delivery) and surfaces the reason to the worker log.
+    let signingSecret: string | undefined;
+    let signingFailure: WebhookSigningSecretUnavailableError | undefined;
     try {
-      signingSecret =
-        (await this.signingSecretResolver?.resolveSigningSecret(webhook)) ??
-        openWebhookSecret(webhook.secretCiphertext, {
-          webhookId: webhook.id,
-          tenantId: webhook.tenantId,
-        });
-    } catch {
-      signingSecret = null;
+      if (!this.signingSecretResolver) {
+        throw new WebhookSigningSecretUnavailableError(
+          'not_configured',
+          'Webhook signing secret resolver is not configured',
+        );
+      }
+      signingSecret = await this.signingSecretResolver.resolveSigningSecret(webhook);
+      if (!signingSecret) {
+        throw new WebhookSigningSecretUnavailableError(
+          'missing',
+          `Webhook ${webhook.id} has no signing secret`,
+        );
+      }
+    } catch (err) {
+      signingFailure =
+        err instanceof WebhookSigningSecretUnavailableError
+          ? err
+          : new WebhookSigningSecretUnavailableError(
+              'undecryptable',
+              `Webhook ${webhook.id} signing secret could not be resolved`,
+            );
     }
-    if (!signingSecret) {
+    if (signingFailure || !signingSecret) {
       await this.repository.updateDelivery(job.deliveryId, {
         status: 'failed',
         httpStatus: null,
@@ -622,7 +668,10 @@ export class DeveloperPortalService {
         lastAttemptAt: new Date(),
         nextRetryAt: null,
       });
-      return;
+      throw (
+        signingFailure ??
+        new WebhookSigningSecretUnavailableError('missing', 'Webhook signing secret missing')
+      );
     }
     // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
     // enforce skew + nonce replay (see verifyWebhookSignatureSecure).

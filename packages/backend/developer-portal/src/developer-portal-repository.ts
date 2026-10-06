@@ -40,11 +40,6 @@ export interface WebhookEntity {
   url: string;
   events: string[];
   secretHash: string;
-  /**
-   * PRC-M211: AES-GCM sealed signing secret (webhook-secret-crypto.ts). The worker signs with
-   * it; null for legacy hash-only rows, which fail closed until the secret is rotated.
-   */
-  secretCiphertext?: string | null;
   description: string | null;
   active: boolean;
   createdAt: Date;
@@ -136,10 +131,7 @@ export interface DeveloperPortalRepository {
   updateWebhook(
     id: string,
     updates: Partial<
-      Pick<
-        WebhookEntity,
-        'url' | 'events' | 'secretHash' | 'secretCiphertext' | 'description' | 'active'
-      >
+      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
     >,
   ): Promise<WebhookEntity | null>;
   deleteWebhook(id: string): Promise<boolean>;

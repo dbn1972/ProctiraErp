@@ -196,6 +196,7 @@ import { createScholarshipDisbursementLookup } from './scholarship-disbursement-
 import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
+import { createWebhookSigningSecretsFromEnv } from './webhook-signing-secrets-wiring.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 
@@ -1699,6 +1700,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // W1-SEC-08: inject webhook nonce replay store (Redis when REDIS_URL set) so
       // POST /developer/webhooks/verify is fail-closed for skew + replay.
       await ensureDeveloperPortalPersistence();
+      // PRC-M211: envelope-encrypted signing secrets (113) — mandatory signing, fail closed.
+      const webhookSigningSecrets = await createWebhookSigningSecretsFromEnv(process.env, {
+        warn: (message) => scope.log.warn(message),
+      });
       const webhookDelivery = await createWebhookDeliveryPublisherFromEnv();
       if (webhookDelivery) {
         scope.addHook('onClose', async () => {
@@ -1737,6 +1742,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           ? () => webhookDelivery.createConsumerAdapter()
           : undefined,
         replayStore: webhookReplayStore,
+        signingSecretResolver: webhookSigningSecrets,
         prefix: '/developer',
       });
     },

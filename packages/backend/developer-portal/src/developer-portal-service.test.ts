@@ -10,6 +10,7 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import { DeveloperPortalService, DEFAULT_CONFIG } from './developer-portal-service.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import type { DeveloperAccountEntity } from './developer-portal-repository.js';
+import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const TEST_TENANT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -20,7 +21,9 @@ describe('DeveloperPortalService', () => {
 
   beforeEach(async () => {
     repository = new InMemoryDeveloperPortalRepository();
-    service = new DeveloperPortalService(repository, DEFAULT_CONFIG);
+    service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
+      signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+    });
 
     // Create a test account
     testAccount = await service.createAccount({
@@ -100,7 +103,9 @@ describe('DeveloperPortalService', () => {
 
     it('should enforce max API keys per account', async () => {
       const config = { ...DEFAULT_CONFIG, maxApiKeysPerAccount: 2 };
-      const limitedService = new DeveloperPortalService(repository, config);
+      const limitedService = new DeveloperPortalService(repository, config, {
+        signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+      });
 
       await limitedService.createApiKey(testAccount.id, TEST_TENANT_ID, {
         name: 'Key 1',
@@ -586,7 +591,9 @@ describe('DeveloperPortalService', () => {
 
     it('should enforce max sandboxes per account', async () => {
       const config = { ...DEFAULT_CONFIG, maxSandboxesPerAccount: 1 };
-      const limitedService = new DeveloperPortalService(repository, config);
+      const limitedService = new DeveloperPortalService(repository, config, {
+        signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+      });
 
       await limitedService.createSandbox(testAccount.id, { name: 'Sandbox 1' });
       await expect(
@@ -616,7 +623,9 @@ describe('plugin name ownership and publish atomicity (PRC-M219)', () => {
 
   async function setup() {
     const repository = new InMemoryDeveloperPortalRepository();
-    const service = new DeveloperPortalService(repository, DEFAULT_CONFIG);
+    const service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
+      signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+    });
     const owner = await service.createAccount({ name: 'Owner', email: 'owner@example.com' });
     const other = await service.createAccount({ name: 'Other', email: 'other@example.com' });
     const publish = async (accountId: string, version: string) => {

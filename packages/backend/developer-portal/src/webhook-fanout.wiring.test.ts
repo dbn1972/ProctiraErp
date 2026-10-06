@@ -17,7 +17,6 @@ import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
 import type { WebhookDeliveryJobPayload } from './queue-webhook-delivery-publisher.js';
 import { parseWebhookFanOutEvents } from './webhook-event-fanout.js';
-import { sealWebhookSecret } from './webhook-secret-crypto.js';
 import {
   MemoryWebhookReplayStore,
   WEBHOOK_NONCE_HEADER,
@@ -25,18 +24,14 @@ import {
   WEBHOOK_TIMESTAMP_HEADER,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
+import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const TENANT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const TENANT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 const SECRET_A = 'whsec_tenant_a_signing_secret_0123456789';
 
-function webhook(
-  id: string,
-  tenantId: string,
-  url: string,
-  secret: string | null = `${SECRET_A}-${id}`,
-): WebhookEntity {
+function webhook(id: string, tenantId: string, url: string): WebhookEntity {
   return {
     id,
     tenantId,
@@ -44,8 +39,6 @@ function webhook(
     url,
     events: ['student.enrolled'],
     secretHash: 'hash',
-    // PRC-M211: sealed signing secret; null = legacy hash-only row.
-    secretCiphertext: secret ? sealWebhookSecret(secret, { webhookId: id, tenantId }) : null,
     description: null,
     active: true,
     createdAt: new Date(),
@@ -58,14 +51,23 @@ async function buildApp(secretA: string | null = SECRET_A) {
   const publisherQueue = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
   await publisherQueue.connect();
   const repository = new InMemoryDeveloperPortalRepository();
-  await repository.createWebhook(webhook('wh-a', TENANT_A, 'https://a.example.test/hook', secretA));
-  await repository.createWebhook(webhook('wh-b', TENANT_B, 'https://b.example.test/hook'));
+  // PRC-M211: secrets live in the envelope store (113); secretA = null → legacy hash-only row.
+  const { secrets } = createTestWebhookSigningSecrets();
+  const whA = await repository.createWebhook(
+    webhook('wh-a', TENANT_A, 'https://a.example.test/hook'),
+  );
+  if (secretA) await secrets.storeSigningSecret(whA, secretA);
+  const whB = await repository.createWebhook(
+    webhook('wh-b', TENANT_B, 'https://b.example.test/hook'),
+  );
+  await secrets.storeSigningSecret(whB, `${SECRET_A}-wh-b`);
   const jobs: WebhookDeliveryJobPayload[] = [];
   const realPublisher = new QueueWebhookDeliveryPublisher(publisherQueue);
   const posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
   const app = Fastify();
   await app.register(developerPortalPlugin, {
     repository,
+    signingSecretResolver: secrets,
     deliveryPublisher: {
       enqueueDelivery: async (job, delayMs) => {
         jobs.push(job);
