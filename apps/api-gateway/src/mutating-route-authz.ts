@@ -288,6 +288,13 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: false,
   },
   {
+    // PRC-H111: case writes need the dedicated `case` resource, not workflow:update.
+    id: 'workflow.cases',
+    pathPrefix: '/api/v1/workflow-engine/cases',
+    resource: 'case',
+    deferredDomainGuard: false,
+  },
+  {
     id: 'notification.staff',
     pathPrefix: '/api/v1/notifications',
     resource: 'notification',
