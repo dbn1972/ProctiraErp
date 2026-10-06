@@ -28,7 +28,7 @@
     "@proctira/search-index": "workspace:*",
     "@proctira/tenant": "workspace:*",
     "@proctira/testing": "workspace:*",
-    "fastify": "^5.7.2",
+    "fastify": "^5.12.5",
     "fastify-plugin": "^4.5.0"
   },
   "devDependencies": {
