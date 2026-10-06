@@ -150,11 +150,13 @@ VALUES (
   '00000000-0000-4000-8000-000000000001',
   'a2e96cd1-0232-4cce-97e2-00ebbfb9a374',
   '00000000-0000-4000-8000-00000000ac01',
-  'E2E-SEC-A', 'E2E Section A', 40, 'PUBLISHED'
+  -- PRC-H066: gradebook e2e enrols a fresh student per grade write; keep headroom on reruns.
+  'E2E-SEC-A', 'E2E Section A', 5000, 'PUBLISHED'
 )
 ON CONFLICT (id) DO UPDATE
   SET deleted_at = NULL,
       status = 'PUBLISHED',
+      capacity = GREATEST(sections.capacity, 5000),
       updated_at = now();
 
 COMMIT;
