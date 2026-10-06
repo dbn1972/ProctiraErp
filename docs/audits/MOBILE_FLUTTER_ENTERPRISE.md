@@ -55,14 +55,14 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 
 ## 2. Security
 
-| Check                                            | Pass | Evidence                                 |
-| ------------------------------------------------ | ---- | ---------------------------------------- |
-| No hardcoded access tokens after login           | ☑    | login path uses `AuthApi`                |
-| `X-Tenant-ID` on requests                        | ☑    | Dio interceptor                          |
-| Bearer on non-public auth paths                  | ☑    | Dio interceptor                          |
-| Logout clears secure storage (+ best-effort API) | ☑    | `AuthBloc` + `AuthApi.logout`            |
-| Refresh-on-401 best effort                       | ☑    | interceptor                              |
-| Tenant switch isolates cached student rows       | ☑    | Linux IT `journey_tenant_isolation_test` |
+| Check                                            | Pass | Evidence                                                                                                                                              |
+| ------------------------------------------------ | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No hardcoded access tokens after login           | ☑    | login path uses `AuthApi`                                                                                                                             |
+| `X-Tenant-ID` on requests                        | ☑    | Dio interceptor                                                                                                                                       |
+| Bearer on non-public auth paths                  | ☑    | Dio interceptor                                                                                                                                       |
+| Logout clears secure storage (+ best-effort API) | ☑    | `AuthBloc` + `AuthApi.logout`                                                                                                                         |
+| Refresh-on-401 best effort                       | ☑    | interceptor                                                                                                                                           |
+| Tenant switch isolates cached student rows       | ☑    | Linux IT `journey_tenant_cache_scoping_test` (query scoping + gateway contract stub) and `test/tenant_switch_test.dart` (purge on switch, key change) |
 
 ---
 

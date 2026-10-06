@@ -69,6 +69,9 @@ jobs:
         # --update-goldens; integration_test/ is not invoked (no device farm).
         run: flutter test
 
+      - name: Hardened journeys on flutter-tester (PRC-M567, fail closed)
+        run: flutter test -d flutter-tester integration_test/hardened_journeys_test.dart
+
       - name: Job summary
         if: always()
         run: |

@@ -157,7 +157,12 @@ export type {
 // Optional Keycloak IdP (env-gated at gateway; local JWT remains default)
 export { keycloakAuthPlugin } from './keycloak/plugin.js';
 export type { KeycloakAuthPluginOptions } from './keycloak/plugin.js';
-export { registerKeycloakAuthRoutes } from './keycloak/routes.js';
+export {
+  MemoryWebTicketStore,
+  RedisWebTicketStore,
+  registerKeycloakAuthRoutes,
+  type WebTicketStore,
+} from './keycloak/routes.js';
 export type { KeycloakRouteConfig } from './keycloak/routes.js';
 export {
   PasswordLoginThrottle,
@@ -239,6 +244,7 @@ export {
   generateOtpCode,
   OtpValidationError,
   OtpAuthError,
+  OtpRateLimitError,
 } from './otp-service.js';
 export type {
   OtpChallengeRecord,
@@ -248,7 +254,7 @@ export type {
   VerifyOtpResult,
 } from './otp-service.js';
 export { registerMfaRoutes } from './mfa-routes.js';
-export type { MfaRoutesOptions } from './mfa-routes.js';
+export type { MfaRoutesOptions, PrimaryAuthContext } from './mfa-routes.js';
 export {
   ConsoleSmsProvider,
   TwilioSmsProvider,

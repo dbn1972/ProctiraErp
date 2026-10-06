@@ -51,10 +51,15 @@ final class TransientApiException extends ApiException {
     super.statusCode,
     super.responseBody,
     this.cause,
+    this.retryAfter,
   });
 
   /// Underlying error (typically a [DioException]).
   final Object? cause;
+
+  /// Server-requested back-off parsed from `Retry-After` (408/425/429/503),
+  /// when present. Retry schedulers should wait at least this long.
+  final Duration? retryAfter;
 }
 
 /// Permanent failure that should not be retried (e.g. validation 4xx).

@@ -67,7 +67,10 @@ class AuthTokenPair {
     }
     final String? access = tokensRaw['accessToken'] as String?;
     final String? refresh = tokensRaw['refreshToken'] as String?;
-    if (access == null || access.isEmpty || refresh == null || refresh.isEmpty) {
+    if (access == null ||
+        access.isEmpty ||
+        refresh == null ||
+        refresh.isEmpty) {
       throw const FormatException('Refresh response missing token pair');
     }
     return AuthTokenPair(

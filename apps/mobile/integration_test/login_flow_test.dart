@@ -1,144 +1,170 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:proctira_mobile/core/auth/auth_bloc.dart';
+import 'package:proctira_mobile/core/di/injector.dart';
+import 'package:proctira_mobile/core/storage/secure_storage.dart';
 
 import 'helpers/test_setup.dart';
 
-/// Integration test: Login → Dashboard.
-///
-/// Flow:
-/// 1. Bootstrap the harness with a tenant configured but no auth tokens.
-/// 2. The router redirects to `/login`.
-/// 3. Enter credentials and tap the login button.
-/// 4. Simulate a successful auth response (mark authenticated).
-/// 5. Assert the router redirects to the home dashboard (`/`).
-///
-/// This validates the full login journey including:
-/// - GoRouter auth guard redirecting unauthenticated users to `/login`.
-/// - Login form accepting input with 48px touch targets.
-/// - Auth state change triggering router refresh to `/`.
+/// PRC-M563: login journey driven through the real [LoginScreen] → AuthApi →
+/// Dio stack. Only the HTTP adapter is faked, so skipping AuthApi, dropping
+/// the tenant header or not persisting tokens makes these tests fail.
+class _FakeAuthAdapter implements HttpClientAdapter {
+  _FakeAuthAdapter({required this.succeed});
+
+  final bool succeed;
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    if (!options.path.endsWith('/api/v1/auth/login')) {
+      // Post-login screens may fetch data; keep them empty but valid.
+      return ResponseBody.fromString(
+        jsonEncode(<String, dynamic>{'data': <Object>[]}),
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      );
+    }
+    if (!succeed) {
+      return ResponseBody.fromString(
+        jsonEncode(<String, dynamic>{
+          'code': 'INVALID_CREDENTIALS',
+          'message': 'Invalid email or password',
+          'statusCode': 401,
+        }),
+        401,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      );
+    }
+    return ResponseBody.fromString(
+      jsonEncode(<String, dynamic>{
+        'tokens': <String, dynamic>{
+          'accessToken': 'access-from-api',
+          'refreshToken': 'refresh-from-api',
+          'expiresIn': 900,
+        },
+        'user': <String, dynamic>{
+          'userId': 'teacher-1',
+          'email': 'teacher@school.edu',
+          'displayName': 'Teacher',
+        },
+      }),
+      200,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+Future<void> _submitCredentials(WidgetTester tester) async {
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Email or phone'),
+    'teacher@school.edu',
+  );
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Password'),
+    'password123',
+  );
+  await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+  // Real Dio + secure-storage futures complete outside fake time.
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 200)),
+  );
+  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets(
-    'login flow: unauthenticated → enter credentials → dashboard',
-    (WidgetTester tester) async {
-      final JourneyHarness harness = await bootstrapTestApp(
-        tenantId: 'tenant-login-test',
-        tenantDisplayName: 'Login Test School',
-      );
-      addTearDown(harness.dispose);
+  testWidgets('valid credentials: API login → tokens stored → home route', (
+    WidgetTester tester,
+  ) async {
+    final JourneyHarness harness = await bootstrapTestApp(
+      tenantId: 'tenant-login-test',
+      tenantDisplayName: 'Login Test School',
+    );
+    addTearDown(harness.dispose);
+    final _FakeAuthAdapter adapter = _FakeAuthAdapter(succeed: true);
+    getIt<Dio>().httpClientAdapter = adapter;
 
-      // Bootstrap auth — no tokens in storage, so state resolves to
-      // unauthenticated and the router redirects to `/login`.
-      await harness.bootstrapAuth();
-      await pumpJourneyApp(tester);
+    await harness.bootstrapAuth();
+    await pumpJourneyApp(tester);
+    expect(currentJourneyPath(), '/login');
 
-      // Verify we landed on the login screen.
-      expect(find.byType(TextField), findsWidgets);
-      // Look for the login button or a text field with email/username hint.
-      // Enter credentials into the form fields.
-      final List<Finder> textFields =
-          find.byType(TextField).evaluate().map((Element e) {
-        return find.byWidget(e.widget);
-      }).toList();
+    await _submitCredentials(tester);
 
-      if (textFields.length >= 2) {
-        await tester.enterText(textFields[0], 'teacher@school.edu');
-        await tester.enterText(textFields[1], 'password123');
-      } else if (textFields.isNotEmpty) {
-        await tester.enterText(textFields[0], 'teacher@school.edu');
-      }
-      await tester.pumpAndSettle();
+    final RequestOptions login = adapter.requests.firstWhere(
+      (RequestOptions r) => r.path.endsWith('/api/v1/auth/login'),
+    );
+    expect(login.method, 'POST');
+    expect(login.headers['X-Tenant-ID'], 'tenant-login-test');
+    expect(
+      (login.data as Map<String, dynamic>)['username'],
+      'teacher@school.edu',
+    );
 
-      // Find and tap the login/submit button.
-      final Finder loginButton = find.widgetWithText(FilledButton, 'Login');
-      final Finder signInButton =
-          find.widgetWithText(FilledButton, 'Sign In');
-      final Finder submitButton = loginButton.evaluate().isNotEmpty
-          ? loginButton
-          : signInButton.evaluate().isNotEmpty
-              ? signInButton
-              : find.byType(FilledButton).first;
+    expect(harness.authBloc.state.status, AuthStatus.authenticated);
+    expect(harness.authBloc.state.userId, 'teacher-1');
+    final SecureStorage storage = getIt<SecureStorage>();
+    expect(await storage.readAccessToken(), 'access-from-api');
+    expect(await storage.readRefreshToken(), 'refresh-from-api');
+    expect(currentJourneyPath(), '/');
+  });
 
-      if (submitButton.evaluate().isNotEmpty) {
-        await tester.tap(submitButton);
-        await tester.pump();
-      }
+  testWidgets('401 from the API: error shown, still on /login, no tokens', (
+    WidgetTester tester,
+  ) async {
+    final JourneyHarness harness = await bootstrapTestApp(
+      tenantId: 'tenant-login-test',
+      tenantDisplayName: 'Login Test School',
+    );
+    addTearDown(harness.dispose);
+    getIt<Dio>().httpClientAdapter = _FakeAuthAdapter(succeed: false);
 
-      // Simulate successful authentication (as if the API returned tokens).
-      // In a real scenario the login screen's BLoC would call AuthLoggedIn
-      // after a successful API response. We simulate that here.
-      await harness.markAuthenticated(
-        userId: 'teacher-1',
-        accessToken: 'access-token-abc',
-        refreshToken: 'refresh-token-xyz',
-      );
-      await tester.pumpAndSettle(const Duration(milliseconds: 500));
+    await harness.bootstrapAuth();
+    await pumpJourneyApp(tester);
+    await _submitCredentials(tester);
 
-      // Verify the auth state is authenticated.
-      expect(harness.authBloc.state.isAuthenticated, isTrue);
-      expect(harness.authBloc.state.userId, 'teacher-1');
+    expect(find.text('Invalid email or password'), findsOneWidget);
+    expect(harness.authBloc.state.isAuthenticated, isFalse);
+    expect(await getIt<SecureStorage>().readAccessToken(), isNull);
+    expect(currentJourneyPath(), '/login');
+  });
 
-      // The router should have redirected away from `/login` to `/` (home).
-      // Verify we're no longer on the login screen by checking for home
-      // screen indicators (the login form fields should be gone).
-      // The home screen typically shows navigation elements.
-      final bool loginFieldsGone =
-          find.widgetWithText(TextField, 'Email').evaluate().isEmpty &&
-              find.widgetWithText(TextField, 'Username').evaluate().isEmpty;
+  testWidgets('already authenticated user is redirected to home', (
+    WidgetTester tester,
+  ) async {
+    final JourneyHarness harness = await bootstrapTestApp(
+      tenantId: 'tenant-auth-redirect',
+      tenantDisplayName: 'Auth Redirect School',
+      initialSecureStorage: <String, String>{
+        'auth.access_token': 'existing-access-token',
+        'auth.refresh_token': 'existing-refresh-token',
+      },
+    );
+    addTearDown(harness.dispose);
+    await harness.bootstrapAuth();
+    await pumpJourneyApp(tester);
 
-      // If the login form is gone, we've successfully navigated away.
-      // Additionally check that the auth bloc confirms authentication.
-      expect(
-        harness.authBloc.state.status,
-        AuthStatus.authenticated,
-        reason: 'User should be authenticated after login',
-      );
-
-      // The GoRouter redirect should have moved us to home.
-      // We verify by confirming the login screen is no longer showing
-      // (the router guard bounces authenticated users away from /login).
-      expect(
-        loginFieldsGone || find.byType(Scaffold).evaluate().isNotEmpty,
-        isTrue,
-        reason: 'Should have navigated away from login to dashboard',
-      );
-    },
-  );
-
-  testWidgets(
-    'login flow: already authenticated user is redirected to home',
-    (WidgetTester tester) async {
-      final JourneyHarness harness = await bootstrapTestApp(
-        tenantId: 'tenant-auth-redirect',
-        tenantDisplayName: 'Auth Redirect School',
-        initialSecureStorage: <String, String>{
-          'auth.access_token': 'existing-access-token',
-          'auth.refresh_token': 'existing-refresh-token',
-        },
-      );
-      addTearDown(harness.dispose);
-
-      // Bootstrap auth — tokens exist in storage, so state resolves to
-      // authenticated and the router should NOT show login.
-      await harness.bootstrapAuth();
-      await pumpJourneyApp(tester);
-
-      // Verify we did NOT land on login — we should be on home.
-      expect(harness.authBloc.state.isAuthenticated, isTrue);
-
-      // The login form should not be visible.
-      final bool noLoginForm =
-          find.widgetWithText(TextField, 'Email').evaluate().isEmpty &&
-              find.widgetWithText(TextField, 'Username').evaluate().isEmpty;
-      expect(
-        noLoginForm,
-        isTrue,
-        reason:
-            'Authenticated user should bypass login and land on dashboard',
-      );
-    },
-  );
+    expect(harness.authBloc.state.isAuthenticated, isTrue);
+    expect(currentJourneyPath(), '/');
+  });
 }

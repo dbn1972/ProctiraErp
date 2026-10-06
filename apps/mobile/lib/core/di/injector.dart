@@ -49,7 +49,14 @@ bool _isAuthPublicPath(String path) {
 }
 
 /// Registers all singletons. Idempotent so widget tests can call it safely.
-Future<void> configureDependencies({String? apiBaseUrl}) async {
+///
+/// [database] lets test harnesses supply the store up front so services
+/// constructed eagerly here (AuthBloc purge, unsynced-work inspection) use
+/// the same database as everything resolved later through [getIt].
+Future<void> configureDependencies({
+  String? apiBaseUrl,
+  AppDatabase? database,
+}) async {
   if (getIt.isRegistered<SecureStorage>()) {
     return;
   }
@@ -73,8 +80,8 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   final ReportFileStore reportFiles = ReportFileStore(crypto: cacheCrypto);
   getIt.registerSingleton<ReportFileStore>(reportFiles);
 
-  final AppDatabase database = AppDatabase();
-  getIt.registerSingleton<AppDatabase>(database);
+  final AppDatabase appDatabase = database ?? AppDatabase();
+  getIt.registerSingleton<AppDatabase>(appDatabase);
 
   // Tenant + auth services.
   final TenantProvider tenantProvider = TenantProvider(secureStorage);
@@ -305,7 +312,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   // Auth bloc + router.
   final AuthBloc authBloc = AuthBloc(
     secureStorage: secureStorage,
-    database: database,
+    database: appDatabase,
     authApi: getIt<AuthApi>(),
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
@@ -317,7 +324,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     // A workspace switch purges the offline queue: sync first, then refuse
     // (pending explicit confirmation) if anything is still unsynced.
     inspectUnsyncedWork: UnsyncedWorkInspector(
-      database: database,
+      database: appDatabase,
       countCapturedDocuments: capturedDocuments.count,
     ).inspect,
     flushPendingWork: () async {

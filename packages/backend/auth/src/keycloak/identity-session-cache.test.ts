@@ -66,6 +66,24 @@ afterEach(() => {
   resetIdentityTouchThrottleForTests();
 });
 
+/** PRC-M500: the OIDC callback must present the browser-bound state cookie issued by /login. */
+async function injectLoginRoute(
+  app: ReturnType<typeof Fastify>,
+  method: 'GET' | 'POST',
+  url: string,
+  payload?: Record<string, string>,
+) {
+  if (method === 'POST') return app.inject({ method, url, ...(payload ? { payload } : {}) });
+  const login = await app.inject({ method: 'GET', url: '/api/v1/auth/login' });
+  const cookie = String(login.headers['set-cookie']).split(';')[0]!;
+  const state = new URL(String(login.headers.location)).searchParams.get('state')!;
+  return app.inject({
+    method,
+    url: `${url}&state=${encodeURIComponent(state)}`,
+    headers: { cookie },
+  });
+}
+
 describe('PRC-L283 login routes fail closed on identity link errors', () => {
   const tokenFor = () =>
     unsignedToken({ sub: 'kc-1', email: 'teacher@example.org', email_verified: true });
@@ -80,7 +98,7 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
       ...ROUTE_CONFIG,
       identityStore: store({ findIdentity: vi.fn().mockRejectedValue(new Error('db down')) }),
     });
-    const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+    const response = await injectLoginRoute(app, method, url, payload);
     expect(response.statusCode).toBe(503);
     expect(response.json()).toMatchObject({ code: 'IDENTITY_UNAVAILABLE' });
     expect(response.body).not.toContain('accessToken');
@@ -99,7 +117,7 @@ describe('PRC-L283 login routes fail closed on identity link errors', () => {
         ...ROUTE_CONFIG,
         identityStore: store({ findIdentity: vi.fn().mockResolvedValue(null) }),
       });
-      const response = await app.inject({ method, url, ...(payload ? { payload } : {}) });
+      const response = await injectLoginRoute(app, method, url, payload);
       expect(response.statusCode).toBe(401);
       expect(response.json()).toMatchObject({ code: 'IDENTITY_LINK_REJECTED' });
       expect(response.body).not.toContain('accessToken');

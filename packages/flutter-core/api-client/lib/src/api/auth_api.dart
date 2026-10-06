@@ -23,10 +23,7 @@ class AuthApi extends BaseApi {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/login',
       method: 'POST',
-      data: <String, dynamic>{
-        'username': username,
-        'password': password,
-      },
+      data: <String, dynamic>{'username': username, 'password': password},
     );
     final Object? body = response.data;
     if (body is Map<String, dynamic>) {

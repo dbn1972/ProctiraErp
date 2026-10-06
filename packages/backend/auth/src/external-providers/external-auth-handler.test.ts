@@ -41,6 +41,7 @@ class MockProvider implements ExternalAuthProvider {
     firstName: 'External',
     lastName: 'User',
     rawAttributes: {},
+    emailVerified: true,
   };
   public callbackError: Error | null = null;
 
@@ -288,6 +289,38 @@ describe('ExternalAuthHandler', () => {
       expect(identityStore.links).toHaveLength(1);
       expect(identityStore.links[0]!.userId).toBe('user-2');
       expect(identityStore.links[0]!.externalId).toBe('ext-user-1');
+    });
+
+    it('PRC-M589: unverified email cannot link to (or provision around) an existing account', async () => {
+      userLookup.users.push({
+        userId: 'victim',
+        tenantId: 'tenant-1',
+        email: 'external@example.com',
+        displayName: 'Victim',
+        roles: [],
+        areas: [],
+        institutions: [],
+      });
+      mockProvider.callbackResult = { ...mockProvider.callbackResult, emailVerified: false };
+      await expect(
+        handler.handleCallback('mock-provider', { code: 'c', state: 'state' }, 'tenant-1'),
+      ).rejects.toThrow();
+      expect(identityStore.links).toHaveLength(0);
+      expect(userLookup.createdUsers).toHaveLength(0);
+    });
+
+    it('PRC-M589: defaults neither link by email nor auto-provision', async () => {
+      const strict = new ExternalAuthHandler(
+        registry,
+        tokenService,
+        sessionService,
+        identityStore,
+        userLookup,
+      );
+      await expect(
+        strict.handleCallback('mock-provider', { code: 'c', state: 'state' }, 'tenant-1'),
+      ).rejects.toThrow();
+      expect(userLookup.createdUsers).toHaveLength(0);
     });
 
     it('should auto-provision new user when no match found', async () => {

@@ -1,6 +1,7 @@
 /**
  * Unit tests for OIDCProvider.
  */
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { OIDCProvider } from './oidc-provider.js';
 import type { HttpClient } from './oauth2-provider.js';
@@ -52,6 +53,30 @@ const oidcConfig: OIDCProviderConfig = {
   scopes: ['openid', 'email', 'profile'],
   callbackUrl: 'https://app.example.com/auth/oidc/callback',
 };
+
+// PRC-M588: real RS256 ID tokens verified against a mocked JWKS.
+const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const jwks = { keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', kty: 'RSA' }] };
+function signIdToken(payload: Record<string, unknown>, alg = 'RS256'): string {
+  const h = Buffer.from(JSON.stringify({ alg, typ: 'JWT', kid: 'k1' })).toString('base64url');
+  const b = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig =
+    alg === 'RS256'
+      ? sign('RSA-SHA256', Buffer.from(`${h}.${b}`), privateKey).toString('base64url')
+      : '';
+  return `${h}.${b}.${sig}`;
+}
+function claims(nonce: string, extra: Record<string, unknown> = {}) {
+  return {
+    iss: 'https://idp.example.com',
+    aud: 'oidc-client-id',
+    exp: Math.floor(Date.now() / 1000) + 300,
+    sub: 'oidc-user-123',
+    email: 'user@company.com',
+    nonce,
+    ...extra,
+  };
+}
 
 describe('OIDCProvider', () => {
   let httpClient: MockHttpClient;
@@ -129,8 +154,8 @@ describe('OIDCProvider', () => {
         given_name: 'OIDC',
         family_name: 'User',
       };
-      const idToken = `header.${Buffer.from(JSON.stringify(idTokenPayload)).toString('base64url')}.signature`;
-
+      const idToken = signIdToken({ ...claims(initResult.nonce!), ...idTokenPayload });
+      httpClient.getResponses.push({ data: jwks, status: 200 });
       httpClient.postResponses.push({
         data: { access_token: 'oidc-access-token', id_token: idToken, token_type: 'Bearer' },
         status: 200,
@@ -148,30 +173,59 @@ describe('OIDCProvider', () => {
       expect(profile.lastName).toBe('User');
     });
 
-    it('should fall back to userinfo endpoint when no ID token', async () => {
+    it('rejects a token response without an ID token (no unverified userinfo fallback)', async () => {
       httpClient.getResponses.push({ data: discoveryDocument, status: 200 });
-
       const initResult = await provider.initiateAuth('tenant-1');
-
-      // Token response without ID token
       httpClient.postResponses.push({
         data: { access_token: 'oidc-access-token', token_type: 'Bearer' },
         status: 200,
       });
+      await expect(
+        provider.handleCallback({ code: 'c', state: initResult.state }, 'tenant-1'),
+      ).rejects.toMatchObject({ code: 'OIDC_MISSING_ID_TOKEN' });
+    });
 
-      // Userinfo response
-      httpClient.getResponses.push({
-        data: { sub: 'oidc-user-456', email: 'user2@company.com', name: 'Another User' },
-        status: 200,
+    describe('PRC-M588 ID token validation', () => {
+      async function callbackWith(build: (nonce: string) => string) {
+        httpClient.getResponses.push({ data: discoveryDocument, status: 200 });
+        const init = await provider.initiateAuth('tenant-1');
+        httpClient.getResponses.push({ data: jwks, status: 200 });
+        httpClient.postResponses.push({
+          data: { access_token: 'a', id_token: build(init.nonce!), token_type: 'Bearer' },
+          status: 200,
+        });
+        return provider.handleCallback({ code: 'c', state: init.state }, 'tenant-1');
+      }
+      it.each([
+        ['wrong aud', (n: string) => signIdToken(claims(n, { aud: 'someone-else' }))],
+        ['wrong nonce', () => signIdToken(claims('not-the-nonce'))],
+        ['wrong iss', (n: string) => signIdToken(claims(n, { iss: 'https://evil.example' }))],
+        ['expired', (n: string) => signIdToken(claims(n, { exp: 1000 }))],
+        ['alg none', (n: string) => signIdToken(claims(n), 'none')],
+        ['wrong azp', (n: string) => signIdToken(claims(n, { azp: 'other-client' }))],
+        [
+          'tampered payload',
+          (n: string) => {
+            const [h, , sig] = signIdToken(claims(n)).split('.');
+            const forged = Buffer.from(
+              JSON.stringify(claims(n, { email: 'admin@company.com' })),
+            ).toString('base64url');
+            return `${h}.${forged}.${sig}`;
+          },
+        ],
+      ])('rejects %s', async (_label, build) => {
+        await expect(callbackWith(build)).rejects.toMatchObject({ code: 'OIDC_INVALID_ID_TOKEN' });
       });
 
-      const profile = await provider.handleCallback(
-        { code: 'oidc-auth-code', state: initResult.state },
-        'tenant-1',
-      );
-
-      expect(profile.externalId).toBe('oidc-user-456');
-      expect(profile.email).toBe('user2@company.com');
+      it('rejects a discovery document whose issuer is not the configured one', async () => {
+        httpClient.getResponses.push({
+          data: { ...discoveryDocument, issuer: 'https://evil.example' },
+          status: 200,
+        });
+        await expect(provider.getDiscoveryDocument()).rejects.toMatchObject({
+          code: 'OIDC_DISCOVERY_ISSUER_MISMATCH',
+        });
+      });
     });
 
     it('should throw on provider error', async () => {

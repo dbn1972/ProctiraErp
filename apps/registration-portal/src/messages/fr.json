@@ -93,7 +93,15 @@
     "fixFieldErrors": "Veuillez corriger les champs en surbrillance avant de soumettre.",
     "trackingMissingTitle": "Ce navigateur n'a pas votre numéro de suivi",
     "trackingMissingBody": "Si vous l'avez noté, ouvrez Suivi et saisissez-le avec la date de naissance de l'élève. Sinon, contactez le bureau des admissions de l'école. Cette page ne peut pas le retrouver.",
-    "schoolNameUnavailable": "Le nom de l'école n'a pas pu être chargé"
+    "schoolNameUnavailable": "Le nom de l'école n'a pas pu être chargé",
+    "invalidNumber": "Saisissez un nombre valide.",
+    "outOfRange": "La valeur est hors de la plage autorisée.",
+    "tooShort": "La valeur est trop courte.",
+    "tooLong": "La valeur est trop longue.",
+    "invalidFormat": "La valeur ne respecte pas le format requis.",
+    "copyTrackingNumber": "Copier le numéro de suivi",
+    "trackingNumberCopied": "Numéro de suivi copié",
+    "copyFailed": "Échec de la copie, sélectionnez le numéro manuellement."
   },
   "documents": {
     "title": "Téléverser des documents",
@@ -112,7 +120,8 @@
     "remove": "Supprimer",
     "reuploadHint": "re-téléversement requis",
     "reuploadRequired": "{fileName} doit être re-téléversé avant l'envoi",
-    "noneRequired": "Aucun document n'est requis pour cette candidature."
+    "noneRequired": "Aucun document n'est requis pour cette candidature.",
+    "uploadLabel": "Téléverser {label}"
   },
   "institutions": {
     "title": "Trouver une école",
@@ -131,6 +140,7 @@
     "serviceUnavailableTitle": "Service temporairement indisponible",
     "serviceUnavailableMessage": "Nous n'avons pas pu charger les écoles pour le moment. Veuillez réessayer dans un instant.",
     "retry": "Réessayer",
+    "loadingMap": "Chargement de la carte…",
     "invalidFilterTitle": "Ce type d'école n'est pas disponible",
     "invalidFilterMessage": "Le lien utilise un type d'école inconnu. Choisissez un type valide.",
     "showAll": "Voir toutes les écoles",
