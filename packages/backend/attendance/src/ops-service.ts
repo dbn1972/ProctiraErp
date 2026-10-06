@@ -2,10 +2,20 @@
  * G-919 attendance ops: regularisation state machine, student leave,
  * device ingest. Self-contained request/approve (not WorkflowService).
  */
-import { AppError, AttendanceStatus, BusinessRuleError, NotFoundError } from '@proctira/common';
+import {
+  AppError,
+  AttendanceStatus,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { AttendanceRepository, StudentAttendanceEntity } from './attendance-repository.js';
+import type {
+  AttendanceRepository,
+  AttendanceWriteOp,
+  StudentAttendanceEntity,
+} from './attendance-repository.js';
 import type {
   CreateLeaveRequestInput,
   CreateRegularisationInput,
@@ -71,6 +81,14 @@ function punchHour(iso: string): number {
   return Number.isNaN(t.getTime()) ? 12 : t.getUTCHours();
 }
 
+/** Patch that re-opens a claimed request when its attendance write fails. */
+const REOPEN = {
+  status: 'requested' as const,
+  decidedBy: null,
+  decidedAt: null,
+  decisionNote: null,
+};
+
 export class AttendanceOpsService {
   constructor(
     private readonly store: AttendanceOpsStore,
@@ -86,39 +104,54 @@ export class AttendanceOpsService {
     input: CreateRegularisationInput,
     actor: OpsActor,
   ): Promise<RegularisationRecord> {
-    const now = nowIso();
     // PRC-M081: resolve the attendance record server-side (tenant-scoped) so
-    // the requester never pastes a record id and fromStatus is always the
-    // stored status, not a client-typed value.
-    const record = await this.attendance.findStudentAttendance(
-      tenantId,
-      input.studentId,
-      input.classId,
-      input.attendanceDate,
-      null,
-      null,
-    );
-    if (!record) {
-      throw new NotFoundError(
-        'No attendance record exists for this student, class and date; mark attendance first',
+    // the requester never has to paste a record id. PRC-M170: a supplied id
+    // must name that same record, and the stored record is the source of
+    // truth for the claim (student / class / institution / date / status).
+    let record: StudentAttendanceEntity | null;
+    if (input.attendanceId) {
+      record = await this.attendance.findStudentAttendanceById(tenantId, input.attendanceId);
+      if (!record) {
+        throw new NotFoundError('attendanceId does not match the record for this student and date');
+      }
+    } else {
+      record = await this.attendance.findStudentAttendance(
+        tenantId,
+        input.studentId,
+        input.classId,
+        input.attendanceDate,
+        null,
+        null,
       );
+      if (!record) {
+        throw new NotFoundError(
+          'No attendance record exists for this student, class and date; mark attendance first',
+        );
+      }
     }
-    if (input.attendanceId && input.attendanceId !== record.id) {
-      throw new BusinessRuleError(
-        'attendanceId does not match the record for this student and date',
-      );
+    if (
+      record.studentId !== input.studentId ||
+      record.classId !== input.classId ||
+      record.institutionId !== input.institutionId ||
+      record.date !== input.attendanceDate
+    ) {
+      throw new BusinessRuleError('Regularisation does not match the attendance record');
+    }
+    if (input.fromStatus !== undefined && input.fromStatus !== String(record.status)) {
+      throw new ConflictError('Attendance status changed; reload and retry');
     }
     if (record.status === input.toStatus) {
       throw new BusinessRuleError(`Attendance is already ${record.status}`);
     }
+    const now = nowIso();
     return this.store.createRegularisation({
       id: uuidv4(),
       tenantId,
       attendanceId: record.id,
-      studentId: input.studentId,
-      institutionId: input.institutionId,
-      classId: input.classId,
-      attendanceDate: input.attendanceDate,
+      studentId: record.studentId,
+      institutionId: record.institutionId,
+      classId: record.classId,
+      attendanceDate: record.date,
       fromStatus: record.status,
       toStatus: input.toStatus,
       reason: input.reason ?? null,
@@ -146,33 +179,64 @@ export class AttendanceOpsService {
     const row = await this.store.getRegularisation(tenantId, id);
     if (!row) throw new NotFoundError(`Regularisation '${id}' not found`);
     if (row.status !== 'requested') {
-      throw new BusinessRuleError(`Regularisation is already ${row.status}`);
+      throw new ConflictError(`Regularisation is already ${row.status}`);
     }
+    if (row.requesterId === actor.userId) {
+      throw new AppError('Forbidden: requester cannot decide own regularisation', 'FORBIDDEN', 403);
+    }
+    // PRC-M171: claim the request first with a compare-and-set on
+    // status='requested'; a concurrent decision gets 0 rows -> 409.
+    const next = await this.store.updateRegularisation(
+      tenantId,
+      id,
+      {
+        status: decision,
+        decidedBy: actor.userId,
+        decidedAt: nowIso(),
+        decisionNote: note ?? null,
+      },
+      'requested',
+    );
+    if (!next) throw new ConflictError(`Regularisation '${id}' was already decided`);
     if (decision === 'approved') {
-      const updated = await this.attendance.updateStudentAttendance(row.attendanceId, tenantId, {
-        status: row.toStatus as AttendanceStatus,
-      });
-      if (!updated) {
-        throw new NotFoundError(`Attendance record '${row.attendanceId}' not found`);
-      }
-      await this.attendance.createAuditEntry({
-        id: uuidv4(),
-        tenantId,
-        attendanceId: row.attendanceId,
-        previousStatus: row.fromStatus as AttendanceStatus,
-        newStatus: row.toStatus as AttendanceStatus,
-        changedBy: actor.userId,
-        changedAt: new Date(),
-      });
+      // PRC-M168: status change + audit row in one tenant transaction.
+      await this.withClaimRollback(
+        () => this.store.updateRegularisation(tenantId, id, REOPEN, decision),
+        () =>
+          this.attendance.applyStudentAttendanceWrites(tenantId, [
+            {
+              kind: 'update',
+              id: row.attendanceId,
+              data: { status: row.toStatus as AttendanceStatus },
+              // PRC-M170: stale request (row changed since request) -> 409, no write.
+              expectedStatus: row.fromStatus as AttendanceStatus,
+              audit: {
+                id: uuidv4(),
+                previousStatus: null,
+                newStatus: row.toStatus as AttendanceStatus,
+                changedBy: actor.userId,
+                changedAt: new Date(),
+              },
+            },
+          ]),
+      );
     }
-    const next = await this.store.updateRegularisation(tenantId, id, {
-      status: decision,
-      decidedBy: actor.userId,
-      decidedAt: nowIso(),
-      decisionNote: note ?? null,
-    });
-    if (!next) throw new NotFoundError(`Regularisation '${id}' not found`);
     return next;
+  }
+
+  /**
+   * The request store and attendance tables use separate connections, so the
+   * claim cannot share the attendance transaction. If the (atomic) attendance
+   * write fails, re-open the claim (compare-and-set on the claimed status) and
+   * rethrow, leaving the request 'requested' and attendance untouched.
+   */
+  private async withClaimRollback(reopen: () => Promise<unknown>, work: () => Promise<unknown>) {
+    try {
+      await work();
+    } catch (err) {
+      await reopen().catch(() => undefined);
+      throw err;
+    }
   }
 
   listLeaves(tenantId: string, status?: LeaveRequestRecord['status']) {
@@ -223,29 +287,50 @@ export class AttendanceOpsService {
     const row = await this.store.getLeave(tenantId, id);
     if (!row) throw new NotFoundError(`Leave request '${id}' not found`);
     if (row.status !== 'requested') {
-      throw new BusinessRuleError(`Leave request is already ${row.status}`);
+      throw new ConflictError(`Leave request is already ${row.status}`);
     }
+    // PRC-M171: compare-and-set claim before any attendance write.
+    const next = await this.store.updateLeave(
+      tenantId,
+      id,
+      {
+        status: decision,
+        decidedBy: actor.userId,
+        decidedAt: nowIso(),
+        decisionNote: note ?? null,
+      },
+      'requested',
+    );
+    if (!next) throw new ConflictError(`Leave request '${id}' was already decided`);
     if (decision === 'approved') {
-      for (const date of weekdayDates(row.fromDate, row.toDate)) {
-        await this.markExcusedDay(tenantId, row, date, actor.userId);
-      }
+      await this.withClaimRollback(
+        () => this.store.updateLeave(tenantId, id, REOPEN, decision),
+        async () => {
+          // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.
+          const ops: AttendanceWriteOp[] = [];
+          for (const date of weekdayDates(row.fromDate, row.toDate)) {
+            ops.push(await this.excusedDayOp(tenantId, row, date, actor.userId));
+          }
+          if (ops.length > 0) await this.attendance.applyStudentAttendanceWrites(tenantId, ops);
+        },
+      );
     }
-    const next = await this.store.updateLeave(tenantId, id, {
-      status: decision,
-      decidedBy: actor.userId,
-      decidedAt: nowIso(),
-      decisionNote: note ?? null,
-    });
-    if (!next) throw new NotFoundError(`Leave request '${id}' not found`);
     return next;
   }
 
-  private async markExcusedDay(
+  private async excusedDayOp(
     tenantId: string,
     row: LeaveRequestRecord,
     date: string,
     actorId: string,
-  ): Promise<void> {
+  ): Promise<AttendanceWriteOp> {
+    const audit = {
+      id: uuidv4(),
+      previousStatus: null,
+      newStatus: AttendanceStatus.EXCUSED,
+      changedBy: actorId,
+      changedAt: new Date(),
+    };
     const existing = await this.attendance.findStudentAttendance(
       tenantId,
       row.studentId,
@@ -255,44 +340,31 @@ export class AttendanceOpsService {
       null,
     );
     if (existing) {
-      await this.attendance.updateStudentAttendance(existing.id, tenantId, {
-        status: AttendanceStatus.EXCUSED,
-        comment: row.reason ?? 'Leave approved',
-      });
-      await this.attendance.createAuditEntry({
+      return {
+        kind: 'update',
+        id: existing.id,
+        data: { status: AttendanceStatus.EXCUSED, comment: row.reason ?? 'Leave approved' },
+        audit,
+      };
+    }
+    return {
+      kind: 'create',
+      data: {
         id: uuidv4(),
         tenantId,
-        attendanceId: existing.id,
-        previousStatus: existing.status,
-        newStatus: AttendanceStatus.EXCUSED,
-        changedBy: actorId,
-        changedAt: new Date(),
-      });
-      return;
-    }
-    const created: StudentAttendanceEntity = await this.attendance.createStudentAttendance({
-      id: uuidv4(),
-      tenantId,
-      studentId: row.studentId,
-      institutionId: row.institutionId,
-      classId: row.classId,
-      academicPeriodId: row.academicPeriodId,
-      date,
-      subjectId: null,
-      periodId: null,
-      status: AttendanceStatus.EXCUSED,
-      comment: row.reason ?? 'Leave approved',
-      recordedBy: actorId,
-    });
-    await this.attendance.createAuditEntry({
-      id: uuidv4(),
-      tenantId,
-      attendanceId: created.id,
-      previousStatus: null,
-      newStatus: AttendanceStatus.EXCUSED,
-      changedBy: actorId,
-      changedAt: new Date(),
-    });
+        studentId: row.studentId,
+        institutionId: row.institutionId,
+        classId: row.classId,
+        academicPeriodId: row.academicPeriodId,
+        date,
+        subjectId: null,
+        periodId: null,
+        status: AttendanceStatus.EXCUSED,
+        comment: row.reason ?? 'Leave approved',
+        recordedBy: actorId,
+      },
+      audit,
+    };
   }
 
   async registerDevice(

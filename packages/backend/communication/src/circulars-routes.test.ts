@@ -41,7 +41,7 @@ describe('Circular routes (G-922)', () => {
         audienceIds: ['teacher'],
         requiresAck: true,
         channels: ['whatsapp'],
-        recipientIds: ['r1'],
+        recipientIds: ['comms-staff'],
       },
     });
     expect(created.statusCode).toBe(201);
@@ -54,7 +54,7 @@ describe('Circular routes (G-922)', () => {
     const acked = await app.inject({
       method: 'POST',
       url: `/communication/circulars/${id}/ack`,
-      payload: { recipientId: 'r1' },
+      payload: {},
     });
     expect(acked.statusCode).toBe(200);
     expect(acked.json().ackRate).toBe(1);
@@ -144,13 +144,25 @@ describe('Circular acknowledgement scoping (PRC-M071)', () => {
     expect(res.json().ackCount).toBe(1);
   });
 
-  it('lets communication staff record an acknowledgement on behalf of a recipient', async () => {
+  it('does not let communication staff ack for another recipient via the normal ack', async () => {
     const id = await sentCircular();
     const res = await app.inject({
       method: 'POST',
       url: `/communication/circulars/${id}/ack`,
       payload: { recipientId: 'user-b' },
     });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('lets an admin record an acknowledgement on behalf of a recipient with a reason', async () => {
+    const id = await sentCircular();
+    user = { sub: 'school-admin-1', roles: ['admin'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack-on-behalf`,
+      payload: { recipientId: 'user-b', reason: 'Signed paper slip returned' },
+    });
     expect(res.statusCode).toBe(200);
+    expect(res.json().ackCount).toBe(1);
   });
 });

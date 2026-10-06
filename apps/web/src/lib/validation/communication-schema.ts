@@ -10,3 +10,9 @@ export const circularFormSchema = z.object({
   channels: z.array(z.string()).optional(),
 });
 export type CircularFormValues = z.infer<typeof circularFormSchema>;
+
+/**
+ * Max length of the staff reason on a proxy (on-behalf) circular
+ * acknowledgement — mirrors the gateway `ACK_ON_BEHALF_REASON_MAX` (PR #548).
+ */
+export const ACK_ON_BEHALF_REASON_MAX = 500;

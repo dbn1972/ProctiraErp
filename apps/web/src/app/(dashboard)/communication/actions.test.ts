@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
-  ackCircular: vi.fn(),
+  ackCircularOnBehalf: vi.fn(),
   confirmEmergencyBlast: vi.fn(),
   createCampaign: vi.fn(),
   createCircular: vi.fn(),
@@ -138,15 +138,31 @@ describe('circulars', () => {
   });
 
   it('ack rejects a blank recipient without calling the gateway', async () => {
-    expect((await ackCircularAction(C1, '  ')).status).toBe('error');
-    expect(api.ackCircular).not.toHaveBeenCalled();
+    expect((await ackCircularAction(C1, '  ', 'Paper slip')).status).toBe('error');
+    expect(api.ackCircularOnBehalf).not.toHaveBeenCalled();
   });
-
+  it('ack rejects a missing or oversized reason without calling the gateway', async () => {
+    expect(await ackCircularAction(C1, 'r1', '   ')).toEqual({
+      status: 'error',
+      message: 'A reason is required.',
+    });
+    expect((await ackCircularAction(C1, 'r1', 'x'.repeat(501))).status).toBe('error');
+    expect(api.ackCircularOnBehalf).not.toHaveBeenCalled();
+  });
+  it('ack records on behalf with the trimmed recipient and reason', async () => {
+    api.ackCircularOnBehalf.mockResolvedValue({ id: C1, ackRate: 0.5 });
+    const res = await ackCircularAction(C1, ' r1 ', '  Paper slip returned ');
+    expect(res.status).toBe('success');
+    expect(api.ackCircularOnBehalf).toHaveBeenCalledWith(C1, 'r1', 'Paper slip returned');
+  });
   it('ack maps a gateway 403 to its message', async () => {
-    api.ackCircular.mockRejectedValue(
+    api.ackCircularOnBehalf.mockRejectedValue(
       new GatewayError({ status: 403, code: 'FORBIDDEN', message: 'Forbidden' }),
     );
-    expect(await ackCircularAction(C1, 'r1')).toEqual({ status: 'error', message: 'Forbidden' });
+    expect(await ackCircularAction(C1, 'r1', 'Paper slip')).toEqual({
+      status: 'error',
+      message: 'Forbidden',
+    });
   });
 });
 

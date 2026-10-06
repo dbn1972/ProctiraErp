@@ -3,10 +3,11 @@
  *
  * Used for unit testing without database dependencies.
  */
-import { AttendanceStatus } from '@proctira/common';
+import { AttendanceStatus, ConflictError, NotFoundError } from '@proctira/common';
 
 import type {
   AttendanceRepository,
+  AttendanceWriteOp,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   StudentRosterEntry,
@@ -14,6 +15,7 @@ import type {
   InstitutionAttendanceConfig,
   AttendanceAuditEntry,
   AttendancePercentageQuery,
+  AttendanceStatusCount,
   AbsenceThresholdConfig,
 } from './attendance-repository.js';
 
@@ -131,6 +133,75 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     );
   }
 
+  async findStudentAttendanceById(
+    tenantId: string,
+    id: string,
+  ): Promise<StudentAttendanceEntity | null> {
+    return this.studentAttendance.find((r) => r.id === id && r.tenantId === tenantId) ?? null;
+  }
+
+  /** Test hook: throw from the Nth audit insert inside a write batch (fault injection). */
+  failAuditOnCall: number | null = null;
+  private auditCalls = 0;
+
+  /** All-or-nothing (PRC-M168): snapshot, apply, restore on any failure. */
+  async applyStudentAttendanceWrites(
+    tenantId: string,
+    ops: AttendanceWriteOp[],
+  ): Promise<StudentAttendanceEntity[]> {
+    const snapRows = this.studentAttendance.map((r) => ({ ...r }));
+    const snapAudit = [...this.auditEntries];
+    const pushAudit = (entry: AttendanceAuditEntry) => {
+      this.auditCalls += 1;
+      if (this.failAuditOnCall !== null && this.auditCalls === this.failAuditOnCall) {
+        throw new Error('injected audit failure');
+      }
+      this.auditEntries.push(entry);
+    };
+    try {
+      const out: StudentAttendanceEntity[] = [];
+      for (const op of ops) {
+        if (op.kind === 'create') {
+          const entity: StudentAttendanceEntity = {
+            ...op.data,
+            tenantId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          this.studentAttendance.push(entity);
+          if (op.audit)
+            pushAudit({ ...op.audit, tenantId, attendanceId: entity.id, previousStatus: null });
+          out.push(entity);
+          continue;
+        }
+        const index = this.studentAttendance.findIndex(
+          (r) => r.id === op.id && r.tenantId === tenantId,
+        );
+        if (index === -1) throw new NotFoundError(`Attendance record '${op.id}' not found`);
+        const current = this.studentAttendance[index]!;
+        if (op.expectedStatus !== undefined && current.status !== op.expectedStatus) {
+          throw new ConflictError(`Attendance record '${op.id}' changed since the request`);
+        }
+        const next = { ...current, ...op.data, id: current.id, tenantId, updatedAt: new Date() };
+        this.studentAttendance[index] = next;
+        if (op.audit && (!op.auditOnlyOnStatusChange || current.status !== next.status)) {
+          pushAudit({
+            ...op.audit,
+            tenantId,
+            attendanceId: op.id,
+            previousStatus: current.status,
+          });
+        }
+        out.push(next);
+      }
+      return out;
+    } catch (err) {
+      this.studentAttendance = snapRows;
+      this.auditEntries = snapAudit;
+      throw err;
+    }
+  }
+
   // --- Staff Attendance ---
 
   async createStaffAttendance(
@@ -196,8 +267,16 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     return (
       this.academicPeriods.find((p) => {
         if (p.tenantId !== tenantId || p.status !== 'active') return false;
-        const start = Date.UTC(p.startDate.getUTCFullYear(), p.startDate.getUTCMonth(), p.startDate.getUTCDate());
-        const end = Date.UTC(p.endDate.getUTCFullYear(), p.endDate.getUTCMonth(), p.endDate.getUTCDate());
+        const start = Date.UTC(
+          p.startDate.getUTCFullYear(),
+          p.startDate.getUTCMonth(),
+          p.startDate.getUTCDate(),
+        );
+        const end = Date.UTC(
+          p.endDate.getUTCFullYear(),
+          p.endDate.getUTCMonth(),
+          p.endDate.getUTCDate(),
+        );
         return start <= asOfDay && asOfDay <= end;
       }) ?? null
     );
@@ -257,6 +336,20 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
           return false;
       }
     });
+  }
+
+  async countStudentAttendanceByStatus(
+    tenantId: string,
+    query: AttendancePercentageQuery,
+  ): Promise<AttendanceStatusCount[]> {
+    const buckets = new Map<string, AttendanceStatusCount>();
+    for (const r of await this.listStudentAttendanceByDateRange(tenantId, query)) {
+      const key = `${r.studentId}\u0000${r.status}`;
+      const b = buckets.get(key) ?? { studentId: r.studentId, status: r.status, count: 0 };
+      b.count += 1;
+      buckets.set(key, b);
+    }
+    return [...buckets.values()];
   }
 
   async listStudentAttendanceByStudentDateRange(

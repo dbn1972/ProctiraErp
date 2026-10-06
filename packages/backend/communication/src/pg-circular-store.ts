@@ -18,6 +18,7 @@ import type {
   DeliverySourceType,
   DeliveryStatus,
 } from './circular-store.js';
+import { DEFAULT_PAGE, type PageRequest } from './pagination.js';
 
 export type PgCircularPool = PgQueryable & { connect?: unknown };
 
@@ -143,14 +144,95 @@ export class PgCircularStore implements CircularStore {
     });
   }
 
-  async listCirculars(tenantId: string): Promise<CircularRecord[]> {
+  async createCircularWithAcks(
+    record: CircularRecord,
+    acks: CircularAckRecord[],
+  ): Promise<CircularRecord> {
+    await ensureCircularSchema(this.pool);
+    // withPgTenant runs fn inside BEGIN/COMMIT, so the circular and its acks commit together.
+    return this.run(record.tenantId, async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO comms_circulars (
+           id, tenant_id, title, body, audience_type, audience_json, requires_ack, channels, status, created_by, sent_at, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13)
+         RETURNING *`,
+        [
+          record.id,
+          record.tenantId,
+          record.title,
+          record.body,
+          record.audienceType,
+          JSON.stringify(record.audienceJson ?? {}),
+          record.requiresAck,
+          record.channels,
+          record.status,
+          record.createdBy,
+          record.sentAt,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+      if (acks.length > 0) {
+        await client.query(
+          `INSERT INTO comms_circular_acks (
+             id, tenant_id, circular_id, recipient_id, recipient_label, acknowledged_at, created_at
+           )
+           SELECT a.id, $1, $2, a.recipient_id, a.recipient_label, NULL, $3
+             FROM unnest($4::uuid[], $5::text[], $6::text[]) AS a(id, recipient_id, recipient_label)
+           ON CONFLICT (tenant_id, circular_id, recipient_id) DO NOTHING`,
+          [
+            record.tenantId,
+            record.id,
+            record.createdAt,
+            acks.map((a) => a.id),
+            acks.map((a) => a.recipientId),
+            acks.map((a) => a.recipientLabel),
+          ],
+        );
+      }
+      return mapCircular(rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listCirculars(
+    tenantId: string,
+    page: PageRequest = DEFAULT_PAGE,
+  ): Promise<CircularRecord[]> {
     await ensureCircularSchema(this.pool);
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM comms_circulars WHERE tenant_id = $1 ORDER BY created_at DESC`,
-        [tenantId],
+        `SELECT * FROM comms_circulars WHERE tenant_id = $1
+          ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+        [tenantId, page.limit + 1, page.offset],
       );
       return rows.map((row) => mapCircular(row as Record<string, unknown>));
+    });
+  }
+
+  async countAcksByCircular(
+    tenantId: string,
+    circularIds: string[],
+  ): Promise<Map<string, { total: number; acknowledged: number }>> {
+    const out = new Map<string, { total: number; acknowledged: number }>();
+    if (circularIds.length === 0) return out;
+    await ensureCircularSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT circular_id,
+                COUNT(*)::int AS total,
+                COUNT(acknowledged_at)::int AS acknowledged
+           FROM comms_circular_acks
+          WHERE tenant_id = $1 AND circular_id = ANY($2::uuid[])
+          GROUP BY circular_id`,
+        [tenantId, circularIds],
+      );
+      for (const row of rows as Array<Record<string, unknown>>) {
+        out.set(String(row.circular_id), {
+          total: Number(row.total),
+          acknowledged: Number(row.acknowledged),
+        });
+      }
+      return out;
     });
   }
 
@@ -297,6 +379,7 @@ export class PgCircularStore implements CircularStore {
   async listDeliveryLogs(
     tenantId: string,
     filter: DeliveryLogFilter = {},
+    page: PageRequest = DEFAULT_PAGE,
   ): Promise<DeliveryLogRecord[]> {
     await ensureCircularSchema(this.pool);
     return this.run(tenantId, async (client) => {
@@ -315,8 +398,10 @@ export class PgCircularStore implements CircularStore {
         clauses.push(`source_type = $${i++}`);
         values.push(filter.sourceType);
       }
+      values.push(page.limit + 1, page.offset);
       const { rows } = await client.query(
-        `SELECT * FROM comms_delivery_log WHERE ${clauses.join(' AND ')} ORDER BY created_at DESC`,
+        `SELECT * FROM comms_delivery_log WHERE ${clauses.join(' AND ')}
+          ORDER BY created_at DESC, id DESC LIMIT $${i++} OFFSET $${i}`,
         values,
       );
       return rows.map((row) => mapLog(row as Record<string, unknown>));

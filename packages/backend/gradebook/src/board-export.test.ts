@@ -127,6 +127,25 @@ describe('GradebookService board exports', () => {
     expect(file.body.toString('utf8')).toContain('CBSE-AFF-DEMO');
   });
 
+  it('PRC-M263: client metadata.prep / studentIds are ignored', async () => {
+    const { service } = setupComplete();
+    const job = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      metadata: {
+        prep: { candidates: [{ studentId: 'forged', nationalId: 'NID-FORGED' }] },
+        studentIds: ['forged'],
+        boardCode: 'ICSE',
+      },
+    } as never);
+    expect(job.status).toBe('SUCCEEDED');
+    expect(job.metadata.studentIds).toEqual([STUDENT]);
+    expect(job.metadata.boardCode).toBe('CBSE');
+    const file = await service.downloadBoardExport(TENANT, job.id, 'csv');
+    expect(file.body.toString('utf8')).not.toContain('NID-FORGED');
+  });
+
   it('rejects incomplete grades with BusinessRuleError (422)', async () => {
     const { service, repo } = setupComplete();
     repo.seedExportCandidate({

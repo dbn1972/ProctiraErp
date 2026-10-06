@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
-  ackCircular,
+  ackCircularOnBehalf,
   confirmEmergencyBlast,
   createCampaign,
   createCircular,
@@ -20,7 +20,10 @@ import {
 } from '@/lib/api/communication';
 import { requireSession } from '@/lib/auth/server';
 import { INVALID_ID_MESSAGE, areValidActionIds } from '@/lib/validation/campus-action-schema';
-import { circularFormSchema } from '@/lib/validation/communication-schema';
+import {
+  ACK_ON_BEHALF_REASON_MAX,
+  circularFormSchema,
+} from '@/lib/validation/communication-schema';
 
 export interface CommunicationActionState {
   status: 'idle' | 'success' | 'error';
@@ -250,16 +253,31 @@ export async function sendCircularAction(id: string): Promise<CommunicationActio
   }
 }
 
+/**
+ * Records an acknowledgement on behalf of a recipient (admin-only on the
+ * gateway). A reason is required and is written to the audit trail.
+ */
 export async function ackCircularAction(
   id: string,
   recipientId: string,
+  reason: string,
 ): Promise<CommunicationActionState> {
   if (!areValidActionIds(id)) return { status: 'error', message: INVALID_ID_MESSAGE };
   if (!recipientId.trim()) {
     return { status: 'error', message: 'Recipient id is required.' };
   }
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    return { status: 'error', message: 'A reason is required.' };
+  }
+  if (trimmedReason.length > ACK_ON_BEHALF_REASON_MAX) {
+    return {
+      status: 'error',
+      message: `Reason must be ${ACK_ON_BEHALF_REASON_MAX} characters or fewer.`,
+    };
+  }
   try {
-    const circular = await ackCircular(id, recipientId.trim());
+    const circular = await ackCircularOnBehalf(id, recipientId.trim(), trimmedReason);
     revalidatePath(`/communication/circulars/${id}`);
     return {
       status: 'success',
