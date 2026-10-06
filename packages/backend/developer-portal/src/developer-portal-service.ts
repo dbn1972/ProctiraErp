@@ -7,7 +7,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -894,15 +894,23 @@ export class DeveloperPortalService {
     return this.repository.listSubmissions({ status }, page, pageSize);
   }
 
+  /**
+   * Review a submission. Callers must already have verified platform-staff
+   * rights (PRC-H048). Self-review is rejected: the reviewer may not be the
+   * submitting developer account (same subject or email) and may not review
+   * from a tenant in which the submitting account holds API keys or webhooks.
+   */
   async reviewPlugin(
     submissionId: string,
     reviewerId: string,
     input: ReviewPluginInput,
+    reviewer: { email?: string; tenantId?: string } = {},
   ): Promise<PluginSubmissionEntity> {
     const submission = await this.repository.getSubmissionById(submissionId);
     if (!submission) {
       throw new NotFoundError(`Plugin submission '${submissionId}' not found`);
     }
+    await this.assertNotSelfReview(submission.accountId, reviewerId, reviewer);
     if (submission.status !== 'submitted' && submission.status !== 'in_review') {
       throw new BusinessRuleError(
         `Cannot review submission in '${submission.status}' status. Must be 'submitted' or 'in_review'.`,
@@ -917,6 +925,35 @@ export class DeveloperPortalService {
       reviewerId,
     );
     return updated!;
+  }
+
+  private async assertNotSelfReview(
+    accountId: string,
+    reviewerId: string,
+    reviewer: { email?: string; tenantId?: string },
+  ): Promise<void> {
+    const selfReview = new ForbiddenError(
+      'Self-review is not allowed: the reviewer belongs to the submitting developer account or tenant',
+    );
+    if (reviewerId === accountId) throw selfReview;
+    const account = await this.repository.getAccountById(accountId);
+    if (account && reviewer.email && account.email.toLowerCase() === reviewer.email.toLowerCase()) {
+      throw selfReview;
+    }
+    if (reviewer.tenantId) {
+      const keys = await this.repository.listApiKeys(
+        { accountId, tenantId: reviewer.tenantId },
+        1,
+        1,
+      );
+      if (keys.total > 0) throw selfReview;
+      const hooks = await this.repository.listWebhooks(
+        { accountId, tenantId: reviewer.tenantId },
+        1,
+        1,
+      );
+      if (hooks.total > 0) throw selfReview;
+    }
   }
 
   async publishPlugin(submissionId: string): Promise<MarketplaceListingEntity> {
@@ -1119,7 +1156,32 @@ export class DeveloperPortalService {
 
   // ─── Analytics ──────────────────────────────────────────────────────────
 
+  /**
+   * PRC-H048: bind non-staff analytics ingest to a plugin credential. The
+   * caller must present an active developer API key owned by the listing's
+   * developer account and issued in the caller's tenant. Returns false when
+   * the credential is missing, invalid, foreign to the plugin or cross-tenant.
+   */
+  async isAnalyticsIngestAuthorized(
+    pluginName: string,
+    rawApiKey: string | undefined,
+    tenantId: string | undefined,
+  ): Promise<boolean> {
+    if (!rawApiKey || !tenantId) return false;
+    const listing = await this.repository.getListingByName(pluginName);
+    if (!listing) return false;
+    const key = await this.validateApiKey(rawApiKey);
+    if (!key) return false;
+    return key.accountId === listing.accountId && key.tenantId === tenantId;
+  }
+
   async recordAnalyticsEvent(input: RecordAnalyticsEventInput): Promise<AnalyticsEventEntity> {
+    // PRC-H048: events for plugins that are not published marketplace
+    // listings are rejected so install/api_call counters cannot be forged.
+    const listing = await this.repository.getListingByName(input.pluginName);
+    if (!listing) {
+      throw new NotFoundError(`Marketplace plugin '${input.pluginName}' not found`);
+    }
     const event: AnalyticsEventEntity = {
       id: uuidv4(),
       pluginName: input.pluginName,
