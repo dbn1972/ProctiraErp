@@ -76,7 +76,7 @@ import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import { registerAuthAudit } from './auth-audit.js';
-import type { GatewayConfig } from './config.js';
+import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
@@ -93,8 +93,13 @@ import {
   MUTATING_HTTP_METHODS,
 } from './mutating-route-authz.js';
 import {
+  AuditAvailabilityGate,
   buildAuditValues,
-  entityIdFromPath,
+  isAtomicMutationAuditPath,
+  isAuditableMutationOutcome,
+  MutationAuditRetryQueue,
+  resolveAuditEntityId,
+  shouldFailClosedOnMutationAuditFailure,
   entityTypeForPath,
   MUTATION_AUDIT_UNAVAILABLE_BODY,
   operationForMethod,
@@ -472,6 +477,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // When KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set, verify Keycloak JWKS tokens.
   // Omitting them keeps local HS-JWT as a CI/headless fallback only — not an alternate product IdP.
   const keycloak = loadKeycloakAuthConfig();
+  // PRC-M011: no silent HS fallback / localhost IdP redirects in deployed envs.
+  assertAuthBootPolicy({ configEnv: config.env, keycloakConfigured: Boolean(keycloak) });
   // G-713: the only anonymous surface is health probes, docs (non-prod), and the
   // pre-login auth flows. `/api/v1/services` and `/api/v1/auth/roles` require a JWT.
   const authExcludePaths = [
@@ -495,7 +502,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/auth/mfa/otp/resend',
     '/auth/mfa/resend',
     '/auth/mfa/verify',
-    '/api/v1/storage/health',
+    // PRC-M023: /api/v1/storage/health is no longer anonymous (platform admin only).
   ];
   const authMiddlewareExcludePaths = [
     ...authExcludePaths,
@@ -604,13 +611,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     await registerInviteAndTenantDirectoryRoutes(app, {
       inviteService,
       tenantDirectory: getTenantRepository(),
+      // PRC-M017: invites live under /api/v1 so RBAC, the suspended-tenant gate
+      // and mutation audit apply; root paths are 308 redirects only.
+      // GET /tenants/mine stays at root: read-only, JWT-derived, behind the
+      // global auth hook (the /api/v1 `tenants` segment is platform-only).
+      prefix: '/api/v1',
+      legacyRootRedirects: true,
     });
   }
 
   // G-504 — secrets accepted during rotation (current first, then previous).
   const jwtVerifySecrets = verifySecretCandidates({
     current: config.jwt.secret,
-    previous: config.jwt.previousSecret,
+    // PRC-M011: same strength rules as JWT_SECRET for injected configs too.
+    previous: resolvePreviousJwtSecret(config.env, config.jwt.previousSecret, config.jwt.secret),
     currentKid: 'current',
     previousKid: 'previous',
   });
@@ -930,6 +944,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works).
+  // PRC-M010: replay runs in preHandler, i.e. after every onRequest gate below
+  // (RBAC, mutating authz, scope) and the preHandler rate limiter.
   // W1-ARCH-03: Redis required when IDEMPOTENCY_STORE=redis / REDIS_URL / production —
   // never silently fall back to process memory (refuse boot or request-time 503).
   const idempotencyStore = await resolveIdempotencyStore();
@@ -938,6 +954,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     redis: idempotencyStore.redis,
     ttlSeconds: parseInt(process.env['IDEMPOTENCY_TTL_SECONDS'] || '86400', 10),
     lockTtlSeconds: parseInt(process.env['IDEMPOTENCY_LOCK_TTL_SECONDS'] || '60', 10),
+    // PRC-M010: never share an anonymous / `global` replay space between callers.
+    requireScope: true,
     excludePaths: [
       ...authExcludePaths,
       '/api/v1/services',
@@ -1048,14 +1066,46 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
   // Post-hoc onSend remains for unwired paths; production never degrades.
+  //
+  // PRC-M014: fail closed *before* the handler. For security-sensitive
+  // production mutations that are not same-txn audited, probe (cached) audit
+  // availability in preHandler and reject with 503 so nothing is committed.
+  const auditGate = new AuditAvailabilityGate(async () => {
+    await app.auditService.queryAuditLogs({
+      tenantId: '00000000-0000-0000-0000-000000000000',
+      page: 1,
+      pageSize: 1,
+    });
+  });
+  const auditRetryQueue = new MutationAuditRetryQueue(
+    () => app.auditService,
+    (input, error) =>
+      app.log.error(
+        { err: error, entityType: input.entityType, entityId: input.entityId },
+        'mutation audit retry exhausted (PRC-M014) — manual reconciliation required',
+      ),
+  );
+  app.addHook('preHandler', async (request, reply) => {
+    if (!shouldAuditMutation(request.method, request.url)) return;
+    const path = request.url.split('?')[0]!;
+    if (isAtomicMutationAuditPath(path)) return;
+    if (!shouldFailClosedOnMutationAuditFailure({ path })) return;
+    if (await auditGate.isAvailable()) return;
+    request.log.error(
+      { path, method: request.method },
+      'audit unavailable; mutation refused before handler',
+    );
+    reply.header('retry-after', '5');
+    return reply.status(503).send(MUTATION_AUDIT_UNAVAILABLE_BODY);
+  });
+
   app.addHook('onSend', async (request, reply, payload) => {
     if (!shouldAuditMutation(request.method, request.url)) return payload;
     // Already committed domain + audit/outbox atomically — do not dual-write.
     if (wasRegulatedMutationAuditCommitted(request)) return payload;
-    // Skip unauthenticated / forbidden — still record validation failures (4xx)
-    // so mutating attempts that passed RBAC leave an audit trail.
-    if (reply.statusCode === 401 || reply.statusCode === 403) return payload;
-    if (reply.statusCode >= 500) return payload;
+    // PRC-M013: only state-changing outcomes are audited as mutations; a 4xx
+    // (validation, 401/403, conflict) changed nothing and is not a CREATE row.
+    if (!isAuditableMutationOutcome(reply.statusCode)) return payload;
 
     const user = request.user;
     if (!user) return payload;
@@ -1063,22 +1113,29 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const path = request.url.split('?')[0]!;
     const operation = operationForMethod(request.method);
     const { beforeValues, afterValues } = buildAuditValues(operation, request);
+    const input = {
+      tenantId: user.tenantId,
+      entityType: entityTypeForPath(path),
+      entityId: resolveAuditEntityId(path, payload),
+      operation,
+      userId: user.sub,
+      userName: user.displayName ?? user.email ?? user.sub,
+      ipAddress: request.ip,
+      beforeValues,
+      afterValues,
+      metadata: {
+        method: request.method,
+        path,
+        statusCode: reply.statusCode,
+        outcome: 'success',
+        requestId: request.id,
+      },
+    };
 
     const outcome = await persistMutationAudit({
       auditService: app.auditService,
       path,
-      input: {
-        tenantId: user.tenantId,
-        entityType: entityTypeForPath(path),
-        entityId: entityIdFromPath(path),
-        operation,
-        userId: user.sub,
-        userName: user.displayName ?? user.email ?? user.sub,
-        ipAddress: request.ip,
-        beforeValues,
-        afterValues,
-        metadata: { method: request.method, path, statusCode: reply.statusCode },
-      },
+      input,
     });
 
     if (outcome.ok) return payload;
@@ -1090,9 +1147,15 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     if (!outcome.failClosed) return payload;
 
-    reply.code(503);
-    reply.header('content-type', 'application/json; charset=utf-8');
-    return JSON.stringify(MUTATION_AUDIT_UNAVAILABLE_BODY);
+    // PRC-M014: the mutation already committed. Rewriting to 503 would make a
+    // client retry and duplicate it, so keep the true status, flag the audit as
+    // deferred, retry the row, and trip the gate so the next sensitive write is
+    // refused up front.
+    auditGate.markUnavailable();
+    auditRetryQueue.enqueue(input);
+    reply.header('x-audit-status', 'deferred');
+    reply.header('x-audit-request-id', request.id);
+    return payload;
   });
 
   // G-702 / G-712 / W1-SEC-02: every /api/v1 request is evaluated against the

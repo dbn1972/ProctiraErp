@@ -89,6 +89,29 @@ env: {}
 
 # Names of pre-existing Secrets to mount via envFrom (DATABASE_URL, JWT_SECRET...).
 envFromSecrets: []
+# ---------------------------------------------------------------------------
+# PRC-M011 — api-gateway auth boot policy. The gateway image runs with
+# NODE_ENV=production, so it refuses to boot unless Keycloak is configured
+# (KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID) and KEYCLOAK_REDIRECT_URI /
+# NEXT_PUBLIC_WEB_URL are explicit, non-localhost URLs. Non-secret ids/URLs
+# are set per environment here; each renders only for service.name=api-gateway
+# and only when non-empty. KEYCLOAK_CLIENT_SECRET is a secret: put it in the
+# env Secret (envFromSecrets / externalSecret), never in values. See
+# docs/runbooks/api-gateway.md "Auth boot prerequisites".
+# ---------------------------------------------------------------------------
+gatewayAuth:
+  # KEYCLOAK_ISSUER, e.g. https://auth.<domain>/realms/proctira
+  keycloakIssuer: ''
+  # KEYCLOAK_CLIENT_ID (the repo realm defines `proctira-gateway`)
+  keycloakClientId: ''
+  # KEYCLOAK_REALM (optional; the gateway defaults to `proctira`)
+  keycloakRealm: ''
+  # KEYCLOAK_AUDIENCE (optional; tokens must carry it in aud/azp)
+  keycloakAudience: ''
+  # KEYCLOAK_REDIRECT_URI, e.g. https://api.<domain>/api/v1/auth/callback
+  keycloakRedirectUri: ''
+  # NEXT_PUBLIC_WEB_URL: web origin the gateway redirects to after sign-in
+  webUrl: ''
 
 # ---------------------------------------------------------------------------
 # Pod hardening (G-724). Images run as uid 1001 (nodejs/nextjs users) with a

@@ -247,6 +247,7 @@ export {
   OtpRateLimitError,
 } from './otp-service.js';
 export type {
+  OtpAttemptOutcome,
   OtpChallengeRecord,
   OtpChallengeStore,
   OtpServiceOptions,

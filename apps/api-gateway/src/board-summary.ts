@@ -3,7 +3,9 @@
  *
  * When DATABASE_URL is set (and forceMemory is not), queries Postgres for
  * institution / enrolment / attendance / fees / LMS aggregates scoped to a
- * board (or area) id. Missing tables/columns yield zeros — never 500.
+ * board (or area) id. Missing tables/columns (to_regclass / information_schema
+ * misses) yield zeros. PRC-M009: a real query / pool failure is NOT swallowed
+ * into zeros — it raises BoardSummaryUnavailableError (route → logged 503).
  *
  * Without Postgres (or in forceMemory tests), uses a seedable in-memory map.
  */
@@ -24,6 +26,14 @@ export interface BoardSummary {
   feesCollectedCents: number;
   lmsCompletionPercent: number | null;
   schoolsBreakdown: BoardSchoolBreakdown[];
+}
+
+/** PRC-M009: Postgres rollup failed — callers must surface 503, never zeros. */
+export class BoardSummaryUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super('Board summary is temporarily unavailable', { cause });
+    this.name = 'BoardSummaryUnavailableError';
+  }
 }
 
 /** In-memory seed map (tests / no DATABASE_URL). Cleared between suites via helper. */
@@ -70,31 +80,24 @@ function isPgEnabled(forceMemory?: boolean): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
+/** Table-missing is a normal state (null to_regclass); a thrown error is a DB failure. */
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {
-  try {
-    const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
-    const row = result.rows[0] as { reg?: string | null } | undefined;
-    return Boolean(row?.reg);
-  } catch {
-    return false;
-  }
+  const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
+  const row = result.rows[0] as { reg?: string | null } | undefined;
+  return Boolean(row?.reg);
 }
 
 async function columnExists(client: PgQueryable, table: string, column: string): Promise<boolean> {
-  try {
-    const result = await client.query(
-      `SELECT 1 AS ok
+  const result = await client.query(
+    `SELECT 1 AS ok
        FROM information_schema.columns
        WHERE table_schema = 'public'
          AND table_name = $1
          AND column_name = $2
        LIMIT 1`,
-      [table, column],
-    );
-    return result.rows.length > 0;
-  } catch {
-    return false;
-  }
+    [table, column],
+  );
+  return result.rows.length > 0;
 }
 
 async function safeNumber(
@@ -103,21 +106,16 @@ async function safeNumber(
   params: unknown[],
   field = 'value',
 ): Promise<number> {
-  try {
-    const result = await client.query(sql, params);
-    const row = result.rows[0] as Record<string, unknown> | undefined;
-    const raw = row?.[field];
-    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
+  const result = await client.query(sql, params);
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  const raw = row?.[field];
+  const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
 async function loadFromPostgres(tenantId: string, boardId: string): Promise<BoardSummary> {
   const pool = getSharedPgPool();
-  if (!pool) return emptyBoardSummary(boardId);
-
+  if (!pool) throw new BoardSummaryUnavailableError(new Error('Postgres pool unavailable'));
   try {
     return await withPgTenant(pool, tenantId, async (client) => {
       const summary = emptyBoardSummary(boardId);
@@ -175,8 +173,8 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
           id: String(r.id),
           name: String(r.name ?? ''),
         }));
-      } catch {
-        return summary;
+      } catch (error) {
+        throw new BoardSummaryUnavailableError(error);
       }
 
       summary.schools = institutionRows.length;
@@ -199,8 +197,8 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
           for (const row of result.rows as Array<{ institution_id: string; cnt: number }>) {
             enrolmentByInstitution.set(String(row.institution_id), Number(row.cnt) || 0);
           }
-        } catch {
-          // leave zeros
+        } catch (error) {
+          throw new BoardSummaryUnavailableError(error);
         }
       } else if (await relationExists(client, 'students')) {
         const total = await safeNumber(client, `SELECT COUNT(*)::int AS value FROM students`, []);
@@ -237,8 +235,8 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
             const presentLike = Number(row?.present_like ?? 0);
             summary.attendancePercent = Math.round((presentLike / total) * 10000) / 100;
           }
-        } catch {
-          summary.attendancePercent = null;
+        } catch (error) {
+          throw new BoardSummaryUnavailableError(error);
         }
       }
 
@@ -313,8 +311,8 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
           if (row?.avg_mastery != null && Number.isFinite(Number(row.avg_mastery))) {
             summary.lmsCompletionPercent = Math.round(Number(row.avg_mastery) * 10000) / 100;
           }
-        } catch {
-          summary.lmsCompletionPercent = null;
+        } catch (error) {
+          throw new BoardSummaryUnavailableError(error);
         }
       } else if (await relationExists(client, 'lms_submissions')) {
         try {
@@ -333,15 +331,16 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
             summary.lmsCompletionPercent =
               Math.round((Number(row?.done ?? 0) / total) * 10000) / 100;
           }
-        } catch {
-          summary.lmsCompletionPercent = null;
+        } catch (error) {
+          throw new BoardSummaryUnavailableError(error);
         }
       }
 
       return summary;
     });
-  } catch {
-    return emptyBoardSummary(boardId);
+  } catch (error) {
+    if (error instanceof BoardSummaryUnavailableError) throw error;
+    throw new BoardSummaryUnavailableError(error);
   }
 }
 

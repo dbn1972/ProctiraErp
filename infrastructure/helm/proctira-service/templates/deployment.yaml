@@ -77,6 +77,16 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- /* PRC-M011: gateway auth boot prerequisites (non-secret ids/URLs). */}}
+            {{- if eq .Values.service.name "api-gateway" }}
+            {{- $auth := .Values.gatewayAuth | default dict }}
+            {{- range $name, $key := dict "KEYCLOAK_ISSUER" "keycloakIssuer" "KEYCLOAK_CLIENT_ID" "keycloakClientId" "KEYCLOAK_REALM" "keycloakRealm" "KEYCLOAK_AUDIENCE" "keycloakAudience" "KEYCLOAK_REDIRECT_URI" "keycloakRedirectUri" "NEXT_PUBLIC_WEB_URL" "webUrl" }}
+            {{- with index $auth $key }}
+            - name: {{ $name }}
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             - name: METRICS_ENABLED
               value: {{ ternary "true" "false" (eq (include "proctira-service.metricsEnabled" .) "true") | quote }}
             {{- if and (eq (include "proctira-service.metricsEnabled" .) "true") .Values.metrics.bearerTokenSecret.name }}

@@ -256,3 +256,49 @@ describe('GET /health/ready (W1-OPS-03 / W3-C1)', () => {
     await app.close();
   });
 });
+
+describe('health probe pooling and public error text (PRC-M024)', () => {
+  const env = { NODE_ENV: 'production', DATABASE_URL: 'postgres://u:p@db.internal:5432/x' };
+  it('100 concurrent /health calls run at most one dependency probe', async () => {
+    const app = Fastify();
+    let probes = 0;
+    await app.register(healthPlugin, {
+      services: {},
+      env,
+      probeDatabase: async () => {
+        probes += 1;
+        await new Promise((r) => setTimeout(r, 20));
+        return { ok: true, latencyMs: 20 };
+      },
+    });
+    await app.ready();
+    const results = await Promise.all(
+      Array.from({ length: 100 }, () => app.inject({ method: 'GET', url: '/health' })),
+    );
+    expect(results.every((r) => r.statusCode === 200)).toBe(true);
+    expect(probes).toBeLessThanOrEqual(1);
+    await app.close();
+  });
+
+  it('error body contains no hostnames or raw driver text', async () => {
+    const app = Fastify();
+    await app.register(healthPlugin, {
+      services: {},
+      env: { ...env, REDIS_URL: 'redis://cache.internal:6379' },
+      readinessCacheMs: 0,
+      probeDatabase: async () => ({
+        ok: false,
+        message: 'connect ECONNREFUSED db.internal:5432 user=proctira',
+      }),
+      probeRedis: async () => ({ ok: false, message: 'getaddrinfo ENOTFOUND cache.internal' }),
+    });
+    await app.ready();
+    for (const url of ['/health', '/health/ready']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(503);
+      expect(res.body).not.toMatch(/internal|ECONNREFUSED|ENOTFOUND|5432|6379|proctira/);
+      expect(res.body).toMatch(/database/);
+    }
+    await app.close();
+  });
+});

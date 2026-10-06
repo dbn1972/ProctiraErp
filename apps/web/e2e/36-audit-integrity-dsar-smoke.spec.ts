@@ -152,7 +152,10 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     await page.getByTestId('dsar-subject-input').fill(subject);
     await page.getByTestId('dsar-run').click();
     await expect(page.getByTestId('dsar-package')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('dsar-row')).toHaveCount(1);
+    // PRC-M013: a subject's DSAR includes EVERY audit row about that subject.
+    // `resolveAuditEntityId` attributes the gateway's post-hoc student-create
+    // row to the new student id, so the package holds that row plus the probe.
+    await expect(page.getByTestId('dsar-row')).toHaveCount(2);
 
     // PRC-M084: the download saves the package already built (no GET export
     // route), and the build itself was audited.
