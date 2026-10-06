@@ -36,6 +36,8 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts:/etc/prometheus/alerts:ro
+      # PRC-M313: optional scrape jobs (lab services) — empty dir by default.
+      - ${PROMETHEUS_EXTRA_SCRAPE_DIR:-./scrape.d}:/etc/prometheus/scrape.d:ro
       - prometheus_data:/prometheus
     ports:
       # PRC-H072: loopback only — expose through an authenticated proxy/ingress, never publicly.

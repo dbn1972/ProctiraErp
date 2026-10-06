@@ -23,6 +23,13 @@ on:
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/check-workflow-script-injection.mjs'
       - 'tools/scripts/check-workflow-script-injection.test.mjs'
+      - 'tools/scripts/check-action-pins.mjs'
+      - 'tools/scripts/check-action-pins.test.mjs'
+      - 'tools/scripts/detect-affected-services.mjs'
+      - 'tools/scripts/detect-affected-services.test.mjs'
+      - 'tools/scripts/services.json'
+      - 'tools/scripts/deploy-diff-base.mjs'
+      - 'tools/scripts/deploy-diff-base.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -34,6 +41,13 @@ on:
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/check-workflow-script-injection.mjs'
       - 'tools/scripts/check-workflow-script-injection.test.mjs'
+      - 'tools/scripts/check-action-pins.mjs'
+      - 'tools/scripts/check-action-pins.test.mjs'
+      - 'tools/scripts/detect-affected-services.mjs'
+      - 'tools/scripts/detect-affected-services.test.mjs'
+      - 'tools/scripts/services.json'
+      - 'tools/scripts/deploy-diff-base.mjs'
+      - 'tools/scripts/deploy-diff-base.test.mjs'
 
 permissions:
   contents: read
@@ -43,10 +57,10 @@ jobs:
     name: actionlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Run actionlint
-        uses: raven-actions/actionlint@v2
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2
         with:
           # Pin to a known-good version so workflow lint output is reproducible.
           version: '1.7.7'
@@ -63,6 +77,17 @@ jobs:
         run: node --test tools/scripts/check-workflow-script-injection.test.mjs
       - name: Fail on expressions interpolated into run scripts (PRC-M256)
         run: node tools/scripts/check-workflow-script-injection.mjs
+      # PRC-M257: third-party actions must be pinned to full commit SHAs.
+      - name: Assert third-party actions are SHA-pinned
+        run: node tools/scripts/check-action-pins.mjs
+      - name: Unit-test action pin gate
+        run: node --test tools/scripts/check-action-pins.test.mjs
+      # PRC-M259: shared deploy/release service manifest + diff-base detection.
+      - name: Unit-test affected-service detection
+        run: node --test tools/scripts/detect-affected-services.test.mjs
+      # #555 review #1: deploy/release diff base recorded per scope.
+      - name: Unit-test deploy/release diff-base recorder
+        run: node --test tools/scripts/deploy-diff-base.test.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:
