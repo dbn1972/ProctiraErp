@@ -374,7 +374,12 @@ jobs:
         id: unit
         run: |
           set -euo pipefail
-          pnpm turbo run test --filter='${{ steps.turbo.outputs.filter }}' -- --exclude '**/*.live.test.ts' --coverage 2>&1 | tee /tmp/turbo-unit.log
+          # @proctira/dod-checks is a plain node test runner (no vitest, so no
+          # coverage artefacts); its suite runs in the dod-checks job below
+          # (check:dod:test). Excluding it here keeps a dod-checks-only change
+          # from tripping the W3-TEST-04 coverage gate with "no artifacts".
+          pnpm turbo run test --filter='${{ steps.turbo.outputs.filter }}' --filter='!@proctira/dod-checks' \
+            -- --exclude '**/*.live.test.ts' --coverage 2>&1 | tee /tmp/turbo-unit.log
           # W3-TEST-04: an affected filter can legitimately select no test-bearing
           # workspace (docs- or tooling-only change). Record turbo's own executed
           # task count so the coverage gate can tell that apart from "tests ran
