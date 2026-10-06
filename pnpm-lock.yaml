@@ -112,8 +112,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^1.16.0
-        version: 1.16.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       next:
         specifier: ^15.5.21
         version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -552,8 +552,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^0.453.0
-        version: 0.453.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       next:
         specifier: ^15.5.21
         version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -646,8 +646,8 @@ importers:
         specifier: ^1.9.4
         version: 1.9.4
       lucide-react:
-        specifier: ^1.16.0
-        version: 1.16.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       next:
         specifier: ^15.5.21
         version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -815,8 +815,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react:
-        specifier: ^1.16.0
-        version: 1.16.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       next:
         specifier: ^15.5.21
         version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3392,8 +3392,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@18.3.7(@types/react@18.3.29))(@types/react@18.3.29)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react:
-        specifier: ^0.487.0
-        version: 0.487.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -3453,8 +3453,8 @@ importers:
         specifier: workspace:*
         version: link:../components
       lucide-react:
-        specifier: ^0.487.0
-        version: 0.487.0(react@18.3.1)
+        specifier: ^1.48.0
+        version: 1.48.0(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -8174,18 +8174,8 @@ packages:
     resolution: {integrity: sha512-5J9ysMYUpYIg9RF2vJpy9SinEmSviFSe0GyPpCQ4L5QSkLAgeLXlTAOu2ZwWUU5m+0SBl6gUU1R1ZQB3aKypfA==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
 
-  lucide-react@0.453.0:
-    resolution: {integrity: sha512-kL+RGZCcJi9BvJtzg2kshO192Ddy9hv3ij+cPrVPWSRzgCWCVazoQJxOjAwgK53NomL07HB7GPHW120FimjNhQ==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
-
-  lucide-react@0.487.0:
-    resolution: {integrity: sha512-aKqhOQ+YmFnwq8dWgGjOuLc8V1R9/c/yOd+zDY4+ohsR2Jo05lSGc3WsstYPIzcTpeosN7LoCkLReUUITvaIvw==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  lucide-react@1.16.0:
-    resolution: {integrity: sha512-dYwyPzb4MEKpGUmNYk3WKWPnMrHs3FKM+q94kAnJrcDIqqn1hq2xY8scaS2ovsOCM5D51ey2gaRG3PBb1vgoYQ==}
+  lucide-react@1.48.0:
+    resolution: {integrity: sha512-R0CIKY/fXiC6y9xRBADgsK+VW2p/pcTJOMhLZf1T+uG+vJUvyUR02nGOgmIIC7MPkiNK4Ox8QDnbqF8rJYWPZQ==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -14552,15 +14542,7 @@ snapshots:
 
   lru.min@1.1.5: {}
 
-  lucide-react@0.453.0(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-
-  lucide-react@0.487.0(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-
-  lucide-react@1.16.0(react@18.3.1):
+  lucide-react@1.48.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 
