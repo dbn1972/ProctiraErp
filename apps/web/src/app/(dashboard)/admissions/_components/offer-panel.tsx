@@ -86,7 +86,8 @@ export function OfferPanel({
               createOfferAction({
                 applicationId: application.id,
                 classId: String(fd.get('classId') ?? ''),
-                feeAmount: Number(fd.get('feeAmount') || 0),
+                // PRC-M149: blank fee stays undefined; schema enforces 2 dp + bound.
+                feeAmount: fd.get('feeAmount') || undefined,
               }),
             );
           }}
@@ -117,6 +118,8 @@ export function OfferPanel({
               name="feeAmount"
               type="number"
               min={0}
+              step="0.01"
+              inputMode="decimal"
               defaultValue={0}
               data-testid="offer-fee"
               disabled={!hydrated || pending}
@@ -183,7 +186,7 @@ function OfferRow({
   onAccept: (paymentRef: string) => void;
 }) {
   const [confirm, setConfirm] = useState<'send' | 'accept' | 'decline' | null>(null);
-  const [paymentRef, setPaymentRef] = useState('SANDBOX-PAY');
+  const [paymentRef, setPaymentRef] = useState('');
 
   return (
     <li
@@ -220,14 +223,13 @@ function OfferRow({
               setConfirm('accept');
             }}
           >
-            <FormField id={`pay-${offer.id}`} label="Payment ref">
+            <FormField id={`pay-${offer.id}`} label="Payment reference (optional)">
               <Input
                 id={`pay-${offer.id}`}
                 name="paymentRef"
                 data-testid="payment-ref"
-                required
                 disabled={!hydrated || pending}
-                defaultValue="SANDBOX-PAY"
+                defaultValue=""
               />
             </FormField>
             <Button

@@ -23,8 +23,22 @@ describe('communication-access (W1-SEC-02)', () => {
       true,
     );
     expect(hasCommunicationAccess([], 'communication.portal', { hasUser: false })).toBe(false);
-    expect(() => assertCommunicationAccess(['viewer'], 'communication.staff')).toThrow(
-      /Forbidden/,
+    expect(() => assertCommunicationAccess(['viewer'], 'communication.staff')).toThrow(/Forbidden/);
+  });
+
+  it('communication.admin is limited to tenant admins / principals (PR #548 on-behalf ack)', () => {
+    expect(hasCommunicationAccess(['admin'], 'communication.admin')).toBe(true);
+    expect(hasCommunicationAccess([{ roleId: 'principal' }], 'communication.admin')).toBe(true);
+    expect(hasCommunicationAccess(['communications_officer'], 'communication.admin')).toBe(false);
+    expect(hasCommunicationAccess(['registrar'], 'communication.admin')).toBe(false);
+    expect(hasCommunicationAccess(['parent'], 'communication.admin')).toBe(false);
+    expect(hasCommunicationAccess([], 'communication.admin')).toBe(false);
+  });
+
+  it('ack-on-behalf is a staff path, not the portal ack path', () => {
+    expect(isCommunicationPortalPath('/communication/circulars/abc/ack-on-behalf')).toBe(false);
+    expect(communicationActionForPath('/api/v1/communication/circulars/abc/ack-on-behalf')).toBe(
+      'communication.staff',
     );
   });
 

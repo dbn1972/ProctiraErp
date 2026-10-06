@@ -56,8 +56,34 @@ export type RolloverExtras = {
   findCompletedRolloverRun?: (input: {
     tenantId: string;
     idempotencyKey: string;
-  }) => Promise<RolloverSummary | null>;
+  }) => Promise<RolloverSummary | null>; /**
+   * PRC-L318: claim-first ledger. Atomically inserts the real-run ledger row
+   * with status `running` BEFORE any write (or re-claims a previously `failed`
+   * row). Returns `claimed` with the row id, or the state of the row that
+   * already owns the key. Requires the `running` status in the ledger CHECK
+   * (schema migration); wired only when `ROLLOVER_LEDGER_CLAIM_FIRST` is on.
+   */
+  claimRolloverRun?: (input: {
+    tenantId: string;
+    actorId: string;
+    sourcePeriodId: string;
+    targetPeriodId: string;
+    idempotencyKey: string;
+    request: Record<string, unknown>;
+  }) => Promise<RolloverClaim>;
+  /** PRC-L318: finalise a claimed run as `completed` (with summary) or `failed`. */
+  finishRolloverRun?: (input: {
+    tenantId: string;
+    runId: string;
+    status: 'completed' | 'failed';
+    summary: RolloverSummary | null;
+  }) => Promise<void>;
 };
+/** PRC-L318: outcome of a claim-first ledger insert. */
+export type RolloverClaim =
+  | { state: 'claimed'; runId: string }
+  | { state: 'completed'; summary: RolloverSummary }
+  | { state: 'running' };
 
 /**
  * PRC-L318: dry-run previews must not consume the real run's idempotency key
@@ -257,6 +283,93 @@ export class AcademicCalendarService {
       throw new BusinessRuleError('Target period must start after the source period');
     }
 
+    const extras = this.rolloverExtras;
+    // PRC-L318: claim the idempotency key BEFORE executing so two concurrent
+    // same-key requests cannot both run; the loser sees `running` (409) or the
+    // winner's stored summary.
+    if (!dryRun && dto.idempotencyKey && extras?.claimRolloverRun && extras.finishRolloverRun) {
+      const claim = await extras.claimRolloverRun({
+        tenantId,
+        actorId,
+        sourcePeriodId,
+        targetPeriodId: dto.targetPeriodId,
+        idempotencyKey: dto.idempotencyKey,
+        request: { ...dto } as unknown as Record<string, unknown>,
+      });
+      if (claim.state === 'completed') {
+        if (
+          claim.summary.sourcePeriodId !== sourcePeriodId ||
+          claim.summary.targetPeriodId !== dto.targetPeriodId
+        ) {
+          throw new ConflictError('Idempotency key was already used for a different rollover');
+        }
+        return claim.summary;
+      }
+      if (claim.state === 'running') {
+        throw new ConflictError('A rollover with this idempotency key is already in progress');
+      }
+      let summary: RolloverSummary;
+      try {
+        summary = await this.executeRollover(
+          tenantId,
+          sourcePeriodId,
+          dto,
+          actorId,
+          source,
+          target,
+          dryRun,
+        );
+      } catch (err) {
+        await extras.finishRolloverRun({
+          tenantId,
+          runId: claim.runId,
+          status: 'failed',
+          summary: null,
+        });
+        throw err;
+      }
+      await extras.finishRolloverRun({
+        tenantId,
+        runId: claim.runId,
+        status: 'completed',
+        summary,
+      });
+      return summary;
+    }
+    const summary = await this.executeRollover(
+      tenantId,
+      sourcePeriodId,
+      dto,
+      actorId,
+      source,
+      target,
+      dryRun,
+    );
+    if (this.rolloverExtras?.recordRolloverRun) {
+      await this.rolloverExtras.recordRolloverRun({
+        tenantId,
+        actorId,
+        sourcePeriodId,
+        targetPeriodId: dto.targetPeriodId,
+        dryRun,
+        idempotencyKey: ledgerIdempotencyKey(dto.idempotencyKey, dryRun),
+        request: { ...dto } as unknown as Record<string, unknown>,
+        summary,
+        status: dryRun ? 'dry_run' : 'completed',
+      });
+    }
+
+    return summary;
+  }
+  private async executeRollover(
+    tenantId: string,
+    sourcePeriodId: string,
+    dto: RolloverRequestDto,
+    actorId: string,
+    source: PeriodRow,
+    target: PeriodRow,
+    dryRun: boolean,
+  ): Promise<RolloverSummary> {
     const institutionFilter = dto.institutionId ? { institutionId: dto.institutionId } : {};
 
     // ── Classes ──
@@ -459,20 +572,6 @@ export class AcademicCalendarService {
           { dryRun },
         );
       }
-    }
-
-    if (this.rolloverExtras?.recordRolloverRun) {
-      await this.rolloverExtras.recordRolloverRun({
-        tenantId,
-        actorId,
-        sourcePeriodId,
-        targetPeriodId: dto.targetPeriodId,
-        dryRun,
-        idempotencyKey: ledgerIdempotencyKey(dto.idempotencyKey, dryRun),
-        request: { ...dto } as unknown as Record<string, unknown>,
-        summary,
-        status: dryRun ? 'dry_run' : 'completed',
-      });
     }
 
     return summary;

@@ -144,8 +144,12 @@ export const AssignmentResponseSchema = Type.Object({
   id: Type.String({ description: 'Assignment UUID' }),
   staffId: Type.String({ description: 'Staff member UUID' }),
   institutionId: Type.String({ description: 'Institution UUID' }),
-  subjectId: Type.String({ description: 'Subject UUID' }),
-  classId: Type.String({ description: 'Class UUID' }),
+  subjectId: Type.Union([Type.String(), Type.Null()], {
+    description: 'Subject UUID, or null for an administrative assignment',
+  }),
+  classId: Type.Union([Type.String(), Type.Null()], {
+    description: 'Class UUID, or null for an administrative assignment',
+  }),
   role: Type.String({ description: 'Role in this assignment' }),
   allocationPercentage: Type.Number({ description: 'Time allocation percentage' }),
   startDate: Type.String({ description: 'Assignment start date (YYYY-MM-DD)' }),

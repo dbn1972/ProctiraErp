@@ -15,7 +15,14 @@ import {
   requireFeesStaffRead,
   resolveFeesReadScope,
 } from './fees-http-guard.js';
-import type { FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
+import {
+  FEES_DEFAULT_PAGE_LIMIT,
+  FEES_MAX_PAGE_LIMIT,
+  type FeesMoneyAuditEvent,
+  type FeesMoneyAuditSink,
+  type FeesPageRequest,
+  type FeesRepository,
+} from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,
@@ -151,6 +158,8 @@ const PayInvoiceSchema = Type.Object({
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  /** PRC-M089: UPI txn id / receipt-book number for manually recorded payments. */
+  reference: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({
@@ -168,6 +177,8 @@ const CreateFeeStructureSchema = Type.Object({
   validTo: Type.Optional(
     Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
   ),
+  /** PRC-M091: instalments created in the same transaction as the structure. */
+  partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -183,6 +194,8 @@ const BulkInvoiceSchema = Type.Object({
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   studentIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { minItems: 1 })),
   dueAt: Type.Optional(IsoDateString()),
+  /** PRC-M086: explicit opt-in required to invoice every enrolled student. */
+  allStudents: Type.Optional(Type.Boolean()),
 });
 
 const ApplyConcessionSchema = Type.Object({
@@ -370,6 +383,13 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
  * concession approval. No-op when the repository is not transaction-bound
  * (in-memory); the gateway onSend audit remains the safety net there.
  */
+const MONEY_AUDIT_UPDATE_KINDS: ReadonlySet<FeesMoneyAuditEvent['kind']> = new Set([
+  'void',
+  'concession_approve',
+  'concession_reject',
+  'scholarship_netting_reversal',
+]);
+
 function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMoneyAuditSink {
   return async (tx, event) => {
     const client = tx.transactionClient?.() ?? null;
@@ -380,8 +400,7 @@ function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMon
         tenantId,
         entityType: 'fees',
         entityId: event.entityId,
-        operation:
-          event.kind === 'void' || event.kind === 'concession_approve' ? 'UPDATE' : 'CREATE',
+        operation: MONEY_AUDIT_UPDATE_KINDS.has(event.kind) ? 'UPDATE' : 'CREATE',
         userId: getActorId(request),
         userName: getActorDisplayName(request),
         ipAddress: request.ip,
@@ -403,6 +422,74 @@ function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMon
     markRegulatedMutationAuditCommitted(request);
   };
 }
+/** PRC-M248: `?limit=` (1-200, default 50) and opaque `?cursor=`; null when invalid. */
+function parseFeesPage(query: unknown): FeesPageRequest | null {
+  const q = (query ?? {}) as Record<string, unknown>;
+  let limit = FEES_DEFAULT_PAGE_LIMIT;
+  let offset = 0;
+  if (q.limit !== undefined) {
+    const n = Number(q.limit);
+    if (!Number.isInteger(n) || n < 1 || n > FEES_MAX_PAGE_LIMIT) return null;
+    limit = n;
+  }
+  if (q.cursor !== undefined) {
+    const raw = String(q.cursor);
+    if (!/^\d{1,9}$/.test(raw)) return null;
+    offset = Number(raw);
+  }
+  return { limit, offset };
+}
+
+/** PRC-M477: the caller opted into page/pageSize paging (vs PRC-M248 limit/cursor). */
+function wantsOffsetPage(query: unknown): boolean {
+  const q = (query ?? {}) as Record<string, unknown>;
+  return q['page'] !== undefined || q['pageSize'] !== undefined;
+}
+
+function invalidFeesPage(reply: FastifyReply) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: `limit must be 1-${FEES_MAX_PAGE_LIMIT}; cursor must be a token from nextCursor`,
+    statusCode: 400,
+  });
+}
+
+/**
+ * PRC-L306: same-transaction money audit for non-HTTP callers (e.g. the scholarship
+ * disbursement paid/reversed hooks that net fees). The row is appended on the open
+ * transaction client, so an audit failure rolls back the netting / reversal.
+ */
+export function buildSystemMoneyAuditSink(
+  tenantId: string,
+  actor: { userId: string; userName?: string | null; source: string },
+): FeesMoneyAuditSink {
+  return async (tx, event) => {
+    const client = tx.transactionClient?.() ?? null;
+    if (!client) return;
+    await appendAuditEntryOnClient(
+      client,
+      toCreateAuditLogInput({
+        tenantId,
+        entityType: 'fees',
+        entityId: event.entityId,
+        operation: MONEY_AUDIT_UPDATE_KINDS.has(event.kind) ? 'UPDATE' : 'CREATE',
+        userId: actor.userId,
+        userName: actor.userName ?? actor.userId,
+        // System (non-HTTP) caller: no client IP.
+        ipAddress: '0.0.0.0',
+        beforeValues: { invoiceId: event.invoiceId, status: event.beforeStatus },
+        afterValues: {
+          invoiceId: event.invoiceId,
+          amountCents: event.amountCents,
+          status: event.afterStatus,
+          kind: event.kind,
+        },
+        metadata: { source: actor.source, regulated: `fees.${event.kind}`, atomic: true },
+      }),
+    );
+  };
+}
+
 function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -450,6 +537,41 @@ function formatPlan(entity: {
     createdBy: entity.createdBy,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * PRC-M477: opt-in pagination + filters for fee list endpoints. When neither `page`
+ * nor `pageSize` is sent the full list is returned (existing consumers); otherwise the
+ * response is bounded and carries `meta`. The gateway pagination cap rejects
+ * pageSize > 100 before this runs.
+ */
+export function pageFeeList<T>(
+  items: T[],
+  query: unknown,
+  match: { status?: (item: T) => string | null | undefined; studentId?: (item: T) => string },
+): {
+  data: T[];
+  meta?: { page: number; pageSize: number; totalItems: number; totalPages: number };
+} {
+  const q = (query ?? {}) as Record<string, unknown>;
+  const text = (key: string): string | undefined => {
+    const v = q[key];
+    return typeof v === 'string' && v ? v : undefined;
+  };
+  const status = text('status');
+  const studentId = text('studentId');
+  let filtered = items;
+  if (status && match.status) filtered = filtered.filter((i) => match.status!(i) === status);
+  if (studentId && match.studentId)
+    filtered = filtered.filter((i) => match.studentId!(i) === studentId);
+  if (q['page'] === undefined && q['pageSize'] === undefined) return { data: filtered };
+  const page = Math.max(1, Math.floor(Number(q['page'] ?? 1)) || 1);
+  const pageSize = Math.min(100, Math.max(1, Math.floor(Number(q['pageSize'] ?? 50)) || 50));
+  const totalItems = filtered.length;
+  return {
+    data: filtered.slice((page - 1) * pageSize, page * pageSize),
+    meta: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) },
   };
 }
 
@@ -601,15 +723,34 @@ export const feesPlugin = fp(
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
           : undefined;
+      // PRC-M487: optional studentId filter is applied in the repository (not client-side
+      // over a tenant-wide list); optional page/pageSize paginate via pageFeeList (PRC-M477).
+      const rawQuery = request.query as { studentId?: unknown };
+      const studentIdFilter =
+        typeof rawQuery.studentId === 'string' && rawQuery.studentId.length > 0
+          ? rawQuery.studentId
+          : undefined;
       let invoices: Awaited<ReturnType<typeof feesService.listInvoices>>;
+      let nextCursor: string | null = null;
       if (readScope === 'self') {
         // Self-scope callers may only ever see their own linked students' invoices. Fail closed
         // when no binding is configured rather than falling through to a tenant-wide list.
         if (!parentBinding) return reply.status(403).send(forbiddenSelfScope());
-        const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        const linked = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        const studentIds = studentIdFilter ? linked.filter((id) => id === studentIdFilter) : linked;
         invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
-      } else {
+      } else if (studentIdFilter) {
+        invoices = await feesService.listInvoicesForStudentIds(tenantId, [studentIdFilter]);
+      } else if (wantsOffsetPage(request.query)) {
+        // PRC-M477: explicit page/pageSize (web list screens) pages via pageFeeList.
         invoices = await feesService.listInvoices(tenantId);
+      } else {
+        // PRC-M248: staff tenant-wide list is paginated in SQL.
+        const page = parseFeesPage(request.query);
+        if (!page) return invalidFeesPage(reply);
+        const result = await feesService.listInvoicesPage(tenantId, page);
+        nextCursor = result.nextCursor;
+        invoices = result.data;
       }
       if (institutionId) {
         invoices = invoices.filter((inv) => {
@@ -617,7 +758,11 @@ export const feesPlugin = fp(
           return id == null || id === institutionId;
         });
       }
-      return reply.status(200).send({ data: invoices.map(formatInvoice) });
+      const paged = pageFeeList(invoices, request.query, {
+        status: (inv) => inv.status,
+        studentId: (inv) => inv.studentId,
+      });
+      return reply.status(200).send({ ...paged, data: paged.data.map(formatInvoice), nextCursor });
     });
 
     fastify.post(
@@ -747,8 +892,12 @@ export const feesPlugin = fp(
       // history is served by the parent-portal self routes, not this endpoint — so a parent
       // (even with ?scope=parent) is denied here.
       if (!requireFeesStaffRead(request, reply)) return;
-      const payments = await feesService.listPayments(tenantId);
-      return reply.status(200).send({ data: payments.map(formatPayment) });
+      const page = parseFeesPage(request.query);
+      if (!page) return invalidFeesPage(reply);
+      const payments = await feesService.listPaymentsPage(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: payments.data.map(formatPayment), nextCursor: payments.nextCursor });
     });
 
     fastify.post(
@@ -804,8 +953,21 @@ export const feesPlugin = fp(
         );
         return reply.status(200).send({ data: receipts.map(formatReceipt) });
       }
-      const receipts = await feesService.listReceipts(tenantId);
-      return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      if (wantsOffsetPage(request.query)) {
+        // PRC-M477: explicit page/pageSize (web list screens) pages via pageFeeList.
+        const all = await feesService.listReceipts(tenantId);
+        const paged = pageFeeList(all, request.query, {});
+        return reply
+          .status(200)
+          .send({ ...paged, data: paged.data.map(formatReceipt), nextCursor: null });
+      }
+      // PRC-M248: default staff list is paginated in SQL (limit/cursor).
+      const page = parseFeesPage(request.query);
+      if (!page) return invalidFeesPage(reply);
+      const receipts = await feesService.listReceiptsPage(tenantId, page);
+      return reply
+        .status(200)
+        .send({ data: receipts.data.map(formatReceipt), nextCursor: receipts.nextCursor });
     });
 
     fastify.get(
@@ -1079,6 +1241,45 @@ export const feesPlugin = fp(
       },
     );
 
+    // PRC-M086: dry run for the confirm dialog — count + total, creates nothing.
+    fastify.post(
+      `${prefix}/structures/:id/bulk-invoice/preview`,
+      async function bulkInvoicePreview(
+        request: FastifyRequest<{ Params: IdParams; Body: BulkInvoiceInput }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(BulkInvoiceSchema, request.body ?? {});
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
+        try {
+          const preview = await feesService.previewBulkInvoice(tenantId, {
+            ...bodyResult.data,
+            structureId: paramsResult.data.id,
+          });
+          return reply.status(200).send(preview);
+        } catch (error: unknown) {
+          return sendFeesError(reply, error);
+        }
+      },
+    );
     fastify.post(
       `${prefix}/concessions`,
       async function applyConcession(
@@ -1179,6 +1380,7 @@ export const feesPlugin = fp(
             tenantId,
             getActorId(request),
             paramsResult.data.id,
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send({
             concession: {
@@ -1688,6 +1890,7 @@ export const feesPlugin = fp(
               invoiceId: body.invoiceId,
               currency: body.currency,
             },
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send(result);
         } catch (error: unknown) {

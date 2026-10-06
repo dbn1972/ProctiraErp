@@ -153,7 +153,11 @@
     "mfaPrintCodes": "குறியீடுகளை அச்சிடு",
     "mfaAcknowledgement": "என் காப்பு குறியீடுகளை பாதுகாப்பான இடத்தில் சேமித்துள்ளேன்.",
     "mfaAcknowledgementHelp": "அமைப்பை முடித்த பிறகு இந்த குறியீடுகளை மீண்டும் பார்க்க முடியாது.",
-    "mfaFinishSetup": "அமைப்பை முடி"
+    "mfaFinishSetup": "அமைப்பை முடி",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "டாஷ்போர்டு",
@@ -637,7 +641,13 @@
     "rubricsNew": "புதிய அளவுகோல்",
     "rubricsEmptyTitle": "இன்னும் அளவுகோல்கள் இல்லை",
     "rubricsEmptyBody": "கட்டுரைகளை மதிப்பிட ஒரு அளவுகோலை உருவாக்குங்கள்.",
-    "rubricsAnySubject": "எந்தப் பாடமும்"
+    "rubricsAnySubject": "எந்தப் பாடமும்",
+    "searchStudents": "மாணவர்களைத் தேடு",
+    "searchStudentsHint": "பெயரின் குறைந்தது 2 எழுத்துகளைத் தட்டச்சு செய்யவும், அல்லது மாணவர் ID-ஐ ஒட்டவும்.",
+    "studentsLoadFailed": "மாணவர்களை ஏற்ற முடியவில்லை. மீண்டும் முயலவும்.",
+    "noStudentsMatch": "இந்தத் தேடலுடன் எந்த மாணவரும் பொருந்தவில்லை.",
+    "searchingStudents": "தேடுகிறது…",
+    "studentResultsCount": "{count, plural, one {# மாணவர் கண்டறியப்பட்டார்} other {# மாணவர்கள் கண்டறியப்பட்டனர்}}"
   },
   "health": {
     "title": "சுகாதார பதிவுகள்",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "அணுகல் மறுக்கப்பட்டது",
     "accessDeniedHelp": "உங்களுக்கு அணுகல் இருக்க வேண்டும் என நினைத்தால் உங்கள் நிர்வாகியைத் தொடர்பு கொள்ளுங்கள்.",
     "returnToDashboard": "டாஷ்போர்டுக்குத் திரும்பு",
-    "tableAriaLabel": "சுகாதாரப் பதிவுகள்"
+    "tableAriaLabel": "சுகாதாரப் பதிவுகள்",
+    "unknownStudent": "அறியப்படாத மாணவர்"
   },
   "workflows": {
     "title": "பணிப்பாய்வு வரையறைகள்",
@@ -901,6 +912,12 @@
     "inboxDescription": "உங்கள் உள்நுழைந்த கணக்கிற்கான எச்சரிக்கைகள்.",
     "empty": "இன்னும் அறிவிப்புகள் இல்லை. மின்னஞ்சல், புஷ் அல்லது SMS தேர்வு செய்ய விருப்பங்களைப் பயன்படுத்துங்கள் — மொபைல் எச்சரிக்கைகளுக்குச் சாதனத்தைப் பதிவு செய்யுங்கள்.",
     "read": "படித்தது",
-    "unread": "படிக்காதது"
+    "unread": "படிக்காதது",
+    "filterLabel": "அறிவிப்புகளை வடிகட்டு",
+    "filterAll": "அனைத்தும்",
+    "filterUnread": "படிக்காதவை",
+    "markRead": "படித்ததாகக் குறி",
+    "markAllRead": "அனைத்தையும் படித்ததாகக் குறி",
+    "markReadFailed": "படித்ததாகக் குறிக்க முடியவில்லை. மீண்டும் முயலவும்."
   }
 }

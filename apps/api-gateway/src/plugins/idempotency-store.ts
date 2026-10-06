@@ -7,6 +7,8 @@
  * outside production for the same single-process store).
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 import type { RedisClient } from './idempotency.js';
 
 export type IdempotencyStoreMode = 'redis' | 'memory';
@@ -51,7 +53,7 @@ export function resolveIdempotencyStoreMode(
   const explicit = env.IDEMPOTENCY_STORE?.trim().toLowerCase();
 
   if (explicit === 'memory') {
-    if (env.NODE_ENV === 'production' && !truthy(env.ALLOW_IN_MEMORY_IDEMPOTENCY)) {
+    if (isProductionNodeEnv(env.NODE_ENV) && !truthy(env.ALLOW_IN_MEMORY_IDEMPOTENCY)) {
       throw new Error(
         '[idempotency] IDEMPOTENCY_STORE=memory is not allowed when NODE_ENV=production (set REDIS_URL / IDEMPOTENCY_STORE=redis, or ALLOW_IN_MEMORY_IDEMPOTENCY=1)',
       );
@@ -64,14 +66,12 @@ export function resolveIdempotencyStoreMode(
   }
 
   if (explicit) {
-    throw new Error(
-      `[idempotency] invalid IDEMPOTENCY_STORE=${explicit} (expected redis|memory)`,
-    );
+    throw new Error(`[idempotency] invalid IDEMPOTENCY_STORE=${explicit} (expected redis|memory)`);
   }
 
   // Implicit: Redis whenever a URL is configured or we are in production.
   if (env.REDIS_URL?.trim()) return 'redis';
-  if (env.NODE_ENV === 'production') return 'redis';
+  if (isProductionNodeEnv(env.NODE_ENV)) return 'redis';
 
   // Dev/test without REDIS_URL — single-process memory (callers should prefer
   // IDEMPOTENCY_STORE=memory for honesty).
@@ -83,7 +83,7 @@ export function assertIdempotencyRedisClient(
   mode: IdempotencyStoreMode,
   redis: RedisClient | undefined | null,
 ): asserts redis is RedisClient {
-  if (mode === 'redis' && (redis == null)) {
+  if (mode === 'redis' && redis == null) {
     throw new Error(
       '[idempotency] Redis store required but client unavailable — refusing silent in-memory fallback (W1-ARCH-03)',
     );

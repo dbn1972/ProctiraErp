@@ -27,8 +27,10 @@ import {
   type ScholarshipActor,
 } from './document-access.js';
 import {
-  DownloadTokenReplayGuard,
+  createDownloadTokenReplayGuard,
+  type DownloadTokenReplayStore,
   parseMultipartForm,
+  type ScholarshipDocumentDownloadAuditEvent,
   verifyDocumentDownloadToken,
 } from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
@@ -59,8 +61,12 @@ export interface ScholarshipDocumentRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
-  /** Single-use download token guard (PRC-L344). Defaults to a process-local guard. */
-  downloadReplayGuard?: DownloadTokenReplayGuard;
+  /**
+   * Single-use download token store (PRC-L344). Production must inject the shared Redis guard
+   * ({@link createDownloadTokenReplayGuard}); the default is process-local and refused in
+   * production.
+   */
+  downloadReplayGuard?: DownloadTokenReplayStore;
 }
 
 function tenantIdOf(request: FastifyRequest): string | null {
@@ -93,7 +99,9 @@ export async function registerScholarshipDocumentRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/scholarships';
   const { scholarshipService, documentService } = options;
-  const replayGuard = options.downloadReplayGuard ?? new DownloadTokenReplayGuard();
+  const replayGuard =
+    options.downloadReplayGuard ??
+    createDownloadTokenReplayGuard({ NODE_ENV: process.env['NODE_ENV'] });
 
   if (!fastify.hasContentTypeParser('multipart/form-data')) {
     fastify.addContentTypeParser(
@@ -191,6 +199,13 @@ export async function registerScholarshipDocumentRoutes(
       const actor = await actorFor(request, tenantId);
       assertCanReadDocuments(actor, application);
       const data = await documentService.list(tenantId, application.id);
+      await documentService.recordAccess({
+        tenantId,
+        actor,
+        action: 'list',
+        applicationId: application.id,
+        documentId: null,
+      });
       return reply.send({ data });
     } catch (error) {
       return sendError(reply, error);
@@ -227,6 +242,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'download_link',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply.send({
           url: doc.url,
           expiresAt: doc.expiresAt,
@@ -266,6 +288,13 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 404,
           });
         }
+        await documentService.recordAccess({
+          tenantId,
+          actor,
+          action: 'content',
+          applicationId: application.id,
+          documentId: params.data.documentId,
+        });
         return reply
           .header('content-type', file.mimeType)
           .header(
@@ -295,7 +324,7 @@ export async function registerScholarshipDocumentRoutes(
       const application = await loadApplication(tenantId, params.data.id);
       const actor = await actorFor(request, tenantId);
       assertCanDelete(actor, application);
-      await documentService.remove(tenantId, params.data.documentId, actor);
+      await documentService.remove(tenantId, params.data.documentId, actor, application);
       return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
@@ -426,7 +455,8 @@ export async function registerScholarshipDocumentRoutes(
       try {
         const claims = verifyDocumentDownloadToken(params.data.token);
         // A session presented with the link must be the user it was minted for.
-        const sessionUser = actorFromRequest(request).userId;
+        const sessionActor = actorFromRequest(request);
+        const sessionUser = sessionActor.userId;
         if (sessionUser && claims.sub && sessionUser !== claims.sub) {
           return reply.status(403).send({
             code: 'FORBIDDEN',
@@ -434,7 +464,7 @@ export async function registerScholarshipDocumentRoutes(
             statusCode: 403,
           });
         }
-        if (!replayGuard.consume(claims.jti, claims.exp)) {
+        if (!(await replayGuard.consume(claims.jti, claims.exp))) {
           return reply.status(401).send({
             code: 'UNAUTHORIZED',
             message: 'Download link has already been used',
@@ -442,6 +472,34 @@ export async function registerScholarshipDocumentRoutes(
           });
         }
         const file = await documentService.readBytes(claims.tenantId, claims.documentId);
+        // PRC-L344 + PRC-M353: exactly one durable, hash-chained access record per served
+        // download, written before any bytes leave the process. No record, no document.
+        const downloadEvent: ScholarshipDocumentDownloadAuditEvent = {
+          tenantId: claims.tenantId,
+          documentId: claims.documentId,
+          userId: claims.sub || null,
+          sessionUserId: sessionUser || null,
+          jti: claims.jti,
+          ipAddress: sessionActor.ipAddress,
+          userAgent: request.headers['user-agent'] ?? null,
+          requestId: String(request.id),
+        };
+        try {
+          await documentService.recordTokenDownload(downloadEvent, {
+            applicationId: file.row.applicationId,
+            userName: sessionActor.userName,
+          });
+        } catch (auditError) {
+          request.log.error(
+            { err: auditError, documentId: claims.documentId, tenantId: claims.tenantId },
+            'scholarship document download audit failed',
+          );
+          return reply.status(503).send({
+            code: 'AUDIT_UNAVAILABLE',
+            message: 'Download is temporarily unavailable',
+            statusCode: 503,
+          });
+        }
         request.log.info(
           {
             event: 'scholarship.document.downloaded',

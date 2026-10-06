@@ -1,7 +1,13 @@
 /**
  * Upload, list, download, delete, and verify scholarship supporting documents.
  */
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { ScholarshipActor } from './document-access.js';
@@ -9,13 +15,15 @@ import type { ScholarshipDocumentBlobStore } from './document-blob-store.js';
 import {
   assertDocumentBytes,
   sanitizeFilename,
+  type ScholarshipDocumentDownloadAuditEvent,
   sha256Hex,
   signDocumentDownloadToken,
 } from './document-bytes.js';
-import type {
-  ScholarshipApplicationDocument,
-  ScholarshipDocumentAudit,
-  ScholarshipDocumentStore,
+import {
+  SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY,
+  type ScholarshipApplicationDocument,
+  type ScholarshipDocumentAudit,
+  type ScholarshipDocumentStore,
 } from './document-store.js';
 import type { ScholarshipApplicationEntity } from './scholarship-repository.js';
 import type { ScholarshipService } from './scholarship-service.js';
@@ -32,6 +40,12 @@ export const DOCUMENT_TYPES = [
   'other',
 ] as const;
 
+/** Application statuses after which supporting documents may not be removed. */
+export const DOCUMENT_LOCKED_STATUSES: readonly ScholarshipApplicationEntity['status'][] = [
+  'submitted',
+  'under_review',
+  'approved',
+];
 const DOCUMENT_TYPE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
 export type VirusScanHook = (input: {
@@ -174,15 +188,39 @@ export class ScholarshipDocumentService {
 
   async readBytes(tenantId: string, documentId: string) {
     const row = await this.requireRow(tenantId, documentId);
-    const bytes = await this.deps.blobs.get(row.objectKey);
+    let bytes: Buffer | null;
+    try {
+      bytes = await this.deps.blobs.get(row.objectKey);
+    } catch (cause) {
+      // PRC-M356: storage outage is a 503, not "file no longer available".
+      const error = new AppError(
+        'Document storage is temporarily unavailable. Try again shortly.',
+        'SERVICE_UNAVAILABLE',
+        503,
+      );
+      (error as AppError & { cause?: unknown }).cause = cause;
+      throw error;
+    }
     if (!bytes) {
       throw new NotFoundError('Document file is no longer available');
     }
     return { bytes, mimeType: row.mimeType, originalFilename: row.originalFilename, row };
   }
 
-  async remove(tenantId: string, documentId: string, actor: ScholarshipActor) {
+  async remove(
+    tenantId: string,
+    documentId: string,
+    actor: ScholarshipActor,
+    application: Pick<ScholarshipApplicationEntity, 'id' | 'status'>,
+  ) {
     const row = await this.requireRow(tenantId, documentId);
+    if (row.applicationId !== application.id) throw new NotFoundError('Document not found');
+    // PRC-M356: evidence on a submitted/decided application is retained.
+    if (DOCUMENT_LOCKED_STATUSES.includes(application.status)) {
+      throw new ConflictError(
+        `Documents cannot be removed once the application is ${application.status.replace('_', ' ')}`,
+      );
+    }
     const deleted = await this.deps.documents.softDelete(
       tenantId,
       documentId,
@@ -193,7 +231,8 @@ export class ScholarshipDocumentService {
       }),
     );
     if (!deleted) throw new NotFoundError('Document not found');
-    await this.deps.blobs.delete(row.objectKey).catch(() => undefined);
+    // PRC-M356: the blob is retained; the soft-deleted row keeps object_key so a
+    // retention job can purge it after the retention window.
     return publicDocument(deleted);
   }
 
@@ -242,6 +281,70 @@ export class ScholarshipDocumentService {
     );
     if (!updated) throw new NotFoundError('Document not found');
     return publicDocument(updated);
+  }
+
+  /**
+   * PRC-M353: record who viewed/downloaded applicant documents (minors'
+   * financial/identity data). Fails closed: if the access log cannot be
+   * written the caller must not serve the data.
+   */
+  async recordAccess(input: {
+    tenantId: string;
+    actor: Pick<ScholarshipActor, 'userId' | 'userName' | 'ipAddress'>;
+    action: 'list' | 'download_link' | 'content' | 'token_download';
+    applicationId: string | null;
+    documentId: string | null;
+    purpose?: string;
+    /** Extra non-sensitive context (request id, jti, user agent). */
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.deps.documents.recordAccess({
+      tenantId: input.tenantId,
+      entityId: input.documentId ?? input.applicationId ?? 'unknown',
+      entityType: SCHOLARSHIP_DOCUMENT_ACCESS_ENTITY,
+      operation: 'CREATE',
+      userId: input.actor.userId || 'unknown',
+      userName: input.actor.userName,
+      ipAddress: input.actor.ipAddress,
+      metadata: {
+        ...input.details,
+        action: input.action,
+        applicationId: input.applicationId,
+        documentId: input.documentId,
+        purpose: input.purpose ?? 'scholarship_review',
+      },
+    });
+  }
+
+  /**
+   * PRC-L344 + PRC-M353: the single durable access record for a redeemed download link. It is
+   * the same hash-chained access log as list/link/content, carrying the link's jti and the
+   * presenting session so a replay investigation can tie the row to one token. Throws when the
+   * row cannot be written; the caller must then refuse to serve the bytes.
+   */
+  async recordTokenDownload(
+    event: ScholarshipDocumentDownloadAuditEvent,
+    context: { applicationId: string; userName: string },
+  ): Promise<void> {
+    await this.recordAccess({
+      tenantId: event.tenantId,
+      actor: {
+        userId: event.userId || event.sessionUserId || 'download-link',
+        userName: context.userName,
+        ipAddress: event.ipAddress,
+      },
+      action: 'token_download',
+      applicationId: context.applicationId,
+      documentId: event.documentId,
+      details: {
+        event: 'scholarship.document.downloaded',
+        jti: event.jti,
+        linkUserId: event.userId,
+        sessionUserId: event.sessionUserId,
+        userAgent: event.userAgent,
+        requestId: event.requestId,
+      },
+    });
   }
 
   private async requireRow(tenantId: string, documentId: string) {

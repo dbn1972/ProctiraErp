@@ -265,7 +265,16 @@ export type {
   ImportDryRunResult,
   PayrollExportResult,
   PayrollRow,
+  StaffHrServiceOptions,
 } from './hr-service.js';
+// PRC-H089: payroll proration policy (config PAYROLL_PRORATION)
+export {
+  DEFAULT_PAYROLL_PRORATION,
+  PAYROLL_PRORATION_POLICIES,
+  prorateMonthlyGrossCents,
+  resolvePayrollProrationPolicy,
+} from './payroll-compute.js';
+export type { PayrollProration, PayrollProrationPolicy } from './payroll-compute.js';
 export type {
   StaffAttendanceRecord,
   StaffContractRecord,

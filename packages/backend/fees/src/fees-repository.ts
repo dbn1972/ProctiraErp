@@ -105,6 +105,26 @@ export interface LedgerTrialBalance {
 }
 
 /** Thrown when a journal's debits and credits do not balance. */
+/** PRC-M248: list pagination (offset cursor). */
+export interface FeesPageRequest {
+  limit: number;
+  offset: number;
+}
+export const FEES_DEFAULT_PAGE_LIMIT = 50;
+export const FEES_MAX_PAGE_LIMIT = 200;
+
+/**
+ * PRC-M247: thrown by recordPaymentOnInvoice when the idempotency key already
+ * has a payment (found under the lock or via the unique index); the service
+ * turns it into an idempotent replay.
+ */
+export class PaymentIdempotencyReplay extends Error {
+  constructor(readonly payment: FeePaymentEntity) {
+    super('Idempotent payment replay');
+    this.name = 'PaymentIdempotencyReplay';
+  }
+}
+
 export class UnbalancedJournalError extends Error {
   constructor(journalId: string, debitCents: number, creditCents: number) {
     super(
@@ -292,9 +312,18 @@ export interface RecordPaymentOnInvoiceSettlement {
  * Carries amounts and before/after status only (no PII).
  */
 export interface FeesMoneyAuditEvent {
-  kind: 'refund' | 'credit_note' | 'write_off' | 'void' | 'concession_approve';
+  kind:
+    | 'refund'
+    | 'credit_note'
+    | 'write_off'
+    | 'void'
+    | 'concession_approve'
+    | 'concession_reject'
+    | 'scholarship_netting'
+    | 'scholarship_netting_reversal';
   entityId: string;
-  invoiceId: string;
+  /** Null when no invoice was touched (credit reserved / rejected without a target). */
+  invoiceId: string | null;
   amountCents: number;
   beforeStatus: string;
   afterStatus: string;
@@ -344,6 +373,11 @@ export interface FeesRepository {
     tenantId: string,
     scope: { classId?: string | null; gradeId?: string | null },
   ): Promise<string[]>;
+  /**
+   * PRC-M087: true only when `classId` is a live row of the tenant's
+   * `classes` table (not a timetable section id).
+   */
+  classExists(tenantId: string, classId: string): Promise<boolean>;
 
   createFeeStructure(
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
@@ -382,6 +416,17 @@ export interface FeesRepository {
     structureId: string,
   ): Promise<FeeConcessionEntity | null>;
   listConcessions(tenantId: string): Promise<FeeConcessionEntity[]>;
+  /** PRC-M250: set-based bulk-invoice lookups (one query each, not per student). */
+  listInvoicedStudentIdsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<Set<string>>;
+  listActiveConcessionsForStructure(
+    tenantId: string,
+    structureId: string,
+    studentIds: string[],
+  ): Promise<FeeConcessionEntity[]>;
   updateConcession(
     id: string,
     tenantId: string,
@@ -440,6 +485,11 @@ export interface FeesRepository {
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
+      /**
+       * PRC-M247: re-check this key under the invoice lock (before the status
+       * check and before `build` charges). A hit throws PaymentIdempotencyReplay.
+       */
+      idempotencyKey?: string | null;
       appendAuditInTxn?: (
         client: PgQueryable,
         settled: {
@@ -474,6 +524,20 @@ export interface FeesRepository {
     invoiceId: string,
     fn: (tx: FeesRepository, locked: LockedInvoiceBalance) => Promise<T>,
   ): Promise<T>;
+
+  // PRC-M248: per-invoice / bounded reads (no tenant-wide scans on hot paths).
+  listPaymentsForInvoice(tenantId: string, invoiceId: string): Promise<FeePaymentEntity[]>;
+  findReceiptByPaymentId(tenantId: string, paymentId: string): Promise<FeeReceiptEntity | null>;
+  listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]): Promise<FeeReceiptEntity[]>;
+  /** SUM(amount) of succeeded payments per invoice (SQL aggregate). */
+  sumSucceededPaymentsByInvoice(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<Map<string, number>>;
+  /** Newest first; returns up to `page.limit + 1` rows. */
+  listInvoicesPage(tenantId: string, page: FeesPageRequest): Promise<FeeInvoiceEntity[]>;
+  listPaymentsPage(tenantId: string, page: FeesPageRequest): Promise<FeePaymentEntity[]>;
+  listReceiptsPage(tenantId: string, page: FeesPageRequest): Promise<FeeReceiptEntity[]>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;

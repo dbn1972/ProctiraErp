@@ -130,9 +130,15 @@ export type WebhookHttpFetch = (
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+/** PRC-H046: port returning the decrypted webhook signing secret (or undefined). */
+export interface WebhookSigningSecretResolver {
+  resolveSigningSecret(webhook: WebhookEntity): Promise<string | undefined>;
+}
+
 export class DeveloperPortalService {
   private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
   private readonly httpFetch: WebhookHttpFetch;
+  private readonly signingSecretResolver: WebhookSigningSecretResolver | undefined;
   /** W1-SEC-08: nonce replay store for inbound signature verification. */
   private readonly replayStore: WebhookReplayStore | null | undefined;
 
@@ -144,8 +150,15 @@ export class DeveloperPortalService {
       httpFetch?: WebhookHttpFetch;
       /** Injected replay store (Redis in prod / memory in non-prod). */
       replayStore?: WebhookReplayStore | null;
+      /**
+       * PRC-H046: resolves the decrypted signing secret for a webhook at send
+       * time (secrets are never carried in queue/outbox payloads). Absent →
+       * fan-out deliveries are unsigned until encrypted secret storage lands.
+       */
+      signingSecretResolver?: WebhookSigningSecretResolver;
     },
   ) {
+    this.signingSecretResolver = options?.signingSecretResolver;
     this.deliveryPublisher = options?.deliveryPublisher;
     this.replayStore = options?.replayStore;
     this.httpFetch =
@@ -586,15 +599,18 @@ export class DeveloperPortalService {
       'x-proctira-event': job.event,
       'x-proctira-delivery': job.deliveryId,
     };
-    // PRC-M211: signing is mandatory. The secret comes from the sealed column on the webhook
-    // row (never the queue message); legacy hash-only rows or an undecryptable secret fail the
-    // delivery permanently instead of sending it unsigned.
+    // PRC-M211: signing is mandatory. The secret is resolved at send time through the
+    // WebhookSigningSecretResolver port (PRC-H046) or the sealed column on the webhook row —
+    // never the queue message. A missing or undecryptable secret fails the delivery
+    // permanently instead of sending it unsigned.
     let signingSecret: string | null = null;
     try {
-      signingSecret = openWebhookSecret(webhook.secretCiphertext, {
-        webhookId: webhook.id,
-        tenantId: webhook.tenantId,
-      });
+      signingSecret =
+        (await this.signingSecretResolver?.resolveSigningSecret(webhook)) ??
+        openWebhookSecret(webhook.secretCiphertext, {
+          webhookId: webhook.id,
+          tenantId: webhook.tenantId,
+        });
     } catch {
       signingSecret = null;
     }

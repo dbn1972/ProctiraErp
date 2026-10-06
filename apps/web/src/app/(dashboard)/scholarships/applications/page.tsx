@@ -22,7 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listScholarshipApplications, type ScholarshipApplication } from '@/lib/api/scholarships';
+import {
+  APPLICATION_STATUS_QUERY,
+  listScholarshipApplications,
+  type ScholarshipApplication,
+} from '@/lib/api/scholarships';
+import { PaginationControls } from '@/components/institutions/pagination-controls';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 
 import { ApplicationStatusTabs } from '../_components/application-status-tabs';
@@ -101,21 +107,61 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
   const status = readStringParam(searchParams, 'status', 'ALL');
   const programId = readStringParam(searchParams, 'programId');
 
-  const applications = await listScholarshipApplications();
-  const scoped = programId ? applications.filter((a) => a.programId === programId) : applications;
-
-  const counts = {
-    ALL: scoped.length,
-    PENDING: scoped.filter((a) => a.status === 'PENDING').length,
-    UNDER_REVIEW: scoped.filter((a) => a.status === 'UNDER_REVIEW').length,
-    APPROVED: scoped.filter((a) => a.status === 'APPROVED').length,
-    REJECTED: scoped.filter((a) => a.status === 'REJECTED').length,
+  // PRC-M114: status, programId and page go to the API; counts come from meta.
+  const page = Math.max(1, Number(readStringParam(searchParams, 'page', '1')) || 1);
+  const PAGE_SIZE = 20;
+  const statusKey = (['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'] as const).find(
+    (s) => s === status,
+  );
+  const scope = { programId: programId || undefined };
+  const countFor = async (key?: keyof typeof APPLICATION_STATUS_QUERY) => {
+    const r = await listScholarshipApplications({
+      ...scope,
+      status: key ? APPLICATION_STATUS_QUERY[key] : undefined,
+      pageSize: 1,
+    });
+    return r.ok ? (r.meta?.totalItems ?? r.items.length) : undefined;
   };
-
-  const filtered = status && status !== 'ALL' ? scoped.filter((a) => a.status === status) : scoped;
-
-  const awaiting = counts.PENDING + counts.UNDER_REVIEW;
-
+  const [applicationsResult, all, pending, underReview, approved, rejected] = await Promise.all([
+    listScholarshipApplications({
+      ...scope,
+      status: statusKey ? APPLICATION_STATUS_QUERY[statusKey] : undefined,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    countFor(),
+    countFor('PENDING'),
+    countFor('UNDER_REVIEW'),
+    countFor('APPROVED'),
+    countFor('REJECTED'),
+  ]);
+  // PRC-M113: a failed read is an error panel, never "No applications submitted."
+  if (!applicationsResult.ok) {
+    return (
+      <section aria-labelledby="applications-heading" className="space-y-6">
+        <h1 id="applications-heading" className="text-3xl font-extrabold tracking-tight">
+          Scholarship applications
+        </h1>
+        <ListLoadFailure
+          kind={applicationsResult.kind}
+          status={applicationsResult.status}
+          returnTo="/scholarships/applications"
+        />
+      </section>
+    );
+  }
+  const filtered = applicationsResult.items;
+  const totalItems = applicationsResult.meta?.totalItems ?? filtered.length;
+  const totalPages = Math.max(1, applicationsResult.meta?.totalPages ?? 1);
+  const counts = {
+    ALL: all,
+    PENDING: pending,
+    UNDER_REVIEW: underReview,
+    APPROVED: approved,
+    REJECTED: rejected,
+  };
+  const scopedTotal = all ?? 0;
+  const awaiting = (pending ?? 0) + (underReview ?? 0);
   return (
     <section aria-labelledby="applications-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -129,8 +175,8 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
           <p className="mt-1 text-sm text-muted-foreground">
             Review, verify, and approve applications across all programs. Approvals trigger the DBT
             disbursement queue automatically.
-            {scoped.length > 0
-              ? ` ${scoped.length.toLocaleString()} applications received, ${awaiting.toLocaleString()} awaiting approval.`
+            {scopedTotal > 0
+              ? ` ${scopedTotal.toLocaleString()} applications received, ${awaiting.toLocaleString()} awaiting approval.`
               : null}
           </p>
         </div>
@@ -144,7 +190,7 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {scoped.length === 0
+            {scopedTotal === 0
               ? 'No applications submitted.'
               : 'No applications match this status filter.'}
           </CardContent>
@@ -171,9 +217,13 @@ export default async function ScholarshipApplicationsPage(props: PageProps) {
                 </TableBody>
               </Table>
             </div>
-            <div className="border-t px-4 py-3 text-sm text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">1–{filtered.length}</span> of{' '}
-              <span className="font-semibold text-foreground">{filtered.length}</span> applications
+            <div className="border-t px-4 py-3">
+              <PaginationControls
+                page={page}
+                pageSize={PAGE_SIZE}
+                totalItems={totalItems}
+                totalPages={totalPages}
+              />
             </div>
           </CardContent>
         </Card>

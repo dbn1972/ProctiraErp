@@ -4,18 +4,21 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  IdempotentRegistrationCreateResult,
-  InstitutionLocationFilter,
-  LegacyRegistrationCreate,
-  NewRegistrationEntity,
-  RegistrationEntity,
-  RegistrationInstitution,
-  RegistrationRepository,
-  RegistrationStatus,
-  SchoolFinderFilter,
-  SchoolFinderResultRow,
-  TenantFormConfiguration,
+import { sliceForPage, type ListPage } from './pagination.js';
+import {
+  institutionFilterOptionsFrom,
+  type InstitutionFilterOptions,
+  type IdempotentRegistrationCreateResult,
+  type InstitutionLocationFilter,
+  type LegacyRegistrationCreate,
+  type NewRegistrationEntity,
+  type RegistrationEntity,
+  type RegistrationInstitution,
+  type RegistrationRepository,
+  type RegistrationStatus,
+  type SchoolFinderFilter,
+  type SchoolFinderResultRow,
+  type TenantFormConfiguration,
 } from './registration-repository.js';
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
@@ -141,11 +144,11 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     return row ? structuredClone(row) : null;
   }
 
-  async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
-    return this.registrations
+  async listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]> {
+    const rows = this.registrations
       .filter((registration) => registration.tenantId === tenantId)
-      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
-      .map((registration) => structuredClone(registration));
+      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+    return sliceForPage(rows, page).map((registration) => structuredClone(registration));
   }
 
   async updateStatus(
@@ -153,11 +156,13 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null> {
     const registration = this.registrations.find(
       (row) => row.id === id && (!tenantId || row.tenantId === tenantId),
     );
     if (!registration) return null;
+    if (expectedStatus !== undefined && registration.status !== expectedStatus) return null;
     registration.status = status;
     registration.updatedAt = new Date();
     if (remarks !== undefined) registration.remarks = remarks;
@@ -181,6 +186,12 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     if (!configuration) return null;
     const { tenantId: _tenantId, ...publicConfiguration } = configuration;
     return structuredClone(publicConfiguration);
+  }
+
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return institutionFilterOptionsFrom(
+      this.institutions.filter((row) => row.tenantId === tenantId),
+    );
   }
 
   async findInstitution(

@@ -106,6 +106,95 @@ describe('AttendanceOpsService (G-919)', () => {
     expect(repo.getStudentAttendanceRecords()[0]?.status).toBe(AttendanceStatus.ABSENT);
   });
 
+  it('PRC-M081: resolves the record server-side without a pasted id; fromStatus is the stored status', async () => {
+    const record = await repo.createStudentAttendance({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      institutionId: INSTITUTION_ID,
+      classId: CLASS_ID,
+      academicPeriodId: PERIOD_ID,
+      date: '2024-06-12',
+      subjectId: null,
+      periodId: null,
+      status: AttendanceStatus.LATE,
+      comment: null,
+      recordedBy: 'teacher-1',
+    });
+    const req = await ops.requestRegularisation(
+      TENANT_ID,
+      {
+        studentId: STUDENT_ID,
+        institutionId: INSTITUTION_ID,
+        classId: CLASS_ID,
+        attendanceDate: '2024-06-12',
+        // No client-typed fromStatus: it is taken from the stored record
+        // (a stale supplied value is rejected with 409 — PRC-M170).
+        toStatus: 'PRESENT',
+      },
+      { userId: 't', roles: ['teacher'] },
+    );
+    expect(req.attendanceId).toBe(record.id);
+    expect(req.fromStatus).toBe(AttendanceStatus.LATE);
+  });
+
+  it('PRC-M081: 404 when no record exists and rejects a mismatched / cross-tenant id', async () => {
+    await expect(
+      ops.requestRegularisation(
+        TENANT_ID,
+        {
+          studentId: STUDENT_ID,
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID,
+          attendanceDate: '2024-06-13',
+          toStatus: 'PRESENT',
+        },
+        { userId: 't', roles: ['teacher'] },
+      ),
+    ).rejects.toThrow(/No attendance record/);
+    await repo.createStudentAttendance({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4',
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      institutionId: INSTITUTION_ID,
+      classId: CLASS_ID,
+      academicPeriodId: PERIOD_ID,
+      date: '2024-06-14',
+      subjectId: null,
+      periodId: null,
+      status: AttendanceStatus.ABSENT,
+      comment: null,
+      recordedBy: 'teacher-1',
+    });
+    await expect(
+      ops.requestRegularisation(
+        TENANT_ID,
+        {
+          attendanceId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+          studentId: STUDENT_ID,
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID,
+          attendanceDate: '2024-06-14',
+          toStatus: 'PRESENT',
+        },
+        { userId: 't', roles: ['teacher'] },
+      ),
+    ).rejects.toThrow(/does not match/);
+    await expect(
+      ops.requestRegularisation(
+        'other-tenant',
+        {
+          studentId: STUDENT_ID,
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID,
+          attendanceDate: '2024-06-14',
+          toStatus: 'PRESENT',
+        },
+        { userId: 't', roles: ['teacher'] },
+      ),
+    ).rejects.toThrow(/No attendance record/);
+  });
+
   it('leave approve auto-marks weekday dates EXCUSED', async () => {
     const leave = await ops.requestLeave(
       TENANT_ID,

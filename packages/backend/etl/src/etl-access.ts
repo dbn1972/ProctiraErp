@@ -73,3 +73,35 @@ export function assertEtlAccess(roles: unknown): void {
     );
   }
 }
+
+/**
+ * PRC-H115: `etl.manage` — may read connector config (redacted) and create /
+ * update pipelines. ETL operators keep run/monitor access but only see the
+ * connector type. Granted by admin + ETL engineering roles, or an explicit
+ * `etl.manage` permission claim.
+ */
+const ETL_MANAGE_ROLE_SET = new Set<string>([
+  ...ADMIN_ROLES,
+  'etl_admin',
+  'etl-admin',
+  'etl_engineer',
+  'etl-engineer',
+  'data_engineer',
+  'data-engineer',
+  'data_admin',
+  'data-admin',
+  'integration_admin',
+  'integration-admin',
+]);
+
+export const ETL_MANAGE_PERMISSION = 'etl.manage';
+
+export function hasEtlManageAccess(roles: unknown, permissions?: unknown): boolean {
+  if (
+    Array.isArray(permissions) &&
+    permissions.some((p) => typeof p === 'string' && p.toLowerCase() === ETL_MANAGE_PERMISSION)
+  ) {
+    return true;
+  }
+  return normalizeEtlRoles(roles).some((role) => ETL_MANAGE_ROLE_SET.has(role));
+}

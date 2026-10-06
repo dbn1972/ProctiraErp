@@ -127,6 +127,22 @@ async function buildTimetableInputs(request: APIRequestContext): Promise<Timetab
     },
     201,
   );
+  // PRC-M101: meetings only accept staff with an active assignment at the
+  // institution, so place the new teacher at INSTITUTION_A first.
+  await postOk(
+    request,
+    '/staff/assignments',
+    {
+      staffId: staff.id,
+      institutionId: INSTITUTION_A,
+      subjectId: '00000000-0000-4000-8000-0000000005b1',
+      classId: '00000000-0000-4000-8000-0000000005c1',
+      role: 'Teacher',
+      allocationPercentage: 100,
+      startDate: isoDate(-1),
+    },
+    201,
+  );
   const section = await postOk(
     request,
     '/timetable/sections',

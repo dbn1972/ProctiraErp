@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-import { Button, FormField, Input } from '@proctira/ui/components';
+import { Button, FormField } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
+import { ACK_ON_BEHALF_REASON_MAX } from '@/lib/validation/communication-schema';
 
 import { ackCircularAction, sendCircularAction } from '../actions';
 
@@ -13,10 +14,18 @@ export function CircularAckPanel({
   circularId,
   status,
   ackRate,
+  pendingRecipients = [],
 }: {
   circularId: string;
   status: string;
   ackRate: number;
+  /**
+   * PRC-M071: staff record an acknowledgement on behalf of a recipient chosen
+   * from the circular's pending list (no free-text ids). Owner decision
+   * (PR #548): admin-only on the gateway, a reason is required, and the
+   * acting staff member (from the session) is audited with that reason.
+   */
+  pendingRecipients?: Array<{ id: string; label: string }>;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -24,6 +33,8 @@ export function CircularAckPanel({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [recipientError, setRecipientError] = useState<string | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
   function onConfirmSend() {
     startTransition(async () => {
@@ -42,9 +53,27 @@ export function CircularAckPanel({
   function onAck(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    const recipientId = String(fd.get('recipientId') ?? '');
+    const reason = String(fd.get('reason') ?? '').trim();
+    const nextRecipientError = recipientId ? null : 'Select the recipient.';
+    const nextReasonError = !reason
+      ? 'Enter why you are recording this acknowledgement.'
+      : reason.length > ACK_ON_BEHALF_REASON_MAX
+        ? `Keep the reason to ${ACK_ON_BEHALF_REASON_MAX} characters or fewer.`
+        : null;
+    setRecipientError(nextRecipientError);
+    setReasonError(nextReasonError);
+    if (nextRecipientError || nextReasonError) {
+      // Move focus to the first invalid control so its error is announced.
+      const invalid = event.currentTarget.elements.namedItem(
+        nextRecipientError ? 'recipientId' : 'reason',
+      );
+      if (invalid instanceof HTMLElement) invalid.focus();
+      return;
+    }
     startTransition(async () => {
       setError(null);
-      const result = await ackCircularAction(circularId, String(fd.get('recipientId') ?? ''));
+      const result = await ackCircularAction(circularId, recipientId, reason);
       if (result.status === 'error') {
         setError(result.message ?? 'Ack failed');
         return;
@@ -78,14 +107,61 @@ export function CircularAckPanel({
         onConfirm={onConfirmSend}
         testId="send-circular-confirm"
       />
-      <form onSubmit={onAck} className="flex flex-wrap items-end gap-2">
-        <FormField id="ack-recipient" label="Recipient id">
-          <Input id="ack-recipient" name="recipientId" required disabled={!hydrated || pending} />
-        </FormField>
-        <Button type="submit" variant="outline" disabled={!hydrated || pending}>
-          Record ack
-        </Button>
-      </form>
+      {pendingRecipients.length > 0 ? (
+        <form onSubmit={onAck} noValidate className="flex flex-wrap items-end gap-2">
+          <FormField
+            id="ack-recipient"
+            label="Record acknowledgement on behalf of"
+            required
+            error={recipientError}
+          >
+            <select
+              id="ack-recipient"
+              name="recipientId"
+              required
+              aria-required="true"
+              defaultValue=""
+              disabled={!hydrated || pending}
+              onChange={() => {
+                if (recipientError) setRecipientError(null);
+              }}
+              className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Select recipient…</option>
+              {pendingRecipients.map((recipient) => (
+                <option key={recipient.id} value={recipient.id}>
+                  {recipient.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField
+            id="ack-reason"
+            label="Reason"
+            required
+            hint="For example: signed paper slip returned. Saved to the audit log."
+            error={reasonError}
+            className="min-w-64 flex-1"
+          >
+            <input
+              id="ack-reason"
+              name="reason"
+              type="text"
+              required
+              aria-required="true"
+              maxLength={ACK_ON_BEHALF_REASON_MAX}
+              disabled={!hydrated || pending}
+              onChange={() => {
+                if (reasonError) setReasonError(null);
+              }}
+              className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </FormField>
+          <Button type="submit" variant="outline" disabled={!hydrated || pending}>
+            Record ack
+          </Button>
+        </form>
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

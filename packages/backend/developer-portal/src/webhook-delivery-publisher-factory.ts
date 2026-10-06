@@ -1,11 +1,18 @@
 /**
- * Optional env-driven webhook delivery publisher (W2-JOB-07).
+ * Optional env-driven webhook delivery publisher (W2-JOB-07; PRC-H046 via outbox).
  */
-import type { QueueAdapter } from '@proctira/queue-abstraction';
-import { createQueueAdapter, createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
+import { getSharedPgPool } from '@proctira/database';
+import type { OutboxStore, QueueAdapter } from '@proctira/queue-abstraction';
+import {
+  createQueueAdapter,
+  createQueueAdapterFromEnv,
+  InMemoryOutboxStore,
+  OutboxRelay,
+  PgOutboxStore,
+} from '@proctira/queue-abstraction';
 
 import {
-  QueueWebhookDeliveryPublisher,
+  OutboxWebhookDeliveryPublisher,
   type WebhookDeliveryPublisher,
 } from './queue-webhook-delivery-publisher.js';
 
@@ -14,6 +21,9 @@ export interface WebhookDeliveryPublisherHandle {
   adapter: QueueAdapter;
   /** PRC-H046: fresh (unconnected) adapter on the same backend for consumers. */
   createConsumerAdapter(): QueueAdapter;
+  /** PRC-H046: delivery jobs go through the transactional outbox. */
+  outboxStore: OutboxStore;
+  relay: OutboxRelay;
   disconnect(): Promise<void>;
 }
 
@@ -46,10 +56,24 @@ export async function createWebhookDeliveryPublisherFromEnv(): Promise<WebhookDe
 
   const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
+  // PRC-H046: PG outbox when DATABASE_URL is set, else in-memory (single process).
+  const pool = getSharedPgPool();
+  const outboxStore: OutboxStore = pool ? new PgOutboxStore(pool) : new InMemoryOutboxStore();
+  const relay = new OutboxRelay({
+    store: outboxStore,
+    queue: adapter,
+    pollIntervalMs: Number(process.env['OUTBOX_POLL_MS'] ?? 500),
+  });
+  relay.start();
   return {
-    publisher: new QueueWebhookDeliveryPublisher(adapter),
+    publisher: new OutboxWebhookDeliveryPublisher(outboxStore),
     adapter,
     createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
-    disconnect: () => adapter.disconnect(),
+    outboxStore,
+    relay,
+    disconnect: async () => {
+      await relay.stop();
+      await adapter.disconnect();
+    },
   };
 }

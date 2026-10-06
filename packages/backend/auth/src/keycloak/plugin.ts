@@ -14,9 +14,11 @@ import {
 
 import {
   KeycloakIdentityError,
+  createSessionIdentityCache,
   identityInputFromClaims,
-  linkKeycloakIdentity,
+  linkKeycloakIdentityForSession,
   type KeycloakIdentityStore,
+  type SessionIdentityCache,
 } from './identity.js';
 import {
   KeycloakJwksClient,
@@ -48,6 +50,11 @@ export interface KeycloakAuthPluginOptions {
    * being carried in the token.
    */
   assignmentDb?: AssignmentQueryable;
+  /**
+   * PRC-L283: per-session linked-identity cache (default: 5 min TTL, bounded). Pass a cache with
+   * `ttlMs: 0` semantics via {@link createSessionIdentityCache} to disable.
+   */
+  identityCache?: SessionIdentityCache;
 }
 
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
@@ -75,6 +82,7 @@ export const keycloakAuthPlugin = fp(
   ) {
     const jwks = new KeycloakJwksClient(options.config.jwksUri);
     const revocationStore = options.revocationStore ?? createAccessTokenRevocationStore();
+    const identityCache = options.identityCache ?? createSessionIdentityCache();
 
     // Fastify 5 decorateRequest requires a concrete default (GetterSetter).
     // Handlers overwrite `request.user` after JWT verification.
@@ -96,7 +104,7 @@ export const keycloakAuthPlugin = fp(
           });
         }
         try {
-          const payload = await hydrateKeycloakUser(token, options, jwks, request);
+          const payload = await hydrateKeycloakUser(token, options, jwks, request, identityCache);
           const revocation = await assertAccessTokenNotRevoked(
             { jti: payload.jti, sessionId: payload.sessionId },
             { store: revocationStore },
@@ -137,7 +145,7 @@ export const keycloakAuthPlugin = fp(
       async function jwtVerify(this: FastifyRequest): Promise<JwtPayload> {
         const token = readBearer(this);
         if (!token) throw new KeycloakTokenError('Missing Keycloak access token');
-        const payload = await hydrateKeycloakUser(token, options, jwks, this);
+        const payload = await hydrateKeycloakUser(token, options, jwks, this, identityCache);
         const revocation = await assertAccessTokenNotRevoked(
           { jti: payload.jti, sessionId: payload.sessionId },
           { store: revocationStore },
@@ -198,13 +206,19 @@ async function hydrateKeycloakUser(
   options: KeycloakAuthPluginOptions,
   jwks: KeycloakJwksClient,
   request: FastifyRequest,
+  identityCache?: SessionIdentityCache,
 ): Promise<JwtPayload> {
   const payload = await verifyKeycloakAccessToken(token, options.config, jwks);
   if (options.identityStore) {
     try {
-      const linked = await linkKeycloakIdentity(
-        identityInputFromClaims(decodeJwt(token).payload, options.config.realm),
+      const claims = decodeJwt(token).payload;
+      // PRC-L283: the verified token's session id keys the linked-identity cache, so steady-state
+      // requests skip the identity store; only a miss (first request of a session) reads it.
+      const linked = await linkKeycloakIdentityForSession(
+        identityInputFromClaims(claims, options.config.realm),
         options.identityStore,
+        identityCache,
+        typeof claims.sid === 'string' && claims.sid.length > 0 ? claims.sid : undefined,
       );
       payload.sub = linked.userId;
       payload.tenantId = linked.tenantId;

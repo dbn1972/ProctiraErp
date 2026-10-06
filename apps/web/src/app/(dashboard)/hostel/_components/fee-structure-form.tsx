@@ -14,6 +14,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import { parseMajorUnits } from '@/lib/format-money';
 
 import { createHostelFeeStructureAction } from '../../campus-ops-actions';
 import type { Hostel } from '@/lib/api/hostel';
@@ -31,7 +32,12 @@ export function HostelFeeStructureForm({ hostels }: { hostels: Hostel[] }) {
     const hostelId = String(fd.get('hostelId') ?? '').trim();
     const roomType = String(fd.get('roomType') ?? '').trim();
     const termLabel = String(fd.get('termLabel') ?? '').trim();
-    const amountCents = Number(fd.get('amountCents'));
+    const amount = String(fd.get('amount') ?? '').trim();
+    if (parseMajorUnits(amount) === null || parseMajorUnits(amount) === 0) {
+      setMessage(null);
+      setError('Enter an amount greater than 0 with at most 2 decimals (for example 5000.00).');
+      return;
+    }
     startTransition(async () => {
       setError(null);
       setMessage(null);
@@ -39,7 +45,7 @@ export function HostelFeeStructureForm({ hostels }: { hostels: Hostel[] }) {
         hostelId,
         roomType,
         termLabel,
-        amountCents,
+        amount,
       });
       if (result.status === 'error') {
         setError(result.message ?? 'Save failed');
@@ -91,12 +97,15 @@ export function HostelFeeStructureForm({ hostels }: { hostels: Hostel[] }) {
           <FormField id="fee-term" label="Term" required>
             <Input id="fee-term" name="termLabel" className="h-11 min-h-11" />
           </FormField>
-          <FormField id="fee-amount" label="Amount (cents)" required>
+          <FormField id="fee-amount" label="Amount (₹)" required>
             <Input
               id="fee-amount"
-              name="amountCents"
-              type="number"
-              min="0"
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              placeholder="5000.00"
+              required
+              aria-required="true"
               className="h-11 min-h-11"
             />
           </FormField>

@@ -39,6 +39,8 @@ const PUBLIC_PATHS = [
   // behind auth means asking someone to accept terms they cannot open. Prefix
   // match, so it covers `/legal/*`.
   '/legal',
+  // PRC-M154: landing page for a suspended (inactive) tenant; must not loop.
+  '/tenant-suspended',
 ];
 
 /** Cookie name for the access token. */
@@ -81,6 +83,18 @@ interface TenantCacheEntry {
 
 /** TTL for the tenant config cache: 5 minutes (Design §M, Task 60A.8). */
 export const TENANT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** PRC-M154: failures (404 / unreachable) are cached briefly so recovery is quick. */
+export const TENANT_CONFIG_NEGATIVE_TTL_MS = 30 * 1000;
+
+/** PRC-M154: the gateway lookup must not hold up navigation indefinitely. */
+export const TENANT_CONFIG_FETCH_TIMEOUT_MS = 2000;
+
+/** PRC-M154: hard cap on cached slugs so distinct inputs cannot grow memory without bound. */
+export const TENANT_CONFIG_CACHE_MAX_ENTRIES = 1000;
+
+/** PRC-M154: shape of a tenant slug (DNS label). Anything else resolves to `default`. */
+const TENANT_SLUG_PATTERN = /^[a-z0-9-]{1,63}$/;
 
 /** Module-level tenant config cache keyed by slug. */
 const _tenantConfigCache = new Map<string, TenantCacheEntry>();
@@ -130,6 +144,7 @@ async function fetchTenantConfig(slug: string): Promise<TenantConfig | null> {
         Accept: 'application/json',
         'X-Tenant-ID': slug,
       },
+      signal: AbortSignal.timeout(TENANT_CONFIG_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) return null;
     const payload = (await response.json()) as Record<string, unknown>;
@@ -177,14 +192,18 @@ function normalizeTenantConfig(
  * ensuring the middleware never blocks page rendering.
  */
 export async function getTenantConfig(slug: string): Promise<TenantConfig> {
-  const normalizedSlug = (slug || 'default').toLowerCase();
+  const lowered = (slug || 'default').toLowerCase();
+  const normalizedSlug = TENANT_SLUG_PATTERN.test(lowered) ? lowered : 'default';
   const now = Date.now();
 
-  // Check cache
+  // Check cache (LRU: a hit moves the entry to the most-recent end).
   const cached = _tenantConfigCache.get(normalizedSlug);
   if (cached && cached.expiresAt > now) {
+    _tenantConfigCache.delete(normalizedSlug);
+    _tenantConfigCache.set(normalizedSlug, cached);
     return cached.config;
   }
+  if (cached) _tenantConfigCache.delete(normalizedSlug);
 
   // De-duplicate concurrent fetches
   const existing = _tenantConfigInFlight.get(normalizedSlug);
@@ -197,9 +216,15 @@ export async function getTenantConfig(slug: string): Promise<TenantConfig> {
   const promise = fetchTenantConfig(normalizedSlug)
     .then((config) => {
       const resolved = config ?? DEFAULT_TENANT_CONFIG;
+      while (_tenantConfigCache.size >= TENANT_CONFIG_CACHE_MAX_ENTRIES) {
+        const oldest = _tenantConfigCache.keys().next().value;
+        if (oldest === undefined) break;
+        _tenantConfigCache.delete(oldest);
+      }
       _tenantConfigCache.set(normalizedSlug, {
         config: resolved,
-        expiresAt: Date.now() + TENANT_CONFIG_CACHE_TTL_MS,
+        expiresAt:
+          Date.now() + (config ? TENANT_CONFIG_CACHE_TTL_MS : TENANT_CONFIG_NEGATIVE_TTL_MS),
       });
       _tenantConfigInFlight.delete(normalizedSlug);
       return config;
@@ -360,14 +385,19 @@ export async function middleware(request: NextRequest) {
   // (branding only). A client-supplied X-Tenant-ID is never trusted.
   const hostTenant = resolveTenantForRequest(request);
   const resolvedTenantSlug = hostTenant || 'default';
-  const response = NextResponse.next({
-    request: { headers: withTrustedTenantHeader(request, hostTenant) },
-  });
-  ensureCsrfCookie(request, response);
-
   // Look up tenant config from cache (5-min TTL). This validates the tenant
   // exists and provides branding tokens for the SSR layer.
   const tenantConfig = await getTenantConfig(resolvedTenantSlug);
+
+  // PRC-M153: tenant context must reach Server Components as *request* headers
+  // (`headers()` reads the request, not the response). Client-supplied
+  // x-tenant-* values are stripped first so they can never select a tenant.
+  const response = NextResponse.next({
+    request: {
+      headers: withTrustedTenantHeader(request, hostTenant),
+    },
+  });
+  ensureCsrfCookie(request, response);
 
   // Set tenant context headers for downstream Server Components and API calls.
   response.headers.set('X-Tenant-ID', tenantConfig.id);
@@ -393,6 +423,15 @@ export async function middleware(request: NextRequest) {
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
 
+  // PRC-M154: a suspended tenant (active:false) cannot use the app. Public pages
+  // (login, legal, the suspended notice itself) stay reachable.
+  if (!tenantConfig.active && !isPublicPath) {
+    const suspendedUrl = request.nextUrl.clone();
+    suspendedUrl.pathname = '/tenant-suspended';
+    suspendedUrl.search = '';
+    return NextResponse.redirect(suspendedUrl);
+  }
+
   if (!isPublicPath) {
     const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
@@ -408,7 +447,9 @@ export async function middleware(request: NextRequest) {
         return redirectToLogin(request, pathname);
       }
 
-      const refreshed = await tryRefresh(request);
+      // PRC-M493: single-flight per refresh token; parallel navigations share one
+      // /api/auth/refresh call and its rotated cookies instead of racing the rotation.
+      const refreshed = await refreshOnce(request, refreshToken);
       if (!refreshed) {
         const expiredResponse = redirectToLogin(request, pathname);
         // Clear the stale tokens so the user gets a clean state on retry.
@@ -416,12 +457,16 @@ export async function middleware(request: NextRequest) {
         expiredResponse.cookies.delete(REFRESH_TOKEN_COOKIE);
         return expiredResponse;
       }
-
+      if (refreshed.setCookies.length === 0) {
+        // PRC-M493: a 200 without rotated cookies would replay with the same expired token
+        // and loop forever; send the user to sign in instead.
+        return redirectToLogin(request, pathname);
+      }
       // Replay the original navigation now that cookies have been rotated.
       const replay = NextResponse.redirect(request.url);
       // Carry the rotated cookies onto the redirect so the browser sees them
       // before the next request hits the middleware again.
-      forwardSetCookies(refreshed, replay);
+      refreshed.setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
       return replay;
     }
 
@@ -474,10 +519,28 @@ export function handleApiRequest(request: NextRequest): NextResponse {
  */
 export function withTrustedTenantHeader(request: NextRequest, tenant: string | null): Headers {
   const headers = new Headers(request.headers);
-  headers.delete('x-tenant-id');
-  if (tenant) headers.set('x-tenant-id', tenant);
+  // PRC-M153: every client-sent x-tenant-* header is discarded.
+  for (const name of TENANT_CONTEXT_REQUEST_HEADERS) headers.delete(name);
+  if (tenant) {
+    headers.set('x-tenant-id', tenant);
+    // PRC-M066: X-Tenant-Slug drives the SSR theme lookup; it is the Host-resolved
+    // tenant, never the client's and never a gateway fallback such as `default`.
+    headers.set('x-tenant-slug', tenant);
+  }
   return headers;
 }
+
+/**
+ * PRC-M153: tenant context headers only the middleware may set on the forwarded
+ * request; any inbound copy from the client is discarded.
+ */
+const TENANT_CONTEXT_REQUEST_HEADERS = [
+  'x-tenant-id',
+  'x-tenant-slug',
+  'x-tenant-name',
+  'x-tenant-primary-color',
+  'x-tenant-accent-color',
+] as const;
 
 /**
  * Issues the readable double-submit CSRF cookie on page navigations when the
@@ -501,6 +564,51 @@ export function ensureCsrfCookie(request: NextRequest, response: NextResponse): 
  * token is placed both in the forwarded cookie jar and in the CSRF header.
  * An attacker cannot do this because they cannot set cookies on our origin.
  */
+/** PRC-M493: outcome of a refresh shared by concurrent requests. */
+interface RefreshOutcome {
+  setCookies: string[];
+}
+/** How long a completed refresh is reused for late parallel requests (ms). */
+const REFRESH_REUSE_MS = 10_000;
+const refreshInFlight = new Map<
+  string,
+  { promise: Promise<RefreshOutcome | null>; expiresAt: number }
+>();
+/**
+ * PRC-M493: single-flight refresh keyed by the refresh-token cookie. The first
+ * request performs the refresh; concurrent (and shortly-after) requests carrying
+ * the same, now-rotated, refresh token reuse its Set-Cookie headers instead of
+ * presenting a revoked token and deleting the session.
+ */
+export async function refreshOnce(
+  request: NextRequest,
+  refreshToken: string,
+): Promise<RefreshOutcome | null> {
+  const now = Date.now();
+  for (const [key, entry] of refreshInFlight) {
+    if (entry.expiresAt <= now) refreshInFlight.delete(key);
+  }
+  const existing = refreshInFlight.get(refreshToken);
+  if (existing) return existing.promise;
+  const promise = tryRefresh(request).then((response) =>
+    response ? { setCookies: readSetCookies(response) } : null,
+  );
+  refreshInFlight.set(refreshToken, { promise, expiresAt: now + REFRESH_REUSE_MS });
+  const outcome = await promise;
+  // Failures are not cached: a later retry may succeed.
+  if (!outcome) refreshInFlight.delete(refreshToken);
+  return outcome;
+}
+/** Test hook: forget all cached refresh outcomes. */
+export function __resetRefreshSingleFlight(): void {
+  refreshInFlight.clear();
+}
+function readSetCookies(source: Response): string[] {
+  const headers = source.headers as Headers & { getSetCookie?: () => string[] };
+  if (headers.getSetCookie) return headers.getSetCookie();
+  const single = source.headers.get('set-cookie');
+  return single ? [single] : [];
+}
 async function tryRefresh(request: NextRequest): Promise<Response | null> {
   try {
     // Same-origin URL: the refresh handler derives the tenant from its Host
@@ -530,23 +638,6 @@ function redirectToLogin(request: NextRequest, returnTo: string): NextResponse {
   const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
   loginUrl.searchParams.set('returnTo', safeReturnTo);
   return NextResponse.redirect(loginUrl);
-}
-
-/**
- * Forward all Set-Cookie headers from one Response onto a NextResponse.
- * Used after a token refresh so the browser receives the rotated cookies
- * on the same response that performs the redirect replay.
- */
-function forwardSetCookies(source: Response, target: NextResponse): void {
-  // Headers#getSetCookie is the canonical way to read multi-valued
-  // Set-Cookie. Falls back to getAll/raw when running on older runtimes.
-  const headers = source.headers as Headers & {
-    getSetCookie?: () => string[];
-  };
-  const cookies = headers.getSetCookie ? headers.getSetCookie() : [];
-  cookies.forEach((cookie) => {
-    target.headers.append('set-cookie', cookie);
-  });
 }
 
 export const config = {

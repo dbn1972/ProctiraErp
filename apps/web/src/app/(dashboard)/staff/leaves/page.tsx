@@ -24,8 +24,15 @@ import { inclusiveLeaveDays } from './_components/leave-days';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StaffLeavesPage() {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export default async function StaffLeavesPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireSession();
+  // PRC-M117: the staff profile links here with ?staffId= to preselect the requester.
+  const sp = (await props.searchParams) ?? {};
+  const defaultStaffId =
+    typeof sp.staffId === 'string' && UUID_RE.test(sp.staffId) ? sp.staffId : '';
   const [leaves, staffOptions] = await Promise.all([listStaffLeaves(), loadStaffOptions()]);
   const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
 
@@ -43,7 +50,7 @@ export default async function StaffLeavesPage() {
         </Button>
       </div>
 
-      <NewStaffLeaveForm staffOptions={staffOptions} />
+      <NewStaffLeaveForm staffOptions={staffOptions} defaultStaffId={defaultStaffId} />
 
       <Card>
         <CardHeader>

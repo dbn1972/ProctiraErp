@@ -3,8 +3,8 @@
  * the escalation consumer so a due escalation moves the instance and
  * dispatches the escalation notification.
  *
- * Note: InMemoryDurableQueueAdapter does not honour `delay` (PRO-S19-03), so
- * the 1-minute rule fires as soon as the consumer drains the task.
+ * The in-memory durable adapter honours `delay` (PRO-S19-03 fix), so the
+ * test first proves the task is held, then fast-forwards its due time.
  */
 import {
   InMemoryDurableQueueAdapter,
@@ -58,7 +58,11 @@ const definitionInput: CreateWorkflowDefinitionInput = {
   ],
 };
 
-async function buildApp(withWorker: boolean) {
+async function buildApp(
+  withWorker: boolean,
+  extra: { withPublisher?: boolean; rejectUnwiredEscalations?: boolean } = {},
+) {
+  const withPublisher = extra.withPublisher ?? true;
   const store = new InMemoryDurableQueueStore();
   const publisherQueue = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
   await publisherQueue.connect();
@@ -66,7 +70,10 @@ async function buildApp(withWorker: boolean) {
   const app = Fastify();
   await app.register(workflowPlugin, {
     repository,
-    escalationPublisher: new QueueEscalationPublisher(publisherQueue),
+    escalationPublisher: withPublisher ? new QueueEscalationPublisher(publisherQueue) : undefined,
+    ...(extra.rejectUnwiredEscalations !== undefined
+      ? { rejectUnwiredEscalations: extra.rejectUnwiredEscalations }
+      : {}),
     escalationWorkerQueue: withWorker
       ? new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 })
       : undefined,
@@ -114,6 +121,11 @@ describe('PRC-H110 workflow escalation worker wiring', () => {
     app = built.app;
     expect(app.escalationWorker?.running).toBe(true);
     const instanceId = await startEscalatingInstance(app);
+    // Delay honoured: not processed before due.
+    await new Promise((r) => setTimeout(r, 50));
+    const early = await built.repository.findInstanceById(instanceId, TENANT_ID);
+    expect(early?.currentStateId).toBe('pending_approval');
+    for (const entry of built.store.pending) entry.availableAt = Date.now();
     const moved = await waitFor(async () => {
       const inst = await built.repository.findInstanceById(instanceId, TENANT_ID);
       return inst?.currentStateId === 'escalated_review';
@@ -135,6 +147,39 @@ describe('PRC-H110 workflow escalation worker wiring', () => {
     await new Promise((r) => setTimeout(r, 50));
     const inst = await built.repository.findInstanceById(instanceId, TENANT_ID);
     expect(inst?.currentStateId).toBe('pending_approval');
+  });
+
+  it('reports ok escalation health when the worker is wired', async () => {
+    const built = await buildApp(true);
+    app = built.app;
+    const res = await app.inject({ method: 'GET', url: '/workflow-engine/escalations/health' });
+    expect(res.json()).toMatchObject({ status: 'ok', wiring: 'wired' });
+  });
+
+  it('accepts escalation rules but reports degraded health when unwired (default)', async () => {
+    const built = await buildApp(false, { withPublisher: false });
+    app = built.app;
+    await expect(
+      app.workflowService.createDefinition(TENANT_ID, definitionInput),
+    ).resolves.toBeDefined();
+    expect(app.workflowEscalationHealth()).toMatchObject({
+      status: 'degraded',
+      wiring: 'unwired',
+      rejectUnwiredEscalations: false,
+    });
+    const res = await app.inject({ method: 'GET', url: '/workflow-engine/escalations/health' });
+    expect(res.json()).toMatchObject({ status: 'degraded', wiring: 'unwired' });
+  });
+
+  it('publisher without consumer is degraded and rejects rules when configured', async () => {
+    const built = await buildApp(false, { rejectUnwiredEscalations: true });
+    app = built.app;
+    expect(app.workflowEscalationHealth().wiring).toBe('publisher_only');
+    await expect(
+      app.workflowService.createDefinition(TENANT_ID, definitionInput),
+    ).rejects.toMatchObject({ statusCode: 422 });
+    const { escalationRules: _omit, ...noRules } = definitionInput;
+    await expect(app.workflowService.createDefinition(TENANT_ID, noRules)).resolves.toBeDefined();
   });
 
   it('stops the worker on close', async () => {

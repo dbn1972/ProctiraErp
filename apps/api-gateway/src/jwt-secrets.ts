@@ -10,6 +10,8 @@
  * See docs/SECRETS_ROTATION.md.
  */
 
+import { isProductionNodeEnv } from '@proctira/common/node-env';
+
 export interface JwtSecretPair {
   /** Active signing + preferred verify secret. */
   current: string;
@@ -23,7 +25,7 @@ export interface JwtSecretPair {
 export function loadJwtSecretPair(env: NodeJS.ProcessEnv = process.env): JwtSecretPair {
   const current =
     env['JWT_SECRET']?.trim() ||
-    (env['NODE_ENV'] === 'production' ? '' : 'dev-secret-change-in-production');
+    (isProductionNodeEnv(env['NODE_ENV']) ? '' : 'dev-secret-change-in-production');
   if (!current) {
     throw new Error('JWT_SECRET is required');
   }

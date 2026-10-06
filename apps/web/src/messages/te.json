@@ -153,7 +153,11 @@
     "mfaPrintCodes": "కోడ్‌లను ప్రింట్ చేయండి",
     "mfaAcknowledgement": "నేను నా బ్యాకప్ కోడ్‌లను సురక్షిత ప్రదేశంలో సేవ్ చేశాను.",
     "mfaAcknowledgementHelp": "మీరు సెటప్‌ను పూర్తి చేసిన తర్వాత ఈ కోడ్‌లను మళ్ళీ చూడలేరు.",
-    "mfaFinishSetup": "సెటప్‌ను పూర్తి చేయండి"
+    "mfaFinishSetup": "సెటప్‌ను పూర్తి చేయండి",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorCode": "Use an authenticator code",
+    "backupCodeLabel": "Backup code",
+    "backupCodeIncomplete": "Enter one of your backup codes (at least 8 characters)."
   },
   "dashboard": {
     "title": "డాష్‌బోర్డ్",
@@ -637,7 +641,13 @@
     "rubricsNew": "కొత్త రూబ్రిక్",
     "rubricsEmptyTitle": "ఇంకా రూబ్రిక్‌లు లేవు",
     "rubricsEmptyBody": "వ్యాసాలను మూల్యాంకనం చేయడానికి రూబ్రిక్ సృష్టించండి.",
-    "rubricsAnySubject": "ఏ విషయమైనా"
+    "rubricsAnySubject": "ఏ విషయమైనా",
+    "searchStudents": "విద్యార్థులను వెతకండి",
+    "searchStudentsHint": "పేరులో కనీసం 2 అక్షరాలు టైప్ చేయండి, లేదా విద్యార్థి ID అతికించండి.",
+    "studentsLoadFailed": "విద్యార్థులను లోడ్ చేయలేకపోయాం. మళ్లీ ప్రయత్నించండి.",
+    "noStudentsMatch": "ఈ శోధనకు సరిపోలే విద్యార్థులు లేరు.",
+    "searchingStudents": "వెతుకుతోంది…",
+    "studentResultsCount": "{count, plural, one {# విద్యార్థి కనుగొనబడ్డారు} other {# విద్యార్థులు కనుగొనబడ్డారు}}"
   },
   "health": {
     "title": "ఆరోగ్య రికార్డులు",
@@ -670,7 +680,8 @@
     "accessDeniedTitle": "యాక్సెస్ నిరాకరించబడింది",
     "accessDeniedHelp": "మీకు యాక్సెస్ ఉండాలని భావిస్తే మీ నిర్వాహకుడిని సంప్రదించండి.",
     "returnToDashboard": "డాష్‌బోర్డ్‌కు తిరిగి వెళ్ళు",
-    "tableAriaLabel": "ఆరోగ్య రికార్డులు"
+    "tableAriaLabel": "ఆరోగ్య రికార్డులు",
+    "unknownStudent": "తెలియని విద్యార్థి"
   },
   "workflows": {
     "title": "వర్క్‌ఫ్లో నిర్వచనాలు",
@@ -901,6 +912,12 @@
     "inboxDescription": "మీ సైన్-ఇన్ ఖాతా కోసం హెచ్చరికలు.",
     "empty": "ఇంకా నోటిఫికేషన్‌లు లేవు. ఇమెయిల్, పుష్ లేదా SMS ఎంచుకోవడానికి ప్రాధాన్యతలను ఉపయోగించండి — మొబైల్ హెచ్చరికల కోసం పరికరాన్ని నమోదు చేయండి.",
     "read": "చదివినది",
-    "unread": "చదవనిది"
+    "unread": "చదవనిది",
+    "filterLabel": "నోటిఫికేషన్‌లను ఫిల్టర్ చేయండి",
+    "filterAll": "అన్నీ",
+    "filterUnread": "చదవనివి",
+    "markRead": "చదివినట్లు గుర్తించండి",
+    "markAllRead": "అన్నింటినీ చదివినట్లు గుర్తించండి",
+    "markReadFailed": "చదివినట్లు గుర్తించలేకపోయాం. మళ్లీ ప్రయత్నించండి."
   }
 }

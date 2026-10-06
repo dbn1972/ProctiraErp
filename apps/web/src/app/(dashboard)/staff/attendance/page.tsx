@@ -34,6 +34,11 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** PRC-M123: latest calendar date in any timezone (UTC+14), mirrors the API rule. */
+function latestTodayIso(): string {
+  return new Date(Date.now() + 14 * 3_600_000).toISOString().slice(0, 10);
+}
+
 function monthOf(date: string): string {
   return date.slice(0, 7);
 }
@@ -85,6 +90,7 @@ export default async function StaffAttendancePage(props: PageProps) {
                 id="att-date"
                 name="date"
                 type="date"
+                max={latestTodayIso()}
                 defaultValue={date}
                 className="mt-1 block h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
               />
@@ -93,7 +99,12 @@ export default async function StaffAttendancePage(props: PageProps) {
               Load date
             </Button>
           </form>
-          <StaffAttendanceGrid date={date} staff={staff.data} marks={marks} />
+          <StaffAttendanceGrid
+            date={date}
+            staff={staff.data}
+            marks={marks}
+            maxDate={latestTodayIso()}
+          />
         </CardContent>
       </Card>
 

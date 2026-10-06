@@ -28,22 +28,34 @@ import {
   authPlugin,
   createAccessTokenRevocationStore,
   createKeycloakIdentityStore,
+  createTenantSessionRevocationStore,
+  DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+  isIssuedBeforeTenantRevocation,
   createOtpChallengeStore,
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
   InviteService,
+  createPasswordThrottleState,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
   OtpService,
+  PasswordLoginThrottle,
   rbacPlugin,
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
+  RedisWebTicketStore,
   type AccessTokenRevocationStore,
+  type TenantSessionRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
-import { asTenantScopedResolver, createAreaHierarchyResolver } from '@proctira/backend-institution';
+import {
+  asTenantScopedResolver,
+  configureAreaHierarchyVersionStore,
+  createAreaHierarchyResolver,
+  RedisAreaHierarchyVersionStore,
+} from '@proctira/backend-institution';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import {
   isPublicRegistrationPath,
@@ -53,13 +65,17 @@ import {
   createPublicTenantResolver,
   createTenantRepository,
   tenantLifecyclePlugin,
+  KeycloakTenantAdminProvisioner,
   type TenantAdminProvisioner,
+  type TenantDefaultsSeeder,
 } from '@proctira/backend-tenant';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { loggingPlugin } from '@proctira/logging';
-import { observabilityPlugin } from '@proctira/observability';
+import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { registerAuthAudit } from './auth-audit.js';
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -95,6 +111,7 @@ import paginationCapPlugin from './plugins/pagination-cap.js';
 import { providersPlugin, sandboxIdpEnabled } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
+import { registerQueueObservability } from './queue-observability.js';
 import { createRateLimitRedisClient, decideRateLimitStore } from './rate-limit-store.js';
 import {
   actionForMethod,
@@ -104,18 +121,29 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
+  isBlockingTenantStatus,
   isRequestTenantSuspended,
   noteTenantStatusChange,
   resolveTenantBlocked,
+  startRedisTenantStatusBus,
+  tenantSuspendBlocksAuth,
+  type TenantStatusBus,
 } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
 /** Same factory as domain-plugins — Pg or shared in-memory (W1-SEC-06). */
 const sharedPrivacyRepository = createPrivacyRepository();
+
+/** PRC-H099: configured Keycloak provisioner, or undefined (fail closed upstream). */
+function keycloakAdminProvisionerFromEnv(): TenantAdminProvisioner | undefined {
+  const provisioner = KeycloakTenantAdminProvisioner.fromEnv();
+  return provisioner.configured ? provisioner : undefined;
+}
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -128,6 +156,12 @@ export interface BuildAppOptions {
    * omitted, tenant creation fails closed instead of creating a tenant without its admin.
    */
   tenantAdminProvisioner?: TenantAdminProvisioner;
+  /** PRC-H099: override the roles/settings seeder used during tenant creation. */
+  tenantDefaultsSeeder?: TenantDefaultsSeeder;
+  /** PRC-H008: tenant-wide session revocation store override (tests / DI). */
+  tenantSessionRevocationStore?: TenantSessionRevocationStore;
+  /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
+  tenantSuspendBlocksAuth?: boolean;
 }
 
 /**
@@ -227,6 +261,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     serviceName: 'api-gateway',
     ignorePaths: ['/health', '/health/live', '/health/ready'],
   });
+  // PRC-H086: failed queue deliveries → queue_delivery_failures_total on /metrics.
+  registerQueueObservability(app);
+  // PRC-L493: register the gateway's catalog SLO (/slo, metrics-access protected).
+  registerServiceSLO(app, SLO_CATALOG['api-gateway']!);
 
   // 3. Register CORS
   await app.register(cors, {
@@ -333,6 +371,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   if (!app.hasDecorator('accessTokenRevocationStore')) {
     app.decorate('accessTokenRevocationStore', accessTokenRevocationStore);
   }
+  // PRC-H008 / PRC-H098: TENANT_SUSPEND_BLOCK_AUTH (default true, fail closed) blocks login,
+  // refresh and every authenticated request for a suspended/decommissioned tenant, and suspension
+  // revokes the tenant's sessions through a shared (Redis) revocation epoch.
+  const suspendBlocksAuth = options.tenantSuspendBlocksAuth ?? tenantSuspendBlocksAuth();
+  const tenantSessionRevocation =
+    options.tenantSessionRevocationStore ??
+    createTenantSessionRevocationStore({
+      redis: rateLimitRedis,
+      NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+    });
 
   // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
   await app.register(paginationCapPlugin);
@@ -475,6 +523,19 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // PRC-M500: one-time login tickets must be redeemable on any replica.
+      ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),
+      // PRC-H008 / PRC-H098: suspended tenants cannot sign in or refresh.
+      tenantAuthGate: suspendBlocksAuth ? (tenantId) => resolveTenantBlocked(tenantId) : undefined,
+      tenantSessionRevocation: suspendBlocksAuth ? tenantSessionRevocation : undefined,
+      // PRC-H043: the /password failure budget is shared across replicas through the same
+      // Redis client as rate limiting; production without Redis refuses to boot.
+      passwordThrottle: new PasswordLoginThrottle({
+        state: createPasswordThrottleState({
+          redis: rateLimitRedis,
+          NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+        }),
+      }),
     });
   } else {
     await app.register(authPlugin, {
@@ -510,7 +571,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // can exercise SMS OTP without Keycloak.
   // G-731: MFA_EXPOSE_OTP is a local-dev convenience only — refuse it in production.
   const exposeOtp = process.env['MFA_EXPOSE_OTP'] === 'true';
-  if (exposeOtp && process.env['NODE_ENV'] === 'production') {
+  if (exposeOtp && isProductionNodeEnv(process.env['NODE_ENV'])) {
     throw new Error('MFA_EXPOSE_OTP=true is not allowed when NODE_ENV=production');
   }
 
@@ -529,6 +590,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     exposeCodeInResponse: exposeOtp,
     // PRC-L281: shared HMAC pepper so any replica can verify a challenge.
     pepper: process.env['MFA_OTP_PEPPER'] || config.jwt.secret,
+    // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
+    onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
@@ -692,6 +755,51 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     requireJwtTenantWhenAuthenticated: true,
   });
 
+  // 8-pre. PRC-H008 / PRC-H098 — with TENANT_SUSPEND_BLOCK_AUTH (default) a suspended tenant's
+  // sessions are revoked: every authenticated /api/v1 request is refused while suspended, and a
+  // token issued before the suspension stays revoked after reactivation.
+  if (suspendBlocksAuth) {
+    app.addHook('onRequest', async (request, reply) => {
+      const url = request.url.split('?')[0]!;
+      if (!url.startsWith('/api/v1/')) return;
+      if (isPublicRegistrationPath(url)) return;
+      if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+      const user = request.user as
+        { tenantId?: string; iat?: number; tenantStatus?: string } | null | undefined;
+      const tenantId = user?.tenantId;
+      if (!tenantId) return;
+      let blocked: boolean;
+      let revokedAt: number | null;
+      try {
+        blocked =
+          isRequestTenantSuspended(tenantId, user) || (await resolveTenantBlocked(tenantId));
+        revokedAt = blocked
+          ? null
+          : await tenantSessionRevocation.tenantSessionsRevokedAt(tenantId);
+      } catch (error) {
+        request.log.error({ err: error, tenantId }, 'tenant status lookup failed');
+        return reply.status(503).send({
+          code: 'TENANT_STATUS_UNAVAILABLE',
+          message: 'Tenant status could not be verified; try again shortly',
+          statusCode: 503,
+        });
+      }
+      if (blocked) {
+        return reply.status(403).send({
+          code: 'TENANT_SUSPENDED',
+          message: 'Tenant is suspended; its sessions are revoked',
+          statusCode: 403,
+        });
+      }
+      if (isIssuedBeforeTenantRevocation(user?.iat, revokedAt)) {
+        return reply.status(401).send({
+          code: 'SESSION_REVOKED',
+          message: 'This session was ended; sign in again',
+          statusCode: 401,
+        });
+      }
+    });
+  }
   // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth); reads stay allowed.
   // PRC-H008 / PRC-H098: status is resolved from the tenant store (TTL cache, invalidated on
   // lifecycle transitions — wired after tenantLifecyclePlugin below), not only an env list.
@@ -840,6 +948,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
+  // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
+  configureAreaHierarchyVersionStore(
+    rateLimitRedis ? new RedisAreaHierarchyVersionStore(rateLimitRedis) : undefined,
+  );
   const areaResolver = createAreaHierarchyResolver();
   await app.register(rbacPlugin, {
     registry: rbacRegistry,
@@ -889,8 +1002,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
-    // PRC-H099: no default provisioner — POST /tenant-lifecycle fails closed without one.
-    adminProvisioner: options.tenantAdminProvisioner,
+    // PRC-H099: Keycloak admin provisioner when KEYCLOAK_ADMIN_* is configured;
+    // otherwise none, so POST /tenant-lifecycle fails closed (422) without writes.
+    adminProvisioner: options.tenantAdminProvisioner ?? keycloakAdminProvisionerFromEnv(),
+    defaultsSeeder: options.tenantDefaultsSeeder ?? createTenantDefaultsSeederFromEnv(),
   });
   // PRC-H008 / PRC-H098: the suspension gate reads tenant status from the same repository the
   // lifecycle writes, and lifecycle transitions invalidate this process's cache immediately.
@@ -903,15 +1018,33 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return tenant?.status ?? null;
     };
     configureTenantStatusSource(ownSource);
-    app.tenantService.onStatusChange((tenantId, status) => {
+    // PRC-H008: Redis pub/sub so other replicas enforce a transition without waiting for the TTL.
+    let statusBus: TenantStatusBus | undefined;
+    if (rateLimitRedis) {
+      statusBus = await startRedisTenantStatusBus(rateLimitRedis, app.log);
+    }
+    app.tenantService.onStatusChange(async (tenantId, status) => {
       noteTenantStatusChange(tenantId, status);
+      if (suspendBlocksAuth && isBlockingTenantStatus(status)) {
+        // PRC-H098: revoke every session issued up to now (refresh included) for this tenant.
+        await tenantSessionRevocation.revokeTenantSessions(
+          tenantId,
+          Math.floor(Date.now() / 1000),
+          DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
+        );
+      }
+      await statusBus?.publish(tenantId, status);
     });
-    app.addHook('onClose', () => {
+    app.addHook('onClose', async () => {
       // Only disarm the gate if this app's source is still the one installed.
       if (currentTenantStatusSource() === ownSource) configureTenantStatusSource(null);
-      return Promise.resolve();
+      await statusBus?.close().catch(() => undefined);
     });
   }
+
+  // PRC-M501: auth-domain audit (login/logout/refresh/ticket/MFA), which the
+  // generic mutation audit below intentionally skips.
+  registerAuthAudit(app);
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
   // Post-hoc onSend remains for unwired paths; production never degrades.

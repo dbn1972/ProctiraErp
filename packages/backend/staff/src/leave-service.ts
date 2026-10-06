@@ -1,11 +1,14 @@
 /**
  * Staff HR leave service — create, list, approve/reject with balances (G-206).
  */
-import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
   InsufficientLeaveBalanceError,
+  LeaveBalanceMissingError,
+  LeaveNotPendingError,
+  type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
   type StaffLeaveStatus,
@@ -16,6 +19,7 @@ import {
   type CreateStaffLeaveInput,
   type DecideStaffLeaveInput,
 } from './leave-schemas.js';
+import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
 export function inclusiveLeaveDays(startDate: string, endDate: string): number {
@@ -32,7 +36,11 @@ function requiresBalance(leaveType: StaffLeaveType): boolean {
 }
 
 export class StaffLeaveService {
-  constructor(private readonly repository: StaffLeaveRepository) {}
+  constructor(
+    private readonly repository: StaffLeaveRepository,
+    /** PRC-M374: tenant-scoped staff existence check. */
+    private readonly staffExists?: StaffExistsCheck,
+  ) {}
 
   async getBalance(tenantId: string, staffId: string, leaveType: StaffLeaveType) {
     return this.repository.getBalance(tenantId, staffId, leaveType);
@@ -54,7 +62,69 @@ export class StaffLeaveService {
     return this.repository.setBalance(tenantId, staffId, leaveType, balanceDays);
   }
 
+  /**
+   * PRC-H091: bulk opening-balance import. Rows are validated up-front (duplicate
+   * staffId+leaveType, staff existence in the tenant); any error rejects the whole batch.
+   * Writes use the repository's single-transaction upsert when available.
+   */
+  async importOpeningBalances(
+    tenantId: string,
+    rows: readonly { staffId: string; leaveType: StaffLeaveType; balanceDays: number }[],
+    staffExists: (tenantId: string, staffId: string) => Promise<boolean>,
+    options: { dryRun?: boolean } = {},
+  ): Promise<{ dryRun: boolean; imported: number; balances: StaffLeaveBalanceEntity[] }> {
+    const errors: { field: string; rule: string; message: string }[] = [];
+    const seen = new Map<string, number>();
+    rows.forEach((row, i) => {
+      const key = `${row.staffId}:${row.leaveType}`;
+      const prior = seen.get(key);
+      if (prior !== undefined) {
+        errors.push({
+          field: `rows[${i}]`,
+          rule: 'duplicate',
+          message: `Duplicate ${row.leaveType} balance for staff '${row.staffId}' (also rows[${prior}])`,
+        });
+      } else {
+        seen.set(key, i);
+      }
+    });
+    const uniqueStaff = [...new Set(rows.map((r) => r.staffId))];
+    const missing = new Set<string>();
+    for (const staffId of uniqueStaff) {
+      if (!(await staffExists(tenantId, staffId))) missing.add(staffId);
+    }
+    rows.forEach((row, i) => {
+      if (missing.has(row.staffId)) {
+        errors.push({
+          field: `rows[${i}].staffId`,
+          rule: 'not_found',
+          message: `Staff with id '${row.staffId}' not found`,
+        });
+      }
+    });
+    if (errors.length > 0) {
+      throw new ValidationError(
+        'Opening-balance import rejected; no balances were written',
+        errors,
+      );
+    }
+    if (options.dryRun) return { dryRun: true, imported: 0, balances: [] };
+    let balances: StaffLeaveBalanceEntity[];
+    if (this.repository.setBalancesAtomic) {
+      balances = await this.repository.setBalancesAtomic(tenantId, rows);
+    } else {
+      balances = [];
+      for (const row of rows) {
+        balances.push(
+          await this.repository.setBalance(tenantId, row.staffId, row.leaveType, row.balanceDays),
+        );
+      }
+    }
+    return { dryRun: false, imported: balances.length, balances };
+  }
+
   async createLeave(tenantId: string, input: CreateStaffLeaveInput) {
+    await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     if (input.endDate < input.startDate) {
       throw new BusinessRuleError('End date must be on or after start date');
     }
@@ -85,6 +155,11 @@ export class StaffLeaveService {
     });
   }
 
+  /** PRC-M379: bounded list with total. */
+  async listLeavesPage(tenantId: string, window: { limit: number; offset: number }) {
+    return this.repository.listLeavesPage(tenantId, window);
+  }
+
   async listLeaves(tenantId: string) {
     return this.repository.listLeaves(tenantId);
   }
@@ -102,37 +177,36 @@ export class StaffLeaveService {
     if (leave.status !== 'pending') {
       throw new ConflictError(`Leave is already ${leave.status}`);
     }
-
     const status = input.status as StaffLeaveStatus;
-
-    if (status === 'approved' && requiresBalance(leave.leaveType)) {
-      const days = inclusiveLeaveDays(leave.startDate, leave.endDate);
-      // G-718: the decrement itself is the authoritative check — the repository
-      // locks the balance row (FOR UPDATE) and rejects a negative result, so two
-      // concurrent approvals cannot both consume the same days.
-      // PRC-H091: a missing balance row is a configuration gap, not "0 days".
-      const balance = await this.repository.getBalance(tenantId, leave.staffId, leave.leaveType);
-      if (!balance) {
+    const debitDays =
+      status === 'approved' && requiresBalance(leave.leaveType)
+        ? inclusiveLeaveDays(leave.startDate, leave.endDate)
+        : null;
+    // PRC-M372: lock + pending check + balance debit + guarded status update run
+    // in one transaction, so concurrent approvals debit once and a failed status
+    // write rolls the debit back.
+    try {
+      const updated = await this.repository.decideLeaveAtomically(tenantId, leaveId, {
+        status,
+        decidedBy: actorId,
+        decidedAt: new Date(),
+        debitDays,
+      });
+      if (!updated) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+      return updated;
+    } catch (error) {
+      if (error instanceof LeaveNotPendingError) throw new ConflictError(error.message);
+      if (error instanceof InsufficientLeaveBalanceError) {
+        throw new BusinessRuleError(error.message);
+      }
+      if (error instanceof LeaveBalanceMissingError) {
+        // PRC-H091: a missing balance row is a configuration gap, not "0 days".
         throw new BusinessRuleError(
           `No ${leave.leaveType} leave balance is configured for staff '${leave.staffId}'; ` +
             'set it via PUT /staff/:id/leave-balances before approving',
         );
       }
-      try {
-        await this.repository.adjustBalance(tenantId, leave.staffId, leave.leaveType, -days);
-      } catch (error) {
-        if (error instanceof InsufficientLeaveBalanceError) {
-          throw new BusinessRuleError(error.message);
-        }
-        throw error;
-      }
+      throw error;
     }
-
-    const updated = await this.repository.updateLeave(leaveId, tenantId, {
-      status,
-      decidedBy: actorId,
-      decidedAt: new Date(),
-    });
-    return updated!;
   }
 }

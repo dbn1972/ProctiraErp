@@ -53,7 +53,9 @@
     "primary": "Primary",
     "secondary": "Secondary",
     "tvet": "TVET",
-    "preschool": "Pre-school"
+    "preschool": "Pre-school",
+    "typesUnavailable": "School types could not be loaded right now.",
+    "browseAll": "Browse all schools"
   },
   "registration": {
     "title": "Student Registration",
@@ -91,7 +93,15 @@
     "fixFieldErrors": "Please fix the highlighted fields before submitting.",
     "trackingMissingTitle": "This browser does not have your tracking number",
     "trackingMissingBody": "If you saved the number, open Track and enter it with the student's date of birth. If you did not save it, contact the school's admissions office. This page cannot recover the number.",
-    "schoolNameUnavailable": "School name could not be loaded"
+    "schoolNameUnavailable": "School name could not be loaded",
+    "invalidNumber": "Enter a valid number.",
+    "outOfRange": "Value is outside the allowed range.",
+    "tooShort": "Value is too short.",
+    "tooLong": "Value is too long.",
+    "invalidFormat": "Value does not match the required format.",
+    "copyTrackingNumber": "Copy tracking number",
+    "trackingNumberCopied": "Tracking number copied",
+    "copyFailed": "Copy failed, select the number manually."
   },
   "documents": {
     "title": "Upload Documents",
@@ -110,7 +120,8 @@
     "remove": "Remove",
     "reuploadHint": "re-upload required",
     "reuploadRequired": "{fileName} must be re-uploaded before submit",
-    "noneRequired": "No documents are required for this application."
+    "noneRequired": "No documents are required for this application.",
+    "uploadLabel": "Upload {label}"
   },
   "institutions": {
     "title": "Find Schools",
@@ -128,7 +139,12 @@
     "resultsCount": "{count} schools found",
     "serviceUnavailableTitle": "Service temporarily unavailable",
     "serviceUnavailableMessage": "We couldn't load schools right now. Please try again in a moment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "loadingMap": "Loading map…",
+    "invalidFilterTitle": "That school type is not available",
+    "invalidFilterMessage": "The link you followed uses a school type we don't recognise. Showing nothing until you pick a valid type.",
+    "showAll": "Show all schools",
+    "loadMore": "Load more schools"
   },
   "tracking": {
     "title": "Track Your Application",
@@ -153,7 +169,11 @@
     "statusUnderReview": "Under Review",
     "statusApproved": "Approved",
     "statusRejected": "Rejected",
-    "statusWaitlisted": "Waitlisted"
+    "statusWaitlisted": "Waitlisted",
+    "invalidRequest": "This tracking link is not valid. Check the tracking number and try again.",
+    "serviceUnavailable": "We could not check your application right now. Please try again in a few minutes.",
+    "rateLimited": "Too many attempts for this tracking number. Please wait 15 minutes and try again.",
+    "retry": "Try again"
   },
   "errors": {
     "validation": "Some details need to be corrected before we can continue.",

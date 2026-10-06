@@ -13,12 +13,27 @@ export const CampaignStatusEnum = Type.Union([
   Type.Literal('failed'),
 ]);
 
+/** PRC-M192: closed set of delivery channels. */
+export const CommunicationChannelSchema = Type.Union([
+  Type.Literal('email'),
+  Type.Literal('sms'),
+  Type.Literal('push'),
+  Type.Literal('in_app'),
+  Type.Literal('whatsapp'),
+]);
+/** PRC-M192: serialized audienceJson cap (bytes). */
+export const MAX_AUDIENCE_JSON_BYTES = 16 * 1024;
+// ISO-8601 date-time with timezone (no `format` keyword dependency).
+const ISO_DATE_TIME_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})$';
 export const CreateCampaignSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  channels: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
-  body: Type.Optional(Type.String()),
+  channels: Type.Optional(
+    Type.Array(CommunicationChannelSchema, { maxItems: 5, uniqueItems: true }),
+  ),
+  body: Type.Optional(Type.String({ maxLength: 20_000 })),
   audienceJson: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  scheduledAt: Type.Optional(Type.String()),
+  scheduledAt: Type.Optional(Type.String({ pattern: ISO_DATE_TIME_PATTERN })),
   // PRC-H045: creator identity is derived from the verified session server-side, never accepted
   // from the client. Any client-supplied createdBy is ignored.
 });
@@ -33,7 +48,7 @@ export type CampaignParams = Static<typeof CampaignParamsSchema>;
 
 export const CreateEmergencyBlastSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
-  channels: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+  channels: Type.Array(CommunicationChannelSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
   // PRC-H045: creator identity is derived from the verified session server-side.
 });
 

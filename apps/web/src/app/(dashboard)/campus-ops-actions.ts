@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { GatewayError } from '@/lib/api/gateway';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { parseMajorUnits } from '@/lib/format-money';
 import {
   addHostelMessMenuItem,
   createHostelFeeStructure,
@@ -24,7 +25,9 @@ import {
   placeLibraryHold,
   returnLibraryByBarcode,
 } from '@/lib/api/library';
+import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import { firstIssue, gatePassWindowSchema } from '@/lib/validation/campus-action-schema';
+import { libraryDueAtError } from '@/lib/validation/library-due-date';
 
 export interface OpsActionState {
   status: 'idle' | 'success' | 'error';
@@ -112,17 +115,32 @@ export async function checkoutBarcodeAction(input: {
   barcode: string;
   patronUserId?: string;
   studentId?: string;
+  /**
+   * Wall-clock YYYY-MM-DD from the desk form (PRC-M104 / PRC-M573: no longer
+   * dropped); resolved to end of day in the tenant timezone.
+   */
+  dueAt?: string;
 }): Promise<OpsActionState> {
   const parsed = z
     .object({
       barcode: z.string().min(1).max(64),
       patronUserId: z.string().min(1).max(128).optional(),
       studentId: z.string().min(1).max(128).optional(),
+      dueAt: z.string().max(64).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Barcode is required.' };
   try {
-    const loan = await checkoutLibraryByBarcode(parsed.data);
+    // PRC-M104: the clerk's due date is sent (it was silently dropped before).
+    const dueAt = await toTenantUtcIso(parsed.data.dueAt);
+    const dueError = dueAt ? libraryDueAtError(dueAt) : null;
+    if (dueError) return { status: 'error', message: dueError };
+    const loan = await checkoutLibraryByBarcode({
+      barcode: parsed.data.barcode,
+      ...(parsed.data.patronUserId ? { patronUserId: parsed.data.patronUserId } : {}),
+      ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
+      ...(dueAt ? { dueAt } : {}),
+    });
     revalidatePath('/library');
     revalidatePath('/library/circulation');
     return { status: 'success', id: loan.id, message: 'Checked out by barcode.' };
@@ -257,8 +275,9 @@ export async function requestGatePassAction(input: {
     .object({
       hostelId: UUID,
       studentId: UUID,
-      expectedOutAt: z.string().min(1),
-      expectedInAt: z.string().min(1),
+      // PRC-M478: explicit offset required; naive local strings are rejected.
+      expectedOutAt: z.string().datetime({ offset: true }),
+      expectedInAt: z.string().datetime({ offset: true }),
       reason: z.string().max(1000).optional(),
       requestedBy: z.enum(['resident', 'parent']).optional(),
     })
@@ -314,19 +333,32 @@ export async function createHostelFeeStructureAction(input: {
   hostelId: string;
   roomType: string;
   termLabel: string;
-  amountCents: number;
+  /** PRC-M095: major units as typed (e.g. "5000.00"); converted server-side. */
+  amount: string;
 }): Promise<OpsActionState> {
   const parsed = z
     .object({
       hostelId: UUID,
       roomType: z.string().min(1).max(64),
       termLabel: z.string().min(1).max(64),
-      amountCents: z.number().int().min(0),
+      amount: z.string(),
     })
     .safeParse(input);
   if (!parsed.success) return { status: 'error', message: 'Fee structure fields are invalid.' };
+  const amountCents = parseMajorUnits(parsed.data.amount);
+  if (amountCents === null || amountCents < 1) {
+    return {
+      status: 'error',
+      message: 'Enter an amount greater than 0 with at most 2 decimals (for example 5000.00).',
+    };
+  }
   try {
-    const row = await createHostelFeeStructure(parsed.data);
+    const row = await createHostelFeeStructure({
+      hostelId: parsed.data.hostelId,
+      roomType: parsed.data.roomType,
+      termLabel: parsed.data.termLabel,
+      amountCents,
+    });
     revalidatePath('/hostel/fees');
     revalidatePath('/hostel/assignments');
     return { status: 'success', id: row.id, message: 'Hostel fee structure saved.' };

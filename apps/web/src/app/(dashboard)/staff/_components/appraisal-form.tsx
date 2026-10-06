@@ -9,7 +9,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, type Resolver } from 'react-hook-form';
 
 import {
   Button,
@@ -22,7 +22,11 @@ import {
   SelectValue,
   Textarea,
 } from '@proctira/ui/components';
-import { appraisalFormSchema, type AppraisalFormValues } from '@/lib/validation/staff-schema';
+import {
+  buildAppraisalFormSchema,
+  computeAppraisalTotal,
+  type AppraisalFormValues,
+} from '@/lib/validation/staff-schema';
 
 import { createAppraisalAction, type ActionState } from '../actions';
 
@@ -52,16 +56,22 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
   }, []);
 
   const defaultTemplate = templates[0];
-
+  // PRC-M118: validate each score against the selected template's criterion max.
+  const resolver: Resolver<AppraisalFormValues> = (values, context, options) =>
+    zodResolver(buildAppraisalFormSchema(templates.find((t) => t.id === values.templateId)))(
+      values,
+      context,
+      options,
+    );
   const form = useForm<AppraisalFormValues>({
-    resolver: zodResolver(appraisalFormSchema),
+    resolver,
     defaultValues: {
       templateId: defaultTemplate?.id ?? '',
       appraisalDate: new Date().toISOString().slice(0, 10),
       scores: defaultTemplate
         ? defaultTemplate.criteria.map((c) => ({
             criterionName: c.name,
-            score: 0,
+            score: Number.NaN,
             comment: '',
           }))
         : [],
@@ -96,7 +106,7 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
     scoresArray.replace(
       selectedTemplate.criteria.map((c) => ({
         criterionName: c.name,
-        score: 0,
+        score: Number.NaN,
         comment: '',
       })),
     );
@@ -104,6 +114,10 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTemplate?.id]);
 
+  const watchedScores = watch('scores');
+  const liveTotal = selectedTemplate
+    ? computeAppraisalTotal(selectedTemplate, watchedScores ?? [])
+    : null;
   async function onSubmit(values: AppraisalFormValues) {
     setIsPending(true);
     setServerState(null);
@@ -217,6 +231,9 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
                     id={`scores.${index}.score`}
                     type="number"
                     step="0.01"
+                    min={0}
+                    max={criterion?.maxScore}
+                    inputMode="decimal"
                     {...register(`scores.${index}.score` as const, {
                       valueAsNumber: true,
                     })}
@@ -235,6 +252,18 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
               </div>
             );
           })}
+          <p
+            className="flex items-center justify-between border-t pt-3 text-sm"
+            aria-live="polite"
+            data-testid="appraisal-live-total"
+          >
+            <span className="font-medium">Weighted total</span>
+            <span className="tabular-nums">
+              {liveTotal === null
+                ? `— / ${selectedTemplate.scoreMax} (score every criterion)`
+                : `${liveTotal} / ${selectedTemplate.scoreMax}`}
+            </span>
+          </p>
         </div>
       )}
 

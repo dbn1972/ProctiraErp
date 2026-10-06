@@ -1,3 +1,5 @@
+import { ConflictError } from '@proctira/common';
+
 import type {
   BoardCodeEntity,
   BoardExportCandidate,
@@ -7,6 +9,7 @@ import type {
   GpaSnapshotEntity,
   GradeChangeAuditContext,
   GradeEntryEntity,
+  GradeEntryWriteGuard,
   GradebookRepository,
   GradingScaleEntity,
   InstitutionSummary,
@@ -56,11 +59,16 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     this.candidates.set(candidate.studentId, candidate);
   }
 
+  /** Test probe (PRC-M269): number of listGradeEntries calls. */
+  gradeEntryQueries = 0;
+
   async listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
+    this.gradeEntryQueries += 1;
     return [...this.entries.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.sectionId && row.sectionId !== filter.sectionId) return false;
       if (filter?.studentId && row.studentId !== filter.studentId) return false;
+      if (filter?.studentIds && !filter.studentIds.includes(row.studentId)) return false;
       return true;
     });
   }
@@ -88,6 +96,15 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   }
 
   async createGradeEntry(row: GradeEntryEntity, _audit?: GradeChangeAuditContext) {
+    // Mirrors grade_entries_upsert_uidx (PRC-M264): duplicate natural key -> 409.
+    const dup = [...this.entries.values()].some(
+      (e) =>
+        e.tenantId === row.tenantId &&
+        e.studentId === row.studentId &&
+        (e.sectionId ?? null) === (row.sectionId ?? null) &&
+        (e.assessmentCode ?? null) === (row.assessmentCode ?? null),
+    );
+    if (dup) throw new ConflictError('Grade entry already exists for this student/assessment');
     this.entries.set(row.id, row);
     return row;
   }
@@ -97,15 +114,27 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     id: string,
     patch: Partial<GradeEntryEntity>,
     _audit?: GradeChangeAuditContext,
+    guard?: GradeEntryWriteGuard,
   ) {
-    const cur = await this.getGradeEntry(tenantId, id);
-    if (!cur) return null;
+    // Synchronous read-check-write (no await between) so guards are race-free.
+    const stored = this.entries.get(id);
+    if (!stored || stored.tenantId !== tenantId) return null;
+    const cur = stored;
+    if (guard) {
+      if (cur.updatedAt !== guard.expectedUpdatedAt) {
+        throw new ConflictError(`Grade entry ${id} changed concurrently; reload and retry`);
+      }
+      if (guard.requireUnlocked && (cur.lockedAt || cur.publishedAt)) {
+        throw new ConflictError(`Grade entry ${id} was locked concurrently`);
+      }
+    }
+    const nowMs = Math.max(Date.now(), Date.parse(cur.updatedAt) + 1);
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(nowMs).toISOString(),
     };
     this.entries.set(id, next);
     return next;
@@ -190,6 +219,12 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   }
 
   async createTranscript(row: TranscriptIssuanceEntity) {
+    // Mirrors UNIQUE (tenant_id, student_id, version) (PRC-M267).
+    const dup = [...this.transcripts.values()].some(
+      (t) =>
+        t.tenantId === row.tenantId && t.studentId === row.studentId && t.version === row.version,
+    );
+    if (dup) throw new ConflictError('Transcript version already issued; retry');
     this.transcripts.set(row.id, row);
     return row;
   }
@@ -218,6 +253,18 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     return next;
   }
 
+  async claimExportJob(tenantId: string, id: string, startedAt: string, staleBefore: string) {
+    // Synchronous check-and-set: no await between read and write, so it is atomic in-process.
+    const cur = this.jobs.get(id);
+    if (!cur || cur.tenantId !== tenantId) return null;
+    const claimable =
+      cur.status === 'QUEUED' ||
+      (cur.status === 'RUNNING' && (!cur.startedAt || cur.startedAt < staleBefore));
+    if (!claimable) return null;
+    const next: ExportJobEntity = { ...cur, status: 'RUNNING', startedAt, updatedAt: startedAt };
+    this.jobs.set(id, next);
+    return next;
+  }
   async listExportJobs(tenantId: string, jobType?: string) {
     return [...this.jobs.values()]
       .filter((j) => j.tenantId === tenantId && (!jobType || j.jobType === jobType))

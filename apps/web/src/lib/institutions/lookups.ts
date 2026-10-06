@@ -15,16 +15,12 @@ export interface LookupOption {
 }
 
 /**
- * Static fallback options used when backend lookup endpoints are unavailable.
- * Each entry uses the nil UUID structure expected by Typebox UUID validation
- * (`v4`-shaped) so users don't accidentally see invalid UUID errors during
- * local development.
+ * Static type/sector/ownership catalogue. PRC-M155 (PARTIAL): the institution
+ * backend has no catalogue endpoints yet, and existing rows reference these ids,
+ * so they stay until a catalogue API + seed + remap migration lands.
+ * Areas no longer have a fake fallback (PRC-M155): a failed area read is an
+ * error state, never invented options.
  */
-const FALLBACK_AREAS: LookupOption[] = [
-  { id: '00000000-0000-4000-8000-000000000001', name: 'National' },
-  { id: '00000000-0000-4000-8000-000000000002', name: 'Region 1' },
-  { id: '00000000-0000-4000-8000-000000000003', name: 'Region 2' },
-];
 
 const FALLBACK_TYPES: LookupOption[] = [
   { id: '00000000-0000-4000-8000-000000000010', name: 'Primary School' },
@@ -55,19 +51,27 @@ function flattenAreas(nodes: AreaNode[], depth = 0): LookupOption[] {
 }
 
 /**
- * Loads area options for filter UIs and form selects. Falls back to static
- * options if the backend area-tree endpoint is unavailable.
+ * PRC-M155: loads area options and reports whether the read failed. Never
+ * substitutes invented areas.
  */
-export async function loadAreaOptions(options?: { fallback?: boolean }): Promise<LookupOption[]> {
-  const useFallback = options?.fallback !== false;
+export async function loadAreaOptionsResult(): Promise<{ data: LookupOption[]; error: boolean }> {
   try {
     const tree = await listAreaTree();
-    const flat = flattenAreas(tree);
-    if (flat.length > 0) return flat;
-    return useFallback ? FALLBACK_AREAS : [];
-  } catch {
-    return useFallback ? FALLBACK_AREAS : [];
+    return { data: flattenAreas(tree), error: false };
+  } catch (error) {
+    // eslint-disable-next-line no-console -- server-side diagnostic for a failed lookup read
+    console.error('[institutions] failed to load areas', error);
+    return { data: [], error: true };
   }
+}
+
+/**
+ * Loads area options for filter UIs and label resolution. Returns an empty list
+ * on failure (PRC-M155: no fake fallback). `options.fallback` is accepted for
+ * backwards compatibility and ignored.
+ */
+export async function loadAreaOptions(_options?: { fallback?: boolean }): Promise<LookupOption[]> {
+  return (await loadAreaOptionsResult()).data;
 }
 
 export async function loadTypeOptions(): Promise<LookupOption[]> {
@@ -84,12 +88,14 @@ export async function loadOwnershipOptions(): Promise<LookupOption[]> {
 
 export async function loadInstitutionFormLookups() {
   const [areas, types, sectors, ownerships] = await Promise.all([
-    loadAreaOptions(),
+    loadAreaOptionsResult(),
     loadTypeOptions(),
     loadSectorOptions(),
     loadOwnershipOptions(),
   ]);
-  return { areas, types, sectors, ownerships };
+  /** Lookups that failed to load; the form shows an alert and disables submit. */
+  const lookupErrors: string[] = areas.error ? ['areas'] : [];
+  return { areas: areas.data, types, sectors, ownerships, lookupErrors };
 }
 
 /**

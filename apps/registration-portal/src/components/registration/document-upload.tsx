@@ -124,7 +124,7 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
           })}
           className={`dropzone ${isDragActive ? 'dropzone-active' : ''}`}
         >
-          <input {...getInputProps()} aria-label={`Upload ${label}`} />
+          <input {...getInputProps()} aria-label={t('uploadLabel', { label })} />
           {uploading ? (
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />

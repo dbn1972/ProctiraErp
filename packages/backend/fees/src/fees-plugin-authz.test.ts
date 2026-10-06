@@ -279,15 +279,47 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
       expect(response.statusCode).not.toBe(403);
     });
   });
-  // PRC-L560: adversarial deny proofs. These depend on the authz fixes tracked as
-  // PRC-C005 (scope=parent escalation) and PRC-M511 (parent pay-IDOR), which are
-  // outside this batch; convert each todo to a real assertion when those land.
-  describe('adversarial deny proofs (pending PRC-C005 / PRC-M511)', () => {
-    it.todo('PRC-C005: parent GET /fees/payments?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/ledger/trial-balance?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/reports/dues?scope=parent -> 403');
-    it.todo('PRC-C005: parent GET /fees/receipts/:otherChildReceipt?scope=parent -> 404');
-    it.todo('PRC-C005: parent GET /fees/reminders/overdue?scope=parent -> 403');
+  // PRC-L560: adversarial deny proofs for PRC-C005 (scope=parent escalation) — the
+  // read scope is role-derived, so a parent appending ?scope=parent gains nothing.
+  describe('adversarial deny proofs: PRC-C005 scope=parent escalation', () => {
+    for (const url of [
+      '/fees/payments?scope=parent',
+      '/fees/ledger/trial-balance?scope=parent',
+      '/fees/reports/dues?scope=parent',
+      '/fees/reminders/overdue?scope=parent',
+    ]) {
+      it(`parent GET ${url} -> 403`, async () => {
+        app = await buildFeesApp(['parent'], { linkedStudentIds: [STUDENT_ID] });
+        const response = await app.inject({ method: 'GET', url });
+        expect(response.statusCode).toBe(403);
+        expect(response.json().code).toBe('FORBIDDEN');
+      });
+    }
+    it('parent GET /fees/receipts/:otherChildReceipt?scope=parent -> 404', async () => {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+      const otherInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(),
+        title: 'Other child fee',
+        amountCents: 7000,
+      });
+      const otherPaid = await service.recordPayment(TENANT_ID, 'staff', {
+        invoiceId: otherInvoice.id,
+      });
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'GET',
+        url: `/fees/receipts/${otherPaid.receipt.id}?scope=parent`,
+      });
+      expect(response.statusCode).toBe(404);
+      // No receipt payload leaks (only the generic not-found envelope).
+      expect(response.json()).not.toHaveProperty('receipt');
+      expect(JSON.stringify(response.json())).not.toContain(otherInvoice.id);
+    });
+  });
+  // PRC-M511 (parent pay-IDOR) is not fixed yet: parents hold 'payment.record' and
+  // POST /fees/invoices/:id/pay has no guardian-link check. Convert when it lands.
+  describe('adversarial deny proofs (pending PRC-M511)', () => {
     it.todo('PRC-M511: parent POST /fees/invoices/:unlinkedInvoice/pay -> 404, no rows');
     it.todo('PRC-M511: parent payerUserId is overridden with JWT sub');
     it.todo('PRC-M511: parent method=cash is rejected');
@@ -314,5 +346,54 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
         expect(response.statusCode).toBe(403);
       }
     });
+  });
+});
+
+// PRC-M487: studentId filter is server-side so a student is found in a large tenant.
+describe('GET /fees/invoices?studentId (PRC-M487)', () => {
+  let app: FastifyInstance;
+  afterEach(async () => {
+    if (app) await app.close();
+  });
+  it('returns only the requested student invoices from a 150-invoice tenant', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    for (let i = 0; i < 149; i += 1) {
+      await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(),
+        title: `Other ${i}`,
+        amountCents: 100,
+      });
+    }
+    const target = await service.createInvoice(TENANT_ID, 'staff', {
+      studentId: STUDENT_ID,
+      title: 'Invoice #101',
+      amountCents: 101,
+    });
+    app = await buildFeesApp(['bursar'], { repository });
+    const response = await app.inject({
+      method: 'GET',
+      url: `/fees/invoices?studentId=${STUDENT_ID}`,
+    });
+    expect(response.statusCode).toBe(200);
+    const rows = response.json().data as Array<{ id: string; studentId: string }>;
+    expect(rows.map((r) => r.id)).toEqual([target.id]);
+    const paged = await app.inject({ method: 'GET', url: '/fees/invoices?page=2&pageSize=100' });
+    expect(paged.json().data).toHaveLength(50);
+    expect(paged.json().meta).toMatchObject({ page: 2, pageSize: 100, totalItems: 150 });
+  });
+  it('a parent cannot widen scope with a studentId outside their linked students', async () => {
+    const repository = new InMemoryFeesRepository();
+    const service = new FeesService(repository);
+    const other = uuid();
+    await service.createInvoice(TENANT_ID, 'staff', {
+      studentId: other,
+      title: 'X',
+      amountCents: 1,
+    });
+    app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+    const response = await app.inject({ method: 'GET', url: `/fees/invoices?studentId=${other}` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toEqual([]);
   });
 });

@@ -93,6 +93,11 @@ export interface AppraisalRepository {
     id: string,
     tenantId: string,
     data: Partial<AppraisalEntity>,
+    /**
+     * PRC-M376: compare-and-set — only update when the current status is one of
+     * these; returns null otherwise (callers re-read to tell 404 from 409).
+     */
+    expectedStatus?: readonly AppraisalEntity['status'][],
   ): Promise<AppraisalEntity | null>;
   list(
     tenantId: string,

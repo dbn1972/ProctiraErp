@@ -11,12 +11,14 @@ import {
   type RegistrationSubmissionInput,
 } from '@/lib/api';
 import { registrationErrorMessage } from '@/lib/error-messages';
-import { createSubmissionKey } from '@/lib/registration-draft';
+import { createSubmissionKey, LAST_TRACKING_NUMBER_KEY } from '@/lib/registration-draft';
 import {
+  configuredCustomFieldEntries,
   isValidDateOfBirth,
   isValidEmail,
   isValidInstitutionId,
   isValidPhone,
+  validateCustomFieldValue,
 } from '@/lib/validation';
 import { useRegistration } from './registration-context';
 
@@ -41,7 +43,7 @@ export function ReviewStep({
   const t = useTranslations();
   const router = useRouter();
   const locale = useLocale();
-  const { draft, update, getDocumentFile } = useRegistration();
+  const { draft, update, getDocumentFile, reset } = useRegistration();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
@@ -89,6 +91,16 @@ export function ReviewStep({
           rule: 'required',
           message: `${field.label}: ${t('common.required')}`,
         });
+        continue;
+      }
+      // PRC-L019: enforce the published pattern/length/range rules before submit.
+      const ruleError = validateCustomFieldValue(field, draft.customFields[field.id]);
+      if (ruleError) {
+        missingConfiguredFields.push({
+          field: `customFields.${field.id}`,
+          rule: ruleError,
+          message: `${field.label}: ${registrationErrorMessage(t as (key: string) => string, ruleError)}`,
+        });
       }
     }
     if (missingConfiguredFields.length > 0) {
@@ -125,10 +137,8 @@ export function ReviewStep({
         guardianName: draft.guardianName,
         guardianPhone: draft.guardianPhone,
         guardianEmail: draft.guardianEmail || undefined,
-        customFields: Object.entries(draft.customFields).map(([fieldId, value]) => ({
-          fieldId,
-          value,
-        })),
+        // PRC-L019: drop stale answers from an older form version.
+        customFields: configuredCustomFieldEntries(draft.customFields, configuration.fields),
         documents,
         preferredLanguage: locale,
       };
@@ -136,11 +146,13 @@ export function ReviewStep({
       const submissionKey = draft.submissionKey || createSubmissionKey();
       if (!draft.submissionKey) update({ submissionKey });
       const result = await submitRegistration(payload, submissionKey);
-      update({ trackingNumber: result.trackingNumber });
-      // Persist tracking number for the success page (sessionStorage scoped to this draft)
+      // Hand the tracking number to the success page (read once, then cleared).
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('registration:lastTrackingNumber', result.trackingNumber);
+        window.sessionStorage.setItem(LAST_TRACKING_NUMBER_KEY, result.trackingNumber);
       }
+      // PRC-M054: drop child + guardian PII and mint a fresh submissionKey so a
+      // new application starts empty.
+      reset();
       router.push('/apply/success');
     } catch (err) {
       if (err instanceof RegistrationApiError) {

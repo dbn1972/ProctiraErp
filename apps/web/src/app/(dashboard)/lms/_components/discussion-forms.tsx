@@ -72,7 +72,22 @@ export function DiscussionModeration({
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
-
+  // PRC-M106: every moderation action reports its outcome per thread.
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  function run(action: () => Promise<{ status: string; message?: string }>, success: string) {
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const result = await action();
+      if (result.status !== 'success') {
+        setError(result.message ?? 'Action failed.');
+        return;
+      }
+      setNotice(success);
+      router.refresh();
+    });
+  }
   return (
     <div
       className="space-y-3"
@@ -86,10 +101,10 @@ export function DiscussionModeration({
           size="sm"
           disabled={pending}
           onClick={() =>
-            startTransition(async () => {
-              await lockDiscussionAction(threadId, !locked);
-              router.refresh();
-            })
+            run(
+              () => lockDiscussionAction(threadId, !locked),
+              locked ? 'Thread unlocked.' : 'Thread locked.',
+            )
           }
         >
           {locked ? 'Unlock' : 'Lock'} thread
@@ -99,9 +114,18 @@ export function DiscussionModeration({
         className="flex flex-col gap-2 sm:flex-row"
         onSubmit={(event) => {
           event.preventDefault();
-          const body = String(new FormData(event.currentTarget).get('body') ?? '');
+          const form = event.currentTarget;
+          const body = String(new FormData(form).get('body') ?? '');
+          setError(null);
+          setNotice(null);
           startTransition(async () => {
-            await createDiscussionPostAction(threadId, body);
+            const result = await createDiscussionPostAction(threadId, body);
+            if (result.status !== 'success') {
+              setError(result.message ?? 'Reply could not be posted.');
+              return;
+            }
+            form.reset();
+            setNotice('Reply posted.');
             router.refresh();
           });
         }}
@@ -118,6 +142,16 @@ export function DiscussionModeration({
           Reply
         </Button>
       </form>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive" data-testid="discussion-error">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
       <ul className="space-y-2">
         {posts.map((post) => (
           <li key={post.id} className="rounded border p-3 text-sm">
@@ -130,10 +164,10 @@ export function DiscussionModeration({
               size="sm"
               disabled={pending}
               onClick={() =>
-                startTransition(async () => {
-                  await pinPostAction(threadId, post.id, !post.pinned);
-                  router.refresh();
-                })
+                run(
+                  () => pinPostAction(threadId, post.id, !post.pinned),
+                  post.pinned ? 'Post unpinned.' : 'Post pinned.',
+                )
               }
             >
               {post.pinned ? 'Unpin' : 'Pin'}
@@ -144,10 +178,10 @@ export function DiscussionModeration({
               size="sm"
               disabled={pending}
               onClick={() =>
-                startTransition(async () => {
-                  await hidePostAction(threadId, post.id, !post.hidden);
-                  router.refresh();
-                })
+                run(
+                  () => hidePostAction(threadId, post.id, !post.hidden),
+                  post.hidden ? 'Post unhidden.' : 'Post hidden.',
+                )
               }
             >
               {post.hidden ? 'Unhide' : 'Hide'}

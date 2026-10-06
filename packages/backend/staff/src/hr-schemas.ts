@@ -58,9 +58,23 @@ export const ContractParamsSchema = Type.Object({
 });
 export type ContractParams = Static<typeof ContractParamsSchema>;
 
-export const ContractListQuerySchema = Type.Object({
-  staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-});
+/** PRC-M379: bounded list paging for HR list endpoints. */
+export const HR_LIST_MAX_PAGE_SIZE = 100;
+export const HR_LIST_DEFAULT_PAGE_SIZE = 50;
+const ListPageFields = {
+  page: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: HR_LIST_MAX_PAGE_SIZE })),
+};
+export const ListPageQuerySchema = Type.Object(ListPageFields, { additionalProperties: false });
+export type ListPageQuery = Static<typeof ListPageQuerySchema>;
+
+export const ContractListQuerySchema = Type.Object(
+  {
+    staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+    ...ListPageFields,
+  },
+  { additionalProperties: false },
+);
 export type ContractListQuery = Static<typeof ContractListQuerySchema>;
 
 export const CreateQualificationSchema = Type.Object({
@@ -84,9 +98,13 @@ export const VerifyQualificationSchema = Type.Object({
 });
 export type VerifyQualificationInput = Static<typeof VerifyQualificationSchema>;
 
-export const QualificationListQuerySchema = Type.Object({
-  staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-});
+export const QualificationListQuerySchema = Type.Object(
+  {
+    staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+    ...ListPageFields,
+  },
+  { additionalProperties: false },
+);
 export type QualificationListQuery = Static<typeof QualificationListQuerySchema>;
 
 export const MarkAttendanceSchema = Type.Object({
@@ -110,12 +128,32 @@ export const BulkAttendanceSchema = Type.Object({
 });
 export type BulkAttendanceInput = Static<typeof BulkAttendanceSchema>;
 
-export const AttendanceListQuerySchema = Type.Object({
-  date: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
-  staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  from: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
-  to: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
-});
+export const AttendanceListQuerySchema = Type.Object(
+  {
+    date: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
+    staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+    from: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
+    to: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
+    ...ListPageFields,
+  },
+  { additionalProperties: false },
+);
+
+/** PRC-M379: page/pageSize -> window and response meta. */
+export function toPageWindow(query: ListPageQuery): {
+  page: number;
+  pageSize: number;
+  limit: number;
+  offset: number;
+} {
+  const page = query.page ?? 1;
+  const pageSize = Math.min(query.pageSize ?? HR_LIST_DEFAULT_PAGE_SIZE, HR_LIST_MAX_PAGE_SIZE);
+  return { page, pageSize, limit: pageSize, offset: (page - 1) * pageSize };
+}
+
+export function pageMeta(page: number, pageSize: number, totalItems: number) {
+  return { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) };
+}
 export type AttendanceListQuery = Static<typeof AttendanceListQuerySchema>;
 
 export const AttendanceSummaryQuerySchema = Type.Object({

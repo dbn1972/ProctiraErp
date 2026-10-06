@@ -116,6 +116,7 @@ export default async function EditStudentPage(props: PageProps) {
       <StudentForm
         mode="edit"
         studentId={student.id}
+        recordUpdatedAt={student.updatedAt}
         initialValues={initialValues}
         customFields={customFields}
       />

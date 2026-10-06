@@ -69,6 +69,7 @@ import {
   type SubjectSummary,
 } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
+import { resolveProfileTab } from './profile-tab';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,7 @@ async function buildAssignmentLabelMaps(assignments: Assignment[]): Promise<Labe
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /* ──────────────────────────────────────────── Avatar palette ── */
@@ -343,7 +345,7 @@ function LeaveBalanceCard({ usage, staffId }: { usage: LeaveUsage[] | null; staf
           </dl>
         )}
         <Button asChild variant="outline" size="sm" className="mt-4 w-full">
-          <Link href={`/staff/${staffId}/leaves/new`}>Apply for leave</Link>
+          <Link href={`/staff/leaves?staffId=${encodeURIComponent(staffId)}`}>Apply for leave</Link>
         </Button>
       </CardContent>
     </Card>
@@ -725,6 +727,7 @@ function TrainingTab({
 export default async function StaffProfilePage(props: PageProps) {
   const params = await props.params;
   const staffId = params.id;
+  const initialTab = resolveProfileTab((await props.searchParams)?.tab);
   const [staff, assignments, appraisalsRaw, certifications, templates, programs, leaves] =
     await Promise.all([
       getStaff(staffId),
@@ -847,7 +850,7 @@ export default async function StaffProfilePage(props: PageProps) {
       </div>
 
       {/* ── Tabs ── */}
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={initialTab}>
         <TabsList
           aria-label="Staff information sections"
           className="rounded-none border-b border-border bg-transparent p-0"

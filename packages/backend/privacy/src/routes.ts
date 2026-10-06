@@ -24,7 +24,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { ListPage } from './privacy-repository.js';
-import type { PrivacyService } from './privacy-service.js';
+import type { PrivacyRequestContext, PrivacyService } from './privacy-service.js';
 import {
   CorrectionStatusEnum,
   CreateCorrectionRequestSchema,
@@ -99,9 +99,26 @@ function tenantIdOf(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
 }
 
-function actorIdOf(request: FastifyRequest): string {
-  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
-  return user?.sub ?? 'system';
+/**
+ * PRC-M323: mutations require an authenticated subject; never attribute a privacy write to a
+ * synthetic 'system' actor.
+ */
+function requireActor(request: FastifyRequest, reply: FastifyReply): string | null {
+  const user = (request as FastifyRequest & { user?: { sub?: unknown } }).user;
+  const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+  if (!sub) {
+    void reply.status(401).send({
+      code: 'UNAUTHORIZED',
+      message: 'Authenticated user required',
+      statusCode: 401,
+    });
+    return null;
+  }
+  return sub;
+}
+
+function contextOf(request: FastifyRequest): PrivacyRequestContext {
+  return { ipAddress: request.ip };
 }
 
 function requireTenant(request: FastifyRequest, reply: FastifyReply): string | null {
@@ -264,9 +281,21 @@ export async function registerPrivacyRoutes(
 ): Promise<void> {
   const { privacyService, prefix = '/privacy' } = options;
 
+  // PRC-H077: lets admin clients surface 'not implemented' erasure/offboard state.
+  fastify.get(`${prefix}/capabilities`, async (request, reply) => {
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
+    return reply.status(200).send({
+      erasureExecutionAvailable: privacyService.erasureExecutionAvailable,
+      tenantWipeAvailable: privacyService.tenantWipeAvailable,
+    });
+  });
+
   fastify.post(`${prefix}/legal-holds`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
+    const actorId = requireActor(request, reply);
+    if (!actorId) return;
     const parsed = validate(HttpPlaceLegalHoldSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -278,11 +307,14 @@ export async function registerPrivacyRoutes(
     }
     const body = parsed.data;
     try {
-      const hold = await privacyService.placeLegalHold({
-        ...body,
-        tenantId,
-        placedBy: actorIdOf(request),
-      });
+      const hold = await privacyService.placeLegalHold(
+        {
+          ...body,
+          tenantId,
+          placedBy: actorId,
+        },
+        contextOf(request),
+      );
       return reply.status(201).send(formatHold(hold));
     } catch (error) {
       return sendError(reply, error);
@@ -304,11 +336,14 @@ export async function registerPrivacyRoutes(
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
+      const actorId = requireActor(request, reply);
+      if (!actorId) return;
       try {
         const hold = await privacyService.releaseLegalHold(
           request.params.id,
           tenantId,
-          actorIdOf(request),
+          actorId,
+          contextOf(request),
         );
         return reply.send(formatHold(hold));
       } catch (error) {
@@ -320,6 +355,8 @@ export async function registerPrivacyRoutes(
   fastify.post(`${prefix}/erasure-requests`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
+    const actorId = requireActor(request, reply);
+    if (!actorId) return;
     const parsed = validate(HttpCreateErasureSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -331,11 +368,14 @@ export async function registerPrivacyRoutes(
     }
     const body = parsed.data;
     try {
-      const erasure = await privacyService.createErasureRequest({
-        ...body,
-        tenantId,
-        requestedBy: actorIdOf(request),
-      });
+      const erasure = await privacyService.createErasureRequest(
+        {
+          ...body,
+          tenantId,
+          requestedBy: actorId,
+        },
+        contextOf(request),
+      );
       return reply.status(201).send(formatErasure(erasure));
     } catch (error) {
       return sendError(reply, error);
@@ -375,6 +415,8 @@ export async function registerPrivacyRoutes(
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
+      const actorId = requireActor(request, reply);
+      if (!actorId) return;
       const parsed = validate(TransitionBodySchema, request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -390,8 +432,9 @@ export async function registerPrivacyRoutes(
           request.params.id,
           tenantId,
           body.status,
-          actorIdOf(request),
+          actorId,
           body.statusReason,
+          contextOf(request),
         );
         return reply.send(formatErasure(row));
       } catch (error) {
@@ -406,11 +449,14 @@ export async function registerPrivacyRoutes(
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
+      const actorId = requireActor(request, reply);
+      if (!actorId) return;
       try {
         const row = await privacyService.executeErasure(
           request.params.id,
           tenantId,
-          actorIdOf(request),
+          actorId,
+          contextOf(request),
         );
         return reply.send(formatErasure(row));
       } catch (error) {
@@ -424,6 +470,8 @@ export async function registerPrivacyRoutes(
   fastify.post(`${prefix}/correction-requests`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
+    const actorId = requireActor(request, reply);
+    if (!actorId) return;
     const parsed = validate(HttpCreateCorrectionSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -435,11 +483,14 @@ export async function registerPrivacyRoutes(
     }
     const body = parsed.data;
     try {
-      const row = await privacyService.createCorrectionRequest({
-        ...body,
-        tenantId,
-        requestedBy: actorIdOf(request),
-      });
+      const row = await privacyService.createCorrectionRequest(
+        {
+          ...body,
+          tenantId,
+          requestedBy: actorId,
+        },
+        contextOf(request),
+      );
       return reply.status(201).send(formatCorrection(row));
     } catch (error) {
       return sendError(reply, error);
@@ -479,6 +530,8 @@ export async function registerPrivacyRoutes(
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
+      const actorId = requireActor(request, reply);
+      if (!actorId) return;
       const parsed = validate(CorrectionTransitionBodySchema, request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -494,8 +547,9 @@ export async function registerPrivacyRoutes(
           request.params.id,
           tenantId,
           body.status,
-          actorIdOf(request),
+          actorId,
           body.statusReason,
+          contextOf(request),
         );
         return reply.send(formatCorrection(row));
       } catch (error) {
@@ -510,11 +564,15 @@ export async function registerPrivacyRoutes(
     async (request, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
+      const actorId = requireActor(request, reply);
+      if (!actorId) return;
       try {
         const row = await privacyService.applyCorrection(
           request.params.id,
           tenantId,
-          actorIdOf(request),
+          actorId,
+          undefined,
+          contextOf(request),
         );
         return reply.send(formatCorrection(row));
       } catch (error) {
@@ -528,6 +586,8 @@ export async function registerPrivacyRoutes(
   fastify.post(`${prefix}/tenant-offboard`, async (request, reply) => {
     const tenantId = requireTenant(request, reply);
     if (!tenantId) return;
+    const actorId = requireActor(request, reply);
+    if (!actorId) return;
     const parsed = validate(HttpOffboardSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -539,11 +599,14 @@ export async function registerPrivacyRoutes(
     }
     const body = parsed.data;
     try {
-      const job = await privacyService.requestTenantOffboardWipe({
-        ...body,
-        tenantId,
-        requestedBy: actorIdOf(request),
-      });
+      const job = await privacyService.requestTenantOffboardWipe(
+        {
+          ...body,
+          tenantId,
+          requestedBy: actorId,
+        },
+        contextOf(request),
+      );
       return reply.status(201).send(formatOffboard(job));
     } catch (error) {
       return sendError(reply, error);

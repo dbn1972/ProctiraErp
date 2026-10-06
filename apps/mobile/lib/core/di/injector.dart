@@ -21,6 +21,8 @@ import '../notifications/local_notifications.dart';
 import '../notifications/notification_router.dart';
 import '../router/app_router.dart';
 import '../storage/cache_crypto.dart';
+import '../storage/captured_document_store.dart';
+import '../../features/reports/data/report_file_store.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../student/selected_student_store.dart';
@@ -29,6 +31,7 @@ import '../sync/student_document_dispatcher.dart';
 import '../sync/sync_dispatcher.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_models.dart';
+import '../sync/unsynced_work.dart';
 import '../tenant/tenant_provider.dart';
 
 /// Global service locator. Use [configureDependencies] once at startup.
@@ -46,7 +49,14 @@ bool _isAuthPublicPath(String path) {
 }
 
 /// Registers all singletons. Idempotent so widget tests can call it safely.
-Future<void> configureDependencies({String? apiBaseUrl}) async {
+///
+/// [database] lets test harnesses supply the store up front so services
+/// constructed eagerly here (AuthBloc purge, unsynced-work inspection) use
+/// the same database as everything resolved later through [getIt].
+Future<void> configureDependencies({
+  String? apiBaseUrl,
+  AppDatabase? database,
+}) async {
   if (getIt.isRegistered<SecureStorage>()) {
     return;
   }
@@ -63,9 +73,15 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     secureStorage,
   );
   getIt.registerSingleton<CacheCrypto>(cacheCrypto);
+  final CapturedDocumentStore capturedDocuments = CapturedDocumentStore(
+    crypto: cacheCrypto,
+  );
+  getIt.registerSingleton<CapturedDocumentStore>(capturedDocuments);
+  final ReportFileStore reportFiles = ReportFileStore(crypto: cacheCrypto);
+  getIt.registerSingleton<ReportFileStore>(reportFiles);
 
-  final AppDatabase database = AppDatabase();
-  getIt.registerSingleton<AppDatabase>(database);
+  final AppDatabase appDatabase = database ?? AppDatabase();
+  getIt.registerSingleton<AppDatabase>(appDatabase);
 
   // Tenant + auth services.
   final TenantProvider tenantProvider = TenantProvider(secureStorage);
@@ -197,6 +213,8 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
         // PRC-H016: captured student documents upload as bytes.
         SyncEntityType.student: StudentDocumentSyncDispatcher(
           getIt<StudentApi>(),
+          readFile: capturedDocuments.open,
+          deleteFile: capturedDocuments.discard,
         ),
       },
     );
@@ -256,6 +274,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<AssessmentRepository>(
@@ -263,6 +282,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<ParentPortalRepository>(
@@ -285,15 +305,31 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       preferencesLoader: () async => LocalNotificationPreferences.decode(
         await getIt<SecureStorage>().readNotificationPreferences(),
       ),
+      installationId: () => getIt<SecureStorage>().getOrCreateInstallationId(),
     ),
   );
 
   // Auth bloc + router.
   final AuthBloc authBloc = AuthBloc(
     secureStorage: secureStorage,
-    database: database,
+    database: appDatabase,
     authApi: getIt<AuthApi>(),
     selectedStudent: selectedStudent,
+    push: getIt<FcmService>(),
+    tenantProvider: tenantProvider,
+    purgeLocalFiles: () async {
+      await capturedDocuments.purgeAll();
+      await reportFiles.purgeAll();
+    },
+    // A workspace switch purges the offline queue: sync first, then refuse
+    // (pending explicit confirmation) if anything is still unsynced.
+    inspectUnsyncedWork: UnsyncedWorkInspector(
+      database: appDatabase,
+      countCapturedDocuments: capturedDocuments.count,
+    ).inspect,
+    flushPendingWork: () async {
+      await getIt<SyncEngine>().flushPending();
+    },
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

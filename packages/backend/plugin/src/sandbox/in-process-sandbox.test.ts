@@ -293,14 +293,23 @@ describe('InProcessSandbox', () => {
         };
       `;
 
-      const result = await sandbox.execute(code, 'manyRequests', [], createTestContext());
-
-      // The third request should fail with quota exceeded
-      if (result.success) {
-        const errors = result.result as string[];
-        expect(errors.some((e: string) => e.includes('quota exceeded'))).toBe(true);
+      // Never touch the real network: on CI runners an outbound fetch to example.com can
+      // exceed the 5s test timeout. The quota check runs before the host fetch.
+      const hostFetch = vi.fn(async () => new Response('ok', { status: 200 }));
+      vi.stubGlobal('fetch', hostFetch);
+      let result: Awaited<ReturnType<typeof sandbox.execute>>;
+      try {
+        result = await sandbox.execute(code, 'manyRequests', [], createTestContext());
+      } finally {
+        vi.unstubAllGlobals();
       }
-      // Or the whole execution might fail
+
+      // Two requests reach the host fetch; the third fails with quota exceeded.
+      expect(result.success).toBe(true);
+      const errors = result.result as string[];
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('quota exceeded');
+      expect(hostFetch).toHaveBeenCalledTimes(2);
     });
   });
 

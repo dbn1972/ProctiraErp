@@ -15,17 +15,20 @@ import { Value } from '@sinclair/typebox/value';
 import type pg from 'pg';
 
 import { haversineKm } from './in-memory-repository.js';
-import type {
-  IdempotentRegistrationCreateResult,
-  InstitutionLocationFilter,
-  LegacyRegistrationCreate,
-  NewRegistrationEntity,
-  RegistrationEntity,
-  RegistrationInstitution,
-  RegistrationRepository,
-  RegistrationStatus,
-  SchoolFinderFilter,
-  SchoolFinderResultRow,
+import type { ListPage } from './pagination.js';
+import {
+  institutionFilterOptionsFrom,
+  type InstitutionFilterOptions,
+  type IdempotentRegistrationCreateResult,
+  type InstitutionLocationFilter,
+  type LegacyRegistrationCreate,
+  type NewRegistrationEntity,
+  type RegistrationEntity,
+  type RegistrationInstitution,
+  type RegistrationRepository,
+  type RegistrationStatus,
+  type SchoolFinderFilter,
+  type SchoolFinderResultRow,
 } from './registration-repository.js';
 import {
   FormConfigurationSchema,
@@ -55,8 +58,18 @@ function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
-function dateOnly(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+/**
+ * PRC-L002: node-pg parses a DATE column as *local* midnight, so `toISOString()` shifted the
+ * calendar day back in any process whose TZ is east of UTC (e.g. Asia/Kolkata). Read the local
+ * calendar components instead; strings pass through.
+ */
+export function dateOnly(value: unknown): string {
+  if (value instanceof Date) {
+    const y = String(value.getFullYear()).padStart(4, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   return String(value).slice(0, 10);
 }
 
@@ -341,14 +354,15 @@ export class PgRegistrationRepository implements RegistrationRepository {
     return result.rows[0] ? mapApplication(result.rows[0] as Record<string, unknown>) : null;
   }
 
-  async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
+  async listByTenant(tenantId: string, page?: ListPage): Promise<RegistrationEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM admission_applications
           WHERE tenant_id = $1::uuid
-          ORDER BY submitted_at DESC`,
-        [tenantId],
+          ORDER BY submitted_at DESC, id DESC
+          LIMIT $2 OFFSET $3`,
+        [tenantId, page ? page.limit + 1 : null, page?.offset ?? 0],
       );
       return result.rows.map((row) => mapApplication(row as Record<string, unknown>));
     });
@@ -359,6 +373,7 @@ export class PgRegistrationRepository implements RegistrationRepository {
     status: RegistrationStatus,
     remarks?: string,
     tenantId?: string,
+    expectedStatus?: RegistrationStatus,
   ): Promise<RegistrationEntity | null> {
     const scopedTenantId = this.requireTenant(tenantId, 'updateStatus');
     await this.ensureSchema();
@@ -369,8 +384,9 @@ export class PgRegistrationRepository implements RegistrationRepository {
                 remarks = COALESCE($4, remarks),
                 updated_at = now()
           WHERE tenant_id = $1::uuid AND id = $2::uuid
+            AND ($5::text IS NULL OR status = $5::text)
           RETURNING *`,
-        [scopedTenantId, id, status, remarks ?? null],
+        [scopedTenantId, id, status, remarks ?? null, expectedStatus ?? null],
       ),
     );
     return result.rows[0] ? mapApplication(result.rows[0] as Record<string, unknown>) : null;
@@ -408,6 +424,10 @@ export class PgRegistrationRepository implements RegistrationRepository {
   ): Promise<RegistrationInstitution | null> {
     const rows = await this.loadInstitutions(tenantId, institutionId);
     return rows[0] ?? null;
+  }
+
+  async getInstitutionFilterOptions(tenantId: string): Promise<InstitutionFilterOptions> {
+    return institutionFilterOptionsFrom(await this.loadInstitutions(tenantId));
   }
 
   async getInstitutionLocations(

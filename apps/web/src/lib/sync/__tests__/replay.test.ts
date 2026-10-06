@@ -466,3 +466,37 @@ describe('replayAll — property tests', () => {
     );
   });
 });
+
+// ─── PRC-M119: identity quarantine ───────────────────────────────────────────
+
+describe('replayAll — PRC-M119 identity quarantine', () => {
+  it("never replays another user's or tenant's queued write", async () => {
+    await enqueue(baseInput({ userId: 'u-1' }));
+    await enqueue(baseInput({ userId: 'u-2' }));
+    await enqueue(baseInput({ tenantId: 't-2', userId: 'u-1' }));
+    const { fetch, calls } = mockFetcher([]);
+    const results = await replayAll(fetch, {
+      ...fakeWait(),
+      identity: { tenantId: 't-1', userId: 'u-1' },
+    });
+    expect(calls).toHaveLength(1);
+    expect(results).toHaveLength(1);
+    // Quarantined ops stay queued, untouched.
+    expect(await peekAll()).toHaveLength(2);
+  });
+
+  it('replays nothing when signed out (identity null)', async () => {
+    await enqueue(baseInput());
+    const { fetch, calls } = mockFetcher([]);
+    await replayAll(fetch, { ...fakeWait(), identity: null });
+    expect(calls).toHaveLength(0);
+    expect(await peekAll()).toHaveLength(1);
+  });
+
+  it('clearSyncQueue drops every queued operation', async () => {
+    const { clearSyncQueue } = await import('../syncQueue');
+    await enqueue(baseInput());
+    await clearSyncQueue();
+    expect(await peekAll()).toHaveLength(0);
+  });
+});

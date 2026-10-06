@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { writeBoardExportArtifacts } from './board-export-generator.js';
 import {
@@ -38,6 +38,11 @@ import type {
   ListTranscriptsFilter,
   TranscriptIssuanceEntity,
 } from './gradebook-repository.js';
+import {
+  escapeReportCardHtml,
+  readReportCardArtifact,
+  writeReportCardArtifact,
+} from './report-card-artifact.js';
 import type {
   ComputeGpaInput,
   CreateBoardExportJobInput,
@@ -54,7 +59,12 @@ import {
   verifyBoardExportDownloadToken,
   type BoardExportSignedDownload,
 } from './signed-download.js';
-import { transcriptArtifactRoot, writeTranscriptPdfLite } from './transcript-artifact.js';
+import {
+  transcriptArtifactRoot,
+  buildTranscriptArtifacts,
+  persistTranscriptArtifacts,
+  transcriptArtifactPaths,
+} from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
   id: string;
@@ -76,6 +86,8 @@ function actorId(requestUser?: { id?: string; sub?: string }): string | null {
 }
 
 const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
+/** PRC-M270: a RUNNING board export older than this is considered abandoned and re-claimable. */
+const BOARD_EXPORT_LEASE_MS = 10 * 60 * 1000;
 
 /**
  * PRC-H065: `metadata.prep.candidates` holds the full export cohort (names, national IDs, marks)
@@ -88,15 +100,29 @@ export function toPublicBoardExportJob(job: ExportJobEntity): ExportJobEntity {
   return { ...job, metadata };
 }
 
+/**
+ * PRC-M266: durable writer for gradebook audit events (transcript issue,
+ * board export create/download, report cards, grade workflow). Wired by the
+ * gateway to the shared hash-chained audit log; awaited so a failed write
+ * surfaces as an error instead of being silently dropped.
+ */
+export type GradebookAuditSink = (entry: GradebookAuditEntry) => Promise<void>;
+
+/** In-process mirror cap (listAudits) — the durable sink is the system of record. */
+export const GRADEBOOK_AUDIT_MEMORY_CAP = 1000;
+
 export class GradebookService {
-  private readonly auditLog: GradebookAuditEntry[] = [];
+  private auditLog: GradebookAuditEntry[] = [];
   private readonly extras: GradebookExtrasStore;
+  private readonly auditSink: GradebookAuditSink | null;
 
   constructor(
     private readonly repo: GradebookRepository,
     extras?: GradebookExtrasStore,
+    options: { auditSink?: GradebookAuditSink | null } = {},
   ) {
     this.extras = extras ?? new InMemoryGradebookExtrasStore();
+    this.auditSink = options.auditSink ?? null;
   }
 
   listAudits(tenantId: string): GradebookAuditEntry[] {
@@ -107,12 +133,13 @@ export class GradebookService {
     return this.extras.listAudits(tenantId, gradeEntryId);
   }
 
-  private recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): void {
-    this.auditLog.push({
-      id: randomUUID(),
-      at: nowIso(),
-      ...entry,
-    });
+  private async recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): Promise<void> {
+    const row: GradebookAuditEntry = { id: randomUUID(), at: nowIso(), ...entry };
+    this.auditLog.push(row);
+    if (this.auditLog.length > GRADEBOOK_AUDIT_MEMORY_CAP) {
+      this.auditLog = this.auditLog.slice(-GRADEBOOK_AUDIT_MEMORY_CAP);
+    }
+    if (this.auditSink) await this.auditSink(row);
   }
 
   private persistGradeChange(entry: {
@@ -185,8 +212,41 @@ export class GradebookService {
     return this.repo.listExportJobs(tenantId, 'REPORT_CARD');
   }
 
-  getReportCardJob(tenantId: string, id: string) {
-    return this.repo.getExportJob(tenantId, id);
+  async getReportCardJob(tenantId: string, id: string) {
+    const job = await this.repo.getExportJob(tenantId, id);
+    // Only REPORT_CARD jobs are served here (other job types carry other payloads).
+    return job && job.jobType === 'REPORT_CARD' ? job : null;
+  }
+
+  /** PRC-M265: authorised download of a persisted report-card artifact. */
+  async downloadReportCard(
+    tenantId: string,
+    jobId: string,
+  ): Promise<{ job: ExportJobEntity; filename: string; contentType: string; body: Buffer }> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+      throw new NotFoundError('Report card job not found');
+    }
+    const job = await this.getReportCardJob(tenantId, jobId);
+    if (!job) throw new NotFoundError('Report card job not found');
+    if (job.status !== 'SUCCEEDED') {
+      throw new BusinessRuleError(`Report card job is ${job.status}; download needs SUCCEEDED`);
+    }
+    let body: Buffer;
+    try {
+      body = readReportCardArtifact(tenantId, jobId);
+    } catch {
+      throw new NotFoundError('Report card artifact missing');
+    }
+    const checksum = createHash('sha256').update(body).digest('hex');
+    if (checksum !== job.metadata.checksumSha256) {
+      throw new BusinessRuleError('Report card artifact checksum mismatch');
+    }
+    return {
+      job,
+      filename: `report-card-${jobId}.html`,
+      contentType: 'text/html; charset=utf-8',
+      body,
+    };
   }
 
   getTranscript(tenantId: string, id: string) {
@@ -201,6 +261,7 @@ export class GradebookService {
     tenantId: string,
     id: string,
     format: 'pdf' | 'html' | 'json' = 'pdf',
+    opts?: { actorId?: string | null },
   ): Promise<{ filename: string; contentType: string; body: Buffer; checksumSha256: string }> {
     const row = await this.repo.getTranscript(tenantId, id);
     if (!row) throw new NotFoundError(`Transcript ${id} not found`);
@@ -227,6 +288,15 @@ export class GradebookService {
     } catch {
       throw new NotFoundError(`Transcript ${format} artifact missing on disk`);
     }
+    // PRC-M266: every transcript download is audited with actor + format.
+    await this.recordAudit({
+      tenantId,
+      action: 'transcript.download',
+      entityType: 'transcript_issuance',
+      entityId: row.id,
+      actorId: opts?.actorId ?? null,
+      details: { studentId: row.studentId, version: row.version, format },
+    });
     return {
       filename: `transcript-${row.studentId}-v${row.version}.${target.ext}`,
       contentType: target.contentType,
@@ -348,9 +418,11 @@ export class GradebookService {
           updatedAt: now,
         },
         { action: 'grade.upsert', actorId: actorId(user) },
+        // PRC-M264: lost-update / lock-race guard (409 if changed or locked meanwhile).
+        { expectedUpdatedAt: existing.updatedAt, requireUnlocked: true },
       );
       if (!updated) throw new NotFoundError(`Grade entry ${existing.id} not found`);
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'grade.upsert',
         entityType: 'grade_entry',
@@ -393,7 +465,7 @@ export class GradebookService {
       },
       { action: 'grade.upsert', actorId: actorId(user) },
     );
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'grade.upsert',
       entityType: 'grade_entry',
@@ -467,9 +539,11 @@ export class GradebookService {
         updatedAt: now,
       },
       { action: `grade.${action}`, actorId: actorId(user) },
+      // PRC-M264: the transition applies to the state it was computed from.
+      { expectedUpdatedAt: entry.updatedAt },
     );
     if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: `grade.${action}`,
       entityType: 'grade_entry',
@@ -559,23 +633,36 @@ export class GradebookService {
       throw new ValidationError('No grade entries in section; enter grades before ranking');
     }
     const studentIds = [...new Set(entries.map((e) => e.studentId))];
+    // PRC-M269: one batched entries query + one context load; pure calculation,
+    // no gpa_snapshots written by ranking.
+    const ctx = await this.loadGpaContext(tenantId, {
+      studentId: '',
+      boardId: input.boardId ?? null,
+    });
+    const allEntries = await this.repo.listGradeEntries(tenantId, { studentIds });
+    const byStudent = new Map<string, GradeEntryEntity[]>();
+    for (const e of allEntries) {
+      const list = byStudent.get(e.studentId) ?? [];
+      list.push(e);
+      byStudent.set(e.studentId, list);
+    }
     const rankInputs = [];
     for (const studentId of studentIds) {
-      const { snapshot: term } = await this.computeGpa(tenantId, {
-        studentId,
-        academicPeriodId: input.academicPeriodId ?? null,
-        boardId: input.boardId ?? null,
-      });
-      const { snapshot: cumulative } = await this.computeGpa(tenantId, {
-        studentId,
-        boardId: input.boardId ?? null,
-      });
+      const studentEntries = byStudent.get(studentId) ?? [];
+      // Term and cumulative use the same entry set today (entries are not period-filtered),
+      // matching the previous two computeGpa calls without the duplicate work.
+      const { detail } = await this.calculateGpa(
+        tenantId,
+        { studentId, boardId: input.boardId ?? null },
+        studentEntries,
+        ctx,
+      );
       rankInputs.push({
         studentId,
-        weightedGpa: term.weightedGpa,
-        unweightedGpa: term.unweightedGpa,
-        cgpa: cumulative.weightedGpa,
-        creditsEarned: cumulative.creditsEarned,
+        weightedGpa: detail.weightedGpa,
+        unweightedGpa: detail.unweightedGpa,
+        cgpa: detail.weightedGpa,
+        creditsEarned: detail.creditsEarned,
       });
     }
     const ranked = computeClassRanks(rankInputs);
@@ -609,17 +696,8 @@ export class GradebookService {
     return this.extras.listLatestRanks(tenantId, sectionId);
   }
 
-  async computeGpa(
-    tenantId: string,
-    input: ComputeGpaInput,
-  ): Promise<{ snapshot: GpaSnapshotEntity; detail: ReturnType<typeof computeGpaSnapshot> }> {
-    const entries = await this.repo.listGradeEntries(tenantId, {
-      studentId: input.studentId,
-    });
-    if (entries.length === 0) {
-      throw new ValidationError('No grade entries for student; enter grades before computing GPA');
-    }
-
+  /** PRC-M269: grading context (scale + credit rules) loaded once per computation batch. */
+  private async loadGpaContext(tenantId: string, input: ComputeGpaInput) {
     let scale = input.gradingScaleId
       ? await this.repo.getGradingScale(tenantId, input.gradingScaleId)
       : null;
@@ -635,20 +713,36 @@ export class GradebookService {
         'No grading scale bands available; seed board scales (003_sis_timetable_board_scales.sql)',
       );
     }
-
     const creditRules = await this.repo.listCreditRules(tenantId, input.boardId ?? undefined);
-    const defaultCredits = 1;
+    // Cache of out-of-board rule lookups so a batch does at most one query per code.
+    const ruleCache = new Map<string, CreditRuleEntity | null>();
+    return { scale, creditRules, ruleCache };
+  }
 
+  /** PRC-M269: pure GPA calculation (no persistence) from preloaded entries + context. */
+  private async calculateGpa(
+    tenantId: string,
+    input: ComputeGpaInput,
+    entries: GradeEntryEntity[],
+    ctx: Awaited<ReturnType<GradebookService['loadGpaContext']>>,
+  ) {
+    const { scale, creditRules, ruleCache } = ctx;
+    const lookupRule = async (code: string) => {
+      const inBoard = creditRules.find((r) => r.code === code);
+      if (inBoard) return inBoard;
+      if (!ruleCache.has(code)) {
+        ruleCache.set(code, await this.repo.getCreditRuleByCode(tenantId, code));
+      }
+      return ruleCache.get(code) ?? null;
+    };
+    const defaultCredits = 1;
     const courses: CourseGradeInput[] = [];
     for (const entry of entries) {
       const ruleCode =
         typeof entry.metadata.creditRuleCode === 'string'
           ? entry.metadata.creditRuleCode
           : entry.assessmentCode;
-      const rule = ruleCode
-        ? (creditRules.find((r) => r.code === ruleCode) ??
-          (await this.repo.getCreditRuleByCode(tenantId, ruleCode)))
-        : null;
+      const rule = ruleCode ? await lookupRule(ruleCode) : null;
       courses.push({
         courseCode: entry.assessmentCode ?? entry.id.slice(0, 8),
         numericScore: entry.numericScore,
@@ -657,14 +751,27 @@ export class GradebookService {
         includeInGpa: entry.metadata.includeInGpa !== false,
       });
     }
-
     const policy: GpaPolicy = {
       passingPercent: input.passingPercent ?? 33,
       weightMode: input.weightMode ?? 'CREDITS',
       maxGradePoints: 10,
       roundTo: 3,
     };
-    const detail = computeGpaSnapshot(courses, scale.bands, policy);
+    return { detail: computeGpaSnapshot(courses, scale.bands, policy), policy, scale };
+  }
+
+  async computeGpa(
+    tenantId: string,
+    input: ComputeGpaInput,
+  ): Promise<{ snapshot: GpaSnapshotEntity; detail: ReturnType<typeof computeGpaSnapshot> }> {
+    const entries = await this.repo.listGradeEntries(tenantId, {
+      studentId: input.studentId,
+    });
+    if (entries.length === 0) {
+      throw new ValidationError('No grade entries for student; enter grades before computing GPA');
+    }
+    const ctx = await this.loadGpaContext(tenantId, input);
+    const { detail, policy, scale } = await this.calculateGpa(tenantId, input, entries, ctx);
     const now = nowIso();
     const snapshot = await this.repo.createGpaSnapshot({
       id: randomUUID(),
@@ -692,6 +799,10 @@ export class GradebookService {
     input: CreateReportCardJobInput,
     user?: { id?: string; sub?: string },
   ): Promise<ExportJobEntity> {
+    // PRC-M265: the board must exist in this tenant (404, not an FK 400/500).
+    if (!(await this.repo.getBoard(tenantId, input.boardId))) {
+      throw new NotFoundError('Board not found');
+    }
     const now = nowIso();
     let job = await this.repo.createExportJob({
       id: randomUUID(),
@@ -706,9 +817,10 @@ export class GradebookService {
       artifactUri: null,
       errorMessage: null,
       metadata: {
+        // PRC-M263: client metadata first; server-owned keys always win.
+        ...((input.metadata as Record<string, unknown>) ?? {}),
         studentId: input.studentId,
         academicPeriodId: input.academicPeriodId ?? null,
-        ...((input.metadata as Record<string, unknown>) ?? {}),
       },
       createdAt: now,
       updatedAt: now,
@@ -723,28 +835,43 @@ export class GradebookService {
       })) ?? job;
 
     try {
-      const entries = await this.repo.listGradeEntries(tenantId, {
-        studentId: input.studentId,
-      });
+      // PRC-M265: only PUBLISHED grades, restricted to the requested period.
+      const published = (
+        await this.repo.listGradeEntries(tenantId, { studentId: input.studentId })
+      ).filter((row) => isGradePublished(row.metadata, row.publishedAt));
+      let entries = published;
+      if (input.academicPeriodId) {
+        const sectionIds = [...new Set(published.map((e) => e.sectionId).filter(Boolean))];
+        const inPeriod = new Set<string>();
+        for (const sid of sectionIds) {
+          const section = await this.repo.getSection(tenantId, sid as string);
+          if (section?.academicPeriodId === input.academicPeriodId) inPeriod.add(section.id);
+        }
+        entries = published.filter((e) => e.sectionId != null && inPeriod.has(e.sectionId));
+      }
       const snapshots = await this.repo.listGpaSnapshots(tenantId, input.studentId);
-      const latest = snapshots[0] ?? null;
+      const latest = input.academicPeriodId
+        ? (snapshots.find((s) => s.academicPeriodId === input.academicPeriodId) ?? null)
+        : (snapshots[0] ?? null);
+      const esc = escapeReportCardHtml;
       const html = [
         '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Report Card</title></head><body>',
         `<h1>Report Card</h1>`,
-        `<p>Student: ${input.studentId}</p>`,
-        `<p>Period: ${input.academicPeriodId ?? 'n/a'}</p>`,
-        `<p>Weighted GPA: ${latest?.weightedGpa ?? 'n/a'}</p>`,
-        `<p>Unweighted GPA: ${latest?.unweightedGpa ?? 'n/a'}</p>`,
+        `<p>Student: ${esc(input.studentId)}</p>`,
+        `<p>Period: ${esc(input.academicPeriodId ?? 'n/a')}</p>`,
+        `<p>Weighted GPA: ${esc(latest?.weightedGpa ?? 'n/a')}</p>`,
+        `<p>Unweighted GPA: ${esc(latest?.unweightedGpa ?? 'n/a')}</p>`,
         `<ul>${entries
           .map(
             (e) =>
-              `<li>${e.assessmentCode ?? 'course'}: ${e.numericScore ?? e.letterGrade ?? '—'}</li>`,
+              `<li>${esc(e.assessmentCode ?? 'course')}: ${esc(e.numericScore ?? e.letterGrade ?? '—')}</li>`,
           )
           .join('')}</ul>`,
         `</body></html>`,
       ].join('');
       const checksum = createHash('sha256').update(html).digest('hex');
-      const artifactUri = `memory://report-cards/${job.id}.html`;
+      // PRC-M265: persist before reporting SUCCEEDED; a write failure marks the job FAILED.
+      const artifactUri = writeReportCardArtifact(tenantId, job.id, html);
       const finished = nowIso();
       job =
         (await this.repo.updateExportJob(tenantId, job.id, {
@@ -787,9 +914,15 @@ export class GradebookService {
     if (input.gpaSnapshotId && !snapshot) {
       throw new NotFoundError(`GPA snapshot ${input.gpaSnapshotId} not found`);
     }
+    // PRC-M267: a transcript may only carry the student's own GPA snapshot.
+    if (snapshot && snapshot.studentId !== input.studentId) {
+      throw new BusinessRuleError('GPA snapshot does not belong to this student');
+    }
 
     const nextVersion = (await this.repo.getLatestTranscriptVersion(tenantId, input.studentId)) + 1;
     const now = nowIso();
+    // PRC-M263: client metadata is namespaced so it can never overwrite the
+    // signed, server-computed transcript values.
     const payload = {
       studentId: input.studentId,
       version: nextVersion,
@@ -798,7 +931,7 @@ export class GradebookService {
       weightedGpa: snapshot?.weightedGpa ?? null,
       unweightedGpa: snapshot?.unweightedGpa ?? null,
       creditsEarned: snapshot?.creditsEarned ?? null,
-      ...((input.metadata as Record<string, unknown>) ?? {}),
+      clientMetadata: (input.metadata as Record<string, unknown>) ?? {},
     };
     const body = JSON.stringify(payload);
     const checksum = createHash('sha256').update(body).digest('hex');
@@ -807,7 +940,10 @@ export class GradebookService {
       tenantId,
       institutionId,
     });
-    const artifacts = writeTranscriptPdfLite({
+    // PRC-M267: build bytes in memory, insert the row (UNIQUE version -> 409),
+    // and only then write files, so a lost version race leaves no orphan files.
+    const artifacts = transcriptArtifactPaths(tenantId, input.studentId, nextVersion);
+    const built = buildTranscriptArtifacts({
       tenantId,
       studentId: input.studentId,
       version: nextVersion,
@@ -818,6 +954,7 @@ export class GradebookService {
       checksumSha256: checksum,
       signature,
     });
+    const pdfSha256 = createHash('sha256').update(built.pdf).digest('hex');
     const artifactUri = artifacts.pdfPath;
 
     const row = await this.repo.createTranscript({
@@ -838,6 +975,7 @@ export class GradebookService {
         pdfLitePath: artifacts.pdfLitePath,
         jsonPath: artifacts.jsonPath,
         artifactKind: 'pdf',
+        pdfSha256,
         signatureAlg: material.algorithm,
         signature,
         signedAt: now,
@@ -851,7 +989,8 @@ export class GradebookService {
       createdAt: now,
       updatedAt: now,
     });
-    this.recordAudit({
+    persistTranscriptArtifacts(artifacts, built);
+    await this.recordAudit({
       tenantId,
       action: 'transcript.issue',
       entityType: 'transcript_issuance',
@@ -968,7 +1107,7 @@ export class GradebookService {
       updatedAt: now,
     });
 
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'board_export.create',
       entityType: 'board_export_job',
@@ -1023,13 +1162,18 @@ export class GradebookService {
       throw new BusinessRuleError(`No compliance pack for board ${packCode}`);
     }
 
+    // PRC-M270: atomic claim with a lease so concurrent /process calls cannot both generate.
     const started = nowIso();
-    let running =
-      (await this.repo.updateExportJob(tenantId, job.id, {
-        status: 'RUNNING',
-        startedAt: started,
-        updatedAt: started,
-      })) ?? job;
+    const staleBefore = new Date(Date.now() - BOARD_EXPORT_LEASE_MS).toISOString();
+    const claimed = await this.repo.claimExportJob(tenantId, job.id, started, staleBefore);
+    if (!claimed) {
+      const latest = await this.repo.getExportJob(tenantId, job.id);
+      if (latest && latest.status !== 'QUEUED' && latest.status !== 'RUNNING') {
+        return toPublicBoardExportJob(latest);
+      }
+      throw new ConflictError(`Board export job ${jobId} is already being processed`);
+    }
+    let running = claimed;
 
     try {
       const artifacts = writeBoardExportArtifacts({
@@ -1065,7 +1209,7 @@ export class GradebookService {
           },
           updatedAt: finished,
         })) ?? running;
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'board_export.succeeded',
         entityType: 'board_export_job',
@@ -1088,7 +1232,7 @@ export class GradebookService {
         metadata: failedMeta,
         updatedAt: finished,
       });
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'board_export.failed',
         entityType: 'board_export_job',
@@ -1183,7 +1327,7 @@ export class GradebookService {
       throw new BusinessRuleError('Artifact path rejected');
     }
     const body = readFileSync(resolved.path);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'board_export.download',
       entityType: 'board_export_job',

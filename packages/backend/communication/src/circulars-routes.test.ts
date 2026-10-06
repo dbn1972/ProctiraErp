@@ -41,7 +41,7 @@ describe('Circular routes (G-922)', () => {
         audienceIds: ['teacher'],
         requiresAck: true,
         channels: ['whatsapp'],
-        recipientIds: ['r1'],
+        recipientIds: ['comms-staff'],
       },
     });
     expect(created.statusCode).toBe(201);
@@ -54,7 +54,7 @@ describe('Circular routes (G-922)', () => {
     const acked = await app.inject({
       method: 'POST',
       url: `/communication/circulars/${id}/ack`,
-      payload: { recipientId: 'r1' },
+      payload: {},
     });
     expect(acked.statusCode).toBe(200);
     expect(acked.json().ackRate).toBe(1);
@@ -82,5 +82,87 @@ describe('Circular routes (G-922)', () => {
     const response = await noTenant.inject({ method: 'GET', url: '/communication/circulars' });
     expect(response.statusCode).toBe(400);
     expect(response.json().code).toBe('TENANT_REQUIRED');
+  });
+});
+
+describe('Circular acknowledgement scoping (PRC-M071)', () => {
+  let user: { sub: string; roles: string[] };
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    user = { sub: 'comms-staff', roles: ['communications_officer'] };
+    app = Fastify();
+    const circularsService = new CircularsService(new InMemoryCircularStore());
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as FastifyRequest & { tenantId: string }).tenantId = TENANT_ID;
+      (request as FastifyRequest & { user?: { sub: string; roles: string[] } }).user = user;
+    });
+    await registerCircularRoutes(app, { circularsService });
+    await app.ready();
+  });
+
+  async function sentCircular(): Promise<string> {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/communication/circulars',
+      payload: {
+        title: 'Fee notice',
+        body: 'Please acknowledge.',
+        audienceType: 'roles',
+        audienceIds: ['parent'],
+        requiresAck: true,
+        channels: ['whatsapp'],
+        recipientIds: ['user-a', 'user-b'],
+      },
+    });
+    const id = created.json().id as string;
+    await app.inject({ method: 'POST', url: `/communication/circulars/${id}/send` });
+    return id;
+  }
+
+  it('returns 403 when a portal user acknowledges for another recipient', async () => {
+    const id = await sentCircular();
+    user = { sub: 'user-a', roles: ['parent'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-b' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('lets a portal user acknowledge as themselves', async () => {
+    const id = await sentCircular();
+    user = { sub: 'user-a', roles: ['parent'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-a' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ackCount).toBe(1);
+  });
+
+  it('does not let communication staff ack for another recipient via the normal ack', async () => {
+    const id = await sentCircular();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack`,
+      payload: { recipientId: 'user-b' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('lets an admin record an acknowledgement on behalf of a recipient with a reason', async () => {
+    const id = await sentCircular();
+    user = { sub: 'school-admin-1', roles: ['admin'] };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/communication/circulars/${id}/ack-on-behalf`,
+      payload: { recipientId: 'user-b', reason: 'Signed paper slip returned' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ackCount).toBe(1);
   });
 });

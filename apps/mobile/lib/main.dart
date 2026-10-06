@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'app/app.dart';
 import 'core/auth/auth_bloc.dart';
@@ -13,6 +14,10 @@ import 'core/sync/sync_lifecycle.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Inter ships in assets/fonts (pubspec); never fetch fonts from Google at
+  // runtime, so offline/low-bandwidth devices render the same type and no
+  // request leaks to a third party (PRC-M471).
+  GoogleFonts.config.allowRuntimeFetching = false;
   await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -47,8 +52,7 @@ Future<void> main() async {
 Future<void> _initialisePushNotifications() async {
   final FcmService fcm = getIt<FcmService>();
   await fcm.start();
-  fcm.deepLinks.listen((FcmDeepLink link) {
-    final AppRouter router = getIt<AppRouter>();
-    router.config.go(link.route);
+  bindPushDeepLinks(fcm.deepLinks, (String route) {
+    getIt<AppRouter>().config.go(route);
   });
 }

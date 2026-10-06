@@ -8,23 +8,13 @@ import { useState } from 'react';
 import { Button } from '@proctira/ui/components';
 
 import type { EntityLabelOption } from '@/lib/entity-label';
-
-interface BoardSummaryResponse {
-  boardId: string;
-  generatedAt: string;
-  schools: number;
-  enrolment: number;
-  attendancePercent: number | null;
-  feesCollectedCents: number;
-  lmsCompletionPercent: number | null;
-  schoolsBreakdown: Array<{ institutionId: string; name: string; enrolment: number }>;
-}
+import { getBoardSummaryAction, type BoardSummary } from '../board-summary-actions';
 
 export function BoardSummaryPanel({ boardOptions = [] }: { boardOptions?: EntityLabelOption[] }) {
   const [boardId, setBoardId] = useState(boardOptions[0]?.id ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<BoardSummaryResponse | null>(null);
+  const [summary, setSummary] = useState<BoardSummary | null>(null);
 
   async function onFetch() {
     const id = boardId.trim();
@@ -35,16 +25,14 @@ export function BoardSummaryPanel({ boardOptions = [] }: { boardOptions?: Entity
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/reports/board/${encodeURIComponent(id)}/summary`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) {
-        setError(`Request failed (${res.status})`);
+      // PRC-M110: Server Action -> gateway (no client fetch to /api/v1/*).
+      const result = await getBoardSummaryAction(id);
+      if (result.status === 'error') {
+        setError(result.message);
         setSummary(null);
         return;
       }
-      setSummary((await res.json()) as BoardSummaryResponse);
+      setSummary(result.summary);
     } catch {
       setError('Could not reach board summary');
       setSummary(null);
@@ -52,7 +40,6 @@ export function BoardSummaryPanel({ boardOptions = [] }: { boardOptions?: Entity
       setLoading(false);
     }
   }
-
   return (
     <section
       aria-labelledby="board-summary-heading"

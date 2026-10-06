@@ -1,3 +1,5 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
@@ -6,8 +8,13 @@ import {
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
+import {
+  isIssuedBeforeTenantRevocation,
+  type TenantSessionRevocationStore,
+} from '../tenant-session-revocation.js';
 
 import {
+  KeycloakIdentityError,
   identityInputFromClaims,
   linkKeycloakIdentity,
   type KeycloakIdentityStore,
@@ -44,7 +51,74 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   maxRevocationTtlSeconds?: number;
   /** JWKS client used to verify tokens presented at logout (tests/DI). */
   jwksClient?: KeycloakJwksClient;
+  /**
+   * PRC-M499: realm "SSO Session Max" in seconds. A logged-out session's sid
+   * (and refresh jti) stays denylisted this long so a refresh token cannot be
+   * replayed after the access-token lifetime. Default 36000 (Keycloak default).
+   */
+  ssoSessionMaxSeconds?: number;
+  /**
+   * PRC-M500: one-time web login ticket store. Use the Redis store in any
+   * multi-replica deployment; the default is process-local memory.
+   */
+  webTicketStore?: WebTicketStore;
+  /**
+   * PRC-H008 / PRC-H098: true when the tenant is suspended/decommissioned. Throws when the
+   * status cannot be read (login/refresh then fail closed with 503). When set, password login,
+   * the OIDC callback and refresh refuse blocked tenants and end the just-issued IdP session.
+   */
+  tenantAuthGate?: (tenantId: string) => Promise<boolean>;
+  /** PRC-H008: tenant-wide revocation epoch; refresh tokens issued before it are refused. */
+  tenantSessionRevocation?: TenantSessionRevocationStore;
 };
+
+/** PRC-M500: one-time login ticket storage (shared across replicas when Redis-backed). */
+export interface WebTicketStore {
+  put(id: string, value: string, ttlSeconds: number): Promise<void>;
+  /** Atomically read-and-delete; null when absent/expired. */
+  take(id: string): Promise<string | null>;
+}
+
+export class MemoryWebTicketStore implements WebTicketStore {
+  private readonly entries = new Map<string, { value: string; expiresAt: number }>();
+  async put(id: string, value: string, ttlSeconds: number): Promise<void> {
+    const now = Date.now();
+    for (const [key, entry] of this.entries) if (entry.expiresAt <= now) this.entries.delete(key);
+    this.entries.set(id, { value, expiresAt: now + ttlSeconds * 1000 });
+  }
+  async take(id: string): Promise<string | null> {
+    const entry = this.entries.get(id);
+    this.entries.delete(id);
+    if (!entry || entry.expiresAt <= Date.now()) return null;
+    return entry.value;
+  }
+}
+
+export type RedisLikeForWebTickets = {
+  set(key: string, value: string, expiryMode: 'EX', ttlSeconds: number): Promise<unknown>;
+  getdel(key: string): Promise<string | null>;
+};
+
+/** Redis-backed tickets: SET EX + GETDEL so a ticket is redeemable once cluster-wide. */
+export class RedisWebTicketStore implements WebTicketStore {
+  constructor(
+    private readonly redis: RedisLikeForWebTickets,
+    private readonly keyPrefix = 'auth:web-ticket:',
+  ) {}
+  async put(id: string, value: string, ttlSeconds: number): Promise<void> {
+    await this.redis.set(
+      `${this.keyPrefix}${id}`,
+      value,
+      'EX',
+      Math.max(1, Math.trunc(ttlSeconds)),
+    );
+  }
+  async take(id: string): Promise<string | null> {
+    return this.redis.getdel(`${this.keyPrefix}${id}`);
+  }
+}
+
+const DEFAULT_SSO_SESSION_MAX_SECONDS = 36_000;
 
 const DEFAULT_MAX_REVOCATION_TTL_SECONDS = 3600;
 const MAX_REVOCATION_ID_LENGTH = 256;
@@ -57,43 +131,91 @@ type IssuedTokens = {
   tokenType: string;
 };
 
-const webTickets = new Map<string, { tokens: IssuedTokens; expiresAt: number }>();
-const WEB_TICKET_TTL_MS = 60_000;
+const WEB_TICKET_TTL_SECONDS = 60;
+const MAX_TICKET_ID_LENGTH = 128;
 
-function pruneTickets(now = Date.now()): void {
-  for (const [id, ticket] of webTickets) {
-    if (ticket.expiresAt <= now) webTickets.delete(id);
+/** PRC-M500: login transaction bound to the browser via an httpOnly cookie. */
+const OIDC_TXN_COOKIE = 'kc_oidc_txn';
+const OIDC_TXN_TTL_SECONDS = 600;
+type OidcTransaction = { s: string; v: string; n: string; a?: string };
+
+function b64url(bytes: Buffer): string {
+  return bytes.toString('base64url');
+}
+
+function pkceChallenge(verifier: string): string {
+  return b64url(createHash('sha256').update(verifier).digest());
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+function readCookie(request: FastifyRequest, name: string): string | undefined {
+  const header = request.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    if (part.slice(0, idx).trim() === name) return part.slice(idx + 1).trim();
+  }
+  return undefined;
+}
+
+function parseTransaction(raw: string | undefined): OidcTransaction | null {
+  if (!raw || raw.length > 2048) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as OidcTransaction;
+    if (
+      typeof parsed?.s !== 'string' ||
+      typeof parsed.v !== 'string' ||
+      typeof parsed.n !== 'string' ||
+      (parsed.a !== undefined && typeof parsed.a !== 'string')
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
-function issueWebTicket(tokens: IssuedTokens): string {
-  pruneTickets();
-  const id = crypto.randomUUID();
-  webTickets.set(id, { tokens, expiresAt: Date.now() + WEB_TICKET_TTL_MS });
-  return id;
+function txnCookie(value: string, path: string, secure: boolean, maxAge: number): string {
+  return [
+    `${OIDC_TXN_COOKIE}=${value}`,
+    `Path=${path}`,
+    `Max-Age=${maxAge}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
 }
 
-function consumeWebTicket(id: string): IssuedTokens | null {
-  pruneTickets();
-  const ticket = webTickets.get(id);
-  if (!ticket) return null;
-  webTickets.delete(id);
-  return ticket.tokens;
-}
+/** PRC-M500: same-origin path only — no `//host`, backslashes or schemes. */
+const SAFE_RETURN_TO = /^\/(?!\/)[^\\]*$/;
 
-function webReturnTo(state: string | undefined): string | null {
+export function webReturnTo(state: string | undefined): string | null {
   if (!state?.startsWith('web:')) return null;
   const path = state.slice(4);
-  return path.startsWith('/') ? path : `/${path}`;
+  return SAFE_RETURN_TO.test(path) ? path : null;
 }
 
-function authorizeUrl(config: KeycloakRouteConfig, state: string): string {
+function authorizeUrl(
+  config: KeycloakRouteConfig,
+  state: string,
+  binding: { codeChallenge: string; nonce: string },
+): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/auth`);
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', config.redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid email profile roles');
   url.searchParams.set('state', state);
+  url.searchParams.set('nonce', binding.nonce);
+  url.searchParams.set('code_challenge', binding.codeChallenge);
+  url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('kc_locale', 'en');
   return url.toString();
 }
@@ -161,6 +283,7 @@ async function revokePresentedTokensBeforeIdpLogout(
   tokens: { accessToken?: string; refreshToken?: string },
   verify: (token: string) => Promise<{ jti?: unknown; sid?: unknown; exp?: unknown } | null>,
   maxTtlSeconds: number,
+  sessionTtlSeconds: number,
 ): Promise<void> {
   if (!store || !tokens.accessToken) return;
 
@@ -172,7 +295,10 @@ async function revokePresentedTokensBeforeIdpLogout(
   const ttl = defaultAccessTokenRevocationTtlSeconds(
     Math.min(access.ttlSeconds ?? maxTtlSeconds, maxTtlSeconds),
   );
-  await revokeAccessTokenIdentifiers(store, { jti: access.jti, sessionId: access.sessionId }, ttl);
+  await revokeAccessTokenIdentifiers(store, { jti: access.jti }, ttl);
+  // PRC-M499: the sid outlives the access token — keep it denylisted for the
+  // whole SSO session so /refresh can reject the session's refresh tokens.
+  if (access.sessionId) await store.revoke('sid', access.sessionId, sessionTtlSeconds);
 
   if (tokens.refreshToken && access.sessionId) {
     let refresh: RevocationClaims | null = null;
@@ -182,9 +308,141 @@ async function revokePresentedTokensBeforeIdpLogout(
       refresh = null;
     }
     if (refresh?.jti && refresh.sessionId === access.sessionId) {
-      await revokeAccessTokenIdentifiers(store, { jti: refresh.jti }, ttl);
+      await revokeAccessTokenIdentifiers(store, { jti: refresh.jti }, sessionTtlSeconds);
     }
   }
+}
+
+/**
+ * PRC-M499: true when the refresh token's sid or jti is denylisted. The token
+ * is decoded (not verified) — it only ever *narrows* access here; Keycloak
+ * still verifies it on the token endpoint. Store failures count as revoked.
+ */
+async function isRefreshTokenRevoked(
+  store: AccessTokenRevocationStore | undefined,
+  refreshToken: string,
+): Promise<boolean> {
+  if (!store) return false;
+  let claims: RevocationClaims | null = null;
+  try {
+    claims = revocationClaimsFromPayload(decodeJwt(refreshToken).payload);
+  } catch {
+    return false; // opaque token: Keycloak decides
+  }
+  if (!claims) return false;
+  try {
+    if (claims.sessionId && (await store.isRevoked('sid', claims.sessionId))) return true;
+    if (claims.jti && (await store.isRevoked('jti', claims.jti))) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/** PRC-L283: login-time identity link failure → 401 (rejected mapping) or 503 (store down). */
+function sendIdentityLinkFailure(request: FastifyRequest, reply: FastifyReply, error: unknown) {
+  if (error instanceof KeycloakIdentityError) {
+    return reply.status(401).send({
+      code: 'IDENTITY_LINK_REJECTED',
+      message: error.message,
+      statusCode: 401,
+    });
+  }
+  request.log.error({ err: error }, 'Keycloak identity store unavailable during login');
+  return reply.status(503).send({
+    code: 'IDENTITY_UNAVAILABLE',
+    message: 'Identity service temporarily unavailable',
+    statusCode: 503,
+  });
+}
+
+function claimTenantId(accessToken: string): string | undefined {
+  try {
+    const claims = decodeJwt(accessToken).payload;
+    const raw = claims.tenant_id ?? claims.tenantId;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function tokenIssuedAt(token: string | undefined): number | undefined {
+  if (!token) return undefined;
+  try {
+    const iat = decodeJwt(token).payload.iat;
+    return typeof iat === 'number' ? iat : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** PRC-H008: end the IdP session behind a refresh token we refuse to hand out (best effort). */
+async function endIdpSession(config: KeycloakRouteConfig, refreshToken?: string): Promise<void> {
+  if (!refreshToken) return;
+  const body = new URLSearchParams({ client_id: config.clientId, refresh_token: refreshToken });
+  if (config.clientSecret) body.set('client_secret', config.clientSecret);
+  try {
+    await fetch(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+  } catch {
+    // The tokens are never returned to the caller; the IdP session expires on its own.
+  }
+}
+
+/**
+ * PRC-H008 / PRC-H098: refuse tokens for a suspended/decommissioned tenant (403) or, on refresh,
+ * a session issued before the tenant-wide revocation (401). Fails closed (503) when the tenant
+ * status cannot be read. Returns true when a refusal was sent.
+ */
+async function refuseBlockedTenant(
+  config: KeycloakRouteConfig,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  input: { tenantId?: string; issuedRefreshToken?: string; presentedRefreshToken?: string },
+): Promise<boolean> {
+  const { tenantId } = input;
+  if (!tenantId || (!config.tenantAuthGate && !config.tenantSessionRevocation)) return false;
+  let blocked = false;
+  let revokedSession = false;
+  try {
+    blocked = (await config.tenantAuthGate?.(tenantId)) ?? false;
+    if (!blocked && input.presentedRefreshToken && config.tenantSessionRevocation) {
+      const revokedAt = await config.tenantSessionRevocation.tenantSessionsRevokedAt(tenantId);
+      revokedSession = isIssuedBeforeTenantRevocation(
+        tokenIssuedAt(input.presentedRefreshToken),
+        revokedAt,
+      );
+    }
+  } catch (error) {
+    request.log.error({ err: error, tenantId }, 'tenant status lookup failed during sign-in');
+    await endIdpSession(config, input.issuedRefreshToken);
+    void reply.status(503).send({
+      code: 'TENANT_STATUS_UNAVAILABLE',
+      message: 'Tenant status could not be verified; try again shortly',
+      statusCode: 503,
+    });
+    return true;
+  }
+  if (!blocked && !revokedSession) return false;
+  await endIdpSession(config, input.issuedRefreshToken);
+  if (blocked) {
+    void reply.status(403).send({
+      code: 'TENANT_SUSPENDED',
+      message: 'This school account is suspended; sign-in is not available',
+      statusCode: 403,
+    });
+  } else {
+    void reply.status(401).send({
+      code: 'SESSION_REVOKED',
+      message: 'This session was ended; sign in again',
+      statusCode: 401,
+    });
+  }
+  return true;
 }
 
 export async function registerKeycloakAuthRoutes(
@@ -197,6 +455,59 @@ export async function registerKeycloakAuthRoutes(
     config.maxRevocationTtlSeconds && config.maxRevocationTtlSeconds > 0
       ? config.maxRevocationTtlSeconds
       : DEFAULT_MAX_REVOCATION_TTL_SECONDS;
+  const webTicketStore = config.webTicketStore ?? new MemoryWebTicketStore();
+  const secureCookies = config.redirectUri.startsWith('https://');
+  const sessionRevocationTtlSeconds =
+    config.ssoSessionMaxSeconds && config.ssoSessionMaxSeconds > 0
+      ? config.ssoSessionMaxSeconds
+      : DEFAULT_SSO_SESSION_MAX_SECONDS;
+  const revocationStoreFor = (): AccessTokenRevocationStore | undefined =>
+    config.revocationStore ??
+    (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
+      .accessTokenRevocationStore;
+
+  /**
+   * PRC-M499: end the IdP session server-side with the refresh token so the
+   * refresh token is dead at Keycloak too (not just in our denylist).
+   * Best-effort: our denylist already blocks /refresh if the IdP is down.
+   */
+  const backchannelLogout = async (refreshToken: string | undefined): Promise<void> => {
+    if (!refreshToken) return;
+    const body = new URLSearchParams({ client_id: config.clientId, refresh_token: refreshToken });
+    if (config.clientSecret) body.set('client_secret', config.clientSecret);
+    try {
+      const res = await fetch(
+        `${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body,
+        },
+      );
+      if (!res.ok) fastify.log.warn({ status: res.status }, 'keycloak backchannel logout failed');
+    } catch (err) {
+      fastify.log.warn({ err }, 'keycloak backchannel logout failed');
+    }
+  };
+
+  const revokeForLogout = async (request: FastifyRequest): Promise<string | undefined> => {
+    const accessToken = readBearer(request);
+    const refreshToken =
+      readHeaderOrQuery(
+        request as FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+        'x-refresh-token',
+        'refresh_token',
+      ) ?? (request.body as { refreshToken?: unknown } | undefined)?.refreshToken?.toString();
+    await revokePresentedTokensBeforeIdpLogout(
+      revocationStoreFor(),
+      { accessToken, refreshToken },
+      verifyForLogout,
+      maxRevocationTtlSeconds,
+      sessionRevocationTtlSeconds,
+    );
+    await backchannelLogout(refreshToken);
+    return refreshToken;
+  };
   const verifyForLogout = async (token: string) => {
     try {
       await verifyKeycloakAccessToken(token, config, logoutJwks);
@@ -219,8 +530,27 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      const state = request.query.state ?? crypto.randomUUID();
-      return reply.redirect(authorizeUrl(config, state), 302);
+      // PRC-M500: server-generated state + nonce + PKCE verifier, bound to this
+      // browser via an httpOnly cookie and verified in /callback.
+      const txn: OidcTransaction = {
+        s: b64url(randomBytes(24)),
+        v: b64url(randomBytes(48)),
+        n: b64url(randomBytes(24)),
+        ...(request.query.state ? { a: request.query.state.slice(0, 1024) } : {}),
+      };
+      reply.header(
+        'set-cookie',
+        txnCookie(
+          Buffer.from(JSON.stringify(txn)).toString('base64url'),
+          prefix,
+          secureCookies,
+          OIDC_TXN_TTL_SECONDS,
+        ),
+      );
+      return reply.redirect(
+        authorizeUrl(config, txn.s, { codeChallenge: pkceChallenge(txn.v), nonce: txn.n }),
+        302,
+      );
     },
   );
 
@@ -233,6 +563,16 @@ export async function registerKeycloakAuthRoutes(
       reply: FastifyReply,
     ) => {
       const { code, error, error_description } = request.query;
+      // PRC-M500: the transaction cookie is single-use whatever the outcome.
+      const txn = parseTransaction(readCookie(request, OIDC_TXN_COOKIE));
+      reply.header('set-cookie', txnCookie('', prefix, secureCookies, 0));
+      if (!txn || !request.query.state || !safeEqual(request.query.state, txn.s)) {
+        return reply.status(400).send({
+          code: 'KEYCLOAK_STATE_MISMATCH',
+          message: 'Login state is missing, expired or does not match this browser',
+          statusCode: 400,
+        });
+      }
       if (error) {
         return reply.status(401).send({
           code: 'KEYCLOAK_AUTH_ERROR',
@@ -253,6 +593,7 @@ export async function registerKeycloakAuthRoutes(
         code,
         client_id: config.clientId,
         redirect_uri: config.redirectUri,
+        code_verifier: txn.v,
       });
       if (config.clientSecret) body.set('client_secret', config.clientSecret);
 
@@ -280,7 +621,22 @@ export async function registerKeycloakAuthRoutes(
         expires_in?: number;
         token_type?: string;
       };
-
+      // PRC-M500: the ID token must carry the nonce issued for this browser.
+      if (tokens.id_token) {
+        let nonce: unknown;
+        try {
+          nonce = (decodeJwt(tokens.id_token).payload as Record<string, unknown>)['nonce'];
+        } catch {
+          nonce = undefined;
+        }
+        if (typeof nonce !== 'string' || !safeEqual(nonce, txn.n)) {
+          return reply.status(401).send({
+            code: 'KEYCLOAK_NONCE_MISMATCH',
+            message: 'ID token nonce does not match the login request',
+            statusCode: 401,
+          });
+        }
+      }
       let user: LinkedKeycloakUser | undefined;
       if (config.identityStore) {
         try {
@@ -288,9 +644,20 @@ export async function registerKeycloakAuthRoutes(
             identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
             config.identityStore,
           );
-        } catch {
-          // Login still succeeds; /me will retry the tenant projection.
+        } catch (error) {
+          // PRC-L283: fail closed. Never hand out tokens for a session whose local identity could
+          // not be linked: a mapping rejection is a 401, a store outage a 503.
+          return sendIdentityLinkFailure(request, reply, error);
         }
+      }
+
+      if (
+        await refuseBlockedTenant(config, request, reply, {
+          tenantId: user?.tenantId ?? claimTenantId(tokens.access_token),
+          issuedRefreshToken: tokens.refresh_token,
+        })
+      ) {
+        return reply;
       }
 
       const issued: IssuedTokens = {
@@ -301,9 +668,10 @@ export async function registerKeycloakAuthRoutes(
         tokenType: tokens.token_type ?? 'Bearer',
       };
 
-      const returnTo = webReturnTo(request.query.state);
+      const returnTo = webReturnTo(txn.a);
       if (returnTo && config.webOrigin) {
-        const ticket = issueWebTicket(issued);
+        const ticket = b64url(randomBytes(32));
+        await webTicketStore.put(ticket, JSON.stringify(issued), WEB_TICKET_TTL_SECONDS);
         const next = new URL('/api/auth/callback', config.webOrigin);
         next.searchParams.set('ticket', ticket);
         next.searchParams.set('returnTo', returnTo);
@@ -343,7 +711,18 @@ export async function registerKeycloakAuthRoutes(
 
       // PRC-H043: refuse before contacting Keycloak when the account or source IP
       // has exceeded its failed-attempt budget.
-      const throttle = passwordThrottle.check(username, request.ip);
+      let throttle: Awaited<ReturnType<PasswordLoginThrottle['check']>>;
+      try {
+        throttle = await passwordThrottle.check(username, request.ip);
+      } catch (error) {
+        // Fail closed: without the shared failure budget the endpoint is unthrottled.
+        request.log.error({ err: error }, 'password-login throttle store unavailable');
+        return reply.status(503).send({
+          code: 'LOGIN_THROTTLE_UNAVAILABLE',
+          message: 'Sign-in is temporarily unavailable. Try again shortly.',
+          statusCode: 503,
+        });
+      }
       if (!throttle.allowed) {
         return reply.status(429).header('retry-after', String(throttle.retryAfterSeconds)).send({
           code: 'TOO_MANY_ATTEMPTS',
@@ -373,7 +752,9 @@ export async function registerKeycloakAuthRoutes(
       if (!tokenResponse.ok) {
         // Only credential rejections count; IdP outages (5xx) must not lock users out.
         if (tokenResponse.status === 400 || tokenResponse.status === 401) {
-          passwordThrottle.recordFailure(username, request.ip);
+          await passwordThrottle.recordFailure(username, request.ip).catch((error: unknown) => {
+            request.log.error({ err: error }, 'password-login throttle failure not recorded');
+          });
         }
         return reply.status(401).send({
           code: 'INVALID_CREDENTIALS',
@@ -381,7 +762,9 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 401,
         });
       }
-      passwordThrottle.recordSuccess(username);
+      await passwordThrottle.recordSuccess(username).catch((error: unknown) => {
+        request.log.warn({ err: error }, 'password-login throttle reset not recorded');
+      });
 
       const tokens = (await tokenResponse.json()) as {
         access_token: string;
@@ -398,9 +781,20 @@ export async function registerKeycloakAuthRoutes(
             identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
             config.identityStore,
           );
-        } catch {
-          // Login still succeeds; /me will retry the tenant projection.
+        } catch (error) {
+          // PRC-L283: fail closed. Never hand out tokens for a session whose local identity could
+          // not be linked: a mapping rejection is a 401, a store outage a 503.
+          return sendIdentityLinkFailure(request, reply, error);
         }
+      }
+
+      if (
+        await refuseBlockedTenant(config, request, reply, {
+          tenantId: user?.tenantId ?? claimTenantId(tokens.access_token),
+          issuedRefreshToken: tokens.refresh_token,
+        })
+      ) {
+        return reply;
       }
 
       return reply.status(200).send({
@@ -432,7 +826,8 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 400,
         });
       }
-      const tokens = consumeWebTicket(ticket);
+      const raw = ticket.length <= MAX_TICKET_ID_LENGTH ? await webTicketStore.take(ticket) : null;
+      const tokens = raw ? (JSON.parse(raw) as IssuedTokens) : null;
       if (!tokens) {
         return reply.status(401).send({
           code: 'KEYCLOAK_TICKET_INVALID',
@@ -464,6 +859,15 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 400,
         });
       }
+      // PRC-M499: a logged-out session's refresh token is rejected here even
+      // though only Keycloak can verify its signature. Store errors fail closed.
+      if (await isRefreshTokenRevoked(revocationStoreFor(), refreshToken)) {
+        return reply.status(401).send({
+          code: 'KEYCLOAK_SESSION_REVOKED',
+          message: 'Session has been signed out',
+          statusCode: 401,
+        });
+      }
       const body = new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
@@ -490,6 +894,32 @@ export async function registerKeycloakAuthRoutes(
         refresh_token?: string;
         expires_in?: number;
       };
+      // PRC-H008 / PRC-H098: a suspended tenant cannot extend its sessions, and a session issued
+      // before a tenant-wide revocation stays revoked after reactivation.
+      if (config.tenantAuthGate || config.tenantSessionRevocation) {
+        let tenantId = claimTenantId(tokens.access_token);
+        if (config.identityStore) {
+          try {
+            const linked = await linkKeycloakIdentity(
+              identityInputFromClaims(decodeJwt(tokens.access_token).payload, config.realm),
+              config.identityStore,
+            );
+            tenantId = linked.tenantId ?? tenantId;
+          } catch (error) {
+            await endIdpSession(config, tokens.refresh_token);
+            return sendIdentityLinkFailure(request, reply, error);
+          }
+        }
+        if (
+          await refuseBlockedTenant(config, request, reply, {
+            tenantId,
+            issuedRefreshToken: tokens.refresh_token,
+            presentedRefreshToken: refreshToken,
+          })
+        ) {
+          return reply;
+        }
+      }
       return reply.status(200).send({
         provider: 'keycloak',
         accessToken: tokens.access_token,
@@ -517,28 +947,60 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      const accessToken = readBearer(request);
-      const refreshToken = readHeaderOrQuery(request, 'x-refresh-token', 'refresh_token');
+      await revokeForLogout(request);
       const idTokenHint =
         readHeaderOrQuery(request, 'x-id-token', 'id_token_hint') ??
         readHeaderOrQuery(request, 'x-id-token', 'id_token');
-
-      const store =
-        config.revocationStore ??
-        (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
-          .accessTokenRevocationStore;
-
-      await revokePresentedTokensBeforeIdpLogout(
-        store,
-        { accessToken, refreshToken },
-        verifyForLogout,
-        maxRevocationTtlSeconds,
-      );
-
       return reply.redirect(
         logoutUrl(config, request.query.redirect ?? config.webOrigin, idTokenHint),
         302,
       );
+    },
+  );
+
+  /**
+   * POST /auth/logout — PRC-L282 authenticated logout (web BFF and mobile).
+   * The Bearer access token must verify (signature, issuer, expiry, not revoked); its jti/sid
+   * are denylisted with a capped TTL, the refresh token (body, never the query string) is
+   * denylisted when it belongs to the same session, and the IdP session is ended server-side.
+   * Returns the IdP end-session URL for browser clients that also want the front-channel hop.
+   * GET /auth/logout stays for redirect-based clients with signature-verified, capped denylisting.
+   * PRC-M499: the sid and the same-session refresh jti stay denylisted for the realm SSO Session
+   * Max so /refresh rejects the session's refresh tokens after the access token expires.
+   */
+  fastify.post(
+    `${prefix}/logout`,
+    async (
+      request: FastifyRequest<{
+        Body: { refreshToken?: unknown; idToken?: unknown; redirect?: unknown } | null;
+      }>,
+      reply: FastifyReply,
+    ) => {
+      await fastify.authenticate(request, reply);
+      if (reply.sent) return;
+
+      const body = request.body ?? {};
+      const refreshToken =
+        typeof body.refreshToken === 'string' && body.refreshToken.trim()
+          ? body.refreshToken.trim()
+          : undefined;
+      const idTokenHint =
+        typeof body.idToken === 'string' && body.idToken.trim() ? body.idToken.trim() : undefined;
+      const redirect = typeof body.redirect === 'string' ? body.redirect : config.webOrigin;
+
+      await revokePresentedTokensBeforeIdpLogout(
+        revocationStoreFor(),
+        { accessToken: readBearer(request), refreshToken },
+        verifyForLogout,
+        maxRevocationTtlSeconds,
+        sessionRevocationTtlSeconds,
+      );
+      await backchannelLogout(refreshToken);
+
+      return reply.status(200).send({
+        loggedOut: true,
+        endSessionUrl: logoutUrl(config, redirect, idTokenHint),
+      });
     },
   );
 

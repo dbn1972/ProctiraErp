@@ -794,4 +794,67 @@ describe('LMS routes', () => {
       expect(res.statusCode).toBe(400);
     });
   });
+  describe('list embeds (PRC-M108)', () => {
+    it('GET /lms/lessons?include=resources returns resources inline', async () => {
+      const ids: string[] = [];
+      for (const title of ['L1', 'L2']) {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/lms/lessons',
+          headers: as(teacherSchool1),
+          payload: { scope: 'school', institutionId: SCHOOL_1, title },
+        });
+        ids.push((res.json() as { id: string }).id);
+      }
+      await app.inject({
+        method: 'POST',
+        url: `/lms/lessons/${ids[0]}/resources`,
+        headers: as(teacherSchool1),
+        payload: { kind: 'link', title: 'Ref', url: 'https://example.edu/a' },
+      });
+      const res = await app.inject({
+        method: 'GET',
+        url: `/lms/lessons?institutionId=${SCHOOL_1}&include=resources&pageSize=100`,
+        headers: as(teacherSchool1),
+      });
+      expect(res.statusCode).toBe(200);
+      const rows = (res.json() as { data: Array<{ id: string; resources: unknown[] }> }).data;
+      expect(rows.find((r) => r.id === ids[0])?.resources).toHaveLength(1);
+      expect(rows.find((r) => r.id === ids[1])?.resources).toEqual([]);
+    });
+
+    it('GET /lms/discussions?include=posts returns posts inline', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/lms/discussions',
+        headers: as(teacherSchool1),
+        payload: { classKey: '7A', title: 'Week 1', institutionId: SCHOOL_1 },
+      });
+      const thread = created.json() as { id: string };
+      await app.inject({
+        method: 'POST',
+        url: `/lms/discussions/${thread.id}/posts`,
+        headers: as(teacherSchool1),
+        payload: { body: 'Welcome' },
+      });
+      const res = await app.inject({
+        method: 'GET',
+        url: `/lms/discussions?institutionId=${SCHOOL_1}&include=posts`,
+        headers: as(teacherSchool1),
+      });
+      expect(res.statusCode).toBe(200);
+      const rows = (res.json() as { data: Array<{ id: string; posts: Array<{ body: string }> }> })
+        .data;
+      expect(rows.find((r) => r.id === thread.id)?.posts.map((p) => p.body)).toEqual(['Welcome']);
+    });
+
+    it('rejects an unknown include value', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/lms/lessons?include=everything',
+        headers: as(teacherSchool1),
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

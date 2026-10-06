@@ -8,6 +8,12 @@ describe('access-log redaction (PRC-L344)', () => {
     expect(out).not.toContain('abc.def');
   });
 
+  it('PRC-M331: redacts applicant DOB from status lookup URLs', () => {
+    const out = redactUrlQuerySecrets('/api/v1/registrations/REG-ABCDEFGH/status?dob=2014-01-02');
+    expect(out).not.toContain('2014-01-02');
+    expect(out).toContain('REDACTED');
+  });
+
   it('leaves URLs without secrets unchanged', () => {
     expect(redactUrlQuerySecrets('/api/v1/fees/invoices?page=2')).toBe(
       '/api/v1/fees/invoices?page=2',

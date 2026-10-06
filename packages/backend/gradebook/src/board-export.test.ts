@@ -127,6 +127,25 @@ describe('GradebookService board exports', () => {
     expect(file.body.toString('utf8')).toContain('CBSE-AFF-DEMO');
   });
 
+  it('PRC-M263: client metadata.prep / studentIds are ignored', async () => {
+    const { service } = setupComplete();
+    const job = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      metadata: {
+        prep: { candidates: [{ studentId: 'forged', nationalId: 'NID-FORGED' }] },
+        studentIds: ['forged'],
+        boardCode: 'ICSE',
+      },
+    } as never);
+    expect(job.status).toBe('SUCCEEDED');
+    expect(job.metadata.studentIds).toEqual([STUDENT]);
+    expect(job.metadata.boardCode).toBe('CBSE');
+    const file = await service.downloadBoardExport(TENANT, job.id, 'csv');
+    expect(file.body.toString('utf8')).not.toContain('NID-FORGED');
+  });
+
   it('rejects incomplete grades with BusinessRuleError (422)', async () => {
     const { service, repo } = setupComplete();
     repo.seedExportCandidate({
@@ -175,6 +194,63 @@ describe('GradebookService board exports', () => {
     const audits = service.listAudits(TENANT);
     expect(audits.some((a) => a.action === 'board_export.create')).toBe(true);
     expect(audits.some((a) => a.action === 'board_export.download')).toBe(true);
+  });
+
+  // PRC-M270: parallel /process calls must not both generate the pack.
+  it('claims a queued job atomically: parallel process calls yield one generation + 409', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    const results = await Promise.allSettled([
+      service.processBoardExportJob(TENANT, queued.id),
+      service.processBoardExportJob(TENANT, queued.id),
+    ]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    expect(ok).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0]!.reason as { statusCode?: number }).statusCode).toBe(409);
+    // Re-processing a terminal job is idempotent and returns the stored result.
+    const again = await service.processBoardExportJob(TENANT, queued.id);
+    expect(again.status).toBe('SUCCEEDED');
+    expect((await repo.getExportJob(TENANT, queued.id))?.status).toBe('SUCCEEDED');
+  });
+
+  it('re-claims a RUNNING job whose lease expired', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    await repo.updateExportJob(TENANT, queued.id, {
+      status: 'RUNNING',
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+    const done = await service.processBoardExportJob(TENANT, queued.id);
+    expect(done.status).toBe('SUCCEEDED');
+  });
+
+  it('returns 409 for a RUNNING job inside its lease', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    await repo.updateExportJob(TENANT, queued.id, {
+      status: 'RUNNING',
+      startedAt: new Date().toISOString(),
+    });
+    await expect(service.processBoardExportJob(TENANT, queued.id)).rejects.toMatchObject({
+      statusCode: 409,
+    });
   });
 
   // PRC-H065: candidate PII (national IDs, names, marks) lives in metadata.prep for the worker

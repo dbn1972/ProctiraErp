@@ -1,6 +1,7 @@
 import { DEFAULT_ROLES } from '@proctira/backend-auth';
 import { issueSandboxIdpToken, listProviderCapabilities } from '@proctira/backend-providers';
 import { resolveProviderDeliveryMode } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -24,7 +25,7 @@ export function sandboxIdpEnabled(
   gatewayEnv: string | undefined = undefined,
 ): boolean {
   if (env['ALLOW_SANDBOX_IDP'] === '1') return true;
-  return env['NODE_ENV'] !== 'production' && gatewayEnv !== 'production';
+  return !isProductionNodeEnv(env['NODE_ENV']) && gatewayEnv !== 'production';
 }
 
 const SANDBOX_ROLE_IDS = new Set(DEFAULT_ROLES.map((role) => role.roleId));
@@ -40,7 +41,7 @@ export async function providersPlugin(app: FastifyInstance, options: ProvidersPl
     capabilities: listProviderCapabilities(process.env),
   }));
   if (!(options.sandboxIdp ?? sandboxIdpEnabled())) return;
-  if (process.env['NODE_ENV'] === 'production') {
+  if (isProductionNodeEnv(process.env['NODE_ENV'])) {
     app.log.warn('ALLOW_SANDBOX_IDP=1: sandbox IdP token route is mounted in production');
   }
 

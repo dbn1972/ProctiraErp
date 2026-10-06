@@ -36,6 +36,13 @@ export { KafkaAdapter } from './adapters/kafka-adapter';
 export { RabbitMQAdapter, deadLetterQueueName } from './adapters/rabbitmq-adapter';
 export type { RabbitMQAdapterRuntimeOptions } from './adapters/rabbitmq-adapter';
 export {
+  addQueueDepthObserver,
+  reportQueueDepth,
+  DEFAULT_DEPTH_SAMPLE_INTERVAL_MS,
+} from './adapters/queue-depth';
+export type { QueueDepthReport } from './adapters/queue-depth';
+export {
+  addDeliveryFailureObserver,
   DEFAULT_MAX_RETRIES,
   DeliveryFailureCounter,
   decideDisposition,

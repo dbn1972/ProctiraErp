@@ -42,8 +42,11 @@ export function MeritPanel({
   periods,
   grades,
   applications = [],
+  selected = {},
 }: {
   list: MeritList | null;
+  /** URL-selected scope the list was generated for (PRC-M070). */
+  selected?: { institutionId?: string; academicPeriodId?: string; gradeId?: string };
   institutions: Option[];
   periods: Option[];
   grades: Option[];
@@ -244,12 +247,17 @@ export function MeritPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 const fd = new FormData(event.currentTarget);
+                const scope = {
+                  institutionId: String(fd.get('institutionId') ?? ''),
+                  academicPeriodId: String(fd.get('academicPeriodId') ?? ''),
+                  gradeId: String(fd.get('gradeId') ?? ''),
+                };
                 startTransition(async () => {
                   setError(null);
                   const result = await generateMeritListAction({
-                    institutionId: String(fd.get('institutionId') ?? ''),
-                    academicPeriodId: String(fd.get('academicPeriodId') ?? ''),
-                    gradeId: String(fd.get('gradeId') ?? ''),
+                    institutionId: scope.institutionId,
+                    academicPeriodId: scope.academicPeriodId,
+                    gradeId: scope.gradeId,
                     interviewWeight: Number(fd.get('interviewWeight') ?? 0.4),
                     testWeight: Number(fd.get('testWeight') ?? 0.6),
                   });
@@ -257,6 +265,8 @@ export function MeritPanel({
                     setError(result.message ?? 'Failed');
                     return;
                   }
+                  // Show the ranking for the scope just generated (PRC-M070).
+                  router.push(`/admissions/merit?${new URLSearchParams(scope).toString()}`);
                   router.refresh();
                 });
               }}
@@ -268,7 +278,7 @@ export function MeritPanel({
                   data-testid="merit-institution"
                   className={selectClassName}
                   disabled={!hydrated || pending}
-                  defaultValue={institutions[0]?.id ?? ''}
+                  defaultValue={selected.institutionId ?? institutions[0]?.id ?? ''}
                 >
                   {institutions.map((row) => (
                     <option key={row.id} value={row.id}>
@@ -284,7 +294,7 @@ export function MeritPanel({
                   data-testid="merit-period"
                   className={selectClassName}
                   disabled={!hydrated || pending}
-                  defaultValue={periods[0]?.id ?? ''}
+                  defaultValue={selected.academicPeriodId ?? periods[0]?.id ?? ''}
                 >
                   {periods.map((row) => (
                     <option key={row.id} value={row.id}>
@@ -300,7 +310,7 @@ export function MeritPanel({
                   data-testid="merit-grade"
                   className={selectClassName}
                   disabled={!hydrated || pending}
-                  defaultValue={grades[0]?.id ?? ''}
+                  defaultValue={selected.gradeId ?? grades[0]?.id ?? ''}
                 >
                   {grades.map((row) => (
                     <option key={row.id} value={row.id}>

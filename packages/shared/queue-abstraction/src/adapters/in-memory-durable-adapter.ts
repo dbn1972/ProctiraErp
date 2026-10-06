@@ -9,6 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { checkQueueEnvelope } from '../envelope';
 import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
@@ -30,11 +31,14 @@ import {
   type DeliveryFailureEvent,
   type QueueConsumerLogger,
 } from './delivery-failure';
+import { reportQueueDepth } from './queue-depth';
 
 export interface DurableQueuedMessage {
   deliveryTag: string;
   routingKey: string;
   message: QueueMessage;
+  /** Epoch ms before which the message is not delivered (PRC-H110 delay). */
+  availableAt?: number;
 }
 
 /**
@@ -47,11 +51,12 @@ export class InMemoryDurableQueueStore {
   /** Dead-letter queue (PRC-H086): exhausted deliveries keep the original payload. */
   readonly deadLetters: DurableQueuedMessage[] = [];
 
-  enqueue(routingKey: string, message: QueueMessage): DurableQueuedMessage {
+  enqueue(routingKey: string, message: QueueMessage, delayMs?: number): DurableQueuedMessage {
     const entry: DurableQueuedMessage = {
       deliveryTag: randomUUID(),
       routingKey,
       message,
+      ...(delayMs !== undefined && delayMs > 0 ? { availableAt: Date.now() + delayMs } : {}),
     };
     this.pending.push(entry);
     return entry;
@@ -64,9 +69,24 @@ export class InMemoryDurableQueueStore {
     return next;
   }
 
+  /** PRC-L493: pending (ready) messages whose routing key matches `pattern`. */
+  countMatching(pattern: string): number {
+    const now = Date.now();
+    return this.pending.filter(
+      (entry) =>
+        (entry.availableAt === undefined || entry.availableAt <= now) &&
+        matchRoutingKey(pattern, entry.routingKey),
+    ).length;
+  }
+
   /** Lease the first pending message whose routing key matches `pattern`. */
   leaseMatching(pattern: string): DurableQueuedMessage | undefined {
-    const idx = this.pending.findIndex((entry) => matchRoutingKey(pattern, entry.routingKey));
+    const now = Date.now();
+    const idx = this.pending.findIndex(
+      (entry) =>
+        (entry.availableAt === undefined || entry.availableAt <= now) &&
+        matchRoutingKey(pattern, entry.routingKey),
+    );
     if (idx < 0) return undefined;
     const [next] = this.pending.splice(idx, 1);
     if (!next) return undefined;
@@ -216,7 +236,8 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     const routingKey = options?.topic
       ? buildTenantName(message.tenantId, options.topic)
       : buildTenantName(message.tenantId, message.type);
-    this.store.enqueue(routingKey, message);
+    // PRC-H110: honour delay like the broker adapters (not delivered before due).
+    this.store.enqueue(routingKey, message, options?.delay ?? message.metadata?.delay);
   }
 
   async subscribe(options: SubscribeOptions, handler: MessageHandler): Promise<void> {
@@ -251,10 +272,33 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     this.draining = true;
     try {
       const topic = this.consumeTopic;
+      // PRC-L493: consumer lag sample for slo_queue_lag_messages.
+      reportQueueDepth({ topic, depth: this.store.countMatching(topic) });
       // Drain currently matching pending messages.
       for (;;) {
         const entry = this.store.leaseMatching(topic);
         if (!entry) break;
+        // PRC-L355: zod envelope + body tenant must equal the routed tenant;
+        // otherwise dead-letter without invoking the handler.
+        const envelope = checkQueueEnvelope(entry.message, entry.routingKey);
+        if (!envelope.ok) {
+          this.store.fail(entry.deliveryTag);
+          reportDeliveryFailure(
+            {
+              messageId: typeof entry.message?.id === 'string' ? entry.message.id : undefined,
+              type: typeof entry.message?.type === 'string' ? entry.message.type : undefined,
+              tenantId: undefined,
+              retryCount: 0,
+              maxRetries: 0,
+              disposition: 'dead-letter',
+              error: envelope.reason,
+            },
+            this.failures,
+            this.logger,
+            this.onDeliveryFailure,
+          );
+          continue;
+        }
         try {
           await this.handler(entry.message);
           // Only ack if we still own the delivery (disconnect may have reclaimed).

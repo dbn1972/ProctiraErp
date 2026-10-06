@@ -28,6 +28,7 @@ export function ApplicationStatusTabs({ activeStatus, counts }: ApplicationStatu
   const searchParams = useSearchParams();
   function hrefFor(status: StatusValue): string {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('page');
     if (status === 'ALL') {
       params.delete('status');
     } else {

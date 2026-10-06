@@ -176,6 +176,9 @@ export interface AuditRepository {
    */
   findById(tenantId: string, id: string): Promise<AuditLogEntry | null>;
 
+  /** PRC-M576: distinct entity types present in the tenant's audit log (bounded). */
+  listEntityTypes(tenantId: string, limit: number): Promise<string[]>;
+
   /**
    * Get the retention configuration for a tenant.
    */

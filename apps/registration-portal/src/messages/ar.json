@@ -53,7 +53,9 @@
     "primary": "ابتدائي",
     "secondary": "ثانوي",
     "tvet": "تقني ومهني",
-    "preschool": "تمهيدي"
+    "preschool": "تمهيدي",
+    "typesUnavailable": "تعذر تحميل أنواع المدارس الآن.",
+    "browseAll": "تصفح كل المدارس"
   },
   "registration": {
     "title": "تسجيل الطالب",
@@ -91,7 +93,15 @@
     "fixFieldErrors": "يُرجى تصحيح الحقول المميّزة قبل الإرسال.",
     "trackingMissingTitle": "هذا المتصفح لا يحتفظ برقم التتبع",
     "trackingMissingBody": "إذا حفظت الرقم، افتح تتبع الطلب وأدخله مع تاريخ ميلاد الطالب. إذا لم تحفظه، تواصل مع مكتب القبول في المدرسة. لا يمكن لهذه الصفحة استعادة الرقم.",
-    "schoolNameUnavailable": "تعذّر تحميل اسم المدرسة"
+    "schoolNameUnavailable": "تعذّر تحميل اسم المدرسة",
+    "invalidNumber": "أدخل رقمًا صالحًا.",
+    "outOfRange": "القيمة خارج النطاق المسموح به.",
+    "tooShort": "القيمة قصيرة جدًا.",
+    "tooLong": "القيمة طويلة جدًا.",
+    "invalidFormat": "القيمة لا تطابق التنسيق المطلوب.",
+    "copyTrackingNumber": "نسخ رقم التتبع",
+    "trackingNumberCopied": "تم نسخ رقم التتبع",
+    "copyFailed": "تعذر النسخ، حدد الرقم يدويًا."
   },
   "documents": {
     "title": "رفع المستندات",
@@ -110,7 +120,8 @@
     "remove": "إزالة",
     "reuploadHint": "يلزم إعادة الرفع",
     "reuploadRequired": "يجب إعادة رفع {fileName} قبل الإرسال",
-    "noneRequired": "لا توجد مستندات مطلوبة لهذا الطلب."
+    "noneRequired": "لا توجد مستندات مطلوبة لهذا الطلب.",
+    "uploadLabel": "تحميل {label}"
   },
   "institutions": {
     "title": "البحث عن المدارس",
@@ -128,7 +139,12 @@
     "resultsCount": "{count} مدرسة",
     "serviceUnavailableTitle": "الخدمة غير متاحة مؤقتًا",
     "serviceUnavailableMessage": "تعذّر تحميل المدارس الآن. يُرجى المحاولة مرة أخرى بعد قليل.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "loadingMap": "جارٍ تحميل الخريطة…",
+    "invalidFilterTitle": "نوع المدرسة هذا غير متاح",
+    "invalidFilterMessage": "الرابط يستخدم نوع مدرسة غير معروف. اختر نوعًا صالحًا.",
+    "showAll": "عرض كل المدارس",
+    "loadMore": "تحميل المزيد من المدارس"
   },
   "tracking": {
     "title": "تتبع طلبك",
@@ -153,7 +169,11 @@
     "statusUnderReview": "قيد المراجعة",
     "statusApproved": "مقبول",
     "statusRejected": "مرفوض",
-    "statusWaitlisted": "في قائمة الانتظار"
+    "statusWaitlisted": "في قائمة الانتظار",
+    "invalidRequest": "رابط التتبع هذا غير صالح. تحقق من رقم التتبع وحاول مرة أخرى.",
+    "serviceUnavailable": "تعذر التحقق من طلبك الآن. يرجى المحاولة بعد بضع دقائق.",
+    "rateLimited": "محاولات كثيرة جدًا لرقم التتبع هذا. يرجى الانتظار 15 دقيقة ثم المحاولة.",
+    "retry": "إعادة المحاولة"
   },
   "errors": {
     "validation": "يلزم تصحيح بعض البيانات قبل المتابعة.",

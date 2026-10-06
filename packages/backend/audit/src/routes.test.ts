@@ -400,6 +400,23 @@ describe('Audit Routes', () => {
       expect(body.exportedAt).toBeDefined();
     });
 
+    it('PRC-M084: each export (POST and GET) records an audit row with actor and subject', async () => {
+      const subjectId = 'subject-dsar-audited';
+      const first = await app.inject({ method: 'POST', url: `/audit/dsar/${subjectId}/export` });
+      expect(first.statusCode).toBe(200);
+      expect(first.json().entryCount).toBe(0);
+      const second = await app.inject({ method: 'GET', url: `/audit/dsar/${subjectId}` });
+      const entries = second.json().entries as Array<{
+        entityType: string;
+        entityId: string;
+        userId: string;
+        afterValues: Record<string, unknown> | null;
+      }>;
+      const exportsLogged = entries.filter((e) => e.entityType === 'dsar_export');
+      expect(exportsLogged).toHaveLength(1);
+      expect(exportsLogged[0]).toMatchObject({ entityId: subjectId, userId: 'test-user-id' });
+      expect(exportsLogged[0]?.afterValues).toMatchObject({ subjectId, entryCount: 0 });
+    });
     it('returns an empty package when the subject has no audit trail', async () => {
       const response = await app.inject({
         method: 'GET',

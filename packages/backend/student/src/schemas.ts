@@ -164,8 +164,16 @@ export const StudentListQuerySchema = Type.Object({
   institutionId: Type.Optional(
     Type.String({ description: 'Scope to one institution (school) within the tenant' }),
   ),
+  // PRC-M097: batch label lookup — comma-separated UUIDs (max 100), so a roster
+  // resolves every missing name in one request instead of one per enrollment.
+  ids: Type.Optional(
+    Type.String({
+      maxLength: 3800,
+      pattern: '^[0-9a-fA-F-]{36}(,[0-9a-fA-F-]{36}){0,99}$',
+      description: 'Comma-separated student ids (max 100)',
+    }),
+  ),
 });
-
 export type StudentListQuery = Static<typeof StudentListQuerySchema>;
 
 /**
