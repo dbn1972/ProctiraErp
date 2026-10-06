@@ -728,7 +728,8 @@ export class BillingService {
     // our snapshot is not overwritten (e.g. re-suspending a just-paid subscription). If the row
     // moved on, recompute from the fresh state instead of applying stale changes.
     const fresh = await this.repository.findSubscriptionById(subscription.id);
-    if (!fresh) return subscription;
+    // Never write through a by-id lookup that resolves outside the snapshot's tenant.
+    if (!fresh || fresh.tenantId !== subscription.tenantId) return subscription;
     if (
       fresh.status !== subscription.status ||
       timeOf(fresh.trialEndsAt) !== timeOf(subscription.trialEndsAt) ||
@@ -744,13 +745,19 @@ export class BillingService {
    * Scheduled sweep: expire lapsed trials and roll billing periods for every open
    * subscription (wired by billingPlugin). Per-subscription failures are isolated.
    */
-  async runLifecycleSweep(now: Date = new Date()): Promise<{
+  async runLifecycleSweep(
+    now: Date = new Date(),
+    scope: { tenantId?: string } = {},
+  ): Promise<{
     checked: number;
     expiredTrials: number;
     rolledPeriods: number;
     failures: number;
   }> {
-    const subs = await this.repository.listSubscriptionsByStatus(['trial', 'active']);
+    // Platform sweep across tenants by default; `scope.tenantId` limits it to one tenant.
+    const subs = (await this.repository.listSubscriptionsByStatus(['trial', 'active'])).filter(
+      (sub) => scope.tenantId === undefined || sub.tenantId === scope.tenantId,
+    );
     let expiredTrials = 0;
     let rolledPeriods = 0;
     let failures = 0;

@@ -702,6 +702,10 @@ describe('BillingService subscription lifecycle (PRC-M185)', () => {
     const result = await svc.runLifecycleSweep(new Date('2026-07-15T00:00:00Z'));
     expect(result).toMatchObject({ checked: 2, expiredTrials: 1, failures: 0 });
     expect(result.rolledPeriods).toBe(2);
+    const scoped = await svc.runLifecycleSweep(new Date('2026-07-15T00:00:00Z'), {
+      tenantId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(scoped.checked).toBe(1);
   });
 });
 
