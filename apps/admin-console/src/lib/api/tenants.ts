@@ -6,6 +6,7 @@
  * we fall back to deterministic stub data so the screens still render.
  */
 import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
 export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
@@ -120,7 +121,8 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
 export async function getTenant(
   id: string,
 ): Promise<{ tenant: Tenant | null; source: 'gateway' | 'stub' }> {
-  const response = await gatewayFetch<Tenant>(`/tenants/${id}`);
+  if (!RESOURCE_ID_PATTERN.test(id)) return { tenant: null, source: 'gateway' };
+  const response = await gatewayFetch<Tenant>(`/tenants/${pathSegment(id)}`);
   if (response.ok && response.data) {
     return { tenant: response.data, source: 'gateway' };
   }
@@ -164,7 +166,13 @@ export async function createTenant(input: CreateTenantInput): Promise<CreateTena
   };
 }
 
-export type TenantLifecycleAction = 'suspend' | 'reactivate' | 'decommission' | 'offboard';
+export const TENANT_LIFECYCLE_ACTIONS = [
+  'suspend',
+  'reactivate',
+  'decommission',
+  'offboard',
+] as const;
+export type TenantLifecycleAction = (typeof TENANT_LIFECYCLE_ACTIONS)[number];
 
 /** Perform a tenant lifecycle action (suspend/reactivate/etc.). */
 export async function tenantAction(
@@ -172,7 +180,9 @@ export async function tenantAction(
   action: TenantLifecycleAction,
   reason: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const path = action === 'offboard' ? `/tenants/${id}` : `/tenants/${id}/${action}`;
+  const seg = pathSegment(id);
+  const verb = verbSegment(action, TENANT_LIFECYCLE_ACTIONS);
+  const path = verb === 'offboard' ? `/tenants/${seg}` : `/tenants/${seg}/${verb}`;
   const method = action === 'offboard' ? 'DELETE' : 'POST';
 
   const response = await gatewayFetch<unknown>(path, {

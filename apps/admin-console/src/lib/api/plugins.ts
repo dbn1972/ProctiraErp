@@ -2,8 +2,10 @@
  * Plugin marketplace management API client.
  */
 import { GATEWAY_UNREACHABLE_WRITE_ERROR, gatewayFetch } from './gateway';
+import { RESOURCE_ID_PATTERN, pathSegment, verbSegment } from './path-segment';
 
-export type PluginStatus = 'submitted' | 'in_review' | 'approved' | 'revoked' | 'disabled';
+export type PluginStatus =
+  'submitted' | 'in_review' | 'approved' | 'rejected' | 'revoked' | 'disabled';
 
 export interface PluginSubmission {
   id: string;
@@ -94,9 +96,10 @@ export async function listPlugins(): Promise<{
 export async function getPlugin(
   id: string,
 ): Promise<{ plugin: PluginSubmission | null; source: 'gateway' | 'stub' }> {
+  if (!RESOURCE_ID_PATTERN.test(id)) return { plugin: null, source: 'gateway' };
   const response = await gatewayFetch<
     PluginSubmission | { data?: PluginSubmission; item?: PluginSubmission }
-  >(`/plugins/${id}`);
+  >(`/plugins/${pathSegment(id)}`);
   if (response.ok && response.data && typeof response.data === 'object') {
     const raw =
       'id' in response.data && typeof (response.data as PluginSubmission).id === 'string'
@@ -122,17 +125,21 @@ export async function getPlugin(
   };
 }
 
-export type PluginAction = 'approve' | 'revoke' | 'disable' | 'reject';
+export const PLUGIN_ACTIONS = ['approve', 'revoke', 'disable', 'reject'] as const;
+export type PluginAction = (typeof PLUGIN_ACTIONS)[number];
 
 export async function pluginAction(
   id: string,
   action: PluginAction,
   reason: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const response = await gatewayFetch<unknown>(`/plugins/${id}/${action}`, {
-    method: 'POST',
-    json: { reason },
-  });
+  const response = await gatewayFetch<unknown>(
+    `/plugins/${pathSegment(id)}/${verbSegment(action, PLUGIN_ACTIONS)}`,
+    {
+      method: 'POST',
+      json: { reason },
+    },
+  );
   if (response.ok) return { ok: true };
   // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
   if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };

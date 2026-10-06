@@ -63,7 +63,10 @@ done
 
 echo "==> scanner tool identity (gitleaks / semgrep / trivy)"
 grep -q 'gitleaks detect' "$SCANS_WF" || die "secret scan must invoke gitleaks detect"
-grep -qF -- '--log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"' "$SCANS_WF" \
+# PRC-M256: the SHAs reach the script through step env (no inline expressions in run:).
+grep -qF -- '--log-opts "${PR_BASE_SHA}..${PR_HEAD_SHA}"' "$SCANS_WF" \
+  && grep -qF -- 'PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}' "$SCANS_WF" \
+  && grep -qF -- 'PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}' "$SCANS_WF" \
   || die "secret scan must cover the complete pull-request base-to-head graph"
 if grep -qE -- '--no-merges|--first-parent' "$SCANS_WF"; then
   die "secret scan must not omit merged source commits"

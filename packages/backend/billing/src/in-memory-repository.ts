@@ -5,6 +5,7 @@
  * and usage records in memory with full interface compliance.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   PlanEntity,
   SubscriptionEntity,
@@ -181,6 +182,15 @@ export class InMemoryBillingRepository implements BillingRepository {
     return this.subscriptions.filter((s) => s.tenantId === tenantId);
   }
 
+  async listSubscriptionsByStatus(
+    statuses: SubscriptionEntity['status'][],
+    planId?: string,
+  ): Promise<SubscriptionEntity[]> {
+    return this.subscriptions.filter(
+      (s) => statuses.includes(s.status) && (planId === undefined || s.planId === planId),
+    );
+  }
+
   // ─── Entitlements ────────────────────────────────────────────────────────
 
   async upsertEntitlements(
@@ -231,6 +241,17 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
     this.entitlements = this.entitlements.filter((e) => e.subscriptionId !== subscriptionId);
+  }
+
+  async deleteEntitlementsByTenant(tenantId: string): Promise<void> {
+    this.entitlements = this.entitlements.filter((e) => e.tenantId !== tenantId);
+  }
+
+  async pruneEntitlements(tenantId: string, keepFeatureKeys: readonly string[]): Promise<void> {
+    const keep = new Set(keepFeatureKeys);
+    this.entitlements = this.entitlements.filter(
+      (e) => e.tenantId !== tenantId || keep.has(e.featureKey),
+    );
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────

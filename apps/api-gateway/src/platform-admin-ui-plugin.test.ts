@@ -117,7 +117,8 @@ describe('platform-admin console (PRC-M018)', () => {
       method: 'POST',
       url: '/api/v1/tenants/00000000-0000-4000-8000-00000000dead/suspend',
       headers: as('pa-1', ['super-admin']),
-      payload: { reason: 'test' },
+      // A valid (10–500 char) reason, so the request reaches the tenant lookup.
+      payload: { reason: 'Suspend an unknown tenant' },
     });
     expect(unknown.statusCode).toBe(404);
   });

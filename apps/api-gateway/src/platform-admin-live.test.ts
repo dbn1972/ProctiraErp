@@ -193,14 +193,22 @@ describe('platform-admin console routes (gateway)', () => {
     expect(res.json().status).toBe('suspended');
     expect((await tenantService.getTenantById(tenant.id)).status).toBe('suspended');
 
-    // Suspending again is rejected by the real lifecycle rules, not silently accepted.
+    // Suspending again is rejected by the lifecycle transition table (PRC-M004: 409), not
+    // silently accepted; a too-short reason is a 400 before any state check.
     const again = await app.inject({
+      method: 'POST',
+      url: `/api/v1/tenants/${tenant.id}/suspend`,
+      headers: platformAdmin(),
+      payload: { reason: 'Suspending a second time' },
+    });
+    expect(again.statusCode).toBe(409);
+    const short = await app.inject({
       method: 'POST',
       url: `/api/v1/tenants/${tenant.id}/suspend`,
       headers: platformAdmin(),
       payload: { reason: 'again' },
     });
-    expect(again.statusCode).toBe(422);
+    expect(short.statusCode).toBe(400);
   });
 
   async function makeTenant(slugPrefix: string) {

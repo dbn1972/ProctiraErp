@@ -12,6 +12,7 @@ import { DeveloperPortalService } from './developer-portal-service.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
 import { createWebhookDeliveryWorker } from './webhook-delivery-worker.js';
+import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -38,7 +39,9 @@ describe('W2-JOB-07 webhook dispatcher durability', () => {
     const publisher = new QueueWebhookDeliveryPublisher(publishAdapter);
 
     let posts = 0;
+    const { secrets } = createTestWebhookSigningSecrets();
     const service = new DeveloperPortalService(repository, undefined, {
+      signingSecretResolver: secrets,
       deliveryPublisher: publisher,
       httpFetch: async () => {
         posts += 1;
@@ -88,6 +91,7 @@ describe('W2-JOB-07 webhook dispatcher durability', () => {
     const resumeAdapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
     const resumePublisher = new QueueWebhookDeliveryPublisher(resumeAdapter);
     const resumeService = new DeveloperPortalService(repository, undefined, {
+      signingSecretResolver: secrets,
       deliveryPublisher: resumePublisher,
       httpFetch: async () => {
         posts += 1;
