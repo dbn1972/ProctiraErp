@@ -24,6 +24,10 @@ export interface OtpChallengeRecord {
   createdAt: Date;
 }
 
+export type OtpAttemptOutcome =
+  | { status: 'verified'; record: OtpChallengeRecord }
+  | { status: 'missing' | 'consumed' | 'expired' | 'locked' | 'mismatch' };
+
 export interface OtpChallengeStore {
   create(record: OtpChallengeRecord): Promise<OtpChallengeRecord>;
   findByToken(mfaToken: string): Promise<OtpChallengeRecord | null>;
@@ -39,6 +43,42 @@ export interface OtpChallengeStore {
     phone?: string;
     since: Date;
   }): Promise<OtpChallengeRecord[]>;
+  /**
+   * PRC-M177: evaluate one verification attempt atomically. Implementations
+   * must perform the expiry / consumed / attempt-cap checks, the attempt
+   * increment on mismatch and the single-use consume as one indivisible step
+   * (row lock or conditional UPDATE) so parallel requests cannot exceed the
+   * attempt cap or both consume the same challenge.
+   */
+  verifyAttempt(
+    mfaToken: string,
+    matches: (record: OtpChallengeRecord) => boolean,
+    maxAttempts: number,
+    now: Date,
+  ): Promise<OtpAttemptOutcome>;
+}
+
+/** Pure decision used by every store inside its atomic section. */
+export function decideOtpAttempt(
+  record: OtpChallengeRecord | null,
+  matches: (record: OtpChallengeRecord) => boolean,
+  maxAttempts: number,
+  now: Date,
+): { outcome: OtpAttemptOutcome; next: OtpChallengeRecord | null } {
+  if (!record) return { outcome: { status: 'missing' }, next: null };
+  if (record.consumedAt) return { outcome: { status: 'consumed' }, next: null };
+  if (new Date(record.expiresAt).getTime() <= now.getTime()) {
+    return { outcome: { status: 'expired' }, next: null };
+  }
+  if (record.attemptCount >= maxAttempts) return { outcome: { status: 'locked' }, next: null };
+  if (!matches(record)) {
+    return {
+      outcome: { status: 'mismatch' },
+      next: { ...record, attemptCount: record.attemptCount + 1 },
+    };
+  }
+  const consumed = { ...record, attemptCount: record.attemptCount + 1, consumedAt: now };
+  return { outcome: { status: 'verified', record: consumed }, next: consumed };
 }
 
 export class InMemoryOtpChallengeStore implements OtpChallengeStore {
@@ -87,6 +127,18 @@ export class InMemoryOtpChallengeStore implements OtpChallengeStore {
         return;
       }
     }
+  }
+  async verifyAttempt(
+    mfaToken: string,
+    matches: (record: OtpChallengeRecord) => boolean,
+    maxAttempts: number,
+    now: Date,
+  ): Promise<OtpAttemptOutcome> {
+    // Read, decide and write with no await in between: atomic on the event loop.
+    const row = this.byToken.get(mfaToken) ?? null;
+    const { outcome, next } = decideOtpAttempt(row ? { ...row } : null, matches, maxAttempts, now);
+    if (next) this.byToken.set(mfaToken, { ...next });
+    return outcome;
   }
 }
 
@@ -284,19 +336,15 @@ export class OtpService {
   }
 
   async verifyChallenge(input: { mfaToken: string; code: string }): Promise<VerifyOtpResult> {
-    const record = await this.store.findByToken(input.mfaToken);
+    const mfaToken = String(input.mfaToken ?? '');
+    // Snapshot read only to learn tenant/user for the cross-resend lockout;
+    // every per-challenge decision is made inside the atomic verifyAttempt.
+    const record = await this.store.findByToken(mfaToken);
     if (!record) {
       throw new OtpAuthError('Invalid or expired verification challenge');
     }
-    if (record.consumedAt) {
-      throw new OtpAuthError('Verification challenge has already been used');
-    }
-    if (record.expiresAt.getTime() <= Date.now()) {
-      throw new OtpAuthError('Verification code has expired');
-    }
-    if (record.attemptCount >= this.maxAttempts) {
-      throw new OtpAuthError('Too many invalid attempts. Request a new code.');
-    }
+    // PRC-M498: total failed verifies across resends in the window lock the
+    // user before the code is even checked.
     const recent = await this.store.listRecent({
       tenantId: record.tenantId,
       userId: record.userId,
@@ -307,15 +355,29 @@ export class OtpService {
       throw new OtpRateLimitError('Too many failed verification attempts. Try again later.');
     }
 
-    const expected = record.codeHash;
-    const actual = hashOtpCode(String(input.code ?? '').trim(), this.pepper, record.mfaToken);
-    if (!hashesEqual(expected, actual)) {
-      await this.store.incrementAttempts(record.id);
-      throw new OtpAuthError('Invalid verification code');
+    // PRC-M177: expiry / consumed / attempt-cap checks, increment on mismatch
+    // and single-use consume happen as one atomic step in the store.
+    const code = String(input.code ?? '').trim();
+    const outcome = await this.store.verifyAttempt(
+      mfaToken,
+      (row) => hashesEqual(row.codeHash, hashOtpCode(code, this.pepper, row.mfaToken)),
+      this.maxAttempts,
+      new Date(),
+    );
+    switch (outcome.status) {
+      case 'verified':
+        return { userId: outcome.record.userId, tenantId: outcome.record.tenantId };
+      case 'missing':
+        throw new OtpAuthError('Invalid or expired verification challenge');
+      case 'consumed':
+        throw new OtpAuthError('Verification challenge has already been used');
+      case 'expired':
+        throw new OtpAuthError('Verification code has expired');
+      case 'locked':
+        throw new OtpAuthError('Too many invalid attempts. Request a new code.');
+      default:
+        throw new OtpAuthError('Invalid verification code');
     }
-
-    await this.store.consume(record.id);
-    return { userId: record.userId, tenantId: record.tenantId };
   }
 
   async resendChallenge(mfaToken: string): Promise<SendOtpResult> {

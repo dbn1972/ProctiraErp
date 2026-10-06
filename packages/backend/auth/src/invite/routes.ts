@@ -1,8 +1,8 @@
 /**
  * Admin / tenant invite routes + current-user tenant directory alias.
  *
- * POST /admin/users/invite
- * POST /tenant/users/invite
+ * POST {prefix}/admin/users/invite
+ * POST {prefix}/tenant/users/invite   (PRC-M017: gateway prefix `/api/v1`)
  * GET  /tenants/mine
  *
  * Tenant directory resolves name/slug/status via the tenant repository when
@@ -18,6 +18,17 @@ import { validateInviteUserInput, type InviteUserInput } from './schemas.js';
 
 export interface InviteRoutesOptions {
   inviteService: InviteService;
+  /**
+   * PRC-M017: mount the invite routes under this prefix (gateway: `/api/v1`)
+   * so every /api/v1 control — RBAC/mutating authz, suspended-tenant gate,
+   * feature entitlements, mutation audit — applies. Default '' (legacy root).
+   */
+  prefix?: string;
+  /**
+   * With a prefix: keep the legacy root invite paths only as 308 redirects to
+   * the prefixed routes (method + body preserved; no handler at root).
+   */
+  legacyRootRedirects?: boolean;
   /** Tenant repository used to report real name/slug/status (PRC-L084). */
   tenantDirectory?: TenantDirectoryReader;
 }
@@ -153,22 +164,31 @@ export async function registerInviteAndTenantDirectoryRoutes(
   options: InviteRoutesOptions,
 ): Promise<void> {
   const { inviteService } = options;
-
-  fastify.post(
-    '/admin/users/invite',
-    async (request: FastifyRequest<{ Body: InviteUserInput }>, reply) => {
-      await handleInvite(inviteService, request, reply);
-    },
-  );
-
-  fastify.post(
-    '/tenant/users/invite',
-    async (request: FastifyRequest<{ Body: InviteUserInput }>, reply) => {
-      await handleInvite(inviteService, request, reply);
-    },
-  );
+  const prefix = (options.prefix ?? '').replace(/\/+$/, '');
+  for (const path of ['/admin/users/invite', '/tenant/users/invite']) {
+    fastify.post(
+      `${prefix}${path}`,
+      async (request: FastifyRequest<{ Body: InviteUserInput }>, reply) => {
+        await handleInvite(inviteService, request, reply);
+        // Return the reply so Fastify waits for async onSend hooks (gateway
+        // idempotency / mutation audit) instead of finishing the request twice.
+        return reply;
+      },
+    );
+    if (prefix && options.legacyRootRedirects) {
+      fastify.post(path, async (_request, reply) => {
+        reply.header('location', `${prefix}${path}`);
+        return reply.status(308).send({
+          code: 'MOVED_PERMANENTLY',
+          message: `Use ${prefix}${path}`,
+          statusCode: 308,
+        });
+      });
+    }
+  }
 
   fastify.get('/tenants/mine', async (request, reply) => {
     await listMyTenants(request, reply, options.tenantDirectory);
+    return reply;
   });
 }

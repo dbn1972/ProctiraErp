@@ -25,6 +25,29 @@ Upstream services and infrastructure required for `api-gateway` to operate:
 If any of the above are unhealthy, expect cascading failures here. Check
 their dashboards before declaring `api-gateway` itself the root cause.
 
+## Auth boot prerequisites (PRC-M011)
+
+In a deployed environment (`NODE_ENV=production`, which every gateway image
+sets, or `APP_ENV`/`DEPLOY_ENV` of `staging`/`production`) the gateway refuses
+to start unless:
+
+| Variable                                | Source                                                                              |
+| --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `KEYCLOAK_ISSUER`, `KEYCLOAK_CLIENT_ID` | Helm values: `gatewayAuth.*` (proctira-service) / `config.auth.*` (platform)        |
+| `KEYCLOAK_REDIRECT_URI` (not localhost) | Helm values, e.g. `https://api.<domain>/api/v1/auth/callback`                       |
+| `NEXT_PUBLIC_WEB_URL` (not localhost)   | Helm values (`webUrl`); the gateway needs it too, not only the web app              |
+| `KEYCLOAK_CLIENT_SECRET` (confidential) | Env Secret only: `envFromSecrets`/`externalSecret`, or `secrets.*`/`existingSecret` |
+
+`values-staging.yaml` and `values-production.yaml` ship these as empty
+placeholders (client id `proctira-gateway`). Set them per cluster before the
+first rollout that includes PRC-M011, or the gateway pods crashloop with a
+`(PRC-M011)` boot error. `ALLOW_LOCAL_HS_AUTH=1` (HS-JWT, no Keycloak) is only
+for an approved headless deployment and must not be used to bypass this.
+
+Rollout notes for the same change: idempotency keys moved to
+`idempotency:{tenant}:{sub}:{key}`, so entries written before the deploy are
+not read; a client retry that spans the rollout re-executes once.
+
 ## Service Level Objectives
 
 | SLI            | SLO                        | Window  | Alert rule                            |

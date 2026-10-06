@@ -7,11 +7,14 @@
  */
 
 import { isProductionNodeEnv } from '@proctira/common/node-env';
-import { assertDatabaseSchemaReady, DATABASE_SCHEMA_CONTRACTS } from '@proctira/database';
+import {
+  assertDatabaseSchemaReady,
+  DATABASE_SCHEMA_CONTRACTS,
+  getSharedPgPool,
+} from '@proctira/database';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
-import pg from 'pg';
 
 import type { ServiceRoute } from '../config.js';
 
@@ -35,6 +38,11 @@ export interface HealthCheckOptions {
   env?: PersistencePolicyEnv;
   /** Dependency probe timeout in ms (default 3000). */
   probeTimeoutMs?: number;
+  /**
+   * PRC-M024: reuse a readiness result for this many ms and coalesce
+   * concurrent probes into one (default 2000; 0 disables caching).
+   */
+  readinessCacheMs?: number;
 }
 
 export interface HealthStatus {
@@ -95,49 +103,35 @@ function databaseRequired(env: PersistencePolicyEnv): boolean {
   return Boolean(env.DATABASE_URL?.trim());
 }
 
-async function defaultProbeDatabase(databaseUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
-  const start = Date.now();
+/** Race `work` against a timeout and always clear the timer (PRC-M024). */
+async function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      assertDatabaseSchemaReady(pool, 'api gateway readiness', GATEWAY_SCHEMA_READINESS_RELATIONS),
+    return await Promise.race([
+      work,
       new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)),
+        timer = setTimeout(
+          () => reject(new Error(`${label} probe timed out after ${timeoutMs}ms`)),
           timeoutMs,
         );
       }),
     ]);
-    return { ok: true, latencyMs: Date.now() - start };
-  } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : String(error),
-      latencyMs: Date.now() - start,
-    };
   } finally {
-    await pool.end().catch(() => undefined);
+    if (timer) clearTimeout(timer);
   }
 }
 
-async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
-  const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: 0,
-    lazyConnect: true,
-    enableOfflineQueue: false,
-    connectTimeout: timeoutMs,
-  });
+async function defaultProbeDatabase(databaseUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
+  // PRC-M024: reuse the process-wide shared pool instead of a new pool per request.
+  const pool = getSharedPgPool(databaseUrl);
   const start = Date.now();
+  if (!pool) return { ok: false, message: 'Database pool unavailable', latencyMs: 0 };
   try {
-    await Promise.race([
-      client.connect().then(() => client.ping()),
-      new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`Redis probe timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
-      }),
-    ]);
+    await withTimeout(
+      assertDatabaseSchemaReady(pool, 'api gateway readiness', GATEWAY_SCHEMA_READINESS_RELATIONS),
+      timeoutMs,
+      'Database',
+    );
     return { ok: true, latencyMs: Date.now() - start };
   } catch (error) {
     return {
@@ -145,9 +139,65 @@ async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<P
       message: error instanceof Error ? error.message : String(error),
       latencyMs: Date.now() - start,
     };
-  } finally {
-    await client.quit().catch(() => undefined);
   }
+}
+
+/** PRC-M024: one long-lived probe client per Redis URL (not one per request). */
+const probeRedisClients = new Map<string, Redis>();
+
+function sharedProbeRedis(redisUrl: string, timeoutMs: number): Redis {
+  let client = probeRedisClients.get(redisUrl);
+  if (!client) {
+    client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 0,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      connectTimeout: timeoutMs,
+    });
+    client.on('error', () => undefined);
+    probeRedisClients.set(redisUrl, client);
+  }
+  return client;
+}
+
+/** Close shared probe clients (app shutdown / tests). */
+export async function closeHealthProbeClients(): Promise<void> {
+  const clients = [...probeRedisClients.values()];
+  probeRedisClients.clear();
+  await Promise.all(clients.map((c) => c.quit().catch(() => c.disconnect())));
+}
+
+async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
+  const client = sharedProbeRedis(redisUrl, timeoutMs);
+  const start = Date.now();
+  try {
+    const connect =
+      client.status === 'wait' || client.status === 'end' ? client.connect() : Promise.resolve();
+    await withTimeout(
+      connect.then(() => client.ping()),
+      timeoutMs,
+      'Redis',
+    );
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+      latencyMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * PRC-M024: public health bodies never carry raw dependency error text (it can
+ * contain hostnames, ports, user names). Only the failing dependency names.
+ */
+export function publicReadinessMessage(readiness: ReadinessProbeResult): string | undefined {
+  if (readiness.ready) return undefined;
+  const failing = Object.entries(readiness.dependencies)
+    .filter(([, status]) => status === 'down' || status === 'required-missing')
+    .map(([name]) => name);
+  return failing.length > 0 ? `Dependency unavailable: ${failing.join(', ')}` : 'Not ready';
 }
 
 async function probeDatabaseDependency(
@@ -280,6 +330,33 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
     probeTimeoutMs: options.probeTimeoutMs,
   });
 
+  // PRC-M024: cache + coalesce readiness so a burst of probes opens at most one
+  // dependency check; raw failure detail is logged, never returned.
+  const cacheMs = Math.max(0, options.readinessCacheMs ?? 2000);
+  let cached: { at: number; result: ReadinessProbeResult } | undefined;
+  let inFlight: Promise<ReadinessProbeResult> | undefined;
+  const readinessOnce = async (): Promise<ReadinessProbeResult> => {
+    if (cached && Date.now() - cached.at < cacheMs) return cached.result;
+    inFlight ??= runReadinessProbe(probeOptions())
+      .then((result) => {
+        if (!result.ready) {
+          fastify.log.warn(
+            { dependencies: result.dependencies, detail: result.message },
+            'gateway readiness probe failed',
+          );
+        }
+        if (cacheMs > 0) cached = { at: Date.now(), result };
+        return result;
+      })
+      .finally(() => {
+        inFlight = undefined;
+      });
+    return inFlight;
+  };
+  fastify.addHook('onClose', async () => {
+    await closeHealthProbeClients();
+  });
+
   /**
    * GET /health - Combined health check endpoint
    *
@@ -347,14 +424,15 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
     },
     async (_request, reply) => {
       const uptime = Math.floor((Date.now() - startTime) / 1000);
-      const readiness = await runReadinessProbe(probeOptions());
+      const readiness = await readinessOnce();
 
       const readinessDetails: Record<string, string> = {
         database: readiness.dependencies.database,
         redis: readiness.dependencies.redis,
       };
-      if (readiness.message) {
-        readinessDetails.message = readiness.message;
+      const publicMessage = publicReadinessMessage(readiness);
+      if (publicMessage) {
+        readinessDetails.message = publicMessage;
       }
 
       const healthStatus: HealthStatus = {
@@ -447,12 +525,13 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
       },
     },
     async (_request, reply) => {
-      const readiness = await runReadinessProbe(probeOptions());
+      const readiness = await readinessOnce();
+      const publicMessage = publicReadinessMessage(readiness);
 
       const body = {
         status: readiness.ready ? 'up' : 'down',
         dependencies: readiness.dependencies,
-        ...(readiness.message ? { message: readiness.message } : {}),
+        ...(publicMessage ? { message: publicMessage } : {}),
         ...(readiness.latencyMs !== undefined ? { latencyMs: readiness.latencyMs } : {}),
       };
 

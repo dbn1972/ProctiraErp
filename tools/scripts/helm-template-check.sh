@@ -201,6 +201,33 @@ grep -q "metrics.bearerTokenSecret.name" "$missing_token_err" \
   || die "W1-SEC-07: missing bearer failure must be explicit"
 rm -f "$missing_token_err"
 echo "OK production profile + W1-SEC-07 metrics contract"
+# PRC-M011 — the gateway boot policy needs Keycloak ids + non-localhost URLs.
+# The thin chart must render them for api-gateway only, and skip empty values.
+echo "==> PRC-M011 gateway auth env (thin chart)"
+for SERVICE in api-gateway web; do
+  auth_out="$(mktemp)"
+  helm template "proctira-${SERVICE}" "${SERVICE_CHART}" \
+    --namespace proctira-staging \
+    --set service.name="${SERVICE}" \
+    --set image.tag=sha-ci \
+    --set gatewayAuth.keycloakIssuer=https://auth.ci.example/realms/proctira \
+    --set gatewayAuth.keycloakRedirectUri=https://api.ci.example/api/v1/auth/callback \
+    --set gatewayAuth.webUrl=https://app.ci.example \
+    --values "${SERVICE_CHART}/values-staging.yaml" \
+    >"$auth_out"
+  for name in KEYCLOAK_ISSUER KEYCLOAK_CLIENT_ID KEYCLOAK_REDIRECT_URI NEXT_PUBLIC_WEB_URL; do
+    if [[ "$SERVICE" == "api-gateway" ]]; then
+      grep -q "name: ${name}$" "$auth_out" || die "PRC-M011: api-gateway render missing ${name}"
+    elif grep -q "name: ${name}$" "$auth_out"; then
+      die "PRC-M011: ${name} must render only for api-gateway (got it on ${SERVICE})"
+    fi
+  done
+  if grep -q "name: KEYCLOAK_REALM$" "$auth_out"; then
+    die "PRC-M011: empty gatewayAuth values must not render (${SERVICE})"
+  fi
+  rm -f "$auth_out"
+done
+echo "OK PRC-M011 gateway auth env"
 
 echo "==> lint + template ${PLATFORM_CHART}"
 # PRC-L182: lint is blocking — helm lint exits non-zero only on errors
@@ -265,6 +292,8 @@ awk '
     exit 0
   }
 ' "$platform_out" || die "W1-OPS-19: staging phi-retention must set RETENTION_DRY_RUN=\"1\" (explicit sandbox dry-run)"
+grep -q 'KEYCLOAK_CLIENT_ID: "proctira-gateway"' "$platform_out" \
+  || die "PRC-M011: staging platform ConfigMap must declare KEYCLOAK_CLIENT_ID"
 grep -q 'kind: PersistentVolumeClaim' "$platform_out" || die "missing PVC"
 grep -q 'dr-tools' "$platform_out" || die "missing dr-tools"
 

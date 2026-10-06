@@ -297,6 +297,15 @@ reportService:
 
 config:
   tenantBaseDomain: proctira.io
+  # PRC-M011 — REQUIRED per environment before the gateway can boot (nodeEnv
+  # is production). Set issuer / redirect / web URL for this cluster (e.g.
+  # keycloakRedirectUri: https://api.proctira.io/api/v1/auth/callback); none may
+  # point at localhost. KEYCLOAK_CLIENT_SECRET goes in existingSecret proctira-prod-secrets.
+  auth:
+    keycloakIssuer: ''
+    keycloakClientId: proctira-gateway
+    keycloakRedirectUri: ''
+    webUrl: ''
   rateLimitMaxRequests: '200'
 
 # -- Infrastructure scalability settings (production)

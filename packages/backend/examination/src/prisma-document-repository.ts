@@ -167,7 +167,8 @@ export class PrismaDocumentRepository implements DocumentRepository {
           centerName: centerNameById.get(candidate.centerId) ?? candidate.centerId,
           subjectIds,
           subjectNames: subjectIds.map((id) => subjectNameById.get(id) ?? id),
-          gender: candidate.gender,
+          // PRC-H057: nullable column; legacy fallback until DocumentCandidate carries null.
+          gender: candidate.gender ?? 'other',
         };
       });
     });

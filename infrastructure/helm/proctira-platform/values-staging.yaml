@@ -139,6 +139,15 @@ reportService:
 
 config:
   tenantBaseDomain: staging.proctira.io
+  # PRC-M011 — REQUIRED per environment before the gateway can boot (nodeEnv
+  # is production). Set issuer / redirect / web URL for this cluster (e.g.
+  # keycloakRedirectUri: https://api.staging.proctira.io/api/v1/auth/callback); none may
+  # point at localhost. KEYCLOAK_CLIENT_SECRET goes in secrets.keycloakClientSecret / existingSecret.
+  auth:
+    keycloakIssuer: ''
+    keycloakClientId: proctira-gateway
+    keycloakRedirectUri: ''
+    webUrl: ''
 
 # W1-OPS-19 — sandbox: explicit dry-run (RETENTION_DRY_RUN=1); never inherit unset.
 dr:

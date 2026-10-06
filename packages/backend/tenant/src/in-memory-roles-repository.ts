@@ -225,4 +225,17 @@ export class InMemoryRolesRepository implements RolesRepository {
     user.roleIds = [...new Set(roleIds)];
     return { ...user, roleIds: [...user.roleIds] };
   }
+
+  async updateUserRolesAtomic(
+    tenantId: string,
+    userId: string,
+    mutate: (current: string[]) => string[],
+  ): Promise<{ before: string[]; user: UserRecord } | null> {
+    // Synchronous read → mutate → write: atomic on the event loop.
+    const user = this.usersByTenant.get(tenantId)?.get(userId);
+    if (!user) return null;
+    const before = [...user.roleIds];
+    user.roleIds = [...new Set(mutate([...before]))];
+    return { before, user: { ...user, roleIds: [...user.roleIds] } };
+  }
 }

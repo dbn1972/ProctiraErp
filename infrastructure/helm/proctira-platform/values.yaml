@@ -989,6 +989,19 @@ config:
     otlpEndpoint: '' # e.g. http://otel-collector:4318
     otlpTracesEndpoint: '' # optional full /v1/traces URL
     headers: '' # optional OTEL_EXPORTER_OTLP_HEADERS (k=v,k2=v2)
+  # PRC-M011: api-gateway auth boot policy. With nodeEnv=production the gateway
+  # refuses to boot unless KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set and
+  # KEYCLOAK_REDIRECT_URI / NEXT_PUBLIC_WEB_URL are explicit non-localhost URLs.
+  # Empty values are not rendered. KEYCLOAK_CLIENT_SECRET is a secret
+  # (secrets.keycloakClientSecret or the existingSecret). See
+  # docs/runbooks/api-gateway.md "Auth boot prerequisites".
+  auth:
+    keycloakIssuer: '' # e.g. https://auth.<domain>/realms/proctira
+    keycloakClientId: '' # repo realm client: proctira-gateway
+    keycloakRealm: '' # optional; gateway default `proctira`
+    keycloakAudience: '' # optional; tokens must carry it in aud/azp
+    keycloakRedirectUri: '' # e.g. https://api.<domain>/api/v1/auth/callback
+    webUrl: '' # NEXT_PUBLIC_WEB_URL: web origin for post-login redirects
 
 # -- Secrets (use external-secrets-operator in production)
 secrets:
@@ -1011,6 +1024,8 @@ secrets:
   jwtSecret: ''
   # -- Cookie signing secret
   cookieSecret: ''
+  # -- Keycloak confidential client secret for the gateway (PRC-M011)
+  keycloakClientSecret: ''
   # -- S3 access key
   s3AccessKey: ''
   # -- S3 secret key

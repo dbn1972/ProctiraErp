@@ -3,7 +3,7 @@
  */
 import { InMemoryHealthRepository } from '@proctira/backend-health';
 import Fastify, { type FastifyRequest } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { HEALTH_DEMO_TENANT_ID, HEALTH_STUDENT_A_ID } from './health-ui-seed.js';
@@ -322,6 +322,50 @@ describe('healthUiPlugin', () => {
       ]);
     });
 
+    it('detail route issues bounded per-student queries, never a tenant scan (PRC-M007)', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      const scanAllergies = vi.spyOn(repository, 'listAllAllergies');
+      const scanConditions = vi.spyOn(repository, 'listAllConditions');
+      const byStudent = vi.spyOn(repository, 'listAllergiesByStudent');
+      const app = await buildLiveApp(repository);
+      const detail = await app.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      expect(detail.statusCode).toBe(200);
+      expect(scanAllergies).not.toHaveBeenCalled();
+      expect(scanConditions).not.toHaveBeenCalled();
+      expect(byStudent).toHaveBeenCalledWith(TENANT, STUDENT, expect.objectContaining({ page: 1 }));
+      for (const call of byStudent.mock.calls) expect(call[2].pageSize).toBeLessThanOrEqual(200);
+    });
+    it('screenings list with >500 programs returns paging metadata (PRC-M007)', async () => {
+      const repository = new InMemoryHealthRepository();
+      for (let i = 0; i < 520; i += 1) {
+        await repository.createScreeningProgram({
+          id: `f1f1f1f1-0000-4000-8000-${String(100000000000 + i)}`,
+          tenantId: TENANT,
+          name: `Program ${i}`,
+          description: null,
+          gradeLevel: '6',
+          academicPeriodId: 'ap-1',
+          assessmentTypes: ['dental'],
+          scheduledDate: '2026-10-01',
+          status: 'planned',
+        });
+      }
+      const app = await buildLiveApp(repository);
+      const first = await app.inject({ method: 'GET', url: '/health/screenings?pageSize=500' });
+      const body = first.json() as {
+        data: unknown[];
+        meta: { totalItems: number; totalPages: number; truncated: boolean; page: number };
+      };
+      expect(body.meta).toMatchObject({ totalItems: 520, totalPages: 2, truncated: true, page: 1 });
+      const second = await app.inject({
+        method: 'GET',
+        url: '/health/screenings?page=2&pageSize=500',
+      });
+      const body2 = second.json() as { data: unknown[]; meta: { truncated: boolean } };
+      expect(body2.data).toHaveLength(20);
+      expect(body2.meta.truncated).toBe(false);
+    });
     // ── PRC-H006: need-to-know scope, PHI read audit and counselling ACL ─────────────
     const STUDENT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb92';
 

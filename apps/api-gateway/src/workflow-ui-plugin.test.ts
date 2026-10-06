@@ -177,7 +177,8 @@ describe('workflowUiPlugin', () => {
         {
           sub: 'u1',
           tenantId: WORKFLOW_DEMO_TENANT_ID,
-          roles: [{ roleId: 'district', roleName: 'DISTRICT_ADMIN', areaId: 'area-1' }],
+          // PRC-M021: the step role matches on roleId only (roleName is display text).
+          roles: [{ roleId: 'district_admin', roleName: 'DISTRICT_ADMIN', areaId: 'area-1' }],
         },
         WORKFLOW_DEMO_TENANT_ID,
       );

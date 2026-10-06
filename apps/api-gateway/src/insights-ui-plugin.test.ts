@@ -14,7 +14,7 @@ import {
   seedBoardSummaryForTests,
   type BoardSummary,
 } from './board-summary.js';
-import { insightsUiPlugin } from './insights-ui-plugin.js';
+import { decideBoardRollupAccess, insightsUiPlugin } from './insights-ui-plugin.js';
 import {
   createInsightsUiStore,
   isPgInsightsUiEnabled,
@@ -32,9 +32,17 @@ describe('insightsUiPlugin (memory)', () => {
     }
   });
 
-  async function buildApp(demoData = true) {
+  async function buildApp(
+    user: unknown = { roles: [{ roleId: 'admin', roleName: 'Administrator' }] },
+    demoData = true,
+  ) {
     const app = Fastify();
     apps.push(app);
+    if (user) {
+      app.addHook('onRequest', async (request) => {
+        (request as { user?: unknown }).user = user;
+      });
+    }
     await app.register(insightsUiPlugin, { forceMemory: true, demoData });
     await app.ready();
     return app;
@@ -81,7 +89,7 @@ describe('insightsUiPlugin (memory)', () => {
 
   describe('outside demo mode (PRC-M196)', () => {
     it('returns an explicit not-connected empty state, never shared demo rows', async () => {
-      const app = await buildApp(false);
+      const app = await buildApp(undefined, false);
       for (const url of ['/data-warehouse/indicators', '/data-warehouse/map/features']) {
         const res = await app.inject({ method: 'GET', url, headers: { 'x-tenant-id': 't-a' } });
         expect(res.statusCode).toBe(200);
@@ -93,7 +101,7 @@ describe('insightsUiPlugin (memory)', () => {
     });
 
     it('refuses import jobs with 501 instead of leaving them QUEUED forever', async () => {
-      const app = await buildApp(false);
+      const app = await buildApp(undefined, false);
       const res = await app.inject({
         method: 'POST',
         url: '/data-warehouse/import/jobs',
@@ -105,14 +113,56 @@ describe('insightsUiPlugin (memory)', () => {
     });
 
     it('labels demo payloads as demo', async () => {
-      const app = await buildApp(true);
+      const app = await buildApp(undefined, true);
       const res = await app.inject({ method: 'GET', url: '/data-warehouse/indicators' });
       expect(res.json()).toMatchObject({ meta: { demo: true } });
     });
   });
+  describe('board rollup authz (PRC-M028)', () => {
+    const get = async (user: unknown, boardId: string) =>
+      (await buildApp(user)).inject({ method: 'GET', url: `/reports/board/${boardId}/summary` });
+    it('teacher with no area scope gets 403', async () => {
+      const res = await get({ roles: [{ roleId: 'teacher', roleName: 'Teacher' }] }, 'board-a');
+      expect(res.statusCode).toBe(403);
+    });
+    it('board admin scoped to A gets 403 for B and 200 for A', async () => {
+      const user = {
+        roles: [{ roleId: 'board_admin', roleName: 'Board Admin', areaId: 'board-a' }],
+      };
+      expect((await get(user, 'board-b')).statusCode).toBe(403);
+      expect((await get(user, 'board-a')).statusCode).toBe(200);
+    });
+    it("role 'boarding_warden' (substring 'board') is not privileged", async () => {
+      const res = await get(
+        { roles: [{ roleId: 'boarding_warden', roleName: 'Boarding Warden' }] },
+        'board-a',
+      );
+      expect(res.statusCode).toBe(403);
+      expect(
+        decideBoardRollupAccess(
+          { roles: [{ roleId: 'x', roleName: 'Platform board viewer' }] },
+          'b',
+        ),
+      ).toBe('deny');
+    });
+    it('JWT area scope is honoured and platform admin may read any board', async () => {
+      expect(decideBoardRollupAccess({ roles: ['teacher'], areas: [{ areaId: 'b1' }] }, 'b1')).toBe(
+        'allow',
+      );
+      expect(decideBoardRollupAccess({ roles: [{ roleId: 'super-admin' }] }, 'any')).toBe('allow');
+    });
+  });
 
   describe('GET /reports/board/:boardId/summary (G-809)', () => {
-    it('works unauthenticated / without tenant header in forceMemory mode', async () => {
+    it('rejects an unauthenticated caller (PRC-M028)', async () => {
+      const anon = await buildApp(null);
+      const denied = await anon.inject({
+        method: 'GET',
+        url: '/reports/board/board-unauth/summary',
+      });
+      expect(denied.statusCode).toBe(401);
+    });
+    it('returns zeros for an admin without tenant header in forceMemory mode', async () => {
       const app = await buildApp();
       const res = await app.inject({
         method: 'GET',

@@ -37,3 +37,14 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 443
+# PRC-M011 — REQUIRED per environment before the gateway can boot (it runs
+# NODE_ENV=production). Empty values are not rendered, and the gateway then
+# refuses to start. Set the issuer / redirect / web URL for this cluster (e.g.
+# KEYCLOAK_REDIRECT_URI=https://api.staging.proctira.io/api/v1/auth/callback);
+# none may point at localhost. KEYCLOAK_CLIENT_SECRET belongs in
+# the env Secret mounted via envFromSecrets / externalSecret. See docs/runbooks/api-gateway.md.
+gatewayAuth:
+  keycloakIssuer: ''
+  keycloakClientId: proctira-gateway
+  keycloakRedirectUri: ''
+  webUrl: ''
