@@ -40,7 +40,11 @@ describe('developer-portal routes — identity source (G-719)', () => {
     app.addHook('onRequest', async (request) => {
       const sub = request.headers['x-test-authenticated-sub'];
       if (typeof sub === 'string' && sub) {
-        (request as unknown as { user: { sub: string } }).user = { sub };
+        const roleId = request.headers['x-test-role-id'];
+        (request as unknown as { user: { sub: string; roles: unknown[] } }).user = {
+          sub,
+          roles: typeof roleId === 'string' ? [{ roleId, roleName: roleId, areaId: null }] : [],
+        };
       }
     });
     await app.register(developerPortalPlugin, {
@@ -107,7 +111,8 @@ describe('developer-portal routes — identity source (G-719)', () => {
     const authed = await app.inject({
       method: 'POST',
       url: `/developer/submissions/${sub.id}/review`,
-      headers: { 'x-test-authenticated-sub': 'reviewer-1' },
+      // PRC-H048: review additionally requires a platform-staff role ID.
+      headers: { 'x-test-authenticated-sub': 'reviewer-1', 'x-test-role-id': 'platform_admin' },
       payload: { decision: 'approved' },
     });
     expect(authed.statusCode).toBe(200);

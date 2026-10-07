@@ -28,7 +28,7 @@
     "@proctira/search-index": "workspace:*",
     "@proctira/tenant": "workspace:*",
     "@proctira/testing": "workspace:*",
-    "fastify": "^5.7.2",
+    "fastify": "^5.12.5",
     "fastify-plugin": "^4.5.0"
   },
   "devDependencies": {
@@ -36,9 +36,9 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^20.12.0",
     "@types/pg": "^8.23.1",
-    "pg": "^8.23.0",
-    "fast-check": "^4.10.1",
-    "tsx": "^4.23.13",
+    "pg": "^8.23.1",
+    "fast-check": "^4.10.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.0",
     "vitest": "^3.2.7"
   }

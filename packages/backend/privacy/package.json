@@ -23,7 +23,7 @@
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
     "fastify-plugin": "^4.5.0",
-    "pg": "^8.23.0",
+    "pg": "^8.23.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
@@ -31,12 +31,12 @@
     "@types/node": "^20.12.0",
     "@types/pg": "^8.23.1",
     "@types/uuid": "^9.0.8",
-    "fastify": "^5.7.2",
+    "fastify": "^5.12.5",
     "typescript": "^5.4.0",
     "vitest": "^3.2.7"
   },
   "peerDependencies": {
-    "fastify": "^5.7.2"
+    "fastify": "^5.12.5"
   },
   "peerDependenciesMeta": {
     "fastify": {
