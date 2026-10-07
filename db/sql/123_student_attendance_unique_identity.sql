@@ -13,9 +13,19 @@
 -- logical key. The repository create() now also catches the resulting
 -- violation and returns the existing row (race → single row).
 --
--- student_attendance is a Prisma FORCE-RLS table. Transactional DDL. Additive
--- and idempotent (IF NOT EXISTS). Cross-tenant rows stay independent because
--- tenant_id is the leading column.
+-- student_attendance is a Prisma FORCE-RLS table. Cross-tenant rows stay
+-- independent because tenant_id is the leading column.
+--
+-- W1-DATA-17: building the unique index with CREATE UNIQUE INDEX (plain) takes
+-- an ACCESS EXCLUSIVE lock for the whole build, which can queue behind app
+-- traffic. Build it CONCURRENTLY instead so writers are not blocked. Because
+-- CONCURRENTLY cannot run inside a transaction, this is a non-transactional file
+-- (apply-sql.sh detects the CONCURRENTLY keyword and applies it statement-by-
+-- statement via the schema_migration_phases ledger). Every statement below is
+-- idempotent compensating-forward DDL, per db/README.md, because a crash between
+-- a statement commit and its phase-ledger row re-runs the statement. apply-sql.sh
+-- records schema_migrations after the file completes, so there is no
+-- INSERT INTO schema_migrations line here (same as db/sql/102).
 --
 -- Data safety: existing duplicates are NOT deleted (attendance is evidence of
 -- minors' presence). The preflight fails the apply with a count so an operator
@@ -23,7 +33,7 @@
 -- Rollback: forward-only; a later migration may drop the index to relax.
 
 -- 1) Preflight: refuse to build over duplicates. Lift FORCE RLS for the owner
---    scan and restore it in the same block.
+--    scan and restore it in the same block (atomic DO block).
 DO $h040_preflight$
 DECLARE
   was_forced boolean;
@@ -59,15 +69,34 @@ BEGIN
 END
 $h040_preflight$;
 
--- 2) The COALESCE unique index.
-CREATE UNIQUE INDEX IF NOT EXISTS student_attendance_identity_uidx
+-- 2) Drop an invalid leftover from an interrupted CONCURRENTLY build before
+--    rebuilding (resume path). Plain DROP of an INVALID index is safe.
+DO $drop_invalid_student_attendance_identity_uidx$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'student_attendance_identity_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE NOTICE 'dropping invalid student_attendance_identity_uidx before rebuild';
+    EXECUTE 'DROP INDEX IF EXISTS public.student_attendance_identity_uidx';
+  END IF;
+END
+$drop_invalid_student_attendance_identity_uidx$;
+
+-- 3) The COALESCE unique index, built CONCURRENTLY.
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS student_attendance_identity_uidx
   ON student_attendance (
     tenant_id, student_id, class_id, date,
     COALESCE(subject_id, '00000000-0000-0000-0000-000000000000'::uuid),
     COALESCE(period_id, '00000000-0000-0000-0000-000000000000'::uuid)
   );
 
--- 3) Present AND unique, or fail (skip when table absent).
+-- 4) Present AND valid AND unique, or fail (skip when table absent).
 DO $h040_assert$
 BEGIN
   IF to_regclass('public.student_attendance') IS NULL THEN
@@ -83,11 +112,7 @@ BEGIN
        AND i.indisvalid
        AND i.indisunique
   ) THEN
-    RAISE EXCEPTION 'PRC-H040: student_attendance_identity_uidx missing or not unique';
+    RAISE EXCEPTION 'PRC-H040: student_attendance_identity_uidx missing or not valid/unique';
   END IF;
 END
 $h040_assert$;
-
-INSERT INTO schema_migrations (filename)
-VALUES ('123_student_attendance_unique_identity.sql')
-ON CONFLICT (filename) DO NOTHING;

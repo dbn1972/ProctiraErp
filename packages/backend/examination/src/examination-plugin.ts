@@ -16,10 +16,8 @@ import type { OutboxStore } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { DocumentTaskQueue } from './document-generation-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
-import type { DocumentBlobStore } from './document-generation-service.js';
-import { createDocumentBlobStore } from './pg-document-blob-store.js';
+import type { DocumentTaskQueue, DocumentBlobStore } from './document-generation-service.js';
 import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
 import type { ExaminationRepository } from './examination-repository.js';
@@ -29,6 +27,7 @@ import { registerExamOpsRoutes } from './ops-routes.js';
 import { ExamOpsService } from './ops-service.js';
 import type { ExamOpsStore } from './ops-store.js';
 import type { PdfGenerator } from './pdf-generator.js';
+import { createDocumentBlobStore } from './pg-document-blob-store.js';
 import { ResultPublicationService } from './result-publication-service.js';
 import type { ResultRepository } from './result-repository.js';
 import { registerResultRoutes } from './result-routes.js';
@@ -168,8 +167,7 @@ export const examinationPlugin = fp(
       // are shared between the API and the worker and survive restarts. Fall
       // back to the bounded in-memory store only outside production; in
       // production an in-memory store would 404 downloads, so fail closed.
-      const blobStore =
-        options.documentBlobStore ?? createDocumentBlobStore() ?? undefined;
+      const blobStore = options.documentBlobStore ?? createDocumentBlobStore() ?? undefined;
       if (!blobStore && process.env.NODE_ENV === 'production') {
         throw new Error(
           'PRC-H052: no durable DocumentBlobStore configured (DATABASE_URL unset); ' +

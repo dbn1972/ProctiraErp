@@ -4,6 +4,7 @@
  * Used for unit testing without database dependencies.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   GradingSchemeEntity,
   GradingSchemeFilter,

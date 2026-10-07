@@ -15,7 +15,17 @@
 -- SECURITY with a tenant_isolation policy (db/sql/045). This migration only adds
 -- a unique index; it does not change RLS.
 --
--- Additive and idempotent (IF NOT EXISTS). Transactional DDL.
+-- W1-DATA-17: building the unique index with CREATE UNIQUE INDEX (plain) takes
+-- an ACCESS EXCLUSIVE lock for the whole build, which can queue behind app
+-- traffic. Build it CONCURRENTLY instead so writers are not blocked. Because
+-- CONCURRENTLY cannot run inside a transaction, this is a non-transactional file
+-- (apply-sql.sh detects the CONCURRENTLY keyword and applies it statement-by-
+-- statement via the schema_migration_phases ledger). Every statement below is
+-- idempotent compensating-forward DDL, per db/README.md, because a crash between
+-- a statement commit and its phase-ledger row re-runs the statement. apply-sql.sh
+-- records schema_migrations after the file completes, so there is no
+-- INSERT INTO schema_migrations line here (same as db/sql/102).
+--
 -- Data safety: existing duplicates are NOT deleted (links may reference money
 -- invoices). The preflight fails the apply with a count so an operator can
 -- reconcile first. A new database has none.
@@ -23,12 +33,17 @@
 
 -- 1) Preflight: refuse to build over duplicates. Under FORCE ROW LEVEL SECURITY
 --    the owner scan sees zero rows without app.tenant_id, so lift FORCE for the
---    count and restore it in the same block.
+--    count and restore it in the same block (atomic DO block — a failure cannot
+--    leave the table unforced).
 DO $h108_preflight$
 DECLARE
   was_forced boolean;
   duplicate_groups bigint;
 BEGIN
+  IF to_regclass('public.transport_fee_links') IS NULL THEN
+    RAISE NOTICE 'PRC-H108: transport_fee_links missing; skipping';
+    RETURN;
+  END IF;
   SELECT relforcerowsecurity INTO was_forced
     FROM pg_class WHERE oid = 'public.transport_fee_links'::regclass;
   IF was_forced THEN
@@ -53,14 +68,41 @@ BEGIN
 END
 $h108_preflight$;
 
--- 2) The unique index. Replaces reliance on the non-unique
+-- 2) A CONCURRENTLY build that is interrupted leaves an INVALID index behind.
+--    `IF NOT EXISTS` would then skip it forever and the index would never become
+--    usable, so drop any invalid leftover before rebuilding. This is the resume
+--    path, not a normal one. The DROP is deliberately NOT CONCURRENTLY: Postgres
+--    rejects DROP INDEX CONCURRENTLY inside a DO block, and a plain DROP of an
+--    INVALID index is safe (the planner does not use it). The condition matters —
+--    an unconditional drop would discard a healthy index on every re-apply.
+DO $drop_invalid_transport_fee_links_uidx$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'transport_fee_links_assignment_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE NOTICE 'dropping invalid transport_fee_links_assignment_uidx before rebuild';
+    EXECUTE 'DROP INDEX IF EXISTS public.transport_fee_links_assignment_uidx';
+  END IF;
+END
+$drop_invalid_transport_fee_links_uidx$;
+
+-- 3) The unique index, built CONCURRENTLY. Replaces reliance on the non-unique
 --    transport_fee_links_assignment_idx for duplicate prevention.
-CREATE UNIQUE INDEX IF NOT EXISTS transport_fee_links_assignment_uidx
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS transport_fee_links_assignment_uidx
   ON transport_fee_links (tenant_id, assignment_id);
 
--- 3) Present AND unique, or fail the apply.
+-- 4) Present AND valid AND unique, or fail the apply.
 DO $h108_assert$
 BEGIN
+  IF to_regclass('public.transport_fee_links') IS NULL THEN
+    RETURN;
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -71,14 +113,10 @@ BEGIN
        AND i.indisvalid
        AND i.indisunique
   ) THEN
-    RAISE EXCEPTION 'PRC-H108: transport_fee_links_assignment_uidx missing or not unique';
+    RAISE EXCEPTION 'PRC-H108: transport_fee_links_assignment_uidx missing or not valid/unique';
   END IF;
 END
 $h108_assert$;
 
 COMMENT ON INDEX transport_fee_links_assignment_uidx IS
   'PRC-H108 one fee link per (tenant, assignment); backstops the double-invoice guard.';
-
-INSERT INTO schema_migrations (filename)
-VALUES ('121_transport_fee_link_unique_assignment.sql')
-ON CONFLICT (filename) DO NOTHING;
