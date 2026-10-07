@@ -182,6 +182,8 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     const caseRes = await app.inject({
       method: 'POST',
       url: '/workflow-engine/cases',
+      // PRC-H111: case routes require an authenticated principal with case scope.
+      headers: asUser(APPROVER_SUB, ['admin']),
       payload: {
         type: 'complaint',
         title: 'Bus delay',
@@ -205,7 +207,11 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     expect((fetched.json() as { status: string }).status).toBe('COMPLETED');
     const list = await again.inject({ method: 'GET', url: '/workflow-engine' });
     expect((list.json() as { meta: { totalItems: number } }).meta.totalItems).toBe(1);
-    const cases = await again.inject({ method: 'GET', url: '/workflow-engine/cases' });
+    const cases = await again.inject({
+      method: 'GET',
+      url: '/workflow-engine/cases',
+      headers: asUser(APPROVER_SUB, ['admin']),
+    });
     expect((cases.json() as { meta: { totalItems: number } }).meta.totalItems).toBe(1);
     await again.close();
   });

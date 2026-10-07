@@ -28,6 +28,29 @@ groups:
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-rate-high'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
+      # PRC-M313: ServiceDown only sees jobs that exist; a gateway that vanished
+      # from discovery entirely produces no `up` series, so alert on absence too.
+      # #555 review #8: keyed on the `service` label, not `job`. In Kubernetes
+      # the gateway is scraped by the `kubernetes-pods` job (service comes from
+      # app.kubernetes.io/name), while a static `api-gateway` job may still list
+      # an unreachable target. `== 1` makes the alert fire when no job has a
+      # healthy gateway scrape, whichever job (static or discovered) exists.
+      - alert: GatewayScrapeAbsent
+        expr: absent(up{service="api-gateway"} == 1)
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          slo: availability
+        annotations:
+          summary: 'api-gateway has no healthy scrape target'
+          description: |
+            No scrape job (static or Kubernetes pod discovery) has reported a
+            successful `up{service="api-gateway"}` sample for 5 minutes: the
+            gateway is down everywhere or is not being discovered at all.
+          runbook_url: 'https://runbooks.proctira.org/services/api-gateway.md#service-down'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
+
       - alert: ServiceDown
         expr: up{job!~"prometheus"} == 0
         for: 2m
