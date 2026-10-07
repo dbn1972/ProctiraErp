@@ -15,8 +15,8 @@ import { registerGracefulShutdown } from '@proctira/common';
 import { closeDatabaseResources } from '@proctira/database';
 import { createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
 
-import { createExamDocumentWorker } from './worker.js';
 import { startHealthServer } from './health-server.js';
+import { createExamDocumentWorker } from './worker.js';
 
 async function main(): Promise<void> {
   if (!process.env['QUEUE_BACKEND'] && !process.env['RABBITMQ_URL']) {

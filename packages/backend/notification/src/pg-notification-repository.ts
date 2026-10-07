@@ -114,11 +114,11 @@ function mapRule(row: Record<string, unknown>): NotificationRuleEntity {
     schedule: row['schedule'] == null ? null : String(row['schedule']),
     createdAt:
       row['created_at'] instanceof Date
-        ? (row['created_at'] as Date)
+        ? row['created_at']
         : new Date(String(row['created_at'])),
     updatedAt:
       row['updated_at'] instanceof Date
-        ? (row['updated_at'] as Date)
+        ? row['updated_at']
         : new Date(String(row['updated_at'])),
   };
 }
@@ -134,11 +134,11 @@ function mapTemplate(row: Record<string, unknown>): NotificationTemplateEntity {
     variables: parseJson<string[]>(row['variables'], []),
     createdAt:
       row['created_at'] instanceof Date
-        ? (row['created_at'] as Date)
+        ? row['created_at']
         : new Date(String(row['created_at'])),
     updatedAt:
       row['updated_at'] instanceof Date
-        ? (row['updated_at'] as Date)
+        ? row['updated_at']
         : new Date(String(row['updated_at'])),
   };
 }
