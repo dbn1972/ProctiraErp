@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T12:55:41.612Z",
+  "generatedAt": "2026-10-07T11:51:53.622Z",
   "commitSha": null,
   "charterRef": "Section 32 (Definition of Done)",
   "totals": {
-    "totalErrors": 78,
-    "totalWarnings": 758,
-    "totalFiles": 1316
+    "totalErrors": 32,
+    "totalWarnings": 769,
+    "totalFiles": 1318
   },
   "checks": [
     {
       "check": "table-naming",
       "title": "Service-Prefixed Table Naming (every table → <service>_<name>)",
       "filesScanned": 1,
-      "durationMs": 19,
+      "durationMs": 21,
       "errorCount": 0,
       "warningCount": 0,
       "findings": []
@@ -21,8 +21,8 @@
     {
       "check": "cross-service-joins",
       "title": "Cross-Service SQL Join Prevention (no JOINs across owners)",
-      "filesScanned": 829,
-      "durationMs": 1464,
+      "filesScanned": 831,
+      "durationMs": 1304,
       "errorCount": 7,
       "warningCount": 1,
       "findings": [
@@ -34,7 +34,8 @@
           "column": null,
           "message": "Raw SQL in \"auth\" service references \"staff_assignments\" owned by \"staff\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Auth resolves the institutions[] scope claim per request from staff-owned staff_assignments JOIN staff with a direct, tenant_id-filtered query. Charter §5/§20 wants a staff API or read model. Debt: move behind a staff assignment read model."
         },
         {
           "check": "cross-service-joins",
@@ -44,7 +45,8 @@
           "column": null,
           "message": "Raw SQL in \"communication\" service references \"hostel_assignments\" owned by \"hostel\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Communication counts live hostel audiences by reading hostel-owned tables directly (tenant-bound via withPgTenant). Charter §20.1 requires a hostel API or read model for cross-domain reads. Debt: replace with a hostel audience-count API/projection."
         },
         {
           "check": "cross-service-joins",
@@ -54,7 +56,8 @@
           "column": null,
           "message": "Raw SQL in \"communication\" service references \"hostel_beds\" owned by \"hostel\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Communication counts live hostel audiences by reading hostel-owned tables directly (tenant-bound via withPgTenant). Charter §20.1 requires a hostel API or read model for cross-domain reads. Debt: replace with a hostel audience-count API/projection."
         },
         {
           "check": "cross-service-joins",
@@ -64,7 +67,8 @@
           "column": null,
           "message": "Raw SQL in \"communication\" service references \"hostel_rooms\" owned by \"hostel\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Communication counts live hostel audiences by reading hostel-owned tables directly (tenant-bound via withPgTenant). Charter §20.1 requires a hostel API or read model for cross-domain reads. Debt: replace with a hostel audience-count API/projection."
         },
         {
           "check": "cross-service-joins",
@@ -74,7 +78,8 @@
           "column": null,
           "message": "Raw SQL in \"communication\" service references \"hostel_blocks\" owned by \"hostel\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Communication counts live hostel audiences by reading hostel-owned tables directly (tenant-bound via withPgTenant). Charter §20.1 requires a hostel API or read model for cross-domain reads. Debt: replace with a hostel audience-count API/projection."
         },
         {
           "check": "cross-service-joins",
@@ -94,7 +99,8 @@
           "column": null,
           "message": "Raw SQL in \"health\" service references \"staff_assignments\" owned by \"staff\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). Health (W1-SEC-04) resolves actor institution scope from staff-owned staff_assignments JOIN staff via withPgTenant. Debt: consume the same staff assignment read model/API as auth instead of querying staff tables."
         },
         {
           "check": "cross-service-joins",
@@ -104,7 +110,8 @@
           "column": null,
           "message": "Raw SQL in \"report\" service references \"student_attendance\" owned by \"student\".",
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32"
+          "ruleRef": "Charter §5 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). The report catalogue reads the student_attendance OLTP table directly (the check attributes it to \"student\" by prefix; the writer is packages/backend/attendance). Charter §20.3 requires reporting through ETL/warehouse or materialized read models. Debt."
         }
       ]
     },
@@ -112,50 +119,10 @@
       "check": "tenant-id",
       "title": "tenant-id signature lint (heuristic; NOT tenant-isolation evidence)",
       "filesScanned": 198,
-      "durationMs": 2835,
-      "errorCount": 67,
+      "durationMs": 6836,
+      "errorCount": 21,
       "warningCount": 0,
       "findings": [
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/audit/src/audit-service.ts",
-          "line": 341,
-          "column": null,
-          "message": "Public method AuditService.runRetentionSweep() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/billing/src/billing-service.ts",
-          "line": 102,
-          "column": null,
-          "message": "Public method BillingService.createPlan() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/billing/src/billing-service.ts",
-          "line": 191,
-          "column": null,
-          "message": "Public method BillingService.getPlanById() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/billing/src/billing-service.ts",
-          "line": 202,
-          "column": null,
-          "message": "Public method BillingService.listPlans() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
         {
           "check": "tenant-id",
           "severity": "error",
@@ -164,7 +131,8 @@
           "column": null,
           "message": "Public method BillingService.activateSubscription() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Subscriptions are tenant-scoped billing.subscriptions documents, but these lifecycle methods look the subscription up by id with no tenantId, so tenant scoping relies on the caller. Debt: take tenantId (or an explicit platform-admin scope) and filter by it."
         },
         {
           "check": "tenant-id",
@@ -174,7 +142,8 @@
           "column": null,
           "message": "Public method BillingService.suspendSubscription() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Subscriptions are tenant-scoped billing.subscriptions documents, but these lifecycle methods look the subscription up by id with no tenantId, so tenant scoping relies on the caller. Debt: take tenantId (or an explicit platform-admin scope) and filter by it."
         },
         {
           "check": "tenant-id",
@@ -184,7 +153,8 @@
           "column": null,
           "message": "Public method BillingService.cancelSubscription() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Subscriptions are tenant-scoped billing.subscriptions documents, but these lifecycle methods look the subscription up by id with no tenantId, so tenant scoping relies on the caller. Debt: take tenantId (or an explicit platform-admin scope) and filter by it."
         },
         {
           "check": "tenant-id",
@@ -194,7 +164,8 @@
           "column": null,
           "message": "Public method BillingService.reactivateSubscription() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Subscriptions are tenant-scoped billing.subscriptions documents, but these lifecycle methods look the subscription up by id with no tenantId, so tenant scoping relies on the caller. Debt: take tenantId (or an explicit platform-admin scope) and filter by it."
         },
         {
           "check": "tenant-id",
@@ -204,47 +175,8 @@
           "column": null,
           "message": "Public method BillingService.getSubscription() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 253,
-          "column": null,
-          "message": "Public method DeveloperPortalService.createAccount() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 275,
-          "column": null,
-          "message": "Public method DeveloperPortalService.getAccount() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 283,
-          "column": null,
-          "message": "Public method DeveloperPortalService.updateAccount() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 301,
-          "column": null,
-          "message": "Public method DeveloperPortalService.suspendAccount() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Subscriptions are tenant-scoped billing.subscriptions documents, but these lifecycle methods look the subscription up by id with no tenantId, so tenant scoping relies on the caller. Debt: take tenantId (or an explicit platform-admin scope) and filter by it."
         },
         {
           "check": "tenant-id",
@@ -254,7 +186,8 @@
           "column": null,
           "message": "Public method DeveloperPortalService.listDeliveries() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Webhook deliveries are tenant-scoped (developer_portal_webhook_deliveries.tenant_id + RLS, db/sql/089). The pg store binds the tenant from the parent webhook, but the service signature takes no tenantId (markDelivery* run in webhook delivery processing). Debt: thread tenantId through."
         },
         {
           "check": "tenant-id",
@@ -264,7 +197,8 @@
           "column": null,
           "message": "Public method DeveloperPortalService.markDeliverySuccess() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Webhook deliveries are tenant-scoped (developer_portal_webhook_deliveries.tenant_id + RLS, db/sql/089). The pg store binds the tenant from the parent webhook, but the service signature takes no tenantId (markDelivery* run in webhook delivery processing). Debt: thread tenantId through."
         },
         {
           "check": "tenant-id",
@@ -274,217 +208,41 @@
           "column": null,
           "message": "Public method DeveloperPortalService.markDeliveryFailed() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Webhook deliveries are tenant-scoped (developer_portal_webhook_deliveries.tenant_id + RLS, db/sql/089). The pg store binds the tenant from the parent webhook, but the service signature takes no tenantId (markDelivery* run in webhook delivery processing). Debt: thread tenantId through."
         },
         {
           "check": "tenant-id",
           "severity": "error",
           "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 763,
-          "column": null,
-          "message": "Public method DeveloperPortalService.createSandbox() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 803,
-          "column": null,
-          "message": "Public method DeveloperPortalService.getSandbox() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 811,
-          "column": null,
-          "message": "Public method DeveloperPortalService.listSandboxes() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 815,
-          "column": null,
-          "message": "Public method DeveloperPortalService.destroySandbox() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 830,
-          "column": null,
-          "message": "Public method DeveloperPortalService.submitPlugin() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 872,
-          "column": null,
-          "message": "Public method DeveloperPortalService.getSubmission() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 880,
-          "column": null,
-          "message": "Public method DeveloperPortalService.listSubmissions() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 889,
-          "column": null,
-          "message": "Public method DeveloperPortalService.listAllSubmissions() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 897,
-          "column": null,
-          "message": "Public method DeveloperPortalService.reviewPlugin() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 922,
-          "column": null,
-          "message": "Public method DeveloperPortalService.publishPlugin() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 978,
-          "column": null,
-          "message": "Public method DeveloperPortalService.searchMarketplace() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 994,
-          "column": null,
-          "message": "Public method DeveloperPortalService.getMarketplaceListing() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1002,
-          "column": null,
-          "message": "Public method DeveloperPortalService.ratePlugin() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1058,
-          "column": null,
-          "message": "Public method DeveloperPortalService.createDocPage() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1081,
-          "column": null,
-          "message": "Public method DeveloperPortalService.getDocPage() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1089,
-          "column": null,
-          "message": "Public method DeveloperPortalService.listDocPages() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1093,
-          "column": null,
-          "message": "Public method DeveloperPortalService.updateDocPage() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1112,
-          "column": null,
-          "message": "Public method DeveloperPortalService.deleteDocPage() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1122,
+          "line": 1178,
           "column": null,
           "message": "Public method DeveloperPortalService.recordAnalyticsEvent() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Plugin analytics are ingested from tenant contexts (PRC-H048 binds ingest to a tenant API key) but stored without tenant attribution. Not exempted as platform-scoped until a product/privacy decision says per-plugin analytics are platform data."
         },
         {
           "check": "tenant-id",
           "severity": "error",
           "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1144,
+          "line": 1206,
           "column": null,
           "message": "Public method DeveloperPortalService.getPluginAnalytics() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Plugin analytics are ingested from tenant contexts (PRC-H048 binds ingest to a tenant API key) but stored without tenant attribution. Not exempted as platform-scoped until a product/privacy decision says per-plugin analytics are platform data."
         },
         {
           "check": "tenant-id",
           "severity": "error",
           "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
-          "line": 1148,
+          "line": 1210,
           "column": null,
           "message": "Public method DeveloperPortalService.getPluginAnalyticsTimeSeries() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Plugin analytics are ingested from tenant contexts (PRC-H048 binds ingest to a tenant API key) but stored without tenant attribution. Not exempted as platform-scoped until a product/privacy decision says per-plugin analytics are platform data."
         },
         {
           "check": "tenant-id",
@@ -494,7 +252,8 @@
           "column": null,
           "message": "Public method InfrastructureService.createLand() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -504,7 +263,8 @@
           "column": null,
           "message": "Public method InfrastructureService.createBuilding() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -514,7 +274,8 @@
           "column": null,
           "message": "Public method InfrastructureService.createFloor() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -524,7 +285,8 @@
           "column": null,
           "message": "Public method InfrastructureService.createRoom() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -534,7 +296,8 @@
           "column": null,
           "message": "Public method InfrastructureService.update() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -544,7 +307,8 @@
           "column": null,
           "message": "Public method InfrastructureService.delete() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_infrastructure is tenant-owned (tenant_id, db/sql/027) but these methods take no tenantId; the shared store is injected at plugin registration, so any tenant binding is outside this lint's view (not verified). Debt: tenantId in the signature."
         },
         {
           "check": "tenant-id",
@@ -554,7 +318,8 @@
           "column": null,
           "message": "Public method InfrastructureService.addConditionOption() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_condition_options is tenant-scoped with FORCE RLS (db/sql/027) but these methods take no tenantId. Debt: tenantId in the signature and store call."
         },
         {
           "check": "tenant-id",
@@ -564,47 +329,8 @@
           "column": null,
           "message": "Public method InfrastructureService.deleteConditionOption() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/plugin/src/plugin-service.ts",
-          "line": 41,
-          "column": null,
-          "message": "Public method PluginService.register() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/plugin/src/plugin-service.ts",
-          "line": 104,
-          "column": null,
-          "message": "Public method PluginService.getById() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/plugin/src/plugin-service.ts",
-          "line": 115,
-          "column": null,
-          "message": "Public method PluginService.list() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/staff/src/staff-service.ts",
-          "line": 91,
-          "column": null,
-          "message": "Public method StaffService.supportsTransactions() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). institution_condition_options is tenant-scoped with FORCE RLS (db/sql/027) but these methods take no tenantId. Debt: tenantId in the signature and store call."
         },
         {
           "check": "tenant-id",
@@ -614,7 +340,8 @@
           "column": null,
           "message": "Public method AuditService.count() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). AuditQueryFilter.tenantId is optional, so count() can run without a tenant scope. Debt: require tenantId on the filter or the signature."
         },
         {
           "check": "tenant-id",
@@ -624,167 +351,8 @@
           "column": null,
           "message": "Public method ThemeService.validateThemeAccessibility() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/workflow/src/escalation-service.ts",
-          "line": 175,
-          "column": null,
-          "message": "Public method EscalationService.processEscalation() touches persistence but does not declare tenantId in its signature.",
-          "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
-          "ruleRef": "Charter §3 + §32"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/gradebook/src/pg-gradebook-repository.ts",
-          "line": 585,
-          "column": null,
-          "message": "SQL on tenant table(s) grading_scale_bands has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/dashboards.ts",
-          "line": 342,
-          "column": null,
-          "message": "SQL on tenant table(s) institutions has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/dashboards.ts",
-          "line": 345,
-          "column": null,
-          "message": "SQL on tenant table(s) students has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/dashboards.ts",
-          "line": 348,
-          "column": null,
-          "message": "SQL on tenant table(s) enrollments has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/dashboards.ts",
-          "line": 362,
-          "column": null,
-          "message": "SQL on tenant table(s) parent_fee_invoices has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/dashboards.ts",
-          "line": 368,
-          "column": null,
-          "message": "SQL on tenant table(s) parent_fee_payments has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 153,
-          "column": null,
-          "message": "SQL on tenant table(s) students has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 210,
-          "column": null,
-          "message": "SQL on tenant table(s) classes, grades has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 245,
-          "column": null,
-          "message": "SQL on tenant table(s) parent_fee_invoices has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 281,
-          "column": null,
-          "message": "SQL on tenant table(s) enrollments, grades has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 290,
-          "column": null,
-          "message": "SQL on tenant table(s) enrollments, grades has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/staff/src/pg-hr-ops-store.ts",
-          "line": 246,
-          "column": null,
-          "message": "SQL on tenant table(s) staff_contracts has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/staff/src/pg-hr-ops-store.ts",
-          "line": 381,
-          "column": null,
-          "message": "SQL on tenant table(s) staff_qualifications has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/staff/src/pg-hr-ops-store.ts",
-          "line": 535,
-          "column": null,
-          "message": "SQL on tenant table(s) staff_hr_attendance has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
-        },
-        {
-          "check": "tenant-id",
-          "severity": "error",
-          "file": "packages/backend/timetable/src/pg-timetable-repository.ts",
-          "line": 233,
-          "column": null,
-          "message": "SQL on tenant table(s) section_meetings, sections has no tenant_id predicate and does not run inside a tenant-bound helper.",
-          "suggestion": "Add a `tenant_id = $n` predicate or run the query inside withTenantTransaction()/withTenantClient().",
-          "ruleRef": "Charter §3 + §32 (PRC-M408)"
+          "ruleRef": "Charter §3 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M408 removed name exemptions). Looks a theme up by id with no tenant scope, although themes are tenant/portal-level records. Debt: take tenantId and scope findThemeById."
         }
       ]
     },
@@ -792,7 +360,7 @@
       "check": "audit-events",
       "title": "Audit Event Emission on Writes (POST/PUT/PATCH/DELETE → audit)",
       "filesScanned": 72,
-      "durationMs": 175,
+      "durationMs": 162,
       "errorCount": 0,
       "warningCount": 15,
       "findings": [
@@ -952,7 +520,7 @@
       "check": "api-schema",
       "title": "API Schema Presence (Typebox schemas for every route)",
       "filesScanned": 72,
-      "durationMs": 35,
+      "durationMs": 32,
       "errorCount": 2,
       "warningCount": 1,
       "findings": [
@@ -964,7 +532,8 @@
           "column": null,
           "message": "Service \"admin-dashboard\" exposes routes but no Typebox schema (file or inline) was found.",
           "suggestion": "Add `import { Type } from \"@sinclair/typebox\"` and define request/response schemas; wire them into Fastify route options.",
-          "ruleRef": "Charter §6 + §32"
+          "ruleRef": "Charter §6 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scopes api-schema to every packages/backend/* directory; this package was outside the old fixed list). Routes ship without Typebox schemas. Debt: add request/response schemas."
         },
         {
           "check": "api-schema",
@@ -974,7 +543,8 @@
           "column": null,
           "message": "Service \"dashboards\" exposes routes but no Typebox schema (file or inline) was found.",
           "suggestion": "Add `import { Type } from \"@sinclair/typebox\"` and define request/response schemas; wire them into Fastify route options.",
-          "ruleRef": "Charter §6 + §32"
+          "ruleRef": "Charter §6 + §32",
+          "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scopes api-schema to every packages/backend/* directory; this package was outside the old fixed list). Routes ship without Typebox schemas. Debt: add request/response schemas."
         },
         {
           "check": "api-schema",
@@ -992,7 +562,7 @@
       "check": "error-envelope",
       "title": "Error Envelope Compliance ({code, message, statusCode})",
       "filesScanned": 72,
-      "durationMs": 514,
+      "durationMs": 580,
       "errorCount": 2,
       "warningCount": 0,
       "findings": [
@@ -1004,7 +574,8 @@
           "column": null,
           "message": "403 response missing required envelope field(s): code, message, statusCode.",
           "suggestion": "Send `{ code, message, statusCode, errors? }` or use the shared `AppError` helper from @proctira/common.",
-          "ruleRef": "Charter §6 + §32"
+          "ruleRef": "Charter §6 + §32",
+          "reason": "Pre-existing on main. Admin scalability cache-flush returns { error } bodies for 403/400. Not fixed in this tooling PR: it changes an admin API response contract, and the same route skips authorization when isAdmin is not configured, which needs its own security review. Debt."
         },
         {
           "check": "error-envelope",
@@ -1014,7 +585,8 @@
           "column": null,
           "message": "400 response missing required envelope field(s): code, message, statusCode.",
           "suggestion": "Send `{ code, message, statusCode, errors? }` or use the shared `AppError` helper from @proctira/common.",
-          "ruleRef": "Charter §6 + §32"
+          "ruleRef": "Charter §6 + §32",
+          "reason": "Pre-existing on main. Admin scalability cache-flush returns { error } bodies for 403/400. Not fixed in this tooling PR: it changes an admin API response contract, and the same route skips authorization when isAdmin is not configured, which needs its own security review. Debt."
         }
       ]
     },
@@ -1022,9 +594,9 @@
       "check": "i18n-readiness",
       "title": "i18n Readiness (no hardcoded user-facing strings in routes)",
       "filesScanned": 72,
-      "durationMs": 36,
+      "durationMs": 57,
       "errorCount": 0,
-      "warningCount": 741,
+      "warningCount": 752,
       "findings": [
         {
           "check": "i18n-readiness",
@@ -2540,7 +2112,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 358,
+          "line": 367,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid query parameters\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2550,7 +2122,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 582,
+          "line": 591,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to create API keys\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2560,7 +2132,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 630,
+          "line": 639,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to list API keys\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2570,7 +2142,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 690,
+          "line": 699,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2580,7 +2152,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 730,
+          "line": 739,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid or expired API key\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2590,7 +2162,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 780,
+          "line": 789,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to create webhooks\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2600,7 +2172,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 829,
+          "line": 838,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to list webhooks\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2610,7 +2182,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 875,
+          "line": 884,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to get webhooks\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2620,7 +2192,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 921,
+          "line": 930,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to update webhooks\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2630,7 +2202,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 959,
+          "line": 968,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to delete webhooks\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2640,7 +2212,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 996,
+          "line": 1005,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid account or webhook ID\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2650,7 +2222,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1011,
+          "line": 1020,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required to list webhook deliveries\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2660,7 +2232,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1247,
+          "line": 1256,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid submission ID\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2670,7 +2242,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1279,
+          "line": 1288,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid submission ID\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2680,7 +2252,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1299,
+          "line": 1308,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Authentication is required to review a submission\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2690,7 +2262,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1334,
+          "line": 1348,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/developer-portal/src/routes.ts",
+          "line": 1360,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid submission ID\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2700,7 +2282,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1446,
+          "line": 1472,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Authentication is required to rate a plugin\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -2710,7 +2292,47 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/developer-portal/src/routes.ts",
-          "line": 1752,
+          "line": 1511,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/developer-portal/src/routes.ts",
+          "line": 1599,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/developer-portal/src/routes.ts",
+          "line": 1645,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/developer-portal/src/routes.ts",
+          "line": 1712,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Analytics ingest requires the plugin developer API key fo…\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/developer-portal/src/routes.ts",
+          "line": 1844,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"signature, timestamp, and nonce are required (headers or …\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3380,7 +3002,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 136,
+          "line": 140,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Portal access to gradebook is not available for this account\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3390,7 +3012,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 147,
+          "line": 151,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Forbidden: role cannot read gradebook\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3400,7 +3022,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 162,
+          "line": 166,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"You may only read gradebook data for your own linked stud…\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3410,7 +3032,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 302,
+          "line": 306,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid workflow action\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3420,7 +3042,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 339,
+          "line": 343,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid workflow action\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3430,7 +3052,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 461,
+          "line": 465,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"sectionId query parameter is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3440,7 +3062,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 567,
+          "line": 571,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"studentId query parameter is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3450,7 +3072,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 624,
+          "line": 628,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Report card job not found\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3460,7 +3082,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 824,
+          "line": 828,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Board export job not found\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3470,7 +3092,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/gradebook/src/routes.ts",
-          "line": 874,
+          "line": 878,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Board export job not found\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8190,7 +7812,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 108,
+          "line": 109,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8200,7 +7822,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 139,
+          "line": 119,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 150,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8210,7 +7842,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 191,
+          "line": 160,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 213,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8220,7 +7862,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 242,
+          "line": 223,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 274,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8230,7 +7882,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 297,
+          "line": 284,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 340,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -8240,9 +7902,29 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/workflow/src/case-routes.ts",
-          "line": 352,
+          "line": 350,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 406,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/workflow/src/case-routes.ts",
+          "line": 416,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication is required to access cases\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
           "ruleRef": "Charter §17 + §32"
         },

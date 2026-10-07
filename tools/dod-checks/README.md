@@ -102,3 +102,18 @@ Tip evidence: `docs/audits/evidence/dod-gate-*.json` plus
 When this tool was introduced, a baseline scan was committed in
 `reports/baseline.json`. Teams owning each finding triage and resolve them
 during the rollout. New PRs must not introduce additional findings.
+
+Every baselined **error** entry carries a `reason` (at least 20 characters)
+that says why the debt is tolerated and what the fix is. A baseline error
+without one fails the gate. `--update-baseline` carries reasons forward by
+fingerprint (check + file + message), so new entries come out without a
+reason and must be documented before the gate passes again.
+
+Baseline vs. false positive: a finding that is real but out of scope goes in
+the baseline with a reason. A finding the check gets wrong is fixed in the
+check. For `tenant-id`, records that no tenant owns (billing plan catalogue,
+developer accounts/marketplace/docs, plugin registry, the cross-tenant audit
+retention sweep) are listed per class and per repository operation in
+`src/lib/platform-scope.mjs`, each with a reason. A method is exempt only when
+its persistence is limited to those operations or to per-tenant calls that
+pass `tenantId`. Entries that stop matching the code are reported as errors.
