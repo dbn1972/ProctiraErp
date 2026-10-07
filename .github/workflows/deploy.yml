@@ -437,8 +437,20 @@ jobs:
           ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
           IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
           SERVICE_LIST: ${{ needs.prepare.outputs.services }}
+          # PRC-H062: secrets reach pods only through External Secrets. The store
+          # name is a GitHub *environment variable* (not a secret value).
+          EXTERNAL_SECRET_STORE: ${{ vars.EXTERNAL_SECRET_STORE }}
         run: |
           NAMESPACE="proctira-${ENVIRONMENT}"
+
+          # PRC-H062: fail closed. Without a secret store the release would start
+          # pods with no DATABASE_URL / JWT_SECRET and be rolled back by --atomic
+          # only after a confusing boot failure, or run half-configured.
+          if [ -z "${EXTERNAL_SECRET_STORE}" ]; then
+            echo "::error::vars.EXTERNAL_SECRET_STORE is not set for the ${ENVIRONMENT} environment (PRC-H062)" >&2
+            exit 1
+          fi
+          SHARED_REMOTE_KEY="proctira/${ENVIRONMENT}/shared"
 
           IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICE_LIST"
 
@@ -451,6 +463,8 @@ jobs:
             # Supported mode: single-wave RollingUpdate maxUnavailable=0.
             # Optional canary annotations: --set progressiveDelivery.canary.enabled=true
             # (hooks only — not a proven prod canary path).
+            # PRC-H062 / PRC-M279: per-service key allowlist from the shared
+            # bundle; a service missing from serviceKeys fails the render.
             helm upgrade --install "proctira-${SERVICE}" \
               ./infrastructure/helm/proctira-service \
               --namespace "${NAMESPACE}" \
@@ -459,6 +473,9 @@ jobs:
               --set image.tag="${IMAGE_TAG}" \
               --set environment="${ENVIRONMENT}" \
               --set service.name="${SERVICE}" \
+              --set externalSecret.enabled=true \
+              --set-string externalSecret.secretStoreRef.name="${EXTERNAL_SECRET_STORE}" \
+              --set-string externalSecret.sharedRemoteKey="${SHARED_REMOTE_KEY}" \
               --values "./infrastructure/helm/proctira-service/values-${ENVIRONMENT}.yaml" \
               --atomic \
               --wait \
