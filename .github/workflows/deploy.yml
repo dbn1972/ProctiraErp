@@ -144,7 +144,7 @@ jobs:
       # any migration or rollout job can run.
       - name: Checkout same-SHA CI gate
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ steps.resolve.outputs.head-sha }}
           sparse-checkout: |
@@ -171,8 +171,13 @@ jobs:
       services: ${{ steps.affected.outputs.services }}
       image-tag: ${{ steps.meta.outputs.tag }}
       can-deploy: ${{ steps.registry.outputs.can_deploy }}
+      record-base: ${{ steps.affected.outputs.record-base }}
+    # #555 review #1: reads the recorded diff base (Deployments API).
+    permissions:
+      contents: read
+      deployments: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.ci-gate.outputs.head-sha }}
           fetch-depth: 0
@@ -229,74 +234,36 @@ jobs:
       - name: Detect affected services
         id: affected
         env:
-          INPUT_SERVICES: ${{ inputs.services }}
+          MANUAL_SERVICES: ${{ inputs.services }}
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ steps.env.outputs.environment }}
+          HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
         run: |
-          # PRC-M256: manual service lists are validated (format + allowlist) before they reach
-          # any output consumed by secret-bearing build/deploy jobs.
-          KNOWN_SERVICES=",api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report,"
-          if [ -n "${INPUT_SERVICES}" ]; then
-            if ! [[ "${INPUT_SERVICES}" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]]; then
-              echo "::error::services must be a comma-separated list of service names ([a-z0-9-])"
-              exit 1
-            fi
-            IFS=',' read -ra REQUESTED <<< "${INPUT_SERVICES}"
-            for SERVICE in "${REQUESTED[@]}"; do
-              case "${KNOWN_SERVICES}" in
-                *",${SERVICE},"*) ;;
-                *) echo "::error::Unknown service '${SERVICE}'"; exit 1 ;;
-              esac
-            done
-            echo "services=${INPUT_SERVICES}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          SERVICES=""
-
-          # W1-OPS-16 — canonical topology = in-process gateway.
-          # Domain package changes redeploy api-gateway (not orphan split services).
-          # Split names (institution, student, …) only via inputs.services (lab).
-          declare -A SERVICE_MAP=(
-            ["apps/api-gateway"]="api-gateway"
-            ["apps/web"]="web"
-            ["apps/registration-portal"]="registration-portal"
-            ["apps/etl-worker"]="etl-worker"
-            ["packages/backend/"]="api-gateway"
-            ["db/"]="api-gateway"
-            ["tools/scripts/run-target-database-migrations.sh"]="api-gateway"
-            ["tools/scripts/assert-runtime-schema-ready.sh"]="api-gateway"
-            ["tools/scripts/required-migrations-lib.sh"]="api-gateway"
-            [".github/workflows/deploy.yml"]="api-gateway"
-          )
-
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-
-          # The per-service chart is shared by every canonical workload.
-          if echo "$CHANGED_FILES" | grep -q "^infrastructure/helm/proctira-service/"; then
-            SERVICES="api-gateway,web,registration-portal,etl-worker"
-          fi
-
-          # Shared packages → canonical fan-out (no split-domain releases)
-          if echo "$CHANGED_FILES" | grep -q "^packages/shared/"; then
-            SERVICES="api-gateway,web,registration-portal,etl-worker"
+          set -euo pipefail
+          if [ -n "${MANUAL_SERVICES:-}" ]; then
+            # PRC-M256 / #555 review #7: format + services.json allowlist check
+            # BEFORE anything reaches GITHUB_OUTPUT (a raw newline would inject
+            # extra outputs into the secret-bearing build/deploy jobs).
+            SERVICES=$(node tools/scripts/detect-affected-services.mjs validate --workflow deploy \
+              --services "${MANUAL_SERVICES}")
             echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+            # A subset deploy must not advance the diff base for every service.
+            echo "record-base=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          for path in "${!SERVICE_MAP[@]}"; do
-            if echo "$CHANGED_FILES" | grep -q "^${path}"; then
-              if [ -n "$SERVICES" ]; then
-                case ",${SERVICES}," in
-                  *",${SERVICE_MAP[$path]},"*) ;;
-                  *) SERVICES="${SERVICES},${SERVICE_MAP[$path]}" ;;
-                esac
-              else
-                SERVICES="${SERVICE_MAP[$path]}"
-              fi
-            fi
-          done
-
+          # PRC-M259 / #555 review #1: diff every commit since the SHA this
+          # environment last fully deployed. record-diff-base stores that SHA
+          # (a workflow_run headSha is the default-branch tip at trigger time,
+          # not what was deployed). Service paths live in tools/scripts/services.json;
+          # no record, an API error or a non-ancestor base fans out to every
+          # canonical service.
+          BASE_SHA=$(node tools/scripts/deploy-diff-base.mjs get --scope "${ENVIRONMENT}")
+          echo "Diff base (${ENVIRONMENT}): ${BASE_SHA:-<none; full canonical fan-out>}"
+          SERVICES=$(node tools/scripts/detect-affected-services.mjs affected --workflow deploy \
+            --base "${BASE_SHA:-}" --head "$HEAD_SHA")
+          echo "Affected services: ${SERVICES:-<none>}"
           echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
-
+          echo "record-base=true" >> "$GITHUB_OUTPUT"
   # ---------------------------------------------------------------------------
   # W1-OPS-15 — Explicit secrets gate (aggregate fail when deploy was skipped
   # because secrets were missing). Production already fails in prepare; this
@@ -351,15 +318,15 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.ci-gate.outputs.head-sha }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Login to container registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -370,44 +337,9 @@ jobs:
         env:
           SERVICE: ${{ matrix.service }}
         run: |
-
-          case "$SERVICE" in
-            api-gateway)
-              echo "dockerfile=infrastructure/docker/Dockerfile.api-gateway" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            web)
-              echo "dockerfile=infrastructure/docker/Dockerfile.web" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            registration-portal)
-              echo "dockerfile=infrastructure/docker/Dockerfile.nextjs-app" >> "$GITHUB_OUTPUT"
-              printf 'build-args=APP_NAME=registration-portal\nAPP_PORT=3002\n' >> "$GITHUB_OUTPUT"
-              ;;
-            etl-worker)
-              echo "dockerfile=infrastructure/docker/Dockerfile.etl-worker" >> "$GITHUB_OUTPUT"
-              echo "build-args=" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              # Backend services use the generic Dockerfile
-              echo "dockerfile=infrastructure/docker/Dockerfile.backend-service" >> "$GITHUB_OUTPUT"
-              # Map service name to port
-              declare -A PORT_MAP=(
-                ["institution"]="3020"
-                ["student"]="3021"
-                ["staff"]="3022"
-                ["assessment"]="3023"
-                ["attendance"]="3024"
-                ["examination"]="3025"
-                ["workflow"]="3026"
-                ["notification"]="3027"
-                ["report"]="3028"
-              )
-              PORT="${PORT_MAP[$SERVICE]:-3000}"
-              printf "build-args=SERVICE_NAME=%s\nSERVICE_PORT=%s\n" "$SERVICE" "$PORT" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
+          set -euo pipefail
+          # PRC-M259: shared manifest (tools/scripts/services.json) for every app.
+          node tools/scripts/detect-affected-services.mjs docker-config --service "$SERVICE" >> "$GITHUB_OUTPUT"
       - name: Compute image repository
         id: image-ref
         env:
@@ -421,7 +353,7 @@ jobs:
           echo "reference=${repo}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ${{ steps.docker-config.outputs.dockerfile }}
@@ -446,15 +378,15 @@ jobs:
     if: needs.prepare.outputs.can-deploy == 'true'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.ci-gate.outputs.head-sha }}
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -483,20 +415,20 @@ jobs:
     if: needs.prepare.outputs.can-deploy == 'true' && needs.build-images.result == 'success' && needs.migrate-database.result == 'success' && needs.runtime-role-gate.result == 'success'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.ci-gate.outputs.head-sha }}
 
       - name: Configure kubectl
-        uses: azure/setup-kubectl@v5
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
 
       - name: Set Kubernetes context
-        uses: azure/k8s-set-context@v5
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
       - name: Install Helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
           version: 'v3.14.0'
 
@@ -551,7 +483,7 @@ jobs:
 
       - name: Post deployment notification
         if: always()
-        uses: slackapi/slack-github-action@v4.0.0
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           payload: |
             {
@@ -570,6 +502,38 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ---------------------------------------------------------------------------
+  # #555 review #1 (PRC-M259): record the SHA this environment now runs, so the
+  # next deploy diffs from what was actually deployed. Only after every
+  # affected service deployed (or nothing was affected), and never for a
+  # manual subset, so a partial deploy cannot hide changes from the next run.
+  # ---------------------------------------------------------------------------
+  record-diff-base:
+    name: Record deploy diff base
+    runs-on: ubuntu-latest
+    needs: [ci-gate, prepare, deploy]
+    if: >-
+      always() && needs.ci-gate.result == 'success' && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.can-deploy == 'true' && needs.prepare.outputs.record-base == 'true' &&
+      (needs.deploy.result == 'success' ||
+      (needs.prepare.outputs.services == '' && needs.deploy.result == 'skipped'))
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+          sparse-checkout: |
+            tools/scripts/deploy-diff-base.mjs
+          sparse-checkout-cone-mode: false
+      - name: Record diff base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
+        run: node tools/scripts/deploy-diff-base.mjs record --scope "${ENVIRONMENT}" --sha "${HEAD_SHA}"
+
+  # ---------------------------------------------------------------------------
   # W1-DATA-01 — Required runtime role gate against the *actual* DATABASE_URL
   # secret (GitHub environment secret and/or cluster Secret pods mount).
   # Fails closed when the login role is owner/superuser/BYPASSRLS or owns tables.
@@ -582,15 +546,15 @@ jobs:
     if: needs.ci-gate.result == 'success' && needs.prepare.result == 'success' && needs.prepare.outputs.can-deploy == 'true' && needs.migrate-database.result == 'success'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.ci-gate.outputs.head-sha }}
 
       - name: Configure kubectl
-        uses: azure/setup-kubectl@v5
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
 
       - name: Set Kubernetes context
-        uses: azure/k8s-set-context@v5
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
 

@@ -7,8 +7,10 @@
 #     plugin in-process, so gateway metrics carry `route` labels for all
 #     /api/v1/* domains (fees, health, scholarship, hostel, …).
 #   - etl-worker  (docker-compose.yml)            :3010
-#   - 9 standalone backend services
-#     (infrastructure/docker/docker-compose.services.yml) :3020–3028
+#   - 9 standalone backend services (NON-PROD lab, :3020–3028) live in
+#     scrape-lab/lab-services.yml and load ONLY when the lab services compose
+#     runs (PRC-M313); the canonical stack must not carry permanently-down
+#     targets that keep ServiceDown firing.
 #
 # Next.js apps (web, portals, admin console) expose /api/health only — they are
 # monitored via the gateway's http_* metrics and the availability probes, not
@@ -43,6 +45,12 @@ alerting:
         - targets:
             - alertmanager:9093
 
+# PRC-M313: optional scrape jobs. The observability compose mounts
+# ${PROMETHEUS_EXTRA_SCRAPE_DIR:-./scrape.d} here (empty for the canonical
+# stack; set it to ./scrape-lab with the lab services compose).
+scrape_config_files:
+  - scrape.d/*.yml
+
 scrape_configs:
   # ─── Edge / Gateway ────────────────────────────────────────────────────────
   - job_name: api-gateway
@@ -61,61 +69,6 @@ scrape_configs:
         labels:
           service: etl
           team: ops
-
-  # ─── Standalone backend services (docker-compose.services.yml) ─────────────
-  - job_name: institution
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['institution-service:3020']
-        labels: { service: institution, team: engineering }
-
-  - job_name: student
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['student-service:3021']
-        labels: { service: student, team: engineering }
-
-  - job_name: staff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['staff-service:3022']
-        labels: { service: staff, team: engineering }
-
-  - job_name: assessment
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['assessment-service:3023']
-        labels: { service: assessment, team: engineering }
-
-  - job_name: attendance
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['attendance-service:3024']
-        labels: { service: attendance, team: engineering }
-
-  - job_name: examination
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['examination-service:3025']
-        labels: { service: examination, team: engineering }
-
-  - job_name: workflow
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['workflow-service:3026']
-        labels: { service: workflow, team: engineering }
-
-  - job_name: notification
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['notification-service:3027']
-        labels: { service: notification, team: engineering }
-
-  - job_name: report
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['report-service:3028']
-        labels: { service: report, team: engineering }
 
   # ─── Self-monitoring ───────────────────────────────────────────────────────
   - job_name: prometheus

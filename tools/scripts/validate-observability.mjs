@@ -21,6 +21,7 @@ const root = resolve(here, '../..');
 
 const yamlFiles = [
   'infra/observability/prometheus.yml',
+  'infra/observability/scrape-lab/lab-services.yml',
   'infra/observability/alertmanager.yml.tpl',
   'infra/observability/grafana/provisioning/datasources.yml',
   'infra/observability/grafana/provisioning/dashboards.yml',
@@ -35,7 +36,11 @@ const jsonFiles = [
 ];
 
 const expectedAlertGroups = {
-  'infra/observability/alerts/availability.yml': ['ServiceErrorRateHigh', 'ServiceDown'],
+  'infra/observability/alerts/availability.yml': [
+    'ServiceErrorRateHigh',
+    'ServiceDown',
+    'GatewayScrapeAbsent',
+  ],
   'infra/observability/alerts/latency.yml': ['ServiceP95LatencyHigh'],
   'infra/observability/alerts/error_rate.yml': ['ErrorBudgetBurnFast'],
   'infra/observability/alerts/saturation.yml': ['ProcessCPUHigh', 'ProcessMemoryHigh'],
