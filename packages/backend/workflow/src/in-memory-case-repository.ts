@@ -7,6 +7,8 @@
  * Requirements: 13.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
+import { caseInScope } from './case-access.js';
 import type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 
 export class InMemoryCaseRepository implements CaseRepository {
@@ -90,6 +92,10 @@ export class InMemoryCaseRepository implements CaseRepository {
     }
     if (filter.areaId) {
       filtered = filtered.filter((c) => c.areaId === filter.areaId);
+    }
+    if (filter.scope) {
+      const scope = filter.scope;
+      filtered = filtered.filter((c) => caseInScope(c, scope));
     }
 
     const totalItems = filtered.length;

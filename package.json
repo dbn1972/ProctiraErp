@@ -80,9 +80,9 @@
     "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-proctira": "workspace:*",
-    "fast-check": "^4.10.1",
-    "prettier": "^3.9.8",
-    "turbo": "^2.10.13",
+    "fast-check": "^4.10.2",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.7",
     "typescript": "^5.4.0",
     "vitest": "^3.2.7",
     "yaml": "2.9.1"
@@ -113,7 +113,8 @@
       "fastify": "^5.7.2",
       "@fastify/static": "^10.1.4",
       "@fastify/jwt": "^9.0.0",
-      "source-map-js": ">=1.2.2"
+      "source-map-js": ">=1.2.2",
+      "sharp": ">=0.35.5 <0.36"
     }
   },
   "packageManager": "pnpm@10.33.2",

@@ -19,15 +19,17 @@ services:
   # ---------------------------------------------------------------------------
   # Infrastructure
   # ---------------------------------------------------------------------------
+  # PRC-M311: data ports bind to BIND_ADDRESS (default 127.0.0.1) and every
+  # credential is required from .env (no baked-in default passwords).
   postgres:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-proctira}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proctira_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-proctira}
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
       # W1-DATA-10: canonical role bootstrap + local passwords (fresh volumes only).
@@ -44,9 +46,19 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
+    # PRC-M311: authenticated Redis; REDIS_URL must carry the same password.
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        '${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}',
+      ]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (see .env.example)}
     ports:
-      - '${REDIS_PORT:-6379}:6379'
+      - '${BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379'
     volumes:
       - redis-data:/data
     healthcheck:
@@ -74,9 +86,11 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      # PRC-M311: dev convenience only (code relies on auto-created topics locally);
+      # set KAFKA_AUTO_CREATE_TOPICS=false for any shared/integration stack.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS:-true}
     ports:
-      - '${KAFKA_PORT:-9092}:9092'
+      - '${BIND_ADDRESS:-127.0.0.1}:${KAFKA_PORT:-9092}:9092'
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -94,10 +108,10 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-proctira}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-proctira_dev_password}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env (see .env.example)}
     ports:
-      - '${RABBITMQ_PORT:-5672}:5672'
-      - '${RABBITMQ_MGMT_PORT:-15672}:15672'
+      - '${BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_PORT:-5672}:5672'
+      - '${BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_MGMT_PORT:-15672}:15672'
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -114,10 +128,10 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-proctira}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-proctira_dev_password}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env (see .env.example)}
     ports:
-      - '${MINIO_API_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+      - '${BIND_ADDRESS:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000'
+      - '${BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio-data:/data
     healthcheck:
@@ -135,12 +149,12 @@ services:
     command: ['start-dev', '--import-realm']
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env (see .env.example)}
       KC_HTTP_PORT: 8080
       KC_HOSTNAME_STRICT: 'false'
       KC_HEALTH_ENABLED: 'true'
     ports:
-      - '${KEYCLOAK_PORT:-8080}:8080'
+      - '${BIND_ADDRESS:-127.0.0.1}:${KEYCLOAK_PORT:-8080}:8080'
     volumes:
       - ./infra/keycloak/proctira-realm.json:/opt/keycloak/data/import/proctira-realm.json:ro
       - keycloak-data:/opt/keycloak/data

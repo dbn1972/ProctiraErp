@@ -127,6 +127,43 @@ describe('workflow transition actor (PRC-M490)', () => {
     });
     expect(res.statusCode).toBe(200);
   });
+  it('PRC-H109: user-assigned state — user B (not the assignee) gets 403, user A succeeds', async () => {
+    const def = (
+      await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        headers: as('admin-1', 'admin'),
+        payload: {
+          ...definition,
+          states: [
+            {
+              id: 'draft',
+              name: 'Draft',
+              type: 'INITIAL',
+              assigneeType: 'user',
+              assigneeId: 'u-a',
+            },
+            { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'user', assigneeId: 'u-a' },
+          ],
+          transitions: [{ id: 't1', fromStateId: 'draft', toStateId: 'done', action: 'submit' }],
+        },
+      })
+    ).json();
+    const id = (
+      await app.inject({
+        method: 'POST',
+        url: '/workflows/instances',
+        headers: as('admin-1', 'admin'),
+        payload: { workflowDefinitionId: def.id, entityType: 'leave_request', entityId: 'lr-2' },
+      })
+    ).json().id as string;
+    // B holds the same role as A and claims A's id in the body: still 403.
+    const denied = await transition(id, 'submit', as('u-b', 'teacher'), { actorId: 'u-a' });
+    expect(denied.statusCode).toBe(403);
+    const ok = await transition(id, 'submit', as('u-a', 'teacher'));
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().currentStateId).toBe('done');
+  });
   it('two approvals by the same user do not satisfy requiredApprovals=2', async () => {
     const id = await startInstance();
     await transition(id, 'submit', as('teacher-1', 'teacher'));

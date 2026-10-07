@@ -1,0 +1,95 @@
+{
+  "$comment": "PRC-M259: single service manifest consumed by deploy.yml and release.yml via tools/scripts/detect-affected-services.mjs. paths are repo-relative prefixes; fanoutPaths rebuild every service in the workflow scope.",
+  "fanoutPaths": [
+    "packages/shared/",
+    "infrastructure/docker/",
+    "infrastructure/helm/proctira-service/",
+    "Dockerfile",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "package.json",
+    "turbo.json",
+    "tsconfig.base.json",
+    "tools/scripts/services.json",
+    "tools/scripts/detect-affected-services.mjs"
+  ],
+  "services": {
+    "api-gateway": {
+      "dockerfile": "infrastructure/docker/Dockerfile.api-gateway",
+      "buildArgs": {},
+      "paths": [
+        "apps/api-gateway/",
+        "packages/backend/",
+        "db/",
+        "tools/scripts/run-target-database-migrations.sh",
+        "tools/scripts/assert-runtime-schema-ready.sh",
+        "tools/scripts/required-migrations-lib.sh",
+        ".github/workflows/deploy.yml"
+      ],
+      "workflows": ["deploy", "release"]
+    },
+    "web": {
+      "dockerfile": "infrastructure/docker/Dockerfile.web",
+      "buildArgs": {},
+      "paths": ["apps/web/", "packages/ui/"],
+      "workflows": ["deploy", "release"]
+    },
+    "registration-portal": {
+      "dockerfile": "infrastructure/docker/Dockerfile.nextjs-app",
+      "buildArgs": { "APP_NAME": "registration-portal", "APP_PORT": "3002" },
+      "paths": ["apps/registration-portal/", "packages/ui/"],
+      "workflows": ["deploy", "release"]
+    },
+    "admin-console": {
+      "dockerfile": "infrastructure/docker/Dockerfile.nextjs-app",
+      "buildArgs": { "APP_NAME": "admin-console", "APP_PORT": "3014" },
+      "paths": ["apps/admin-console/", "packages/ui/"],
+      "workflows": ["release"]
+    },
+    "developer-portal": {
+      "dockerfile": "infrastructure/docker/Dockerfile.nextjs-app",
+      "buildArgs": { "APP_NAME": "developer-portal", "APP_PORT": "3005" },
+      "paths": ["apps/developer-portal/", "packages/ui/"],
+      "workflows": ["release"]
+    },
+    "install-wizard": {
+      "dockerfile": "infrastructure/docker/Dockerfile.nextjs-app",
+      "buildArgs": { "APP_NAME": "install-wizard", "APP_PORT": "3100" },
+      "paths": ["apps/install-wizard/", "packages/ui/"],
+      "workflows": ["release"]
+    },
+    "public-website": {
+      "dockerfile": "infrastructure/docker/Dockerfile.nextjs-app",
+      "buildArgs": { "APP_NAME": "public-website", "APP_PORT": "3004" },
+      "paths": ["apps/public-website/", "packages/ui/"],
+      "workflows": ["release"]
+    },
+    "etl-worker": {
+      "dockerfile": "infrastructure/docker/Dockerfile.etl-worker",
+      "buildArgs": {},
+      "paths": ["apps/etl-worker/", "packages/backend/etl/"],
+      "workflows": ["deploy", "release"]
+    },
+    "dr-tools": {
+      "dockerfile": "infrastructure/docker/Dockerfile.dr-tools",
+      "buildArgs": {},
+      "paths": ["tools/scripts/"],
+      "workflows": ["release"]
+    }
+  },
+  "labServices": {
+    "$comment": "W1-OPS-16 non-prod split-domain images: buildable only via an explicit services input.",
+    "dockerfile": "infrastructure/docker/Dockerfile.backend-service",
+    "ports": {
+      "institution": "3020",
+      "student": "3021",
+      "staff": "3022",
+      "assessment": "3023",
+      "attendance": "3024",
+      "examination": "3025",
+      "workflow": "3026",
+      "notification": "3027",
+      "report": "3028"
+    }
+  }
+}
