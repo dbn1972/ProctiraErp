@@ -6,6 +6,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRetentionPlan,
+  buildRetentionPredicate,
+  buildEligibleFrom,
   classifyRetentionBucket,
   resolveRetentionDryRun,
   retentionCutoffIso,
@@ -70,5 +72,53 @@ describe('W1-OPS-19 RETENTION_DRY_RUN fail-closed', () => {
       () => resolveRetentionDryRun({ RETENTION_DRY_RUN: 'true' }),
       /must be "0" or "1"/,
     );
+  });
+});
+
+describe('PRC-H107 minor-aware retention predicate', () => {
+  const adultCutoffIso = '2019-01-01T00:00:00.000Z'; // ~7y ago sample
+  const minorCutoffIso = '2016-01-01T00:00:00.000Z'; // ~10y ago sample (older)
+
+  it('gates minor rows by the longer minor cutoff, adults by the adult cutoff', () => {
+    const sql = buildRetentionPredicate({
+      table: 'counselling_sessions',
+      adultCutoffIso,
+      minorCutoffIso,
+    });
+    // Minor branch must compare against the minor cutoff, never the adult one.
+    assert.match(sql, /date_of_birth \+ INTERVAL '18 years'/);
+    const minorBranch = sql.slice(
+      sql.indexOf('18 years'),
+      sql.indexOf('WHEN (s.id IS NOT NULL'),
+    );
+    assert.ok(minorBranch.includes(`r.created_at < '${minorCutoffIso}'::timestamptz`));
+    assert.ok(!minorBranch.includes(`'${adultCutoffIso}'`));
+    // Confirmed-adult branch uses the adult cutoff.
+    assert.ok(sql.includes(`r.created_at < '${adultCutoffIso}'::timestamptz`));
+  });
+
+  it('fails SAFE: unresolved student falls back to the longer minor cutoff', () => {
+    const sql = buildRetentionPredicate({
+      table: 'health_special_needs_assessments',
+      adultCutoffIso,
+      minorCutoffIso,
+    });
+    // The ELSE (no student / no DOB) branch must use the minor cutoff, not adult.
+    const elseBranch = sql.slice(sql.indexOf('ELSE'));
+    assert.ok(elseBranch.includes(`'${minorCutoffIso}'::timestamptz`));
+    assert.ok(!elseBranch.includes(`'${adultCutoffIso}'::timestamptz`));
+  });
+
+  it('buildEligibleFrom joins students on student_id and applies the predicate', () => {
+    const frag = buildEligibleFrom({
+      table: 'counselling_sessions',
+      adultCutoffIso,
+      minorCutoffIso,
+    });
+    assert.match(frag, /FROM "counselling_sessions" r/);
+    assert.match(frag, /LEFT JOIN students s ON s\.id::text = r\.student_id/);
+    assert.match(frag, /WHERE \(/);
+    // Regression guard: must NOT be the old adult-only predicate.
+    assert.ok(!/^FROM "counselling_sessions"\s+WHERE created_at <[^C]*$/.test(frag));
   });
 });

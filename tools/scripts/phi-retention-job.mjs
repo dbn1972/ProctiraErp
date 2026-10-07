@@ -52,6 +52,60 @@ export function classifyRetentionBucket({ isMinor, phiDays, minorDays }) {
   return isMinor ? minorDays : phiDays;
 }
 
+/**
+ * PRC-H107: build the SQL eligibility predicate that honours the minor
+ * retention period. A record whose subject was a minor at the time the record
+ * was created is only eligible for deletion once it is older than the (longer)
+ * minor cutoff; adult records use the adult cutoff.
+ *
+ * The record is joined to `students.date_of_birth` by `student_id`. When the
+ * student cannot be resolved (orphan row, or DOB unknown) we fail SAFE and keep
+ * the row until the longer minor cutoff — never delete a possibly-minor record
+ * at the adult cutoff.
+ *
+ * @param {object} args
+ * @param {string} args.table            record table name (aliased `r`)
+ * @param {string} args.adultCutoffIso   ISO timestamp for the adult cutoff
+ * @param {string} args.minorCutoffIso   ISO timestamp for the (longer) minor cutoff
+ * @returns {string} a boolean SQL expression over alias `r`
+ */
+export function buildRetentionPredicate({ table, adultCutoffIso, minorCutoffIso }) {
+  void table;
+  // was_minor: student existed and was < 18 years old at r.created_at.
+  // If no student row / NULL DOB, was_minor is FALSE here but the COALESCE
+  // below forces the minor (longer) cutoff for the unresolved case.
+  const wasMinor = `(
+    s.date_of_birth IS NOT NULL
+    AND r.created_at < (s.date_of_birth + INTERVAL '18 years')
+  )`;
+  const studentResolved = `s.id IS NOT NULL AND s.date_of_birth IS NOT NULL`;
+  // Effective cutoff: minor rows and unresolved rows -> minor cutoff; only a
+  // confirmed adult uses the shorter adult cutoff.
+  return `(
+    CASE
+      WHEN ${wasMinor} THEN r.created_at < '${minorCutoffIso}'::timestamptz
+      WHEN (${studentResolved}) THEN r.created_at < '${adultCutoffIso}'::timestamptz
+      ELSE r.created_at < '${minorCutoffIso}'::timestamptz
+    END
+  )`;
+}
+
+/**
+ * Build a full count/delete body for a PHI table using the minor-aware
+ * predicate. Joins the record table to `students` on `student_id = students.id`.
+ * @param {object} args
+ * @param {string} args.table
+ * @param {string} args.adultCutoffIso
+ * @param {string} args.minorCutoffIso
+ * @returns {string} SQL FROM/JOIN/WHERE fragment selecting eligible rows (alias r)
+ */
+export function buildEligibleFrom({ table, adultCutoffIso, minorCutoffIso }) {
+  const predicate = buildRetentionPredicate({ table, adultCutoffIso, minorCutoffIso });
+  return `FROM "${table}" r
+       LEFT JOIN students s ON s.id::text = r.student_id
+     WHERE ${predicate}`;
+}
+
 export function buildRetentionPlan({
   counsellingCount,
   specialNeedsCount,
@@ -133,22 +187,23 @@ async function main() {
   const adultCutoff = retentionCutoffIso(PHI_DAYS);
   const minorCutoff = retentionCutoffIso(MINOR_DAYS);
 
-  let counsellingCount =
-    psqlScalar(
-      `SELECT count(*)::int FROM counselling_sessions WHERE created_at < '${adultCutoff}'::timestamptz;`,
-    ) ?? 0;
+  // PRC-H107: minor-linked records are retained for the longer minor window.
+  const counsellingFrom = buildEligibleFrom({
+    table: 'counselling_sessions',
+    adultCutoffIso: adultCutoff,
+    minorCutoffIso: minorCutoff,
+  });
+  const specialNeedsFrom = buildEligibleFrom({
+    table: 'health_special_needs_assessments',
+    adultCutoffIso: adultCutoff,
+    minorCutoffIso: minorCutoff,
+  });
 
-  let specialNeedsCount =
-    psqlScalar(
-      `SELECT count(*)::int FROM health_special_needs_assessments WHERE created_at < '${adultCutoff}'::timestamptz;`,
-    ) ??
-    psqlScalar(
-      `SELECT count(*)::int FROM health_special_needs_records WHERE created_at < '${adultCutoff}'::timestamptz;`,
-    ) ??
-    0;
+  const counsellingCount =
+    psqlScalar(`SELECT count(*)::int ${counsellingFrom};`) ?? 0;
 
-  // Silence unused minorCutoff in dry-run count path (documented for apply policy).
-  void minorCutoff;
+  const specialNeedsCount =
+    psqlScalar(`SELECT count(*)::int ${specialNeedsFrom};`) ?? 0;
 
   const plan = buildRetentionPlan({
     counsellingCount,
@@ -162,19 +217,20 @@ async function main() {
   if (!dryRun) {
     const counsellingDeleted = psqlExec(
       `WITH d AS (
-         DELETE FROM counselling_sessions WHERE created_at < '${adultCutoff}'::timestamptz RETURNING 1
+         DELETE FROM counselling_sessions
+         WHERE id IN (SELECT r.id ${counsellingFrom})
+         RETURNING 1
        ) SELECT count(*)::int FROM d;`,
     );
-    let specialNeedsDeleted = 0;
-    try {
-      specialNeedsDeleted = psqlExec(
-        `WITH d AS (
-           DELETE FROM health_special_needs_assessments WHERE created_at < '${adultCutoff}'::timestamptz RETURNING 1
-         ) SELECT count(*)::int FROM d;`,
-      );
-    } catch {
-      specialNeedsDeleted = 0;
-    }
+    // PRC-H107/H259: a failure here must not be swallowed as a zero count and
+    // reported as success. Let psqlExec throw so main().catch exits non-zero.
+    const specialNeedsDeleted = psqlExec(
+      `WITH d AS (
+         DELETE FROM health_special_needs_assessments
+         WHERE id IN (SELECT r.id ${specialNeedsFrom})
+         RETURNING 1
+       ) SELECT count(*)::int FROM d;`,
+    );
     plan.applied = { counsellingDeleted, specialNeedsDeleted };
   }
 
