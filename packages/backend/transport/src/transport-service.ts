@@ -1177,7 +1177,7 @@ export class TransportService {
       reason: 'Awaiting Fees invoice',
     });
     try {
-      const invoiceId = await this.postTransportInvoice(
+      const { invoiceId, alreadyInvoiced } = await this.postTransportInvoice(
         tenantId,
         actorId,
         band,
@@ -1187,7 +1187,9 @@ export class TransportService {
         (await this.repository.settleFeeLink(pending.id, tenantId, {
           status: 'invoiced',
           feesInvoiceId: invoiceId,
-          reason: null,
+          reason: alreadyInvoiced
+            ? 'Existing fees invoice for this structure reused (PRC-H108)'
+            : null,
         })) ?? pending
       );
     } catch (err) {
@@ -1207,7 +1209,7 @@ export class TransportService {
     actorId: string,
     band: TransportFeeStructureEntity,
     studentId: string,
-  ): Promise<string> {
+  ): Promise<{ invoiceId: string | null; alreadyInvoiced: boolean }> {
     const fees = this.fees;
     if (!fees) throw new BusinessRuleError(TRANSPORT_FEE_PENDING_NOTE);
     if (band.feesStructureId && fees.bulkInvoiceClass) {
@@ -1216,7 +1218,14 @@ export class TransportService {
         studentIds: [studentId],
       });
       const id = bulk.created[0]?.id;
-      if (id) return id;
+      if (id) return { invoiceId: id, alreadyInvoiced: false };
+      // PRC-H108: the student is in `skipped` because an invoice for this
+      // structure already exists. Do NOT fall through to createInvoice — that
+      // would double-bill the student. Signal already-invoiced so the fee link
+      // records the structure link without raising a second invoice.
+      if (bulk.skipped.includes(studentId)) {
+        return { invoiceId: null, alreadyInvoiced: true };
+      }
     }
     const invoice = await fees.createInvoice(tenantId, actorId, {
       studentId,
@@ -1225,7 +1234,7 @@ export class TransportService {
       amountCents: band.amountCents,
       currency: band.currency,
     });
-    return invoice.id;
+    return { invoiceId: invoice.id, alreadyInvoiced: false };
   }
 
   /**
@@ -1274,11 +1283,22 @@ export class TransportService {
         continue;
       }
       try {
-        const invoiceId = await this.postTransportInvoice(tenantId, actorId, band, link.studentId);
+        const { invoiceId, alreadyInvoiced } = await this.postTransportInvoice(
+          tenantId,
+          actorId,
+          band,
+          link.studentId,
+        );
         const settled = await this.repository.settleFeeLink(
           link.id,
           tenantId,
-          { status: 'invoiced', feesInvoiceId: invoiceId, reason: null },
+          {
+            status: 'invoiced',
+            feesInvoiceId: invoiceId,
+            reason: alreadyInvoiced
+              ? 'Existing fees invoice for this structure reused (PRC-H108)'
+              : null,
+          },
           leaseToken,
         );
         if (settled) invoiced += 1;

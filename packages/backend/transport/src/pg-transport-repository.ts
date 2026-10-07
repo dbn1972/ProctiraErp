@@ -4,6 +4,7 @@
  * When DATABASE_URL is set, transport CRUD persists via db/sql/006_transport_schema.sql.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -1367,6 +1368,7 @@ export class PgTransportRepository implements TransportRepository {
         id, tenant_id, assignment_id, student_id, transport_fee_structure_id,
         fees_invoice_id, fees_structure_id, status, reason, created_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT (tenant_id, assignment_id) DO NOTHING
       RETURNING *`,
       [
         data.id,
@@ -1381,6 +1383,14 @@ export class PgTransportRepository implements TransportRepository {
         now,
       ],
     );
+    // PRC-H108: a concurrent request won the insert for this assignment.
+    // Return the existing link instead of a duplicate (and avoid a second
+    // invoice downstream). Requires db/sql/121 unique index.
+    if (!result.rows[0]) {
+      const existing = await this.findFeeLinkByAssignment(data.assignmentId, data.tenantId);
+      if (existing) return existing;
+      throw new ConflictError('Transport fee link already exists for this assignment');
+    }
     return mapFeeLinkRow(result.rows[0] as Record<string, unknown>);
   }
 
