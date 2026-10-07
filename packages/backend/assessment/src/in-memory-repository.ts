@@ -177,6 +177,15 @@ export class InMemoryAssessmentItemRepository implements AssessmentItemRepositor
     ).length;
   }
 
+  async findByGradingScheme(
+    tenantId: string,
+    gradingSchemeId: string,
+  ): Promise<AssessmentItemEntity[]> {
+    return this.items.filter(
+      (i) => i.tenantId === tenantId && i.gradingSchemeId === gradingSchemeId,
+    );
+  }
+
   async findById(id: string, tenantId: string): Promise<AssessmentItemEntity | null> {
     return this.items.find((i) => i.id === id && i.tenantId === tenantId) ?? null;
   }

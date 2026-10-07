@@ -303,6 +303,19 @@ export class PrismaAssessmentItemRepository implements AssessmentItemRepository 
     });
   }
 
+  async findByGradingScheme(
+    tenantId: string,
+    gradingSchemeId: string,
+  ): Promise<AssessmentItemEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.assessmentItem.findMany({
+        where: { tenantId, gradingSchemeId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      })) as AssessmentItemRow[];
+      return rows.map(toItemEntity);
+    });
+  }
+
   async findById(id: string, tenantId: string): Promise<AssessmentItemEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = (await tx.assessmentItem.findFirst({

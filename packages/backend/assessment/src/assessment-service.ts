@@ -25,6 +25,7 @@ import type {
   OutcomeEntity,
   OutcomeRepository,
 } from './assessment-repository.js';
+import type { AssessmentResultRepository } from './result-repository.js';
 import type {
   CreateGradingSchemeInput,
   UpdateGradingSchemeInput,
@@ -57,6 +58,12 @@ export class AssessmentService {
     private readonly gradingSchemeRepo: GradingSchemeRepository,
     private readonly assessmentItemRepo: AssessmentItemRepository,
     private readonly outcomeRepo: OutcomeRepository,
+    /**
+     * PRC-H037/H038: optional result repository used only for in-use guards
+     * (block destructive item replace / scheme edit-delete once results exist).
+     * Optional so existing wirings/tests that do not pass it still construct.
+     */
+    private readonly resultRepo?: AssessmentResultRepository,
   ) {}
 
   // ─── Grading Scheme Operations ───────────────────────────────────────────
@@ -147,6 +154,21 @@ export class AssessmentService {
         input.maxValue !== undefined,
     });
 
+    // PRC-H038: editing a scheme's bands or range after grades were computed
+    // against it would retroactively change historical/issued grades with no
+    // trail. Block such edits when the scheme is referenced by items that
+    // already have recorded results. A rename-only update is still allowed.
+    const changesGrading =
+      input.thresholds !== undefined ||
+      input.minValue !== undefined ||
+      input.maxValue !== undefined ||
+      input.type !== undefined;
+    if (changesGrading && (await this.schemeHasResults(tenantId, id))) {
+      throw new ConflictError(
+        `Grading scheme '${id}' is in use by graded results; create a new scheme instead of editing its bands/range so issued grades do not change.`,
+      );
+    }
+
     const updateData: Partial<GradingSchemeEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.type !== undefined) updateData.type = input.type;
@@ -181,10 +203,56 @@ export class AssessmentService {
    * @throws NotFoundError if not found
    */
   async deleteGradingScheme(tenantId: string, id: string): Promise<void> {
+    // PRC-H037/H038: deleting a scheme referenced by assessment items makes
+    // grade calculation throw NotFound (subjects silently drop from report
+    // cards). Block delete while any item references it.
+    const itemsUsing = await this.assessmentItemRepo.findByGradingScheme(tenantId, id);
+    if (itemsUsing.length > 0) {
+      throw new ConflictError(
+        `Grading scheme '${id}' is referenced by ${itemsUsing.length} assessment item(s) and cannot be deleted.`,
+      );
+    }
     const deleted = await this.gradingSchemeRepo.delete(id, tenantId);
     if (!deleted) {
       throw new NotFoundError(`Grading scheme with id '${id}' not found`);
     }
+  }
+
+  /**
+   * PRC-H038: true when the scheme is referenced by assessment items that
+   * already have recorded results (i.e. editing it would change issued grades).
+   * When no result repository is wired this guard is a no-op (returns false).
+   */
+  private async schemeHasResults(tenantId: string, gradingSchemeId: string): Promise<boolean> {
+    if (!this.resultRepo) return false;
+    const subjects = await this.findSubjectsUsingScheme(tenantId, gradingSchemeId);
+    for (const { subjectId, academicPeriodId } of subjects) {
+      const results = await this.resultRepo.findBySubjectPeriod(
+        tenantId,
+        subjectId,
+        academicPeriodId,
+      );
+      if (results.length > 0) return true;
+    }
+    return false;
+  }
+
+  /** Distinct (subject, period) pairs whose items use the given scheme. */
+  private async findSubjectsUsingScheme(
+    tenantId: string,
+    gradingSchemeId: string,
+  ): Promise<Array<{ subjectId: string; academicPeriodId: string }>> {
+    const items = await this.assessmentItemRepo.findByGradingScheme(tenantId, gradingSchemeId);
+    const seen = new Set<string>();
+    const pairs: Array<{ subjectId: string; academicPeriodId: string }> = [];
+    for (const item of items) {
+      const key = `${item.subjectId}:${item.academicPeriodId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        pairs.push({ subjectId: item.subjectId, academicPeriodId: item.academicPeriodId });
+      }
+    }
+    return pairs;
   }
 
   /**
@@ -302,6 +370,22 @@ export class AssessmentService {
         outcomeIds: item.outcomeIds ?? [],
       }),
     );
+
+    // PRC-H037: replacing items deletes+recreates them with new ids, which would
+    // orphan every recorded result (results key by item id). Refuse the
+    // destructive replace once any result exists for this subject+period.
+    if (this.resultRepo) {
+      const existingResults = await this.resultRepo.findBySubjectPeriod(
+        tenantId,
+        input.subjectId,
+        input.academicPeriodId,
+      );
+      if (existingResults.length > 0) {
+        throw new ConflictError(
+          `Cannot redefine assessment items for subject '${input.subjectId}' in period '${input.academicPeriodId}': ${existingResults.length} result(s) already recorded. Clear results first or create a new period.`,
+        );
+      }
+    }
 
     // Replace existing items for this subject+period
     return this.assessmentItemRepo.replaceItemsForSubjectPeriod(

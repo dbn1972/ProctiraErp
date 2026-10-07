@@ -136,6 +136,9 @@ export const assessmentPlugin = fp(
       gradingSchemeRepository,
       assessmentItemRepository,
       outcomeRepository,
+      // PRC-H037/H038: enables the in-use guards (block item replace / scheme
+      // edit-delete once results exist).
+      resultRepository,
     );
 
     // Decorate fastify with the assessment service

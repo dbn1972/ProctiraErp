@@ -111,6 +111,12 @@ export interface AssessmentItemRepository {
     academicPeriodId: string,
   ): Promise<number>;
 
+  /** PRC-H037/H038: items that reference a grading scheme (in-use check). */
+  findByGradingScheme(
+    tenantId: string,
+    gradingSchemeId: string,
+  ): Promise<AssessmentItemEntity[]>;
+
   /** Find a single assessment item by ID */
   findById(id: string, tenantId: string): Promise<AssessmentItemEntity | null>;
 }

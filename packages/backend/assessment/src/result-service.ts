@@ -318,8 +318,11 @@ export class ResultService {
     const itemScores: StudentSubjectResult['itemScores'] = [];
     let totalWeightedScore = 0;
     let totalWeight = 0;
+    let expectedWeight = 0;
+    const missingItemIds: string[] = [];
 
     for (const item of items) {
+      expectedWeight += item.weight;
       const score = scoreMap.get(item.id);
       if (score !== undefined) {
         // Normalize score to percentage of item's max score, then apply weight
@@ -335,16 +338,29 @@ export class ResultService {
 
         totalWeightedScore += weightedScore;
         totalWeight += item.weight;
+      } else {
+        missingItemIds.push(item.id);
       }
     }
 
-    // Calculate weighted average (scaled to grading scheme range)
+    // PRC-H034: a subject is complete only when every item has a score.
+    const complete = missingItemIds.length === 0;
+    // Coverage is the fraction of the item set (by weight) that has been entered.
+    const coverage =
+      expectedWeight > 0 ? Math.round((totalWeight / expectedWeight) * 10000) / 10000 : 0;
+
+    // Calculate weighted average (scaled to grading scheme range).
+    // PRC-H034: pro-rate by the weight actually entered so a partial entry is
+    // reported as "progress to date" (e.g. a 95% midterm at 40% weight shows
+    // 95%, flagged incomplete), never a silent low grade from un-entered items
+    // counted as zero.
     let weightedAverage = 0;
     if (totalWeight > 0) {
-      // totalWeightedScore is already a percentage (0-100 scale)
-      // Scale it to the grading scheme's range
+      // totalWeightedScore is a percentage already weighted by entered weight;
+      // divide by the entered weight fraction to pro-rate to 0-100.
+      const proRatedPercent = (totalWeightedScore / totalWeight) * 100;
       const range = gradingScheme.maxValue - gradingScheme.minValue;
-      weightedAverage = gradingScheme.minValue + (totalWeightedScore / 100) * range;
+      weightedAverage = gradingScheme.minValue + (proRatedPercent / 100) * range;
     }
 
     // Round to 2 decimal places
@@ -361,6 +377,11 @@ export class ResultService {
       weightedAverage,
       grade,
       gradeDescriptor: descriptor,
+      complete,
+      coverage,
+      missingItemIds,
+      schemeMinValue: gradingScheme.minValue,
+      schemeMaxValue: gradingScheme.maxValue,
     };
   }
 
