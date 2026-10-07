@@ -86,8 +86,67 @@ function mapNotification(row: Record<string, unknown>): NotificationEntity {
   };
 }
 
+/** Parse a JSONB column that may arrive as a parsed object or a JSON string. */
+function parseJson<T>(raw: unknown, fallback: T): T {
+  if (raw == null) return fallback;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return raw as T;
+}
+
+function mapRule(row: Record<string, unknown>): NotificationRuleEntity {
+  return {
+    id: String(row['id']),
+    tenantId: String(row['tenant_id']),
+    name: String(row['name']),
+    entityType: String(row['entity_type']),
+    event: String(row['event']) as NotificationRuleEvent,
+    conditions: parseJson<Record<string, unknown>>(row['conditions'], {}),
+    templateId: String(row['template_id']),
+    channels: parseJson<DeliveryChannel[]>(row['channels'], []),
+    recipientQuery: parseJson<RecipientQuery>(row['recipient_query'], {} as RecipientQuery),
+    isActive: Boolean(row['is_active']),
+    schedule: row['schedule'] == null ? null : String(row['schedule']),
+    createdAt:
+      row['created_at'] instanceof Date
+        ? (row['created_at'] as Date)
+        : new Date(String(row['created_at'])),
+    updatedAt:
+      row['updated_at'] instanceof Date
+        ? (row['updated_at'] as Date)
+        : new Date(String(row['updated_at'])),
+  };
+}
+
+function mapTemplate(row: Record<string, unknown>): NotificationTemplateEntity {
+  return {
+    id: String(row['id']),
+    tenantId: String(row['tenant_id']),
+    name: String(row['name']),
+    channel: String(row['channel']) as DeliveryChannel,
+    subject: row['subject'] == null ? null : String(row['subject']),
+    body: String(row['body']),
+    variables: parseJson<string[]>(row['variables'], []),
+    createdAt:
+      row['created_at'] instanceof Date
+        ? (row['created_at'] as Date)
+        : new Date(String(row['created_at'])),
+    updatedAt:
+      row['updated_at'] instanceof Date
+        ? (row['updated_at'] as Date)
+        : new Date(String(row['updated_at'])),
+  };
+}
+
 /**
- * Hybrid: PG for delivery records; in-memory for rules/templates/recipients.
+ * Durable notification repository (PRC-H071): PG for delivery records AND for
+ * rules / templates / recipient directory. The in-memory delegate remains only
+ * for the legacy sync seedUsers helper used by dev/tests.
  */
 export class HybridNotificationRepository implements NotificationRepository {
   constructor(
@@ -106,7 +165,36 @@ export class HybridNotificationRepository implements NotificationRepository {
   seedUsers(
     users: Array<{ id: string; roleIds: string[]; areaIds: string[]; institutionIds: string[] }>,
   ): void {
+    // Legacy sync seed (dev/tests). Durable resolution reads the directory
+    // table; use upsertDirectoryUsers for the production path.
     this.memory.seedUsers(users);
+  }
+
+  /**
+   * PRC-H071: durably upsert recipient-directory membership for a tenant so
+   * role/area/institution broadcasts resolve across replicas and restarts.
+   * This is the service's own projection — never a cross-service DB read.
+   */
+  async upsertDirectoryUsers(
+    tenantId: string,
+    users: Array<{ id: string; roleIds: string[]; areaIds: string[]; institutionIds: string[] }>,
+  ): Promise<void> {
+    await this.ensureSchema();
+    await this.withTenant(tenantId, async (client) => {
+      for (const u of users) {
+        await client.query(
+          `INSERT INTO notification_directory_users
+             (tenant_id, user_id, role_ids, area_ids, institution_ids, updated_at)
+           VALUES ($1,$2,$3,$4,$5,now())
+           ON CONFLICT (tenant_id, user_id) DO UPDATE SET
+             role_ids = EXCLUDED.role_ids,
+             area_ids = EXCLUDED.area_ids,
+             institution_ids = EXCLUDED.institution_ids,
+             updated_at = now()`,
+          [tenantId, u.id, u.roleIds, u.areaIds, u.institutionIds],
+        );
+      }
+    });
   }
 
   async createNotification(entity: NotificationEntity): Promise<NotificationEntity> {
@@ -267,54 +355,203 @@ export class HybridNotificationRepository implements NotificationRepository {
     });
   }
 
-  // ─── Rules / templates / recipients (in-memory) ─────────────────────────
+  // ─── Rules / templates / recipients (durable, PRC-H071) ─────────────────
 
-  createRule(entity: NotificationRuleEntity): Promise<NotificationRuleEntity> {
-    return this.memory.createRule(entity);
+  async createRule(entity: NotificationRuleEntity): Promise<NotificationRuleEntity> {
+    await this.ensureSchema();
+    return this.withTenant(entity.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO notification_rules (
+           id, tenant_id, name, entity_type, event, conditions, template_id,
+           channels, recipient_query, is_active, schedule, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10,$11,now(),now())
+         RETURNING *`,
+        [
+          entity.id,
+          entity.tenantId,
+          entity.name,
+          entity.entityType,
+          entity.event,
+          JSON.stringify(entity.conditions ?? {}),
+          entity.templateId,
+          JSON.stringify(entity.channels ?? []),
+          JSON.stringify(entity.recipientQuery ?? {}),
+          entity.isActive,
+          entity.schedule,
+        ],
+      );
+      return mapRule(result.rows[0] as Record<string, unknown>);
+    });
   }
 
-  getRuleById(tenantId: string, id: string): Promise<NotificationRuleEntity | null> {
-    return this.memory.getRuleById(tenantId, id);
+  async getRuleById(tenantId: string, id: string): Promise<NotificationRuleEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM notification_rules WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapRule(row) : null;
+    });
   }
 
-  updateRule(
+  async updateRule(
     id: string,
     tenantId: string,
     update: Partial<Omit<NotificationRuleEntity, 'id' | 'tenantId' | 'createdAt'>>,
   ): Promise<NotificationRuleEntity | null> {
-    return this.memory.updateRule(id, tenantId, update);
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE notification_rules SET
+           name = COALESCE($3, name),
+           entity_type = COALESCE($4, entity_type),
+           event = COALESCE($5, event),
+           conditions = COALESCE($6::jsonb, conditions),
+           template_id = COALESCE($7, template_id),
+           channels = COALESCE($8::jsonb, channels),
+           recipient_query = COALESCE($9::jsonb, recipient_query),
+           is_active = COALESCE($10, is_active),
+           schedule = CASE WHEN $11::boolean THEN $12 ELSE schedule END,
+           updated_at = now()
+         WHERE id = $1 AND tenant_id = $2
+         RETURNING *`,
+        [
+          id,
+          tenantId,
+          update.name ?? null,
+          update.entityType ?? null,
+          update.event ?? null,
+          update.conditions ? JSON.stringify(update.conditions) : null,
+          update.templateId ?? null,
+          update.channels ? JSON.stringify(update.channels) : null,
+          update.recipientQuery ? JSON.stringify(update.recipientQuery) : null,
+          update.isActive ?? null,
+          Object.prototype.hasOwnProperty.call(update, 'schedule'),
+          update.schedule ?? null,
+        ],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapRule(row) : null;
+    });
   }
 
-  deleteRule(tenantId: string, id: string): Promise<boolean> {
-    return this.memory.deleteRule(tenantId, id);
+  async deleteRule(tenantId: string, id: string): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM notification_rules WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      const count = (result as { rowCount?: number }).rowCount ?? 0;
+      return count > 0;
+    });
   }
 
-  getActiveRulesForEvent(
+  async getActiveRulesForEvent(
     tenantId: string,
     entityType: string,
     event: NotificationRuleEvent,
   ): Promise<NotificationRuleEntity[]> {
-    return this.memory.getActiveRulesForEvent(tenantId, entityType, event);
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM notification_rules
+          WHERE tenant_id = $1 AND entity_type = $2 AND event = $3 AND is_active = TRUE
+          ORDER BY created_at ASC`,
+        [tenantId, entityType, event],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapRule);
+    });
   }
 
-  listRules(tenantId: string): Promise<NotificationRuleEntity[]> {
-    return this.memory.listRules(tenantId);
+  async listRules(tenantId: string): Promise<NotificationRuleEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM notification_rules WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapRule);
+    });
   }
 
-  createTemplate(entity: NotificationTemplateEntity): Promise<NotificationTemplateEntity> {
-    return this.memory.createTemplate(entity);
+  async createTemplate(entity: NotificationTemplateEntity): Promise<NotificationTemplateEntity> {
+    await this.ensureSchema();
+    return this.withTenant(entity.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO notification_templates (
+           id, tenant_id, name, channel, subject, body, variables, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,now(),now())
+         RETURNING *`,
+        [
+          entity.id,
+          entity.tenantId,
+          entity.name,
+          entity.channel,
+          entity.subject,
+          entity.body,
+          JSON.stringify(entity.variables ?? []),
+        ],
+      );
+      return mapTemplate(result.rows[0] as Record<string, unknown>);
+    });
   }
 
-  getTemplateById(tenantId: string, id: string): Promise<NotificationTemplateEntity | null> {
-    return this.memory.getTemplateById(tenantId, id);
+  async getTemplateById(
+    tenantId: string,
+    id: string,
+  ): Promise<NotificationTemplateEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM notification_templates WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapTemplate(row) : null;
+    });
   }
 
-  listTemplates(tenantId: string): Promise<NotificationTemplateEntity[]> {
-    return this.memory.listTemplates(tenantId);
+  async listTemplates(tenantId: string): Promise<NotificationTemplateEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM notification_templates WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapTemplate);
+    });
   }
 
-  resolveRecipients(tenantId: string, query: RecipientQuery): Promise<string[]> {
-    return this.memory.resolveRecipients(tenantId, query);
+  async resolveRecipients(tenantId: string, query: RecipientQuery): Promise<string[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const ids = new Set<string>();
+      // Explicit user ids are returned as-is (no directory lookup required).
+      for (const userId of query.userIds ?? []) ids.add(userId);
+
+      const roleIds = query.roleIds ?? [];
+      const areaIds = query.areaIds ?? [];
+      const institutionIds = query.institutionIds ?? [];
+      if (roleIds.length || areaIds.length || institutionIds.length) {
+        const result = await client.query(
+          `SELECT user_id FROM notification_directory_users
+            WHERE tenant_id = $1
+              AND (
+                ($2::text[] <> '{}' AND role_ids && $2::text[])
+                OR ($3::text[] <> '{}' AND area_ids && $3::text[])
+                OR ($4::text[] <> '{}' AND institution_ids && $4::text[])
+              )`,
+          [tenantId, roleIds, areaIds, institutionIds],
+        );
+        for (const row of result.rows as Record<string, unknown>[]) {
+          ids.add(row['user_id'] as string);
+        }
+      }
+      return Array.from(ids);
+    });
   }
 }
 
