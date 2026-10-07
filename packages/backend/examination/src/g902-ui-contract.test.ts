@@ -8,6 +8,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { examinationPlugin } from './examination-plugin.js';
+import { InMemoryDocumentBlobStore } from './document-generation-service.js';
 import { InMemoryDocumentRepository } from './in-memory-document-repository.js';
 import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import { InMemoryResultRepository } from './in-memory-result-repository.js';
@@ -70,6 +71,11 @@ describe('G-902 examinations UI contract', () => {
       resultRepository: new InMemoryResultRepository(),
       documentRepository: new InMemoryDocumentRepository(),
       pdfGenerator: new SimplePdfGenerator(),
+      // Hermetic: without an explicit store the plugin would resolve a
+      // Postgres-backed store from the shared pool (DATABASE_URL is set in the
+      // integration-test job), and persisting a blob for this synthetic tenant
+      // would fail the examination_document_blobs → tenants FK (db/sql/125).
+      documentBlobStore: new InMemoryDocumentBlobStore(),
     });
     await app.ready();
   });
