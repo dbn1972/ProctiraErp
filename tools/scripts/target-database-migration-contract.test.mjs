@@ -74,12 +74,30 @@ test('manual deploy requires successful CI for the selected SHA', () => {
 });
 
 test('shared per-service chart changes fan out to every canonical workload', () => {
+  // PRC-M259: deploy.yml delegates path mapping to tools/scripts/services.json.
   const deploy = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
-  assert.match(
-    deploy,
-    /infrastructure\/helm\/proctira-service\/[\s\S]*SERVICES="api-gateway,web,registration-portal,etl-worker"/,
+  assert.match(deploy, /detect-affected-services\.mjs affected --workflow deploy/);
+  const manifest = JSON.parse(readFileSync(join(root, 'tools/scripts/services.json'), 'utf8'));
+  assert.ok(manifest.fanoutPaths.includes('infrastructure/helm/proctira-service/'));
+  const out = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { affectedFromFiles, loadManifest } from ${JSON.stringify(
+        join(root, 'tools/scripts/detect-affected-services.mjs'),
+      )};
+      console.log(affectedFromFiles(loadManifest(), 'deploy', ['infrastructure/helm/proctira-service/values.yaml']).join(','));`,
+    ],
+    { encoding: 'utf8' },
   );
-  assert.doesNotMatch(deploy, /\["infrastructure\/helm\/proctira-service\/"\]="api-gateway"/);
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(out.stdout.trim().split(',').sort(), [
+    'api-gateway',
+    'etl-worker',
+    'registration-portal',
+    'web',
+  ]);
 });
 
 test('hostel index repair builds replacement before atomic swap and cleanup', () => {
