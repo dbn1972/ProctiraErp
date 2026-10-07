@@ -20,10 +20,14 @@ export async function run() {
   const dir = mkdtempSync(resolve(tmpdir(), 'dod-aggregator-'));
   try {
     const reportPath = resolve(dir, 'report.json');
-    const proc = spawnSync(process.execPath, [cli, '--only=table-naming', `--report=${reportPath}`], {
-      cwd: dir,
-      encoding: 'utf8',
-    });
+    const proc = spawnSync(
+      process.execPath,
+      [cli, '--only=table-naming', `--report=${reportPath}`],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+      },
+    );
     results.push({
       name: 'aggregator runs without crashing',
       ok: proc.status === 0 || proc.status === 1,
@@ -45,11 +49,60 @@ export async function run() {
     });
     results.push({
       name: 'report contains the requested check',
-      ok: Array.isArray(json.checks) && json.checks.length === 1 && json.checks[0].check === 'table-naming',
+      ok:
+        Array.isArray(json.checks) &&
+        json.checks.length === 1 &&
+        json.checks[0].check === 'table-naming',
     });
     results.push({
       name: 'report has totals object',
       ok: json.totals && typeof json.totals.totalErrors === 'number',
+    });
+
+    // PR #579: a baselined error entry must say why the debt is tolerated.
+    const debt = {
+      check: 'table-naming',
+      severity: 'error',
+      file: 'packages/database/prisma/schema.prisma',
+      line: 1,
+      message: 'fixture debt entry',
+    };
+    const gate = (finding) => {
+      const baselinePath = resolve(dir, 'baseline.json');
+      writeFileSync(
+        baselinePath,
+        JSON.stringify({
+          schemaVersion: 1,
+          totals: { totalErrors: 1, totalWarnings: 0, totalFiles: 0 },
+          checks: [{ check: 'table-naming', errorCount: 1, warningCount: 0, findings: [finding] }],
+        }),
+      );
+      return spawnSync(
+        process.execPath,
+        [cli, '--only=table-naming', `--report=${reportPath}`, `--baseline=${baselinePath}`],
+        { cwd: dir, encoding: 'utf8' },
+      );
+    };
+    const noReason = gate(debt);
+    results.push({
+      name: 'PR #579: baseline error entry without a reason fails the gate',
+      ok: noReason.status === 1 && /baseline entry has no reason/.test(noReason.stdout),
+      message: `exit=${noReason.status} stdout=${noReason.stdout.slice(-300)}`,
+    });
+    const placeholder = gate({ ...debt, reason: 'debt' });
+    results.push({
+      name: 'PR #579: placeholder reason shorter than the minimum fails the gate',
+      ok: placeholder.status === 1,
+      message: `exit=${placeholder.status}`,
+    });
+    const withReason = gate({
+      ...debt,
+      reason: 'fixture: tolerated pre-existing debt with a ticketed follow-up',
+    });
+    results.push({
+      name: 'PR #579: baseline error entry with a reason passes',
+      ok: withReason.status === 0,
+      message: `exit=${withReason.status} stdout=${withReason.stdout.slice(-300)}`,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
