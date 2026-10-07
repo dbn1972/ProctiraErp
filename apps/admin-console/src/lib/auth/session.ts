@@ -39,8 +39,13 @@ export function decodeAdminToken(token: string): AdminTokenPayload | null {
     ...payload,
     // H001: TokenService emits `roles`, not the console-only platformRole claim.
     // Prefer canonical role IDs whenever present; retain the legacy claim only
-    // for older platform sessions that have no roles array.
-    platformRole: platformRoleFromJwtRoles(payload.roles) ?? payload.platformRole,
+    // for older platform sessions that have no roles array. Roles are honoured
+    // only on platform-tenant tokens: `super-admin` is also a tenant role ID, so a
+    // tenant token must never be read as a platform operator.
+    platformRole:
+      payload.tenantId === 'platform'
+        ? (platformRoleFromJwtRoles(payload.roles) ?? payload.platformRole)
+        : undefined,
   };
 }
 

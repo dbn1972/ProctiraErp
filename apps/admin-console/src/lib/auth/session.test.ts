@@ -28,6 +28,19 @@ describe('decodeAdminToken', () => {
     expect(decodeAdminToken(token)?.platformRole).toBe('platform_admin');
   });
 
+  it('never derives a platform role from a tenant-scoped token (PRC-H001)', () => {
+    const token = makeToken({
+      sub: 'tenant-admin',
+      email: 'admin@school.example',
+      roles: [{ roleId: 'super-admin', roleName: 'Super Administrator' }],
+      tenantId: '5a58f9ff-b6a6-43bd-a014-bb622f763e48',
+      iat: 1,
+      exp: 9_999_999_999,
+    });
+
+    expect(decodeAdminToken(token)?.platformRole).toBeUndefined();
+  });
+
   it('does not trust a role display name as a platform permission (PRC-H001)', () => {
     const token = makeToken({
       sub: 'op-1',
