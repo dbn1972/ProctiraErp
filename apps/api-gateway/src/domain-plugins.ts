@@ -88,6 +88,7 @@ import {
 import {
   createGradebookRepository,
   gradebookPlugin,
+  isGradebookSectionMembership,
   type GradebookAuditEntry,
 } from '@proctira/backend-gradebook';
 import {
@@ -1201,8 +1202,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // the fees parentBinding. A student reading their own grades is served via the guardian
       // link table when present; direct student-self resolution is a tracked follow-up.
       const gradebookParentRepo = createParentPortalRepository();
+      const gradebookRepository = createGradebookRepository();
       await scope.register(gradebookPlugin, {
-        repository: createGradebookRepository(),
+        repository: gradebookRepository,
+        // PRC-H066: grade writes are scoped to the section. Teacher-only roles must be the
+        // section's primary/meeting teacher (staff.user_id link) AND hold an active
+        // staff_assignments row at the section's school (same source as the PRC-M101 timetable
+        // check); every entry/submit needs the student enrolled in the section. Without a
+        // membership lookup, production-like envs fail closed (503).
+        sectionMembership: isGradebookSectionMembership(gradebookRepository)
+          ? gradebookRepository
+          : null,
+        staffHasActiveAssignmentAt: (tenantId, staffId, institutionId) =>
+          sharedAssignmentRepository().hasActiveAssignmentAt(staffId, tenantId, institutionId),
         prefix: '/gradebook',
         // PRC-M266: transcript / board-export / report-card audit events go to the shared,
         // hash-chained audit log (durable across restarts). No pool -> in-process only (dev).

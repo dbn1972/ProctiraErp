@@ -9,7 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { isConsentStaff } from './parent-portal-consent-access.js';
 import { isFeesStaff } from './parent-portal-fees-access.js';
-import type { ParentPortalService } from './parent-portal-service.js';
+import type { ParentPortalService, StudentActor } from './parent-portal-service.js';
 import {
   AddMessageSchema,
   ConsentParamsSchema,
@@ -1246,63 +1246,63 @@ export async function registerParentPortalRoutes(
       path: 'attendance',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildAttendance(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfAttendance(tenantId, actor),
     },
     {
       path: 'grades',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildGrades(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfGrades(tenantId, actor),
     },
     {
       path: 'report-cards',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildReportCards(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfReportCards(tenantId, actor),
     },
     {
       path: 'lms',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildLms(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfLms(tenantId, actor),
     },
     {
       path: 'pal',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildPalPlan(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfPalPlan(tenantId, actor),
     },
     {
       path: 'timetable',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildTimetable(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfTimetable(tenantId, actor),
     },
     {
       path: 'homework',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildHomework(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfHomework(tenantId, actor),
     },
     {
       path: 'calendar',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildCalendar(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfCalendar(tenantId, actor),
     },
     {
       path: 'notices',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildNotices(tenantId, parentUserId, studentId),
-      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+      self: (tenantId: string, actor: StudentActor) =>
         parentPortalService.getSelfNotices(tenantId, actor),
     },
   ] as const;
@@ -1332,7 +1332,8 @@ export async function registerParentPortalRoutes(
     fastify.get(`${studentPrefix}/me/${view.path}`, async (request, reply) => {
       const tenantId = await requireTenant(request, reply);
       if (!tenantId) return;
-      const actor = { userId: getActorId(request), email: actorEmail(request) };
+      // PRC-H075: bind on the verified principal id only; the email claim is not an identity link.
+      const actor = { userId: getActorId(request) };
       return sendOrAppError(reply, () => view.self(tenantId, actor));
     });
   }

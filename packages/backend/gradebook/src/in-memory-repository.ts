@@ -11,6 +11,7 @@ import type {
   GradeEntryEntity,
   GradeEntryWriteGuard,
   GradebookRepository,
+  GradebookSectionMembership,
   GradingScaleEntity,
   InstitutionSummary,
   ListBoardExportCandidatesFilter,
@@ -21,7 +22,9 @@ import type {
   TranscriptIssuanceEntity,
 } from './gradebook-repository.js';
 
-export class InMemoryGradebookRepository implements GradebookRepository {
+export class InMemoryGradebookRepository
+  implements GradebookRepository, GradebookSectionMembership
+{
   readonly writesAuditViaDatabase = false as const;
   private readonly entries = new Map<string, GradeEntryEntity>();
   private readonly creditRules = new Map<string, CreditRuleEntity>();
@@ -34,6 +37,13 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   private readonly institutions = new Map<string, InstitutionSummary>();
   private readonly boardCodes = new Map<string, BoardCodeEntity>();
   private readonly candidates = new Map<string, BoardExportCandidate>();
+  private readonly sectionTeachers: Array<{
+    tenantId: string;
+    sectionId: string;
+    staffId: string;
+    principalId: string;
+  }> = [];
+  private readonly sectionEnrollments = new Set<string>();
 
   seedSection(section: SectionSummary) {
     this.sections.set(section.id, section);
@@ -57,6 +67,49 @@ export class InMemoryGradebookRepository implements GradebookRepository {
 
   seedExportCandidate(candidate: BoardExportCandidate) {
     this.candidates.set(candidate.studentId, candidate);
+  }
+
+  /** PRC-H066 seed: `principalId` (staff.user_id) teaches `sectionId` as staff `staffId`. */
+  seedSectionTeacher(input: {
+    tenantId: string;
+    sectionId: string;
+    staffId: string;
+    principalId: string;
+  }) {
+    this.sectionTeachers.push({ ...input });
+  }
+
+  /** PRC-H066 seed: student enrolled (ENROLLED) in a section. */
+  seedSectionEnrollment(input: { tenantId: string; sectionId: string; studentId: string }) {
+    this.sectionEnrollments.add(`${input.tenantId}:${input.sectionId}:${input.studentId}`);
+  }
+
+  async listTeacherStaffIdsForSection(
+    tenantId: string,
+    sectionId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]> {
+    const wanted = new Set(principalIds.filter(Boolean));
+    return [
+      ...new Set(
+        this.sectionTeachers
+          .filter(
+            (row) =>
+              row.tenantId === tenantId &&
+              row.sectionId === sectionId &&
+              wanted.has(row.principalId),
+          )
+          .map((row) => row.staffId),
+      ),
+    ];
+  }
+
+  async isStudentEnrolledInSection(
+    tenantId: string,
+    sectionId: string,
+    studentId: string,
+  ): Promise<boolean> {
+    return this.sectionEnrollments.has(`${tenantId}:${sectionId}:${studentId}`);
   }
 
   /** Test probe (PRC-M269): number of listGradeEntries calls. */
