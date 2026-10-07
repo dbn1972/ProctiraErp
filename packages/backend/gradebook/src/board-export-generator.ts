@@ -66,42 +66,59 @@ function deriveResult(pack: BoardPackDefinition, c: BoardExportCandidate): strin
   for (const subj of pack.requiredSubjects) {
     const row = map[subj];
     if (!row) return 'INCOMPLETE';
-    if (row.marks != null && row.marks < 33) return pack.code === 'ICSE' ? 'Fail' : 'FAIL';
+    // PRC-H064: use the board's own pass mark, not a hard-coded 33, so a 34 in
+    // a 35-pass board (MH-STATE) is correctly FAIL.
+    if (row.marks != null && row.marks < pack.passMark) {
+      return pack.code === 'ICSE' ? 'Fail' : 'FAIL';
+    }
   }
   return pack.code === 'ICSE' ? 'Pass' : 'PASS';
 }
 
-function deriveBandLabel(pack: BoardPackDefinition, c: BoardExportCandidate): string {
-  const scores = pack.requiredSubjects
-    .map((s) => subjectMap(c)[s]?.marks)
-    .filter((n): n is number => n != null);
-  if (scores.length === 0) return '';
-  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+/**
+ * PRC-H064: the per-subject grade cell. Use the stored letter grade when
+ * present; otherwise derive a band from THAT subject's own marks (never the
+ * candidate's overall average); blank when there is no mark for the subject.
+ * This stops a letter-only / unmarked subject from being filled with a grade
+ * invented from other subjects.
+ */
+function subjectGradeCell(
+  pack: BoardPackDefinition,
+  cell: { marks: number | null; grade: string | null } | undefined,
+): string {
+  if (!cell) return '';
+  if (cell.grade != null && cell.grade.length > 0) return cell.grade;
+  if (cell.marks != null) return bandForMarks(pack, cell.marks);
+  return '';
+}
+
+/** Band label for a single marks value under the board's scheme. */
+function bandForMarks(pack: BoardPackDefinition, value: number): string {
   if (pack.code === 'MH-STATE') {
-    if (avg >= 75) return 'Distinction';
-    if (avg >= 60) return 'First';
-    if (avg >= 45) return 'Second';
-    if (avg >= 35) return 'Pass';
+    if (value >= 75) return 'Distinction';
+    if (value >= 60) return 'First';
+    if (value >= 45) return 'Second';
+    if (value >= 35) return 'Pass';
     return 'Fail';
   }
   if (pack.code === 'ICSE') {
-    if (avg >= 90) return '1';
-    if (avg >= 80) return '2';
-    if (avg >= 70) return '3';
-    if (avg >= 60) return '4';
-    if (avg >= 50) return '5';
-    if (avg >= 40) return '6';
-    if (avg >= 35) return '7';
+    if (value >= 90) return '1';
+    if (value >= 80) return '2';
+    if (value >= 70) return '3';
+    if (value >= 60) return '4';
+    if (value >= 50) return '5';
+    if (value >= 40) return '6';
+    if (value >= 35) return '7';
     return 'Fail';
   }
-  // CBSE 9-pt approx from average
-  if (avg >= 91) return 'A1';
-  if (avg >= 81) return 'A2';
-  if (avg >= 71) return 'B1';
-  if (avg >= 61) return 'B2';
-  if (avg >= 51) return 'C1';
-  if (avg >= 41) return 'C2';
-  if (avg >= 33) return 'D';
+  // CBSE 9-pt approx
+  if (value >= 91) return 'A1';
+  if (value >= 81) return 'A2';
+  if (value >= 71) return 'B1';
+  if (value >= 61) return 'B2';
+  if (value >= 51) return 'C1';
+  if (value >= 41) return 'C2';
+  if (value >= 33) return 'D';
   return 'E';
 }
 
@@ -128,7 +145,7 @@ export function buildMarksheetCsv(ctx: BoardExportContext): string {
       csvEscape(ctx.centreCode),
       ...pack.requiredSubjects.flatMap((s) => [
         map[s]?.marks != null ? String(map[s].marks) : '',
-        csvEscape(map[s]?.grade ?? deriveBandLabel(pack, c)),
+        csvEscape(subjectGradeCell(pack, map[s])),
       ]),
       csvEscape(deriveResult(pack, c)),
       csvEscape(pack.securityMark),
@@ -153,7 +170,7 @@ export function buildExamResultsJson(ctx: BoardExportContext): unknown {
         [ctx.pack.examResultFields.find((f) => f.source === 'subjectCode')!.exportKey]: subj,
         [ctx.pack.examResultFields.find((f) => f.source === 'marksObtained')!.exportKey]: g.marks,
         [ctx.pack.examResultFields.find((f) => f.source === 'grade')!.exportKey]:
-          g.grade ?? deriveBandLabel(ctx.pack, c),
+          subjectGradeCell(ctx.pack, g),
         transcriptVersion: c.latestTranscript?.version ?? null,
         transcriptChecksum: c.latestTranscript?.checksumSha256 ?? null,
       });

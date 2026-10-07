@@ -1035,9 +1035,22 @@ export class PgGradebookRepository implements GradebookRepository, GradebookSect
       const studentIds = students.map((r) => String(r.student_id));
       const gradesRes = await this.query(
         tenantId,
-        `SELECT student_id, assessment_code, numeric_score, letter_grade
+        // PRC-H064: only LOCKED/PUBLISHED grades are eligible for an official
+        // board submission — never DRAFT/SUBMITTED/APPROVED/REJECTED. Status is
+        // derived from locked_at / published_at / metadata.workflowStatus.
+        // Deterministic de-dup: for a repeated (student, assessment_code) keep
+        // the published row, then the most recently entered.
+        `SELECT DISTINCT ON (student_id, assessment_code)
+           student_id, assessment_code, numeric_score, letter_grade
          FROM grade_entries
-         WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
+         WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
+           AND (
+             published_at IS NOT NULL
+             OR locked_at IS NOT NULL
+             OR lower(coalesce(metadata->>'workflowStatus', '')) IN ('locked', 'published')
+           )
+         ORDER BY student_id, assessment_code,
+           (published_at IS NOT NULL) DESC, published_at DESC NULLS LAST, entered_at DESC`,
         [tenantId, studentIds],
       );
       const transcriptsRes = await this.query(
