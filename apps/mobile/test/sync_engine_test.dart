@@ -383,4 +383,58 @@ void main() {
 
     await db.close();
   });
+
+  test('PRC-L009: flushPending dispatches nothing when tenant is unset',
+      () async {
+    final ({AppDatabase db, TenantProvider tenant}) ctx = await bootstrap();
+    final FakeConnectivityMonitor connectivity = FakeConnectivityMonitor()
+      ..emit(true);
+    final _RecordingDispatcher dispatcher = _RecordingDispatcher(
+      <DispatchOutcome>[
+        const DispatchSuccess(
+          serverEntity: <String, dynamic>{},
+          serverVersion: 'v1',
+          serverEntityId: 'att-1',
+        ),
+      ],
+    );
+    final SyncEngine engine = await _buildEngine(
+      db: ctx.db,
+      tenant: ctx.tenant,
+      connectivity: connectivity,
+      dispatcher: dispatcher,
+    );
+
+    // Queue a row for tenant-a.
+    await engine.saveLocallyAndQueue(
+      entityType: SyncEntityType.attendance,
+      operation: SyncOperation.create,
+      cacheTable: 'attendance_offline',
+      cachePayload: <String, Object?>{
+        'id': 'att-1',
+        'tenant_id': 'tenant-a',
+        'institution_id': 'inst-1',
+        'student_id': 'stu-1',
+        'attendance_date': '2026-05-12',
+        'status': 'PRESENT',
+        'recorded_at': DateTime.now().millisecondsSinceEpoch,
+        'synced': 0,
+      },
+      syncPayload: const <String, dynamic>{'status': 'PRESENT'},
+      entityId: 'att-1',
+    );
+
+    // Simulate a workspace clear: no active tenant in memory.
+    await ctx.tenant.clear();
+
+    final SyncFlushResult result = await engine.flushPending();
+    expect(result.processed, 0);
+    expect(dispatcher.received, isEmpty);
+    // The row is untouched, not drained under a wrong tenant context.
+    final List<PendingSyncRow> remaining =
+        await engine.getPending(tenantId: 'tenant-a');
+    expect(remaining, hasLength(1));
+
+    await ctx.db.close();
+  });
 }

@@ -431,15 +431,25 @@ class SyncEngine {
         );
       }
       final String? tenantId = _tenantProvider.tenantId;
+      // PRC-L009: with no active tenant we must not replay another tenant's
+      // queued rows under the wrong X-Tenant-ID context. Flush is a no-op
+      // until a workspace is selected.
+      if (tenantId == null || tenantId.isEmpty) {
+        return const SyncFlushResult(
+          processed: 0,
+          synced: 0,
+          failed: 0,
+          conflicted: 0,
+          parked: 0,
+        );
+      }
       final Database db = await _database.database;
       final int nowMs = _now().millisecondsSinceEpoch;
 
       final List<Map<String, Object?>> rawRows = await db.query(
         'pending_sync',
-        where: tenantId == null
-            ? "status = 'pending'"
-            : "status = 'pending' AND tenant_id = ?",
-        whereArgs: tenantId == null ? null : <Object>[tenantId],
+        where: "status = 'pending' AND tenant_id = ?",
+        whereArgs: <Object>[tenantId],
         orderBy: 'created_at ASC, id ASC',
       );
 
@@ -455,10 +465,9 @@ class SyncEngine {
       final List<Map<String, Object?>> createRows = await db.query(
         'pending_sync',
         columns: <String>['entity_type', 'entity_id'],
-        where: tenantId == null
-            ? "operation = 'create' AND entity_id IS NOT NULL"
-            : "operation = 'create' AND entity_id IS NOT NULL AND tenant_id = ?",
-        whereArgs: tenantId == null ? null : <Object>[tenantId],
+        where:
+            "operation = 'create' AND entity_id IS NOT NULL AND tenant_id = ?",
+        whereArgs: <Object>[tenantId],
       );
       final Set<String> queuedCreates = <String>{
         for (final Map<String, Object?> c in createRows)
