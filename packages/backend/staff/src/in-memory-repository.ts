@@ -11,6 +11,33 @@ import { matchesStaffType } from './staff-type.js';
 
 export class InMemoryStaffRepository implements StaffRepository {
   private staff: Map<string, StaffEntity> = new Map();
+  /**
+   * PRC-H090: staff → institution index for school-scope parity with the Pg
+   * repo. Keyed by `${tenantId}:${institutionId}` → set of staffIds.
+   */
+  private assignmentIndex: Map<string, Set<string>> = new Map();
+
+  /** Test/seed helper: register that a staff member is assigned to an institution. */
+  addAssignment(tenantId: string, institutionId: string, staffId: string): void {
+    const key = `${tenantId}:${institutionId}`;
+    const set = this.assignmentIndex.get(key) ?? new Set<string>();
+    set.add(staffId);
+    this.assignmentIndex.set(key, set);
+  }
+
+  private staffIdsForInstitution(tenantId: string, institutionId: string): Set<string> {
+    return this.assignmentIndex.get(`${tenantId}:${institutionId}`) ?? new Set<string>();
+  }
+
+  /** PRC-H090: institution ids a staff member is assigned to. */
+  async findInstitutionIds(tenantId: string, staffId: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const [key, ids] of this.assignmentIndex) {
+      const [t, institutionId] = key.split(':');
+      if (t === tenantId && institutionId && ids.has(staffId)) out.push(institutionId);
+    }
+    return out;
+  }
 
   async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
     const now = new Date();
@@ -83,6 +110,11 @@ export class InMemoryStaffRepository implements StaffRepository {
     if (filter.ids) {
       const ids = filter.ids;
       items = items.filter((entity) => ids.has(entity.id));
+    }
+    if (filter.institutionId) {
+      // PRC-H090: restrict to staff assigned to the institution.
+      const scoped = this.staffIdsForInstitution(tenantId, filter.institutionId);
+      items = items.filter((entity) => scoped.has(entity.id));
     }
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();

@@ -264,6 +264,24 @@ export class PrismaStaffRepository implements StaffRepository {
       // status/position live in custom_data → filter in-memory after fetch.
       const where: Record<string, unknown> = { tenantId, deletedAt: null };
       if (filter.ids) where.id = { in: [...filter.ids] };
+      // PRC-H090: school-scope. institutionId must actually restrict the result
+      // set, resolving staff → institution via staff_assignments. Without this
+      // the gateway's institution-scope filter was silently dropped and a
+      // school-bound HR user saw every school's staff.
+      if (filter.institutionId) {
+        const assignments = (await tx.staffAssignment.findMany({
+          where: { tenantId, institutionId: filter.institutionId },
+          select: { staffId: true },
+        })) as Array<{ staffId: string }>;
+        const scopedIds = Array.from(new Set(assignments.map((a) => a.staffId)));
+        if (filter.ids) {
+          // Intersect with any pre-existing id filter.
+          const allowed = new Set(scopedIds);
+          where.id = { in: [...filter.ids].filter((id) => allowed.has(id)) };
+        } else {
+          where.id = { in: scopedIds };
+        }
+      }
       if (filter.search) {
         const terms = filter.search.trim().split(/\s+/).filter(Boolean);
         if (terms.length > 0) {
@@ -306,6 +324,17 @@ export class PrismaStaffRepository implements StaffRepository {
           totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
         },
       };
+    });
+  }
+
+  /** PRC-H090: institution ids this staff member is assigned to. */
+  async findInstitutionIds(tenantId: string, staffId: string): Promise<string[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.staffAssignment.findMany({
+        where: { tenantId, staffId },
+        select: { institutionId: true },
+      })) as Array<{ institutionId: string }>;
+      return Array.from(new Set(rows.map((r) => r.institutionId)));
     });
   }
 
