@@ -19,6 +19,7 @@ import type {
   GradeEntryEntity,
   GradeEntryWriteGuard,
   GradebookRepository,
+  GradebookSectionMembership,
   GradingScaleEntity,
   InstitutionSummary,
   ListBoardExportCandidatesFilter,
@@ -290,7 +291,7 @@ function splitActor(
   return { enteredBy: enteredBy ?? null, metadata: meta };
 }
 
-export class PgGradebookRepository implements GradebookRepository {
+export class PgGradebookRepository implements GradebookRepository, GradebookSectionMembership {
   /**
    * W1-DATA-14 — `trg_grade_entries_write_change_audit` is the sole writer of
    * `grade_change_audit` on Postgres.
@@ -868,6 +869,62 @@ export class PgGradebookRepository implements GradebookRepository {
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
       return row ? mapSection(row) : null;
+    });
+  }
+
+  /**
+   * PRC-H066: staff linked to the principal (098 `staff.user_id`) who are the section's primary
+   * teacher or teach an active, non-expired meeting of it. `::text` comparisons keep a non-UUID
+   * principal / student id from raising a cast error (it simply matches nothing).
+   */
+  listTeacherStaffIdsForSection(
+    tenantId: string,
+    sectionId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]> {
+    const ids = [...new Set(principalIds.filter((id) => typeof id === 'string' && id.length > 0))];
+    if (ids.length === 0) return Promise.resolve([]);
+    return withSchemaCheck(async () => {
+      const res = await this.query(
+        tenantId,
+        `SELECT DISTINCT st.id
+           FROM staff st
+           JOIN sections s
+             ON s.tenant_id = st.tenant_id AND s.id::text = $2 AND s.deleted_at IS NULL
+          WHERE st.tenant_id = $1
+            AND st.deleted_at IS NULL
+            AND st.user_id IS NOT NULL
+            AND st.user_id::text = ANY($3::text[])
+            AND (
+              s.primary_teacher_id = st.id
+              OR EXISTS (
+                SELECT 1 FROM section_meetings sm
+                 WHERE sm.tenant_id = s.tenant_id
+                   AND sm.section_id = s.id
+                   AND sm.teacher_staff_id = st.id
+                   AND sm.deleted_at IS NULL
+                   AND lower(sm.status) = 'active'
+                   AND (sm.effective_to IS NULL OR sm.effective_to >= CURRENT_DATE)
+              )
+            )`,
+        [tenantId, sectionId, ids],
+      );
+      return (res.rows as Array<{ id: unknown }>).map((row) => String(row.id));
+    });
+  }
+
+  /** PRC-H066: student currently enrolled (status ENROLLED) in the section. */
+  isStudentEnrolledInSection(tenantId: string, sectionId: string, studentId: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.query(
+        tenantId,
+        `SELECT 1 FROM section_enrollments
+          WHERE tenant_id = $1 AND section_id::text = $2 AND student_id::text = $3
+            AND status = 'ENROLLED'
+          LIMIT 1`,
+        [tenantId, sectionId, studentId],
+      );
+      return res.rows.length > 0;
     });
   }
 

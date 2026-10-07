@@ -1,13 +1,17 @@
 /**
  * Parent/student academic visibility — read models aggregated from domain tables.
  *
- * Assumption (student self-binding): `students` has no `user_id` column. A student
- * JWT is bound to a row by `custom_data.user_id` / `custom_data.email`, and when
- * those are absent the JWT `sub` is treated as `students.id` if it is a UUID.
+ * Student self-binding (PRC-H075): `students` has no `user_id` column. A student JWT
+ * binds to a row only through an explicit identity link on the principal id —
+ * `students.id = sub` or `custom_data.user_id = sub` — and must match exactly one row.
+ * Email and `contacts[0]` are never used: they are not unique (siblings share guardian
+ * contacts) and the principal carries no email-verification state. Zero matches is 404;
+ * more than one is a fail-closed 409.
  */
+import { ConflictError } from '@proctira/common';
 
 export const STUDENT_SELF_BINDING_ASSUMPTION =
-  'students has no user_id column; resolve via custom_data.user_id / custom_data.email, else JWT sub as students.id when the sub is a UUID';
+  'students has no user_id column; bind only when exactly one row has students.id = sub or custom_data.user_id = sub (no email/contact matching); 0 matches -> 404, >1 -> 409';
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -187,7 +191,11 @@ export interface PalPlanItem {
 }
 
 export interface AcademicVisibilityStore {
-  resolveStudentId(tenantId: string, userId: string, email?: string | null): Promise<string | null>;
+  /**
+   * Resolve the single `students.id` explicitly linked to principal `userId`.
+   * Returns null when no row is linked; throws `ConflictError` when more than one is.
+   */
+  resolveStudentId(tenantId: string, userId: string): Promise<string | null>;
   getAttendance(tenantId: string, studentId: string): Promise<AttendancePayload>;
   getGrades(tenantId: string, studentId: string): Promise<GradesPayload>;
   getTimetable(tenantId: string, studentId: string): Promise<AcademicList<TimetableSlot>>;
@@ -244,12 +252,27 @@ export function summariseAttendance(days: AttendanceDay[]): AttendanceSummary {
   return summary;
 }
 
+/**
+ * PRC-H075: the only accepted outcome of a self-binding lookup is exactly one candidate.
+ * Shared by the Postgres and in-memory stores so both fail closed identically.
+ */
+export function selectBoundStudentId(candidateIds: readonly string[]): string | null {
+  const unique = [...new Set(candidateIds)];
+  if (unique.length === 0) return null;
+  if (unique.length > 1) {
+    throw new ConflictError(
+      'Student account is linked to more than one student record; contact the school office',
+    );
+  }
+  return unique[0]!;
+}
+
+/**
+ * No-database store: there are no student rows, so the explicit `students.id = sub` link is
+ * the only one available. Every academic read returns an empty list, so nothing can leak.
+ */
 export class EmptyAcademicVisibilityStore implements AcademicVisibilityStore {
-  resolveStudentId(
-    _tenantId: string,
-    userId: string,
-    _email?: string | null,
-  ): Promise<string | null> {
+  resolveStudentId(_tenantId: string, userId: string): Promise<string | null> {
     return Promise.resolve(UUID_RE.test(userId) ? userId : null);
   }
 
@@ -297,5 +320,42 @@ export class EmptyAcademicVisibilityStore implements AcademicVisibilityStore {
 
   getPalPlan(_tenantId: string, studentId: string): Promise<AcademicList<PalPlanItem>> {
     return Promise.resolve(emptyAcademicList(studentId));
+  }
+}
+
+/** A `students` row as far as self-binding is concerned (mirrors the Postgres columns read). */
+export interface InMemoryStudentIdentityRecord {
+  id: string;
+  tenantId: string;
+  /** `custom_data.user_id` — the explicit principal link. */
+  userId?: string | null;
+  /** `custom_data.email` — stored for parity with real rows; never used to bind. */
+  email?: string | null;
+  /** `custom_data.contacts` — usually guardian contacts; never used to bind. */
+  contacts?: Array<{ type?: string; value: string }>;
+  deleted?: boolean;
+}
+
+/**
+ * In-memory equivalent of `PgAcademicVisibilityStore.resolveStudentId` (PRC-H075): binds only on
+ * `id = sub` or `userId = sub` within the tenant and fails closed on ambiguity. Academic reads
+ * are empty, as in `EmptyAcademicVisibilityStore`.
+ */
+export class InMemoryAcademicVisibilityStore extends EmptyAcademicVisibilityStore {
+  constructor(private readonly students: InMemoryStudentIdentityRecord[] = []) {
+    super();
+  }
+
+  override resolveStudentId(tenantId: string, userId: string): Promise<string | null> {
+    if (!userId) return Promise.resolve(null);
+    try {
+      const candidates = this.students
+        .filter((s) => s.tenantId === tenantId && !s.deleted)
+        .filter((s) => s.id === userId || (s.userId != null && s.userId === userId))
+        .map((s) => s.id);
+      return Promise.resolve(selectBoundStudentId(candidates));
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 }
