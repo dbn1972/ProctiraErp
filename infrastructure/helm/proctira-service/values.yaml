@@ -206,6 +206,86 @@ externalSecret:
   #  - secretKey: DATABASE_URL
   #    remoteKey: proctira/production/api-gateway
   #    property: DATABASE_URL
+  # PRC-M279: least privilege per workload. When `sharedRemoteKey` is set,
+  # only the keys listed under `serviceKeys[service.name]` are copied out of
+  # that provider object (one data entry per key, never the whole bundle).
+  # A service missing from the map fails the render (fail closed); an empty
+  # list renders no ExternalSecret and no secret envFrom at all.
+  #
+  # #555 review #3: the gateway runs every domain package in-process, so its
+  # list covers every secret those packages read in production.
+  # tools/scripts/check-gateway-secret-allowlist.mjs (actionlint workflow)
+  # fails CI when gateway code reads a secret-bearing env var that is in
+  # neither serviceKeys nor optionalServiceKeys. Every serviceKeys entry must
+  # exist in the shared bundle: ESO reports a sync error for a missing
+  # property, the pod does not start, and `helm --atomic` rolls back. That
+  # turns a missing key into a deploy-time failure, not a request-time one.
+  sharedRemoteKey: ''
+  serviceKeys:
+    api-gateway:
+      - DATABASE_URL
+      - REDIS_URL
+      - KAFKA_BROKERS
+      - RABBITMQ_URL
+      - JWT_SECRET
+      - JWT_SECRET_PREVIOUS
+      - COOKIE_SECRET
+      - PHI_ENCRYPTION_KEY
+      - S3_ACCESS_KEY
+      - S3_SECRET_KEY
+      # Production-required by mounted packages (fail closed without them).
+      - KEYCLOAK_CLIENT_SECRET
+      - KEYCLOAK_ADMIN_CLIENT_SECRET
+      - SCHOLARSHIP_DOC_URL_SECRET
+      - TRANSCRIPT_SIGNING_SECRET
+      - SIS_BOARD_EXPORT_SIGNING_SECRET
+      - REPORT_DOWNLOAD_SIGNING_SECRET
+      - LMS_FILE_SIGNING_SECRET
+      - ADMISSIONS_OFFER_SIGNING_SECRET
+      - ETL_CONNECTOR_SECRET_KEY
+      - WEBHOOK_SIGNING_KMS_KEY_ID
+    etl-worker: [DATABASE_URL, KAFKA_BROKERS, REDIS_URL, RABBITMQ_URL]
+    web: []
+    registration-portal: []
+    admin-console: []
+  # Mode-dependent secrets the gateway reads only when the matching feature is
+  # configured. They are NOT rendered (a missing property would fail ESO sync
+  # for every deployment). When a cluster enables the feature, copy the keys
+  # into serviceKeys for that environment's values file.
+  optionalServiceKeys:
+    api-gateway:
+      # PHI envelope encryption in KMS mode (instead of PHI_ENCRYPTION_KEY).
+      - PHI_KMS_KEY_ID
+      - PHI_KMS_WRAPPED_ROOT_KEY
+      # Transcript signing via KMS (instead of TRANSCRIPT_SIGNING_SECRET).
+      - TRANSCRIPT_SIGNING_KMS_KEY_REF
+      - TRANSCRIPT_SIGNING_KEY_ID
+      # Read replica and Kafka SASL, when used.
+      - POSTGRES_READ_REPLICA_URL
+      - KAFKA_SASL_USERNAME
+      - KAFKA_SASL_PASSWORD
+    developer-portal: []
+    install-wizard: []
+    public-website: []
+    dr-tools: [DATABASE_URL, S3_ACCESS_KEY, S3_SECRET_KEY]
+    # W1-OPS-16 lab split-domain services: backend runtime keys, no PHI key.
+    institution:
+      &labKeys [
+        DATABASE_URL,
+        REDIS_URL,
+        KAFKA_BROKERS,
+        RABBITMQ_URL,
+        JWT_SECRET,
+        JWT_SECRET_PREVIOUS,
+      ]
+    student: *labKeys
+    staff: *labKeys
+    assessment: *labKeys
+    attendance: *labKeys
+    examination: *labKeys
+    workflow: *labKeys
+    notification: *labKeys
+    report: *labKeys
 
 extraVolumes: []
 extraVolumeMounts: []

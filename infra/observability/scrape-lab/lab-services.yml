@@ -1,0 +1,57 @@
+# PRC-M313: NON-PROD lab split services (infrastructure/docker/docker-compose.services.yml).
+# Loaded only when PROMETHEUS_EXTRA_SCRAPE_DIR=./scrape-lab is set for the
+# observability compose, so the canonical stack has no phantom targets.
+scrape_configs:
+  - job_name: institution
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['institution-service:3020']
+        labels: { service: institution, team: engineering }
+
+  - job_name: student
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['student-service:3021']
+        labels: { service: student, team: engineering }
+
+  - job_name: staff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['staff-service:3022']
+        labels: { service: staff, team: engineering }
+
+  - job_name: assessment
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['assessment-service:3023']
+        labels: { service: assessment, team: engineering }
+
+  - job_name: attendance
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['attendance-service:3024']
+        labels: { service: attendance, team: engineering }
+
+  - job_name: examination
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['examination-service:3025']
+        labels: { service: examination, team: engineering }
+
+  - job_name: workflow
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['workflow-service:3026']
+        labels: { service: workflow, team: engineering }
+
+  - job_name: notification
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['notification-service:3027']
+        labels: { service: notification, team: engineering }
+
+  - job_name: report
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['report-service:3028']
+        labels: { service: report, team: engineering }

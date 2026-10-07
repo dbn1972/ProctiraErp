@@ -18,6 +18,7 @@ on:
       - 'tools/scripts/pg-restore.sh'
       - 'tools/scripts/backup-crypto.sh'
       - 'tools/scripts/restore-drill.sh'
+      - 'tools/scripts/restore-parity.sh'
       - 'tools/scripts/check-restore-drill-evidence.sh'
       - 'tools/scripts/phi-retention-job.mjs'
       - 'docs/audits/evidence/restore-drill-*.json'
@@ -63,13 +64,13 @@ jobs:
     env:
       BACKUP_ALLOW_PLAINTEXT: '1'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -105,6 +106,22 @@ jobs:
       - name: Prove zero unvalidated tenant_id FKs (live catalog)
         run: node tools/scripts/check-strict-tenant-fks.mjs --live --require-live
 
+      # #555 review #14: the cross-tenant probe in restore-parity.sh needs at
+      # least two tenants with tenant-scoped rows, or it passes vacuously. The
+      # demo schema seeds one tenant, so add a second drill tenant plus one
+      # board per tenant (boards has FORCE RLS on tenant_id).
+      - name: Seed a second tenant for the cross-tenant probe
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q <<'SQL'
+          INSERT INTO tenants (id, name, slug, config, status)
+          VALUES ('00000000-0000-4000-8000-0000000000d2', 'Restore drill B', 'restore-drill-b', '{}'::jsonb, 'active')
+          ON CONFLICT (id) DO NOTHING;
+          INSERT INTO boards (tenant_id, name, code, type)
+          SELECT id, 'Restore drill probe board', 'DRILL-PROBE', 'STATE' FROM tenants
+          ON CONFLICT (tenant_id, code) DO NOTHING;
+          SQL
+          psql "$DATABASE_URL" -X -At -c "SELECT 'tenants=' || count(*) FROM tenants"
       - name: Record source row counts
         run: |
           mkdir -p "$ARTIFACT_DIR"
@@ -138,6 +155,16 @@ jobs:
 
       # G-710 FORCE RLS: an ordinary app role must be refused (exit 2) rather
       # than produce a partial dump.
+      # PRC-M260: security/integrity parity beyond three row counts — policies,
+      # RLS enable/force flags, sequences, per-tenant counts, audit chain linkage
+      # and a NOBYPASSRLS cross-tenant probe on the restored database.
+      - name: Assert RLS, audit-chain and per-tenant parity
+        run: |
+          set -euo pipefail
+          SRC_URL="$DATABASE_URL" DST_URL="${DATABASE_URL%/*}/proctira_restore_drill" \
+            ARTIFACT_DIR="$ARTIFACT_DIR/parity" bash tools/scripts/restore-parity.sh \
+            | tee "$ARTIFACT_DIR/parity.log"
+          grep -E '^(OK|SKIP) ' "$ARTIFACT_DIR/parity.log" >> "$GITHUB_STEP_SUMMARY"
       - name: Backup preflight refuses a non-BYPASSRLS role
         run: |
           set -euo pipefail
@@ -208,7 +235,7 @@ jobs:
           RETENTION_DRY_RUN: '1'
 
       - name: Build dr-tools image (CronJob runtime)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: infrastructure/docker/Dockerfile.dr-tools
@@ -233,7 +260,7 @@ jobs:
 
       - name: Upload drill evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: restore-drill
           path: |

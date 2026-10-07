@@ -97,13 +97,14 @@ spec:
                   key: {{ .Values.metrics.bearerTokenSecret.key }}
                   optional: false
             {{- end }}
-          {{- if or .Values.envFromSecrets .Values.externalSecret.enabled }}
+          {{- $esRendered := eq (include "proctira-service.externalSecretRendered" .) "true" }}
+          {{- if or .Values.envFromSecrets $esRendered }}
           envFrom:
             {{- range .Values.envFromSecrets }}
             - secretRef:
                 name: {{ . }}
             {{- end }}
-            {{- if .Values.externalSecret.enabled }}
+            {{- if $esRendered }}
             - secretRef:
                 name: {{ include "proctira-service.externalSecretTarget" . }}
             {{- end }}

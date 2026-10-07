@@ -13,6 +13,7 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
+import type { CaseScope } from './case-access.js';
 import type { CaseEntity, CaseFilter, CaseRepository } from './case-repository.js';
 import type {
   CaseAttachmentInput,
@@ -185,6 +186,24 @@ function equalityClauses(
     i += 1;
   }
   return { sql: parts.join(' '), values };
+}
+
+/**
+ * PRC-H111: parameterised SQL for the caller's case visibility scope. Mirrors
+ * `caseInScope` in case-access.ts. Applied in SQL so COUNT/LIMIT stay correct.
+ */
+export function caseScopeClause(
+  scope: CaseScope | undefined,
+  startIndex: number,
+): { sql: string; values: unknown[] } {
+  if (!scope) return { sql: '', values: [] };
+  const i = startIndex;
+  return {
+    sql:
+      `AND (assigned_to = $${i} OR (type = ANY($${i + 1}::text[]) AND ` +
+      `(institution_id = ANY($${i + 2}::text[]) OR area_id = ANY($${i + 3}::text[]))))`,
+    values: [scope.assigneeId, [...scope.types], [...scope.institutionIds], [...scope.areaIds]],
+  };
 }
 
 abstract class PgWorkflowBase {
@@ -575,17 +594,19 @@ export class PgCaseRepository extends PgWorkflowBase implements CaseRepository {
         ],
         2,
       );
+      const scope = caseScopeClause(filter.scope, 2 + where.values.length);
       const total = await c.query(
-        `SELECT COUNT(*)::int AS n FROM workflow_cases WHERE tenant_id = $1 ${where.sql}`,
-        [tenantId, ...where.values],
+        `SELECT COUNT(*)::int AS n FROM workflow_cases WHERE tenant_id = $1 ${where.sql} ${scope.sql}`,
+        [tenantId, ...where.values, ...scope.values],
       );
-      const offsetIdx = 2 + where.values.length;
+      const offsetIdx = 2 + where.values.length + scope.values.length;
       const rows = await c.query(
-        `SELECT * FROM workflow_cases WHERE tenant_id = $1 ${where.sql}
+        `SELECT * FROM workflow_cases WHERE tenant_id = $1 ${where.sql} ${scope.sql}
           ORDER BY created_at ASC, id LIMIT $${offsetIdx} OFFSET $${offsetIdx + 1}`,
         [
           tenantId,
           ...where.values,
+          ...scope.values,
           pagination.pageSize,
           (pagination.page - 1) * pagination.pageSize,
         ],
