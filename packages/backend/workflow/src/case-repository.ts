@@ -7,6 +7,8 @@
  * Requirements: 13.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
+import type { CaseScope } from './case-access.js';
 import type {
   CaseType,
   CaseStatus,
@@ -47,6 +49,12 @@ export interface CaseFilter {
   assignedTo?: string;
   institutionId?: string;
   areaId?: string;
+  /**
+   * PRC-H111: caller visibility scope derived from the verified principal.
+   * Omitted only for tenant-wide administrators. Implementations MUST apply it
+   * in the query (not post-filter) so pagination totals stay correct.
+   */
+  scope?: CaseScope;
 }
 
 // ─── Case Repository Interface ───────────────────────────────────────────────

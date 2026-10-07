@@ -24,6 +24,8 @@ const CAMPUS_MANAGE_RESOURCES = [
   'developer',
   'report',
   'workflow',
+  // PRC-H111: disciplinary / counselling / complaint cases (see CASE_RESOURCE).
+  'case',
   'assessment',
   'student',
   'student-portal',
@@ -115,6 +117,26 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
 };
 
 /**
+ * PRC-H111: cases are records about minors, so they are a dedicated RBAC
+ * resource rather than part of `workflow`. School staff holding
+ * `workflow:read` (teachers, staff) do NOT get it; only tenant admins,
+ * principals, counsellors and discipline officers do. Per-case institution /
+ * area / assignee scope is enforced in `@proctira/backend-workflow` CaseService.
+ */
+export const CASE_RESOURCE = 'case';
+
+/** Role ids (never role names) that work cases within their own scope. */
+export const CASE_WORKER_ROLE_IDS = ['counsellor', 'discipline_officer'] as const;
+
+/**
+ * `/api/v1/<segment>/<sub>` paths whose RBAC resource is narrower than the
+ * segment default in {@link PATH_RESOURCE_MAP}.
+ */
+export const SUBPATH_RESOURCE_MAP: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'workflow-engine': { cases: CASE_RESOURCE },
+};
+
+/**
  * G-702: `/api/v1/<segment>` paths outside `/auth` that are NOT in
  * {@link PATH_RESOURCE_MAP} are denied for every non-platform-admin caller.
  * Adding a mounted prefix therefore requires an explicit RBAC mapping.
@@ -201,9 +223,11 @@ export function resourceForApiPath(pathname: string): string | undefined {
   if (path.startsWith('/api/v1/auth/') || path === '/api/v1/auth') return undefined;
 
   const rest = path.slice('/api/v1/'.length);
-  const segment = rest.split('/').filter(Boolean)[0];
+  const [segment, sub] = rest.split('/').filter(Boolean);
   if (!segment) return undefined;
   if (GATEWAY_UTILITY_SEGMENTS.has(segment)) return undefined;
+  const narrowed = sub ? SUBPATH_RESOURCE_MAP[segment]?.[sub] : undefined;
+  if (narrowed) return narrowed;
   return PATH_RESOURCE_MAP[segment] ?? UNMAPPED_API_RESOURCE;
 }
 
@@ -319,6 +343,15 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' '),
       permissions: STAFF_HR_PERMISSIONS.map((p) => ({ ...p })),
+    });
+  }
+
+  // PRC-H111: case workers — case access only; scope is enforced in CaseService.
+  for (const roleId of CASE_WORKER_ROLE_IDS) {
+    roles.push({
+      roleId,
+      roleName: roleId === 'counsellor' ? 'Counsellor' : 'Discipline Officer',
+      permissions: [{ resource: CASE_RESOURCE, action: 'manage' }],
     });
   }
 

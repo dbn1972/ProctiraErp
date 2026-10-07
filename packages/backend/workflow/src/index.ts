@@ -107,6 +107,14 @@ export type {
 // ─── Case Management (Req 13.5) ─────────────────────────────────────────────
 
 export { CaseService } from './case-service.js';
+export {
+  CASE_TYPE_ROLES,
+  TENANT_WIDE_CASE_ROLES,
+  canAccessCase,
+  caseScopeFor,
+  getCasePrincipal,
+} from './case-access.js';
+export type { CasePrincipal, CaseScope } from './case-access.js';
 
 export type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 

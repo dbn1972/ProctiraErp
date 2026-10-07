@@ -8,10 +8,17 @@
  * - 13.5: THE Workflow_Engine SHALL manage cases (disciplinary, counselling, complaints)
  *         with status tracking, attachments, and resolution recording
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  canAccessCase,
+  caseScopeFor,
+  caseTypesFor,
+  isTenantWideCaseRole,
+  type CasePrincipal,
+} from './case-access.js';
 import type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 import type {
   CreateCaseInput,
@@ -42,16 +49,48 @@ const VALID_STATUS_TRANSITIONS: Record<CaseStatus, CaseStatus[]> = {
 
 /**
  * Service handling case management business logic.
+ *
+ * PRC-H111: every method takes the verified caller (`principal`). HTTP routes
+ * always pass it; out-of-scope cases are reported as not found so their
+ * existence is not leaked. `principal` is omitted only by trusted in-process
+ * callers (jobs/tests) that already run with tenant-wide authority.
  */
 export class CaseService {
   constructor(private readonly repository: CaseRepository) {}
+
+  /** Load a case the caller may access, or throw NotFoundError. */
+  private async loadAccessible(
+    tenantId: string,
+    caseId: string,
+    principal: CasePrincipal | undefined,
+  ): Promise<CaseEntity> {
+    const caseEntity = await this.repository.findCaseById(caseId, tenantId);
+    if (!caseEntity || (principal && !canAccessCase(caseEntity, principal))) {
+      throw new NotFoundError(`Case with id '${caseId}' not found`);
+    }
+    return caseEntity;
+  }
 
   /**
    * Create a new case.
    *
    * Cases start with 'open' status.
    */
-  async createCase(tenantId: string, input: CreateCaseInput): Promise<CaseEntity> {
+  async createCase(
+    tenantId: string,
+    input: CreateCaseInput,
+    principal?: CasePrincipal,
+  ): Promise<CaseEntity> {
+    // PRC-H111: scoped callers may only open cases of a type their role covers,
+    // inside one of their own institutions/areas.
+    if (principal && !isTenantWideCaseRole(principal)) {
+      const inInstitution =
+        input.institutionId !== undefined && principal.institutionIds.includes(input.institutionId);
+      const inArea = input.areaId !== undefined && principal.areaIds.includes(input.areaId);
+      if (!caseTypesFor(principal).includes(input.type) || !(inInstitution || inArea)) {
+        throw new ForbiddenError('You may not create this case type outside your scope');
+      }
+    }
     const caseEntity: Omit<CaseEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -79,12 +118,8 @@ export class CaseService {
    *
    * @throws NotFoundError if case not found
    */
-  async getCase(tenantId: string, caseId: string): Promise<CaseEntity> {
-    const caseEntity = await this.repository.findCaseById(caseId, tenantId);
-    if (!caseEntity) {
-      throw new NotFoundError(`Case with id '${caseId}' not found`);
-    }
-    return caseEntity;
+  async getCase(tenantId: string, caseId: string, principal?: CasePrincipal): Promise<CaseEntity> {
+    return this.loadAccessible(tenantId, caseId, principal);
   }
 
   /**
@@ -95,11 +130,13 @@ export class CaseService {
    * @throws NotFoundError if case not found
    * @throws BusinessRuleError if status transition is invalid or case is closed
    */
-  async updateCase(tenantId: string, caseId: string, input: UpdateCaseInput): Promise<CaseEntity> {
-    const existing = await this.repository.findCaseById(caseId, tenantId);
-    if (!existing) {
-      throw new NotFoundError(`Case with id '${caseId}' not found`);
-    }
+  async updateCase(
+    tenantId: string,
+    caseId: string,
+    input: UpdateCaseInput,
+    principal?: CasePrincipal,
+  ): Promise<CaseEntity> {
+    const existing = await this.loadAccessible(tenantId, caseId, principal);
 
     if (existing.status === 'closed' && input.status !== 'closed') {
       throw new BusinessRuleError('Cannot modify a closed case');
@@ -142,11 +179,9 @@ export class CaseService {
     tenantId: string,
     caseId: string,
     input: AddAttachmentInput,
+    principal?: CasePrincipal,
   ): Promise<CaseEntity> {
-    const existing = await this.repository.findCaseById(caseId, tenantId);
-    if (!existing) {
-      throw new NotFoundError(`Case with id '${caseId}' not found`);
-    }
+    const existing = await this.loadAccessible(tenantId, caseId, principal);
 
     if (existing.status === 'closed') {
       throw new BusinessRuleError('Cannot add attachments to a closed case');
@@ -187,11 +222,9 @@ export class CaseService {
     tenantId: string,
     caseId: string,
     input: ResolveCaseInput,
+    principal?: CasePrincipal,
   ): Promise<CaseEntity> {
-    const existing = await this.repository.findCaseById(caseId, tenantId);
-    if (!existing) {
-      throw new NotFoundError(`Case with id '${caseId}' not found`);
-    }
+    const existing = await this.loadAccessible(tenantId, caseId, principal);
 
     if (existing.status === 'closed') {
       throw new BusinessRuleError('Cannot resolve a closed case');
@@ -238,8 +271,11 @@ export class CaseService {
     tenantId: string,
     filter: CaseFilter,
     pagination: PaginationOptions,
+    principal?: CasePrincipal,
   ): Promise<PaginatedResult<CaseEntity>> {
-    return this.repository.listCases(tenantId, filter, pagination);
+    // PRC-H111: the scope comes from the principal, never from query params.
+    const scope = principal ? caseScopeFor(principal) : filter.scope;
+    return this.repository.listCases(tenantId, { ...filter, scope }, pagination);
   }
 
   /**
