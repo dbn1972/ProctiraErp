@@ -13,6 +13,9 @@
  *   the current run introduces *additional* error debt beyond that baseline
  *   (per-check error counts, overall error total, or net-new fingerprints).
  *   Warnings never fail unless `--strict` is set.
+ *   Every baselined error finding must carry a `reason` (why the debt is
+ *   tolerated); a baseline error without one fails the gate.
+ *   `--update-baseline` carries reasons forward by fingerprint.
  *
  * Exit codes:
  *   0 — within baseline (warnings allowed unless --strict)
@@ -94,6 +97,46 @@ function fingerprint(finding) {
   return [finding.check, finding.severity, finding.file ?? '', finding.message].join('|');
 }
 
+/** Minimum length of a baseline `reason` so placeholders like "debt" are rejected. */
+const MIN_REASON_LENGTH = 20;
+
+function hasReason(finding) {
+  return typeof finding.reason === 'string' && finding.reason.trim().length >= MIN_REASON_LENGTH;
+}
+
+function baselineErrorFindings(baseline) {
+  const out = [];
+  for (const c of baseline?.checks ?? []) {
+    for (const f of c.findings ?? []) {
+      if (f.severity === 'error') out.push({ ...f, check: f.check ?? c.check });
+    }
+  }
+  return out;
+}
+
+/**
+ * `--update-baseline` keeps the per-entry `reason` of findings that are still
+ * present (matched by fingerprint). New error entries are written without a
+ * reason, so the next gated run fails until someone records why they are
+ * tolerated.
+ */
+function withCarriedReasons(json, previous) {
+  const reasons = new Map();
+  for (const f of baselineErrorFindings(previous)) {
+    if (hasReason(f)) reasons.set(fingerprint(f), f.reason);
+  }
+  return {
+    ...json,
+    checks: json.checks.map((c) => ({
+      ...c,
+      findings: c.findings.map((f) => {
+        const reason = f.severity === 'error' ? reasons.get(fingerprint(f)) : undefined;
+        return reason ? { ...f, reason } : f;
+      }),
+    })),
+  };
+}
+
 async function loadBaseline(path) {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
@@ -121,6 +164,20 @@ function compareToBaseline(reports, baseline, { strict }) {
   const regressions = [];
   let currentErrors = 0;
   let baselineErrorsForRun = 0;
+
+  // PR #579: every baselined error is recorded debt and must say why it is
+  // tolerated, so the baseline cannot silently absorb new findings.
+  for (const f of baselineErrorFindings(baseline)) {
+    if (!hasReason(f)) {
+      regressions.push({
+        check: f.check,
+        kind: 'baseline-missing-reason',
+        file: f.file,
+        line: f.line,
+        message: f.message,
+      });
+    }
+  }
 
   for (const report of reports) {
     const json = report.toJSON();
@@ -186,6 +243,11 @@ function printBaselineResult(comparison) {
     if (r.kind === 'new-finding') {
       const loc = r.line ? `${r.file}:${r.line}` : r.file;
       console.log(`   • [${r.check}] ${loc} — ${r.message}`);
+    } else if (r.kind === 'baseline-missing-reason') {
+      const loc = r.line ? `${r.file}:${r.line}` : r.file;
+      console.log(
+        `   • [${r.check}] baseline entry has no reason (≥${MIN_REASON_LENGTH} chars): ${loc} — ${r.message}`,
+      );
     } else {
       console.log(
         `   • [${r.check}] ${r.kind} baseline=${r.baseline} current=${r.current} (Δ+${r.delta})`,
@@ -246,7 +308,11 @@ async function main() {
 
   if (args.updateBaseline) {
     await mkdir(dirname(args.baseline), { recursive: true });
-    await writeFile(args.baseline, JSON.stringify(json, null, 2));
+    const previous = await loadBaseline(args.baseline);
+    await writeFile(
+      args.baseline,
+      JSON.stringify(withCarriedReasons(json, previous), null, 2) + '\n',
+    );
     if (!args.jsonOnly) {
       console.log(`\n📌 Baseline updated at ${args.baseline}`);
     }
