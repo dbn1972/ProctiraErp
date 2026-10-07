@@ -25,12 +25,32 @@ export interface LibraryFineInvoiceResult {
   status: string;
 }
 
+/** Result of settling (paying) a previously-posted fine invoice. */
+export interface LibraryFineSettlementResult {
+  invoiceId: string;
+  status: string;
+  /** True when the invoice was already settled (idempotent replay). */
+  alreadySettled: boolean;
+}
+
 export interface FeesLedgerPort {
   postFineInvoice(
     tenantId: string,
     actorId: string,
     input: LibraryFineInvoiceInput,
   ): Promise<LibraryFineInvoiceResult>;
+
+  /**
+   * PRC-H025 — settle the fee-ledger invoice raised for a library fine when the
+   * fine is marked paid, so the student's fee ledger no longer shows the dues.
+   * Optional so unit tests / legacy wirings that only post invoices still work;
+   * when absent, markFinePaid can only flip the local library fine.
+   */
+  settleFineInvoice?(
+    tenantId: string,
+    actorId: string,
+    input: { invoiceId: string; amountCents: number; reference?: string },
+  ): Promise<LibraryFineSettlementResult>;
 }
 
 /** In-memory ledger for unit tests when fees plugin is not wired. */
@@ -52,5 +72,19 @@ export class InMemoryFeesLedgerPort implements FeesLedgerPort {
     };
     this.invoices.push(invoice);
     return invoice;
+  }
+
+  async settleFineInvoice(
+    _tenantId: string,
+    _actorId: string,
+    input: { invoiceId: string; amountCents: number; reference?: string },
+  ): Promise<LibraryFineSettlementResult> {
+    const invoice = this.invoices.find((inv) => inv.id === input.invoiceId);
+    if (!invoice) {
+      throw new Error(`Fine invoice '${input.invoiceId}' not found`);
+    }
+    const alreadySettled = invoice.status === 'paid';
+    invoice.status = 'paid';
+    return { invoiceId: invoice.id, status: invoice.status, alreadySettled };
   }
 }

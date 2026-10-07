@@ -1660,8 +1660,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
               status: invoice.status,
             };
           },
+          // PRC-H025: marking a library fine paid settles its fee-ledger invoice
+          // so the student's dues clear. Idempotency key makes a repeat mark-paid
+          // a safe replay rather than a double payment.
+          settleFineInvoice: async (tenantId, actorId, input) => {
+            const { invoice, idempotent } = await feesService.recordPayment(tenantId, actorId, {
+              invoiceId: input.invoiceId,
+              amountCents: input.amountCents,
+              reference: input.reference,
+              idempotencyKey: `library-fine-settle:${input.invoiceId}`,
+            });
+            return { invoiceId: invoice.id, status: invoice.status, alreadySettled: idempotent };
+          },
         },
-        prefix: '/library',
       });
     },
   },
