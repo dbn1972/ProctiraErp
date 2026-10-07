@@ -13,7 +13,10 @@ import { InMemoryGradebookRepository } from './in-memory-repository.js';
 
 const INST = '66666666-6666-4666-8666-666666666666';
 
-function ctx(pack: ReturnType<typeof getBoardPack>, candidates: BoardExportCandidate[]): BoardExportContext {
+function ctx(
+  pack: ReturnType<typeof getBoardPack>,
+  candidates: BoardExportCandidate[],
+): BoardExportContext {
   return {
     jobId: 'job-1',
     tenantId: 't1',
@@ -76,7 +79,9 @@ describe('board export never fabricates a subject grade from the average (PRC-H0
       numericScore: s === 'ENG' ? 10 : 95,
       letterGrade: null,
     }));
-    const header = buildMarksheetCsv(ctx(pack, [candidate(grades)])).split('\n')[0]!.split(',');
+    const header = buildMarksheetCsv(ctx(pack, [candidate(grades)]))
+      .split('\n')[0]!
+      .split(',');
     const engGradeIdx = header.indexOf('ENG_grade');
     const dataCells = buildMarksheetCsv(ctx(pack, [candidate(grades)]))
       .trim()

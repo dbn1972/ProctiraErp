@@ -107,7 +107,13 @@ export function computeOverallGradeSummary(
   subjectResults: StudentSubjectResult[],
 ): ReportCardData['overallGradeSummary'] {
   if (subjectResults.length === 0) {
-    return { averageScore: 0, totalSubjects: 0, grade: 'N/A', incompleteSubjectIds: [], complete: true };
+    return {
+      averageScore: 0,
+      totalSubjects: 0,
+      grade: 'N/A',
+      incompleteSubjectIds: [],
+      complete: true,
+    };
   }
 
   const percentages = subjectResults.map((r) => {

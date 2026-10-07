@@ -16,7 +16,9 @@ const CLASS = '22222222-2222-4222-8222-222222222222';
 const STUDENT = '33333333-3333-4333-8333-333333333333';
 const PERIOD = '55555555-5555-4555-8555-555555555555';
 
-function row(overrides: Partial<Parameters<InMemoryAttendanceRepository['createStudentAttendance']>[0]> = {}) {
+function row(
+  overrides: Partial<Parameters<InMemoryAttendanceRepository['createStudentAttendance']>[0]> = {},
+) {
   return {
     id: overrides.id ?? '44444444-4444-4444-8444-444444444441',
     tenantId: TENANT,
@@ -37,7 +39,9 @@ function row(overrides: Partial<Parameters<InMemoryAttendanceRepository['createS
 describe('student_attendance identity (PRC-H040)', () => {
   it('a duplicate create returns the existing row (no second record)', async () => {
     const repo = new InMemoryAttendanceRepository();
-    const first = await repo.createStudentAttendance(row({ id: '44444444-4444-4444-8444-444444444441' }));
+    const first = await repo.createStudentAttendance(
+      row({ id: '44444444-4444-4444-8444-444444444441' }),
+    );
     const second = await repo.createStudentAttendance(
       row({ id: '44444444-4444-4444-8444-444444444442', status: AttendanceStatus.ABSENT }),
     );

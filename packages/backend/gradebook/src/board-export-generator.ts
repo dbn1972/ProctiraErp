@@ -169,8 +169,10 @@ export function buildExamResultsJson(ctx: BoardExportContext): unknown {
           ctx.centreCode,
         [ctx.pack.examResultFields.find((f) => f.source === 'subjectCode')!.exportKey]: subj,
         [ctx.pack.examResultFields.find((f) => f.source === 'marksObtained')!.exportKey]: g.marks,
-        [ctx.pack.examResultFields.find((f) => f.source === 'grade')!.exportKey]:
-          subjectGradeCell(ctx.pack, g),
+        [ctx.pack.examResultFields.find((f) => f.source === 'grade')!.exportKey]: subjectGradeCell(
+          ctx.pack,
+          g,
+        ),
         transcriptVersion: c.latestTranscript?.version ?? null,
         transcriptChecksum: c.latestTranscript?.checksumSha256 ?? null,
       });

@@ -82,10 +82,7 @@ function weekdayDates(from: string, to: string): string[] {
  * local wall-clock time instead of UTC. Returns null for an unparseable
  * timestamp so the caller can reject the single event (not the batch).
  */
-function localPunchParts(
-  iso: string,
-  timeZone: string,
-): { date: string; hour: number } | null {
+function localPunchParts(iso: string, timeZone: string): { date: string; hour: number } | null {
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return null;
   try {
