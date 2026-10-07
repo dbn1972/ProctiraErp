@@ -11,6 +11,7 @@ import { buildWorkflowEscalationOutboxEntry } from '../outbox/builders';
 import { InMemoryOutboxStore } from '../outbox/in-memory-outbox-store';
 import { OutboxRelay } from '../outbox/relay';
 import { SQSAdapter } from '../adapters/sqs-adapter';
+import { MAX_DELAY_MS, RabbitMQAdapter } from '../adapters/rabbitmq-adapter';
 
 vi.mock('kafkajs', () => {
   class Kafka {
@@ -153,6 +154,19 @@ describe('adapter delay contract: honour or throw (PRC-M360)', () => {
     await expect(kafka.publish(msg(1000))).rejects.toBeInstanceOf(QueueUnsupportedOperationError);
     await expect(kafka.publish(msg())).resolves.toBeUndefined();
     await kafka.disconnect();
+  });
+
+  it('RabbitMQ throws above its supported delay cap instead of silently clamping', async () => {
+    const rabbit = new RabbitMQAdapter({ url: 'amqp://unused' });
+    // The rejection happens before any broker interaction; install the minimal
+    // connected state so this exercises the public dispatch contract.
+    const connected = rabbit as unknown as { connected: boolean; channel: unknown };
+    connected.connected = true;
+    connected.channel = {};
+
+    await expect(rabbit.dispatch(msg(), { delay: MAX_DELAY_MS + 1 })).rejects.toBeInstanceOf(
+      QueueUnsupportedOperationError,
+    );
   });
 
   it('SQS honours <=15min exactly, throws above the cap and on FIFO', async () => {

@@ -18,7 +18,7 @@ import type {
   HealthCheckResult,
   RabbitMQAdapterConfig,
 } from '../types';
-import { buildTenantName } from '../types';
+import { buildTenantName, QueueUnsupportedOperationError } from '../types';
 
 import {
   DEFAULT_MAX_RETRIES,
@@ -121,7 +121,13 @@ export function delayBucketQueueArguments(
 
 function normaliseDelay(raw: number | undefined): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0;
-  return Math.min(Math.floor(raw), MAX_DELAY_MS);
+  const delay = Math.floor(raw);
+  if (delay > MAX_DELAY_MS) {
+    throw new QueueUnsupportedOperationError(
+      `RabbitMQ delayed delivery supports at most ${MAX_DELAY_MS}ms; use the durable outbox schedule for longer delays`,
+    );
+  }
+  return delay;
 }
 
 interface PendingPublish {
