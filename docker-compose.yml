@@ -272,6 +272,42 @@ services:
     networks:
       - proctira
 
+  # PRC-H051: durable exam-document generation queue consumer. Without this
+  # service, jobs enqueued by the gateway (QUEUE_BACKEND/RABBITMQ_URL set) are
+  # never processed.
+  exam-document-worker:
+    build:
+      context: .
+      dockerfile: workers/exam-document/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EXAM_DOCUMENT_WORKER_PORT: 3025
+      EXAM_DOCUMENT_WORKER_HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL}
+      QUEUE_BACKEND: ${QUEUE_BACKEND:-rabbitmq}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-proctira.events}
+      TRACING_ENABLED: ${TRACING_ENABLED:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-exam-document-worker}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    ports:
+      - '${EXAM_DOCUMENT_WORKER_PORT:-3025}:3025'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3025/health/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - proctira
+
   web:
     build:
       context: .
