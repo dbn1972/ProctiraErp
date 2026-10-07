@@ -14,7 +14,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { CaseService } from './case-service.js';
+import { getCasePrincipal } from './case-access.js';
+import type { CaseEntity } from './case-repository.js';
 import {
   CreateCaseSchema,
   UpdateCaseSchema,
@@ -28,7 +29,7 @@ import {
   type CaseParams,
   type CaseListQuery,
 } from './case-schemas.js';
-import type { CaseEntity } from './case-repository.js';
+import type { CaseService } from './case-service.js';
 
 /**
  * Options for registering case routes.
@@ -110,8 +111,18 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       try {
-        const caseEntity = await caseService.createCase(tenantId, result.data);
+        const caseEntity = await caseService.createCase(tenantId, result.data, principal);
         return reply.status(201).send(formatCaseResponse(caseEntity));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -141,6 +152,16 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
@@ -155,6 +176,7 @@ export async function registerCaseRoutes(
           assignedTo: query.assignedTo,
         },
         { page, pageSize },
+        principal,
       );
 
       return reply.status(200).send({
@@ -193,8 +215,18 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       try {
-        const caseEntity = await caseService.getCase(tenantId, paramsResult.data.caseId);
+        const caseEntity = await caseService.getCase(tenantId, paramsResult.data.caseId, principal);
         return reply.status(200).send(formatCaseResponse(caseEntity));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -244,11 +276,22 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       try {
         const caseEntity = await caseService.updateCase(
           tenantId,
           paramsResult.data.caseId,
           bodyResult.data,
+          principal,
         );
         return reply.status(200).send(formatCaseResponse(caseEntity));
       } catch (error: unknown) {
@@ -299,11 +342,22 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       try {
         const caseEntity = await caseService.addAttachment(
           tenantId,
           paramsResult.data.caseId,
           bodyResult.data,
+          principal,
         );
         return reply.status(200).send(formatCaseResponse(caseEntity));
       } catch (error: unknown) {
@@ -354,11 +408,22 @@ export async function registerCaseRoutes(
         });
       }
 
+      // PRC-H111: case visibility is decided from the verified principal only.
+      const principal = getCasePrincipal(request);
+      if (!principal) {
+        return reply.status(401).send({
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required to access cases',
+          statusCode: 401,
+        });
+      }
+
       try {
         const caseEntity = await caseService.resolveCase(
           tenantId,
           paramsResult.data.caseId,
           bodyResult.data,
+          principal,
         );
         return reply.status(200).send(formatCaseResponse(caseEntity));
       } catch (error: unknown) {
