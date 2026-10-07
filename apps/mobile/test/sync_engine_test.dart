@@ -289,7 +289,7 @@ void main() {
             'subjectId': null,
             'periodId': null,
             'studentId': 'stu-1',
-            'attendanceDate': '2026-05-12',
+            'date': '2026-05-12',
             'status': 'EXCUSED',
             'comment': 'Already updated',
             'recordedBy': 'admin',

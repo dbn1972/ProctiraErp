@@ -16,6 +16,7 @@ import '../../features/scholarship/data/scholarship_repository.dart';
 import '../../features/students/data/student_repository.dart';
 import '../auth/auth_bloc.dart';
 import '../auth/biometric_service.dart';
+import '../auth/token_refresh_policy.dart';
 import '../notifications/fcm_service.dart';
 import '../notifications/local_notifications.dart';
 import '../notifications/notification_router.dart';
@@ -147,16 +148,33 @@ Future<void> configureDependencies({
 
         refreshInFlight = true;
         try {
-          final Response<dynamic> refreshResponse = await dio.post<dynamic>(
-            '/api/v1/auth/refresh',
-            data: <String, dynamic>{'refreshToken': refreshToken},
-            options: Options(extra: <String, dynamic>{'authRetried': true}),
-          );
-          final Object? body = refreshResponse.data;
-          if (body is! Map<String, dynamic>) {
-            throw StateError('Invalid refresh payload');
+          AuthTokenPair tokens;
+          try {
+            final Response<dynamic> refreshResponse = await dio.post<dynamic>(
+              '/api/v1/auth/refresh',
+              data: <String, dynamic>{'refreshToken': refreshToken},
+              options: Options(extra: <String, dynamic>{'authRetried': true}),
+            );
+            final Object? body = refreshResponse.data;
+            if (body is! Map<String, dynamic>) {
+              throw StateError('Invalid refresh payload');
+            }
+            tokens = AuthTokenPair.fromJson(body);
+          } catch (refreshError) {
+            // PRC-H013: only force logout when the refresh token is
+            // authoritatively rejected (400/401/403). On transient transport
+            // failures (timeout, connection error, 5xx) keep the session and
+            // the offline queue intact and surface the original error.
+            if (shouldForceLogoutOnRefreshFailure(refreshError)) {
+              await secureStorage.clearTokens();
+              if (getIt.isRegistered<AuthBloc>()) {
+                getIt<AuthBloc>().add(const AuthLogoutRequested());
+              }
+            }
+            handler.next(error);
+            return;
           }
-          final AuthTokenPair tokens = AuthTokenPair.fromJson(body);
+
           await secureStorage.writeTokens(
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
@@ -169,13 +187,11 @@ Future<void> configureDependencies({
             },
             extra: <String, dynamic>{...request.extra, 'authRetried': true},
           );
+          // A failure replaying the original request is NOT an auth problem:
+          // the refresh already succeeded, so never force logout here.
           final Response<dynamic> replay = await dio.fetch<dynamic>(retry);
           handler.resolve(replay);
         } catch (_) {
-          await secureStorage.clearTokens();
-          if (getIt.isRegistered<AuthBloc>()) {
-            getIt<AuthBloc>().add(const AuthLogoutRequested());
-          }
           handler.next(error);
         } finally {
           refreshInFlight = false;

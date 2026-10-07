@@ -720,7 +720,7 @@ class SyncEngine {
                 'class_id': server['classId'],
                 'subject_id': server['subjectId'],
                 'student_id': server['studentId'],
-                'attendance_date': server['attendanceDate'],
+                'attendance_date': server['date'],
                 'status': server['status'],
                 'remarks': server['comment'],
                 'version': outcome.serverVersion,
