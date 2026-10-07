@@ -709,6 +709,34 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # PRC-M360/M364: real broker for the queue-abstraction RabbitMQ live
+      # suites (TTL delay buckets, reconnect after broker restart). Pinned by
+      # version tag + index digest so a re-tag cannot change what CI tests.
+      rabbitmq:
+        image: rabbitmq:3.13.7-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+
+      # PRC-M361: SQS emulator for the queue-abstraction SQS live suite.
+      # 4.4.0 is a community-edition release that starts without a
+      # LOCALSTACK_AUTH_TOKEN (images from 2026.03 onward require one).
+      localstack:
+        image: localstack/localstack:4.4.0@sha256:b52c16663c70b7234f217cb993a339b46686e30a1a5d9279cb5feeb2202f837c
+        env:
+          SERVICES: sqs
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -917,20 +945,31 @@ jobs:
           NODE_ENV: test
 
       # W3-TEST-03: collect *.live.test.ts JSON and fail if any skipped or
-      # executed count is below LIVE_TEST_MIN_EXECUTED.
-      - name: Assert live Postgres suites executed (W3-TEST-03)
+      # executed count is below LIVE_TEST_MIN_EXECUTED. Broker suites run
+      # against the rabbitmq/localstack services above, not skipped.
+      - name: Assert live Postgres + broker suites executed (W3-TEST-03)
         run: pnpm test:live:gate
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # PRC-M360/M361/M364: queue-abstraction broker live suites.
+          RABBITMQ_LIVE_URL: amqp://guest:guest@localhost:5672
+          # The reconnect chaos test restarts the broker service container;
+          # the live gate runs files serially so no other suite sees the bounce.
+          RABBITMQ_RESTART_CMD: docker restart ${{ job.services.rabbitmq.id }}
+          SQS_LIVE_ENDPOINT: http://localhost:4566
           CI: true
           REQUIRE_LIVE_TESTS: '1'
           LIVE_TEST_MIN_EXECUTED: '10'
-          # PRC-L499: staff live-PG suites must execute (not just count toward the minimum).
+          # PRC-L499: staff live-PG suites and the broker suites must execute
+          # (not just count toward the minimum).
           LIVE_TEST_REQUIRED_FILES: >-
             packages/backend/staff/src/pg-leave-repository.live.test.ts,
             packages/backend/staff/src/hr-pg-and-routes.live.test.ts,
-            packages/backend/staff/src/staff-import-transaction.live.test.ts
+            packages/backend/staff/src/staff-import-transaction.live.test.ts,
+            packages/shared/queue-abstraction/src/__tests__/rabbitmq-delay.live.test.ts,
+            packages/shared/queue-abstraction/src/__tests__/rabbitmq-reconnect.live.test.ts,
+            packages/shared/queue-abstraction/src/__tests__/sqs-localstack.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)
