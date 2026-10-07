@@ -224,6 +224,7 @@ const WIPE: Record<string, readonly string[]> = {
     'examination_academic_records',
     'examination_candidate_registrations',
     'examination_candidates',
+    'examination_document_blobs',
     'examination_document_jobs',
     'examination_publications',
     'examination_result_analyses',
