@@ -113,13 +113,9 @@ function mapRule(row: Record<string, unknown>): NotificationRuleEntity {
     isActive: Boolean(row['is_active']),
     schedule: row['schedule'] == null ? null : String(row['schedule']),
     createdAt:
-      row['created_at'] instanceof Date
-        ? row['created_at']
-        : new Date(String(row['created_at'])),
+      row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
     updatedAt:
-      row['updated_at'] instanceof Date
-        ? row['updated_at']
-        : new Date(String(row['updated_at'])),
+      row['updated_at'] instanceof Date ? row['updated_at'] : new Date(String(row['updated_at'])),
   };
 }
 
@@ -133,13 +129,9 @@ function mapTemplate(row: Record<string, unknown>): NotificationTemplateEntity {
     body: String(row['body']),
     variables: parseJson<string[]>(row['variables'], []),
     createdAt:
-      row['created_at'] instanceof Date
-        ? row['created_at']
-        : new Date(String(row['created_at'])),
+      row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
     updatedAt:
-      row['updated_at'] instanceof Date
-        ? row['updated_at']
-        : new Date(String(row['updated_at'])),
+      row['updated_at'] instanceof Date ? row['updated_at'] : new Date(String(row['updated_at'])),
   };
 }
 
@@ -499,10 +491,7 @@ export class HybridNotificationRepository implements NotificationRepository {
     });
   }
 
-  async getTemplateById(
-    tenantId: string,
-    id: string,
-  ): Promise<NotificationTemplateEntity | null> {
+  async getTemplateById(tenantId: string, id: string): Promise<NotificationTemplateEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(

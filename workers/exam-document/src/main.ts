@@ -50,7 +50,12 @@ async function main(): Promise<void> {
   // PRC-H051: liveness/readiness probe for compose/k8s. Readiness tracks the
   // worker's running state and broker connectivity.
   const health = await startHealthServer({
-    worker: { get running() { return worker.running; }, isConnected: () => queue.isConnected() },
+    worker: {
+      get running() {
+        return worker.running;
+      },
+      isConnected: () => queue.isConnected(),
+    },
   });
 
   // W1-ARCH-07: drain queue consumer → close DB pools → exit (timeout + second-signal force).

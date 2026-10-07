@@ -32,15 +32,12 @@ export function resolveRetentionDryRun(env = process.env) {
   const v = String(raw).trim();
   if (v === '1') return true;
   if (v === '0') return false;
-  throw new Error(
-    `W1-OPS-19: RETENTION_DRY_RUN must be "0" or "1" (got ${JSON.stringify(v)}).`,
-  );
+  throw new Error(`W1-OPS-19: RETENTION_DRY_RUN must be "0" or "1" (got ${JSON.stringify(v)}).`);
 }
 
 const PHI_DAYS = Number(process.env.PHI_RETENTION_DAYS ?? '2555');
 const MINOR_DAYS = Number(process.env.MINOR_PHI_RETENTION_DAYS ?? '3650');
-const ARTIFACT_DIR =
-  process.env.ARTIFACT_DIR ?? '/opt/cursor/artifacts/phi-retention';
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR ?? '/opt/cursor/artifacts/phi-retention';
 const DATABASE_URL = process.env.DATABASE_URL;
 
 export function retentionCutoffIso(days, now = new Date()) {
@@ -127,18 +124,14 @@ export function buildRetentionPlan({
       counsellingSessions: counsellingCount,
       specialNeedsRecords: specialNeedsCount,
     },
-    applied: dryRun
-      ? { counsellingDeleted: 0, specialNeedsDeleted: 0 }
-      : undefined,
+    applied: dryRun ? { counsellingDeleted: 0, specialNeedsDeleted: 0 } : undefined,
   };
 }
 
 function psqlScalar(sql) {
-  const result = spawnSync(
-    'psql',
-    [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql],
-    { encoding: 'utf8' },
-  );
+  const result = spawnSync('psql', [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql], {
+    encoding: 'utf8',
+  });
   if (result.status !== 0) {
     return null;
   }
@@ -148,11 +141,9 @@ function psqlScalar(sql) {
 }
 
 function psqlExec(sql) {
-  const result = spawnSync(
-    'psql',
-    [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql],
-    { encoding: 'utf8' },
-  );
+  const result = spawnSync('psql', [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql], {
+    encoding: 'utf8',
+  });
   if (result.status !== 0) {
     throw new Error(result.stderr || 'psql failed');
   }
@@ -174,12 +165,8 @@ async function main() {
       minorDays: MINOR_DAYS,
     });
     plan.mode = 'no-database';
-    plan.note =
-      'DATABASE_URL unset — wrote policy plan only (CI / local without Postgres).';
-    await writeFile(
-      path.join(ARTIFACT_DIR, 'summary.json'),
-      `${JSON.stringify(plan, null, 2)}\n`,
-    );
+    plan.note = 'DATABASE_URL unset — wrote policy plan only (CI / local without Postgres).';
+    await writeFile(path.join(ARTIFACT_DIR, 'summary.json'), `${JSON.stringify(plan, null, 2)}\n`);
     console.log(JSON.stringify(plan, null, 2));
     return;
   }
@@ -199,11 +186,9 @@ async function main() {
     minorCutoffIso: minorCutoff,
   });
 
-  const counsellingCount =
-    psqlScalar(`SELECT count(*)::int ${counsellingFrom};`) ?? 0;
+  const counsellingCount = psqlScalar(`SELECT count(*)::int ${counsellingFrom};`) ?? 0;
 
-  const specialNeedsCount =
-    psqlScalar(`SELECT count(*)::int ${specialNeedsFrom};`) ?? 0;
+  const specialNeedsCount = psqlScalar(`SELECT count(*)::int ${specialNeedsFrom};`) ?? 0;
 
   const plan = buildRetentionPlan({
     counsellingCount,
@@ -234,16 +219,12 @@ async function main() {
     plan.applied = { counsellingDeleted, specialNeedsDeleted };
   }
 
-  await writeFile(
-    path.join(ARTIFACT_DIR, 'summary.json'),
-    `${JSON.stringify(plan, null, 2)}\n`,
-  );
+  await writeFile(path.join(ARTIFACT_DIR, 'summary.json'), `${JSON.stringify(plan, null, 2)}\n`);
   console.log(JSON.stringify(plan, null, 2));
 }
 
 const isMain =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
   main().catch((err) => {

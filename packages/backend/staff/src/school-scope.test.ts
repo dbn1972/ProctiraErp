@@ -43,11 +43,7 @@ async function seedRepo() {
 describe('staff school-scope (PRC-H090)', () => {
   it('list with institutionId returns only that school staff', async () => {
     const repo = await seedRepo();
-    const result = await repo.list(
-      TENANT,
-      { institutionId: SCHOOL_A },
-      { page: 1, pageSize: 50 },
-    );
+    const result = await repo.list(TENANT, { institutionId: SCHOOL_A }, { page: 1, pageSize: 50 });
     const ids = result.data.map((s) => s.id).sort();
     expect(ids).toEqual(['a1', 'a2']);
     expect(ids).not.toContain('b1');

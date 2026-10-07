@@ -185,7 +185,9 @@ function sampleSubmission(overrides: Partial<PluginSubmissionEntity> = {}): Plug
   };
 }
 
-function sampleListing(overrides: Partial<MarketplaceListingEntity> = {}): MarketplaceListingEntity {
+function sampleListing(
+  overrides: Partial<MarketplaceListingEntity> = {},
+): MarketplaceListingEntity {
   return {
     name: 'acme-plugin',
     displayName: 'ACME',
@@ -212,12 +214,7 @@ describe('PgDeveloperPortalDurableStore submissions/listings (PRC-H049)', () => 
     const pool = createSharedPool();
     const store1 = new PgDeveloperPortalDurableStore(pool as never);
     await store1.createSubmission(sampleSubmission());
-    await store1.updateSubmissionStatus(
-      sampleSubmission().id,
-      'approved',
-      'ok',
-      'reviewer-1',
-    );
+    await store1.updateSubmissionStatus(sampleSubmission().id, 'approved', 'ok', 'reviewer-1');
 
     const store2 = new PgDeveloperPortalDurableStore(pool as never);
     const found = await store2.getSubmissionById(sampleSubmission().id);

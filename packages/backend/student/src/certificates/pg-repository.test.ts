@@ -65,18 +65,14 @@ function createSharedMockPool() {
 
     if (sql.includes('WHERE serial_number = $1 AND tenant_id = $2')) {
       const [serial, tenant_id] = values;
-      const found = rows.find(
-        (r) => r['serial_number'] === serial && r['tenant_id'] === tenant_id,
-      );
+      const found = rows.find((r) => r['serial_number'] === serial && r['tenant_id'] === tenant_id);
       return { rows: found ? [found] : [] };
     }
 
     if (sql.includes('WHERE tenant_id = $1 AND student_id = $2')) {
       const [tenant_id, student_id] = values;
       return {
-        rows: rows.filter(
-          (r) => r['tenant_id'] === tenant_id && r['student_id'] === student_id,
-        ),
+        rows: rows.filter((r) => r['tenant_id'] === tenant_id && r['student_id'] === student_id),
       };
     }
 

@@ -645,10 +645,9 @@ export class PgDeveloperPortalDurableStore {
 
   async getListingByName(name: string): Promise<MarketplaceListingEntity | null> {
     return withPlatformScope(this.pool, async (client: PgQueryable) => {
-      const result = await client.query(
-        `SELECT * FROM developer_portal_listings WHERE name = $1`,
-        [name],
-      );
+      const result = await client.query(`SELECT * FROM developer_portal_listings WHERE name = $1`, [
+        name,
+      ]);
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapListing(row) : null;
     });
@@ -729,10 +728,9 @@ export class PgDeveloperPortalDurableStore {
 
   async deleteListing(name: string): Promise<boolean> {
     return withPlatformScope(this.pool, async (client: PgQueryable) => {
-      const result = await client.query(
-        `DELETE FROM developer_portal_listings WHERE name = $1`,
-        [name],
-      );
+      const result = await client.query(`DELETE FROM developer_portal_listings WHERE name = $1`, [
+        name,
+      ]);
       return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
     });
   }

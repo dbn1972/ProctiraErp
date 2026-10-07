@@ -8,10 +8,7 @@
  */
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
-import type {
-  LifecycleCertificate,
-  LifecycleCertificateRepository,
-} from './types.js';
+import type { LifecycleCertificate, LifecycleCertificateRepository } from './types.js';
 
 interface PgPoolLike {
   query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
@@ -84,10 +81,7 @@ export class PgLifecycleCertificateRepository implements LifecycleCertificateRep
     });
   }
 
-  async findBySerial(
-    tenantId: string,
-    serialNumber: string,
-  ): Promise<LifecycleCertificate | null> {
+  async findBySerial(tenantId: string, serialNumber: string): Promise<LifecycleCertificate | null> {
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM student_lifecycle_certificates

@@ -21,14 +21,8 @@ describe('G-503 PHI retention helpers', () => {
   });
 
   it('uses longer window for minor-linked PHI', () => {
-    assert.equal(
-      classifyRetentionBucket({ isMinor: true, phiDays: 2555, minorDays: 3650 }),
-      3650,
-    );
-    assert.equal(
-      classifyRetentionBucket({ isMinor: false, phiDays: 2555, minorDays: 3650 }),
-      2555,
-    );
+    assert.equal(classifyRetentionBucket({ isMinor: true, phiDays: 2555, minorDays: 3650 }), 3650);
+    assert.equal(classifyRetentionBucket({ isMinor: false, phiDays: 2555, minorDays: 3650 }), 2555);
   });
 
   it('builds a dry-run plan with candidate counts', () => {
@@ -57,10 +51,7 @@ describe('W1-OPS-19 RETENTION_DRY_RUN fail-closed', () => {
   });
 
   it('refuses unset mode (no silent dry-run default)', () => {
-    assert.throws(
-      () => resolveRetentionDryRun({}),
-      /RETENTION_DRY_RUN must be explicitly set/,
-    );
+    assert.throws(() => resolveRetentionDryRun({}), /RETENTION_DRY_RUN must be explicitly set/);
     assert.throws(
       () => resolveRetentionDryRun({ RETENTION_DRY_RUN: '' }),
       /RETENTION_DRY_RUN must be explicitly set/,
@@ -87,10 +78,7 @@ describe('PRC-H107 minor-aware retention predicate', () => {
     });
     // Minor branch must compare against the minor cutoff, never the adult one.
     assert.match(sql, /date_of_birth \+ INTERVAL '18 years'/);
-    const minorBranch = sql.slice(
-      sql.indexOf('18 years'),
-      sql.indexOf('WHEN (s.id IS NOT NULL'),
-    );
+    const minorBranch = sql.slice(sql.indexOf('18 years'), sql.indexOf('WHEN (s.id IS NOT NULL'));
     assert.ok(minorBranch.includes(`r.created_at < '${minorCutoffIso}'::timestamptz`));
     assert.ok(!minorBranch.includes(`'${adultCutoffIso}'`));
     // Confirmed-adult branch uses the adult cutoff.
