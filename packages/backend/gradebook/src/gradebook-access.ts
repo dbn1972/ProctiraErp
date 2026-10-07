@@ -58,6 +58,40 @@ export function normalizeRoles(roles: unknown): string[] {
     .filter(Boolean);
 }
 
+/**
+ * PRC-H066: roles whose grade writes are institution-wide (within their institution scope)
+ * rather than bound to the sections they teach. Teacher-only roles (teacher, class_teacher,
+ * subject_teacher) are deliberately absent: they must be the assigned teacher of the section.
+ */
+const INSTITUTION_WIDE_GRADE_WRITE_ROLES: ReadonlySet<string> = new Set([
+  ...REGISTRAR_ROLES,
+  ...ADMIN_ROLES,
+]);
+
+/**
+ * Role ids only (string roles or `roleId` on role objects). Unlike {@link normalizeRoles} this
+ * never falls back to `roleName`/`id`, so a display name cannot lift a caller out of the
+ * section-assignment requirement.
+ */
+function roleIdsOnly(roles: unknown): string[] {
+  if (!Array.isArray(roles)) return [];
+  return roles
+    .map((r) => {
+      if (typeof r === 'string') return r.toLowerCase();
+      if (r && typeof r === 'object') {
+        const roleId = (r as { roleId?: unknown }).roleId;
+        return typeof roleId === 'string' ? roleId.toLowerCase() : '';
+      }
+      return '';
+    })
+    .filter(Boolean);
+}
+
+/** PRC-H066: true when the caller's grade writes are not limited to sections they teach. */
+export function hasInstitutionWideGradeWriteRole(roles: unknown): boolean {
+  return roleIdsOnly(roles).some((role) => INSTITUTION_WIDE_GRADE_WRITE_ROLES.has(role));
+}
+
 export function hasGradebookAccess(roles: unknown, action: GradebookAction): boolean {
   const normalized = normalizeRoles(roles);
   if (normalized.length === 0) return false;

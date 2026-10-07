@@ -5,7 +5,11 @@
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
 
-import { isCampaignAudienceBroadcast, isParentVisibleGrade } from './academic-visibility.js';
+import {
+  isCampaignAudienceBroadcast,
+  isParentVisibleGrade,
+  selectBoundStudentId,
+} from './academic-visibility.js';
 import {
   EMPTY_ATTENDANCE_SUMMARY,
   emptyAcademicList,
@@ -102,31 +106,32 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     return withPgTenant(this.pool as never, tenantId, fn);
   }
 
-  async resolveStudentId(
-    tenantId: string,
-    userId: string,
-    email?: string | null,
-  ): Promise<string | null> {
+  /**
+   * PRC-H075: bind a student principal to exactly one `students` row through an explicit
+   * identity link only — `students.id = sub` or `custom_data.user_id = sub`. Email and
+   * `contacts[0]` (usually a guardian contact shared by siblings) are never matched. Every
+   * candidate is fetched (no LIMIT) so an ambiguous link fails closed via
+   * `selectBoundStudentId` instead of resolving to an arbitrary row.
+   */
+  async resolveStudentId(tenantId: string, userId: string): Promise<string | null> {
+    if (!userId) return null;
     return this.withTenant(tenantId, async (client) => {
       const rows = await queryRows(
         client,
-        `SELECT id
+        `SELECT DISTINCT id
            FROM students
           WHERE tenant_id = $1::uuid
             AND deleted_at IS NULL
             AND (
               id::text = $2
-              OR COALESCE(custom_data->>'user_id', '') = $2
-              OR ($3::text IS NOT NULL AND (
-                   COALESCE(custom_data->>'email', '') = $3
-                   OR COALESCE(custom_data->'contacts'->0->>'value', '') = $3
-                 ))
+              OR custom_data @> jsonb_build_object('user_id', $2::text)
             )
-          LIMIT 1`,
-        [tenantId, userId, email ?? null],
+          ORDER BY id`,
+        [tenantId, userId],
       );
-      const id = rows[0] ? strOrNull(rows[0].id) : null;
-      return id;
+      return selectBoundStudentId(
+        rows.map((row) => strOrNull(row.id)).filter((id): id is string => id !== null),
+      );
     });
   }
 

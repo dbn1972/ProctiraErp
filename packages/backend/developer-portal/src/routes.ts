@@ -28,6 +28,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
 import {
+  authenticatedEmail,
+  callerTenantId,
+  isPlatformStaff,
+  PLATFORM_STAFF_REQUIRED,
+} from './platform-staff.js';
+import {
   CreateDeveloperAccountSchema,
   UpdateDeveloperAccountSchema,
   DeveloperAccountParamsSchema,
@@ -82,6 +88,9 @@ import {
   WEBHOOK_TIMESTAMP_HEADER,
   WEBHOOK_NONCE_HEADER,
 } from './webhook-signature.js';
+
+/** Header carrying a developer API key for analytics ingest (PRC-H048). */
+export const DEVELOPER_API_KEY_HEADER = 'x-developer-api-key';
 
 /**
  * Options for registering developer portal routes.
@@ -1300,12 +1309,17 @@ export async function registerDeveloperPortalRoutes(
           statusCode: 401,
         });
       }
+      // PRC-H048: marketplace review is a platform-staff action.
+      if (!isPlatformStaff(request)) {
+        return reply.status(403).send(PLATFORM_STAFF_REQUIRED);
+      }
 
       try {
         const submission = await service.reviewPlugin(
           paramsResult.data.submissionId,
           reviewerId,
           bodyResult.data,
+          { email: authenticatedEmail(request), tenantId: callerTenantId(request) },
         );
         return reply.status(200).send(formatSubmissionResponse(submission));
       } catch (error: unknown) {
@@ -1327,6 +1341,18 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: PluginSubmissionParams }>,
       reply: FastifyReply,
     ) {
+      // PRC-H048: marketplace publish is a platform-staff action.
+      if (!authenticatedSubject(request)) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required',
+          statusCode: 401,
+        });
+      }
+      if (!isPlatformStaff(request)) {
+        return reply.status(403).send(PLATFORM_STAFF_REQUIRED);
+      }
+
       const paramsResult = validate(PluginSubmissionParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -1478,6 +1504,18 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Body: CreateDocPageInput }>,
       reply: FastifyReply,
     ) {
+      // PRC-H048: developer docs mutation is a platform-staff action.
+      if (!authenticatedSubject(request)) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required',
+          statusCode: 401,
+        });
+      }
+      if (!isPlatformStaff(request)) {
+        return reply.status(403).send(PLATFORM_STAFF_REQUIRED);
+      }
+
       const bodyResult = validate(CreateDocPageSchema, request.body);
       if (!bodyResult.success) {
         return reply.status(400).send({
@@ -1554,6 +1592,18 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DocPageParams; Body: UpdateDocPageInput }>,
       reply: FastifyReply,
     ) {
+      // PRC-H048: developer docs mutation is a platform-staff action.
+      if (!authenticatedSubject(request)) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required',
+          statusCode: 401,
+        });
+      }
+      if (!isPlatformStaff(request)) {
+        return reply.status(403).send(PLATFORM_STAFF_REQUIRED);
+      }
+
       const params = request.params;
 
       const bodyResult = validate(UpdateDocPageSchema, request.body);
@@ -1588,6 +1638,18 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DocPageParams }>,
       reply: FastifyReply,
     ) {
+      // PRC-H048: developer docs mutation is a platform-staff action.
+      if (!authenticatedSubject(request)) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required',
+          statusCode: 401,
+        });
+      }
+      if (!isPlatformStaff(request)) {
+        return reply.status(403).send(PLATFORM_STAFF_REQUIRED);
+      }
+
       const params = request.params;
 
       try {
@@ -1622,6 +1684,36 @@ export async function registerDeveloperPortalRoutes(
           statusCode: 400,
           errors: bodyResult.errors,
         });
+      }
+
+      // PRC-H048: platform staff may ingest for any published plugin; anyone
+      // else must present the plugin's own developer API key issued in the
+      // caller's tenant. Unknown plugins are rejected by the service (404).
+      if (!isPlatformStaff(request)) {
+        const header = request.headers[DEVELOPER_API_KEY_HEADER];
+        const rawKey = typeof header === 'string' && header.length > 0 ? header : undefined;
+        const authorized = await service.isAnalyticsIngestAuthorized(
+          bodyResult.data.pluginName,
+          rawKey,
+          callerTenantId(request),
+        );
+        if (!authorized) {
+          // Distinguish unknown plugin (404) from a bad/foreign credential (403).
+          try {
+            await service.getMarketplaceListing(bodyResult.data.pluginName);
+          } catch (error: unknown) {
+            if (error instanceof AppError) {
+              return reply.status(error.statusCode).send(error.toJSON());
+            }
+            throw error;
+          }
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message:
+              'Analytics ingest requires the plugin developer API key for this tenant or a platform staff role',
+            statusCode: 403,
+          });
+        }
       }
 
       try {
