@@ -18,7 +18,7 @@ import type {
   HealthCheckResult,
   RabbitMQAdapterConfig,
 } from '../types';
-import { buildTenantName } from '../types';
+import { buildTenantName, QueueUnsupportedOperationError } from '../types';
 
 import {
   DEFAULT_MAX_RETRIES,
@@ -49,6 +49,11 @@ export interface RabbitMQAdapterRuntimeOptions {
   onDeliveryFailure?: (event: DeliveryFailureEvent) => void;
   /** PRC-L493: queue-depth sample interval in ms (default 15000; 0 disables). */
   depthSampleIntervalMs?: number;
+  /**
+   * Automatic reconnect after an unexpected connection/channel loss (PRC-M364).
+   * Enabled by default; consumers are re-registered after reconnecting.
+   */
+  reconnect?: { enabled?: boolean; initialDelayMs?: number; maxDelayMs?: number };
 }
 
 /** Name of the queue bound (`#`) to the dead-letter exchange (PRC-H086). */
@@ -74,25 +79,55 @@ export function effectiveRoutingKey(msg: Pick<ConsumeMessage, 'fields' | 'proper
 /** Header used to route a delayed publish to its TTL bucket queue (PRC-H110). */
 export const DELAY_BUCKET_HEADER = 'x-delay-bucket';
 
-/** Idle expiry added to a bucket's TTL before RabbitMQ deletes an unused bucket. */
-const DELAY_BUCKET_IDLE_EXPIRY_MS = 10 * 60 * 1000;
-
 /** Longest supported delay (RabbitMQ TTL upper bound is 2^32-1 ms; keep 7 days). */
 export const MAX_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Version segment of the delay topology. v1 (`<exchange>.delay` +
+ * `<exchange>.delay.<ms>ms`) declared buckets with `x-expires`, which RabbitMQ
+ * enforces even while messages are waiting (publishes do not count as use), so
+ * a long-running process lost delayed messages. Queue arguments cannot change
+ * in place (re-declaring with different args fails with 406
+ * PRECONDITION_FAILED), so v2 uses new names; v1 buckets drain and self-expire.
+ * See docs/runbooks/queue-delay-dlq-migration.md.
+ */
+export const DELAY_TOPOLOGY_VERSION = 'v2';
+
 /** Headers exchange that fans delayed publishes into per-delay TTL queues. */
 export function delayExchangeName(exchange: string): string {
-  return `${exchange}.delay`;
+  return `${exchange}.delay.${DELAY_TOPOLOGY_VERSION}`;
 }
 
 /** TTL bucket queue for one delay value; dead-letters back to `exchange`. */
 export function delayBucketQueueName(exchange: string, delayMs: number): string {
-  return `${exchange}.delay.${delayMs}ms`;
+  return `${exchange}.delay.${DELAY_TOPOLOGY_VERSION}.${delayMs}ms`;
+}
+
+/**
+ * Arguments of a delay bucket queue. Deliberately NO `x-expires`: a bucket must
+ * never be deleted while it holds messages. No `x-dead-letter-routing-key`
+ * either, so an expired message re-enters the work exchange with its original
+ * tenant routing key.
+ */
+export function delayBucketQueueArguments(
+  exchange: string,
+  delayMs: number,
+): Record<string, unknown> {
+  return {
+    'x-message-ttl': delayMs,
+    'x-dead-letter-exchange': exchange,
+  };
 }
 
 function normaliseDelay(raw: number | undefined): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0;
-  return Math.min(Math.floor(raw), MAX_DELAY_MS);
+  const delay = Math.floor(raw);
+  if (delay > MAX_DELAY_MS) {
+    throw new QueueUnsupportedOperationError(
+      `RabbitMQ delayed delivery supports at most ${MAX_DELAY_MS}ms; use the durable outbox schedule for longer delays`,
+    );
+  }
+  return delay;
 }
 
 interface PendingPublish {
@@ -115,6 +150,22 @@ export class RabbitMQAdapter implements QueueAdapter {
   private readonly pendingPublishes = new Map<string, Set<PendingPublish>>();
   /** Failed-delivery counter (retried vs dead-lettered). */
   readonly failures = new DeliveryFailureCounter();
+  /** Delay buckets already declared on the current channel (PRC-M360). */
+  /** Consumers to re-register after a reconnect (PRC-M364). */
+  private readonly registrations: Array<{
+    queueName: string;
+    options: SubscribeOptions;
+    handler: MessageHandler;
+  }> = [];
+  private readonly reconnectOptions: Required<
+    NonNullable<RabbitMQAdapterRuntimeOptions['reconnect']>
+  >;
+  /** True while disconnect() is closing on purpose (no reconnect). */
+  private closing = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
+  /** Number of successful reconnects (observability / tests). */
+  reconnectCount = 0;
 
   constructor(config: RabbitMQAdapterConfig, runtime: RabbitMQAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config } as RabbitMQAdapterConfig;
@@ -122,13 +173,28 @@ export class RabbitMQAdapter implements QueueAdapter {
     this.logger = runtime.logger;
     this.onDeliveryFailure = runtime.onDeliveryFailure;
     this.depthSampleIntervalMs = runtime.depthSampleIntervalMs ?? DEFAULT_DEPTH_SAMPLE_INTERVAL_MS;
+    this.reconnectOptions = {
+      enabled: runtime.reconnect?.enabled ?? true,
+      initialDelayMs: runtime.reconnect?.initialDelayMs ?? 500,
+      maxDelayMs: runtime.reconnect?.maxDelayMs ?? 30_000,
+    };
   }
 
   async connect(): Promise<void> {
     if (this.connected) return;
-
-    this.connection = await amqplib.connect(this.config.url, {
+    this.closing = false;
+    const connection = await amqplib.connect(this.config.url, {
       heartbeat: this.config.heartbeat,
+    });
+    this.connection = connection;
+    // PRC-M364: an 'error' without a listener would crash the process; a
+    // broker restart closes the connection - both trigger a reconnect.
+    connection.on('error', (err: unknown) => {
+      this.logger?.error?.({ err: errorMessage(err) }, 'rabbitmq connection error');
+    });
+    connection.on('close', () => {
+      // Ignore late events from a connection that was already replaced.
+      if (this.connection === connection) this.handleUnexpectedClose('connection closed');
     });
 
     // PRC-H087: confirm channel so publish resolves only after broker ack.
@@ -156,7 +222,10 @@ export class RabbitMQAdapter implements QueueAdapter {
       }
       this.connected = false;
     };
-    channel.on('close', () => failAll('channel closed'));
+    channel.on('close', () => {
+      failAll('channel closed');
+      if (this.channel === channel) this.handleUnexpectedClose('channel closed');
+    });
     channel.on('error', (err: unknown) => failAll(errorMessage(err)));
 
     // Assert the main exchange
@@ -197,7 +266,63 @@ export class RabbitMQAdapter implements QueueAdapter {
     this.depthTimers.push(timer);
   }
 
+  /**
+   * PRC-M364: after an unexpected close, reconnect with exponential backoff and
+   * re-register every consumer. Never runs for an intentional disconnect().
+   */
+  private handleUnexpectedClose(reason: string): void {
+    this.connected = false;
+    if (this.closing || !this.reconnectOptions.enabled || this.reconnectTimer) return;
+    const stale = this.connection;
+    this.channel = null;
+    this.connection = null;
+    this.delayExchangeAsserted = false;
+    // A channel-only failure leaves the TCP connection open: close it quietly.
+    stale?.close().catch(() => undefined);
+    this.logger?.warn?.({ reason }, 'rabbitmq connection lost; reconnecting');
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    const { initialDelayMs, maxDelayMs } = this.reconnectOptions;
+    const delay = Math.min(maxDelayMs, initialDelayMs * 2 ** this.reconnectAttempt);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnectNow();
+    }, delay);
+    if (typeof this.reconnectTimer === 'object' && 'unref' in this.reconnectTimer) {
+      this.reconnectTimer.unref();
+    }
+  }
+
+  private async reconnectNow(): Promise<void> {
+    this.reconnectTimer = null;
+    if (this.closing) return;
+    try {
+      await this.connect();
+      for (const reg of this.registrations) {
+        await this.consumeQueue(reg.queueName, reg.options, reg.handler, false);
+      }
+      this.reconnectAttempt = 0;
+      this.reconnectCount += 1;
+      this.logger?.warn?.(
+        { consumers: this.registrations.length },
+        'rabbitmq reconnected; consumers resumed',
+      );
+    } catch (err: unknown) {
+      this.connected = false;
+      this.logger?.error?.({ err: errorMessage(err) }, 'rabbitmq reconnect failed');
+      if (!this.closing) this.scheduleReconnect();
+    }
+  }
+
   async disconnect(): Promise<void> {
+    this.closing = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.registrations.length = 0;
     for (const timer of this.depthTimers) clearInterval(timer);
     this.depthTimers = [];
     if (!this.connected && !this.channel && !this.connection) return;
@@ -258,7 +383,6 @@ export class RabbitMQAdapter implements QueueAdapter {
       (publishOptions.headers as Record<string, unknown>)[DELAY_BUCKET_HEADER] = String(delay);
       targetExchange = delayExchangeName(this.config.exchange);
     }
-
     await this.confirmedSend(message.id, (cb) =>
       this.channel!.publish(
         targetExchange,
@@ -271,9 +395,12 @@ export class RabbitMQAdapter implements QueueAdapter {
   }
 
   /**
-   * PRC-H110: declare (and refresh the idle expiry of) the TTL bucket queue for
-   * `delayMs`, bound on the headers delay exchange by `x-delay-bucket`. Every
-   * message in a bucket has the same TTL, so there is no head-of-line blocking.
+   * PRC-H110: declare the TTL bucket queue for `delayMs`, bound on the headers
+   * delay exchange by `x-delay-bucket`. Every message in a bucket has the same
+   * TTL, so there is no head-of-line blocking. Buckets never expire; the queue
+   * and binding are re-asserted on every delayed publish (idempotent) so a
+   * bucket deleted out-of-band is recreated instead of the publish being
+   * returned unroutable for the rest of the connection.
    */
   private async assertDelayBucket(delayMs: number): Promise<void> {
     const channel = this.channel!;
@@ -286,13 +413,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     const bucket = delayBucketQueueName(this.config.exchange, delayMs);
     await channel.assertQueue(bucket, {
       durable,
-      arguments: {
-        'x-message-ttl': delayMs,
-        // No x-dead-letter-routing-key: expired messages keep their routing key.
-        'x-dead-letter-exchange': this.config.exchange,
-        // Idle bucket queues are removed; redeclared on every delayed publish.
-        'x-expires': delayMs + DELAY_BUCKET_IDLE_EXPIRY_MS,
-      },
+      arguments: delayBucketQueueArguments(this.config.exchange, delayMs),
     });
     await channel.bindQueue(bucket, delayExchange, '', {
       'x-match': 'all',
@@ -377,8 +498,10 @@ export class RabbitMQAdapter implements QueueAdapter {
     queueName: string,
     options: SubscribeOptions,
     handler: MessageHandler,
+    register = true,
   ): Promise<void> {
     const channel = this.channel!;
+    if (register) this.registrations.push({ queueName, options, handler });
 
     // Assert queue with dead-letter exchange
     await channel.assertQueue(queueName, {

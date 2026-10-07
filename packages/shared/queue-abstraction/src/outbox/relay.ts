@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { QueueAdapter, QueueMessage } from '../types.js';
+import { QueueUnsupportedOperationError } from '../types.js';
 
 import type { OutboxStore } from './store.js';
 import type { OutboxRecord } from './types.js';
@@ -37,7 +38,9 @@ export class OutboxRelay {
   private readonly maxAttempts: number;
   private readonly logger: OutboxRelayOptions['logger'];
   private timer: ReturnType<typeof setInterval> | null = null;
-  private ticking = false;
+  /** In-flight tick promise so stop() can wait for it (PRC-M363). */
+  private inFlight: Promise<number> | null = null;
+  private connecting: Promise<void> | null = null;
 
   constructor(options: OutboxRelayOptions) {
     this.store = options.store;
@@ -51,40 +54,88 @@ export class OutboxRelay {
 
   /** Process one batch of pending outbox rows. */
   async tick(): Promise<number> {
-    if (this.ticking) return 0;
-    this.ticking = true;
+    if (this.inFlight) return 0;
+    this.inFlight = this.runTick().finally(() => {
+      this.inFlight = null;
+    });
+    return this.inFlight;
+  }
+
+  /**
+   * One batch. Never rejects (PRC-M363): store/broker outages are logged and the
+   * next interval retries, so timers cannot raise unhandled promise rejections.
+   */
+  private async runTick(): Promise<number> {
+    let rows: OutboxRecord[];
     try {
-      const rows = await this.store.claimPending(this.batchSize);
-      let published = 0;
-      for (const row of rows) {
+      rows = await this.store.claimPending(this.batchSize);
+    } catch (err: unknown) {
+      this.logger?.error?.({ err: errorMessage(err) }, 'outbox claimPending failed');
+      return 0;
+    }
+    let published = 0;
+    for (const row of rows) {
+      try {
+        await this.deliver(row);
+        await this.store.markPublished(row.id);
+        published += 1;
+      } catch (err: unknown) {
+        const message = errorMessage(err);
+        if (err instanceof OutboxDeferral) {
+          // The transport cannot delay (e.g. Kafka): keep the row in the outbox
+          // until it is due instead of delivering early or burning retries.
+          try {
+            await this.store.markFailed(row.id, message, err.dueAt);
+          } catch (markErr: unknown) {
+            this.logger?.error?.(
+              { outboxId: row.id, err: errorMessage(markErr) },
+              'outbox markFailed failed',
+            );
+          }
+          continue;
+        }
+        this.logger?.error?.({ outboxId: row.id, err: message }, 'outbox publish failed');
         try {
-          await this.deliver(row);
-          await this.store.markPublished(row.id);
-          published += 1;
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          this.logger?.error?.({ outboxId: row.id, err: message }, 'outbox publish failed');
           if (row.attempts >= this.maxAttempts) {
             await this.store.markFailed(row.id, message);
           } else {
             const delay = this.retryBackoffMs * Math.max(1, row.attempts);
             await this.store.markFailed(row.id, message, new Date(Date.now() + delay));
           }
+        } catch (markErr: unknown) {
+          this.logger?.error?.(
+            { outboxId: row.id, err: errorMessage(markErr) },
+            'outbox markFailed failed',
+          );
         }
       }
-      return published;
-    } finally {
-      this.ticking = false;
     }
+    return published;
+  }
+
+  private ensureConnected(): void {
+    if (this.queue.isConnected() || this.connecting) return;
+    this.connecting = this.queue
+      .connect()
+      .catch((err: unknown) => {
+        // Surface connect failures; the next interval retries.
+        this.logger?.error?.({ err: errorMessage(err) }, 'outbox queue connect failed');
+      })
+      .finally(() => {
+        this.connecting = null;
+      });
   }
 
   start(): void {
     if (this.timer) return;
-    if (!this.queue.isConnected()) {
-      void this.queue.connect();
-    }
+    this.ensureConnected();
     this.timer = setInterval(() => {
-      void this.tick();
+      if (!this.queue.isConnected()) {
+        this.ensureConnected();
+      }
+      this.tick().catch((err: unknown) => {
+        this.logger?.error?.({ err: errorMessage(err) }, 'outbox tick failed');
+      });
     }, this.pollIntervalMs);
     // Unref so relay polling does not keep vitest / short-lived processes alive.
     if (typeof this.timer === 'object' && 'unref' in this.timer) {
@@ -97,11 +148,18 @@ export class OutboxRelay {
       clearInterval(this.timer);
       this.timer = null;
     }
-    // Drain once on stop.
+    // PRC-M363: wait for an in-flight tick before the final drain.
+    if (this.inFlight) {
+      await this.inFlight;
+    }
     await this.tick();
   }
 
   private async deliver(row: OutboxRecord): Promise<void> {
+    // PRC-M360: scheduling is the outbox's job (availableAt, enforced by
+    // claimPending). The row's metadata.delay is never forwarded as-is; only
+    // the remaining delay computed below (PRC-H110) may reach the transport.
+    const { delay: _ignoredDelay, ...rowMetadata } = row.metadata ?? {};
     const message: QueueMessage = {
       id: randomUUID(),
       tenantId: row.tenantId,
@@ -109,7 +167,7 @@ export class OutboxRelay {
       payload: row.payload,
       timestamp: new Date().toISOString(),
       metadata: {
-        ...row.metadata,
+        ...rowMetadata,
         causationId: row.id,
         headers: {
           ...(row.metadata?.headers ?? {}),
@@ -141,17 +199,42 @@ export class OutboxRelay {
       if (delay !== undefined) message.metadata.delay = delay;
       else delete message.metadata.delay;
     }
-    if (row.dispatchMode === 'publish') {
-      await this.queue.publish(message);
-    } else {
-      await this.queue.dispatch(message, {
-        ...(delay !== undefined ? { delay } : {}),
-        ...(priority !== undefined ? { priority } : {}),
-      });
+    try {
+      if (row.dispatchMode === 'publish') {
+        await this.queue.publish(message);
+      } else {
+        await this.queue.dispatch(message, {
+          ...(delay !== undefined ? { delay } : {}),
+          ...(priority !== undefined ? { priority } : {}),
+        });
+      }
+    } catch (err: unknown) {
+      // PRC-M360 + PRC-H110: a transport that refuses delay hands scheduling
+      // back to the outbox. Re-claimed at its due time, the row is explicitly
+      // deferred, so it is then sent without any transport delay.
+      if (delay !== undefined && err instanceof QueueUnsupportedOperationError) {
+        throw new OutboxDeferral(new Date(Date.now() + delay), err.message);
+      }
+      throw err;
     }
     this.logger?.info?.(
       { outboxId: row.id, eventType: row.eventType, tenantId: row.tenantId },
       'outbox published',
     );
   }
+}
+
+/** Internal signal: reschedule the row at `dueAt` (not a delivery failure). */
+class OutboxDeferral extends Error {
+  constructor(
+    readonly dueAt: Date,
+    reason: string,
+  ) {
+    super(`deferred to outbox until ${dueAt.toISOString()}: ${reason}`);
+    this.name = 'OutboxDeferral';
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
