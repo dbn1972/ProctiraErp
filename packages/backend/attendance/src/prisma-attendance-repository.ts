@@ -45,6 +45,16 @@ function fromDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * PRC-H040: detect a unique-constraint violation from either the Prisma client
+ * (code 'P2002') or a raw Postgres error (SQLSTATE '23505').
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === 'P2002' || code === '23505';
+}
+
 interface StudentAttendanceRow {
   id: string;
   tenantId: string;
@@ -140,23 +150,43 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<StudentAttendanceEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
-      const row = (await tx.studentAttendance.create({
-        data: {
-          id: data.id,
-          tenantId: data.tenantId,
-          studentId: data.studentId,
-          institutionId: data.institutionId,
-          classId: data.classId,
-          academicPeriodId: data.academicPeriodId,
-          date: toDateOnly(data.date),
-          subjectId: data.subjectId,
-          periodId: data.periodId,
-          status: data.status,
-          comment: data.comment,
-          recordedBy: actorUuid(data.recordedBy),
-        },
-      })) as StudentAttendanceRow;
-      return toStudentEntity(row);
+      try {
+        const row = (await tx.studentAttendance.create({
+          data: {
+            id: data.id,
+            tenantId: data.tenantId,
+            studentId: data.studentId,
+            institutionId: data.institutionId,
+            classId: data.classId,
+            academicPeriodId: data.academicPeriodId,
+            date: toDateOnly(data.date),
+            subjectId: data.subjectId,
+            periodId: data.periodId,
+            status: data.status,
+            comment: data.comment,
+            recordedBy: actorUuid(data.recordedBy),
+          },
+        })) as StudentAttendanceRow;
+        return toStudentEntity(row);
+      } catch (err) {
+        // PRC-H040: a concurrent writer created the row first. The DB unique
+        // index (db/sql/123, COALESCE over nullable subject/period) rejects the
+        // duplicate; return the existing row instead of a second record.
+        if (isUniqueViolation(err)) {
+          const existing = (await tx.studentAttendance.findFirst({
+            where: {
+              tenantId: data.tenantId,
+              studentId: data.studentId,
+              classId: data.classId,
+              date: toDateOnly(data.date),
+              subjectId: data.subjectId ?? null,
+              periodId: data.periodId ?? null,
+            },
+          })) as StudentAttendanceRow | null;
+          if (existing) return toStudentEntity(existing);
+        }
+        throw err;
+      }
     });
   }
 

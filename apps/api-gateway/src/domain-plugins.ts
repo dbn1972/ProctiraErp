@@ -1080,8 +1080,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/attendance'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      // PRC-H041: device OUT punches are classified in the tenant timezone
+      // (default Asia/Kolkata) so IST dismissals are PRESENT, not EARLY_DEPARTURE.
+      const attendanceTimeZone = createTenantTimeZoneResolver({
+        sources: pgTenantTimeZoneSources(),
+      });
       await scope.register(attendancePlugin, {
         repository: createAttendanceRepository(),
+        punchConfig: {
+          resolveTimeZone: (tenantId) => attendanceTimeZone(tenantId),
+        },
         prefix: '/attendance',
       });
       type HeatmapDay = { date: string; status: string };
