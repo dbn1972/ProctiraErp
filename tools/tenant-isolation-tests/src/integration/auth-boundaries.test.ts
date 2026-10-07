@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fc from 'fast-check';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { withTenantTransaction, type TenantGucPrismaLike } from '@proctira/database';
 import { tenantPlugin } from '@proctira/tenant';
 
 import {
@@ -45,8 +46,9 @@ const jwtArb: fc.Arbitrary<JwtPayload> = fc.record({
 
 describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
   let app: FastifyInstance;
-  // G-720: the plugin binds the tenant id as a query parameter, so capture
-  // the rendered statement (SQL + bound values) rather than the raw SQL.
+  // G-720: tenant ids are bound as query parameters, so capture the rendered
+  // statement (SQL + bound values) rather than the raw SQL. PRC-M367: the
+  // plugin itself must issue none; binding happens in withTenantTransaction.
   const setConfigCalls: string[] = [];
   const renderCall = (query: string, ...params: unknown[]): string =>
     params.reduce<string>(
@@ -58,8 +60,8 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
     setConfigCalls.length = 0;
     app = Fastify();
 
-    // Register tenant plugin with a fake Prisma-like client so we can inspect
-    // the RLS session-config calls the plugin issues per request.
+    // Register tenant plugin with a fake Prisma-like client so we can prove it
+    // issues no out-of-transaction session-config calls per request.
     await app.register(tenantPlugin, {
       getDbClient: () => ({
         $executeRawUnsafe: (query: string, ...params: unknown[]) => {
@@ -93,35 +95,78 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
   });
 
   it('header-resolved tenant id flows into request context and RLS session', async () => {
-    await fc.assert(
-      fc.asyncProperty(uuidV4Arb, async (tenantId) => {
-        setConfigCalls.length = 0;
+    // PRC-M367: the tenant plugin is resolution-only. A `set_config(..., true)`
+    // issued from the hook is transaction-local and lapsed before any handler
+    // query ran, so the RLS session is bound by `withTenantTransaction` in the
+    // same transaction as the tenant-scoped queries. Prove both halves:
+    //   1. the plugin issues no out-of-transaction SQL, and
+    //   2. the request-context tenant id is what binds the canonical GUC (and
+    //      legacy alias) inside the transaction, before the scoped query runs.
+    let txStatements: string[] = [];
+    const fakePrisma = {
+      $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+        const tx = {
+          $executeRawUnsafe: (query: string, ...params: unknown[]) => {
+            txStatements.push(renderCall(query, ...params));
+            return Promise.resolve(1);
+          },
+        };
+        return fn(tx);
+      },
+    } as unknown as Parameters<typeof withTenantTransaction>[0];
 
-        const response = await app.inject({
-          method: 'GET',
-          url: '/api/v1/scoped',
-          headers: { 'x-tenant-id': tenantId },
-        });
-
-        expect(response.statusCode).toBe(200);
-        const body = JSON.parse(response.body) as { tenantId: string; tenantSource: string };
-        expect(body.tenantId).toBe(tenantId);
-        expect(body.tenantSource).toBe('header');
-
-        // W1-DATA-12: canonical app.tenant_id is required; legacy alias synced.
-        expect(
-          setConfigCalls.some((call) =>
-            call.includes(`set_config('app.tenant_id', '${tenantId}', true)`),
-          ),
-        ).toBe(true);
-        expect(
-          setConfigCalls.some((call) =>
-            call.includes(`set_config('app.current_tenant_id', '${tenantId}', true)`),
-          ),
-        ).toBe(true);
+    const local = Fastify();
+    await local.register(tenantPlugin, {
+      getDbClient: () => ({
+        $executeRawUnsafe: (query: string, ...params: unknown[]) => {
+          setConfigCalls.push(renderCall(query, ...params));
+          return Promise.resolve(undefined);
+        },
       }),
-      { numRuns: 25 },
-    );
+    });
+    local.get('/api/v1/scoped', async (request) => {
+      const tenantId = request.tenantId;
+      if (!tenantId) throw new Error('tenant plugin did not resolve a tenant');
+      await withTenantTransaction(fakePrisma, tenantId, async (tx) => {
+        await (tx as unknown as TenantGucPrismaLike).$executeRawUnsafe('SELECT scoped_query()');
+      });
+      return { tenantId: request.tenantId, tenantSource: request.tenantSource };
+    });
+    await local.ready();
+
+    try {
+      await fc.assert(
+        fc.asyncProperty(uuidV4Arb, async (tenantId) => {
+          setConfigCalls.length = 0;
+          txStatements = [];
+
+          const response = await local.inject({
+            method: 'GET',
+            url: '/api/v1/scoped',
+            headers: { 'x-tenant-id': tenantId },
+          });
+
+          expect(response.statusCode).toBe(200);
+          const body = JSON.parse(response.body) as { tenantId: string; tenantSource: string };
+          expect(body.tenantId).toBe(tenantId);
+          expect(body.tenantSource).toBe('header');
+
+          // No (ineffective) GUC bind outside a transaction.
+          expect(setConfigCalls).toEqual([]);
+
+          // W1-DATA-12: canonical app.tenant_id is required; legacy alias synced.
+          // Both are bound in the transaction, ahead of the scoped query.
+          expect(txStatements).toHaveLength(2);
+          const [bind, scoped] = txStatements as [string, string];
+          expect(bind).toContain(`set_config('app.tenant_id', '${tenantId}', true)`);
+          expect(bind).toContain(`set_config('app.current_tenant_id', '${tenantId}', true)`);
+          expect(scoped).toBe('SELECT scoped_query()');
+        }),
+        { numRuns: 25 },
+      );
+    } finally {
+      await local.close();
+    }
   });
 
   it('rejects a spoofed X-Tenant-Id header that conflicts with the JWT claim', async () => {
