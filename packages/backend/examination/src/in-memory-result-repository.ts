@@ -123,7 +123,23 @@ export class InMemoryResultRepository implements ResultRepository {
   }
 
   async updateAcademicRecords(tenantId: string, updates: AcademicRecordUpdate[]): Promise<void> {
-    this.academicRecords.push(...updates.map((u) => ({ ...u, tenantId })));
+    // PRC-H055: upsert on (tenant, examination, student, subject) so a
+    // re-publish replaces rather than appends — mirrors the pg ON CONFLICT and
+    // the db/sql/124 unique index.
+    for (const u of updates) {
+      const idx = this.academicRecords.findIndex(
+        (r) =>
+          r.tenantId === tenantId &&
+          r.examinationId === u.examinationId &&
+          r.studentId === u.studentId &&
+          r.subjectId === u.subjectId,
+      );
+      if (idx >= 0) {
+        this.academicRecords[idx] = { ...u, tenantId };
+      } else {
+        this.academicRecords.push({ ...u, tenantId });
+      }
+    }
   }
 
   async saveResultAnalysis(analysis: ResultAnalysis): Promise<void> {

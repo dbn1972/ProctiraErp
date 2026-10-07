@@ -18,6 +18,8 @@ import fp from 'fastify-plugin';
 
 import type { DocumentTaskQueue } from './document-generation-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
+import type { DocumentBlobStore } from './document-generation-service.js';
+import { createDocumentBlobStore } from './pg-document-blob-store.js';
 import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
 import type { ExaminationRepository } from './examination-repository.js';
@@ -44,6 +46,12 @@ export interface ExaminationPluginOptions {
   documentRepository?: DocumentRepository;
   /** PDF generator implementation (optional — required for document generation features) */
   pdfGenerator?: PdfGenerator;
+  /**
+   * PRC-H052: durable blob store for generated document PDFs. Optional; when
+   * omitted a Postgres-backed store is used if DATABASE_URL is set, else (non
+   * production only) a bounded in-memory store.
+   */
+  documentBlobStore?: DocumentBlobStore;
   /** Document task queue implementation (optional — legacy dual-write; prefer outboxStore) */
   documentTaskQueue?: DocumentTaskQueue;
   /** W2-JOB-04 transactional outbox (job + outbox same TX; relay publishes) */
@@ -156,12 +164,24 @@ export const examinationPlugin = fp(
 
     // Register document generation service and routes if document repository and PDF generator are provided
     if (documentRepository && pdfGenerator) {
+      // PRC-H052: use a durable (Postgres-backed) blob store so generated PDFs
+      // are shared between the API and the worker and survive restarts. Fall
+      // back to the bounded in-memory store only outside production; in
+      // production an in-memory store would 404 downloads, so fail closed.
+      const blobStore =
+        options.documentBlobStore ?? createDocumentBlobStore() ?? undefined;
+      if (!blobStore && process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'PRC-H052: no durable DocumentBlobStore configured (DATABASE_URL unset); ' +
+            'refusing to serve examination documents from a process-local store in production.',
+        );
+      }
       const documentGenerationService = new DocumentGenerationService(
         repository,
         documentRepository,
         pdfGenerator,
         documentTaskQueue,
-        undefined,
+        blobStore,
         outboxStore,
         { logger: { warn: (obj, msg) => fastify.log.warn(obj, msg) } },
       );
