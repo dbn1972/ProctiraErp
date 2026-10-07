@@ -130,6 +130,7 @@ vi.mock('amqplib', () => ({
       // Legacy non-confirm channel: publish() returns without ever confirming.
       createChannel: vi.fn(async () => channel),
       close: vi.fn(async () => undefined),
+      on: vi.fn(),
     })),
   },
 }));
@@ -337,20 +338,50 @@ describe('RabbitMQAdapter delayed delivery via TTL bucket queues (PRC-H110 / PRO
     const pub = channel.published.at(-1)!;
     // Never a per-message expiration on the work exchange (that dead-letters to the DLQ).
     expect(pub.opts.expiration).toBeUndefined();
-    expect(pub.exchange).toBe('ex.delay');
+    expect(pub.exchange).toBe('ex.delay.v2');
     expect(pub.key).toBe('tenant.tenant-a.workflow.escalation');
     expect(pub.opts.headers['x-delay-bucket']).toBe('60000');
-    expect(channel.assertExchange).toHaveBeenCalledWith('ex.delay', 'headers', { durable: true });
-    expect(channel.queueArgs.get('ex.delay.60000ms')).toMatchObject({
+    expect(channel.assertExchange).toHaveBeenCalledWith('ex.delay.v2', 'headers', {
+      durable: true,
+    });
+    // Dead-letters back to the WORK exchange with the original routing key.
+    expect(channel.queueArgs.get('ex.delay.v2.60000ms')).toEqual({
       'x-message-ttl': 60_000,
       'x-dead-letter-exchange': 'ex',
     });
-    expect(channel.queueArgs.get('ex.delay.60000ms')['x-dead-letter-routing-key']).toBeUndefined();
     expect(channel.headerBindings).toContainEqual({
-      queue: 'ex.delay.60000ms',
-      exchange: 'ex.delay',
+      queue: 'ex.delay.v2.60000ms',
+      exchange: 'ex.delay.v2',
       args: { 'x-match': 'all', 'x-delay-bucket': '60000' },
     });
+  });
+
+  it('review #2: bucket queues never carry x-expires (cannot be deleted while holding messages)', async () => {
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex' });
+    await adapter.connect();
+    for (const delay of [1_000, 60_000, 480_000, 7 * 24 * 60 * 60 * 1000]) {
+      await adapter.publish(message(), { delay });
+    }
+    const buckets = [...channel.queueArgs.entries()].filter(([q]) => q.startsWith('ex.delay.'));
+    expect(buckets).toHaveLength(4);
+    for (const [, args] of buckets) {
+      expect(args).not.toHaveProperty('x-expires');
+      expect(args).not.toHaveProperty('x-dead-letter-routing-key');
+      expect(args['x-dead-letter-exchange']).toBe('ex');
+    }
+  });
+
+  it('review #2: re-asserts the bucket on every delayed publish (no once-per-connection cache)', async () => {
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex' });
+    await adapter.connect();
+    channel.routable.add('tenant.tenant-a.report.generate');
+    await adapter.dispatch(message({ id: 'a' }), { delay: 60_000 });
+    // Bucket deleted out-of-band (operator, policy): the next publish recreates it.
+    channel.assertedQueues.length = 0;
+    channel.headerBindings.length = 0;
+    await adapter.dispatch(message({ id: 'b' }), { delay: 60_000 });
+    expect(channel.assertedQueues).toEqual(['ex.delay.v2.60000ms']);
+    expect(channel.headerBindings.map((b) => b.queue)).toEqual(['ex.delay.v2.60000ms']);
   });
 
   it('publishes undelayed messages straight to the main exchange', async () => {
@@ -374,7 +405,7 @@ describe('RabbitMQAdapter delayed delivery via TTL bucket queues (PRC-H110 / PRO
       'tenant.g.task.tenant.*.workflow.escalation',
       JSON.stringify(body),
       { routingKey: 'tenant.tenant-a.workflow.escalation', exchange: 'ex' },
-      { 'x-death': [{ queue: 'ex.delay.60000ms', reason: 'expired' }] },
+      { 'x-death': [{ queue: 'ex.delay.v2.60000ms', reason: 'expired' }] },
     );
     await flush();
     expect(handler).toHaveBeenCalledTimes(1);

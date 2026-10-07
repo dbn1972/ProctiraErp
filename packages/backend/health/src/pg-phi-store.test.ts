@@ -3,13 +3,25 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { describe, expect, it } from 'vitest';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { createPgPhiStore, isPgPhiEnabled } from './pg-phi-store.js';
+import { getSharedCounsellingPool } from './pg-counselling-store.js';
 import { HybridHealthRepository } from './create-health-repository.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 
 describe('PgPhiStore', () => {
+  // The fixed tenant ids below must exist as `tenants` parents (tenant_id FKs).
+  // Previously this suite relied on some other package's live test having
+  // inserted them first, so it failed whenever turbo scheduled it earlier.
+  beforeAll(async () => {
+    if (!isPgPhiEnabled()) return;
+    const pool = getSharedCounsellingPool()!;
+    await ensurePgTestTenant(pool, '00000000-0000-4000-8000-0000000000aa');
+    await ensurePgTestTenant(pool, '00000000-0000-4000-8000-0000000000bb');
+  });
+
   it.skipIf(!isPgPhiEnabled())('creates allergy and screening with tenant isolation', async () => {
     const store = createPgPhiStore();
     expect(store).not.toBeNull();
