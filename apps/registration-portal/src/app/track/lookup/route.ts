@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { decideTrackLookup, TRACK_DOB_COOKIE } from '@/lib/track-lookup';
+import { decideTrackLookup, resolveRedirectBase, TRACK_DOB_COOKIE } from '@/lib/track-lookup';
 
 /**
  * POST /track/lookup
@@ -14,7 +14,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     String(form.get('trackingNumber') ?? ''),
     String(form.get('dob') ?? ''),
   );
-  const redirectBase = new URL(request.url);
+  // PRC-L225: build the redirect from the public host, not the internal origin.
+  const redirectBase = resolveRedirectBase(request.url, request.headers);
 
   if (!decision.ok) {
     return NextResponse.redirect(new URL('/track?error=invalid', redirectBase), 303);

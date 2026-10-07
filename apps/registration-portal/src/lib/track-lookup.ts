@@ -2,6 +2,40 @@ import { isValidDateOfBirth, isValidTrackingNumber } from './validation';
 
 export const TRACK_DOB_COOKIE = 'registration_track_dob';
 
+/**
+ * PRC-L225: behind a reverse proxy, `request.url` carries the internal origin
+ * (e.g. http://0.0.0.0:3002), so a redirect built from it points the applicant
+ * at an unreachable host. Prefer the ingress-provided forwarded host/proto, or
+ * an explicitly configured public base URL, and only fall back to the request
+ * URL in local/dev.
+ */
+export function resolveRedirectBase(
+  requestUrl: string,
+  headers: { get(name: string): string | null },
+  env: { PUBLIC_BASE_URL?: string } = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env ?? {},
+): URL {
+  const configured = env.PUBLIC_BASE_URL?.trim();
+  if (configured) {
+    try {
+      return new URL(configured);
+    } catch {
+      /* ignore malformed config and try forwarded headers */
+    }
+  }
+  const forwardedHost = headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  if (forwardedHost) {
+    const proto = headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https';
+    try {
+      return new URL(`${proto}://${forwardedHost}`);
+    } catch {
+      /* fall through */
+    }
+  }
+  return new URL(requestUrl);
+}
+
+
 export type TrackLookupDecision = { ok: true; trackingNumber: string; dob: string } | { ok: false };
 
 /** Accept a tracking lookup only when both values are well formed. DOB stays off the URL. */

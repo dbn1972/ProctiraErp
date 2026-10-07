@@ -1,5 +1,7 @@
 import createNextIntlPlugin from 'next-intl/plugin';
 
+import { buildSecurityHeaders } from './security-headers.mjs';
+
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
@@ -11,6 +13,10 @@ const nextConfig = {
   // builds do not require type-aware @typescript-eslint plugins in the image.
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  // PRC-L226: security headers (CSP, no framing, nosniff, referrer policy).
+  async headers() {
+    return [{ source: '/:path*', headers: buildSecurityHeaders() }];
   },
 };
 
