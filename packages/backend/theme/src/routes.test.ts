@@ -61,6 +61,62 @@ describe('Theme Routes', () => {
     await app.ready();
   });
 
+  describe('POST /themes platform level (PRC-M395)', () => {
+    it('returns 403 when a tenant user creates a platform theme', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Global', level: 'platform', tokens: validTokens() },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    /**
+     * #555 review #9: platform-admin status uses the gateway's canonical
+     * PLATFORM_ADMIN_ROLE_IDS (exact roleId), not a wider local set, case-folded
+     * ids, or a tenant-editable roleName.
+     */
+    async function createPlatformThemeAs(roles: unknown): Promise<number> {
+      const roleApp = Fastify();
+      roleApp.decorateRequest('tenantId', '');
+      roleApp.decorateRequest('user', undefined);
+      roleApp.addHook('onRequest', async (request) => {
+        (request as any).tenantId = tenantId;
+        (request as any).user = { sub: 'someone', roles };
+      });
+      await registerThemeRoutes(roleApp, {
+        themeService: new ThemeService(new InMemoryThemeRepository()),
+        prefix: '/themes',
+      });
+      await roleApp.ready();
+      const response = await roleApp.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Global', level: 'platform', tokens: validTokens() },
+      });
+      await roleApp.close();
+      return response.statusCode;
+    }
+
+    it.each([[['platform_admin']], [['super-admin']], [[{ roleId: 'platform_admin' }]]])(
+      'grants platform scope to canonical role ids %j',
+      async (roles) => {
+        expect(await createPlatformThemeAs(roles)).toBe(201);
+      },
+    );
+
+    it.each([
+      [['super_admin']],
+      [['system_admin']],
+      [['system-admin']],
+      [['PLATFORM_ADMIN']],
+      [[{ roleName: 'platform_admin' }]],
+      [[{ roleId: 'tenant_admin', roleName: 'super-admin' }]],
+    ])('denies platform scope to non-canonical roles %j', async (roles) => {
+      expect(await createPlatformThemeAs(roles)).toBe(403);
+    });
+  });
+
   describe('POST /themes', () => {
     it('should create a theme', async () => {
       const response = await app.inject({
@@ -227,14 +283,10 @@ describe('Theme Routes', () => {
       });
       const revision = publishResponse.json();
 
-      // Update and publish again
+      // Change tokens (published themes are not editable via PUT) and publish again
       const newTokens = validTokens();
       newTokens.colors.primary = '#2563eb';
-      await app.inject({
-        method: 'PUT',
-        url: `/themes/${created.id}`,
-        payload: { tokens: newTokens },
-      });
+      await repository.updateTheme(created.id, { tokens: newTokens });
       await app.inject({
         method: 'POST',
         url: `/themes/${created.id}/publish`,
