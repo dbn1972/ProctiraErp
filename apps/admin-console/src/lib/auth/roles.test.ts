@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AREA_ROLES, hasRole, type PlatformRole } from './roles';
+import { AREA_ROLES, hasRole, platformRoleFromJwtRoles, type PlatformRole } from './roles';
 
 describe('hasRole', () => {
   it('denies missing role', () => {
@@ -37,5 +37,15 @@ describe('hasRole', () => {
     expect(hasRole('ops_support', 'support')).toBe(true);
     expect(hasRole('ops_support', 'health')).toBe(true);
     expect(hasRole('ops_support', 'plans')).toBe(false);
+  });
+
+  it('derives platform roles from canonical role IDs only (PRC-H001)', () => {
+    expect(platformRoleFromJwtRoles([{ roleId: 'super-admin', roleName: 'Anything' }])).toBe(
+      'platform_admin',
+    );
+    expect(platformRoleFromJwtRoles([{ roleId: 'security', roleName: 'Billing' }])).toBe(
+      'security',
+    );
+    expect(platformRoleFromJwtRoles([{ roleId: 'admin', roleName: 'platform_admin' }])).toBeUndefined();
   });
 });

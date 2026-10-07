@@ -15,20 +15,32 @@ describe('decodeAdminToken', () => {
     expect(decodeAdminToken('not-a-jwt')).toBeNull();
   });
 
-  it('decodes a structurally valid payload', () => {
+  it('derives platform_admin from canonical role IDs emitted by TokenService (PRC-H001)', () => {
     const token = makeToken({
       sub: 'op-1',
       email: 'ops@proctira.org',
-      platformRole: 'security',
+      roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator' }],
       tenantId: 'platform',
       iat: 1,
       exp: 9_999_999_999,
     });
-    const payload = decodeAdminToken(token);
-    expect(payload?.email).toBe('ops@proctira.org');
-    expect(payload?.platformRole).toBe('security');
-    expect(payload?.tenantId).toBe('platform');
+
+    expect(decodeAdminToken(token)?.platformRole).toBe('platform_admin');
   });
+
+  it('does not trust a role display name as a platform permission (PRC-H001)', () => {
+    const token = makeToken({
+      sub: 'op-1',
+      email: 'ops@proctira.org',
+      roles: [{ roleId: 'admin', roleName: 'platform_admin' }],
+      tenantId: 'platform',
+      iat: 1,
+      exp: 9_999_999_999,
+    });
+
+    expect(decodeAdminToken(token)?.platformRole).toBeUndefined();
+  });
+
 });
 
 describe('isAdminTokenExpired', () => {

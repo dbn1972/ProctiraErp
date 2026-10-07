@@ -76,7 +76,12 @@ export {
 } from './pg-pool';
 export type { PgPoolEnv, PgPoolSizing } from './pg-pool';
 export type { PgPool } from './pg-pool';
-export { PgDocumentCollection, withPlatformScope, reviveDates } from './pg-document-store';
+export {
+  PgDocumentCollection,
+  DocumentOwnershipConflictError,
+  withPlatformScope,
+  reviveDates,
+} from './pg-document-store';
 export type { PgDocumentCollectionOptions } from './pg-document-store';
 export type { DocumentRow, DocumentScope } from './pg-document-store';
 

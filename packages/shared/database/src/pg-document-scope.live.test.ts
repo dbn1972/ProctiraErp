@@ -114,4 +114,14 @@ describe('PgDocumentCollection scoping (live Postgres)', () => {
     expect(deleted).toBe(true);
     expect(await docs.get('b-only', { tenantId: TENANT_B })).toBeNull();
   });
+
+  it.skipIf(!live)(
+    'PRC-H116: tenant B cannot overwrite or re-parent tenant A row by reusing its id',
+    async () => {
+      await expect(docs.put(SHARED_ID, { owner: 'TENANT_B' }, TENANT_B)).rejects.toMatchObject({
+        code: 'DOCUMENT_OWNERSHIP_CONFLICT',
+      });
+      expect((await docs.get(SHARED_ID, { tenantId: TENANT_A }))?.owner).toBe('TENANT_A');
+    },
+  );
 });

@@ -6,13 +6,15 @@
  * forward the JWT on outbound API calls.
  */
 import { decodeJwtPayload } from './jwt-payload';
-import type { PlatformRole } from './roles';
+import { platformRoleFromJwtRoles, type PlatformRole } from './roles';
 
 /** JWT payload fields the admin console relies on. */
 export interface AdminTokenPayload {
   sub: string;
   email: string;
   displayName?: string;
+  /** Canonical role IDs emitted by the auth service. */
+  roles?: unknown[];
   /** Functional role assigned to this operator. */
   platformRole?: PlatformRole;
   /**
@@ -30,7 +32,16 @@ export interface AdminTokenPayload {
  */
 export function decodeAdminToken(token: string): AdminTokenPayload | null {
   // PRC-H112: shared base64url + UTF-8 decoder (same as middleware).
-  return decodeJwtPayload<AdminTokenPayload>(token);
+  const payload = decodeJwtPayload<AdminTokenPayload>(token);
+  if (!payload) return null;
+
+  return {
+    ...payload,
+    // H001: TokenService emits `roles`, not the console-only platformRole claim.
+    // Prefer canonical role IDs whenever present; retain the legacy claim only
+    // for older platform sessions that have no roles array.
+    platformRole: platformRoleFromJwtRoles(payload.roles) ?? payload.platformRole,
+  };
 }
 
 /** Returns true when the access token is expired (with a 30s safety buffer). */
