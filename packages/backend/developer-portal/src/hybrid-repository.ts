@@ -203,10 +203,12 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   // ─── Plugin Submissions (in-memory residual) ──────────────────────────────
 
   createSubmission(submission: PluginSubmissionEntity): Promise<PluginSubmissionEntity> {
+    if (this.durable) return this.durable.createSubmission(submission);
     return this.memory.createSubmission(submission);
   }
 
   getSubmissionById(id: string): Promise<PluginSubmissionEntity | null> {
+    if (this.durable) return this.durable.getSubmissionById(id);
     return this.memory.getSubmissionById(id);
   }
 
@@ -215,6 +217,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     page: number,
     pageSize: number,
   ): Promise<{ data: PluginSubmissionEntity[]; total: number }> {
+    if (this.durable) return this.durable.listSubmissions(filter, page, pageSize);
     return this.memory.listSubmissions(filter, page, pageSize);
   }
 
@@ -224,16 +227,20 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     reviewNotes?: string | null,
     reviewedBy?: string | null,
   ): Promise<PluginSubmissionEntity | null> {
+    if (this.durable)
+      return this.durable.updateSubmissionStatus(id, status, reviewNotes, reviewedBy);
     return this.memory.updateSubmissionStatus(id, status, reviewNotes, reviewedBy);
   }
 
-  // ─── Marketplace (in-memory residual) ─────────────────────────────────────
+  // ─── Marketplace (Postgres when durable store configured — PRC-H049) ──────
 
   createListing(listing: MarketplaceListingEntity): Promise<MarketplaceListingEntity> {
+    if (this.durable) return this.durable.createListing(listing);
     return this.memory.createListing(listing);
   }
 
   getListingByName(name: string): Promise<MarketplaceListingEntity | null> {
+    if (this.durable) return this.durable.getListingByName(name);
     return this.memory.getListingByName(name);
   }
 
@@ -242,6 +249,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     page: number,
     pageSize: number,
   ): Promise<{ data: MarketplaceListingEntity[]; total: number }> {
+    if (this.durable) return this.durable.searchListings(filter, page, pageSize);
     return this.memory.searchListings(filter, page, pageSize);
   }
 
@@ -249,10 +257,12 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     name: string,
     updates: Partial<Pick<MarketplaceListingEntity, 'installs' | 'averageRating' | 'ratingCount'>>,
   ): Promise<MarketplaceListingEntity | null> {
+    if (this.durable) return this.durable.updateListingStats(name, updates);
     return this.memory.updateListingStats(name, updates);
   }
 
   deleteListing(name: string): Promise<boolean> {
+    if (this.durable) return this.durable.deleteListing(name);
     return this.memory.deleteListing(name);
   }
 
