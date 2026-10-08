@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import {
-  InMemoryLifecycleCertificateRepository,
+  createLifecycleCertificateRepository,
   LifecycleCertificateService,
   registerLifecycleCertificateRoutes,
   type LifecycleCertificateRepository,
@@ -136,7 +136,7 @@ export const studentPlugin = fp(
     });
 
     const lifecycleCertService = new LifecycleCertificateService(
-      options.lifecycleCertificateRepository ?? new InMemoryLifecycleCertificateRepository(),
+      options.lifecycleCertificateRepository ?? createLifecycleCertificateRepository(),
     );
     await registerLifecycleCertificateRoutes(fastify, {
       service: lifecycleCertService,

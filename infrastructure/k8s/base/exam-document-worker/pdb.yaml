@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: exam-document-worker
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: exam-document-worker
+    app.kubernetes.io/part-of: proctira-platform
+    app.kubernetes.io/component: worker
+spec:
+  # Keep at least one consumer available during voluntary disruptions.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exam-document-worker

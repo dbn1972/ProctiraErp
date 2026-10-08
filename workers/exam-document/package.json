@@ -8,9 +8,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "node ../../tools/scripts/bundle-backend-runtime.mjs --cwd . --entry src/main.ts --outfile dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
+    "start": "node --import ../../tools/scripts/backend-runtime-resolve.mjs --enable-source-maps dist/main.js",
     "test": "vitest run",
     "lint": "eslint src/",
     "clean": "rm -rf dist",
