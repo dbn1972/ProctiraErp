@@ -198,6 +198,18 @@ export const CreateNotificationTemplateSchema = Type.Object({
   variables: Type.Array(Type.String(), {
     description: 'List of variable names used in the template',
   }),
+  sensitiveVariables: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        'g7_platform-004: variable names to treat as sensitive (redacted on persist/return)',
+    }),
+  ),
+  publicVariables: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        'g7_platform-004: variable names to force non-sensitive (opt-out of the built-in denylist)',
+    }),
+  ),
 });
 
 export type CreateNotificationTemplateInput = Static<typeof CreateNotificationTemplateSchema>;

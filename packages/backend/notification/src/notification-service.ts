@@ -38,6 +38,7 @@ import type {
   DeliveryChannel,
   DeliveryStatus,
 } from './schemas.js';
+import { redactSensitiveVariables } from './sensitive-variables.js';
 
 // ─── Channel Delivery Interfaces ─────────────────────────────────────────────
 
@@ -191,6 +192,12 @@ export class NotificationService {
     // Create notification records for each recipient
     const notifications: NotificationEntity[] = [];
 
+    // g7_platform-004: never persist sensitive variable values (reset links, OTPs, tokens) in
+    // plaintext. The redacted copy is stored and returned by inbox/status APIs; the ORIGINAL
+    // (unredacted) values are used only transiently to render + deliver the outbound message on
+    // this first attempt and are never written to the repository.
+    const redactedVariables = redactSensitiveVariables(input.variables, template);
+
     for (const recipientUserId of recipientIds) {
       const notification: NotificationEntity = {
         id: uuidv4(),
@@ -198,7 +205,7 @@ export class NotificationService {
         channel: input.channel,
         templateId: input.templateId,
         recipientUserId,
-        variables: input.variables,
+        variables: redactedVariables,
         status: 'sent',
         priority,
         retryCount: 0,
@@ -215,8 +222,9 @@ export class NotificationService {
 
       const created = await this.repository.createNotification(notification);
 
-      // Attempt delivery
-      await this.attemptDelivery(created, template);
+      // Attempt delivery using the ORIGINAL variables (so the recipient receives the real reset
+      // link/OTP), while the persisted record keeps only the redacted copy.
+      await this.attemptDelivery({ ...created, variables: input.variables }, template);
 
       // Fetch the updated notification (status may have changed after delivery)
       const updated = await this.repository.getNotificationById(tenantId, created.id);
@@ -706,6 +714,8 @@ export class NotificationService {
       subject: input.subject ?? null,
       body: input.body,
       variables: input.variables,
+      sensitiveVariables: input.sensitiveVariables ?? [],
+      publicVariables: input.publicVariables ?? [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -32,6 +32,12 @@ export { createSandboxSmsSender, SMS_SANDBOX_HONESTY_NOTE } from './sandbox-sms-
 export { createSafeFetchWebhookSender, createWebhookSenderFromEnv } from './webhook-sender.js';
 export type { SafeFetchWebhookSenderDeps } from './webhook-sender.js';
 export {
+  REDACTED_MARKER,
+  isSensitiveVariableName,
+  redactSensitiveVariables,
+  hasSensitiveVariables,
+} from './sensitive-variables.js';
+export {
   createEmailSenderFromEnv,
   createPushSenderFromEnv,
   createSmsSenderFromEnv,

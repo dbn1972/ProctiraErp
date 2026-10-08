@@ -74,6 +74,15 @@ export interface NotificationTemplateEntity {
   subject: string | null;
   body: string;
   variables: string[];
+  /**
+   * g7_platform-004: explicit allowlist of variable names to treat as sensitive (redacted on
+   * persist/return). Added to the built-in denylist. Optional / additive.
+   */
+  sensitiveVariables?: string[] | null;
+  /**
+   * g7_platform-004: explicit opt-out — variable names NOT to redact even if the denylist matches.
+   */
+  publicVariables?: string[] | null;
   createdAt: Date;
   updatedAt: Date;
 }

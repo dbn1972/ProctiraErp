@@ -128,6 +128,8 @@ function mapTemplate(row: Record<string, unknown>): NotificationTemplateEntity {
     subject: row['subject'] == null ? null : String(row['subject']),
     body: String(row['body']),
     variables: parseJson<string[]>(row['variables'], []),
+    sensitiveVariables: parseJson<string[]>(row['sensitive_variables'], []),
+    publicVariables: parseJson<string[]>(row['public_variables'], []),
     createdAt:
       row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
     updatedAt:
@@ -474,8 +476,9 @@ export class HybridNotificationRepository implements NotificationRepository {
     return this.withTenant(entity.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO notification_templates (
-           id, tenant_id, name, channel, subject, body, variables, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,now(),now())
+           id, tenant_id, name, channel, subject, body, variables,
+           sensitive_variables, public_variables, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,now(),now())
          RETURNING *`,
         [
           entity.id,
@@ -485,6 +488,8 @@ export class HybridNotificationRepository implements NotificationRepository {
           entity.subject,
           entity.body,
           JSON.stringify(entity.variables ?? []),
+          JSON.stringify(entity.sensitiveVariables ?? []),
+          JSON.stringify(entity.publicVariables ?? []),
         ],
       );
       return mapTemplate(result.rows[0] as Record<string, unknown>);
