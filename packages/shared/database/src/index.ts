@@ -67,6 +67,7 @@ export {
   SET_APP_TENANT_ID_SQL,
   bindTenantGuc,
   bindTenantGucPrisma,
+  canonicalizeTenantGucId,
 } from './tenant-guc';
 export type { TenantGucQueryable, TenantGucPrismaLike } from './tenant-guc';
 
