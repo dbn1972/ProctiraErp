@@ -22,6 +22,7 @@ import {
 } from './pipeline/pipeline-service.js';
 import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
+import type { RegistrationDocumentStorage } from './registration-document-storage.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
 import {
@@ -67,6 +68,12 @@ export interface RegistrationPluginOptions {
   publicTenantResolver?: PublicTenantResolver;
   /** Explicit non-production/test fallback tenant; refused in production. */
   defaultTenantId?: string;
+  /**
+   * NEW-g4_apps_auth-006: durable storage for admission document bytes. When
+   * omitted, uploads with content fail closed in production (503) and are
+   * accepted without a durable key outside production.
+   */
+  documentStorage?: RegistrationDocumentStorage;
 }
 
 // Extend Fastify types
@@ -105,7 +112,7 @@ export const registrationPlugin = fp(
 
     // Shared CRM so waitlist enqueue (staff) and seat-release promote (pipeline) see one queue.
     const crm = crmStore; // RegistrationService defaults to in-memory when undefined
-    const registrationService = new RegistrationService(repository, crm);
+    const registrationService = new RegistrationService(repository, crm, options.documentStorage);
 
     // Decorate fastify with the registration service
     fastify.decorate('registrationService', registrationService);

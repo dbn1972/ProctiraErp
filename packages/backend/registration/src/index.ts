@@ -22,8 +22,20 @@ export {
   validateDocuments,
   validateCustomFields,
   validateConfiguredDocuments,
+  validateDocumentContents,
+  validateRequiredDocumentFiles,
+  sanitizeFileName,
   computeSubmissionPayloadHash,
 } from './registration-service.js';
+
+// NEW-g4_apps_auth-006 — document content validation + storage port
+export { sniffDocumentContent, matchesDeclaredType } from './document-content-validation.js';
+export type { SniffResult } from './document-content-validation.js';
+export { createRegistrationDocumentStorage } from './registration-document-storage.js';
+export type {
+  RegistrationDocumentStorage,
+  SharedStorageUploadPort,
+} from './registration-document-storage.js';
 
 // Repository
 export type {
