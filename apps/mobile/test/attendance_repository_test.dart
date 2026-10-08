@@ -135,6 +135,8 @@ void main() {
     await repo.markAttendance(
       entry: roster.first,
       institutionId: 'inst-1',
+      classId: 'class-1',
+      academicPeriodId: 'period-1',
       date: '2026-05-12',
       status: AttendanceStatus.present,
       recordedBy: 'admin',
@@ -203,6 +205,8 @@ void main() {
     final AttendanceRosterEntry afterCreate = await repo.markAttendance(
       entry: entry,
       institutionId: 'inst-1',
+      classId: 'class-1',
+      academicPeriodId: 'period-1',
       date: '2026-05-12',
       status: AttendanceStatus.present,
       recordedBy: 'admin',
@@ -226,6 +230,8 @@ void main() {
     await repo.markAttendance(
       entry: entry,
       institutionId: 'inst-1',
+      classId: 'class-1',
+      academicPeriodId: 'period-1',
       date: '2026-05-12',
       status: AttendanceStatus.late,
       recordedBy: 'admin',
@@ -240,4 +246,69 @@ void main() {
 
     await ctx.db.close();
   });
+
+  test(
+    'PRC-H060: marks missing classId/academicPeriodId are refused, never queued',
+    () async {
+      final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
+          await _bootstrap();
+      final AttendanceRepository repo = AttendanceRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        syncEngine: ctx.engine,
+        cacheCrypto: ctx.crypto,
+      );
+      final AttendanceRosterEntry entry = AttendanceRosterEntry(
+        studentId: 'stu-1',
+        studentName: 'Ada Lovelace',
+      );
+
+      // No academic period: previously queued, then parked forever by the
+      // dispatcher because AttendanceRecord.fromJson requires it.
+      await expectLater(
+        repo.markAttendance(
+          entry: entry,
+          institutionId: 'inst-1',
+          classId: 'class-1',
+          date: '2026-05-12',
+          status: AttendanceStatus.present,
+          recordedBy: 'admin',
+        ),
+        throwsArgumentError,
+      );
+      // No class.
+      await expectLater(
+        repo.markAttendance(
+          entry: entry,
+          institutionId: 'inst-1',
+          academicPeriodId: 'period-1',
+          date: '2026-05-12',
+          status: AttendanceStatus.present,
+          recordedBy: 'admin',
+        ),
+        throwsArgumentError,
+      );
+      expect(await ctx.engine.getPending(), isEmpty);
+
+      // A complete mark produces a payload the dispatcher can decode.
+      await repo.markAttendance(
+        entry: entry,
+        institutionId: 'inst-1',
+        classId: 'class-1',
+        academicPeriodId: 'period-1',
+        date: '2026-05-12',
+        status: AttendanceStatus.present,
+        recordedBy: 'admin',
+      );
+      final List<PendingSyncRow> queue = await ctx.engine.getPending();
+      expect(queue, hasLength(1));
+      final AttendanceRecord decoded = AttendanceRecord.fromJson(
+        queue.single.payload,
+      );
+      expect(decoded.classId, 'class-1');
+      expect(decoded.academicPeriodId, 'period-1');
+
+      await ctx.db.close();
+    },
+  );
 }

@@ -93,8 +93,13 @@ const Map<String, dynamic> _attendance = <String, dynamic>{
   'id': 'id-att',
   'studentId': 'id-stu',
   'institutionId': 'id-inst',
-  'attendanceDate': '2025-01-02',
+  'classId': 'id-class',
+  'academicPeriodId': 'id-period',
+  'date': '2025-01-02',
+  'subjectId': null,
+  'periodId': null,
   'status': 'PRESENT',
+  'comment': null,
   'recordedBy': 'id-user',
   'createdAt': '2025-01-02T00:00:00Z',
   'updatedAt': '2025-01-02T00:00:00Z',
@@ -136,18 +141,17 @@ void main() {
       final AttendanceApi attendance = AttendanceApi(dio);
       final AttendanceRecord record = AttendanceRecord.fromJson(_attendance);
       expect(record.status, AttendanceStatus.present);
-      expect((await attendance.createStudentAttendance(record)).id, 'id-att');
+      expect(record.date, '2025-01-02');
+      expect(record.classId, 'id-class');
+      expect(record.academicPeriodId, 'id-period');
+      // Create and update both upsert through POST /attendance/student.
+      expect((await attendance.recordStudentAttendance(record)).id, 'id-att');
       expect(
-        (await attendance.updateStudentAttendance(record, ifMatch: 'v1')).id,
+        (await attendance.recordStudentAttendance(
+          record,
+          idempotencyKey: 'idem-1',
+        )).id,
         'id-att',
-      );
-      expect(
-        await attendance.deleteStudentAttendance('id-att', ifMatch: 'v1'),
-        isTrue,
-      );
-      expect(
-        (await attendance.fetchStudentAttendance('id-att')).studentId,
-        'id-stu',
       );
 
       final StudentApi students = StudentApi(dio);
