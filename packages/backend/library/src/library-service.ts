@@ -486,7 +486,12 @@ export class LibraryService implements LibraryFinesPort {
     return this.repository.listFines(tenantId, studentId);
   }
 
-  async markFinePaid(tenantId: string, fineId: string, actorId = 'library-system') {
+  async markFinePaid(
+    tenantId: string,
+    fineId: string,
+    actorId = 'library-system',
+    payment?: { paymentMethod: string; reference: string },
+  ) {
     const fine = await this.repository.findFineById(fineId, tenantId);
     if (!fine) {
       throw new NotFoundError(`Fine with id '${fineId}' not found`);
@@ -497,11 +502,16 @@ export class LibraryService implements LibraryFinesPort {
     // PRC-H025: settle the fee-ledger invoice first so the student's dues clear.
     // The local fine is only flipped to 'paid' after the ledger settlement
     // succeeds; if settlement throws, the fine stays open (no silent divergence).
+    // Use the real receipt reference supplied by staff (payment method +
+    // reference) instead of a synthetic `library-fine:<id>` stand-in.
     if (fine.invoiceId && this.feesLedger?.settleFineInvoice) {
+      const reference = payment
+        ? `${payment.paymentMethod}:${payment.reference}`
+        : `library-fine:${fine.id}`;
       await this.feesLedger.settleFineInvoice(tenantId, actorId, {
         invoiceId: fine.invoiceId,
         amountCents: fine.amountCents,
-        reference: `library-fine:${fine.id}`,
+        reference,
       });
     }
     const updated = await this.repository.updateFine(fineId, tenantId, {

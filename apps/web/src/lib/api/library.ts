@@ -363,10 +363,18 @@ export async function getLibraryItem(id: string): Promise<LibraryItemDetail | nu
   };
 }
 
-export async function payLibraryFine(id: string): Promise<LibraryFine> {
+export interface PayLibraryFineInput {
+  paymentMethod: 'cash' | 'card' | 'upi' | 'bank_transfer' | 'cheque' | 'other';
+  reference: string;
+}
+
+export async function payLibraryFine(
+  id: string,
+  payment: PayLibraryFineInput,
+): Promise<LibraryFine> {
   const result = await gatewayFetch<LibraryFine>(`/library/fines/${encodeURIComponent(id)}/pay`, {
     method: 'POST',
-    json: {},
+    json: { paymentMethod: payment.paymentMethod, reference: payment.reference },
   });
   if (!result.data) {
     throw new GatewayError({

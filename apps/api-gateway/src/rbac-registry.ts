@@ -134,6 +134,11 @@ export const CASE_WORKER_ROLE_IDS = ['counsellor', 'discipline_officer'] as cons
  */
 export const SUBPATH_RESOURCE_MAP: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'workflow-engine': { cases: CASE_RESOURCE },
+  // PRC-H044: tenant self-service read of its own billing entitlements. The
+  // handler scopes strictly to the JWT tenant, so any authenticated principal
+  // may read it (resource is in SELF_SERVICE_READ_RESOURCES). Everything else
+  // under /billing stays the platform-admin `platform` resource.
+  billing: { me: 'billing-self' },
 };
 
 /**
@@ -156,7 +161,7 @@ export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage', 'meta'])
  * G-712: resources any authenticated principal may READ (own-scope filtering
  * happens in the domain plugin) — notifications and the parent/student portal.
  */
-export const SELF_SERVICE_READ_RESOURCES = new Set(['notification', 'parent']);
+export const SELF_SERVICE_READ_RESOURCES = new Set(['notification', 'parent', 'billing-self']);
 
 /**
  * Portal self-service writes: parents/guardians/students act on their own

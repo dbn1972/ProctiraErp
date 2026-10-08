@@ -44,15 +44,23 @@ class InstitutionApi extends BaseApi {
     throw FormatException('Unexpected institution response: $body');
   }
 
-  /// Fetch academic periods for an institution.
-  Future<List<Map<String, dynamic>>> fetchAcademicPeriods(
-    String institutionId,
-  ) async {
+  /// Fetch academic periods for the caller's tenant (PRC-H060).
+  ///
+  /// Academic periods are tenant-scoped in the backend (not nested under an
+  /// institution), so this calls the registered `GET /api/v1/academic-periods`
+  /// route. `institutionId` is accepted for call-site compatibility but is not
+  /// part of the path; the gateway scopes results to the JWT tenant.
+  Future<List<Map<String, dynamic>>> fetchAcademicPeriods([
+    String? institutionId,
+  ]) async {
     final Response<dynamic> response = await request<dynamic>(
-      '$_basePath/$institutionId/academic-periods',
+      '/api/v1/academic-periods',
       method: 'GET',
     );
     final Object? body = response.data;
+    if (body is List) {
+      return body.whereType<Map<String, dynamic>>().toList(growable: false);
+    }
     if (body is Map<String, dynamic> && body['data'] is List) {
       return (body['data'] as List).whereType<Map<String, dynamic>>().toList(
         growable: false,
