@@ -19,7 +19,7 @@ import {
   NotFoundError,
   ValidationError,
   BusinessRuleError,
-  assertPublicHttpsUrlDefault,
+  assertPublicHttpsUrlShape,
 } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -304,7 +304,7 @@ export class NotificationService {
             success = false;
             errorMessage = 'No webhook sender configured; delivery cannot be confirmed';
           } else {
-            await assertPublicHttpsUrlDefault(notification.webhookUrl);
+            assertPublicHttpsUrlShape(notification.webhookUrl);
             const result = await this.webhookSender.send({
               url: notification.webhookUrl,
               payload: {

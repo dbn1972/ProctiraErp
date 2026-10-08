@@ -84,6 +84,7 @@ export {
   safeFetch,
   assertPublicHttpsUrl,
   assertPublicHttpsUrlDefault,
+  assertPublicHttpsUrlShape,
   isDisallowedAddress,
 } from './safe-fetch.js';
 export type { SafeFetchOptions } from './safe-fetch.js';

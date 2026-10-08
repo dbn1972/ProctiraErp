@@ -13,7 +13,7 @@ import {
   BusinessRuleError,
   ForbiddenError,
   safeFetch,
-  assertPublicHttpsUrlDefault,
+  assertPublicHttpsUrlShape,
   SsrfError,
 } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -215,8 +215,12 @@ export class DeveloperPortalService {
       });
     this.validateWebhookUrl =
       options?.validateWebhookUrl ??
-      (async (url: string) => {
-        await assertPublicHttpsUrlDefault(url);
+      ((url: string) => {
+        // DNS-free structural check at create/update (rejects non-https + literal private/metadata
+        // IPs); the full resolve + redirect SSRF guard runs at delivery time via safeFetch, so
+        // persistence never depends on live DNS.
+        assertPublicHttpsUrlShape(url);
+        return Promise.resolve();
       });
   }
 

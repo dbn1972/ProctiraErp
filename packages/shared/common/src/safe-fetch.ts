@@ -140,6 +140,34 @@ export async function assertPublicHttpsUrlDefault(rawUrl: string): Promise<URL> 
 }
 
 /**
+ * Synchronous, DNS-free structural validation for user-supplied URLs at create/update time.
+ *
+ * This rejects the clearly-unsafe shapes without a network round-trip: non-https schemes and
+ * literal private/loopback/link-local/metadata/CGNAT IP hosts (IPv4 and IPv6, brackets stripped).
+ * It deliberately does NOT resolve DNS — a hostname is accepted here and fully re-validated
+ * (resolve + address check + redirects) by {@link safeFetch} at request time. Use this to validate
+ * stored URLs so persistence/validation never depends on live DNS (which may be unavailable in
+ * restricted networks), while the actual outbound request still fails closed via safeFetch.
+ */
+export function assertPublicHttpsUrlShape(rawUrl: string): URL {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new SsrfError(`Invalid URL: ${rawUrl}`);
+  }
+  if (url.protocol !== 'https:') {
+    throw new SsrfError(`Only https URLs are allowed (got '${url.protocol}')`);
+  }
+  const host = url.hostname.replace(/^\[/, '').replace(/\]$/, '');
+  // A literal IP host is checked immediately; a DNS name is deferred to safeFetch.
+  if (net.isIP(host) && isDisallowedAddress(host)) {
+    throw new SsrfError(`URL host resolves to a disallowed address: ${host}`);
+  }
+  return url;
+}
+
+/**
  * Perform an SSRF-guarded fetch. Follows redirects manually, re-validating each hop.
  */
 export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}): Promise<Response> {
