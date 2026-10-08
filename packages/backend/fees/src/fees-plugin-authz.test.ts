@@ -45,6 +45,8 @@ async function buildFeesApp(roles: unknown, opts: BuildOpts = {}): Promise<Fasti
       ? {
           parentBinding: {
             listLinkedStudentIds: async () => opts.linkedStudentIds!,
+            isLinked: async (_tenant: string, _actor: string, studentId: string) =>
+              opts.linkedStudentIds!.includes(studentId),
           },
         }
       : {}),
@@ -317,12 +319,93 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
       expect(JSON.stringify(response.json())).not.toContain(otherInvoice.id);
     });
   });
-  // PRC-M511 (parent pay-IDOR) is not fixed yet: parents hold 'payment.record' and
-  // POST /fees/invoices/:id/pay has no guardian-link check. Convert when it lands.
-  describe('adversarial deny proofs (pending PRC-M511)', () => {
-    it.todo('PRC-M511: parent POST /fees/invoices/:unlinkedInvoice/pay -> 404, no rows');
-    it.todo('PRC-M511: parent payerUserId is overridden with JWT sub');
-    it.todo('PRC-M511: parent method=cash is rejected');
+  // PRC-M511 (parent pay-IDOR): parents hold 'payment.record', but the pay path now requires a
+  // guardian↔student link for the invoice, ignores a client payerUserId, and rejects cash.
+  describe('PRC-M511 parent pay-path guardian binding', () => {
+    async function seedInvoice(studentId: string) {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+      const invoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId,
+        title: 'Term fee',
+        amountCents: 10000,
+      });
+      return { repository, invoice };
+    }
+
+    it('parent POST /fees/invoices/:unlinkedInvoice/pay -> 404, no payment rows', async () => {
+      const otherStudent = uuid();
+      const { repository, invoice } = await seedInvoice(otherStudent);
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'upi' },
+      });
+      expect(response.statusCode).toBe(404);
+      // No payment leaked for the foreign invoice.
+      expect(JSON.stringify(response.json())).not.toContain('receipt');
+    });
+
+    it('parent CAN pay their own linked child invoice (not 404/403)', async () => {
+      const { repository, invoice } = await seedInvoice(STUDENT_ID);
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'upi' },
+      });
+      expect(response.statusCode).not.toBe(404);
+      expect(response.statusCode).not.toBe(403);
+    });
+
+    it('PRC-M511: parent payerUserId is overridden with the JWT sub', async () => {
+      const { repository, invoice } = await seedInvoice(STUDENT_ID);
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'upi', payerUserId: 'victim-user-id' },
+      });
+      expect([200, 201]).toContain(response.statusCode);
+      // The recorded payer is the authenticated actor, not the forged body value.
+      expect(response.json().payment.payerUserId).toBe('user-test');
+      expect(response.json().payment.payerUserId).not.toBe('victim-user-id');
+    });
+
+    it('PRC-M511: parent method=cash is rejected (403)', async () => {
+      const { repository, invoice } = await seedInvoice(STUDENT_ID);
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'cash' },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('FORBIDDEN');
+    });
+
+    it('PRC-M511: parent with no binding configured is denied (403)', async () => {
+      const { repository, invoice } = await seedInvoice(STUDENT_ID);
+      app = await buildFeesApp(['parent'], { repository }); // no linkedStudentIds -> no binding
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'upi' },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('staff (bursar) pay path is unaffected by the self-pay binding', async () => {
+      const { repository, invoice } = await seedInvoice(STUDENT_ID);
+      app = await buildFeesApp(['bursar'], { repository });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/fees/invoices/${invoice.id}/pay`,
+        payload: { method: 'cash', payerUserId: 'desk-override' },
+      });
+      expect([200, 201]).toContain(response.statusCode);
+    });
   });
   describe('deny proofs that hold today (PRC-L560)', () => {
     beforeEach(async () => {

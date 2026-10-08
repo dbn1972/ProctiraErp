@@ -11,6 +11,7 @@ import fp from 'fastify-plugin';
 
 import { isPgFeesEnabled } from './create-fees-repository.js';
 import {
+  isSelfPayCaller,
   requireFeesAction,
   requireFeesStaffRead,
   resolveFeesReadScope,
@@ -863,14 +864,54 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'payment.record')) return;
+        // PRC-M511: parent/guardian self-pay callers may only pay invoices of their own linked
+        // students, the payer identity is taken from the JWT (client payerUserId is ignored), and
+        // staff-only tender types (cash) are rejected on this self-service path.
+        const payload: RecordPaymentInput = {
+          invoiceId: paramsResult.data.id,
+          ...bodyResult.data,
+        };
+        const actorId = getActorId(request);
+        if (isSelfPayCaller(request)) {
+          if (!parentBinding) {
+            return reply
+              .status(403)
+              .send(new AppError('Forbidden: role cannot read fees', 'FORBIDDEN', 403).toJSON());
+          }
+          if (payload.method === 'cash') {
+            return reply
+              .status(403)
+              .send(
+                new AppError(
+                  'Forbidden: cash tender is a staff-only operation',
+                  'FORBIDDEN',
+                  403,
+                ).toJSON(),
+              );
+          }
+          // Resolve the invoice's student; a missing invoice OR one for an unlinked student is a
+          // 404 (not 403) so a guardian cannot probe other families' invoice ids.
+          let studentId: string;
+          try {
+            studentId = (await feesService.getInvoice(tenantId, paramsResult.data.id)).studentId;
+          } catch {
+            return reply
+              .status(404)
+              .send(new AppError('Invoice not found', 'NOT_FOUND', 404).toJSON());
+          }
+          if (!(await parentBinding.isLinked(tenantId, actorId, studentId))) {
+            return reply
+              .status(404)
+              .send(new AppError('Invoice not found', 'NOT_FOUND', 404).toJSON());
+          }
+          // Ignore any client-supplied payerUserId: the payer is the authenticated actor.
+          payload.payerUserId = actorId;
+        }
         try {
           const result = await feesService.recordPayment(
             tenantId,
-            getActorId(request),
-            {
-              invoiceId: paramsResult.data.id,
-              ...bodyResult.data,
-            },
+            actorId,
+            payload,
             buildPaymentAuditBinder(request, tenantId),
           );
           return reply.status(result.idempotent ? 200 : 201).send({
@@ -918,10 +959,44 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'payment.record')) return;
+        // PRC-M511: same self-pay constraints as /invoices/:id/pay.
+        const actorId = getActorId(request);
+        if (isSelfPayCaller(request)) {
+          if (!parentBinding) {
+            return reply
+              .status(403)
+              .send(new AppError('Forbidden: role cannot read fees', 'FORBIDDEN', 403).toJSON());
+          }
+          if (result.data.method === 'cash') {
+            return reply
+              .status(403)
+              .send(
+                new AppError(
+                  'Forbidden: cash tender is a staff-only operation',
+                  'FORBIDDEN',
+                  403,
+                ).toJSON(),
+              );
+          }
+          let studentId: string;
+          try {
+            studentId = (await feesService.getInvoice(tenantId, result.data.invoiceId)).studentId;
+          } catch {
+            return reply
+              .status(404)
+              .send(new AppError('Invoice not found', 'NOT_FOUND', 404).toJSON());
+          }
+          if (!(await parentBinding.isLinked(tenantId, actorId, studentId))) {
+            return reply
+              .status(404)
+              .send(new AppError('Invoice not found', 'NOT_FOUND', 404).toJSON());
+          }
+          result.data.payerUserId = actorId;
+        }
         try {
           const paid = await feesService.recordPayment(
             tenantId,
-            getActorId(request),
+            actorId,
             result.data,
             buildPaymentAuditBinder(request, tenantId),
           );
