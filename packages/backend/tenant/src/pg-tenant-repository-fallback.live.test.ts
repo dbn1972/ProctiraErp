@@ -479,6 +479,43 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(await repo.findTenantById(TABLE_ONLY_TENANT)).not.toBeNull();
   });
 
+  it('resolves a table-only tenant by slug (PRC-H100)', async () => {
+    // Before: findTenantBySlug read documents only, so a tenant that exists only in
+    // the tenants table was invisible by slug and its slug was not reserved.
+    const tenant = await repo.findTenantBySlug('fallback-probe-f001');
+    expect(tenant).not.toBeNull();
+    expect(tenant?.id).toBe(TABLE_ONLY_TENANT);
+    expect(tenant?.slug).toBe('fallback-probe-f001');
+    // Case-insensitive, matching the in-memory contract.
+    expect((await repo.findTenantBySlug('FALLBACK-PROBE-F001'))?.id).toBe(TABLE_ONLY_TENANT);
+    // Unknown slug still null.
+    expect(await repo.findTenantBySlug('no-such-slug-zzz')).toBeNull();
+  });
+
+  it('lists a table-only tenant (PRC-H100)', async () => {
+    // Before: listTenants read documents only, so table-only tenants never appeared.
+    const page = await repo.listTenants(
+      { search: 'fallback-probe-f001' },
+      { page: 1, pageSize: 50 },
+    );
+    expect(page.data.some((t) => t.id === TABLE_ONLY_TENANT)).toBe(true);
+  });
+
+  it('does not list or resolve-by-slug a soft-deleted table-only tenant (PRC-H100)', async () => {
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET deleted_at = now() WHERE id = $1`, [TABLE_ONLY_TENANT]),
+    );
+    const page = await repo.listTenants(
+      { search: 'fallback-probe-f001' },
+      { page: 1, pageSize: 50 },
+    );
+    expect(page.data.some((t) => t.id === TABLE_ONLY_TENANT)).toBe(false);
+    expect(await repo.findTenantBySlug('fallback-probe-f001')).toBeNull();
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET deleted_at = NULL WHERE id = $1`, [TABLE_ONLY_TENANT]),
+    );
+  });
+
   it('fails loudly when constructed with a queryable that cannot hold a transaction', async () => {
     // withPgTenant can only bind a transaction-local GUC when it can check out a
     // client. Given a query-only wrapper it binds nothing, and under FORCE RLS that

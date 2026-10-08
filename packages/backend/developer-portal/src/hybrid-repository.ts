@@ -1,7 +1,8 @@
 /**
  * Hybrid developer-portal repository:
- * - Postgres: API keys (055) + accounts/webhooks/deliveries (089) when configured
- * - In-memory: marketplace/docs/analytics/sandboxes/submissions/ratings (residual)
+ * - Postgres: API keys (055) + accounts/webhooks/deliveries (089) +
+ *   submissions/listings (132) + sandboxes/ratings/docs/analytics (134) when configured
+ * - In-memory: only when no durable store is configured (dev/tests; prod fails closed)
  */
 import type {
   DeveloperPortalExtendedRepository,
@@ -182,21 +183,25 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.updateDelivery(id, updates);
   }
 
-  // ─── Sandboxes (in-memory residual) ───────────────────────────────────────
+  // ─── Sandboxes (Postgres when durable store configured — PRC-H049) ────────
 
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    if (this.durable) return this.durable.createSandbox(sandbox);
     return this.memory.createSandbox(sandbox);
   }
 
   getSandboxById(id: string): Promise<SandboxEntity | null> {
+    if (this.durable) return this.durable.getSandboxById(id);
     return this.memory.getSandboxById(id);
   }
 
   listSandboxes(accountId: string): Promise<SandboxEntity[]> {
+    if (this.durable) return this.durable.listSandboxes(accountId);
     return this.memory.listSandboxes(accountId);
   }
 
   updateSandboxStatus(id: string, status: SandboxEntity['status']): Promise<SandboxEntity | null> {
+    if (this.durable) return this.durable.updateSandboxStatus(id, status);
     return this.memory.updateSandboxStatus(id, status);
   }
 
@@ -266,9 +271,10 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.deleteListing(name);
   }
 
-  // ─── Plugin Ratings (in-memory residual) ──────────────────────────────────
+  // ─── Plugin Ratings (Postgres when durable store configured — PRC-H049) ───
 
   createRating(rating: PluginRatingEntity): Promise<PluginRatingEntity> {
+    if (this.durable) return this.durable.createRating(rating);
     return this.memory.createRating(rating);
   }
 
@@ -276,6 +282,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     accountId: string,
     pluginName: string,
   ): Promise<PluginRatingEntity | null> {
+    if (this.durable) return this.durable.getRatingByAccountAndPlugin(accountId, pluginName);
     return this.memory.getRatingByAccountAndPlugin(accountId, pluginName);
   }
 
@@ -284,24 +291,29 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     rating: number,
     review: string | null,
   ): Promise<PluginRatingEntity | null> {
+    if (this.durable) return this.durable.updateRating(id, rating, review);
     return this.memory.updateRating(id, rating, review);
   }
 
   getAverageRating(pluginName: string): Promise<{ average: number; count: number }> {
+    if (this.durable) return this.durable.getAverageRating(pluginName);
     return this.memory.getAverageRating(pluginName);
   }
 
-  // ─── Documentation (in-memory residual) ───────────────────────────────────
+  // ─── Documentation (Postgres when durable store configured — PRC-H049) ────
 
   createDocPage(page: DocPageEntity): Promise<DocPageEntity> {
+    if (this.durable) return this.durable.createDocPage(page);
     return this.memory.createDocPage(page);
   }
 
   getDocPageBySlug(slug: string): Promise<DocPageEntity | null> {
+    if (this.durable) return this.durable.getDocPageBySlug(slug);
     return this.memory.getDocPageBySlug(slug);
   }
 
   listDocPages(filter: DocPageFilter): Promise<DocPageEntity[]> {
+    if (this.durable) return this.durable.listDocPages(filter);
     return this.memory.listDocPages(filter);
   }
 
@@ -309,20 +321,24 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     id: string,
     updates: Partial<Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>>,
   ): Promise<DocPageEntity | null> {
+    if (this.durable) return this.durable.updateDocPage(id, updates);
     return this.memory.updateDocPage(id, updates);
   }
 
   deleteDocPage(id: string): Promise<boolean> {
+    if (this.durable) return this.durable.deleteDocPage(id);
     return this.memory.deleteDocPage(id);
   }
 
-  // ─── Analytics (in-memory residual) ───────────────────────────────────────
+  // ─── Analytics (Postgres when durable store configured — PRC-H049) ────────
 
   recordAnalyticsEvent(event: AnalyticsEventEntity): Promise<AnalyticsEventEntity> {
+    if (this.durable) return this.durable.recordAnalyticsEvent(event);
     return this.memory.recordAnalyticsEvent(event);
   }
 
   getPluginAnalyticsSummary(pluginName: string): Promise<PluginAnalyticsSummary> {
+    if (this.durable) return this.durable.getPluginAnalyticsSummary(pluginName);
     return this.memory.getPluginAnalyticsSummary(pluginName);
   }
 
@@ -330,6 +346,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     filter: AnalyticsFilter,
     granularity: 'day' | 'week' | 'month',
   ): Promise<AnalyticsTimeSeries[]> {
+    if (this.durable) return this.durable.getAnalyticsTimeSeries(filter, granularity);
     return this.memory.getAnalyticsTimeSeries(filter, granularity);
   }
 }

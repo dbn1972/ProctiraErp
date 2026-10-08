@@ -12,6 +12,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { createContext, Script } from 'node:vm';
 
+import { assertEgressAllowed } from './egress-policy.js';
 import type {
   SandboxWorkerMessage,
   SandboxWorkerResponse,
@@ -86,11 +87,10 @@ function createRestrictedFetch(
         : input instanceof URL
           ? input
           : new URL((input as Request).url);
-    const hostname = url.hostname;
 
-    if (!allowedHosts.includes(hostname) && !allowedHosts.includes('*')) {
-      throw new Error(`[Sandbox] Network access to host '${hostname}' is not permitted`);
-    }
+    // NEW-g7_platform-011: fail-closed egress — reject '*' allow-lists and
+    // private/loopback/metadata targets (SSRF), https-only, host must be allow-listed.
+    await assertEgressAllowed(url.toString(), allowedHosts);
 
     // Use the real fetch for allowed hosts
     return globalThis.fetch(input as string | Request, init);
