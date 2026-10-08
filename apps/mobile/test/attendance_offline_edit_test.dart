@@ -143,6 +143,8 @@ void main() {
     return ctx.repo.markAttendance(
       entry: entry,
       institutionId: 'inst-1',
+      classId: 'class-1',
+      academicPeriodId: 'period-1',
       date: '2026-05-12',
       status: status,
       recordedBy: 'teacher-1',

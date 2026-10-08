@@ -277,6 +277,7 @@ class AttendanceRepository {
     required AttendanceRosterEntry entry,
     required String institutionId,
     String? classId,
+    String? academicPeriodId,
     String? subjectId,
     required String date,
     required AttendanceStatus status,
@@ -285,6 +286,20 @@ class AttendanceRepository {
     double? latitude,
     double? longitude,
   }) async {
+    // POST /attendance/student requires classId and academicPeriodId
+    // (PRC-H060). Refuse to queue a payload the backend can never accept:
+    // the dispatcher would otherwise park it permanently and the mark would
+    // silently never sync.
+    if (classId == null || classId.trim().isEmpty) {
+      throw ArgumentError.value(classId, 'classId', 'Select a class first');
+    }
+    if (academicPeriodId == null || academicPeriodId.trim().isEmpty) {
+      throw ArgumentError.value(
+        academicPeriodId,
+        'academicPeriodId',
+        'Enter the academic period first',
+      );
+    }
     final String tenantId = _requireTenantId();
     final bool isUpdate = entry.recordId != null;
     final String recordId = entry.recordId ?? _uuid.v4();
@@ -328,9 +343,10 @@ class AttendanceRepository {
       'id': recordId,
       'studentId': entry.studentId,
       'institutionId': institutionId,
-      'classId': ?classId,
+      'classId': classId,
+      'academicPeriodId': academicPeriodId,
       'subjectId': ?subjectId,
-      'attendanceDate': date,
+      'date': date,
       'status': status.toWire(),
       if (comment != null && comment.isNotEmpty) 'comment': comment,
       'recordedBy': recordedBy,
