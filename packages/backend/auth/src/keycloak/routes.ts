@@ -7,6 +7,12 @@ import {
   revokeAccessTokenIdentifiers,
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
+import {
+  OtpAuthError,
+  OtpRateLimitError,
+  OtpValidationError,
+  type OtpService,
+} from '../otp-service.js';
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 import {
   isIssuedBeforeTenantRevocation,
@@ -70,7 +76,33 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   tenantAuthGate?: (tenantId: string) => Promise<boolean>;
   /** PRC-H008: tenant-wide revocation epoch; refresh tokens issued before it are refused. */
   tenantSessionRevocation?: TenantSessionRevocationStore;
+  /**
+   * PRC-H043: server-side MFA policy for the ROPC `/password` flow. When this hook reports a
+   * user's policy requires MFA and no second factor is verified, `/password` must NOT issue
+   * tokens — it returns an `mfa_required` challenge completed via {@link otpService}.
+   *
+   * The decision (and the phone to challenge) is resolved server-side from the verified identity;
+   * client-supplied phone/userId are never trusted. A thrown error fails closed (503) so a policy
+   * outage cannot bypass MFA.
+   */
+  mfaPolicy?: (user: {
+    userId: string;
+    tenantId: string;
+    email?: string;
+  }) => Promise<MfaPolicyDecision>;
+  /** PRC-H043: OTP service used to issue/verify the second factor. Required when mfaPolicy is set. */
+  otpService?: OtpService;
+  /** PRC-H043: how long held tokens await OTP completion (seconds, default 300). */
+  otpPendingTtlSeconds?: number;
 };
+
+/** PRC-H043: server-resolved MFA requirement for a user. */
+export interface MfaPolicyDecision {
+  /** True when the user's policy requires a verified second factor to sign in. */
+  required: boolean;
+  /** E.164 phone to send the OTP to (server-resolved; required when `required`). */
+  phone?: string;
+}
 
 /** PRC-M500: one-time login ticket storage (shared across replicas when Redis-backed). */
 export interface WebTicketStore {
@@ -133,6 +165,12 @@ type IssuedTokens = {
 
 const WEB_TICKET_TTL_SECONDS = 60;
 const MAX_TICKET_ID_LENGTH = 128;
+
+/** PRC-H043: how long tokens are held pending OTP completion, and the key namespace used. */
+const MFA_PENDING_TTL_SECONDS = 300;
+function mfaPendingKey(mfaToken: string): string {
+  return `mfa-pending:${mfaToken}`;
+}
 
 /** PRC-M500: login transaction bound to the browser via an httpOnly cookie. */
 const OIDC_TXN_COOKIE = 'kc_oidc_txn';
@@ -797,6 +835,109 @@ export async function registerKeycloakAuthRoutes(
         return reply;
       }
 
+      const issuedTokens: IssuedTokens = {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        idToken: tokens.id_token,
+        expiresIn: tokens.expires_in,
+        tokenType: tokens.token_type ?? 'Bearer',
+      };
+
+      // PRC-H043: enforce MFA before issuing tokens. ROPC proves only the password (a single
+      // factor), so a user whose policy requires MFA must complete a second factor. We do NOT
+      // return tokens here; instead we send an OTP challenge and return `mfa_required`. The IdP
+      // session behind the just-issued refresh token is ended so it cannot be replayed, and the
+      // tokens are held server-side under the OTP mfaToken until POST /password/mfa verifies it.
+      if (config.mfaPolicy) {
+        const claims = (() => {
+          try {
+            return decodeJwt(tokens.access_token).payload as Record<string, unknown>;
+          } catch {
+            return {} as Record<string, unknown>;
+          }
+        })();
+        const claimSub = typeof claims.sub === 'string' ? claims.sub : undefined;
+        const mfaUserId = user?.userId ?? claimSub;
+        const mfaTenantId = user?.tenantId ?? claimTenantId(tokens.access_token);
+        let decision: MfaPolicyDecision;
+        try {
+          decision = await config.mfaPolicy({
+            userId: mfaUserId ?? '',
+            tenantId: mfaTenantId ?? '',
+            email: user?.email,
+          });
+        } catch (error) {
+          request.log.error({ err: error }, 'MFA policy lookup failed during password login');
+          await endIdpSession(config, tokens.refresh_token);
+          return reply.status(503).send({
+            code: 'MFA_POLICY_UNAVAILABLE',
+            message: 'Sign-in is temporarily unavailable. Try again shortly.',
+            statusCode: 503,
+          });
+        }
+        if (decision.required) {
+          // Cannot complete the second factor without an OTP service and a resolved phone:
+          // fail closed (do not hand out tokens).
+          if (!config.otpService || !decision.phone || !mfaUserId || !mfaTenantId) {
+            await endIdpSession(config, tokens.refresh_token);
+            return reply.status(403).send({
+              code: 'MFA_REQUIRED_UNAVAILABLE',
+              message: 'Multi-factor authentication is required but cannot be completed.',
+              statusCode: 403,
+            });
+          }
+          let challenge: Awaited<ReturnType<OtpService['sendChallenge']>>;
+          try {
+            challenge = await config.otpService.sendChallenge({
+              userId: mfaUserId,
+              tenantId: mfaTenantId,
+              phone: decision.phone,
+            });
+          } catch (error) {
+            if (error instanceof OtpRateLimitError) {
+              await endIdpSession(config, tokens.refresh_token);
+              return reply.status(429).send({
+                code: 'MFA_RATE_LIMITED',
+                message: error.message,
+                statusCode: 429,
+              });
+            }
+            if (error instanceof OtpValidationError) {
+              await endIdpSession(config, tokens.refresh_token);
+              return reply.status(403).send({
+                code: 'MFA_REQUIRED_UNAVAILABLE',
+                message: 'Multi-factor authentication is required but cannot be completed.',
+                statusCode: 403,
+              });
+            }
+            request.log.error({ err: error }, 'MFA challenge send failed during password login');
+            await endIdpSession(config, tokens.refresh_token);
+            return reply.status(503).send({
+              code: 'MFA_CHALLENGE_UNAVAILABLE',
+              message: 'Sign-in is temporarily unavailable. Try again shortly.',
+              statusCode: 503,
+            });
+          }
+          // Hold the issued tokens keyed by the OTP mfaToken until verification. The web-ticket
+          // store is single-use and TTL-bounded; reuse it so no new store is needed.
+          await webTicketStore.put(
+            mfaPendingKey(challenge.mfaToken),
+            JSON.stringify({ ...issuedTokens, user }),
+            Math.max(1, config.otpPendingTtlSeconds ?? MFA_PENDING_TTL_SECONDS),
+          );
+          return reply.status(401).send({
+            provider: 'keycloak',
+            realm: config.realm,
+            status: 'mfa_required',
+            mfaToken: challenge.mfaToken,
+            method: challenge.method,
+            phoneHint: challenge.phoneHint,
+            expiresAt: challenge.expiresAt,
+            ...(challenge.debugCode ? { debugCode: challenge.debugCode } : {}),
+          });
+        }
+      }
+
       return reply.status(200).send({
         provider: 'keycloak',
         realm: config.realm,
@@ -806,6 +947,71 @@ export async function registerKeycloakAuthRoutes(
         expiresIn: tokens.expires_in,
         tokenType: tokens.token_type ?? 'Bearer',
         user,
+      });
+    },
+  );
+
+  /**
+   * POST /auth/password/mfa — complete the PRC-H043 second factor. Verifies the OTP via the
+   * existing OtpService and, on success, returns the tokens held for this mfaToken. A bad/expired
+   * code never returns tokens, and the pending tokens are single-use (consumed on first fetch).
+   */
+  fastify.post(
+    `${prefix}/password/mfa`,
+    async (
+      request: FastifyRequest<{ Body: { mfaToken?: string; code?: string } }>,
+      reply: FastifyReply,
+    ) => {
+      const mfaToken = (request.body?.mfaToken ?? '').trim();
+      const code = (request.body?.code ?? '').trim();
+      if (!mfaToken || !code) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'mfaToken and code are required',
+          statusCode: 400,
+        });
+      }
+      if (!config.otpService) {
+        return reply.status(501).send({
+          code: 'MFA_NOT_CONFIGURED',
+          message: 'Multi-factor authentication is not configured',
+          statusCode: 501,
+        });
+      }
+      try {
+        await config.otpService.verifyChallenge({ mfaToken, code });
+      } catch (error) {
+        if (error instanceof OtpRateLimitError) {
+          return reply
+            .status(429)
+            .send({ code: 'TOO_MANY_ATTEMPTS', message: error.message, statusCode: 429 });
+        }
+        if (error instanceof OtpAuthError) {
+          return reply
+            .status(401)
+            .send({ code: 'MFA_INVALID', message: error.message, statusCode: 401 });
+        }
+        throw error;
+      }
+      // OTP verified: hand out the held tokens (single-use fetch).
+      const raw = await webTicketStore.take(mfaPendingKey(mfaToken));
+      if (!raw) {
+        return reply.status(401).send({
+          code: 'MFA_SESSION_EXPIRED',
+          message: 'Sign-in session expired; please sign in again',
+          statusCode: 401,
+        });
+      }
+      const held = JSON.parse(raw) as IssuedTokens & { user?: LinkedKeycloakUser };
+      return reply.status(200).send({
+        provider: 'keycloak',
+        realm: config.realm,
+        accessToken: held.accessToken,
+        refreshToken: held.refreshToken,
+        idToken: held.idToken,
+        expiresIn: held.expiresIn,
+        tokenType: held.tokenType,
+        user: held.user,
       });
     },
   );
