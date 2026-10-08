@@ -245,6 +245,10 @@ externalSecret:
       - ETL_CONNECTOR_SECRET_KEY
       - WEBHOOK_SIGNING_KMS_KEY_ID
     etl-worker: [DATABASE_URL, KAFKA_BROKERS, REDIS_URL, RABBITMQ_URL]
+    # NEW-g3_infra_tools-001 / PRC-M279: durable exam-document consumer. Reads
+    # only the PG URL (examination/document/blob repos) and the broker URL; it
+    # never signs JWTs or decrypts PHI, so no JWT_SECRET / PHI_ENCRYPTION_KEY.
+    exam-document-worker: [DATABASE_URL, RABBITMQ_URL]
     web: []
     registration-portal: []
     admin-console: []

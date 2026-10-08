@@ -65,11 +65,25 @@ spec:
               value: '0.0.0.0'
             - name: QUEUE_BACKEND
               value: 'rabbitmq'
+            # NEW-g3_infra_tools-001 (PRC-M279): least-privilege per-key secrets
+            # instead of the whole platform Secret. The worker only reads
+            # DATABASE_URL (PG examination/document/blob repos) and RABBITMQ_URL
+            # (durable queue consumer); it never signs JWTs or decrypts PHI, so
+            # it must not receive JWT_SECRET / PHI_ENCRYPTION_KEY / COOKIE_SECRET
+            # / S3 keys. Mirrors etl-worker.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: proctira-secrets
+                  key: DATABASE_URL
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: proctira-secrets
+                  key: RABBITMQ_URL
           envFrom:
             - configMapRef:
                 name: proctira-config
-            - secretRef:
-                name: proctira-secrets
           resources:
             requests:
               cpu: 100m

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
+import { StepCard } from '@/components/step-card';
 import { apiClient, type StorageConfig, type ValidationResult } from '@/lib/api-client';
 
 interface StorageStepProps {
@@ -193,7 +194,7 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
           </button>
           <button
             type="button"
-            onClick={handleTest}
+            onClick={() => void handleTest()}
             disabled={testing || !config.bucket}
             className="btn-primary"
           >

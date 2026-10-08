@@ -1,0 +1,16 @@
+{{- if and .Values.examDocumentWorker.enabled .Values.examDocumentWorker.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "proctira.fullname" . }}-exam-document-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: exam-document-worker
+spec:
+  minAvailable: {{ .Values.examDocumentWorker.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exam-document-worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

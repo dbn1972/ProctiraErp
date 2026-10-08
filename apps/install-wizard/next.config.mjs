@@ -4,11 +4,8 @@ import { buildSecurityHeaders } from './security-headers.mjs';
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  // Lint runs in the CI Lint job on changed files (same as apps/web); skip it inside
-  // `next build` so Docker image builds do not need the type-aware ESLint toolchain.
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // PRC-H009: lint failures break the build. ESLint runs during `next build`
+  // (no ignoreDuringBuilds) in addition to the CI Lint job.
   // PRC-H009: security headers (CSP, no framing, nosniff, referrer policy).
   async headers() {
     return [{ source: '/:path*', headers: buildSecurityHeaders() }];
