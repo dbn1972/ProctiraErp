@@ -122,6 +122,7 @@ export const staffPlugin = fp(
     await fastify.register(async (scope) => {
       await registerStaffLeaveRoutes(scope, {
         leaveService,
+        staffService,
         prefix,
         staffExists,
       });
@@ -134,7 +135,7 @@ export const staffPlugin = fp(
     });
     fastify.decorate('staffHrService', hrService);
     await fastify.register(async (scope) => {
-      await registerStaffHrRoutes(scope, { hrService, prefix });
+      await registerStaffHrRoutes(scope, { hrService, staffService, prefix });
     });
 
     // G-717: appraisals + training were implemented but never mounted.

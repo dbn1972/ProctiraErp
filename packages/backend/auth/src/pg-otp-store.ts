@@ -48,7 +48,7 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
    * scope parameter becomes mandatory.
    */
   findByToken(mfaToken: string): Promise<OtpChallengeRecord | null> {
-    return this.challenges.get(mfaToken);
+    return this.challenges.get(mfaToken, { platformAdmin: true });
   }
 
   private async findById(id: string): Promise<OtpChallengeRecord | null> {

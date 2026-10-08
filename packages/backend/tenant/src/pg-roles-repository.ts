@@ -98,7 +98,7 @@ export class PgRolesRepository implements RolesRepository {
 
   async findRoleById(tenantId: string, id: string): Promise<RoleEntity | null> {
     await this.ensureSeeded(tenantId);
-    const doc = await this.roles.get(id);
+    const doc = await this.roles.get(id, { tenantId });
     return doc && doc.tenantId === tenantId ? toEntity(doc) : null;
   }
 
@@ -138,7 +138,7 @@ export class PgRolesRepository implements RolesRepository {
   async deleteRole(tenantId: string, id: string): Promise<boolean> {
     const existing = await this.findRoleById(tenantId, id);
     if (!existing) return false;
-    await this.roles.delete(id);
+    await this.roles.delete(id, { tenantId });
     const users = await this.users.byTenant(tenantId);
     for (const user of users) {
       if (user.roleIds.includes(id)) {
@@ -182,7 +182,7 @@ export class PgRolesRepository implements RolesRepository {
   }
 
   async findUserById(tenantId: string, id: string): Promise<UserRecord | null> {
-    const user = await this.users.get(id);
+    const user = await this.users.get(id, { tenantId });
     return user && user.tenantId === tenantId ? user : null;
   }
 

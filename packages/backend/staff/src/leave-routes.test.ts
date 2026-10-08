@@ -5,8 +5,10 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
+import { InMemoryStaffRepository } from './in-memory-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
+import { StaffService } from './staff-service.js';
 
 const TENANT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const STAFF_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -31,7 +33,10 @@ describe('Staff leave routes JWT actor', () => {
       };
     });
 
-    await registerStaffLeaveRoutes(app, { leaveService });
+    await registerStaffLeaveRoutes(app, {
+      leaveService,
+      staffService: new StaffService(new InMemoryStaffRepository()),
+    });
     await app.ready();
   });
 

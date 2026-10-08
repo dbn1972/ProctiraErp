@@ -164,6 +164,15 @@ export class StaffLeaveService {
     return this.repository.listLeaves(tenantId);
   }
 
+  /** PRC-H090: resolve a leave (for school-scope checks). */
+  async getLeave(tenantId: string, leaveId: string): Promise<StaffLeaveEntity> {
+    const leave = await this.repository.findLeaveById(leaveId, tenantId);
+    if (!leave) {
+      throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+    }
+    return leave;
+  }
+
   async decideLeave(
     tenantId: string,
     leaveId: string,

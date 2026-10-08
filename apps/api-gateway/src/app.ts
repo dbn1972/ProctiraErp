@@ -107,6 +107,7 @@ import {
   shouldAuditMutation,
   wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
+import { areaForPlatformRoute, hasAreaAccess } from './platform-area-rbac.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
@@ -127,6 +128,7 @@ import {
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
+import { getTenantCustomRoleProvider } from './tenant-custom-roles.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
@@ -966,6 +968,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-H101: tenant custom roles (tenant.roles) feed authorization. The base
+  // registry ids are immutable built-ins; a tenant document reusing one is ignored.
+  const baseRoleIds = new Set(rbacRegistry.getAllRoles().map((r) => r.roleId));
+  const customRoleProvider = getTenantCustomRoleProvider(baseRoleIds);
   // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
   // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
   configureAreaHierarchyVersionStore(
@@ -1215,6 +1221,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
     if (resource === 'platform') {
       if (isPlatformAdmin) return;
+      // PRC-H001: a narrower platform role (billing/security/ops_support/engineering)
+      // may reach the platform-admin console routes it is permitted for; the
+      // platform-admin-ui plugin re-checks the exact area (single source of truth).
+      if (url.startsWith('/api/v1/')) {
+        const consolePath = url.slice('/api/v1'.length);
+        const area = areaForPlatformRoute(method, consolePath);
+        if (area && hasAreaAccess(roles, area)) return;
+      }
       return reply.status(403).send({
         code: 'FORBIDDEN',
         message: 'Platform administrator role required',
@@ -1249,7 +1263,22 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       await scopedResolver.ensureTenantLoaded(authUser.tenantId);
     }
 
-    const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
+    // PRC-H101: merge the tenant's custom roles for role ids the base registry
+    // does not define, so console-defined roles grant/deny at the gateway.
+    const callerRoleIds = roles.map((r) => (typeof r === 'string' ? r : r.roleId));
+    const effectiveRegistry = await customRoleProvider.registryForRequest(
+      rbacRegistry,
+      authUser.tenantId,
+      callerRoleIds,
+    );
+
+    const result = await evaluatePermission(
+      authUser,
+      resource,
+      action,
+      effectiveRegistry,
+      areaResolver,
+    );
 
     if (!result.granted) {
       return reply.status(403).send({

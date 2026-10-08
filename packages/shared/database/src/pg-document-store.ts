@@ -40,7 +40,8 @@ function toDate(v: unknown): Date {
 }
 
 /**
- * Which rows a document operation is allowed to address.
+ * Which rows a document operation is allowed to address — now MANDATORY so the
+ * compiler forces every call site to state its intent (PRC-H007 / PRC-H116).
  *
  * `control_plane_documents` holds both tenant-owned rows (`auth.*`, `billing.*`)
  * and genuinely platform-owned rows with a NULL `tenant_id`. Historically
@@ -51,30 +52,37 @@ function toDate(v: unknown): Date {
  * holding an id read that row whichever tenant owned it. Verified live; see
  * `docs/audits/SEC_CONTROL_PLANE_DOCUMENT_ISOLATION.md`.
  *
- * Passing a scope adds the missing predicate in SQL, so the operation is correct
- * independently of whether RLS is escaped:
+ * Three explicit scopes, each adding the correct SQL predicate so the operation
+ * is correct independently of whether RLS is escaped:
  *
- * - `{ tenantId }` — only that tenant's rows
- * - `{ platform: true }` — only rows with no owning tenant
+ * - `{ tenantId }`        — only that tenant's rows; binds `app.tenant_id`
+ *                           (never the platform escape), so FORCE RLS is a real
+ *                           second line of defence.
+ * - `{ platform: true }`  — only platform-owned rows (`tenant_id IS NULL`), e.g.
+ *                           billing plans, tenant lifecycle/domain documents.
+ * - `{ platformAdmin: true }` — a genuine platform-admin cross-tenant operation
+ *                           that must address tenant-owned rows WITHOUT knowing
+ *                           the owning tenant (e.g. billing "find subscription by
+ *                           id", "list subscriptions by status"). Adds no
+ *                           tenant predicate and uses the platform-admin bind.
+ *                           Use sparingly and only on platform-admin surfaces.
  *
- * Omitting it preserves the previous unscoped behaviour, so this is additive and
- * no existing caller changes meaning. Omission is the thing being removed: once
- * call sites are classified, the parameter becomes required and the
- * `app.platform_admin` bind can stop being unconditional.
+ * There is no optional/omitted form: the previous unscoped behaviour (an implicit
+ * global key) is exactly what this change removes.
  */
 export type DocumentScope =
-  { tenantId: string; platform?: never } | { platform: true; tenantId?: never };
+  | { tenantId: string; platform?: never; platformAdmin?: never }
+  | { platform: true; tenantId?: never; platformAdmin?: never }
+  | { platformAdmin: true; tenantId?: never; platform?: never };
 
 /**
  * Renders `scope` as an additional SQL predicate plus its parameters.
  * `nextParam` is the 1-based index of the next free placeholder.
  */
-function scopeClause(
-  scope: DocumentScope | undefined,
-  nextParam: number,
-): { sql: string; params: unknown[] } {
-  if (!scope) return { sql: '', params: [] };
+function scopeClause(scope: DocumentScope, nextParam: number): { sql: string; params: unknown[] } {
   if (scope.platform === true) return { sql: ' AND tenant_id IS NULL', params: [] };
+  // Platform-admin cross-tenant: no tenant predicate (the historical escape, now explicit).
+  if (scope.platformAdmin === true) return { sql: '', params: [] };
   return {
     sql: ` AND tenant_id = $${nextParam}`,
     params: [canonicalizeDocumentTenantId(scope.tenantId)],
@@ -224,9 +232,9 @@ export class PgDocumentCollection<T extends object> {
     return canonical ? withPgTenant(this.pool, canonical, fn) : withPlatformScope(this.pool, fn);
   }
 
-  async get(id: string, scope?: DocumentScope): Promise<T | null> {
+  async get(id: string, scope: DocumentScope): Promise<T | null> {
     const s = scopeClause(scope, 3);
-    return this.run(scope?.tenantId, async (client) => {
+    return this.run(scope.tenantId, async (client) => {
       const res = await client.query(
         `SELECT * FROM control_plane_documents WHERE collection = $1 AND id = $2${s.sql} LIMIT 1`,
         [this.collection, id, ...s.params],
@@ -305,9 +313,9 @@ export class PgDocumentCollection<T extends object> {
     }
   }
 
-  async delete(id: string, scope?: DocumentScope): Promise<boolean> {
+  async delete(id: string, scope: DocumentScope): Promise<boolean> {
     const s = scopeClause(scope, 3);
-    return this.run(scope?.tenantId, async (client) => {
+    return this.run(scope.tenantId, async (client) => {
       const res = await client.query(
         `DELETE FROM control_plane_documents WHERE collection = $1 AND id = $2${s.sql}`,
         [this.collection, id, ...s.params],
@@ -316,9 +324,9 @@ export class PgDocumentCollection<T extends object> {
     });
   }
 
-  async all(scope?: DocumentScope): Promise<T[]> {
+  async all(scope: DocumentScope): Promise<T[]> {
     const s = scopeClause(scope, 2);
-    return this.run(scope?.tenantId, async (client) => {
+    return this.run(scope.tenantId, async (client) => {
       const res = await client.query(
         `SELECT * FROM control_plane_documents WHERE collection = $1${s.sql} ORDER BY created_at ASC`,
         [this.collection, ...s.params],
@@ -360,9 +368,9 @@ export class PgDocumentCollection<T extends object> {
     return rows[0] ?? null;
   }
 
-  async count(scope?: DocumentScope): Promise<number> {
+  async count(scope: DocumentScope): Promise<number> {
     const s = scopeClause(scope, 2);
-    return this.run(scope?.tenantId, async (client) => {
+    return this.run(scope.tenantId, async (client) => {
       const res = await client.query(
         `SELECT COUNT(*)::int AS c FROM control_plane_documents WHERE collection = $1${s.sql}`,
         [this.collection, ...s.params],
