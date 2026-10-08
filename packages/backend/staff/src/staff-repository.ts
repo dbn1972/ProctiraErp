@@ -90,6 +90,12 @@ export interface StaffRepository {
   findExistingIds?(ids: readonly string[], tenantId: string): Promise<string[]>;
 
   /**
+   * PRC-H090: institution ids a staff member is assigned to (via staff_assignments).
+   * Used to enforce school-scope on writes. Empty array when unassigned/unknown.
+   */
+  findInstitutionIds?(tenantId: string, staffId: string): Promise<string[]>;
+
+  /**
    * PRC-L153: hard-remove a row this request just created (compensating rollback when a
    * dependent write in another store fails). Never use for user-initiated deletes.
    */

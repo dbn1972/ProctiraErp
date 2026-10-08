@@ -14,6 +14,10 @@ import {
 
 import type {
   DeveloperAccountEntity,
+  MarketplaceFilter,
+  MarketplaceListingEntity,
+  PluginSubmissionEntity,
+  PluginSubmissionFilter,
   WebhookDeliveryEntity,
   WebhookDeliveryFilter,
   WebhookEntity,
@@ -471,4 +475,310 @@ export class PgDeveloperPortalDurableStore {
       return row?.secret_hash ?? null;
     });
   }
+
+  // ─── Plugin submissions (platform scope — PRC-H049) ───────────────────────
+
+  async createSubmission(submission: PluginSubmissionEntity): Promise<PluginSubmissionEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `INSERT INTO developer_portal_submissions (
+           id, account_id, name, version, display_name, description, category,
+           supported_product_versions, required_permissions, source_url,
+           documentation_url, icon_url, screenshots, tags, license, status,
+           review_notes, reviewed_by, reviewed_at, submitted_at, published_at
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18,$19,$20,$21
+         ) RETURNING *`,
+        [
+          submission.id,
+          submission.accountId,
+          submission.name,
+          submission.version,
+          submission.displayName,
+          submission.description,
+          submission.category,
+          submission.supportedProductVersions,
+          JSON.stringify(submission.requiredPermissions ?? []),
+          submission.sourceUrl,
+          submission.documentationUrl,
+          submission.iconUrl,
+          JSON.stringify(submission.screenshots ?? []),
+          JSON.stringify(submission.tags ?? []),
+          submission.license,
+          submission.status,
+          submission.reviewNotes,
+          submission.reviewedBy,
+          submission.reviewedAt,
+          submission.submittedAt,
+          submission.publishedAt,
+        ],
+      );
+      return mapSubmission(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getSubmissionById(id: string): Promise<PluginSubmissionEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_submissions WHERE id = $1`,
+        [id],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapSubmission(row) : null;
+    });
+  }
+
+  async listSubmissions(
+    filter: PluginSubmissionFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: PluginSubmissionEntity[]; total: number }> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (filter.accountId) {
+        params.push(filter.accountId);
+        where.push(`account_id = $${params.length}`);
+      }
+      if (filter.status) {
+        params.push(filter.status);
+        where.push(`status = $${params.length}`);
+      }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const totalRes = await client.query(
+        `SELECT count(*)::int AS c FROM developer_portal_submissions ${whereSql}`,
+        params,
+      );
+      const total = Number((totalRes.rows[0] as { c: number }).c);
+      const limit = Math.max(1, pageSize);
+      const offset = Math.max(0, (Math.max(1, page) - 1) * limit);
+      const dataRes = await client.query(
+        `SELECT * FROM developer_portal_submissions ${whereSql}
+          ORDER BY submitted_at DESC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset],
+      );
+      return {
+        data: (dataRes.rows as Record<string, unknown>[]).map(mapSubmission),
+        total,
+      };
+    });
+  }
+
+  async updateSubmissionStatus(
+    id: string,
+    status: PluginSubmissionEntity['status'],
+    reviewNotes?: string | null,
+    reviewedBy?: string | null,
+  ): Promise<PluginSubmissionEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `UPDATE developer_portal_submissions SET
+           status = $2,
+           review_notes = COALESCE($3, review_notes),
+           reviewed_by = COALESCE($4, reviewed_by),
+           reviewed_at = CASE WHEN $4 IS NOT NULL THEN now() ELSE reviewed_at END,
+           published_at = CASE WHEN $2 = 'published' THEN now() ELSE published_at END
+         WHERE id = $1
+         RETURNING *`,
+        [id, status, reviewNotes ?? null, reviewedBy ?? null],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapSubmission(row) : null;
+    });
+  }
+
+  // ─── Marketplace listings (platform scope — PRC-H049) ─────────────────────
+
+  async createListing(listing: MarketplaceListingEntity): Promise<MarketplaceListingEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      // PRC-M219 defence-in-depth: do not overwrite a listing owned by another
+      // account. Same-owner re-publish updates in place (preserves stats).
+      const result = await client.query(
+        `INSERT INTO developer_portal_listings (
+           name, display_name, description, category, version, author, account_id,
+           icon_url, screenshots, tags, license, installs, average_rating,
+           rating_count, published_at, updated_at
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15,$16
+         )
+         ON CONFLICT (name) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           description = EXCLUDED.description,
+           category = EXCLUDED.category,
+           version = EXCLUDED.version,
+           author = EXCLUDED.author,
+           icon_url = EXCLUDED.icon_url,
+           screenshots = EXCLUDED.screenshots,
+           tags = EXCLUDED.tags,
+           license = EXCLUDED.license,
+           updated_at = now()
+         WHERE developer_portal_listings.account_id = EXCLUDED.account_id
+         RETURNING *`,
+        [
+          listing.name,
+          listing.displayName,
+          listing.description,
+          listing.category,
+          listing.version,
+          listing.author,
+          listing.accountId,
+          listing.iconUrl,
+          JSON.stringify(listing.screenshots ?? []),
+          JSON.stringify(listing.tags ?? []),
+          listing.license,
+          listing.installs,
+          listing.averageRating,
+          listing.ratingCount,
+          listing.publishedAt,
+          listing.updatedAt,
+        ],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      if (!row) {
+        // Conflict with a listing owned by a different account — name hijack blocked.
+        throw new Error(`Listing '${listing.name}' is owned by another account`);
+      }
+      return mapListing(row);
+    });
+  }
+
+  async getListingByName(name: string): Promise<MarketplaceListingEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(`SELECT * FROM developer_portal_listings WHERE name = $1`, [
+        name,
+      ]);
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapListing(row) : null;
+    });
+  }
+
+  async searchListings(
+    filter: MarketplaceFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: MarketplaceListingEntity[]; total: number }> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (filter.category) {
+        params.push(filter.category);
+        where.push(`category = $${params.length}`);
+      }
+      if (filter.search) {
+        params.push(`%${filter.search.toLowerCase()}%`);
+        where.push(
+          `(lower(name) LIKE $${params.length} OR lower(display_name) LIKE $${params.length} OR lower(description) LIKE $${params.length})`,
+        );
+      }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const sortColumn =
+        filter.sortBy === 'installs'
+          ? 'installs'
+          : filter.sortBy === 'rating'
+            ? 'average_rating'
+            : filter.sortBy === 'name'
+              ? 'name'
+              : 'published_at';
+      const sortOrder = filter.sortOrder === 'asc' ? 'ASC' : 'DESC';
+      const totalRes = await client.query(
+        `SELECT count(*)::int AS c FROM developer_portal_listings ${whereSql}`,
+        params,
+      );
+      const total = Number((totalRes.rows[0] as { c: number }).c);
+      const limit = Math.max(1, pageSize);
+      const offset = Math.max(0, (Math.max(1, page) - 1) * limit);
+      const dataRes = await client.query(
+        `SELECT * FROM developer_portal_listings ${whereSql}
+          ORDER BY ${sortColumn} ${sortOrder}
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset],
+      );
+      return {
+        data: (dataRes.rows as Record<string, unknown>[]).map(mapListing),
+        total,
+      };
+    });
+  }
+
+  async updateListingStats(
+    name: string,
+    updates: Partial<Pick<MarketplaceListingEntity, 'installs' | 'averageRating' | 'ratingCount'>>,
+  ): Promise<MarketplaceListingEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `UPDATE developer_portal_listings SET
+           installs = COALESCE($2, installs),
+           average_rating = COALESCE($3, average_rating),
+           rating_count = COALESCE($4, rating_count),
+           updated_at = now()
+         WHERE name = $1
+         RETURNING *`,
+        [
+          name,
+          updates.installs ?? null,
+          updates.averageRating ?? null,
+          updates.ratingCount ?? null,
+        ],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapListing(row) : null;
+    });
+  }
+
+  async deleteListing(name: string): Promise<boolean> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(`DELETE FROM developer_portal_listings WHERE name = $1`, [
+        name,
+      ]);
+      return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
+    });
+  }
+}
+
+function mapSubmission(row: Record<string, unknown>): PluginSubmissionEntity {
+  return {
+    id: String(row['id']),
+    accountId: String(row['account_id']),
+    name: String(row['name']),
+    version: String(row['version']),
+    displayName: String(row['display_name']),
+    description: String(row['description']),
+    category: String(row['category']),
+    supportedProductVersions: String(row['supported_product_versions']),
+    requiredPermissions: parseJsonArray(row['required_permissions']),
+    sourceUrl: row['source_url'] == null ? null : String(row['source_url']),
+    documentationUrl: row['documentation_url'] == null ? null : String(row['documentation_url']),
+    iconUrl: row['icon_url'] == null ? null : String(row['icon_url']),
+    screenshots: parseJsonArray(row['screenshots']),
+    tags: parseJsonArray(row['tags']),
+    license: row['license'] == null ? null : String(row['license']),
+    status: String(row['status']) as PluginSubmissionEntity['status'],
+    reviewNotes: row['review_notes'] == null ? null : String(row['review_notes']),
+    reviewedBy: row['reviewed_by'] == null ? null : String(row['reviewed_by']),
+    reviewedAt: toDateOrNull(row['reviewed_at']),
+    submittedAt: toDate(row['submitted_at']),
+    publishedAt: toDateOrNull(row['published_at']),
+  };
+}
+
+function mapListing(row: Record<string, unknown>): MarketplaceListingEntity {
+  return {
+    name: String(row['name']),
+    displayName: String(row['display_name']),
+    description: String(row['description']),
+    category: String(row['category']),
+    version: String(row['version']),
+    author: String(row['author']),
+    accountId: String(row['account_id']),
+    iconUrl: row['icon_url'] == null ? null : String(row['icon_url']),
+    screenshots: parseJsonArray(row['screenshots']),
+    tags: parseJsonArray(row['tags']),
+    license: row['license'] == null ? null : String(row['license']),
+    installs: Number(row['installs'] ?? 0),
+    averageRating: Number(row['average_rating'] ?? 0),
+    ratingCount: Number(row['rating_count'] ?? 0),
+    publishedAt: toDate(row['published_at']),
+    updatedAt: toDate(row['updated_at']),
+  };
 }

@@ -28,6 +28,9 @@ resources:
   - etl-worker/deployment.yaml
   - etl-worker/service.yaml
   - etl-worker/hpa.yaml
+  # Exam Document Worker (durable queue consumer — PRC-H051)
+  - exam-document-worker/deployment.yaml
+  - exam-document-worker/pdb.yaml
   # Ingress
   - ingress.yaml
 

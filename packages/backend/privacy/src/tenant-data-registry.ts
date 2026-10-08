@@ -210,7 +210,10 @@ const WIPE: Record<string, readonly string[]> = {
     'comms_delivery_log',
     'comms_emergency_blasts',
     'notification_devices',
+    'notification_directory_users',
     'notification_preferences',
+    'notification_rules',
+    'notification_templates',
     'notifications',
     'parent_message_threads',
     'parent_messages',
@@ -322,6 +325,8 @@ const WIPE: Record<string, readonly string[]> = {
     'student_discipline_incidents',
     // 112: durable import progress (may carry row data).
     'student_import_jobs',
+    // 130: durable lifecycle certificates (bonafide/transfer/character/leaving).
+    'student_lifecycle_certificates',
     'student_merges',
     'student_siblings',
     'students',
@@ -486,6 +491,7 @@ export const SUBJECT_LINK_REGISTRY: Record<SubjectKind, readonly SubjectLink[]> 
     link('search_index_documents', 'entity_id', 'unhandled'),
     link('student_consents', 'student_id', 'unhandled'),
     link('student_discipline_incidents', 'student_id', 'unhandled'),
+    link('student_lifecycle_certificates', 'student_id', 'unhandled'),
     link('transcript_issuances', 'student_id', 'unhandled'),
     link('transfer_records', 'student_id', 'unhandled'),
     link('transport_alerts', 'student_id', 'unhandled'),
