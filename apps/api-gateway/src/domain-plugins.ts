@@ -196,6 +196,7 @@ import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { invalidateTenantCustomRoles } from './tenant-custom-roles.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { createWebhookSigningSecretsFromEnv } from './webhook-signing-secrets-wiring.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
@@ -1481,6 +1482,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(tenantAdminPlugin, {
         prefix: '/tenant',
         onAudit: async (event) => {
+          // PRC-H101: a role edit must change gateway allow/deny promptly. Drop the
+          // cached custom roles for this tenant so the next request reloads them.
+          if (event.entityType === 'role') invalidateTenantCustomRoles(event.tenantId);
           const auditService = (
             scope as unknown as {
               auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };

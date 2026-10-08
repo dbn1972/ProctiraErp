@@ -127,6 +127,7 @@ import {
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
+import { getTenantCustomRoleProvider } from './tenant-custom-roles.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
@@ -966,6 +967,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-H101: tenant custom roles (tenant.roles) feed authorization. The base
+  // registry ids are immutable built-ins; a tenant document reusing one is ignored.
+  const baseRoleIds = new Set(rbacRegistry.getAllRoles().map((r) => r.roleId));
+  const customRoleProvider = getTenantCustomRoleProvider(baseRoleIds);
   // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
   // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
   configureAreaHierarchyVersionStore(
@@ -1249,7 +1254,22 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       await scopedResolver.ensureTenantLoaded(authUser.tenantId);
     }
 
-    const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
+    // PRC-H101: merge the tenant's custom roles for role ids the base registry
+    // does not define, so console-defined roles grant/deny at the gateway.
+    const callerRoleIds = roles.map((r) => (typeof r === 'string' ? r : r.roleId));
+    const effectiveRegistry = await customRoleProvider.registryForRequest(
+      rbacRegistry,
+      authUser.tenantId,
+      callerRoleIds,
+    );
+
+    const result = await evaluatePermission(
+      authUser,
+      resource,
+      action,
+      effectiveRegistry,
+      areaResolver,
+    );
 
     if (!result.granted) {
       return reply.status(403).send({
