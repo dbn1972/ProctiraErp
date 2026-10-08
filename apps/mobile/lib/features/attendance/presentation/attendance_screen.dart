@@ -36,6 +36,10 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
   final TextEditingController _institutionCtrl = TextEditingController();
+
+  /// Academic period the marks belong to; the backend requires it on every
+  /// attendance record (PRC-H060).
+  final TextEditingController _periodCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   bool _loading = false;
   bool _submitting = false;
@@ -100,6 +104,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   void dispose() {
     _queueSub?.cancel();
     _institutionCtrl.dispose();
+    _periodCtrl.dispose();
     super.dispose();
   }
 
@@ -197,11 +202,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Marks are only queued once every backend-required field is known, so
+  /// nothing reaches the sync queue that the server would reject (PRC-H060).
+  bool get _canMark =>
+      (_selectedClass?.trim().isNotEmpty ?? false) &&
+      _periodCtrl.text.trim().isNotEmpty;
+
   Future<void> _mark(
     AttendanceRosterEntry entry,
     AttendanceStatus status, {
     String? comment,
   }) async {
+    if (!_canMark) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a class and enter the academic period first.'),
+        ),
+      );
+      return;
+    }
     final AuthState auth = getIt<AuthBloc>().state;
     final String recordedBy = auth.userId ?? 'mobile-user';
 
@@ -210,6 +229,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         entry: entry,
         institutionId: _institutionCtrl.text.trim(),
         classId: _selectedClass,
+        academicPeriodId: _periodCtrl.text.trim(),
         date: _dateString,
         status: status,
         recordedBy: recordedBy,
@@ -333,6 +353,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Institution ID',
                   prefixIcon: Icon(Icons.school_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _periodCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Academic period ID',
+                  helperText: 'Required before marking attendance',
+                  prefixIcon: Icon(Icons.event_note_outlined),
                 ),
               ),
               const SizedBox(height: 12),

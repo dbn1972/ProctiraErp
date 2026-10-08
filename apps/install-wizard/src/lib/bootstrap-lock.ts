@@ -24,6 +24,32 @@ const sessions: Map<string, InstallSession> =
   g.__proctiraInstallSessions ?? new Map<string, InstallSession>();
 g.__proctiraInstallSessions = sessions;
 
+/**
+ * PRC-L005: sessions are bootstrap-only and must not accumulate forever.
+ * Entries older than {@link SESSION_TTL_MS} are treated as expired (the
+ * previously-unreachable "expired" path) and swept on insert, and the total
+ * is capped so an unauthenticated loop over GET /session cannot grow the heap
+ * without bound.
+ */
+export const SESSION_TTL_MS = 30 * 60 * 1000;
+export const MAX_SESSIONS = 1000;
+
+function isExpired(session: InstallSession, now: number): boolean {
+  return now - session.createdAt > SESSION_TTL_MS;
+}
+
+/** Drop expired entries; if still over the cap, evict the oldest. */
+function sweepSessions(now: number = Date.now()): void {
+  for (const [token, session] of sessions) {
+    if (isExpired(session, now)) sessions.delete(token);
+  }
+  if (sessions.size <= MAX_SESSIONS) return;
+  const ordered = Array.from(sessions.entries()).sort((a, b) => a[1].createdAt - b[1].createdAt);
+  for (const [token] of ordered.slice(0, sessions.size - MAX_SESSIONS)) {
+    sessions.delete(token);
+  }
+}
+
 function randomToken(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -31,6 +57,7 @@ function randomToken(): string {
 }
 
 export function createInstallSession(): InstallSession {
+  sweepSessions();
   const session: InstallSession = {
     installToken: randomToken(),
     csrfToken: randomToken(),
@@ -44,7 +71,14 @@ export function createInstallSession(): InstallSession {
 
 export function getInstallSession(installToken: string | undefined | null): InstallSession | null {
   if (!installToken) return null;
-  return sessions.get(installToken) ?? null;
+  const session = sessions.get(installToken);
+  if (!session) return null;
+  // PRC-L005: an expired session is deleted and reported as not found.
+  if (isExpired(session, Date.now())) {
+    sessions.delete(installToken);
+    return null;
+  }
+  return session;
 }
 
 export function getBootstrapStatus(session: InstallSession) {

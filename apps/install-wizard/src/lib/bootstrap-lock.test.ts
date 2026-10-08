@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   BOOTSTRAP_STEPS,
@@ -6,7 +6,9 @@ import {
   createInstallSession,
   finalizeSession,
   getBootstrapStatus,
+  getInstallSession,
   markStepComplete,
+  SESSION_TTL_MS,
 } from './bootstrap-lock';
 
 describe('bootstrap-lock session store', () => {
@@ -52,5 +54,35 @@ describe('bootstrap-lock session store', () => {
       expect(result.status).toBe(400);
       expect(result.error).toMatch(/missing steps/i);
     }
+  });
+
+  describe('PRC-L005 session expiry', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('returns a fresh session before the TTL elapses', () => {
+      const session = createInstallSession();
+      vi.advanceTimersByTime(SESSION_TTL_MS - 1);
+      expect(getInstallSession(session.installToken)).not.toBeNull();
+    });
+
+    it('treats a session older than the TTL as not found and evicts it', () => {
+      const session = createInstallSession();
+      vi.advanceTimersByTime(SESSION_TTL_MS + 1);
+      expect(getInstallSession(session.installToken)).toBeNull();
+      // A second lookup still returns null (entry was deleted).
+      expect(getInstallSession(session.installToken)).toBeNull();
+    });
+
+    it('sweeps expired sessions when a new one is created', () => {
+      const stale = createInstallSession();
+      vi.advanceTimersByTime(SESSION_TTL_MS + 1);
+      createInstallSession();
+      expect(getInstallSession(stale.installToken)).toBeNull();
+    });
   });
 });

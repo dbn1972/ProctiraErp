@@ -73,8 +73,6 @@ const PROXIED_PREFIXES = ['/api/v1/auth/'] as const;
  * resolving (remove it from the list).
  */
 const KNOWN_DRIFT: readonly string[] = [
-  'DELETE /api/v1/attendance/students/:id',
-  'GET /api/v1/attendance/students/:id',
   'GET /api/v1/institutions/:id/academic-periods',
   'GET /api/v1/institutions/:id/contact',
   'GET /api/v1/institutions/:id/infrastructure',
@@ -82,9 +80,7 @@ const KNOWN_DRIFT: readonly string[] = [
   'GET /api/v1/reports',
   'GET /api/v1/reports/:id',
   'GET /api/v1/reports/:id/download',
-  'POST /api/v1/attendance/students',
   'POST /api/v1/reports',
-  'PUT /api/v1/attendance/students/:id',
 ];
 
 describe('Dart api-client route contract (PRC-M254)', () => {

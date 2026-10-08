@@ -195,6 +195,8 @@ void main() {
     await ctx.repo.markAttendance(
       entry: roster.single,
       institutionId: 'inst-1',
+      classId: 'class-1',
+      academicPeriodId: 'period-1',
       date: '2026-01-05',
       status: AttendanceStatus.present,
       recordedBy: 'teacher-1',
