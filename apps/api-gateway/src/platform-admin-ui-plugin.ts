@@ -36,6 +36,12 @@ import {
   type SqlPool,
 } from './platform-admin-live.js';
 import { createPlatformAdminStores } from './platform-admin-store.js';
+import {
+  areaForPlatformRoute,
+  hasAreaAccess,
+  isAnyPlatformRole,
+  isFullAccessPlatformRole,
+} from './platform-area-rbac.js';
 
 /** Tenant status as understood by the tenant service (differs from the console labels). */
 type ServiceTenantStatus = NonNullable<Parameters<TenantService['listTenants']>[0]['status']>;
@@ -166,18 +172,6 @@ function seedBreakGlass(): BreakGlassRequest[] {
   ];
 }
 
-/** Role IDs that may access the platform admin console (G-104). */
-const PLATFORM_ADMIN_ROLE_IDS = new Set(['platform_admin', 'super-admin']);
-
-function roleIdOf(role: unknown): string | undefined {
-  if (typeof role === 'string') return role;
-  if (role && typeof role === 'object' && 'roleId' in role) {
-    const id = (role as { roleId?: unknown }).roleId;
-    return typeof id === 'string' ? id : undefined;
-  }
-  return undefined;
-}
-
 export const platformAdminUiPlugin = fp(
   async function platformAdminUiPluginImpl(fastify: FastifyInstance) {
     // G-704: durable console state (Postgres when DATABASE_URL is set); demo
@@ -190,7 +184,10 @@ export const platformAdminUiPlugin = fp(
     const { tenants, plugins, breakGlass } = stores;
     fastify.log.info({ persistence: stores.persistence }, 'platform-admin console store ready');
 
-    // G-104: require platform_admin (or DEFAULT_ROLES super-admin) for all console routes
+    // G-104 / PRC-H001: require a platform console role for all routes, and enforce
+    // Section-41 per-area separation of duties server-side (not only in the console UI).
+    // platform_admin / super-admin keep full access; a narrower platform role
+    // (billing/security/ops_support/engineering) is 403 outside its mapped areas.
     fastify.addHook('preHandler', async (request, reply) => {
       const user = request.user;
       if (!user) {
@@ -202,15 +199,30 @@ export const platformAdminUiPlugin = fp(
       }
 
       const roles = user.roles ?? [];
-      const allowed = roles.some((r) => {
-        const id = roleIdOf(r);
-        return id !== undefined && PLATFORM_ADMIN_ROLE_IDS.has(id);
-      });
-
-      if (!allowed) {
+      if (!isAnyPlatformRole(roles)) {
         return reply.status(403).send({
           code: 'FORBIDDEN',
           message: 'Platform administrator role required',
+          statusCode: 403,
+        });
+      }
+
+      // Route pattern is plugin-relative (e.g. '/tenants/:id/suspend'); map it to a
+      // console area. Unmapped routes require a full-access role (fail closed).
+      const routePath = request.routeOptions.url ?? request.url;
+      const area = areaForPlatformRoute(request.method, routePath);
+      if (area === undefined) {
+        if (isFullAccessPlatformRole(roles)) return;
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Platform administrator role required for this area',
+          statusCode: 403,
+        });
+      }
+      if (!hasAreaAccess(roles, area)) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: `Platform role is not permitted in the '${area}' area`,
           statusCode: 403,
         });
       }

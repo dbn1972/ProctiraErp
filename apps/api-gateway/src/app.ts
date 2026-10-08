@@ -107,6 +107,7 @@ import {
   shouldAuditMutation,
   wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
+import { areaForPlatformRoute, hasAreaAccess } from './platform-area-rbac.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
@@ -1220,6 +1221,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
     if (resource === 'platform') {
       if (isPlatformAdmin) return;
+      // PRC-H001: a narrower platform role (billing/security/ops_support/engineering)
+      // may reach the platform-admin console routes it is permitted for; the
+      // platform-admin-ui plugin re-checks the exact area (single source of truth).
+      if (url.startsWith('/api/v1/')) {
+        const consolePath = url.slice('/api/v1'.length);
+        const area = areaForPlatformRoute(method, consolePath);
+        if (area && hasAreaAccess(roles, area)) return;
+      }
       return reply.status(403).send({
         code: 'FORBIDDEN',
         message: 'Platform administrator role required',
