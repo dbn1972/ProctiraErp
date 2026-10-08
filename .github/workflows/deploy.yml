@@ -584,7 +584,10 @@ jobs:
             exit 1
           fi
 
-          IMAGE_REPOSITORY_PREFIX="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "")"
+          # Workers run the images this deploy just built/pushed — same canonical
+          # repository as the service deploy (lowercased registry/namespace).
+          EXAM_WORKER_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" exam-document-worker)"
+          ETL_WORKER_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" etl-worker)"
 
           # W1-OPS-09: --atomic rolls back on failure; --wait blocks on readiness.
           # Images for the in-process topology (api-gateway + edge apps + workers)
@@ -595,7 +598,10 @@ jobs:
             --create-namespace \
             --set global.environment="${ENVIRONMENT}" \
             --set-string secrets.existingSecret="${PLATFORM_EXISTING_SECRET}" \
+            --set-string global.imageRegistry="" \
+            --set-string examDocumentWorker.image.repository="${EXAM_WORKER_REPOSITORY}" \
             --set-string examDocumentWorker.image.tag="${IMAGE_TAG}" \
+            --set-string etlWorker.image.repository="${ETL_WORKER_REPOSITORY}" \
             --set-string etlWorker.image.tag="${IMAGE_TAG}" \
             --values "./infrastructure/helm/proctira-platform/values-${ENVIRONMENT}.yaml" \
             --atomic \

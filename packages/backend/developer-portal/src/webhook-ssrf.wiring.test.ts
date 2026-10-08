@@ -27,7 +27,7 @@ function makeService(
     },
     signingSecretWriter: { async storeSigningSecret() {} },
     validateWebhookUrl: async (url: string) => {
-      const { assertPublicHttpsUrl } = await import('@proctira/common');
+      const { assertPublicHttpsUrl } = await import('@proctira/common/safe-fetch');
       await assertPublicHttpsUrl(url, resolveHost);
     },
   });
@@ -99,7 +99,7 @@ describe('PRC-M618 default httpFetch is SSRF-guarded', () => {
       // path below still exercises the DEFAULT (real) safeFetch, which rejects the literal
       // metadata IP without any DNS lookup.
       validateWebhookUrl: async (url: string) => {
-        const { assertPublicHttpsUrl } = await import('@proctira/common');
+        const { assertPublicHttpsUrl } = await import('@proctira/common/safe-fetch');
         await assertPublicHttpsUrl(url, publicResolver);
       },
     });

@@ -246,8 +246,10 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
     const invoiceRows = (await invoices.json()).data as Array<{ id: string }>;
     expect(invoiceRows.some((row) => row.id === fine.invoice.id)).toBe(true);
 
+    // PRC-H025: settlement requires a real payment method + reference.
     const paid = await request.post(`${GATEWAY_URL}/api/v1/library/fines/${fine.fine.id}/pay`, {
       headers: headers(),
+      data: { paymentMethod: 'cash', reference: `E2E-RCPT-${Date.now()}` },
     });
     expect(paid.status(), await paid.text()).toBe(200);
     expect((await paid.json()).status).toBe('paid');

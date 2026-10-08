@@ -91,3 +91,14 @@ test('platform deploy verifies the DR CronJobs it just introduced', () => {
   assert.match(block, /phi-retention/);
   assert.match(block, /exam-document-worker/);
 });
+
+test('PRC-H062: platform deploy runs the CI-pushed worker images', () => {
+  const wf = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+  for (const [key, svc] of [
+    ['examDocumentWorker', 'exam-document-worker'],
+    ['etlWorker', 'etl-worker'],
+  ]) {
+    assert.match(wf, new RegExp(`image-repository\\.sh "\\$REGISTRY" "\\$IMAGE_NAMESPACE" ${svc}`));
+    assert.match(wf, new RegExp(`--set-string ${key}\\.image\\.repository=`));
+  }
+});

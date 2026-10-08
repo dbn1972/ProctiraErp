@@ -15,12 +15,8 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
-import {
-  NotFoundError,
-  ValidationError,
-  BusinessRuleError,
-  assertPublicHttpsUrlShape,
-} from '@proctira/common';
+import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
+import { assertPublicHttpsUrlShape } from '@proctira/common/safe-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {

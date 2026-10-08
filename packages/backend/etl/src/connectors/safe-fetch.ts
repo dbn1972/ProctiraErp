@@ -11,5 +11,5 @@ export {
   assertPublicHttpsUrl,
   assertPublicHttpsUrlDefault,
   isDisallowedAddress,
-} from '@proctira/common';
-export type { SafeFetchOptions } from '@proctira/common';
+} from '@proctira/common/safe-fetch';
+export type { SafeFetchOptions } from '@proctira/common/safe-fetch';

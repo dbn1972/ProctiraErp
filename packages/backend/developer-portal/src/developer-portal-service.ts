@@ -7,15 +7,8 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ForbiddenError,
-  safeFetch,
-  assertPublicHttpsUrlShape,
-  SsrfError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { safeFetch, assertPublicHttpsUrlShape, SsrfError } from '@proctira/common/safe-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {

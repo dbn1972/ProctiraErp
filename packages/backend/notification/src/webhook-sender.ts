@@ -8,7 +8,7 @@
  *   - reports success ONLY on a 2xx response — a non-2xx, an SSRF rejection, or any transport
  *     error is reported as failure so the notification is never falsely marked 'delivered'.
  */
-import { safeFetch, SsrfError } from '@proctira/common';
+import { safeFetch, SsrfError } from '@proctira/common/safe-fetch';
 
 import type { WebhookSender } from './notification-service.js';
 

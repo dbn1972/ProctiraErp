@@ -9,7 +9,7 @@
  *     private/loopback/link-local/metadata/CGNAT (incl. IPv6) targets and re-validates redirects;
  *   - the host must additionally be on the explicit allow-list.
  */
-import { assertPublicHttpsUrlDefault, SsrfError } from '@proctira/common';
+import { assertPublicHttpsUrlDefault, SsrfError } from '@proctira/common/safe-fetch';
 
 export class SandboxEgressError extends Error {
   constructor(message: string) {
