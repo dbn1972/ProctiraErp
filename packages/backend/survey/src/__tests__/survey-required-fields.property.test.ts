@@ -86,7 +86,7 @@ class MockDistributionRepo implements DistributionRepository {
     this.records.set(`${record.surveyId}:${record.institutionId}`, record);
   }
 
-  async createMany(data: any[]): Promise<DistributionRecordEntity[]> {
+  async createManyIfAbsent(data: any[]): Promise<DistributionRecordEntity[]> {
     return data.map((d) => ({ ...d, createdAt: new Date(), updatedAt: new Date() }));
   }
 

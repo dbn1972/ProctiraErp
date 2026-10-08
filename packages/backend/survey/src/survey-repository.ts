@@ -7,6 +7,7 @@
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   QuestionType,
   SurveyStatus,
@@ -127,8 +128,15 @@ export interface DistributionRecordEntity {
  * Repository interface for distribution record data access.
  */
 export interface DistributionRepository {
-  /** Create distribution records for multiple institutions */
-  createMany(
+  /**
+   * Create distribution records, skipping any whose (tenantId, surveyId,
+   * institutionId) already exists; returns only the rows actually inserted
+   * (PRC-M388, #555 review #12). Must be atomic with respect to concurrent
+   * callers: persistent implementations need a UNIQUE
+   * (tenant_id, survey_id, institution_id) index and
+   * `INSERT ... ON CONFLICT DO NOTHING RETURNING *`, never a read-then-insert.
+   */
+  createManyIfAbsent(
     records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[],
   ): Promise<DistributionRecordEntity[]>;
 

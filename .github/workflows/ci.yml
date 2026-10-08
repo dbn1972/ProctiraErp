@@ -963,13 +963,17 @@ jobs:
           LIVE_TEST_MIN_EXECUTED: '10'
           # PRC-L499: staff live-PG suites and the broker suites must execute
           # (not just count toward the minimum).
+          # PRC-M367 / #555 review #6: the resolution-only tenant plugin proof
+          # (pooled query sees zero rows under FORCE RLS; withTenantTransaction
+          # sees only the caller's rows) runs as proctira_app here.
           LIVE_TEST_REQUIRED_FILES: >-
             packages/backend/staff/src/pg-leave-repository.live.test.ts,
             packages/backend/staff/src/hr-pg-and-routes.live.test.ts,
             packages/backend/staff/src/staff-import-transaction.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-delay.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-reconnect.live.test.ts,
-            packages/shared/queue-abstraction/src/__tests__/sqs-localstack.live.test.ts
+            packages/shared/queue-abstraction/src/__tests__/sqs-localstack.live.test.ts,
+            packages/shared/tenant/src/__tests__/tenant-guc-scope.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)

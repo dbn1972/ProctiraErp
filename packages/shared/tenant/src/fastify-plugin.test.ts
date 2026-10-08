@@ -33,15 +33,8 @@ describe('tenantPlugin', () => {
     expect(body.tenantId).toBe(tenantId);
     expect(body.source).toBe('header');
 
-    // Verify PostgreSQL session variable was set via a bound parameter (G-720)
-    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("set_config('app.tenant_id', $1, true)"),
-      tenantId,
-    );
-    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
-      tenantId,
-    );
+    // PRC-M367: resolution-only - no (ineffective, tx-local) GUC bind outside a transaction
+    expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
   });
 
   it('should resolve tenant from JWT claim (user object)', async () => {
@@ -322,19 +315,13 @@ describe('tenantPlugin', () => {
       headers: { 'x-tenant-id': tenantId },
     });
 
-    expect(customExecute).toHaveBeenCalledWith(
-      expect.stringContaining("set_config('app.tenant_id', $1, true)"),
-      tenantId,
-    );
-    expect(customExecute).toHaveBeenCalledWith(
-      expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
-      tenantId,
-    );
+    // PRC-M367: the db client is only used for trusted slug lookups, never a GUC bind
+    expect(customExecute).not.toHaveBeenCalled();
   });
 });
 
-describe('G-720 — tenant GUC is bound, never interpolated', () => {
-  it('passes a tenant id containing a quote as a parameter, not SQL text', async () => {
+describe('G-720 / PRC-M367 — hostile tenant ids never reach SQL from the plugin', () => {
+  it('a tenant id containing a quote resolves without any SQL execution', async () => {
     const execute = vi.fn().mockResolvedValue(1);
     const app = Fastify();
     await app.register(tenantPlugin, {
@@ -342,11 +329,10 @@ describe('G-720 — tenant GUC is bound, never interpolated', () => {
       getDbClient: () => ({ $executeRawUnsafe: execute }),
       resolveSlugToId: false,
       // UUID validation normally rejects this header up-front; disable it so the
-      // test exercises the SQL binding path itself.
+      // test exercises the resolution path itself.
       requireUuid: false,
     });
     app.get('/test', async (request) => ({ tenantId: request.tenantId }));
-
     const hostile = "abc'); DROP TABLE students; --";
     const response = await app.inject({
       method: 'GET',
@@ -354,9 +340,7 @@ describe('G-720 — tenant GUC is bound, never interpolated', () => {
       headers: { 'x-tenant-id': hostile },
     });
     expect(response.statusCode).toBe(200);
-    const [sql, param] = execute.mock.calls[0] as [string, string];
-    expect(sql).not.toContain(hostile);
-    expect(param).toBe(hostile);
+    expect(execute).not.toHaveBeenCalled();
     await app.close();
   });
 });

@@ -44,7 +44,7 @@ class LocalNotifications {
         macOS: iosSettings,
       );
       await _plugin.initialize(
-        settings,
+        settings: settings,
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           if (onTap != null) onTap(response.payload);
         },
@@ -90,10 +90,10 @@ class LocalNotifications {
     );
     try {
       await _plugin.show(
-        id,
-        title,
-        body,
-        details,
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
         payload: payload == null ? null : jsonEncode(payload),
       );
     } catch (error) {
