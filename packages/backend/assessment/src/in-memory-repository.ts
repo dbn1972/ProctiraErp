@@ -4,6 +4,7 @@
  * Used for unit testing without database dependencies.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   GradingSchemeEntity,
   GradingSchemeFilter,
@@ -175,6 +176,15 @@ export class InMemoryAssessmentItemRepository implements AssessmentItemRepositor
         i.subjectId === subjectId &&
         i.academicPeriodId === academicPeriodId,
     ).length;
+  }
+
+  async findByGradingScheme(
+    tenantId: string,
+    gradingSchemeId: string,
+  ): Promise<AssessmentItemEntity[]> {
+    return this.items.filter(
+      (i) => i.tenantId === tenantId && i.gradingSchemeId === gradingSchemeId,
+    );
   }
 
   async findById(id: string, tenantId: string): Promise<AssessmentItemEntity | null> {

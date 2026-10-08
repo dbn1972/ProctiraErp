@@ -217,6 +217,30 @@ export class StaffService {
   }
 
   /**
+   * PRC-H090: enforce school-scope on a write (update/delete/offboard). When the
+   * caller is bound to a set of institutions (not a tenant-wide admin), the
+   * target staff member must be assigned to at least one of them, else the
+   * write is rejected. Returns silently for tenant-wide callers (empty/undefined
+   * scope) and when the repository cannot resolve assignments.
+   *
+   * @throws NotFoundError when the target is outside the caller's institutions
+   *   (404, not 403, to avoid leaking existence of other-school staff).
+   */
+  async assertStaffWritableInInstitutions(
+    tenantId: string,
+    staffId: string,
+    allowedInstitutions: readonly string[] | undefined,
+  ): Promise<void> {
+    if (!allowedInstitutions || allowedInstitutions.length === 0) return; // tenant-wide
+    if (!this.repository.findInstitutionIds) return; // repo cannot scope
+    const staffInstitutions = await this.repository.findInstitutionIds(tenantId, staffId);
+    const allowed = new Set(allowedInstitutions);
+    if (!staffInstitutions.some((i) => allowed.has(i))) {
+      throw new NotFoundError(`Staff with id '${staffId}' not found`);
+    }
+  }
+
+  /**
    * PRC-H089: every staff member of the tenant. Uses keyset iteration when the repository
    * supports it; otherwise walks offset pages and fails if the fetched count disagrees
    * with totalItems (repositories clamp pageSize, so a single page is never enough).

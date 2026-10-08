@@ -312,4 +312,94 @@ describe('POST /attendance/ingest contract (G-919)', () => {
     expect(denied.statusCode).toBe(401);
     await app.close();
   });
+
+  describe('AttendanceOpsService device punch timezone + precedence (PRC-H041)', () => {
+    const DEVICE = { institutionId: INSTITUTION_ID, deviceId: 'gate-1' };
+
+    function newOps(repo: InMemoryAttendanceRepository) {
+      repo.addAcademicPeriod({
+        id: PERIOD_ID,
+        tenantId: TENANT_ID,
+        name: 'AY',
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-12-31'),
+        status: 'active',
+      });
+      return new AttendanceOpsService(new InMemoryAttendanceOpsStore(), repo);
+    }
+
+    async function ingestOut(ops: AttendanceOpsService, apiKey: string, punchedAt: string) {
+      return ops.ingest(TENANT_ID, apiKey, {
+        deviceId: DEVICE.deviceId,
+        institutionId: DEVICE.institutionId,
+        events: [
+          {
+            eventId: `evt-${punchedAt}`,
+            studentId: STUDENT_ID,
+            punchedAt,
+            type: 'OUT',
+            classId: CLASS_ID,
+            academicPeriodId: PERIOD_ID,
+          },
+        ],
+      } as never);
+    }
+
+    it('classifies a 15:00 IST OUT punch (09:30Z) as PRESENT, not EARLY_DEPARTURE', async () => {
+      const repo = new InMemoryAttendanceRepository();
+      const ops = newOps(repo);
+      const { apiKey } = await ops.registerDevice(TENANT_ID, DEVICE, {
+        userId: 'admin',
+        roles: ['admin'],
+      });
+      // 15:00 Asia/Kolkata == 09:30 UTC. Default dismissal hour is 15.
+      await ingestOut(ops, apiKey, '2024-06-15T09:30:00.000Z');
+      const rows = repo.getStudentAttendanceRecords();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.status).toBe(AttendanceStatus.PRESENT);
+      // Local date is 2024-06-15 in IST.
+      expect(rows[0]!.date).toBe('2024-06-15');
+    });
+
+    it('does not overwrite a manual EXCUSED with a device PRESENT', async () => {
+      const repo = new InMemoryAttendanceRepository();
+      const ops = newOps(repo);
+      const { apiKey } = await ops.registerDevice(TENANT_ID, DEVICE, {
+        userId: 'admin',
+        roles: ['admin'],
+      });
+      // Teacher pre-set EXCUSED for 2024-06-15 (IST date of the punch below).
+      await repo.createStudentAttendance({
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaf',
+        tenantId: TENANT_ID,
+        studentId: STUDENT_ID,
+        institutionId: INSTITUTION_ID,
+        classId: CLASS_ID,
+        academicPeriodId: PERIOD_ID,
+        date: '2024-06-15',
+        subjectId: null,
+        periodId: null,
+        status: AttendanceStatus.EXCUSED,
+        comment: 'approved leave',
+        recordedBy: 'teacher-1',
+      });
+      await ingestOut(ops, apiKey, '2024-06-15T10:00:00.000Z');
+      const rows = repo.getStudentAttendanceRecords();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.status).toBe(AttendanceStatus.EXCUSED);
+    });
+
+    it('rejects a single event with an unparseable punchedAt without writing', async () => {
+      const repo = new InMemoryAttendanceRepository();
+      const ops = newOps(repo);
+      const { apiKey } = await ops.registerDevice(TENANT_ID, DEVICE, {
+        userId: 'admin',
+        roles: ['admin'],
+      });
+      const result = await ingestOut(ops, apiKey, 'not-a-date');
+      expect(result.accepted).toBe(1); // event recorded (idempotency) ...
+      expect(result.written).toBe(0); // ... but no attendance row written
+      expect(repo.getStudentAttendanceRecords()).toHaveLength(0);
+    });
+  });
 });

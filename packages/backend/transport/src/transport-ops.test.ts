@@ -148,6 +148,47 @@ describe('TransportService ops (G-920)', () => {
     expect(invoices.length).toBeGreaterThan(0);
   });
 
+  it('does not create a second invoice when the student is already invoiced (PRC-H108)', async () => {
+    // bulkInvoiceClass returns the student in `skipped` (an invoice for this
+    // structure already exists). The old code fell through to createInvoice and
+    // double-billed; the fix must reuse the existing invoice instead.
+    const createInvoiceCalls: string[] = [];
+    const port: TransportFeesPort = {
+      async createFeeStructure() {
+        return { id: uuidv4() };
+      },
+      async createInvoice(_tenant, _actor, input) {
+        createInvoiceCalls.push(input.studentId);
+        return { id: uuidv4(), studentId: input.studentId };
+      },
+      async bulkInvoiceClass(_tenant, _actor, input) {
+        // Already invoiced for the structure: nothing created, all skipped.
+        return { created: [], skipped: input.studentIds };
+      },
+    };
+    service = new TransportService(repo, undefined, port);
+    const { route, stop } = await seededRoute();
+    await service.createTransportFeeStructure(TENANT, {
+      name: 'Oak Street band',
+      stopId: stop.id,
+      routeId: route.id,
+      amountCents: 150000,
+      currency: 'INR',
+    });
+    const assignment = await service.createStudentAssignment(TENANT, {
+      studentId: uuidv4(),
+      routeId: route.id,
+      stopId: stop.id,
+      startDate: '2026-09-09',
+    });
+    // No fallback invoice must have been created.
+    expect(createInvoiceCalls).toHaveLength(0);
+    const links = await service.listFeeLinks(TENANT);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.assignmentId).toBe(assignment.id);
+    expect(links[0]!.status).toBe('invoiced');
+  });
+
   it('records a pending fee link when FeesService is not injected', async () => {
     service = new TransportService(repo);
     const { route, stop } = await seededRoute();

@@ -84,11 +84,66 @@ export interface ReportCardData {
     teacherComment: string | null;
   }>;
   overallGradeSummary: {
+    /** PRC-H035: percentage (0-100) normalised across subject schemes. */
     averageScore: number;
     totalSubjects: number;
     grade: string;
+    /** PRC-H034/H035: subjects not fully entered; the card is not final. */
+    incompleteSubjectIds: string[];
+    complete: boolean;
   };
   generatedAt: string;
+}
+
+/**
+ * PRC-H035: scheme-aware overall grade summary. Each subject's weightedAverage
+ * is normalised to a percentage of its own grading scheme range before
+ * averaging, so subjects on different scales (0-100, 0-10 CGPA, 4.0 GPA) are
+ * comparable and an 8.5/10 subject is a passing 85% — not an 'F' from a
+ * hard-coded 0-100 A-F mapping. PRC-H034: any un-entered subject makes the
+ * card non-final ('Incomplete').
+ */
+export function computeOverallGradeSummary(
+  subjectResults: StudentSubjectResult[],
+): ReportCardData['overallGradeSummary'] {
+  if (subjectResults.length === 0) {
+    return {
+      averageScore: 0,
+      totalSubjects: 0,
+      grade: 'N/A',
+      incompleteSubjectIds: [],
+      complete: true,
+    };
+  }
+
+  const percentages = subjectResults.map((r) => {
+    const range = r.schemeMaxValue - r.schemeMinValue;
+    if (range <= 0) return 0;
+    const pct = ((r.weightedAverage - r.schemeMinValue) / range) * 100;
+    return Math.min(100, Math.max(0, pct));
+  });
+  const averageScore =
+    Math.round((percentages.reduce((sum, p) => sum + p, 0) / percentages.length) * 100) / 100;
+
+  const incompleteSubjectIds = subjectResults.filter((r) => !r.complete).map((r) => r.subjectId);
+  const complete = incompleteSubjectIds.length === 0;
+
+  let grade: string;
+  if (!complete) {
+    grade = 'Incomplete';
+  } else if (averageScore >= 90) grade = 'A';
+  else if (averageScore >= 80) grade = 'B';
+  else if (averageScore >= 70) grade = 'C';
+  else if (averageScore >= 60) grade = 'D';
+  else grade = 'F';
+
+  return {
+    averageScore,
+    totalSubjects: subjectResults.length,
+    grade,
+    incompleteSubjectIds,
+    complete,
+  };
 }
 
 /**
@@ -819,25 +874,6 @@ export class ReportCardService {
   private calculateOverallSummary(
     subjectResults: StudentSubjectResult[],
   ): ReportCardData['overallGradeSummary'] {
-    if (subjectResults.length === 0) {
-      return { averageScore: 0, totalSubjects: 0, grade: 'N/A' };
-    }
-
-    const totalScore = subjectResults.reduce((sum, r) => sum + r.weightedAverage, 0);
-    const averageScore = Math.round((totalScore / subjectResults.length) * 100) / 100;
-
-    // Determine overall grade based on average
-    let grade = 'N/A';
-    if (averageScore >= 90) grade = 'A';
-    else if (averageScore >= 80) grade = 'B';
-    else if (averageScore >= 70) grade = 'C';
-    else if (averageScore >= 60) grade = 'D';
-    else if (averageScore > 0) grade = 'F';
-
-    return {
-      averageScore,
-      totalSubjects: subjectResults.length,
-      grade,
-    };
+    return computeOverallGradeSummary(subjectResults);
   }
 }

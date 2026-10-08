@@ -60,7 +60,13 @@ const sampleData = (): ReportCardData => ({
       teacherComment: null,
     },
   ],
-  overallGradeSummary: { averageScore: 84.6, totalSubjects: 2, grade: 'A-' },
+  overallGradeSummary: {
+    averageScore: 84.6,
+    totalSubjects: 2,
+    grade: 'A-',
+    incompleteSubjectIds: [],
+    complete: true,
+  },
   generatedAt: '2026-09-08T10:00:00.000Z',
 });
 

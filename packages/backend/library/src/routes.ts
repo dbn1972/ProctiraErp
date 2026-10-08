@@ -789,7 +789,9 @@ export async function registerLibraryRoutes(
         });
       }
       try {
-        const fine = await libraryService.markFinePaid(tenantId, paramsResult.data.id);
+        const actorId =
+          (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'library-system';
+        const fine = await libraryService.markFinePaid(tenantId, paramsResult.data.id, actorId);
         return reply.status(200).send(formatFine(fine));
       } catch (error: unknown) {
         if (error instanceof AppError) {

@@ -15,6 +15,7 @@ import { registerGracefulShutdown } from '@proctira/common';
 import { closeDatabaseResources } from '@proctira/database';
 import { createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
 
+import { startHealthServer } from './health-server.js';
 import { createExamDocumentWorker } from './worker.js';
 
 async function main(): Promise<void> {
@@ -46,6 +47,17 @@ async function main(): Promise<void> {
     },
   });
 
+  // PRC-H051: liveness/readiness probe for compose/k8s. Readiness tracks the
+  // worker's running state and broker connectivity.
+  const health = await startHealthServer({
+    worker: {
+      get running() {
+        return worker.running;
+      },
+      isConnected: () => queue.isConnected(),
+    },
+  });
+
   // W1-ARCH-07: drain queue consumer → close DB pools → exit (timeout + second-signal force).
   registerGracefulShutdown({
     logger: {
@@ -54,6 +66,12 @@ async function main(): Promise<void> {
       error: (obj, msg) => console.error(JSON.stringify({ level: 'error', msg, ...obj })),
     },
     steps: [
+      {
+        name: 'health-server',
+        close: async () => {
+          await health.close();
+        },
+      },
       {
         name: 'queue-worker',
         close: async () => {

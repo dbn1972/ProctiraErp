@@ -252,19 +252,28 @@ export class PrismaResultRepository implements ResultRepository {
 
   async updateAcademicRecords(tenantId: string, updates: AcademicRecordUpdate[]): Promise<void> {
     if (updates.length === 0) return;
+    // PRC-H055: upsert on (tenant, examination, student, subject) so a
+    // re-publish / retry / concurrent publish is idempotent — one row per
+    // candidate/subject rather than an appended duplicate set. Backed by the
+    // unique index in db/sql/124. Raw SQL (ON CONFLICT) because the composite
+    // key is a DB index, not a Prisma model unique.
     await withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      await tx.examinationAcademicRecord.createMany({
-        data: updates.map((update) => ({
-          tenantId,
-          studentId: update.studentId,
-          examinationId: update.examinationId,
-          subjectId: update.subjectId,
-          score: update.score,
-          grade: update.grade,
-          passed: update.passed,
-          publishedAt: update.publishedAt,
-        })),
-      });
+      for (const update of updates) {
+        await tx.$executeRaw`
+          INSERT INTO examination_academic_records
+            (id, tenant_id, student_id, examination_id, subject_id, score, grade, passed, published_at)
+          VALUES
+            (uuid_generate_v4(), ${tenantId}::uuid, ${update.studentId}::uuid,
+             ${update.examinationId}::uuid, ${update.subjectId}::uuid,
+             ${update.score}, ${update.grade}, ${update.passed}, ${update.publishedAt})
+          ON CONFLICT (tenant_id, examination_id, student_id, subject_id)
+          DO UPDATE SET
+            score = EXCLUDED.score,
+            grade = EXCLUDED.grade,
+            passed = EXCLUDED.passed,
+            published_at = EXCLUDED.published_at
+        `;
+      }
     });
   }
 

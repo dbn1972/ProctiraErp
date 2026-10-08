@@ -64,3 +64,63 @@ describe('LibraryService.assessFine (G-603 / G-916)', () => {
     expect(assessed.fine.amountCents).toBe(200);
   });
 });
+
+describe('LibraryService.markFinePaid (PRC-H025)', () => {
+  it('settles the fee-ledger invoice when the fine is marked paid', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const ledger = new InMemoryFeesLedgerPort();
+    const service = new LibraryService(repo, ledger);
+
+    const item = await service.createItem(TENANT, { title: 'Algorithms', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+    const assessed = await service.assessFine(TENANT, 'librarian-1', {
+      loanId: loan.id,
+      amountCents: 1500,
+    });
+
+    // Precondition: invoice posted and still open on the ledger.
+    expect(ledger.invoices[0]!.status).toBe('open');
+
+    const paid = await service.markFinePaid(TENANT, assessed.fine.id, 'librarian-1');
+
+    expect(paid.status).toBe('paid');
+    // Would fail before the fix: the invoice stayed 'open' on the fee ledger.
+    expect(ledger.invoices[0]!.status).toBe('paid');
+    expect(ledger.invoices[0]!.id).toBe(assessed.fine.invoiceId);
+  });
+
+  it('still flips a local fine with no ledger invoice', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+    const item = await service.createItem(TENANT, { title: 'Local', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+    const assessed = await service.assessFine(TENANT, 'librarian-1', {
+      loanId: loan.id,
+      amountCents: 200,
+    });
+    const paid = await service.markFinePaid(TENANT, assessed.fine.id, 'librarian-1');
+    expect(paid.status).toBe('paid');
+  });
+
+  it('does not flip the local fine when ledger settlement fails', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const ledger = new InMemoryFeesLedgerPort();
+    // Force settlement failure to assert the local fine stays open.
+    ledger.settleFineInvoice = async () => {
+      throw new Error('ledger down');
+    };
+    const service = new LibraryService(repo, ledger);
+    const item = await service.createItem(TENANT, { title: 'Algorithms', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+    const assessed = await service.assessFine(TENANT, 'librarian-1', {
+      loanId: loan.id,
+      amountCents: 1500,
+    });
+
+    await expect(service.markFinePaid(TENANT, assessed.fine.id, 'librarian-1')).rejects.toThrow(
+      /ledger down/,
+    );
+    const stillOpen = await service.listFines(TENANT, assessed.studentId);
+    expect(stillOpen[0]!.status).toBe('open');
+  });
+});
