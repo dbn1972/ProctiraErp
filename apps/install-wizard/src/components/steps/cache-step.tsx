@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
+import { StepCard } from '@/components/step-card';
 import { apiClient, type CacheConfig, type ValidationResult } from '@/lib/api-client';
 
 interface CacheStepProps {
@@ -206,7 +207,7 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
           </button>
           <button
             type="button"
-            onClick={handleTest}
+            onClick={() => void handleTest()}
             disabled={testing || (config.adapter === 'redis' && !config.host)}
             className="btn-primary"
           >

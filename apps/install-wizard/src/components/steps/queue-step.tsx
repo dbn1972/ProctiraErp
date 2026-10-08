@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
+import { StepCard } from '@/components/step-card';
 import { apiClient, type QueueConfig, type ValidationResult } from '@/lib/api-client';
 
 interface QueueStepProps {
@@ -325,7 +326,12 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
           <button type="button" onClick={onBack} className="btn-secondary">
             Back
           </button>
-          <button type="button" onClick={handleTest} disabled={testing} className="btn-primary">
+          <button
+            type="button"
+            onClick={() => void handleTest()}
+            disabled={testing}
+            className="btn-primary"
+          >
             {testing ? (
               <>
                 <LoadingSpinner />
