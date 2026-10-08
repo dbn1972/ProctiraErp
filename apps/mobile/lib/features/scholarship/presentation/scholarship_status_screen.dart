@@ -7,6 +7,7 @@ import '../../../core/student/student_route.dart';
 import '../../students/presentation/student_picker.dart';
 import '../bloc/scholarship_bloc.dart';
 import '../data/scholarship_repository.dart';
+import 'scholarship_date_format.dart';
 
 /// Screen to track scholarship application status.
 class ScholarshipStatusScreen extends StatelessWidget {
@@ -259,6 +260,8 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
+/// PRC-L214: render an ISO date safely via [formatScholarshipStepDate].
+
 class _TimelineStep extends StatelessWidget {
   const _TimelineStep({
     required this.label,
@@ -345,7 +348,7 @@ class _TimelineStep extends StatelessWidget {
                 ),
                 if (date != null)
                   Text(
-                    date!.substring(0, 10),
+                    formatScholarshipStepDate(date!),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
