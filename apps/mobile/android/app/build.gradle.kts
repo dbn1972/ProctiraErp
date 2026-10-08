@@ -11,6 +11,9 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // flutter_local_notifications (v10+) requires core library desugaring
+        // on the consuming app, even when scheduled notifications are unused.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -41,4 +44,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Version from the flutter_local_notifications 22.x Android setup guide.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

@@ -89,6 +89,9 @@ export type TableColumn = Static<typeof TableColumnSchema>;
  * Requirement 23.1: Support configurable question types.
  */
 export const QuestionSchema = Type.Object({
+  id: Type.Optional(
+    Type.String({ description: 'Existing question id (keeps answers linked on update)' }),
+  ),
   label: Type.String({ minLength: 1, maxLength: 500, description: 'Question label/text' }),
   type: QuestionTypeEnum,
   required: Type.Optional(

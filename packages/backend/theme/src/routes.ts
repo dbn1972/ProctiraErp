@@ -11,19 +11,16 @@
  * GET    /themes/:themeId/revisions       - List revisions for a theme
  * GET    /themes/tokens                   - Get effective tokens for the tenant
  */
-import { AppError } from '@proctira/common';
+import { AppError, hasPlatformAdminRole } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ThemeService } from './theme-service.js';
-import type { ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
 import {
   CreateThemeSchema,
   UpdateThemeSchema,
   PublishThemeSchema,
   RollbackThemeSchema,
   ThemeParamsSchema,
-  ThemeListQuerySchema,
   type CreateThemeInput,
   type UpdateThemeInput,
   type PublishThemeInput,
@@ -31,6 +28,8 @@ import {
   type ThemeParams,
   type ThemeListQuery,
 } from './schemas.js';
+import type { ThemeEntity, ThemeRevisionEntity } from './theme-repository.js';
+import type { ThemeService, ThemeCallerContext } from './theme-service.js';
 
 /**
  * Options for registering theme routes.
@@ -93,6 +92,16 @@ function getActor(request: FastifyRequest): string {
 }
 
 /**
+ * Derive caller context from the authenticated principal (PRC-M395).
+ * Platform-admin status is never taken from the request body, and uses the
+ * gateway's canonical role-id set (exact roleId match, no roleName fallback).
+ */
+function getCallerContext(request: FastifyRequest): ThemeCallerContext {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown; role?: unknown } }).user;
+  const roles: unknown[] = Array.isArray(user?.roles) ? user.roles : user?.role ? [user.role] : [];
+  return { isPlatformAdmin: hasPlatformAdminRole(roles) };
+}
+/**
  * Register theme routes on a Fastify instance.
  */
 export async function registerThemeRoutes(
@@ -131,7 +140,7 @@ export async function registerThemeRoutes(
       }
 
       try {
-        const theme = await themeService.create(tenantId, result.data);
+        const theme = await themeService.create(tenantId, result.data, getCallerContext(request));
         return reply.status(201).send(formatThemeResponse(theme));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -161,7 +170,7 @@ export async function registerThemeRoutes(
         });
       }
 
-      const query = request.query as ThemeListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -247,7 +256,11 @@ export async function registerThemeRoutes(
       }
 
       try {
-        const theme = await themeService.getById(tenantId, paramsResult.data.themeId);
+        const theme = await themeService.getById(
+          tenantId,
+          paramsResult.data.themeId,
+          getCallerContext(request),
+        );
         return reply.status(200).send(formatThemeResponse(theme));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -302,6 +315,7 @@ export async function registerThemeRoutes(
           tenantId,
           paramsResult.data.themeId,
           bodyResult.data,
+          getCallerContext(request),
         );
         return reply.status(200).send(formatThemeResponse(theme));
       } catch (error: unknown) {
@@ -352,6 +366,7 @@ export async function registerThemeRoutes(
           paramsResult.data.themeId,
           { commitMessage },
           actor,
+          getCallerContext(request),
         );
         return reply.status(200).send(formatRevisionResponse(revision));
       } catch (error: unknown) {
@@ -407,6 +422,8 @@ export async function registerThemeRoutes(
           tenantId,
           paramsResult.data.themeId,
           bodyResult.data,
+          getActor(request),
+          getCallerContext(request),
         );
         return reply.status(200).send(formatThemeResponse(theme));
       } catch (error: unknown) {
@@ -448,7 +465,11 @@ export async function registerThemeRoutes(
       }
 
       try {
-        const preview = await themeService.preview(tenantId, paramsResult.data.themeId);
+        const preview = await themeService.preview(
+          tenantId,
+          paramsResult.data.themeId,
+          getCallerContext(request),
+        );
         return reply.status(200).send(preview);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -489,7 +510,11 @@ export async function registerThemeRoutes(
       }
 
       try {
-        const revisions = await themeService.listRevisions(tenantId, paramsResult.data.themeId);
+        const revisions = await themeService.listRevisions(
+          tenantId,
+          paramsResult.data.themeId,
+          getCallerContext(request),
+        );
         return reply.status(200).send({
           data: revisions.map(formatRevisionResponse),
         });

@@ -50,6 +50,8 @@ export {
   principalRoleIds,
 } from './institution-scope.js';
 export type { InstitutionScopePrincipal } from './institution-scope.js';
+// G-104 / PRC-M395: canonical platform-admin role ids (gateway + domain packages)
+export { PLATFORM_ADMIN_ROLE_IDS, hasPlatformAdminRole } from './platform-admin-roles.js';
 // Utilities
 export { CircuitBreaker, CircuitState, CircuitBreakerError } from './circuit-breaker.js';
 export type { CircuitBreakerOptions } from './circuit-breaker.js';
