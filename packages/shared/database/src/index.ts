@@ -84,6 +84,7 @@ export type { PgPool } from './pg-pool';
 export {
   PgDocumentCollection,
   DocumentOwnershipConflictError,
+  canonicalizeDocumentTenantId,
   withPlatformScope,
   reviveDates,
 } from './pg-document-store';

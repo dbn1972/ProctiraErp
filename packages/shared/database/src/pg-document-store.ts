@@ -75,7 +75,37 @@ function scopeClause(
 ): { sql: string; params: unknown[] } {
   if (!scope) return { sql: '', params: [] };
   if (scope.platform === true) return { sql: ' AND tenant_id IS NULL', params: [] };
-  return { sql: ` AND tenant_id = $${nextParam}`, params: [scope.tenantId] };
+  return {
+    sql: ` AND tenant_id = $${nextParam}`,
+    params: [canonicalizeDocumentTenantId(scope.tenantId)],
+  };
+}
+
+/**
+ * PRC-H007 / PRC-H116: `control_plane_documents.tenant_id` is a `uuid` column
+ * (db/sql/100), and its RLS policy compares `tenant_id::text` — always a
+ * canonical lowercase uuid — against `current_setting('app.tenant_id')`, which
+ * is the id {@link withPgTenant} binds verbatim.
+ *
+ * Tenant ids reach the store from JWT claims, URL params and provisioning code,
+ * and a uuid is case-insensitive: `3B6DF0A2-…` and `3b6df0a2-…` denote the same
+ * tenant. Postgres normalises the written value to lowercase, so a non-canonical
+ * bound GUC no longer equalled `tenant_id::text` once tenant-addressed ops stopped
+ * taking the `app.platform_admin` escape. The write's WITH CHECK then failed with
+ * 42501 (surfaced as a spurious {@link DocumentOwnershipConflictError}) and
+ * `byTenant`/`all`/`where` reads matched nothing — breaking first access for any
+ * tenant whose id was not already lowercase.
+ *
+ * Canonicalising a uuid-shaped id to lowercase before it is bound and stored keeps
+ * the GUC equal to `tenant_id::text` without weakening isolation: the id still
+ * identifies exactly one tenant. Non-uuid ids (health stores use TEXT tenant ids)
+ * are left untouched — they are not stored in this uuid column.
+ */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function canonicalizeDocumentTenantId<T extends string | null | undefined>(tenantId: T): T {
+  return (
+    typeof tenantId === 'string' && UUID_SHAPE.test(tenantId) ? tenantId.toLowerCase() : tenantId
+  ) as T;
 }
 
 /**
@@ -190,7 +220,8 @@ export class PgDocumentCollection<T extends object> {
    * platform-addressed (or legacy unscoped) operations use the platform escape.
    */
   private run<R>(tenantId: string | null | undefined, fn: (client: PgQueryable) => Promise<R>) {
-    return tenantId ? withPgTenant(this.pool, tenantId, fn) : withPlatformScope(this.pool, fn);
+    const canonical = canonicalizeDocumentTenantId(tenantId);
+    return canonical ? withPgTenant(this.pool, canonical, fn) : withPlatformScope(this.pool, fn);
   }
 
   async get(id: string, scope?: DocumentScope): Promise<T | null> {
@@ -206,8 +237,9 @@ export class PgDocumentCollection<T extends object> {
   }
 
   async put(id: string, data: T, tenantId: string | null = null): Promise<T> {
+    const owner = canonicalizeDocumentTenantId(tenantId);
     return this.ownershipGuard(id, () =>
-      this.run(tenantId, async (client) => {
+      this.run(owner, async (client) => {
         // PRC-H116: never re-parent. An existing row owned by a different scope
         // is left untouched and the write is refused (no RETURNING row).
         const res = await client.query(
@@ -217,7 +249,7 @@ export class PgDocumentCollection<T extends object> {
            DO UPDATE SET data = EXCLUDED.data, updated_at = now()
            WHERE control_plane_documents.tenant_id IS NOT DISTINCT FROM EXCLUDED.tenant_id
            RETURNING *`,
-          [this.collection, id, tenantId, JSON.stringify(data)],
+          [this.collection, id, owner, JSON.stringify(data)],
         );
         const row = res.rows[0] as Record<string, unknown> | undefined;
         if (!row) throw new DocumentOwnershipConflictError(this.collection, id);
@@ -233,21 +265,22 @@ export class PgDocumentCollection<T extends object> {
    * An existing row owned by a different scope is never returned (PRC-H116).
    */
   async insertIfAbsent(id: string, data: T, tenantId: string | null = null): Promise<T> {
+    const owner = canonicalizeDocumentTenantId(tenantId);
     return this.ownershipGuard(id, () =>
-      this.run(tenantId, async (client) => {
+      this.run(owner, async (client) => {
         const inserted = await client.query(
           `INSERT INTO control_plane_documents (collection, id, tenant_id, data)
            VALUES ($1, $2, $3, $4::jsonb)
            ON CONFLICT (collection, id) DO NOTHING
            RETURNING *`,
-          [this.collection, id, tenantId, JSON.stringify(data)],
+          [this.collection, id, owner, JSON.stringify(data)],
         );
         const row = (inserted.rows[0] ??
           (
             await client.query(
               `SELECT * FROM control_plane_documents
                WHERE collection = $1 AND id = $2 AND tenant_id IS NOT DISTINCT FROM $3 LIMIT 1`,
-              [this.collection, id, tenantId],
+              [this.collection, id, owner],
             )
           ).rows[0]) as Record<string, unknown> | undefined;
         if (!row) throw new DocumentOwnershipConflictError(this.collection, id);
@@ -295,11 +328,12 @@ export class PgDocumentCollection<T extends object> {
   }
 
   async byTenant(tenantId: string): Promise<T[]> {
-    return this.run(tenantId, async (client) => {
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    return this.run(owner, async (client) => {
       const res = await client.query(
         `SELECT * FROM control_plane_documents
          WHERE collection = $1 AND tenant_id = $2 ORDER BY created_at ASC`,
-        [this.collection, tenantId],
+        [this.collection, owner],
       );
       return res.rows.map((r) => this.map(r as Record<string, unknown>).data);
     });
@@ -307,11 +341,12 @@ export class PgDocumentCollection<T extends object> {
 
   /** Find documents where `data @> $criteria` (JSONB containment). */
   async where(criteria: Partial<T>, tenantId?: string): Promise<T[]> {
-    return this.run(tenantId, async (client) => {
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    return this.run(owner, async (client) => {
       const params: unknown[] = [this.collection, JSON.stringify(criteria)];
       let sql = `SELECT * FROM control_plane_documents WHERE collection = $1 AND data @> $2::jsonb`;
-      if (tenantId) {
-        params.push(tenantId);
+      if (owner) {
+        params.push(owner);
         sql += ` AND tenant_id = $3`;
       }
       sql += ' ORDER BY created_at ASC';

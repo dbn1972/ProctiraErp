@@ -106,4 +106,43 @@ describe('PgDocumentCollection tenant isolation (PRC-H007 / PRC-H116)', () => {
       statements.find((s) => s.includes('SELECT * FROM control_plane_documents')) ?? '';
     expect(lookup).toContain('tenant_id IS NOT DISTINCT FROM $3');
   });
+
+  it('canonicalises a non-canonical (uppercase) uuid before binding and storing it', async () => {
+    // control_plane_documents.tenant_id is uuid; its RLS policy compares
+    // tenant_id::text (canonical lowercase) to the bound app.tenant_id GUC. A
+    // uuid is case-insensitive, so the bound id and the stored value must be the
+    // canonical lowercase form or the WITH CHECK fails (42501) and reads miss.
+    const upper = TENANT.toUpperCase();
+    const seen: unknown[][] = [];
+    const pool: PgQueryable = {
+      query: async (text: string, values?: unknown[]) => {
+        if (values) seen.push(values);
+        return text.startsWith('INSERT') ? { rows: [row(TENANT)] } : { rows: [] };
+      },
+    };
+    const docs = new PgDocumentCollection<{ v: number }>(pool, 'c');
+
+    await docs.put('d1', { v: 1 }, upper);
+    await docs.byTenant(upper);
+
+    // The GUC bind parameter is the lowercase canonical id, never the uppercase one.
+    const guc = seen.find((v) => typeof v[0] === 'string' && (v[0] as string).includes('1111'));
+    expect(guc?.[0]).toBe(TENANT);
+    // The INSERT stores the canonical id, not the uppercase input.
+    const insert = seen.find((v) => v.length === 4);
+    expect(insert?.[2]).toBe(TENANT);
+    // byTenant filters by the canonical id.
+    const byTenant = seen.find((v) => v.length === 2 && v[1] === TENANT);
+    expect(byTenant?.[1]).toBe(TENANT);
+  });
+
+  it('canonicaliseDocumentTenantId leaves non-uuid tenant ids untouched', async () => {
+    const { canonicalizeDocumentTenantId } = await import('./pg-document-store');
+    expect(canonicalizeDocumentTenantId('11111111-1111-4111-8111-11111111111A')).toBe(
+      '11111111-1111-4111-8111-11111111111a',
+    );
+    expect(canonicalizeDocumentTenantId('health-text-tenant')).toBe('health-text-tenant');
+    expect(canonicalizeDocumentTenantId(null)).toBeNull();
+    expect(canonicalizeDocumentTenantId(undefined)).toBeUndefined();
+  });
 });
