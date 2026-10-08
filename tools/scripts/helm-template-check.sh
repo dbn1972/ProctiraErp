@@ -271,7 +271,7 @@ base_platform_out="$(mktemp)"
 helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-base \
   >"$base_platform_out"
-assert_deployment_hardening "$base_platform_out" "platform base" 7
+assert_deployment_hardening "$base_platform_out" "platform base" 8
 [[ "$(grep -c '^kind: CronJob$' "$base_platform_out" || true)" -eq 0 ]] \
   || die "platform base must not render DR CronJobs without an environment overlay"
 rm -f "$base_platform_out"
@@ -286,7 +286,7 @@ helm template proctira "${PLATFORM_CHART}" \
   >"$platform_out"
 [[ -s "$platform_out" ]] || die "empty platform template output"
 grep -Eq "proctira-platform|api-gateway|kind: Deployment" "$platform_out" || die "platform render missing expected content"
-assert_deployment_hardening "$platform_out" "platform staging" 7
+assert_deployment_hardening "$platform_out" "platform staging" 8
 
 # Render every lab-only split service once so disabled templates cannot drift
 # from the same security baseline unnoticed.
@@ -305,7 +305,7 @@ helm template proctira "${PLATFORM_CHART}" \
   --set notificationService.enabled=true \
   --set reportService.enabled=true \
   >"$split_out"
-assert_deployment_hardening "$split_out" "platform split lab" 16
+assert_deployment_hardening "$split_out" "platform split lab" 17
 rm -f "$split_out"
 
 # G-707 — DR CronJobs
@@ -338,7 +338,7 @@ helm template proctira "${PLATFORM_CHART}" \
   --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
   -f "${PLATFORM_CHART}/values-production.yaml" \
   >"$prod_out"
-assert_deployment_hardening "$prod_out" "platform production" 7
+assert_deployment_hardening "$prod_out" "platform production" 8
 awk '
   /name: RETENTION_DRY_RUN/ { found=1; next }
   found && /value:/ {
@@ -454,6 +454,24 @@ echo "$etl_deploy" | grep -q 'path: /health/live' \
 echo "$etl_deploy" | grep -q 'path: /health/ready' \
   || die "etl-worker readiness probe must be /health/ready (W1-OPS-02 B4)"
 echo "OK etl-worker probe paths (W1-OPS-02 B4)"
+
+# NEW-g3_infra_tools-001 / PRC-H051 — exam-document-worker must render with
+# least-privilege per-key secrets (no full proctira-secrets envFrom) and the
+# health probes the worker exposes.
+exam_deploy="$(awk '/Source: proctira-platform\/templates\/exam-document-worker\/deployment.yaml/,/^---$/' "$platform_out")"
+[[ -n "$exam_deploy" ]] || die "missing exam-document-worker Deployment in platform render"
+echo "$exam_deploy" | grep -q 'path: /health/live' \
+  || die "exam-document-worker liveness probe must be /health/live (PRC-H051)"
+echo "$exam_deploy" | grep -q 'path: /health/ready' \
+  || die "exam-document-worker readiness probe must be /health/ready (PRC-H051)"
+echo "$exam_deploy" | grep -q 'key: DATABASE_URL' \
+  || die "exam-document-worker must mount DATABASE_URL via secretKeyRef"
+echo "$exam_deploy" | grep -q 'key: RABBITMQ_URL' \
+  || die "exam-document-worker must mount RABBITMQ_URL via secretKeyRef"
+if echo "$exam_deploy" | grep -A2 'secretRef:' | grep -q 'name: .*-secrets'; then
+  die "NEW-g3_infra_tools-001: exam-document-worker must not envFrom the full secret bundle"
+fi
+echo "OK exam-document-worker least-privilege secrets + probes (NEW-g3_infra_tools-001)"
 
 # W1-OPS-21 — platform api-gateway probes match gateway Fastify handlers.
 gw_deploy="$(awk '/Source: proctira-platform\/templates\/api-gateway\/deployment.yaml/,/^---$/' "$platform_out")"

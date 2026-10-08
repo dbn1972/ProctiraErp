@@ -455,6 +455,16 @@ jobs:
           IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICE_LIST"
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            # PRC-H062: durable workers (etl-worker, exam-document-worker) are
+            # deployed by the proctira-platform chart (deploy-platform job), not
+            # the HTTP-oriented thin chart. The thin chart would mis-port them
+            # (targetPort 3000 / /health). They are still built as images above.
+            case "${SERVICE}" in
+              etl-worker|exam-document-worker)
+                echo "Skipping ${SERVICE} in thin-chart deploy (handled by deploy-platform)."
+                continue
+                ;;
+            esac
             echo "Deploying ${SERVICE} to ${ENVIRONMENT}..."
             IMAGE_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "$SERVICE")"
 
@@ -492,6 +502,11 @@ jobs:
           IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICE_LIST"
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            case "${SERVICE}" in
+              etl-worker|exam-document-worker)
+                continue
+                ;;
+            esac
             echo "Checking rollout status for ${SERVICE}..."
             kubectl rollout status deployment/"proctira-${SERVICE}" \
               --namespace "${NAMESPACE}" \
@@ -519,6 +534,93 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ---------------------------------------------------------------------------
+  # PRC-H062 — deploy the proctira-platform chart (pg-backup + phi-retention
+  # CronJobs, Ingress, NetworkPolicy, durable workers incl. exam-document-worker).
+  # The thin proctira-service chart above ships only app Deployments; the DR /
+  # retention / ingress / network-policy objects live ONLY in proctira-platform
+  # and were never applied by CI before this job. Same environment gating and
+  # fail-closed-on-missing-required-values discipline as the service deploy.
+  # ---------------------------------------------------------------------------
+  deploy-platform:
+    name: Deploy platform infra to ${{ needs.prepare.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [ci-gate, prepare, build-images, migrate-database, runtime-role-gate]
+    if: needs.prepare.outputs.can-deploy == 'true' && needs.migrate-database.result == 'success' && needs.runtime-role-gate.result == 'success'
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
+
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        with:
+          version: 'v3.14.0'
+
+      - name: Deploy proctira-platform chart via Helm
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
+          # PRC-H062: the DR CronJobs + workers read DATABASE_URL / BACKUP_* /
+          # RABBITMQ_URL from a pre-created cluster Secret (ESO / sealed-secrets).
+          # The Secret NAME is a GitHub environment *variable*, never a value.
+          PLATFORM_EXISTING_SECRET: ${{ vars.PLATFORM_EXISTING_SECRET }}
+        run: |
+          NAMESPACE="proctira-${ENVIRONMENT}"
+
+          # PRC-H062: fail closed. Without the operator-provisioned Secret the
+          # pg-backup / phi-retention CronJobs would start with no DATABASE_URL
+          # and silently never run — exactly the gap this job closes.
+          if [ -z "${PLATFORM_EXISTING_SECRET}" ]; then
+            echo "::error::vars.PLATFORM_EXISTING_SECRET is not set for the ${ENVIRONMENT} environment (PRC-H062)" >&2
+            exit 1
+          fi
+
+          IMAGE_REPOSITORY_PREFIX="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "")"
+
+          # W1-OPS-09: --atomic rolls back on failure; --wait blocks on readiness.
+          # Images for the in-process topology (api-gateway + edge apps + workers)
+          # use the same tag the service deploy just pushed.
+          helm upgrade --install proctira-platform \
+            ./infrastructure/helm/proctira-platform \
+            --namespace "${NAMESPACE}" \
+            --create-namespace \
+            --set global.environment="${ENVIRONMENT}" \
+            --set-string secrets.existingSecret="${PLATFORM_EXISTING_SECRET}" \
+            --set-string examDocumentWorker.image.tag="${IMAGE_TAG}" \
+            --set-string etlWorker.image.tag="${IMAGE_TAG}" \
+            --values "./infrastructure/helm/proctira-platform/values-${ENVIRONMENT}.yaml" \
+            --atomic \
+            --wait \
+            --timeout 600s
+
+      - name: Verify DR CronJobs and workers exist
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          NAMESPACE="proctira-${ENVIRONMENT}"
+          # PRC-H062 / NEW-g3_infra_tools-002: assert the previously-undeployed
+          # objects are now present in the target namespace (fail the deploy if
+          # the chart did not render them).
+          kubectl get cronjob -n "${NAMESPACE}" -l app.kubernetes.io/part-of=proctira-platform \
+            -o name | grep -qi 'pg-backup' \
+            || { echo "::error::pg-backup CronJob missing after platform deploy (PRC-H062)"; exit 1; }
+          kubectl get cronjob -n "${NAMESPACE}" -l app.kubernetes.io/part-of=proctira-platform \
+            -o name | grep -qi 'phi-retention' \
+            || { echo "::error::phi-retention CronJob missing after platform deploy (PRC-H062)"; exit 1; }
+          kubectl rollout status deployment \
+            -l app.kubernetes.io/name=exam-document-worker \
+            --namespace "${NAMESPACE}" --timeout=120s
+
+  # ---------------------------------------------------------------------------
   # #555 review #1 (PRC-M259): record the SHA this environment now runs, so the
   # next deploy diffs from what was actually deployed. Only after every
   # affected service deployed (or nothing was affected), and never for a
@@ -527,10 +629,11 @@ jobs:
   record-diff-base:
     name: Record deploy diff base
     runs-on: ubuntu-latest
-    needs: [ci-gate, prepare, deploy]
+    needs: [ci-gate, prepare, deploy, deploy-platform]
     if: >-
       always() && needs.ci-gate.result == 'success' && needs.prepare.result == 'success' &&
       needs.prepare.outputs.can-deploy == 'true' && needs.prepare.outputs.record-base == 'true' &&
+      needs.deploy-platform.result == 'success' &&
       (needs.deploy.result == 'success' ||
       (needs.prepare.outputs.services == '' && needs.deploy.result == 'skipped'))
     permissions:

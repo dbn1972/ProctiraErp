@@ -70,6 +70,13 @@
       "paths": ["apps/etl-worker/", "packages/backend/etl/"],
       "workflows": ["deploy", "release"]
     },
+    "exam-document-worker": {
+      "$comment": "NEW-g3_infra_tools-002 / PRC-H062: durable exam-document queue consumer (PRC-H051). Deployed via the proctira-platform chart (deploy-platform job), built here so its image exists for that chart's tag.",
+      "dockerfile": "workers/exam-document/Dockerfile",
+      "buildArgs": {},
+      "paths": ["workers/exam-document/", "packages/backend/examination/"],
+      "workflows": ["deploy", "release"]
+    },
     "dr-tools": {
       "dockerfile": "infrastructure/docker/Dockerfile.dr-tools",
       "buildArgs": {},
