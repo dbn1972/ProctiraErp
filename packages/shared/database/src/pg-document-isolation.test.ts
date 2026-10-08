@@ -102,7 +102,8 @@ describe('PgDocumentCollection tenant isolation (PRC-H007 / PRC-H116)', () => {
     await expect(docs.insertIfAbsent('d1', { v: 1 }, TENANT)).rejects.toBeInstanceOf(
       DocumentOwnershipConflictError,
     );
-    const lookup = statements.find((s) => s.includes('SELECT * FROM control_plane_documents')) ?? '';
+    const lookup =
+      statements.find((s) => s.includes('SELECT * FROM control_plane_documents')) ?? '';
     expect(lookup).toContain('tenant_id IS NOT DISTINCT FROM $3');
   });
 });

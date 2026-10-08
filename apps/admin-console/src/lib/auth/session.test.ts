@@ -53,7 +53,6 @@ describe('decodeAdminToken', () => {
 
     expect(decodeAdminToken(token)?.platformRole).toBeUndefined();
   });
-
 });
 
 describe('isAdminTokenExpired', () => {

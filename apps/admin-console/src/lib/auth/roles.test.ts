@@ -46,6 +46,8 @@ describe('hasRole', () => {
     expect(platformRoleFromJwtRoles([{ roleId: 'security', roleName: 'Billing' }])).toBe(
       'security',
     );
-    expect(platformRoleFromJwtRoles([{ roleId: 'admin', roleName: 'platform_admin' }])).toBeUndefined();
+    expect(
+      platformRoleFromJwtRoles([{ roleId: 'admin', roleName: 'platform_admin' }]),
+    ).toBeUndefined();
   });
 });

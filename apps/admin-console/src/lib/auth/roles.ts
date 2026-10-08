@@ -9,11 +9,7 @@
 
 /** Functional roles within the Platform Admin Console. */
 export type PlatformRole =
-  | 'platform_admin'
-  | 'ops_support'
-  | 'billing'
-  | 'security'
-  | 'engineering';
+  'platform_admin' | 'ops_support' | 'billing' | 'security' | 'engineering';
 
 /** All platform roles, in the order presented in the UI. */
 export const PLATFORM_ROLES: PlatformRole[] = [

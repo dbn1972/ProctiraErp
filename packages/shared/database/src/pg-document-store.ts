@@ -190,9 +190,7 @@ export class PgDocumentCollection<T extends object> {
    * platform-addressed (or legacy unscoped) operations use the platform escape.
    */
   private run<R>(tenantId: string | null | undefined, fn: (client: PgQueryable) => Promise<R>) {
-    return tenantId
-      ? withPgTenant(this.pool, tenantId, fn)
-      : withPlatformScope(this.pool, fn);
+    return tenantId ? withPgTenant(this.pool, tenantId, fn) : withPlatformScope(this.pool, fn);
   }
 
   async get(id: string, scope?: DocumentScope): Promise<T | null> {
