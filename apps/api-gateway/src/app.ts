@@ -76,6 +76,11 @@ import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import { registerAuthAudit } from './auth-audit.js';
+import {
+  billingEntitlementsEnforced,
+  evaluateBillingEntitlement,
+  tenantIdFromRequest,
+} from './billing-entitlements.js';
 import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -870,6 +875,56 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         statusCode: 403,
       });
     }
+  });
+
+  // 8a-quater. G-811 / PRC-H044 — Plan entitlements & per-plan quotas enforced
+  // against the tenant's real subscription (billingService.checkEntitlement).
+  // Premium-feature routes return 402/403; quota-limited creates (student/staff
+  // seat caps) return 402 (no plan) / 429 (quota exhausted). Fails closed: no
+  // active subscription ⇒ denied on every gated route. Opt-in per deployment
+  // via BILLING_ENTITLEMENTS_ENFORCED (safest default: off until subscriptions
+  // are seeded — documented in billing-entitlements.ts). The /billing/me/* self
+  // read is never gated by itself (it has no premium/quota segment).
+  if (billingEntitlementsEnforced()) {
+    app.addHook('onRequest', async (request, reply) => {
+      const url = request.url.split('?')[0]!;
+      if (!url.startsWith('/api/v1/')) return;
+      if (isPublicRegistrationPath(url)) return;
+      if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+      const denial = await evaluateBillingEntitlement(
+        app.billingService,
+        tenantIdFromRequest(request),
+        request.method,
+        url,
+      );
+      if (denial) {
+        return reply.status(denial.statusCode).send({
+          code: denial.code,
+          message: denial.message,
+          statusCode: denial.statusCode,
+          ...(denial.feature ? { feature: denial.feature } : {}),
+          ...(denial.metric ? { metric: denial.metric } : {}),
+          ...(denial.quota ? { quota: denial.quota } : {}),
+        });
+      }
+    });
+  }
+
+  // PRC-H044 — tenant self-service read of its own entitlements. Scoped
+  // strictly to the JWT tenant (RBAC resource `billing-self`); never reaches
+  // the platform-admin-only billing routes. Available even while suspended so a
+  // tenant can see why it is blocked.
+  app.get('/api/v1/billing/me/entitlements', async (request, reply) => {
+    const tenantId = tenantIdFromRequest(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const summary = await app.billingService.getTenantEntitlements(tenantId);
+    return reply.status(200).send(summary);
   });
 
   // 8a-ter. G-805 — School (institution) scope for school-bound principals.

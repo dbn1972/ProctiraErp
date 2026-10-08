@@ -17,6 +17,7 @@ export type { BillingPluginOptions } from './billing-plugin.js';
 
 // Service
 export { BillingService } from './billing-service.js';
+export type { TenantEntitlementsSummary } from './billing-service.js';
 
 // Repository
 export type {
@@ -90,11 +91,7 @@ export type {
 export { registerBillingRoutes } from './routes.js';
 export type { BillingRoutesOptions } from './routes.js';
 
-export {
-  assertBillingAccess,
-  hasBillingAccess,
-  normalizeBillingRoles,
-} from './billing-access.js';
+export { assertBillingAccess, hasBillingAccess, normalizeBillingRoles } from './billing-access.js';
 export type { BillingAction } from './billing-access.js';
 
 // Default tenant feature configuration
