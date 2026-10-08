@@ -8,9 +8,22 @@ import { PrismaClient } from '@prisma/client';
 
 export type { PrismaClient } from '@prisma/client';
 
+/**
+ * PRC-M357: clients are cached per resolved datasource URL in ALL environments
+ * (the old guard only cached outside production, so every call in production
+ * opened a new 10-connection pool). Stored on globalThis so dev hot-reloads
+ * reuse them too.
+ */
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prismaClients: Map<string, PrismaClient> | undefined;
 };
+
+function clientCache(): Map<string, PrismaClient> {
+  if (!globalForPrisma.prismaClients) {
+    globalForPrisma.prismaClients = new Map();
+  }
+  return globalForPrisma.prismaClients;
+}
 
 /**
  * Appends connection pool parameters to a DATABASE_URL if not already present.
@@ -36,21 +49,21 @@ function withPoolConfig(url: string | undefined): string | undefined {
 }
 
 /**
- * Creates or returns the singleton PrismaClient instance.
- * In development, the client is stored on `globalThis` to survive
- * hot-module reloads without leaking connections.
+ * Creates or returns the PrismaClient for the (resolved) datasource URL.
+ * One client - one pool - per URL per process, in every environment.
  */
 export function createPrismaClient(options?: {
   datasourceUrl?: string;
   log?: Array<'query' | 'info' | 'warn' | 'error'>;
 }): PrismaClient {
-  if (globalForPrisma.prisma) {
-    return globalForPrisma.prisma;
-  }
-
   // Apply connection pool configuration to the datasource URL
   const datasourceUrl = withPoolConfig(options?.datasourceUrl ?? process.env['DATABASE_URL']);
-
+  const key = datasourceUrl ?? '';
+  const cache = clientCache();
+  const existing = cache.get(key);
+  if (existing) {
+    return existing;
+  }
   const client = new PrismaClient({
     datasourceUrl,
     log:
@@ -58,10 +71,7 @@ export function createPrismaClient(options?: {
       (process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error']),
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = client;
-  }
-
+  cache.set(key, client);
   return client;
 }
 
@@ -73,12 +83,24 @@ export function getPrismaClient(): PrismaClient {
 }
 
 /**
- * Disconnects the singleton PrismaClient.
- * Useful for graceful shutdown and test cleanup.
+ * Disconnects the client for one datasource URL (as passed to createPrismaClient).
+ */
+export async function disconnectPrismaFor(datasourceUrl: string | undefined): Promise<void> {
+  const key = withPoolConfig(datasourceUrl) ?? '';
+  const cache = clientCache();
+  const client = cache.get(key);
+  if (client) {
+    cache.delete(key);
+    await client.$disconnect();
+  }
+}
+
+/**
+ * Disconnects EVERY cached PrismaClient (graceful shutdown / test cleanup).
  */
 export async function disconnectPrisma(): Promise<void> {
-  if (globalForPrisma.prisma) {
-    await globalForPrisma.prisma.$disconnect();
-    globalForPrisma.prisma = undefined;
-  }
+  const cache = clientCache();
+  const clients = [...cache.values()];
+  cache.clear();
+  await Promise.all(clients.map((c) => c.$disconnect()));
 }

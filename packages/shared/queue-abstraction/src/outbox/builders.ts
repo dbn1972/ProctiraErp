@@ -57,9 +57,13 @@ export function buildWorkflowEscalationOutboxEntry(
     payload: input.payload,
     metadata: {
       correlationId: input.taskId,
-      delay: input.delayMs,
     },
     dispatchMode: 'dispatch',
+    // PRC-M360: delay is honoured by the outbox itself - the relay only claims
+    // the row once due, then dispatches immediately (no transport delay).
+    ...(input.delayMs !== undefined && input.delayMs > 0
+      ? { availableAt: new Date(Date.now() + input.delayMs) }
+      : {}),
   };
 }
 

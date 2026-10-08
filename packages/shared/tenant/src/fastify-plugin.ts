@@ -14,7 +14,6 @@
  * tenant identity for authenticated principals when lookup is disabled/unavailable.
  */
 
-import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
@@ -230,10 +229,12 @@ export const tenantPlugin = fp(
           request.tenantId = tenantId;
           request.tenantSource = resolution.source;
 
-          // W1-DATA-12 / G-720: bind canonical app.tenant_id (+ legacy alias) as a parameter.
-          if (db) {
-            await bindTenantGucPrisma(db, tenantId);
-          }
+          // PRC-M367: this hook is RESOLUTION-ONLY. It deliberately does not
+          // set app.tenant_id: set_config(..., true) is transaction-local, so a
+          // bind here lapsed after its own statement and gave false RLS
+          // assurance. Tenant-scoped queries must run inside
+          // withTenantTransaction()/withTenantClient(), which binds the GUC in
+          // the same transaction as the queries.
 
           logger.debug(
             { tenantId, source: resolution.source, path: request.url },
