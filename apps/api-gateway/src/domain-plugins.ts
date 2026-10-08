@@ -1525,6 +1525,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         prefsStore,
         queuePublisher: deliveryHandle?.publisher,
+        // g7_platform-003: dedicated consumer adapter so the plugin starts the retry/delivery
+        // worker (onReady/onClose). Without this, published retries are never consumed.
+        deliveryWorkerQueue: deliveryHandle?.createConsumerAdapter(),
         prefix: '/notifications',
       });
     },

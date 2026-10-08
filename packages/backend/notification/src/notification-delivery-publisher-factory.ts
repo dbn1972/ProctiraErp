@@ -13,7 +13,28 @@ import { QueueNotificationDeliveryPublisher } from './queue-notification-publish
 export interface NotificationDeliveryPublisherHandle {
   publisher: NotificationQueuePublisher;
   adapter: QueueAdapter;
+  /** W2-JOB-01 / g7_platform-003: fresh (unconnected) adapter on the same backend for the consumer worker. */
+  createConsumerAdapter(): QueueAdapter;
   disconnect(): Promise<void>;
+}
+
+function buildAdapterFromEnv(
+  backend: string | undefined,
+  rabbitUrl: string | undefined,
+): QueueAdapter {
+  if (backend) {
+    return createQueueAdapterFromEnv();
+  }
+  return createQueueAdapter({
+    backend: 'rabbitmq',
+    rabbitmq: {
+      url: rabbitUrl!,
+      exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
+      exchangeType: 'topic',
+      deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
+      durable: true,
+    },
+  });
 }
 
 /**
@@ -48,6 +69,7 @@ export async function createNotificationDeliveryPublisherFromEnv(): Promise<Noti
   return {
     publisher: new QueueNotificationDeliveryPublisher(adapter),
     adapter,
+    createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: () => adapter.disconnect(),
   };
 }
