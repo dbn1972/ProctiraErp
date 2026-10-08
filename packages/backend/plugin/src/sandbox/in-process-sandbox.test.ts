@@ -12,7 +12,16 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { InProcessSandbox } from './in-process-sandbox.js';
-import type { SandboxExecutionContext, SandboxAuditRecord } from './types.js';
+import type { SandboxExecutionContext, SandboxAuditRecord, SandboxOptions } from './types.js';
+
+/**
+ * NEW-g7_platform-011: the in-process node:vm sandbox refuses untrusted code by default. These
+ * mechanics tests exercise the trusted execution path, so they opt in explicitly. The default
+ * (refusal) and egress hardening are covered in in-process-sandbox.security.test.ts.
+ */
+function makeSandbox(options: SandboxOptions = {}): InProcessSandbox {
+  return new InProcessSandbox({ allowUntrustedInProcess: true, ...options });
+}
 
 function createTestContext(
   overrides: Partial<SandboxExecutionContext> = {},
@@ -31,7 +40,7 @@ function createTestContext(
 describe('InProcessSandbox', () => {
   describe('basic execution', () => {
     it('should execute simple plugin code and return result', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.greet = function(name) {
           return 'Hello, ' + name + '!';
@@ -46,7 +55,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should execute async plugin code', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.asyncHandler = async function(x, y) {
           return x + y;
@@ -60,7 +69,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should return error when handler does not exist', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.existing = function() { return 1; };
       `;
@@ -73,7 +82,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should handle plugin code that throws an error', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.failing = function() {
           throw new Error('Plugin error');
@@ -88,7 +97,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should handle syntax errors in plugin code', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.broken = function( {
           return 1;
@@ -104,7 +113,7 @@ describe('InProcessSandbox', () => {
 
   describe('resource quota enforcement', () => {
     it('should timeout on CPU-intensive code', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: { maxCpuTimeMs: 50 },
       });
       const code = `
@@ -120,7 +129,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should respect wall-time limit for async operations', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: { maxWallTimeMs: 100, maxCpuTimeMs: 5000 },
       });
       // Use a promise that never resolves to test wall-time timeout
@@ -142,7 +151,7 @@ describe('InProcessSandbox', () => {
 
   describe('module access restrictions', () => {
     it('should block access to fs module', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.readFile = function() {
           var fs = require('fs');
@@ -158,7 +167,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to child_process module', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.exec = function() {
           var cp = require('child_process');
@@ -174,7 +183,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to os module', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getInfo = function() {
           var os = require('os');
@@ -190,7 +199,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to net module', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.connect = function() {
           var net = require('net');
@@ -206,7 +215,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to worker_threads module', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.spawn = function() {
           var wt = require('worker_threads');
@@ -222,7 +231,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to arbitrary modules', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.load = function() {
           return require('some-random-module');
@@ -238,7 +247,7 @@ describe('InProcessSandbox', () => {
 
   describe('network access restrictions', () => {
     it('should block all network access when no hosts are allowed', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         enableNetwork: false,
       });
       const code = `
@@ -254,7 +263,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block access to unauthorized hosts', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: { allowedNetworkHosts: ['api.allowed.com'] },
       });
       const code = `
@@ -271,9 +280,9 @@ describe('InProcessSandbox', () => {
     });
 
     it('should enforce network request quota', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: {
-          allowedNetworkHosts: ['*'],
+          allowedNetworkHosts: ['example.com'],
           maxNetworkRequests: 2,
         },
       });
@@ -315,7 +324,7 @@ describe('InProcessSandbox', () => {
 
   describe('tenant isolation', () => {
     it('should provide tenant-scoped context to plugin code', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getTenantId = function() {
           return __pluginContext.tenantId;
@@ -330,7 +339,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should provide frozen configuration to plugin code', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getConfig = function() {
           return __pluginContext.configuration;
@@ -345,7 +354,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should prevent modification of plugin context', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.tryModify = function() {
           try {
@@ -364,7 +373,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should reject execution without tenantId', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `exports.handler = function() { return 1; };`;
 
       const context = createTestContext({ tenantId: '' });
@@ -375,7 +384,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should reject execution without pluginId', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `exports.handler = function() { return 1; };`;
 
       const context = createTestContext({ pluginId: '' });
@@ -388,7 +397,7 @@ describe('InProcessSandbox', () => {
 
   describe('dangerous global access prevention', () => {
     it('should not expose process global', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getEnv = function() {
           return typeof process;
@@ -402,7 +411,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should not expose globalThis', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getGlobal = function() {
           return typeof globalThis;
@@ -416,7 +425,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should not expose Buffer', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.getBuffer = function() {
           return typeof Buffer;
@@ -430,7 +439,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should block eval via codeGeneration restriction', async () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const code = `
         exports.tryEval = function() {
           try {
@@ -451,7 +460,7 @@ describe('InProcessSandbox', () => {
   describe('audit visibility', () => {
     it('should emit audit record on successful execution', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         onAudit: (record) => {
           auditRecords.push(record);
         },
@@ -470,7 +479,7 @@ describe('InProcessSandbox', () => {
 
     it('should emit audit record on execution error', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         onAudit: (record) => {
           auditRecords.push(record);
         },
@@ -486,7 +495,7 @@ describe('InProcessSandbox', () => {
 
     it('should emit audit record on timeout', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: { maxCpuTimeMs: 50 },
         onAudit: (record) => {
           auditRecords.push(record);
@@ -502,7 +511,7 @@ describe('InProcessSandbox', () => {
 
     it('should emit audit record on permission denied', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         onAudit: (record) => {
           auditRecords.push(record);
         },
@@ -517,7 +526,7 @@ describe('InProcessSandbox', () => {
 
     it('should include correlation ID in audit records', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         onAudit: (record) => {
           auditRecords.push(record);
         },
@@ -530,7 +539,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should not fail execution if audit callback throws', async () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         onAudit: () => {
           throw new Error('Audit storage failed');
         },
@@ -546,7 +555,7 @@ describe('InProcessSandbox', () => {
 
   describe('quota configuration', () => {
     it('should use default quotas when none specified', () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const quota = sandbox.getQuota();
 
       expect(quota.maxMemoryBytes).toBe(64 * 1024 * 1024);
@@ -556,7 +565,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should allow custom quota overrides', () => {
-      const sandbox = new InProcessSandbox({
+      const sandbox = makeSandbox({
         quota: {
           maxMemoryBytes: 32 * 1024 * 1024,
           maxCpuTimeMs: 2000,
@@ -571,7 +580,7 @@ describe('InProcessSandbox', () => {
     });
 
     it('should return frozen quota object', () => {
-      const sandbox = new InProcessSandbox();
+      const sandbox = makeSandbox();
       const quota = sandbox.getQuota();
 
       expect(() => {

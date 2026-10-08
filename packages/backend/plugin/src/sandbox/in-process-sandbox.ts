@@ -16,8 +16,10 @@
  * For production use with untrusted code, prefer PluginSandbox (worker-based).
  */
 import { createContext, Script } from 'node:vm';
+
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertEgressAllowed, assertSafeAllowedHosts } from './egress-policy.js';
 import type {
   ResourceQuota,
   SandboxExecutionContext,
@@ -34,6 +36,11 @@ import { DEFAULT_RESOURCE_QUOTA } from './types.js';
 export class InProcessSandbox {
   private readonly quota: ResourceQuota;
   private readonly onAudit?: (record: SandboxAuditRecord) => void | Promise<void>;
+  /**
+   * NEW-g7_platform-011: node:vm is not a security boundary; refuse untrusted code unless the
+   * caller explicitly opts in (trusted first-party code only).
+   */
+  private readonly allowUntrustedInProcess: boolean;
 
   constructor(options: SandboxOptions = {}) {
     this.quota = {
@@ -44,7 +51,10 @@ export class InProcessSandbox {
     if (options.enableNetwork === false) {
       this.quota.allowedNetworkHosts = [];
     }
+    // Fail-closed: reject a '*' / empty-host egress allow-list at construction.
+    assertSafeAllowedHosts(this.quota.allowedNetworkHosts);
 
+    this.allowUntrustedInProcess = options.allowUntrustedInProcess === true;
     this.onAudit = options.onAudit;
   }
 
@@ -83,6 +93,32 @@ export class InProcessSandbox {
     const startTime = Date.now();
     const startMemory = process.memoryUsage().heapUsed;
     let networkRequestCount = 0;
+
+    // NEW-g7_platform-011: node:vm cannot safely contain untrusted code. Refuse by default so a
+    // tenant-authored plugin cannot achieve host RCE through this path; a true isolate/worker
+    // sandbox must be used for untrusted code.
+    if (!this.allowUntrustedInProcess) {
+      const auditRecord = this.createAuditRecord(
+        context,
+        handler,
+        'permission_denied',
+        0,
+        0,
+        0,
+        'In-process (node:vm) sandbox refuses untrusted code; use a worker/isolate sandbox',
+      );
+      await this.emitAudit(auditRecord);
+      return {
+        success: false,
+        error: {
+          message:
+            'In-process (node:vm) sandbox is not a security boundary and refuses to run code; ' +
+            'configure a worker/isolate-based sandbox for untrusted plugins',
+          code: 'PERMISSION_DENIED',
+        },
+        metrics: { durationMs: 0, peakMemoryBytes: 0, networkRequestCount: 0 },
+      };
+    }
 
     try {
       // Create restricted globals
@@ -298,19 +334,11 @@ export class InProcessSandbox {
       }
 
       const urlStr =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : (input as Request).url;
-      const url = new URL(urlStr);
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (
-        !quota.allowedNetworkHosts.includes(url.hostname) &&
-        !quota.allowedNetworkHosts.includes('*')
-      ) {
-        throw new Error(`[Sandbox] Network access to host '${url.hostname}' is not permitted`);
-      }
+      // NEW-g7_platform-011: fail-closed egress — rejects '*' allow-lists and
+      // private/loopback/metadata targets (SSRF), https-only, host must be allow-listed.
+      await assertEgressAllowed(urlStr, quota.allowedNetworkHosts);
 
       return globalThis.fetch(input as string | Request, init);
     };
