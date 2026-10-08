@@ -11,6 +11,7 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import {
   PgDocumentCollection,
   withPgTenant,
+  withPlatformScope,
   type PgPoolWithConnect,
   type PgQueryable,
 } from '@proctira/database';
@@ -365,7 +366,25 @@ export class PgTenantRepository implements TenantRepository {
     );
     const row = (result.rows as TenantTableRow[])[0];
     if (!row) return null;
+    const mapped = this.mapTableRow(row);
+    // Once per tenant per process: which tenants have no control-plane record (warn so the
+    // production LOG_LEVEL=warn overlay surfaces it).
+    if (mapped && !this.loggedFallbackTenants.has(id)) {
+      this.loggedFallbackTenants.add(id);
+      logger.warn(
+        { tenantId: id },
+        'Tenant resolved from the tenants table; no control-plane record exists for it',
+      );
+    }
+    return mapped;
+  }
 
+  /**
+   * Map a `tenants` table row to a TenantEntity, or null when the row's status is outside the
+   * lifecycle union (an undescribable state must not be reported as a safe one). Shared by the
+   * id, slug and list reads so they classify rows identically.
+   */
+  private mapTableRow(row: TenantTableRow): TenantEntity | null {
     // `tenants.status` is varchar(20) with no CHECK constraint, so the column can
     // hold anything. Casting an unrecognised value into the union would make every
     // lifecycle gate read it as "not decommissioned, not suspended" — a tenant that
@@ -373,53 +392,16 @@ export class PgTenantRepository implements TenantRepository {
     const status = TENANT_STATUSES.find((candidate) => candidate === row.status);
     if (!status) {
       logger.error(
-        { tenantId: id, status: row.status },
+        { tenantId: row.id, status: row.status },
         'tenants row has a status outside the tenant lifecycle union; refusing to resolve it',
       );
       return null;
     }
-
-    // How much of the estate still depends on this fallback, and therefore when the
-    // document/table split has actually been closed.
-    //
-    // `warn`, not `debug` or `info`: the production overlay sets LOG_LEVEL=warn
-    // (infrastructure/k8s/overlays/production), so anything quieter would make this
-    // signal invisible exactly where it is worth having. Once per tenant per process
-    // keeps that affordable — this runs on every page load, and the interesting fact
-    // is "which tenants have no control-plane record", not how often each is read.
-    if (!this.loggedFallbackTenants.has(id)) {
-      this.loggedFallbackTenants.add(id);
-      logger.warn(
-        { tenantId: id },
-        'Tenant resolved from the tenants table; no control-plane record exists for it',
-      );
-    }
-
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       status,
-      // Cast, not validated, unlike `status` above. `tenants.config` is unconstrained
-      // jsonb and rows predating `db/seeds/002`'s fix do not match
-      // `TenantConfigSchema`: 002 stored `locale` as the string "en-IN" where the
-      // schema declares an object with three *required* fields. Validating here would
-      // reject real tenants and substituting `{}` would drop their locale.
-      //
-      // Correction to what this comment used to say: serializing such a value is not
-      // "lossy rather than loud". `fast-json-stringify` throws on the missing required
-      // fields, so a route that attaches `TenantResponseSchema` returns
-      // `500 "defaultLocale" is required!` for that row. The earlier note claiming a
-      // silent `{"locale":{}}` came from a probe schema that omitted `required`.
-      //
-      // Not reachable from these routes today: `routes.ts` declares no `schema:`
-      // block at all, so `config` is returned raw and the flat shape passes through.
-      // That is also why this is not normalized on read — rewriting it here would
-      // change a live response body, and `updateTenant` would then persist the
-      // rewritten shape through `mirrorToTenantRow`, turning a read into an
-      // unaudited migration that invents `supportedLocales`. See
-      // `tenant-config-wire-shape.test.ts` and the forward-migration note in
-      // `db/seeds/002_multi_board_schools_500.sql`.
       config: (row.config ?? {}) as TenantEntity['config'],
       legalHold: row.legal_hold,
       createdAt: asDate(row.created_at),
@@ -459,15 +441,84 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   async findTenantBySlug(slug: string): Promise<TenantEntity | null> {
-    const all = await this.tenants.all();
-    return all.find((t) => t.slug.toLowerCase() === slug.toLowerCase()) ?? null;
+    // PRC-H100: the tenants table is the single source of truth for identity; a document, when
+    // present, supplies the extra lifecycle metadata (plan/region/suspendedAt/...). A document
+    // match wins because it carries those fields; otherwise fall back to the table so a
+    // table-only tenant (created by migrations/seeds/registration, never through the lifecycle
+    // service) is visible by slug instead of invisible.
+    const docs = await this.tenants.all();
+    const doc = docs.find((t) => t.slug.toLowerCase() === slug.toLowerCase());
+    if (doc) return doc;
+
+    this.assertPool();
+    try {
+      return await this.findTenantInTableBySlug(slug);
+    } catch (error) {
+      logger.error(
+        { slug, err: error },
+        'tenants-table slug lookup failed; treating the tenant as unresolved',
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Read a tenant from the `tenants` table by slug under platform scope (slug lookup spans
+   * tenants, so it cannot bind a single app.tenant_id). Deleted rows are excluded.
+   */
+  private async findTenantInTableBySlug(slug: string): Promise<TenantEntity | null> {
+    const result = await withPlatformScope(this.assertPool(), (client) =>
+      client.query(
+        `SELECT id, name, slug, status, config, legal_hold,
+                created_at AT TIME ZONE 'UTC' AS created_at,
+                updated_at AT TIME ZONE 'UTC' AS updated_at
+           FROM tenants
+          WHERE lower(slug) = lower($1) AND deleted_at IS NULL
+          LIMIT 1`,
+        [slug],
+      ),
+    );
+    const row = (result.rows as TenantTableRow[])[0];
+    return row ? this.mapTableRow(row) : null;
+  }
+
+  /** Read all non-deleted rows from the `tenants` table under platform scope. */
+  private async listTenantsFromTable(): Promise<TenantTableRow[]> {
+    const result = await withPlatformScope(this.assertPool(), (client) =>
+      client.query(
+        `SELECT id, name, slug, status, config, legal_hold,
+                created_at AT TIME ZONE 'UTC' AS created_at,
+                updated_at AT TIME ZONE 'UTC' AS updated_at
+           FROM tenants
+          WHERE deleted_at IS NULL`,
+      ),
+    );
+    return result.rows as TenantTableRow[];
   }
 
   async listTenants(
     filter: TenantFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TenantEntity>> {
-    let filtered = await this.tenants.all();
+    // PRC-H100: merge control-plane documents (authoritative for lifecycle metadata) with the
+    // canonical tenants table (authoritative for identity). A tenant present only in the table —
+    // created by migrations/seeds/registration — must appear in the list, not be invisible.
+    const docs = await this.tenants.all();
+    const byId = new Map<string, TenantEntity>();
+    for (const doc of docs) byId.set(doc.id, doc);
+
+    try {
+      const rows = await this.listTenantsFromTable();
+      for (const row of rows) {
+        const mapped = this.mapTableRow(row);
+        // Documents win (they carry plan/region/lifecycle); only add table-only tenants.
+        if (mapped && !byId.has(mapped.id)) byId.set(mapped.id, mapped);
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'tenants-table list failed; returning document view only');
+    }
+
+    let filtered = [...byId.values()];
     if (filter.status) filtered = filtered.filter((t) => t.status === filter.status);
     if (filter.region) filtered = filtered.filter((t) => t.region === filter.region);
     if (filter.search) {
