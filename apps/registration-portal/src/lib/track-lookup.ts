@@ -12,8 +12,9 @@ export const TRACK_DOB_COOKIE = 'registration_track_dob';
 export function resolveRedirectBase(
   requestUrl: string,
   headers: { get(name: string): string | null },
-  env: { PUBLIC_BASE_URL?: string } = (globalThis as { process?: { env?: Record<string, string | undefined> } })
-    .process?.env ?? {},
+  env: { PUBLIC_BASE_URL?: string } = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env ?? {},
 ): URL {
   const configured = env.PUBLIC_BASE_URL?.trim();
   if (configured) {
@@ -34,7 +35,6 @@ export function resolveRedirectBase(
   }
   return new URL(requestUrl);
 }
-
 
 export type TrackLookupDecision = { ok: true; trackingNumber: string; dob: string } | { ok: false };
 

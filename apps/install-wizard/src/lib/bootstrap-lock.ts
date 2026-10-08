@@ -44,9 +44,7 @@ function sweepSessions(now: number = Date.now()): void {
     if (isExpired(session, now)) sessions.delete(token);
   }
   if (sessions.size <= MAX_SESSIONS) return;
-  const ordered = Array.from(sessions.entries()).sort(
-    (a, b) => a[1].createdAt - b[1].createdAt,
-  );
+  const ordered = Array.from(sessions.entries()).sort((a, b) => a[1].createdAt - b[1].createdAt);
   for (const [token] of ordered.slice(0, sessions.size - MAX_SESSIONS)) {
     sessions.delete(token);
   }
