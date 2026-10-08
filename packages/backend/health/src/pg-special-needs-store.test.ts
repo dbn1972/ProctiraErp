@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import type pg from 'pg';
 
 import {
@@ -39,6 +40,9 @@ describe('PgSpecialNeedsStore', () => {
 
       const tenantA = '00000000-0000-4000-8000-0000000000aa';
       const tenantB = '00000000-0000-4000-8000-0000000000bb';
+      // Own the tenant parents instead of depending on another suite's seed.
+      await ensurePgTestTenant(getPool(store!), tenantA);
+      await ensurePgTestTenant(getPool(store!), tenantB);
       const studentId = randomUUID();
       const assessmentId = randomUUID();
       const findingsPlain = `IEP findings ${assessmentId}`;

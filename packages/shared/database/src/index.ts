@@ -30,7 +30,12 @@ export type {
 export { BoardType, EnrollmentStatus } from '@prisma/client';
 
 // Export client utilities
-export { createPrismaClient, getPrismaClient, disconnectPrisma } from './client';
+export {
+  createPrismaClient,
+  getPrismaClient,
+  disconnectPrisma,
+  disconnectPrismaFor,
+} from './client';
 
 // Export batch insert utilities
 export { batchInsert, batchInsertRaw } from './batch-insert';

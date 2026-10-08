@@ -346,9 +346,9 @@ describe('Property 6: Multi-Tenant Isolation', () => {
           expect(bodyB.tenantId).toBe(tenantB);
           expect(bodyA.tenantId).not.toBe(bodyB.tenantId);
 
-          // Verify the SQL session variable was set correctly for each
-          expect(setConfigCalls).toContain(tenantA);
-          expect(setConfigCalls).toContain(tenantB);
+          // PRC-M367: the plugin is resolution-only; RLS GUC binding happens inside
+          // withTenantTransaction, so no out-of-transaction set_config is issued.
+          expect(setConfigCalls).toEqual([]);
 
           await app.close();
         }),

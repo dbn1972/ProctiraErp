@@ -4,6 +4,7 @@
  * These implementations store data in memory and are used for unit tests.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { CompletionStatus } from './schemas.js';
 import type {
   SurveyEntity,
@@ -103,17 +104,25 @@ export class InMemorySurveyRepository implements SurveyRepository {
 export class InMemoryDistributionRepository implements DistributionRepository {
   private records: DistributionRecordEntity[] = [];
 
-  async createMany(
+  async createManyIfAbsent(
     records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[],
   ): Promise<DistributionRecordEntity[]> {
+    // Synchronous check-and-insert (no await): the in-memory equivalent of
+    // a unique index with ON CONFLICT DO NOTHING.
     const now = new Date();
-    const entities = records.map((r) => ({
-      ...r,
-      createdAt: now,
-      updatedAt: now,
-    }));
-    this.records.push(...entities);
-    return entities;
+    const key = (r: { tenantId: string; surveyId: string; institutionId: string }) =>
+      `${r.tenantId}\u0000${r.surveyId}\u0000${r.institutionId}`;
+    const existing = new Set(this.records.map(key));
+    const inserted: DistributionRecordEntity[] = [];
+    for (const r of records) {
+      const k = key(r);
+      if (existing.has(k)) continue;
+      existing.add(k);
+      const entity = { ...r, createdAt: now, updatedAt: now };
+      this.records.push(entity);
+      inserted.push(entity);
+    }
+    return inserted;
   }
 
   async findBySurveyAndInstitution(

@@ -273,6 +273,10 @@ describe('validateTheme', () => {
             error: 'hsl(0, 70%, 60%)',
             textPrimary: 'hsl(220, 10%, 92%)',
             textSecondary: 'hsl(220, 10%, 65%)',
+            // Bright dark-mode surfaces require dark foregrounds for WCAG AA contrast.
+            onPrimary: 'hsl(0, 0%, 0%)',
+            onSecondary: 'hsl(0, 0%, 0%)',
+            onError: 'hsl(0, 0%, 0%)',
           },
           typography: {
             fontFamily: 'Inter, sans-serif',

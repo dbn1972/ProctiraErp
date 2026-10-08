@@ -45,7 +45,7 @@ export class OutboxEscalationPublisher implements EscalationPublisher {
       metadata: {
         correlationId: task.payload.instanceId,
         priority: task.options.priority,
-        delay: delayMs,
+        // PRC-M360: no transport delay - availableAt below schedules the row.
         maxRetries: task.options.maxRetries,
         retryCount: task.options.retryCount,
         headers: {
