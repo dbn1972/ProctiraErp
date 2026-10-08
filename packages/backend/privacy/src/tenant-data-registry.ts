@@ -262,9 +262,6 @@ const WIPE: Record<string, readonly string[]> = {
   ],
   integrations: [
     'developer_portal_api_keys',
-    // 134: developer sandbox tenants (tenant_id scoped); wiped on offboard like other
-    // integration state.
-    'developer_portal_sandboxes',
     'developer_portal_webhook_deliveries',
     // 113: envelope-encrypted signing secrets; child of developer_portal_webhooks.
     'developer_portal_webhook_signing_secrets',

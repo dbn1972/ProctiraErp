@@ -749,7 +749,7 @@ export class PgDeveloperPortalDurableStore {
     return withPlatformScope(this.pool, async (client: PgQueryable) => {
       const result = await client.query(
         `INSERT INTO developer_portal_sandboxes (
-           id, account_id, name, description, tenant_id, status, expires_at, api_endpoint, created_at
+           id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           sandbox.id,
@@ -1057,7 +1057,7 @@ function mapSandbox(row: Record<string, unknown>): SandboxEntity {
     accountId: String(row['account_id']),
     name: String(row['name']),
     description: row['description'] == null ? null : String(row['description']),
-    tenantId: String(row['tenant_id']),
+    tenantId: String(row['sandbox_tenant_id']),
     status: String(row['status']) as SandboxEntity['status'],
     expiresAt: toDate(row['expires_at']),
     apiEndpoint: String(row['api_endpoint']),
