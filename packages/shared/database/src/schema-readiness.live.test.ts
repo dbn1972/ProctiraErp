@@ -90,7 +90,7 @@ describe.skipIf(!DATABASE_URL)('UP-P0-02 runtime schema readiness (live)', () =>
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('082_repair_strict_tenant_fk_validate.sql');
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('092_hostel_assignment_uniqueness.sql');
     expect(REQUIRED_RUNTIME_MIGRATIONS.at(-1)).toBe(
-      '132_developer_portal_submissions_listings.sql',
+      '134_developer_portal_sandboxes_ratings_docs_analytics.sql',
     );
   });
 });

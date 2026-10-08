@@ -18,13 +18,17 @@ CREATE TABLE IF NOT EXISTS developer_portal_sandboxes (
   account_id   UUID NOT NULL,
   name         TEXT NOT NULL,
   description  TEXT,
-  tenant_id    UUID NOT NULL,
+  tenant_id    UUID NOT NULL REFERENCES tenants(id),
   status       TEXT NOT NULL DEFAULT 'provisioning'
     CHECK (status IN ('provisioning','active','expired','destroyed')),
   expires_at   TIMESTAMPTZ NOT NULL,
   api_endpoint TEXT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Leading tenant_id index (W1-DATA tenant-id index gate) for tenant-scoped sandbox reads/wipes.
+CREATE INDEX IF NOT EXISTS developer_portal_sandboxes_tenant_idx
+  ON developer_portal_sandboxes (tenant_id);
 
 CREATE INDEX IF NOT EXISTS developer_portal_sandboxes_account_idx
   ON developer_portal_sandboxes (account_id, created_at DESC);

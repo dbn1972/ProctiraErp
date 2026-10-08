@@ -9,8 +9,8 @@
  * - Provides a tenant-scoped API surface to plugin code
  * - Reports execution results back to the parent thread
  */
-import { parentPort, workerData } from 'node:worker_threads';
 import { createContext, Script } from 'node:vm';
+import { parentPort } from 'node:worker_threads';
 
 import { assertEgressAllowed } from './egress-policy.js';
 import type {
@@ -53,7 +53,7 @@ const BLOCKED_MODULES = new Set([
 /**
  * Creates a restricted require function that blocks dangerous modules.
  */
-function createRestrictedRequire(allowedNetworkHosts: string[]): (module: string) => unknown {
+function createRestrictedRequire(_allowedNetworkHosts: string[]): (module: string) => unknown {
   return (moduleName: string): unknown => {
     if (BLOCKED_MODULES.has(moduleName)) {
       throw new Error(`[Sandbox] Access to module '${moduleName}' is not permitted`);
@@ -86,7 +86,7 @@ function createRestrictedFetch(
         ? new URL(input)
         : input instanceof URL
           ? input
-          : new URL((input as Request).url);
+          : new URL(input.url);
 
     // NEW-g7_platform-011: fail-closed egress — reject '*' allow-lists and
     // private/loopback/metadata targets (SSRF), https-only, host must be allow-listed.
@@ -115,19 +115,19 @@ function createSandboxGlobals(
   const globals: Record<string, unknown> = {
     // Safe globals
     console: {
-      log: (...args: unknown[]) => {
+      log: (..._args: unknown[]) => {
         /* no-op in sandbox, or could be captured */
       },
-      warn: (...args: unknown[]) => {
+      warn: (..._args: unknown[]) => {
         /* no-op */
       },
-      error: (...args: unknown[]) => {
+      error: (..._args: unknown[]) => {
         /* no-op */
       },
-      info: (...args: unknown[]) => {
+      info: (..._args: unknown[]) => {
         /* no-op */
       },
-      debug: (...args: unknown[]) => {
+      debug: (..._args: unknown[]) => {
         /* no-op */
       },
     },
@@ -305,10 +305,10 @@ async function executeInSandbox(message: SandboxWorkerMessage): Promise<SandboxW
 // ─── Worker Thread Entry Point ────────────────────────────────────────────────
 
 if (parentPort) {
-  parentPort.on('message', async (message: SandboxWorkerMessage) => {
+  const port = parentPort;
+  port.on('message', (message: SandboxWorkerMessage) => {
     if (message.type === 'execute') {
-      const response = await executeInSandbox(message);
-      parentPort!.postMessage(response);
+      void executeInSandbox(message).then((response) => port.postMessage(response));
     }
   });
 }

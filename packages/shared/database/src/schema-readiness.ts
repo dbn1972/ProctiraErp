@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '132_developer_portal_submissions_listings.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '134_developer_portal_sandboxes_ratings_docs_analytics.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [

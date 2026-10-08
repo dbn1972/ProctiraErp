@@ -172,7 +172,7 @@ export class InProcessSandbox {
         filename: `plugin-${context.pluginId}-invoke.js`,
       });
 
-      const handlerResult = invokeScript.runInContext(vmContext, {
+      const handlerResult: unknown = invokeScript.runInContext(vmContext, {
         timeout: this.quota.maxCpuTimeMs,
         displayErrors: true,
       });
