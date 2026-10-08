@@ -201,6 +201,37 @@ grep -q "metrics.bearerTokenSecret.name" "$missing_token_err" \
   || die "W1-SEC-07: missing bearer failure must be explicit"
 rm -f "$missing_token_err"
 echo "OK production profile + W1-SEC-07 metrics contract"
+# PRC-H062 — render with the exact secret flags deploy.yml passes. Secret-bearing
+# services must get an ExternalSecret and an envFrom secretRef to its target;
+# services with an empty allowlist must get neither.
+echo "==> PRC-H062 deploy.yml secret wiring render"
+for SERVICE in api-gateway etl-worker web; do
+  wired_out="$(mktemp)"
+  helm template "proctira-${SERVICE}" "${SERVICE_CHART}" \
+    --namespace proctira-production \
+    --set service.name="${SERVICE}" \
+    --set image.tag=sha-ci \
+    --set externalSecret.enabled=true \
+    --set-string externalSecret.secretStoreRef.name=ci-store \
+    --set-string externalSecret.sharedRemoteKey=proctira/production/shared \
+    --values "${SERVICE_CHART}/values-production.yaml" \
+    >"$wired_out"
+  if [[ "$SERVICE" == "web" ]]; then
+    if grep -q "kind: ExternalSecret" "$wired_out"; then
+      die "PRC-H062: ${SERVICE} has no secret allowlist and must not render an ExternalSecret"
+    fi
+  else
+    grep -q "kind: ExternalSecret" "$wired_out" \
+      || die "PRC-H062: ${SERVICE} deploy render is missing its ExternalSecret"
+    grep -q "name: proctira-${SERVICE}-env" "$wired_out" \
+      || die "PRC-H062: ${SERVICE} deploy render does not reference its env Secret"
+    grep -q "key: proctira/production/shared" "$wired_out" \
+      || die "PRC-H062: ${SERVICE} ExternalSecret does not read the shared bundle"
+  fi
+  rm -f "$wired_out"
+done
+echo "OK PRC-H062 deploy secret wiring"
+
 # PRC-M011 — the gateway boot policy needs Keycloak ids + non-localhost URLs.
 # The thin chart must render them for api-gateway only, and skip empty values.
 echo "==> PRC-M011 gateway auth env (thin chart)"

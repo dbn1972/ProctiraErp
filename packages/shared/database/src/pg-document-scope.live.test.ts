@@ -114,4 +114,43 @@ describe('PgDocumentCollection scoping (live Postgres)', () => {
     expect(deleted).toBe(true);
     expect(await docs.get('b-only', { tenantId: TENANT_B })).toBeNull();
   });
+
+  it.skipIf(!live)(
+    'PRC-H116: tenant B cannot overwrite or re-parent tenant A row by reusing its id',
+    async () => {
+      await expect(docs.put(SHARED_ID, { owner: 'TENANT_B' }, TENANT_B)).rejects.toMatchObject({
+        code: 'DOCUMENT_OWNERSHIP_CONFLICT',
+      });
+      expect((await docs.get(SHARED_ID, { tenantId: TENANT_A }))?.owner).toBe('TENANT_A');
+    },
+  );
+
+  it.skipIf(!live)(
+    'PRC-H007/H116 regression: a non-canonical (uppercase) tenant id round-trips without a spurious ownership conflict',
+    async () => {
+      // control_plane_documents.tenant_id is uuid; the RLS policy compares
+      // tenant_id::text (canonical lowercase) against the bound app.tenant_id
+      // GUC. A uuid is case-insensitive, so an uppercase id denotes the same
+      // tenant — but once tenant-addressed ops stopped taking the platform escape
+      // (#585), an un-normalised GUC no longer matched and the write failed 42501
+      // (surfaced as DocumentOwnershipConflictError) while reads saw nothing.
+      const canonical = randomUUID();
+      const upper = canonical.toUpperCase();
+      await ensurePgTestTenant(pool!, canonical);
+      const upperId = `upper-${canonical}`;
+
+      // Write + read + overwrite under the uppercase id all succeed.
+      await docs.put(upperId, { owner: 'UPPER' }, upper);
+      expect((await docs.get(upperId, { tenantId: upper }))?.owner).toBe('UPPER');
+      expect((await docs.get(upperId, { tenantId: canonical }))?.owner).toBe('UPPER');
+      await docs.put(upperId, { owner: 'UPPER-2' }, upper);
+      expect((await docs.byTenant(upper)).map((r) => r.owner)).toContain('UPPER-2');
+
+      // Isolation is preserved: a different tenant still cannot reach it.
+      expect(await docs.get(upperId, { tenantId: TENANT_A })).toBeNull();
+      await expect(docs.put(upperId, { owner: 'TENANT_A' }, TENANT_A)).rejects.toMatchObject({
+        code: 'DOCUMENT_OWNERSHIP_CONFLICT',
+      });
+    },
+  );
 });

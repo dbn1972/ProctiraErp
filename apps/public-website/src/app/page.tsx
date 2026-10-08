@@ -61,7 +61,7 @@ const FEATURES = [
     icon: ShieldCheck,
     title: 'Security & compliance',
     description:
-      'Encryption in transit and at rest, role-based access control, immutable audit logs, and break-glass support controls — compliant by default.',
+      'Encryption in transit and at rest, role-based access control, audit logging for security-sensitive operations, and break-glass support controls — with evidence available on request.',
   },
 ];
 

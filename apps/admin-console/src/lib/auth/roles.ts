@@ -9,11 +9,7 @@
 
 /** Functional roles within the Platform Admin Console. */
 export type PlatformRole =
-  | 'platform_admin'
-  | 'ops_support'
-  | 'billing'
-  | 'security'
-  | 'engineering';
+  'platform_admin' | 'ops_support' | 'billing' | 'security' | 'engineering';
 
 /** All platform roles, in the order presented in the UI. */
 export const PLATFORM_ROLES: PlatformRole[] = [
@@ -58,6 +54,31 @@ export const AREA_ROLES = {
 } as const;
 
 export type AdminArea = keyof typeof AREA_ROLES;
+
+/**
+ * Derive the console role from canonical JWT role IDs. Platform tokens issued
+ * by TokenService carry `roles`; they do not carry the console-only
+ * `platformRole` claim. Display names are deliberately ignored because they
+ * are tenant-editable labels, not authorization inputs.
+ */
+export function platformRoleFromJwtRoles(roles: unknown): PlatformRole | undefined {
+  const roleIds = Array.isArray(roles)
+    ? roles.flatMap((role) => {
+        if (typeof role === 'string') return [role];
+        if (role && typeof role === 'object' && 'roleId' in role) {
+          const roleId = (role as { roleId?: unknown }).roleId;
+          return typeof roleId === 'string' ? [roleId] : [];
+        }
+        return [];
+      })
+    : [];
+
+  const normalized = new Set(roleIds.map((roleId) => roleId.trim().toLowerCase()));
+  if (normalized.has('platform_admin') || normalized.has('super-admin')) {
+    return 'platform_admin';
+  }
+  return PLATFORM_ROLES.find((role) => normalized.has(role));
+}
 
 /** Returns true when `role` is allowed in the given functional area. */
 export function hasRole(role: PlatformRole | undefined, area: AdminArea): boolean {

@@ -32,10 +32,10 @@ const FRAMEWORKS: ReadonlyArray<Framework> = [
   {
     icon: ShieldCheck,
     title: 'DPDP Act 2023',
-    status: 'Aligned',
-    body: "India's Digital Personal Data Protection Act sets the rules for processing personal data, with special safeguards for children. ProctiraERP implements consent capture, purpose limitation, breach-notification workflows, and Data Principal request handling.",
+    status: 'Control alignment',
+    body: "India's Digital Personal Data Protection Act sets the rules for processing personal data, with special safeguards for children. ProctiraERP includes workflows that support consent, purpose limitation, breach response, and Data Principal requests; deployment-specific evidence is available on request.",
     meaning:
-      'Parents and students can see, correct, and erase their data on request — and your institution can prove it acted lawfully, with consent records and audit trails ready for review.',
+      'Institutions can configure and evidence relevant privacy workflows. Legal obligations, retention choices, and operating procedures remain the responsibility of the institution and deployment operator.',
   },
   {
     icon: Globe,

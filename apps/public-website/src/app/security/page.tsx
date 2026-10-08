@@ -24,12 +24,12 @@ const CONTROLS = [
   {
     icon: Lock,
     title: 'Encryption at rest & in transit',
-    body: 'TLS 1.2+ everywhere and AES-256 at rest. Centralized secret management with automatic rotation and least-privilege access to keys.',
+    body: 'Deployment configurations support encrypted transport, encrypted storage, and centrally managed secrets. Customers can request the control narrative for their selected deployment.',
   },
   {
     icon: Users,
-    title: 'RBAC & audit logs',
-    body: 'Fine-grained, role-based permissions per module and field. Every read of sensitive student data and every write is recorded in an immutable audit trail.',
+    title: 'RBAC & audit logging',
+    body: 'Role-based permissions and audit logging are implemented for defined security-sensitive operations. Control coverage is verified continuously and documented in the trust pack.',
   },
   {
     icon: Clock,
@@ -44,7 +44,7 @@ const CONTROLS = [
   {
     icon: Sparkles,
     title: 'Tenant isolation',
-    body: 'Strong logical isolation per tenant with row- and connection-level enforcement. Cross-tenant access is impossible from application code.',
+    body: 'Tenant scoping is enforced across application and data layers. We continuously test isolation controls and provide implementation evidence for supported deployment paths.',
   },
   {
     icon: RotateCcw,
@@ -57,7 +57,7 @@ const BADGES = [
   'DPDP Act 2023',
   'GDPR-ready',
   'FERPA-aligned',
-  'ISO 27001',
+  'ISO 27001 control alignment (not certified)',
   'SOC 2 (in progress)',
   'WCAG 2.1 AA',
 ];
