@@ -32,7 +32,7 @@ describe('Staff HR routes (G-918)', () => {
         roles: ['hr_officer'],
       };
     });
-    await registerStaffHrRoutes(app, { hrService });
+    await registerStaffHrRoutes(app, { hrService, staffService });
     await app.ready();
   });
 
@@ -83,7 +83,8 @@ describe('Staff HR routes (G-918)', () => {
   it('returns 400 without tenant', async () => {
     const noTenant = Fastify();
     const repo = new InMemoryStaffRepository();
-    const hrService = new StaffHrService(new InMemoryStaffHrStore(), new StaffService(repo));
+    const staffService = new StaffService(repo);
+    const hrService = new StaffHrService(new InMemoryStaffHrStore(), staffService);
     // HR principal so the request clears the PRC-H088 domain gate and reaches the tenant check.
     noTenant.addHook('onRequest', async (request) => {
       (request as FastifyRequest & { user?: { sub?: string; roles?: string[] } }).user = {
@@ -91,7 +92,7 @@ describe('Staff HR routes (G-918)', () => {
         roles: ['hr_officer'],
       };
     });
-    await registerStaffHrRoutes(noTenant, { hrService });
+    await registerStaffHrRoutes(noTenant, { hrService, staffService });
     await noTenant.ready();
     const response = await noTenant.inject({ method: 'GET', url: '/staff/contracts' });
     expect(response.statusCode).toBe(400);

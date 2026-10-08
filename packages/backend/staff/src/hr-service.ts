@@ -313,6 +313,13 @@ export class StaffHrService {
     return this.store.listQualifications(tenantId, staffId);
   }
 
+  /** PRC-H090: resolve a qualification (for school-scope checks). */
+  async getQualification(tenantId: string, id: string): Promise<StaffQualificationRecord> {
+    const row = await this.store.findQualification(tenantId, id);
+    if (!row) throw new NotFoundError(`Qualification with id '${id}' not found`);
+    return row;
+  }
+
   async verifyQualification(
     tenantId: string,
     id: string,

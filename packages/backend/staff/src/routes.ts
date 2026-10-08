@@ -29,7 +29,12 @@ import {
   type StaffParams,
 } from './schemas.js';
 import { canViewStaffIdentity, maskIdentityNumber } from './staff-access.js';
-import { requireStaffAction, staffRequestRoles, staffWritePreHandler } from './staff-http-guard.js';
+import {
+  assertStaffWritableOr404,
+  requireStaffAction,
+  staffRequestRoles,
+  staffWritePreHandler,
+} from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
 /**
@@ -197,6 +202,17 @@ export async function registerStaffRoutes(
       }
 
       try {
+        // PRC-H090: a school-bound caller may only update staff in its own institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            paramsResult.data.id,
+          ))
+        )
+          return reply;
         const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(formatStaffResponse(staff));
       } catch (error: unknown) {
@@ -315,6 +331,17 @@ export async function registerStaffRoutes(
       }
 
       try {
+        // PRC-H090: offboarding is a staff mutation — enforce school scope.
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            paramsResult.data.id,
+          ))
+        )
+          return reply;
         const view = await staffService.offboard(
           tenantId,
           paramsResult.data.id,
@@ -445,6 +472,17 @@ export async function registerStaffRoutes(
       }
 
       try {
+        // PRC-H090: a school-bound caller may only delete staff in its own institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            paramsResult.data.id,
+          ))
+        )
+          return reply;
         await staffService.delete(tenantId, paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {

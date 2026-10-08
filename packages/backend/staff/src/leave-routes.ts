@@ -21,10 +21,17 @@ import {
   type StaffLeaveParams,
 } from './leave-schemas.js';
 import type { StaffLeaveService } from './leave-service.js';
-import { requireStaffAction, staffWritePreHandler } from './staff-http-guard.js';
+import {
+  assertStaffWritableOr404,
+  requireStaffAction,
+  staffWritePreHandler,
+} from './staff-http-guard.js';
+import type { StaffService } from './staff-service.js';
 
 export interface StaffLeaveRoutesOptions {
   leaveService: StaffLeaveService;
+  /** PRC-H090: used to enforce school-scope on leave writes. */
+  staffService: StaffService;
   prefix?: string;
   /**
    * PRC-H091: tenant-scoped staff existence check for balance routes. Missing
@@ -91,7 +98,7 @@ export async function registerStaffLeaveRoutes(
   fastify: FastifyInstance,
   options: StaffLeaveRoutesOptions,
 ): Promise<void> {
-  const { leaveService, prefix = '/staff', staffExists } = options;
+  const { leaveService, staffService, prefix = '/staff', staffExists } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
     if (!staffWritePreHandler(request, reply, 'staff.hr.write')) return reply;
@@ -153,6 +160,17 @@ export async function registerStaffLeaveRoutes(
       }
 
       try {
+        // PRC-H090: leave requests are scoped to the caller's institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            result.data.staffId,
+          ))
+        )
+          return reply;
         const leave = await leaveService.createLeave(tenantId, result.data);
         return reply.status(201).send(formatLeave(leave));
       } catch (error: unknown) {
@@ -200,6 +218,18 @@ export async function registerStaffLeaveRoutes(
       }
 
       try {
+        // PRC-H090: resolve the leave's staff and enforce school scope before deciding.
+        const existing = await leaveService.getLeave(tenantId, paramsResult.data.id);
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            existing.staffId,
+          ))
+        )
+          return reply;
         const leave = await leaveService.decideLeave(
           tenantId,
           paramsResult.data.id,
@@ -288,6 +318,17 @@ export async function registerStaffLeaveRoutes(
         }
         const scope = await resolveStaff(request, reply);
         if (!scope) return reply;
+        // PRC-H090: a school-bound caller may only set balances for its own staff.
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            scope.tenantId,
+            scope.staffId,
+          ))
+        )
+          return reply;
         const balance = await leaveService.setBalance(
           scope.tenantId,
           scope.staffId,
@@ -329,6 +370,11 @@ export async function registerStaffLeaveRoutes(
           });
         }
         try {
+          // PRC-H090: every staff member in the batch must be in the caller's institution(s).
+          for (const staffId of new Set(body.data.rows.map((r) => r.staffId))) {
+            if (!(await assertStaffWritableOr404(request, reply, staffService, tenantId, staffId)))
+              return reply;
+          }
           const result = await leaveService.importOpeningBalances(
             tenantId,
             body.data.rows,
