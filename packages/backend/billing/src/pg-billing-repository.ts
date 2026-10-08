@@ -43,7 +43,7 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   async updatePlan(id: string, data: Partial<PlanEntity>): Promise<PlanEntity | null> {
-    const existing = await this.plans.get(id);
+    const existing = await this.plans.get(id, { platform: true });
     if (!existing) return null;
     const updated: PlanEntity = {
       id: existing.id,
@@ -64,11 +64,11 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   findPlanById(id: string): Promise<PlanEntity | null> {
-    return this.plans.get(id);
+    return this.plans.get(id, { platform: true });
   }
 
   async findPlanByName(name: string): Promise<PlanEntity | null> {
-    const all = await this.plans.all();
+    const all = await this.plans.all({ platform: true });
     return all.find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
   }
 
@@ -76,7 +76,7 @@ export class PgBillingRepository implements BillingRepository {
     filter: PlanFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<PlanEntity>> {
-    let filtered = await this.plans.all();
+    let filtered = await this.plans.all({ platform: true });
     if (filter.tier) filtered = filtered.filter((p) => p.tier === filter.tier);
     if (filter.status) filtered = filtered.filter((p) => p.status === filter.status);
     if (filter.search) {
@@ -112,7 +112,7 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   deletePlan(id: string): Promise<boolean> {
-    return this.plans.delete(id);
+    return this.plans.delete(id, { platform: true });
   }
 
   // ─── Subscriptions ───────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ export class PgBillingRepository implements BillingRepository {
     id: string,
     data: Partial<SubscriptionEntity>,
   ): Promise<SubscriptionEntity | null> {
-    const existing = await this.subscriptions.get(id);
+    const existing = await this.subscriptions.get(id, { platformAdmin: true });
     if (!existing) return null;
     const updated: SubscriptionEntity = {
       id: existing.id,
@@ -149,7 +149,7 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   findSubscriptionById(id: string): Promise<SubscriptionEntity | null> {
-    return this.subscriptions.get(id);
+    return this.subscriptions.get(id, { platformAdmin: true });
   }
 
   async findActiveSubscription(tenantId: string): Promise<SubscriptionEntity | null> {
@@ -168,7 +168,7 @@ export class PgBillingRepository implements BillingRepository {
     statuses: SubscriptionEntity['status'][],
     planId?: string,
   ): Promise<SubscriptionEntity[]> {
-    const all = await this.subscriptions.all();
+    const all = await this.subscriptions.all({ platformAdmin: true });
     return all.filter(
       (s) => statuses.includes(s.status) && (planId === undefined || s.planId === planId),
     );
@@ -187,7 +187,7 @@ export class PgBillingRepository implements BillingRepository {
     const results: EntitlementEntity[] = [];
     for (const data of entitlements) {
       const key = this.entitlementKey(data.tenantId, data.featureKey);
-      const existing = await this.entitlements.get(key);
+      const existing = await this.entitlements.get(key, { tenantId: data.tenantId });
       const entity: EntitlementEntity = existing
         ? {
             ...existing,
@@ -207,13 +207,15 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   findEntitlement(tenantId: string, featureKey: string): Promise<EntitlementEntity | null> {
-    return this.entitlements.get(this.entitlementKey(tenantId, featureKey));
+    return this.entitlements.get(this.entitlementKey(tenantId, featureKey), { tenantId });
   }
 
   async deleteEntitlementsByTenant(tenantId: string): Promise<void> {
     const rows = await this.entitlements.where({ tenantId } as Partial<EntitlementEntity>);
     for (const row of rows) {
-      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey));
+      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey), {
+        tenantId: row.tenantId,
+      });
     }
   }
 
@@ -222,13 +224,17 @@ export class PgBillingRepository implements BillingRepository {
     const rows = await this.entitlements.byTenant(tenantId);
     for (const row of rows) {
       if (keep.has(row.featureKey)) continue;
-      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey));
+      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey), {
+        tenantId: row.tenantId,
+      });
     }
   }
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
     const rows = await this.entitlements.where({ subscriptionId } as Partial<EntitlementEntity>);
     for (const row of rows) {
-      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey));
+      await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey), {
+        tenantId: row.tenantId,
+      });
     }
   }
 
@@ -265,7 +271,7 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   async incrementUsage(id: string, increment: number): Promise<UsageEntity> {
-    const existing = await this.usage.get(id);
+    const existing = await this.usage.get(id, { platformAdmin: true });
     if (!existing) throw new Error(`Usage record with id '${id}' not found`);
     const updated: UsageEntity = {
       ...existing,

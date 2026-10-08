@@ -75,13 +75,14 @@ describe('PgDocumentCollection scoping (live Postgres)', () => {
   });
 
   it.skipIf(!live)(
-    'unscoped get still crosses tenants — the open P0, pinned until it is fixed',
+    'PRC-H007/H116: a tenant-scoped get no longer crosses tenants (P0 closed)',
     async () => {
-      // No scope, so no tenant_id predicate; the platform_admin escape that
-      // withPlatformScope binds defeats RLS. This SHOULD become null once the
-      // escape is made conditional.
-      const leaked = await docs.get(SHARED_ID);
-      expect(leaked?.owner).toBe('TENANT_A');
+      // Scope is now mandatory. Tenant B asking for the shared id under its own
+      // scope sees nothing — the SQL tenant_id predicate enforces isolation even
+      // if RLS were escaped. The explicit platformAdmin escape still reads it.
+      expect(await docs.get(SHARED_ID, { tenantId: TENANT_B })).toBeNull();
+      expect((await docs.get(SHARED_ID, { tenantId: TENANT_A }))?.owner).toBe('TENANT_A');
+      expect((await docs.get(SHARED_ID, { platformAdmin: true }))?.owner).toBe('TENANT_A');
     },
   );
 
@@ -98,9 +99,12 @@ describe('PgDocumentCollection scoping (live Postgres)', () => {
     expect(await docs.count({ platform: true })).toBe(1);
   });
 
-  it.skipIf(!live)('unscoped count sees every tenant — the same P0, pinned', async () => {
-    expect(await docs.count()).toBe(3);
-  });
+  it.skipIf(!live)(
+    'platformAdmin scope is the explicit cross-tenant escape (sees every row)',
+    async () => {
+      expect(await docs.count({ platformAdmin: true })).toBe(3);
+    },
+  );
 
   it.skipIf(!live)('scoped delete refuses to remove another tenant row', async () => {
     const deleted = await docs.delete('b-only', { tenantId: TENANT_A });

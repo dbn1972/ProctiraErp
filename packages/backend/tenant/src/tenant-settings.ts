@@ -80,7 +80,7 @@ export class PgTenantSettingsStore implements TenantSettingsStore {
     });
   }
   async get(tenantId: string): Promise<TenantSettingsRecord | null> {
-    const doc = await this.docs.get(tenantId);
+    const doc = await this.docs.get(tenantId, { tenantId });
     return doc && doc.tenantId === tenantId ? doc : null;
   }
   async put(record: TenantSettingsRecord): Promise<TenantSettingsRecord> {

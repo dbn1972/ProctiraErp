@@ -29,7 +29,7 @@ describe('PgDocumentCollection date revival (PRC-L352)', () => {
     const docs = new PgDocumentCollection<typeof stored>(poolReturning(stored), 'c', {
       reviveDates: ['expiresAt'],
     });
-    const doc = (await docs.get('d1'))!;
+    const doc = (await docs.get('d1', { platformAdmin: true }))!;
     expect(doc.code).toBe('2026-01-01T00:00:00Z');
     expect(doc.nested.code).toBe('2026-01-01T00:00:00Z');
     expect(doc.expiresAt).toBeInstanceOf(Date);
@@ -42,13 +42,13 @@ describe('PgDocumentCollection date revival (PRC-L352)', () => {
     const docs = new PgDocumentCollection<typeof stored>(poolReturning(stored), 'c', {
       reviveDates: false,
     });
-    const doc = (await docs.get('d1'))!;
+    const doc = (await docs.get('d1', { platformAdmin: true }))!;
     expect(doc.expiresAt).toBe('2026-02-01T00:00:00Z');
   });
 
   it('default keeps legacy revive-all behaviour (backward compatible)', async () => {
     const docs = new PgDocumentCollection<typeof stored>(poolReturning(stored), 'c');
-    const doc = (await docs.get('d1'))!;
+    const doc = (await docs.get('d1', { platformAdmin: true }))!;
     expect(doc.code as unknown).toBeInstanceOf(Date);
   });
 

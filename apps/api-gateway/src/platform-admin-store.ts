@@ -58,11 +58,12 @@ export class PgKeyedStore<T extends { id: string }> implements KeyedStore<T> {
   }
 
   get(id: string): Promise<T | null> {
-    return this.docs.get(id);
+    // Platform-admin console rows are platform-owned (NULL tenant_id) — PRC-H007/H116.
+    return this.docs.get(id, { platform: true });
   }
 
   list(): Promise<T[]> {
-    return this.docs.all();
+    return this.docs.all({ platform: true });
   }
 
   set(value: T): Promise<T> {
@@ -70,7 +71,7 @@ export class PgKeyedStore<T extends { id: string }> implements KeyedStore<T> {
   }
 
   count(): Promise<number> {
-    return this.docs.count();
+    return this.docs.count({ platform: true });
   }
 }
 

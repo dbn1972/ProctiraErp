@@ -156,7 +156,7 @@ export class PgTenantRepository implements TenantRepository {
 
   /** PRC-H099: hard-delete a never-active tenant (row + document) on rollback. */
   async discardProvisioningTenant(id: string): Promise<boolean> {
-    const doc = await this.tenants.get(id);
+    const doc = await this.tenants.get(id, { platform: true });
     if (doc && doc.status !== 'provisioning') return false;
     let removedRow = false;
     if (UUID_RE.test(id)) {
@@ -168,7 +168,7 @@ export class PgTenantRepository implements TenantRepository {
       );
       removedRow = res.rows.length > 0;
     }
-    const removedDoc = doc ? await this.tenants.delete(id) : false;
+    const removedDoc = doc ? await this.tenants.delete(id, { platform: true }) : false;
     return removedRow || removedDoc;
   }
 
@@ -206,7 +206,8 @@ export class PgTenantRepository implements TenantRepository {
    * not closed here — this makes the stores agree where both hold the same field.
    */
   async updateTenant(id: string, data: Partial<TenantEntity>): Promise<TenantEntity | null> {
-    const existing = (await this.tenants.get(id)) ?? (await this.findTenantInTable(id));
+    const existing =
+      (await this.tenants.get(id, { platform: true })) ?? (await this.findTenantInTable(id));
     if (!existing) return null;
     const updated: TenantEntity = {
       id: existing.id,
@@ -309,7 +310,7 @@ export class PgTenantRepository implements TenantRepository {
    * exists elsewhere, so do not treat these fields as authoritative for billing.
    */
   async findTenantById(id: string): Promise<TenantEntity | null> {
-    const doc = await this.tenants.get(id);
+    const doc = await this.tenants.get(id, { platform: true });
     if (doc) return doc;
 
     // A programming error — the wrong kind of pool — must not be mistaken for
@@ -459,7 +460,7 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   async findTenantBySlug(slug: string): Promise<TenantEntity | null> {
-    const all = await this.tenants.all();
+    const all = await this.tenants.all({ platform: true });
     return all.find((t) => t.slug.toLowerCase() === slug.toLowerCase()) ?? null;
   }
 
@@ -467,7 +468,7 @@ export class PgTenantRepository implements TenantRepository {
     filter: TenantFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TenantEntity>> {
-    let filtered = await this.tenants.all();
+    let filtered = await this.tenants.all({ platform: true });
     if (filter.status) filtered = filtered.filter((t) => t.status === filter.status);
     if (filter.region) filtered = filtered.filter((t) => t.region === filter.region);
     if (filter.search) {
@@ -544,11 +545,11 @@ export class PgTenantRepository implements TenantRepository {
    */
   async deleteTenant(id: string): Promise<boolean> {
     const removedRow = await this.softDeleteTenantRow(id);
-    const removedDocument = await this.tenants.delete(id);
+    const removedDocument = await this.tenants.delete(id, { platform: true });
     if (!removedDocument && !removedRow) return false;
     const domains = await this.domains.where({ tenantId: id } as Partial<DomainEntity>);
-    for (const d of domains) await this.domains.delete(d.id);
-    await this.usage.delete(id);
+    for (const d of domains) await this.domains.delete(d.id, { platform: true });
+    await this.usage.delete(id, { tenantId: id });
     return true;
   }
 
@@ -576,9 +577,9 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   async removeDomain(tenantId: string, domainId: string): Promise<boolean> {
-    const existing = await this.domains.get(domainId);
+    const existing = await this.domains.get(domainId, { platform: true });
     if (!existing || existing.tenantId !== tenantId) return false;
-    return this.domains.delete(domainId);
+    return this.domains.delete(domainId, { platform: true });
   }
 
   findDomainsByTenant(tenantId: string): Promise<DomainEntity[]> {
@@ -586,14 +587,14 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   async findDomainByName(domain: string): Promise<DomainEntity | null> {
-    const all = await this.domains.all();
+    const all = await this.domains.all({ platform: true });
     return all.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
   async getOrCreateUsage(tenantId: string): Promise<TenantUsageEntity> {
-    const existing = await this.usage.get(tenantId);
+    const existing = await this.usage.get(tenantId, { tenantId });
     if (existing) return existing;
     const now = new Date();
     const periodEnd = new Date(now);
@@ -682,10 +683,10 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   findBrandingDraft(tenantId: string): Promise<TenantBrandingDraftEntity | null> {
-    return this.brandingDrafts.get(tenantId);
+    return this.brandingDrafts.get(tenantId, { tenantId });
   }
 
   deleteBrandingDraft(tenantId: string): Promise<boolean> {
-    return this.brandingDrafts.delete(tenantId);
+    return this.brandingDrafts.delete(tenantId, { tenantId });
   }
 }
