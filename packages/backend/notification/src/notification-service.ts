@@ -15,7 +15,12 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
-import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
+import {
+  NotFoundError,
+  ValidationError,
+  BusinessRuleError,
+  assertPublicHttpsUrlDefault,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -281,7 +286,17 @@ export class NotificationService {
           break;
 
         case 'webhook':
-          if (this.webhookSender && notification.webhookUrl) {
+          // g7_platform-002: a webhook channel notification MUST have a configured sender and a
+          // valid, SSRF-safe https URL. Without a sender we fail closed (never mark 'delivered'
+          // when nothing was sent); an unsafe/invalid URL also fails the attempt.
+          if (!notification.webhookUrl) {
+            success = false;
+            errorMessage = 'Webhook notification has no target URL';
+          } else if (!this.webhookSender) {
+            success = false;
+            errorMessage = 'No webhook sender configured; delivery cannot be confirmed';
+          } else {
+            await assertPublicHttpsUrlDefault(notification.webhookUrl);
             const result = await this.webhookSender.send({
               url: notification.webhookUrl,
               payload: {
@@ -294,8 +309,6 @@ export class NotificationService {
             });
             success = result.success;
             errorMessage = result.error;
-          } else {
-            success = true;
           }
           break;
 

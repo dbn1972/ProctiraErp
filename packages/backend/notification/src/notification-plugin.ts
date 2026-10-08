@@ -15,6 +15,11 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  createEmailSenderFromEnv,
+  createPushSenderFromEnv,
+  createSmsSenderFromEnv,
+} from './channel-sender-factory.js';
 import type { NotificationRepository } from './notification-repository.js';
 import {
   NotificationService,
@@ -25,13 +30,9 @@ import {
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
-import {
-  createEmailSenderFromEnv,
-  createPushSenderFromEnv,
-  createSmsSenderFromEnv,
-} from './channel-sender-factory.js';
 import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
+import { createWebhookSenderFromEnv } from './webhook-sender.js';
 
 /**
  * Options for the notification plugin.
@@ -77,7 +78,7 @@ export const notificationPlugin = fp(
       prefsStore,
       emailSender = createEmailSenderFromEnv(),
       pushSender = createPushSenderFromEnv(),
-      webhookSender,
+      webhookSender = createWebhookSenderFromEnv(),
       smsSender = createSmsSenderFromEnv(),
       queuePublisher,
       config,

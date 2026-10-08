@@ -78,6 +78,16 @@ export type { ProviderDeliveryMode, ProviderModeEnv } from './provider-mode-poli
 // PRC-L579: shared NODE_ENV interpretation for fail-closed guards
 export { isProductionLike, isProductionNodeEnv, normalizeNodeEnv } from './node-env.js';
 
+// PRC-C003 / PRC-M618 / g7_platform-001/002: shared SSRF-safe fetch for tenant-controlled URLs
+export {
+  SsrfError,
+  safeFetch,
+  assertPublicHttpsUrl,
+  assertPublicHttpsUrlDefault,
+  isDisallowedAddress,
+} from './safe-fetch.js';
+export type { SafeFetchOptions } from './safe-fetch.js';
+
 // W1-ARCH-07: ordered SIGINT/SIGTERM shutdown (HTTP → resources → exit)
 export {
   DEFAULT_SHUTDOWN_TIMEOUT_MS,
