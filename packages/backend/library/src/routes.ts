@@ -24,6 +24,7 @@ import {
   RenewSchema,
   ReturnBarcodeSchema,
   ReturnSchema,
+  PayFineSchema,
   type AssessFineInput,
   type BarcodeQuery,
   type CheckoutInput,
@@ -40,6 +41,7 @@ import {
   type RenewInput,
   type ReturnBarcodeInput,
   type ReturnInput,
+  type PayFineInput,
 } from './schemas.js';
 
 /**
@@ -768,7 +770,7 @@ export async function registerLibraryRoutes(
   fastify.post(
     `${prefix}/fines/:id/pay`,
     async function payFineHandler(
-      request: FastifyRequest<{ Params: FineParams }>,
+      request: FastifyRequest<{ Params: FineParams; Body: PayFineInput }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(FineParamsSchema, request.params);
@@ -778,6 +780,16 @@ export async function registerLibraryRoutes(
           message: 'Invalid fine ID',
           statusCode: 400,
           errors: paramsResult.errors,
+        });
+      }
+      // PRC-H025: staff must supply the real payment method + receipt reference.
+      const bodyResult = validate(PayFineSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Payment method and reference are required',
+          statusCode: 400,
+          errors: bodyResult.errors,
         });
       }
       const tenantId = getTenantId(request);
@@ -791,7 +803,10 @@ export async function registerLibraryRoutes(
       try {
         const actorId =
           (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'library-system';
-        const fine = await libraryService.markFinePaid(tenantId, paramsResult.data.id, actorId);
+        const fine = await libraryService.markFinePaid(tenantId, paramsResult.data.id, actorId, {
+          paymentMethod: bodyResult.data.paymentMethod,
+          reference: bodyResult.data.reference,
+        });
         return reply.status(200).send(formatFine(fine));
       } catch (error: unknown) {
         if (error instanceof AppError) {

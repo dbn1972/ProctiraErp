@@ -89,6 +89,35 @@ describe('LibraryService.markFinePaid (PRC-H025)', () => {
     expect(ledger.invoices[0]!.id).toBe(assessed.fine.invoiceId);
   });
 
+  it('settles with the real payment method + reference (not a synthetic reference)', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const ledger = new InMemoryFeesLedgerPort();
+    const captured: Array<{ invoiceId: string; reference?: string }> = [];
+    const originalSettle = ledger.settleFineInvoice!.bind(ledger);
+    ledger.settleFineInvoice = async (tenantId, actorId, input) => {
+      captured.push({ invoiceId: input.invoiceId, reference: input.reference });
+      return originalSettle(tenantId, actorId, input);
+    };
+    const service = new LibraryService(repo, ledger);
+
+    const item = await service.createItem(TENANT, { title: 'Algorithms', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+    const assessed = await service.assessFine(TENANT, 'librarian-1', {
+      loanId: loan.id,
+      amountCents: 1500,
+    });
+
+    await service.markFinePaid(TENANT, assessed.fine.id, 'librarian-1', {
+      paymentMethod: 'upi',
+      reference: 'TXN-9001',
+    });
+
+    expect(captured).toHaveLength(1);
+    // Would fail before the fix: reference was the synthetic `library-fine:<id>`.
+    expect(captured[0]!.reference).toBe('upi:TXN-9001');
+    expect(captured[0]!.reference).not.toContain('library-fine:');
+  });
+
   it('still flips a local fine with no ledger invoice', async () => {
     const repo = new InMemoryLibraryRepository();
     const service = new LibraryService(repo, null);
