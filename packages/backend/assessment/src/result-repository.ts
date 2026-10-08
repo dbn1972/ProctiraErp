@@ -43,6 +43,23 @@ export interface StudentSubjectResult {
   grade: string;
   /** Grade descriptor (if available) */
   gradeDescriptor: string | null;
+  /**
+   * PRC-H034: true only when every assessment item has a recorded score.
+   * When false the weightedAverage/grade are "progress to date" (pro-rated
+   * over entered items) and must not be issued as a final grade.
+   */
+  complete: boolean;
+  /** Fraction (0-1) of the item set, by weight, that has an entered score. */
+  coverage: number;
+  /** Ids of items with no score entered yet. */
+  missingItemIds: string[];
+  /**
+   * PRC-H035: the grading scheme's value range for this subject, so an overall
+   * summary can normalise each subject to a percentage before averaging across
+   * subjects that use different schemes/scales.
+   */
+  schemeMinValue: number;
+  schemeMaxValue: number;
 }
 
 /**

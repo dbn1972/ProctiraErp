@@ -29,6 +29,15 @@ export interface AttendancePluginOptions {
   repository: AttendanceRepository;
   /** G-919 ops store (optional — factory default) */
   opsStore?: AttendanceOpsStore;
+  /**
+   * PRC-H041: timezone + dismissal config for device-punch classification.
+   * Defaults to Asia/Kolkata / 15:00 when omitted.
+   */
+  punchConfig?: {
+    resolveTimeZone?: (tenantId: string, institutionId: string) => Promise<string> | string;
+    defaultTimeZone?: string;
+    dismissalHour?: number;
+  };
   /** Route prefix for attendance (default: '/attendance') */
   prefix?: string;
 }
@@ -50,7 +59,7 @@ export const attendancePlugin = fp(
     // Create attendance service instance
     const attendanceService = new AttendanceService(repository);
     const opsStore = options.opsStore ?? createAttendanceOpsStore();
-    const opsService = new AttendanceOpsService(opsStore, repository);
+    const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {});
 
     // Decorate fastify with the attendance service
     fastify.decorate('attendanceService', attendanceService);

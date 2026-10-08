@@ -351,12 +351,16 @@ describe('ResultService', () => {
         academicPeriodId,
       );
 
-      // Only Midterm: 90% * 30/100 = 27
-      // Total weighted = 27, total weight = 30
-      // Scaled: 0 + (27/100)*100 = 27
+      // PRC-H034: a partial entry is pro-rated over the entered weight
+      // ("progress to date"), not zero-filled into a silent low grade.
+      // Only Midterm (30% weight) scored 90% → pro-rated weightedAverage = 90.
       expect(result.itemScores).toHaveLength(1);
-      expect(result.weightedAverage).toBe(27);
-      expect(result.grade).toBe('F'); // 27 is in F range (0-59)
+      expect(result.weightedAverage).toBe(90);
+      expect(result.grade).toBe('A'); // 90 is in A range
+      // And it is flagged incomplete so it is never issued as a final grade.
+      expect(result.complete).toBe(false);
+      expect(result.coverage).toBeCloseTo(0.3, 2);
+      expect(result.missingItemIds).toHaveLength(2);
     });
 
     it('should throw NotFoundError if no assessment items exist', async () => {

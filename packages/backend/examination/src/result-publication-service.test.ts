@@ -298,6 +298,21 @@ describe('ResultPublicationService', () => {
       expect(student1Math!.publishedAt).toBeInstanceOf(Date);
     });
 
+    it('is idempotent across re-publish: academic records are upserted, not duplicated (PRC-H055)', async () => {
+      const exam = createTestExamination();
+      await examRepository.create(exam);
+      resultRepository.seedCandidates(exam.id, createTestCandidates(exam.id), tenantId);
+
+      await service.publishResults(tenantId, exam.id);
+      const afterFirst = resultRepository.getAcademicRecordUpdates();
+      expect(afterFirst).toHaveLength(6); // 3 candidates × 2 subjects
+
+      // Re-publish (retry / second click): must not append a second set.
+      await service.publishResults(tenantId, exam.id);
+      const afterSecond = resultRepository.getAcademicRecordUpdates();
+      expect(afterSecond).toHaveLength(6);
+    });
+
     it('should update examination status to COMPLETED', async () => {
       const exam = createTestExamination({ status: 'IN_PROGRESS' });
       await examRepository.create(exam);

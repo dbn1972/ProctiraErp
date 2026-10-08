@@ -76,6 +76,19 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   async createStudentAttendance(
     data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<StudentAttendanceEntity> {
+    // PRC-H040: mirror the DB unique identity (COALESCE over nullable
+    // subject/period) so a duplicate create returns the existing row instead of
+    // a second record — the same contract the pg repository enforces.
+    const existing = this.studentAttendance.find(
+      (r) =>
+        r.tenantId === data.tenantId &&
+        r.studentId === data.studentId &&
+        r.classId === data.classId &&
+        r.date === data.date &&
+        (r.subjectId ?? null) === (data.subjectId ?? null) &&
+        (r.periodId ?? null) === (data.periodId ?? null),
+    );
+    if (existing) return existing;
     const entity: StudentAttendanceEntity = {
       ...data,
       createdAt: new Date(),

@@ -129,6 +129,11 @@ export const StudentSubjectResultResponseSchema = Type.Object({
   weightedAverage: Type.Number({ description: 'Weighted average score' }),
   grade: Type.String({ description: 'Assigned grade' }),
   gradeDescriptor: Type.Union([Type.String(), Type.Null()], { description: 'Grade descriptor' }),
+  complete: Type.Boolean({
+    description: 'PRC-H034: true only when every assessment item has a score',
+  }),
+  coverage: Type.Number({ description: 'Fraction (0-1) of item weight entered' }),
+  missingItemIds: Type.Array(Type.String(), { description: 'Items with no score yet' }),
 });
 
 export type StudentSubjectResultResponse = Static<typeof StudentSubjectResultResponseSchema>;

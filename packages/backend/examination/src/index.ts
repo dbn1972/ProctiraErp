@@ -53,6 +53,12 @@ export type {
 
 export { QueueDocumentTaskQueue } from './queue-document-task-queue.js';
 export type { ExamDocumentJobPayload } from './queue-document-task-queue.js';
+// PRC-H052: durable Postgres-backed document blob store (shared API + worker).
+export {
+  PgDocumentBlobStore,
+  createDocumentBlobStore,
+  tenantIdFromDocumentKey,
+} from './pg-document-blob-store.js';
 export {
   createDocumentOutboxFromEnv,
   createDocumentTaskQueueFromEnv,

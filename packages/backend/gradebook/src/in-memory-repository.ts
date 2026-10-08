@@ -1,5 +1,6 @@
 import { ConflictError } from '@proctira/common';
 
+import { readGradeWorkflowStatus } from './grade-workflow.js';
 import type {
   BoardCodeEntity,
   BoardExportCandidate,
@@ -393,6 +394,10 @@ export class InMemoryGradebookRepository
       for (const entry of this.entries.values()) {
         if (entry.tenantId !== tenantId) continue;
         if (filter.studentIds && !filter.studentIds.includes(entry.studentId)) continue;
+        // PRC-H064: only LOCKED/PUBLISHED grades are eligible for a board
+        // submission (mirrors the pg query filter).
+        const status = readGradeWorkflowStatus(entry.metadata, entry.lockedAt, entry.publishedAt);
+        if (status !== 'LOCKED' && status !== 'PUBLISHED') continue;
         const section = entry.sectionId ? this.sections.get(entry.sectionId) : null;
         if (section && section.institutionId !== filter.institutionId) continue;
         if (!section && filter.institutionId) {

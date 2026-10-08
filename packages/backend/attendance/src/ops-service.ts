@@ -76,9 +76,35 @@ function weekdayDates(from: string, to: string): string[] {
   return out;
 }
 
-function punchHour(iso: string): number {
+/**
+ * PRC-H041: resolve the local date (YYYY-MM-DD) and hour (0-23) of a punch in a
+ * given IANA timezone, so IST institutions classify and date-stamp punches by
+ * local wall-clock time instead of UTC. Returns null for an unparseable
+ * timestamp so the caller can reject the single event (not the batch).
+ */
+function localPunchParts(iso: string, timeZone: string): { date: string; hour: number } | null {
   const t = new Date(iso);
-  return Number.isNaN(t.getTime()) ? 12 : t.getUTCHours();
+  if (Number.isNaN(t.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(t);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    const year = get('year');
+    const month = get('month');
+    const day = get('day');
+    let hour = Number(get('hour'));
+    if (hour === 24) hour = 0; // some engines emit '24' for midnight
+    if (!year || !month || !day || Number.isNaN(hour)) return null;
+    return { date: `${year}-${month}-${day}`, hour };
+  } catch {
+    return null;
+  }
 }
 
 /** Patch that re-opens a claimed request when its attendance write fails. */
@@ -93,7 +119,28 @@ export class AttendanceOpsService {
   constructor(
     private readonly store: AttendanceOpsStore,
     private readonly attendance: AttendanceRepository,
+    /**
+     * PRC-H041: institution timezone + dismissal hour used to classify device
+     * OUT punches. Indian institutions default to Asia/Kolkata with a 15:00
+     * dismissal (region default is in-south-1). A resolver may override per
+     * institution; the constants are the fallback.
+     */
+    private readonly punchConfig: {
+      resolveTimeZone?: (tenantId: string, institutionId: string) => Promise<string> | string;
+      defaultTimeZone?: string;
+      dismissalHour?: number;
+    } = {},
   ) {}
+
+  /** PRC-H041: statuses a device punch must never silently overwrite. */
+  private static readonly DEVICE_PROTECTED_STATUSES: ReadonlySet<string> = new Set([
+    AttendanceStatus.ABSENT,
+    AttendanceStatus.EXCUSED,
+    AttendanceStatus.LATE,
+  ]);
+
+  /** Device principal id written as recordedBy / changedBy for punch updates. */
+  private static readonly DEVICE_ACTOR = '00000000-0000-4000-8000-0000000000de';
 
   listRegularisations(tenantId: string, status?: RegularisationRecord['status']) {
     return this.store.listRegularisations(tenantId, status ? { status } : undefined);
@@ -462,7 +509,26 @@ export class AttendanceOpsService {
   ): Promise<string | null> {
     const classId = event.classId!;
     const academicPeriodId = event.academicPeriodId!;
-    const date = event.punchedAt.slice(0, 10);
+
+    // PRC-H041: classify and date-stamp the punch in the institution timezone,
+    // not UTC. An IST dismissal punch at 15:00 (09:30 UTC) must be PRESENT, not
+    // EARLY_DEPARTURE, and must land on the correct local date.
+    const timeZone =
+      (await this.punchConfig.resolveTimeZone?.(tenantId, institutionId)) ??
+      this.punchConfig.defaultTimeZone ??
+      'Asia/Kolkata';
+    const dismissalHour = this.punchConfig.dismissalHour ?? 15;
+    const local = localPunchParts(event.punchedAt, timeZone);
+    if (!local) {
+      // Reject this single event (not the whole batch) by skipping the write.
+      return null;
+    }
+    const date = local.date;
+    const status =
+      event.type === 'OUT' && local.hour < dismissalHour
+        ? AttendanceStatus.EARLY_DEPARTURE
+        : AttendanceStatus.PRESENT;
+
     const existing = await this.attendance.findStudentAttendance(
       tenantId,
       event.studentId,
@@ -471,13 +537,31 @@ export class AttendanceOpsService {
       null,
       null,
     );
-    const status =
-      event.type === 'OUT' && punchHour(event.punchedAt) < 15
-        ? AttendanceStatus.EARLY_DEPARTURE
-        : AttendanceStatus.PRESENT;
 
     if (existing) {
-      await this.attendance.updateStudentAttendance(existing.id, tenantId, { status });
+      // PRC-H041: a device punch must not silently overwrite a teacher-set
+      // ABSENT/EXCUSED/LATE (or approved-leave EXCUSED). Leave it unchanged.
+      if (AttendanceOpsService.DEVICE_PROTECTED_STATUSES.has(existing.status)) {
+        return existing.id;
+      }
+      // Otherwise apply the device status AND write an audit row in the same
+      // transaction (previous status recorded), closing the unaudited-overwrite
+      // gap. auditOnlyOnStatusChange avoids a no-op audit when unchanged.
+      await this.attendance.applyStudentAttendanceWrites(tenantId, [
+        {
+          kind: 'update',
+          id: existing.id,
+          data: { status, recordedBy: AttendanceOpsService.DEVICE_ACTOR },
+          audit: {
+            id: uuidv4(),
+            previousStatus: null,
+            newStatus: status,
+            changedBy: AttendanceOpsService.DEVICE_ACTOR,
+            changedAt: new Date(),
+          },
+          auditOnlyOnStatusChange: true,
+        },
+      ]);
       return existing.id;
     }
     const created = await this.attendance.createStudentAttendance({
@@ -492,7 +576,7 @@ export class AttendanceOpsService {
       periodId: null,
       status,
       comment: `device ${event.type}`,
-      recordedBy: '00000000-0000-4000-8000-0000000000de',
+      recordedBy: AttendanceOpsService.DEVICE_ACTOR,
     });
     return created.id;
   }

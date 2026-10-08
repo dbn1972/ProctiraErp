@@ -25,6 +25,11 @@ export type BoardPackDefinition = {
   requiredSubjects: readonly string[];
   /** Optional electives — missing does not block export */
   optionalSubjects: readonly string[];
+  /**
+   * PRC-H064: per-board subject pass mark (out of the subject's max). Used to
+   * derive PASS/FAIL instead of a hard-coded 33 for every board.
+   */
+  passMark: number;
   marksheetFields: readonly BoardPackField[];
   examResultFields: readonly BoardPackField[];
   terminology: {
@@ -45,6 +50,7 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     version: '2026.1',
     requiredSubjects: ['ENG', 'MATH', 'SCI', 'SST'],
     optionalSubjects: ['LANG2', 'IT'],
+    passMark: 33,
     marksheetFields: [
       { source: 'nationalId', exportKey: 'roll_no', label: 'Roll No', required: true },
       {
@@ -102,6 +108,7 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     version: '2026.1',
     requiredSubjects: ['ENG', 'MATH', 'SCI', 'HIST'],
     optionalSubjects: ['GEO', 'COMP'],
+    passMark: 35,
     marksheetFields: [
       { source: 'nationalId', exportKey: 'unique_id', label: 'Unique ID', required: true },
       {
@@ -139,6 +146,7 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     version: '2026.1',
     requiredSubjects: ['ENG', 'MATH', 'SCI', 'SOC'],
     optionalSubjects: ['MAR', 'IT'],
+    passMark: 35,
     marksheetFields: [
       { source: 'nationalId', exportKey: 'seat_no', label: 'Seat No', required: true },
       { source: 'studentName', exportKey: 'student_name', label: 'Student Name', required: true },
