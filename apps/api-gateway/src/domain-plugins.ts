@@ -127,6 +127,9 @@ import {
   PrivacyService,
   privacyPlugin,
   readFinanceHealthErasureMode,
+  CompositeCorrectionApplier,
+  createStudentCorrectionApplier,
+  createStaffCorrectionApplier,
 } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
@@ -1827,6 +1830,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           ? {
               anonymizer: new PgDomainSubjectAnonymizer(privacyPool, { financeHealthMode }),
               tenantWipeExecutor: new PgTenantWipeExecutor(privacyPool, { financeHealthMode }),
+              // NEW-g7_platform-006: wire the correction applier so approved DSAR rectifications
+              // actually write to the owning domain. Fail-closed per domain: a subject type with
+              // no applier exposes no correctable fields and is rejected before any write.
+              correctionApplier: new CompositeCorrectionApplier({
+                student: createStudentCorrectionApplier(privacyPool),
+                staff: createStaffCorrectionApplier(privacyPool),
+                employee: createStaffCorrectionApplier(privacyPool),
+                teacher: createStaffCorrectionApplier(privacyPool),
+              }),
             }
           : {}),
         // PRC-M323: privacy lifecycle writes land in the platform audit trail.

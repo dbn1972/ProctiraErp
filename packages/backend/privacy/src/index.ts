@@ -1,6 +1,11 @@
 export { privacyPlugin, readPrivacyJobStuckMinutes } from './privacy-plugin.js';
 export { CompositeCorrectionApplier } from './correction-applier.js';
 export type { CorrectionApplier, CorrectionTarget } from './correction-applier.js';
+export {
+  PgTableCorrectionApplier,
+  createStudentCorrectionApplier,
+  createStaffCorrectionApplier,
+} from './pg-correction-appliers.js';
 export type { PrivacyPluginOptions } from './privacy-plugin.js';
 export { PrivacyExecutorNotConfiguredError, PrivacyService } from './privacy-service.js';
 export type {
