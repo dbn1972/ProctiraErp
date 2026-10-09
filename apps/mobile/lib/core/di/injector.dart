@@ -360,6 +360,7 @@ Future<void> configureDependencies({
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
     tenantProvider: tenantProvider,
+    biometric: getIt<BiometricService>(),
     purgeLocalFiles: () async {
       await capturedDocuments.purgeAll();
       await reportFiles.purgeAll();

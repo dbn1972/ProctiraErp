@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/assessment/presentation/assessment_results_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/lock_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/examination/presentation/examination_list_screen.dart';
 import '../../features/examination/presentation/examination_results_screen.dart';
@@ -88,6 +89,12 @@ class AppRouter {
           name: 'login',
           builder: (BuildContext context, GoRouterState state) =>
               const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/lock',
+          name: 'lock',
+          builder: (BuildContext context, GoRouterState state) =>
+              const LockScreen(),
         ),
         GoRoute(
           path: '/tenant',
@@ -291,6 +298,16 @@ class AppRouter {
     // Wait for bootstrap before redirecting.
     if (!auth.isResolved) {
       return null;
+    }
+
+    // PRC-M469: a biometric-locked session must stay on /lock until unlocked;
+    // no other route (including deep links) may render PII first.
+    if (auth.isLocked) {
+      return location == '/lock' ? null : '/lock';
+    }
+    // Once unlocked/unauthenticated, never strand the user on /lock.
+    if (location == '/lock') {
+      return auth.isAuthenticated ? '/' : '/login';
     }
 
     final bool atTenant = location == '/tenant';
