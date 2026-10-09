@@ -8,6 +8,7 @@ import { Button, Card, CardDescription, CardHeader, CardTitle } from '@proctira/
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { getSession } from '@/lib/auth/server';
 import { getRoleDashboard, type DashboardRole } from '@/lib/api/reports';
+import { detectDashboardRole } from '@/lib/dashboard/role-detection';
 
 import { RoleDashboardPanel } from '../_components/role-dashboard-panel';
 
@@ -21,15 +22,6 @@ function parseRole(value: string | string[] | undefined): DashboardRole | undefi
   return undefined;
 }
 
-function isParentSession(
-  roles: Array<{ roleId?: string; roleName?: string }> | undefined,
-): boolean {
-  return (roles ?? []).some((r) => {
-    const n = `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase();
-    return n.includes('parent') || n.includes('guardian');
-  });
-}
-
 interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -38,8 +30,13 @@ export default async function ReportsDashboardPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const requested = parseRole(searchParams?.role);
   const session = await getSession();
-  const parent = isParentSession(session?.user.roles);
-  const role = parent ? 'parent' : requested;
+  // NEW-g1b_web-002 / PRC-L271: the dashboard role is derived from the verified
+  // session token, never from the client-chosen ?role. A ?role is only honoured
+  // when it matches the role the session actually holds; otherwise it is
+  // ignored and the session's own role is used (fail closed). This stops a
+  // non-parent user from requesting ?role=board/principal to widen scope.
+  const sessionRole = detectDashboardRole(session?.user.roles);
+  const role = requested && requested === sessionRole ? requested : sessionRole;
 
   const { dashboard, source, status, error } = await getRoleDashboard(role);
 
