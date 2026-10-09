@@ -113,7 +113,8 @@ export function PayrollExportPanel({ initial }: { initial: PayrollExport | null 
         )
       ) : (
         <p className="text-sm text-muted-foreground" role="status">
-          Choose a month and build the export. Deductions are a placeholder (0).
+          Choose a month and build the export. Gross, deductions (including unpaid-absence
+          deductions) and net pay are shown per employee once the export is built.
         </p>
       )}
     </div>
