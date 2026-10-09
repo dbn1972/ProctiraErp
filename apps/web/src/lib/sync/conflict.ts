@@ -135,11 +135,11 @@ export interface SyncDiscardConflictEventDetail {
 // ─── Event names ────────────────────────────────────────────────────────────
 
 /** Fired when a queued op fails with a parsable 409 conflict. */
-export const SYNC_CONFLICT_EVENT = 'sync:conflict' as const;
+export const SYNC_CONFLICT_EVENT = 'sync:conflict';
 /** Fired when the user picks Amend in `<ConflictResolutionDialog>`. */
-export const SYNC_AMEND_CONFLICT_EVENT = 'sync:amend-conflict' as const;
+export const SYNC_AMEND_CONFLICT_EVENT = 'sync:amend-conflict';
 /** Fired when the user picks Discard in `<ConflictResolutionDialog>`. */
-export const SYNC_DISCARD_CONFLICT_EVENT = 'sync:discard-conflict' as const;
+export const SYNC_DISCARD_CONFLICT_EVENT = 'sync:discard-conflict';
 
 // `WindowEventMap` augmentation so `addEventListener` and
 // `dispatchEvent` are typed end-to-end.

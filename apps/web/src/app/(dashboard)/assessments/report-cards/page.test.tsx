@@ -36,7 +36,7 @@ import AssessmentReportCardsPage from './page';
 
 describe('AssessmentReportCardsPage jobs list (PRC-L030)', () => {
   it('does not render the raw storage URI', async () => {
-    const { container } = render(await AssessmentReportCardsPage());
+    const { container } = render(await AssessmentReportCardsPage({}));
     expect(container.innerHTML).not.toContain(ARTIFACT_URI);
     expect(container.innerHTML).not.toContain('s3://');
     const job = screen.getByTestId('report-card-job');

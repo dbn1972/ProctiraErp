@@ -15,11 +15,8 @@ vi.mock('@/lib/api/platform.server', () => ({
   verifyAuditChain: vi.fn(),
 }));
 
-import {
-  AUDIT_RETENTION_HARD_FLOOR_MONTHS,
-  minAuditRetentionMonths,
-  saveRetentionAction,
-} from './actions';
+import { saveRetentionAction } from './actions';
+import { AUDIT_RETENTION_HARD_FLOOR_MONTHS, minAuditRetentionMonths } from './retention-policy';
 
 const ORIGINAL_MIN = process.env.AUDIT_RETENTION_MIN_MONTHS;
 

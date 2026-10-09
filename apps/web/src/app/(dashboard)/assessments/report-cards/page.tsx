@@ -30,11 +30,9 @@ function formatJobDate(iso: string): string {
     : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
 }
 
-export default async function AssessmentReportCardsPage(
-  props: {
-    searchParams?: Promise<Record<string, string | string[] | undefined>>;
-  } = {},
-) {
+export default async function AssessmentReportCardsPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const searchParams = (await props.searchParams) ?? {};
   const [institutions, jobsResult] = await Promise.all([
     listInstitutions({ pageSize: 50 }).catch(() => ({
