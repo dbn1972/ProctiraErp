@@ -214,7 +214,8 @@ export class InMemoryAuditRepository implements AuditRepository {
    */
   async verifyChain(tenantId: string): Promise<ChainVerification> {
     const all = [...this.entries, ...this.archivedEntries].filter((e) => e.tenantId === tenantId);
-    return verifyEntrySequence(tenantId, all);
+    // PRC-M176 / NEW-g7_platform-012: strict — reject unchained rows inserted after cutover.
+    return verifyEntrySequence(tenantId, all, { strict: true });
   }
 
   async listTenantsWithArchivalEnabled(): Promise<string[]> {

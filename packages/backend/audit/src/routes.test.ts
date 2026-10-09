@@ -21,9 +21,11 @@ describe('Audit Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
-      (request as unknown as { user: { sub: string; name: string } }).user = {
+      (request as unknown as { user: { sub: string; name: string; roles: string[] } }).user = {
         sub: 'test-user-id',
         name: 'Test User',
+        // PRC-L280: default test principal holds an audit-write role.
+        roles: ['admin'],
       };
     });
 
@@ -426,6 +428,86 @@ describe('Audit Routes', () => {
       const body = response.json();
       expect(body.entryCount).toBe(0);
       expect(body.entries).toEqual([]);
+    });
+  });
+
+  // PRC-L279: no cross-tenant 'default' fallback — missing tenant context fails closed.
+  describe('tenant context required (PRC-L279)', () => {
+    it('rejects any audit route when tenant context is missing (400)', async () => {
+      const bare = Fastify();
+      bare.decorateRequest('tenantId', '');
+      bare.addHook('onRequest', async (request) => {
+        // No tenantId set; grant a write role so only the tenant guard can block.
+        (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+          sub: 'u',
+          roles: ['admin'],
+        };
+      });
+      await bare.register(auditPlugin, { repository: new InMemoryAuditRepository(), prefix: '/audit' });
+      await bare.ready();
+
+      const post = await bare.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(post.statusCode).toBe(400);
+      expect(post.json().code).toBe('TENANT_REQUIRED');
+
+      const get = await bare.inject({ method: 'GET', url: '/audit' });
+      expect(get.statusCode).toBe(400);
+      await bare.close();
+    });
+  });
+
+  // PRC-L280: writing audit evidence requires an audit/security/admin role.
+  describe('audit write authorization (PRC-L280)', () => {
+    async function appWithRoles(roles: string[]): Promise<FastifyInstance> {
+      const scoped = Fastify();
+      scoped.decorateRequest('tenantId', '');
+      scoped.addHook('onRequest', async (request) => {
+        (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
+        (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+          sub: 'u',
+          roles,
+        };
+      });
+      await scoped.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await scoped.ready();
+      return scoped;
+    }
+
+    it('rejects a non-privileged caller writing an audit entry (403)', async () => {
+      const scoped = await appWithRoles(['teacher']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN');
+      await scoped.close();
+    });
+
+    it('allows a non-privileged caller to READ audit logs (200)', async () => {
+      const scoped = await appWithRoles(['teacher']);
+      const res = await scoped.inject({ method: 'GET', url: '/audit' });
+      expect(res.statusCode).toBe(200);
+      await scoped.close();
+    });
+
+    it('allows an auditor role to write (201)', async () => {
+      const scoped = await appWithRoles(['auditor']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
     });
   });
 });
