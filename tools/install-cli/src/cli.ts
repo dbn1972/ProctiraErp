@@ -8,17 +8,44 @@
  *   proctira-install --help
  */
 
-import type { CliOptions, InstallConfig, InstallResult } from './types';
+import {
+  validateCommand,
+  healthCommand,
+  readinessCommand,
+  diagnosticsCommand,
+  upgradeCheckCommand,
+} from './commands';
 import { loadConfigFromFile, loadConfigFromEnv, loadConfigInteractive } from './config-loader';
 import { Installer, type InstallerDependencies } from './installer';
+import type { CliOptions, InstallConfig, InstallResult } from './types';
 
 const VERSION = '0.1.0';
+
+/**
+ * Operational subcommands that dispatch to the Volume 11 command modules.
+ * These are matched as the first positional token (before any flags).
+ */
+export const SUBCOMMANDS: Record<string, (argv: string[]) => Promise<void>> = {
+  validate: (argv) => validateCommand(argv),
+  health: (argv) => healthCommand(argv),
+  readiness: (argv) => readinessCommand(argv),
+  diagnostics: (argv) => diagnosticsCommand(argv),
+  'upgrade-check': (argv) => upgradeCheckCommand(argv),
+};
 
 const HELP_TEXT = `
 ProctiraERP Unified Platform - Install CLI v${VERSION}
 
 Usage:
   proctira-install [options]
+  proctira-install <command> [command-options]
+
+Commands:
+  validate            Validate configuration and connectivity
+  health              Run post-install health checks
+  readiness           Score enterprise readiness (0-100)
+  diagnostics         Generate a diagnostic bundle
+  upgrade-check       Run upgrade pre-checks (go/no-go)
 
 Options:
   --config <path>     Path to JSON configuration file
@@ -225,6 +252,25 @@ export async function run(
   argv: string[],
   deps?: Partial<InstallerDependencies>,
 ): Promise<InstallResult | null> {
+  // Subcommand dispatch MUST happen before config load so that
+  // `proctira-install validate|health|readiness|diagnostics|upgrade-check`
+  // reach their command handlers instead of silently running the installer.
+  const rawArgs = argv.slice(2);
+  const firstToken = rawArgs[0];
+  if (firstToken !== undefined && !firstToken.startsWith('-')) {
+    const handler = SUBCOMMANDS[firstToken];
+    if (handler) {
+      await handler(rawArgs.slice(1));
+      return null;
+    }
+    // Unknown positional — fail closed rather than defaulting to install.
+    console.error(`Unknown command: ${firstToken}`);
+    console.error(`Available commands: ${Object.keys(SUBCOMMANDS).join(', ')}`);
+    console.error('Use --help for usage information');
+    process.exitCode = 1;
+    return null;
+  }
+
   const options = parseArgs(argv);
 
   // Handle --help
