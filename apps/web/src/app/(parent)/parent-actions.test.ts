@@ -16,7 +16,6 @@ import { payInvoiceAction } from './parent-actions';
 
 const INVOICE = '00000000-0000-4000-8000-0000000000a1';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
 function paymentPayload() {
   return {
@@ -37,12 +36,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+  vi.unstubAllEnvs();
 });
 
 describe('payInvoiceAction (PRC-M484)', () => {
   it('fails closed and never calls the gateway when sandbox is not enabled', async () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     const result = await payInvoiceAction(INVOICE);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/cannot settle payments/i);
@@ -50,7 +49,7 @@ describe('payInvoiceAction (PRC-M484)', () => {
   });
 
   it('refuses sandbox payment in production even if the flag is set', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     process.env.FEES_STAFF_SANDBOX_PAYMENTS = 'true';
     const result = await payInvoiceAction(INVOICE);
     expect(result.status).toBe('error');
@@ -58,7 +57,7 @@ describe('payInvoiceAction (PRC-M484)', () => {
   });
 
   it('records a sandbox payment with a v4 Idempotency-Key when enabled', async () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     process.env.FEES_STAFF_SANDBOX_PAYMENTS = 'true';
     gatewayFetch.mockResolvedValue(paymentPayload());
     const result = await payInvoiceAction(INVOICE);

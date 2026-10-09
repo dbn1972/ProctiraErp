@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const ARTIFACT_URI = 's3://tenant-a-reports/students/stu-123/report-card.pdf?X-Amz-Signature=abc';
 
-const listGradebookSections = vi.fn(async () => ({ ok: true, data: [] }));
+const listGradebookSections = vi.fn(async (..._args: unknown[]) => ({ ok: true, data: [] }));
 
 vi.mock('@/lib/api/gradebook', () => ({
   listGradebookSections: (...args: unknown[]) => listGradebookSections(...args),
