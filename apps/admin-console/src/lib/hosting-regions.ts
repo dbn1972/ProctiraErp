@@ -1,10 +1,11 @@
 /**
- * Hosting regions the admin console already provisions.
- * Values match tenant fixtures and the tenant schema examples
- * (`us-east-1`, `us-west-2`, `eu-west-1`). Operators must pick one —
- * the form does not default to a region.
+ * Hosting regions the admin console provisions.
+ * India (`ap-south-1`) is listed first to reflect the platform's default
+ * data-residency region (PRC-L203); the string is validated downstream via
+ * `HOSTING_REGION_VALUES`. Operators must pick one — the form does not default.
  */
 export const HOSTING_REGIONS = [
+  { value: 'ap-south-1', label: 'India (Mumbai)' },
   { value: 'us-east-1', label: 'US East (N. Virginia)' },
   { value: 'us-west-2', label: 'US West (Oregon)' },
   { value: 'eu-west-1', label: 'EU (Ireland)' },
