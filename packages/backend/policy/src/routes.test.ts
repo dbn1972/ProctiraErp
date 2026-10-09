@@ -465,5 +465,101 @@ describe('Policy Routes', () => {
 
       expect(response.statusCode).toBe(204);
     });
+
+    // PRC-L487: ids are validated and the assignment must belong to the policy.
+    it('rejects a non-UUID assignment id with 400', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/policies',
+        payload: validPolicyBody,
+      });
+      const policyId = createRes.json().id;
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/policies/${policyId}/assignments/not-a-uuid`,
+      });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('returns 404 when the assignment belongs to a different policy', async () => {
+      // Policy A with an assignment.
+      const a = await app.inject({ method: 'POST', url: '/policies', payload: validPolicyBody });
+      const policyA = a.json().id;
+      await app.inject({ method: 'POST', url: `/policies/${policyA}/activate` });
+      const assignRes = await app.inject({
+        method: 'POST',
+        url: `/policies/${policyA}/assignments`,
+        payload: { policyId: policyA, targetType: 'tenant', targetId: tenantId },
+      });
+      const assignmentId = assignRes.json().id;
+
+      // Policy B (unrelated) — deleting A's assignment under B's :id must 404.
+      const b = await app.inject({
+        method: 'POST',
+        url: '/policies',
+        payload: { ...validPolicyBody, name: 'Policy B' },
+      });
+      const policyB = b.json().id;
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/policies/${policyB}/assignments/${assignmentId}`,
+      });
+      expect(response.statusCode).toBe(404);
+    });
+  });
+
+  // PRC-M607: evaluate ignores any body-supplied tenantId.
+  describe('POST /policies/evaluate tenant binding (PRC-M607)', () => {
+    it('ignores a body tenantId and evaluates only the caller tenant', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/policies',
+        payload: validPolicyBody,
+      });
+      const policyId = createRes.json().id;
+      await app.inject({ method: 'POST', url: `/policies/${policyId}/activate` });
+      await app.inject({
+        method: 'POST',
+        url: `/policies/${policyId}/assignments`,
+        payload: { policyId, targetType: 'tenant', targetId: tenantId },
+      });
+
+      // Supplying another tenant's id in the body must NOT change the evaluation
+      // tenant; the caller still only sees its own tenant's effective policy.
+      const response = await app.inject({
+        method: 'POST',
+        url: '/policies/evaluate',
+        payload: { type: 'password_complexity', tenantId: 'tenant-OTHER' },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().effectivePolicy).not.toBeNull();
+      expect(response.json().effectivePolicy.name).toBe('Test Password Policy');
+    });
+  });
+
+  // PRC-M611: list query is validated — bad pageSize/sortBy are rejected.
+  describe('GET /policies query validation (PRC-M611)', () => {
+    it('rejects a non-positive pageSize with 400', async () => {
+      const response = await app.inject({ method: 'GET', url: '/policies?pageSize=0' });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('rejects an out-of-range pageSize with 400', async () => {
+      const response = await app.inject({ method: 'GET', url: '/policies?pageSize=100000' });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('rejects an unknown sortBy with 400', async () => {
+      const response = await app.inject({ method: 'GET', url: '/policies?sortBy=DROP%20TABLE' });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('accepts a valid query', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/policies?pageSize=50&sortBy=priority&sortOrder=desc',
+      });
+      expect(response.statusCode).toBe(200);
+    });
   });
 });

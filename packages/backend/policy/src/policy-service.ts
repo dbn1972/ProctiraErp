@@ -11,6 +11,10 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  PolicyEvaluationEngine,
+  type PolicyEvaluationContext,
+} from './policy-evaluation-engine.js';
 import type {
   PolicyEntity,
   PolicyVersionEntity,
@@ -21,14 +25,9 @@ import type {
 import type {
   CreatePolicyInput,
   UpdatePolicyInput,
-  PolicyType,
   PolicyEvaluationResponse,
   CreatePolicyAssignmentInput,
 } from './schemas.js';
-import {
-  PolicyEvaluationEngine,
-  type PolicyEvaluationContext,
-} from './policy-evaluation-engine.js';
 
 /**
  * Service handling policy business logic.
@@ -296,7 +295,16 @@ export class PolicyService {
    *
    * @throws NotFoundError if assignment not found
    */
-  async removeAssignment(tenantId: string, assignmentId: string): Promise<void> {
+  async removeAssignment(tenantId: string, policyId: string, assignmentId: string): Promise<void> {
+    // PRC-L487: the assignment must belong to the policy named in the URL path,
+    // so a caller cannot delete an assignment of a different policy by guessing
+    // an assignment id under an unrelated :id.
+    const assignments = await this.repository.findAssignmentsByPolicy(policyId, tenantId);
+    if (!assignments.some((a: PolicyAssignmentEntity) => a.id === assignmentId)) {
+      throw new NotFoundError(
+        `Assignment with id '${assignmentId}' not found for policy '${policyId}'`,
+      );
+    }
     const removed = await this.repository.removeAssignment(assignmentId, tenantId);
     if (!removed) {
       throw new NotFoundError(`Assignment with id '${assignmentId}' not found`);

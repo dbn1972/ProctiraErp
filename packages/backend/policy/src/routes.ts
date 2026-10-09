@@ -18,6 +18,11 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type {
+  PolicyEntity,
+  PolicyVersionEntity,
+  PolicyAssignmentEntity,
+} from './policy-repository.js';
 import type { PolicyService } from './policy-service.js';
 import {
   CreatePolicySchema,
@@ -33,11 +38,6 @@ import {
   type PolicyEvaluationRequest,
   type CreatePolicyAssignmentInput,
 } from './schemas.js';
-import type {
-  PolicyEntity,
-  PolicyVersionEntity,
-  PolicyAssignmentEntity,
-} from './policy-repository.js';
 
 /**
  * Options for registering policy routes.
@@ -300,11 +300,29 @@ export async function registerPolicyRoutes(
         });
       }
 
-      const query = request.query as PolicyListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-M611: validate the query against its schema so pageSize is capped
+      // (1..100) and sortBy/sortOrder are restricted to known values; a bad
+      // pageSize/sortBy is a 400, never an uncapped or injected sort.
+      const rawQuery = request.query as Record<string, unknown>;
+      const coerced = {
+        ...rawQuery,
+        ...(rawQuery['page'] != null ? { page: Number(rawQuery['page']) } : {}),
+        ...(rawQuery['pageSize'] != null ? { pageSize: Number(rawQuery['pageSize']) } : {}),
+      };
+      const parsed = validate(PolicyListQuerySchema, coerced);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: parsed.errors,
+        });
+      }
+      const query = parsed.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'name';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      const sortOrder = query.sortOrder ?? 'asc';
 
       const result = await policyService.list(
         tenantId,
@@ -438,9 +456,12 @@ export async function registerPolicyRoutes(
       }
 
       try {
+        // PRC-M607: the tenant comes ONLY from the validated request context
+        // (JWT-derived tenantId), never from the request body. A body-supplied
+        // tenantId is ignored so a caller cannot evaluate another tenant's policies.
         const evaluation = await policyService.evaluate({
           type: result.data.type,
-          tenantId: result.data.tenantId ?? tenantId,
+          tenantId,
           institutionId: result.data.institutionId,
         });
         return reply.status(200).send(evaluation);
@@ -566,6 +587,23 @@ export async function registerPolicyRoutes(
       request: FastifyRequest<{ Params: { id: string; assignmentId: string } }>,
       reply: FastifyReply,
     ) {
+      // PRC-L487: validate BOTH ids as UUIDs and tie the assignment to the policy :id.
+      const idOk = validate(PolicyParamsSchema, { id: request.params.id });
+      const assignmentOk = validate(PolicyParamsSchema, { id: request.params.assignmentId });
+      if (!idOk.success || !assignmentOk.success) {
+        const errors = !idOk.success
+          ? idOk.errors
+          : !assignmentOk.success
+            ? assignmentOk.errors
+            : [];
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid policy or assignment ID',
+          statusCode: 400,
+          errors,
+        });
+      }
+
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -576,7 +614,11 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        await policyService.removeAssignment(tenantId, request.params.assignmentId);
+        await policyService.removeAssignment(
+          tenantId,
+          request.params.id,
+          request.params.assignmentId,
+        );
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {
