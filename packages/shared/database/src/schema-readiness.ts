@@ -15,7 +15,7 @@ export interface SchemaReadinessQueryable {
 /** Latest non-seed domain migration required by this application build. */
 // tools/scripts/required-migrations-lib.sh parses this declaration as a single line.
 // prettier-ignore
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '134_developer_portal_sandboxes_ratings_docs_analytics.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '192_health_phi_break_glass_transition_guard.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [

@@ -9,7 +9,7 @@
  * - Outputs go/no-go recommendation
  */
 
-import { existsSync, readFileSync, statfsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statfsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,30 @@ export interface UpgradeCheckOptions {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Minimal shape of the package.json fields this command reads. */
+interface PackageManifest {
+  version?: string;
+  peerDependencies?: Record<string, string>;
+}
+
+function readManifest(path: string): PackageManifest {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object') throw new Error(`invalid manifest: ${path}`);
+  const raw = parsed as Record<string, unknown>;
+  const peers = raw['peerDependencies'];
+  return {
+    version: typeof raw['version'] === 'string' ? raw['version'] : undefined,
+    peerDependencies:
+      peers && typeof peers === 'object'
+        ? Object.fromEntries(
+            Object.entries(peers as Record<string, unknown>).filter(
+              (e): e is [string, string] => typeof e[1] === 'string',
+            ),
+          )
+        : undefined,
+  };
+}
+
 function parseVersion(version: string): { major: number; minor: number; patch: number } | null {
   const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
@@ -94,7 +118,7 @@ function getCurrentVersion(projectRoot: string): string {
   try {
     const pkgPath = join(projectRoot, 'package.json');
     if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      const pkg = readManifest(pkgPath);
       return pkg.version ?? '0.0.0';
     }
   } catch {
@@ -115,7 +139,6 @@ function checkPluginCompatibility(
   }
 
   try {
-    const { readdirSync } = require('node:fs');
     const entries = readdirSync(pluginsDir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -125,7 +148,7 @@ function checkPluginCompatibility(
       if (!existsSync(pluginPkgPath)) continue;
 
       try {
-        const pluginPkg = JSON.parse(readFileSync(pluginPkgPath, 'utf-8'));
+        const pluginPkg = readManifest(pluginPkgPath);
         const peerDeps = pluginPkg.peerDependencies ?? {};
         const platformDep = peerDeps['@proctira/common'] ?? peerDeps['@proctira/plugin-sdk'];
 
@@ -164,7 +187,10 @@ function checkPluginCompatibility(
   return results;
 }
 
-function checkThemeCompatibility(projectRoot: string, targetVersion: string): CompatibilityCheck[] {
+function checkThemeCompatibility(
+  projectRoot: string,
+  _targetVersion: string,
+): CompatibilityCheck[] {
   const results: CompatibilityCheck[] = [];
   const themesDir = join(projectRoot, 'themes');
 
@@ -173,7 +199,6 @@ function checkThemeCompatibility(projectRoot: string, targetVersion: string): Co
   }
 
   try {
-    const { readdirSync } = require('node:fs');
     const entries = readdirSync(themesDir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -183,12 +208,12 @@ function checkThemeCompatibility(projectRoot: string, targetVersion: string): Co
       if (!existsSync(themePkgPath)) continue;
 
       try {
-        const themePkg = JSON.parse(readFileSync(themePkgPath, 'utf-8'));
+        const themePkg = readManifest(themePkgPath);
         results.push({
           name: entry.name,
           compatible: true,
           currentVersion: themePkg.version,
-          message: `Theme "${entry.name}" v${themePkg.version} — assumed compatible`,
+          message: `Theme "${entry.name}" v${themePkg.version ?? 'unknown'} — assumed compatible`,
         });
       } catch {
         results.push({

@@ -310,9 +310,7 @@ async function main() {
 
   // M436: refuse to DROP schema_migrations on a non-disposable target.
   if (!isDisposableTarget(url, confirm)) {
-    console.error(
-      'W1-DATA-17 lock recovery drill: refusing to run — target DB is not disposable.',
-    );
+    console.error('W1-DATA-17 lock recovery drill: refusing to run — target DB is not disposable.');
     console.error(
       '  Use a database named *_test or *_drill, or set DRILL_CONFIRM=1 / --confirm to override.',
     );

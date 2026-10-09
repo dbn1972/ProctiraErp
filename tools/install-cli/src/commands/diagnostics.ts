@@ -12,9 +12,11 @@
  * Output: diagnostics-{timestamp}.json
  */
 
+import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { hostname, platform, arch, release, totalmem, freemem, cpus, uptime } from 'node:os';
 import { join } from 'node:path';
+
 import { runReadinessCheck } from './readiness';
 
 // ---------------------------------------------------------------------------
@@ -193,14 +195,12 @@ function getVersionInfo(): DiagnosticBundle['versions'] {
   };
 
   try {
-    const { execSync } = require('node:child_process');
     versions.pnpm = execSync('pnpm --version', { encoding: 'utf-8' }).trim();
   } catch {
     // pnpm not available
   }
 
   try {
-    const { execSync } = require('node:child_process');
     versions.docker = execSync('docker --version', { encoding: 'utf-8' }).trim();
   } catch {
     // docker not available

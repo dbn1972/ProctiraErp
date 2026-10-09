@@ -59,7 +59,12 @@ test('runLockRecoveryDrill fails closed when blocked apply unexpectedly succeeds
     url: 'postgresql://unused',
     delayMs: 0,
     psqlFn: () => ({ status: 0, stdout: '0', stderr: '' }),
-    holdFn: () => ({ killed: false, kill() { this.killed = true; } }),
+    holdFn: () => ({
+      killed: false,
+      kill() {
+        this.killed = true;
+      },
+    }),
     runApplyFn: () => ({ status: 0, stdout: 'applied=1', stderr: '' }),
   });
   assert.equal(report.ok, false);
@@ -81,7 +86,12 @@ test('runLockRecoveryDrill passes when fail-then-resume path is clean', async ()
       }
       return { status: 0, stdout: '', stderr: '' };
     },
-    holdFn: () => ({ killed: false, kill() { this.killed = true; } }),
+    holdFn: () => ({
+      killed: false,
+      kill() {
+        this.killed = true;
+      },
+    }),
     runApplyFn: () => {
       applyCalls += 1;
       if (applyCalls === 1) {
@@ -93,7 +103,8 @@ test('runLockRecoveryDrill passes when fail-then-resume path is clean', async ()
       }
       return {
         status: 0,
-        stdout: '==> Applying /tmp/x/sql/001_w1_data17_lock_probe.sql (per-file transaction)\napplied=1',
+        stdout:
+          '==> Applying /tmp/x/sql/001_w1_data17_lock_probe.sql (per-file transaction)\napplied=1',
         stderr: '',
       };
     },

@@ -35,9 +35,7 @@ const gradle = read('android/app/build.gradle.kts');
 const unconditionalDebug =
   /release\s*\{[^}]*signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)\s*}/s;
 if (unconditionalDebug.test(gradle)) {
-  failures.push(
-    'android release build type signs with debug keys unconditionally (PRC-M470)',
-  );
+  failures.push('android release build type signs with debug keys unconditionally (PRC-M470)');
 }
 if (!/throw[^\n]*GradleException/.test(gradle)) {
   failures.push(
@@ -51,7 +49,9 @@ if (!/assertSecureApiBaseUrl/.test(injector)) {
   failures.push('injector.dart is missing the assertSecureApiBaseUrl guard (PRC-M470)');
 }
 if (!/isRelease\s*&&\s*scheme\s*!==?\s*'https'|isRelease && scheme != 'https'/.test(injector)) {
-  failures.push('injector.dart does not reject cleartext API_BASE_URL in release builds (PRC-M470)');
+  failures.push(
+    'injector.dart does not reject cleartext API_BASE_URL in release builds (PRC-M470)',
+  );
 }
 
 if (failures.length > 0) {

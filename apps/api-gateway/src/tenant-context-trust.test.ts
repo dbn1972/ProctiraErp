@@ -104,9 +104,9 @@ describe('W1-SEC-01 (COMPLETE) tenant context trust', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(response.json().message)).toMatch(
-      /verified UUID claim|trusted slug|missing verified JWT tenantId/i,
-    );
+    // PRC-L584: the client message is generic (no tenant UUID/slug echo); the
+    // detailed reason is logged server-side only.
+    expect(String(response.json().message)).toBe('Tenant could not be resolved for this request.');
   });
 
   it('rejects authenticated requests with invalid (non-UUID) JWT tenantId', async () => {
@@ -123,7 +123,9 @@ describe('W1-SEC-01 (COMPLETE) tenant context trust', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(response.json().message)).toMatch(/Invalid tenant ID format/);
+    // PRC-L584: the client message is generic (no tenant UUID/slug echo); the
+    // detailed reason is logged server-side only.
+    expect(String(response.json().message)).toBe('Tenant could not be resolved for this request.');
   });
 
   it('JWT-bound tenant is accepted on protected routes even when X-Tenant-ID mismatches', async () => {
