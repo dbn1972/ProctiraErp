@@ -127,6 +127,13 @@ export interface SandboxOptions {
   enableNetwork?: boolean;
   /** Audit callback for recording execution events */
   onAudit?: (record: SandboxAuditRecord) => void | Promise<void>;
+  /**
+   * NEW-g7_platform-011: the node:vm InProcessSandbox is NOT a security boundary (Object
+   * constructor / prototype escapes are well known). It therefore refuses to run plugin code by
+   * default. Set this to true ONLY for first-party, trusted code in dev/tests; untrusted
+   * tenant-authored plugins must use a true isolate/worker-based sandbox. Fail-closed.
+   */
+  allowUntrustedInProcess?: boolean;
 }
 
 /**

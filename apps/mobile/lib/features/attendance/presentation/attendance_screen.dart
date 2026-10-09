@@ -14,6 +14,7 @@ import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/tenant/tenant_provider.dart';
 import '../data/attendance_repository.dart';
+import 'attendance_academic_period_picker.dart';
 import 'attendance_class_picker.dart';
 import 'attendance_geofence_widget.dart';
 
@@ -38,8 +39,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final TextEditingController _institutionCtrl = TextEditingController();
 
   /// Academic period the marks belong to; the backend requires it on every
-  /// attendance record (PRC-H060).
-  final TextEditingController _periodCtrl = TextEditingController();
+  /// attendance record (PRC-H060). Chosen from the institution's real periods
+  /// (fed by GET /api/v1/academic-periods) rather than a typed UUID.
+  List<AcademicPeriodOption> _periods = const <AcademicPeriodOption>[];
+  String? _selectedPeriodId;
+  bool _periodsLoading = false;
+  String? _periodsError;
   DateTime _date = DateTime.now();
   bool _loading = false;
   bool _submitting = false;
@@ -63,6 +68,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     studentApi: getIt<StudentApi>(),
   );
   late final GeofenceLocator _locator = buildAppGeofenceLocator();
+  late final InstitutionApi _institutionApi = getIt<InstitutionApi>();
   late final SyncStatusController _syncStatus = EngineSyncStatusController(
     engine: getIt<SyncEngine>(),
     resolver: ConflictResolver(database: getIt<AppDatabase>()),
@@ -76,6 +82,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     // Keep per-row sync state (synced / failed / conflict) current as the
     // queue drains in the background (PRC-H011).
     _queueSub = _syncStatus.changes.listen((_) => _reloadQuietly());
+    // PRC-H060: load the institution's academic periods so the teacher picks a
+    // real period instead of typing a UUID.
+    unawaited(_loadPeriods());
+  }
+
+  /// Load academic periods for the picker (PRC-H060). Periods are tenant-scoped
+  /// on the backend; failures surface as a helper/error and leave marking gated
+  /// (no selectable period ⇒ cannot mark).
+  Future<void> _loadPeriods() async {
+    setState(() {
+      _periodsLoading = true;
+      _periodsError = null;
+    });
+    try {
+      final List<Map<String, dynamic>> rows = await _institutionApi
+          .fetchAcademicPeriods(
+            _institutionCtrl.text.trim().isEmpty
+                ? null
+                : _institutionCtrl.text.trim(),
+          );
+      final List<AcademicPeriodOption> options = rows
+          .map(AcademicPeriodOption.fromJson)
+          .whereType<AcademicPeriodOption>()
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        _periods = options;
+        if (_selectedPeriodId != null &&
+            !options.any(
+              (AcademicPeriodOption p) => p.id == _selectedPeriodId,
+            )) {
+          _selectedPeriodId = null;
+        }
+        _periodsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _periodsLoading = false;
+        _periodsError = userErrorMessage(error, context: 'academic periods');
+      });
+    }
   }
 
   Future<void> _reloadQuietly() async {
@@ -104,7 +152,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   void dispose() {
     _queueSub?.cancel();
     _institutionCtrl.dispose();
-    _periodCtrl.dispose();
     super.dispose();
   }
 
@@ -206,7 +253,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   /// nothing reaches the sync queue that the server would reject (PRC-H060).
   bool get _canMark =>
       (_selectedClass?.trim().isNotEmpty ?? false) &&
-      _periodCtrl.text.trim().isNotEmpty;
+      (_selectedPeriodId?.trim().isNotEmpty ?? false);
 
   Future<void> _mark(
     AttendanceRosterEntry entry,
@@ -229,7 +276,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         entry: entry,
         institutionId: _institutionCtrl.text.trim(),
         classId: _selectedClass,
-        academicPeriodId: _periodCtrl.text.trim(),
+        academicPeriodId: _selectedPeriodId,
         date: _dateString,
         status: status,
         recordedBy: recordedBy,
@@ -356,14 +403,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _periodCtrl,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Academic period ID',
-                  helperText: 'Required before marking attendance',
-                  prefixIcon: Icon(Icons.event_note_outlined),
-                ),
+              AttendanceAcademicPeriodPicker(
+                periods: _periods,
+                value: _selectedPeriodId,
+                loading: _periodsLoading,
+                error: _periodsError,
+                onChanged: (String? value) =>
+                    setState(() => _selectedPeriodId = value),
               ),
               const SizedBox(height: 12),
               Row(

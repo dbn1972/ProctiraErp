@@ -49,6 +49,32 @@ export const FineParamsSchema = Type.Object({
 
 export type FineParams = Static<typeof FineParamsSchema>;
 
+/**
+ * PRC-H025 — payment method + receipt reference captured by staff when marking
+ * a library fine paid. Replaces the previous synthetic `library-fine:<id>`
+ * reference so the fee-ledger settlement records the real receipt.
+ */
+export const PayFineSchema = Type.Object({
+  paymentMethod: Type.Union(
+    [
+      Type.Literal('cash'),
+      Type.Literal('card'),
+      Type.Literal('upi'),
+      Type.Literal('bank_transfer'),
+      Type.Literal('cheque'),
+      Type.Literal('other'),
+    ],
+    { description: 'How the fine was paid' },
+  ),
+  reference: Type.String({
+    minLength: 1,
+    maxLength: 128,
+    description: 'Receipt / transaction reference for the payment',
+  }),
+});
+
+export type PayFineInput = Static<typeof PayFineSchema>;
+
 export const PlaceHoldSchema = Type.Object({
   itemId: Type.String({ pattern: UUID_PATTERN }),
   patronUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),

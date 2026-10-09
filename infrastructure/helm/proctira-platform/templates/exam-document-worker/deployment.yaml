@@ -1,0 +1,89 @@
+{{- if .Values.examDocumentWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proctira.fullname" . }}-exam-document-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: exam-document-worker
+    app.kubernetes.io/component: worker
+spec:
+  # PRC-H051: durable queue consumer for exam document generation jobs.
+  replicas: {{ .Values.examDocumentWorker.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exam-document-worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    {{- toYaml .Values.examDocumentWorker.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exam-document-worker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: proctira-platform
+        app.kubernetes.io/component: worker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "proctira.podSecurityContext" . | nindent 8 }}
+      # Allow in-flight job to drain before SIGKILL (worker awaits handler).
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: exam-document-worker
+          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.examDocumentWorker.image "appVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.examDocumentWorker.image.pullPolicy }}
+          securityContext:
+            {{- include "proctira.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          ports:
+            - name: health
+              containerPort: {{ .Values.examDocumentWorker.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.examDocumentWorker.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            # NEW-g3_infra_tools-001 / PRC-M279: least-privilege per-key secrets.
+            # Only DATABASE_URL + RABBITMQ_URL — never the full bundle (no
+            # JWT_SECRET / PHI_ENCRYPTION_KEY / COOKIE_SECRET / S3 keys).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: DATABASE_URL
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: RABBITMQ_URL
+          envFrom:
+            - configMapRef:
+                name: {{ include "proctira.configmapName" . }}
+          resources:
+            {{- toYaml .Values.examDocumentWorker.resources | nindent 12 }}
+          {{- with .Values.examDocumentWorker.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.examDocumentWorker.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

@@ -95,6 +95,7 @@ test('shared per-service chart changes fan out to every canonical workload', () 
   assert.deepEqual(out.stdout.trim().split(',').sort(), [
     'api-gateway',
     'etl-worker',
+    'exam-document-worker',
     'registration-portal',
     'web',
   ]);

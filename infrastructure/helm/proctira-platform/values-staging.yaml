@@ -52,6 +52,13 @@ etlWorker:
     minReplicas: 1
     maxReplicas: 3
 
+examDocumentWorker:
+  replicaCount: 1
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+
 registrationPortal:
   replicaCount: 2
 

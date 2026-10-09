@@ -54,7 +54,7 @@ describe('HR route authorization (PRC-H088)', () => {
         roles,
       };
     });
-    await registerStaffHrRoutes(app, { hrService });
+    await registerStaffHrRoutes(app, { hrService, staffService });
     await app.ready();
   });
 
@@ -139,7 +139,7 @@ describe('HR route authorization under the gateway /api/v1 prefix (PRC-H088)', (
     // Mirrors the gateway: each domain is mounted inside register(..., { prefix: '/api/v1' }).
     await app.register(
       async (scope) => {
-        await registerStaffHrRoutes(scope, { hrService, prefix: '/staff' });
+        await registerStaffHrRoutes(scope, { hrService, staffService, prefix: '/staff' });
       },
       { prefix: '/api/v1' },
     );

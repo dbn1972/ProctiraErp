@@ -8,6 +8,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { ConflictError, NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { safeFetch, assertPublicHttpsUrlShape, SsrfError } from '@proctira/common/safe-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -149,6 +150,11 @@ export class DeveloperPortalService {
   private readonly signingSecretWriter: WebhookSigningSecretWriter | undefined;
   /** W1-SEC-08: nonce replay store for inbound signature verification. */
   private readonly replayStore: WebhookReplayStore | null | undefined;
+  /**
+   * PRC-M618 / g7_platform-001: validates a tenant-supplied webhook URL (SSRF guard) at
+   * create/update time. Set in the constructor; defaults to the real DNS-resolving guard.
+   */
+  private readonly validateWebhookUrl: (url: string) => Promise<void>;
 
   constructor(
     private readonly repository: DeveloperPortalExtendedRepository,
@@ -170,6 +176,11 @@ export class DeveloperPortalService {
        * secret rotation fail with 503 instead of registering an unsignable webhook.
        */
       signingSecretWriter?: WebhookSigningSecretWriter;
+      /**
+       * PRC-M618 / g7_platform-001: injectable SSRF validator for webhook create/update URLs.
+       * Defaults to the real DNS-resolving guard; tests inject a deterministic classifier.
+       */
+      validateWebhookUrl?: (url: string) => Promise<void>;
     },
   ) {
     this.signingSecretResolver = options?.signingSecretResolver;
@@ -183,8 +194,26 @@ export class DeveloperPortalService {
     this.httpFetch =
       options?.httpFetch ??
       (async (url, init) => {
-        const res = await fetch(url, init);
+        // PRC-M618 / g7_platform-001: tenant-supplied webhook URLs are fetched through the
+        // shared SSRF guard — https-only, private/loopback/link-local/metadata/CGNAT blocked
+        // (incl. IPv6), redirects manually re-validated, timeout + response size cap. Fails
+        // closed: an SsrfError (or any transport error) surfaces as a non-ok result so the
+        // delivery is recorded failed and retried, never silently "delivered".
+        const res = await safeFetch(url, {
+          method: init.method,
+          headers: init.headers,
+          body: init.body,
+        });
         return { status: res.status, ok: res.ok };
+      });
+    this.validateWebhookUrl =
+      options?.validateWebhookUrl ??
+      ((url: string) => {
+        // DNS-free structural check at create/update (rejects non-https + literal private/metadata
+        // IPs); the full resolve + redirect SSRF guard runs at delivery time via safeFetch, so
+        // persistence never depends on live DNS.
+        assertPublicHttpsUrlShape(url);
+        return Promise.resolve();
       });
   }
 
@@ -433,6 +462,9 @@ export class DeveloperPortalService {
       );
     }
 
+    // PRC-M618 / g7_platform-001: reject SSRF-unsafe webhook URLs before storing.
+    await this.assertSafeWebhookUrl(input.url);
+
     // Generate secret if not provided
     const secret = input.secret ?? generateApiKey();
     const secretHash = hashApiKey(secret);
@@ -462,6 +494,22 @@ export class DeveloperPortalService {
     }
     // The plaintext is returned once (server-generated secrets are otherwise unknowable).
     return input.secret === undefined ? { ...created, signingSecret: secret } : created;
+  }
+
+  /**
+   * PRC-M618 / g7_platform-001: fail-closed webhook URL validation. Rejects non-https,
+   * private/loopback/link-local/metadata/CGNAT (incl. IPv6) targets as a BusinessRuleError so the
+   * API surfaces a 4xx validation error instead of registering an SSRF-capable webhook.
+   */
+  private async assertSafeWebhookUrl(url: string): Promise<void> {
+    try {
+      await this.validateWebhookUrl(url);
+    } catch (err) {
+      if (err instanceof SsrfError) {
+        throw new BusinessRuleError(`Webhook URL is not allowed: ${err.message}`);
+      }
+      throw err;
+    }
   }
 
   private requireSigningSecretWriter(): WebhookSigningSecretWriter {
@@ -506,7 +554,11 @@ export class DeveloperPortalService {
     const updates: Partial<
       Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
     > = {};
-    if (input.url !== undefined) updates.url = input.url;
+    if (input.url !== undefined) {
+      // PRC-M618 / g7_platform-001: re-validate the new URL before it can be stored/dispatched.
+      await this.assertSafeWebhookUrl(input.url);
+      updates.url = input.url;
+    }
     if (input.events !== undefined) updates.events = input.events;
     if (input.secret !== undefined) {
       // PRC-M211: rotate the envelope first (retires the previous version) so the hash and

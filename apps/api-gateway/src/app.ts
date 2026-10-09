@@ -76,6 +76,11 @@ import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import { registerAuthAudit } from './auth-audit.js';
+import {
+  billingEntitlementsEnforced,
+  evaluateBillingEntitlement,
+  tenantIdFromRequest,
+} from './billing-entitlements.js';
 import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -107,6 +112,7 @@ import {
   shouldAuditMutation,
   wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
+import { areaForPlatformRoute, hasAreaAccess } from './platform-area-rbac.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
@@ -127,6 +133,7 @@ import {
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
+import { getTenantCustomRoleProvider } from './tenant-custom-roles.js';
 import {
   configureTenantStatusSource,
   currentTenantStatusSource,
@@ -872,6 +879,56 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
+  // 8a-quater. G-811 / PRC-H044 — Plan entitlements & per-plan quotas enforced
+  // against the tenant's real subscription (billingService.checkEntitlement).
+  // Premium-feature routes return 402/403; quota-limited creates (student/staff
+  // seat caps) return 402 (no plan) / 429 (quota exhausted). Fails closed: no
+  // active subscription ⇒ denied on every gated route. Opt-in per deployment
+  // via BILLING_ENTITLEMENTS_ENFORCED (safest default: off until subscriptions
+  // are seeded — documented in billing-entitlements.ts). The /billing/me/* self
+  // read is never gated by itself (it has no premium/quota segment).
+  if (billingEntitlementsEnforced()) {
+    app.addHook('onRequest', async (request, reply) => {
+      const url = request.url.split('?')[0]!;
+      if (!url.startsWith('/api/v1/')) return;
+      if (isPublicRegistrationPath(url)) return;
+      if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+      const denial = await evaluateBillingEntitlement(
+        app.billingService,
+        tenantIdFromRequest(request),
+        request.method,
+        url,
+      );
+      if (denial) {
+        return reply.status(denial.statusCode).send({
+          code: denial.code,
+          message: denial.message,
+          statusCode: denial.statusCode,
+          ...(denial.feature ? { feature: denial.feature } : {}),
+          ...(denial.metric ? { metric: denial.metric } : {}),
+          ...(denial.quota ? { quota: denial.quota } : {}),
+        });
+      }
+    });
+  }
+
+  // PRC-H044 — tenant self-service read of its own entitlements. Scoped
+  // strictly to the JWT tenant (RBAC resource `billing-self`); never reaches
+  // the platform-admin-only billing routes. Available even while suspended so a
+  // tenant can see why it is blocked.
+  app.get('/api/v1/billing/me/entitlements', async (request, reply) => {
+    const tenantId = tenantIdFromRequest(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const summary = await app.billingService.getTenantEntitlements(tenantId);
+    return reply.status(200).send(summary);
+  });
+
   // 8a-ter. G-805 — School (institution) scope for school-bound principals.
   //
   // G-805-FIX-1: decideInstitutionScope's 'inject' branch defaults a missing
@@ -966,6 +1023,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
+  // PRC-H101: tenant custom roles (tenant.roles) feed authorization. The base
+  // registry ids are immutable built-ins; a tenant document reusing one is ignored.
+  const baseRoleIds = new Set(rbacRegistry.getAllRoles().map((r) => r.roleId));
+  const customRoleProvider = getTenantCustomRoleProvider(baseRoleIds);
   // PRC-L119: area create/move bumps a per-tenant stamp in the shared Redis so every replica's
   // RBAC area resolver reloads the tree within ~1s (TTL remains the bound without Redis).
   configureAreaHierarchyVersionStore(
@@ -1215,6 +1276,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
     if (resource === 'platform') {
       if (isPlatformAdmin) return;
+      // PRC-H001: a narrower platform role (billing/security/ops_support/engineering)
+      // may reach the platform-admin console routes it is permitted for; the
+      // platform-admin-ui plugin re-checks the exact area (single source of truth).
+      if (url.startsWith('/api/v1/')) {
+        const consolePath = url.slice('/api/v1'.length);
+        const area = areaForPlatformRoute(method, consolePath);
+        if (area && hasAreaAccess(roles, area)) return;
+      }
       return reply.status(403).send({
         code: 'FORBIDDEN',
         message: 'Platform administrator role required',
@@ -1249,7 +1318,22 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       await scopedResolver.ensureTenantLoaded(authUser.tenantId);
     }
 
-    const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
+    // PRC-H101: merge the tenant's custom roles for role ids the base registry
+    // does not define, so console-defined roles grant/deny at the gateway.
+    const callerRoleIds = roles.map((r) => (typeof r === 'string' ? r : r.roleId));
+    const effectiveRegistry = await customRoleProvider.registryForRequest(
+      rbacRegistry,
+      authUser.tenantId,
+      callerRoleIds,
+    );
+
+    const result = await evaluatePermission(
+      authUser,
+      resource,
+      action,
+      effectiveRegistry,
+      areaResolver,
+    );
 
     if (!result.granted) {
       return reply.status(403).send({

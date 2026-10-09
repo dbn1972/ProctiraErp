@@ -66,6 +66,17 @@ export function resolveFeesReadScope(
 }
 
 /**
+ * PRC-M511: a self-pay caller (parent/guardian/student) holds fees.read.self but not the staff
+ * fees.read permission. Such callers may only pay invoices of their own linked students, with the
+ * payer identity taken from the JWT (never a client-supplied payerUserId), and may not record
+ * staff-only tender types (e.g. cash) on the pay path.
+ */
+export function isSelfPayCaller(request: FastifyRequest): boolean {
+  const roles = feesRequestRoles(request);
+  return !hasFeesAccess(roles, 'fees.read') && hasFeesAccess(roles, 'fees.read.self');
+}
+
+/**
  * Staff-only fees read: rejects self-scope callers (parent/guardian/student) even if they hold
  * fees.read.self. Use on routes that cannot be meaningfully self-scoped (tenant-wide ledgers,
  * trial balance, reconciliation, dues reports).

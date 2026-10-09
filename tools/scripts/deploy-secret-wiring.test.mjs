@@ -39,3 +39,66 @@ test('the store name is passed through env, not interpolated into the script', (
   const script = step.slice(step.indexOf('run: |'));
   assert.doesNotMatch(script, /\$\{\{\s*vars\./);
 });
+
+// PRC-H062 — the proctira-platform chart (pg-backup + phi-retention CronJobs,
+// ingress, NetworkPolicy, durable workers) must be deployed by CI, fail closed
+// on a missing pre-created Secret, and gated like the service deploy.
+function platformDeployStep() {
+  const start = deploy.indexOf('- name: Deploy proctira-platform chart via Helm');
+  assert.ok(start >= 0, 'deploy.yml must deploy the proctira-platform chart (PRC-H062)');
+  const end = deploy.indexOf('- name: ', start + 10);
+  return deploy.slice(start, end === -1 ? undefined : end);
+}
+
+test('deploy-platform job exists and is gated on migrate + runtime-role', () => {
+  const jobStart = deploy.indexOf('deploy-platform:');
+  assert.ok(jobStart >= 0, 'deploy.yml must define a deploy-platform job');
+  const block = deploy.slice(jobStart, jobStart + 600);
+  assert.match(
+    block,
+    /needs:\s*\[ci-gate, prepare, build-images, migrate-database, runtime-role-gate\]/,
+  );
+  assert.match(block, /environment: \$\{\{ needs\.prepare\.outputs\.environment \}\}/);
+});
+
+test('platform deploy installs the proctira-platform chart with the pre-created Secret', () => {
+  const step = platformDeployStep();
+  assert.match(step, /helm upgrade --install proctira-platform/);
+  assert.match(step, /\.\/infrastructure\/helm\/proctira-platform/);
+  assert.match(step, /secrets\.existingSecret="\$\{PLATFORM_EXISTING_SECRET\}"/);
+});
+
+test('platform deploy fails closed before helm when the Secret var is unset', () => {
+  const step = platformDeployStep();
+  const guard = step.indexOf('if [ -z "${PLATFORM_EXISTING_SECRET}" ]');
+  assert.ok(guard >= 0, 'platform deploy must refuse an empty PLATFORM_EXISTING_SECRET');
+  assert.ok(guard < step.indexOf('helm upgrade --install'), 'guard must precede helm');
+  assert.match(step.slice(guard, step.indexOf('helm upgrade --install')), /exit 1/);
+});
+
+test('platform secret var reaches the shell only through env', () => {
+  const step = platformDeployStep();
+  assert.match(step, /PLATFORM_EXISTING_SECRET: \$\{\{ vars\.PLATFORM_EXISTING_SECRET \}\}/);
+  const script = step.slice(step.indexOf('run: |'));
+  assert.doesNotMatch(script, /\$\{\{\s*vars\./);
+});
+
+test('platform deploy verifies the DR CronJobs it just introduced', () => {
+  const verifyStart = deploy.indexOf('- name: Verify DR CronJobs and workers exist');
+  assert.ok(verifyStart >= 0, 'platform deploy must verify pg-backup/phi-retention exist');
+  const block = deploy.slice(verifyStart, verifyStart + 1200);
+  assert.match(block, /pg-backup/);
+  assert.match(block, /phi-retention/);
+  assert.match(block, /exam-document-worker/);
+});
+
+test('PRC-H062: platform deploy runs the CI-pushed worker images', () => {
+  const wf = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+  for (const [key, svc] of [
+    ['examDocumentWorker', 'exam-document-worker'],
+    ['etlWorker', 'etl-worker'],
+  ]) {
+    assert.match(wf, new RegExp(`image-repository\\.sh "\\$REGISTRY" "\\$IMAGE_NAMESPACE" ${svc}`));
+    assert.match(wf, new RegExp(`--set-string ${key}\\.image\\.repository=`));
+  }
+});

@@ -1,16 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
+import { StepCard } from '@/components/step-card';
 import { apiClient, type CdnConfig, type ValidationResult } from '@/lib/api-client';
 
 interface CdnStepProps {
   onComplete: () => void;
   onBack: () => void;
 }
-
-type CdnAdapter = 'cloudfront' | 'nginx' | 'custom';
 
 export function CdnStep({ onComplete, onBack }: CdnStepProps) {
   const [config, setConfig] = useState<CdnConfig>({
@@ -238,7 +237,7 @@ export function CdnStep({ onComplete, onBack }: CdnStepProps) {
           </button>
           <button
             type="button"
-            onClick={handleTest}
+            onClick={() => void handleTest()}
             disabled={testing || !config.baseUrl}
             className="btn-primary"
           >

@@ -73,7 +73,6 @@ const PROXIED_PREFIXES = ['/api/v1/auth/'] as const;
  * resolving (remove it from the list).
  */
 const KNOWN_DRIFT: readonly string[] = [
-  'GET /api/v1/institutions/:id/academic-periods',
   'GET /api/v1/institutions/:id/contact',
   'GET /api/v1/institutions/:id/infrastructure',
   'GET /api/v1/notifications',

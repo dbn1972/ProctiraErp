@@ -34,6 +34,26 @@ import type {
   DowngradeResult,
 } from './schemas.js';
 
+/**
+ * PRC-H044: tenant-facing entitlement summary for `GET /billing/me/entitlements`.
+ * Fails closed — `subscribed: false` with empty feature/quota lists means the
+ * client must deny quota-limited and premium features by default.
+ */
+export interface TenantEntitlementsSummary {
+  /** True only when the tenant has an active (non-suspended, non-lapsed) subscription. */
+  subscribed: boolean;
+  /** Lifecycle status: 'none' when unsubscribed, 'trial_expired' for a lapsed trial. */
+  status: SubscriptionEntity['status'] | 'none' | 'trial_expired';
+  /** Current plan id when subscribed. */
+  planId?: string;
+  /** ISO timestamp of the current period end when subscribed. */
+  currentPeriodEnd?: string;
+  /** Feature flags effective for the tenant. */
+  features: Array<{ featureKey: string; enabled: boolean }>;
+  /** Quota metrics with usage; limit -1 means unlimited. */
+  quotas: Array<{ metric: string; used: number; limit: number; remaining: number }>;
+}
+
 /** W1-DATA-09: plan prices are integer minor units (cents), never floats. */
 function assertIntegerCentsPrice(label: string, value: number | null | undefined): void {
   if (value == null) return;
@@ -578,6 +598,65 @@ export class BillingService {
     return {
       allowed: true,
       featureFlag: true,
+    };
+  }
+
+  /**
+   * PRC-H044: tenant-facing read of its own entitlements for
+   * `GET /billing/me/entitlements`.
+   *
+   * Fails closed: a tenant with no active subscription (no plan assigned) is
+   * reported as not subscribed with an empty feature/quota set, so the client
+   * must treat quota-limited and premium features as denied by default.
+   */
+  async getTenantEntitlements(tenantId: string): Promise<TenantEntitlementsSummary> {
+    const found = await this.repository.findActiveSubscription(tenantId);
+    if (!found) {
+      return { subscribed: false, status: 'none', features: [], quotas: [] };
+    }
+    const subscription = await this.refreshLifecycle(found);
+    const lapsed = isLapsedTrial(subscription);
+    const active = !lapsed && subscription.status !== 'suspended';
+    const entitlements = (await this.repository.findEntitlementsByTenant(tenantId)).filter(
+      (e) => e.subscriptionId === subscription.id,
+    );
+
+    const usageByMetric = new Map<string, number>();
+    try {
+      const usageRecords = await this.repository.getUsageByTenant(
+        tenantId,
+        subscription.currentPeriodStart,
+        subscription.currentPeriodEnd,
+      );
+      for (const record of usageRecords) usageByMetric.set(record.metric, record.used);
+    } catch {
+      // Usage read is best-effort; absence of usage never grants extra access.
+    }
+
+    const features: TenantEntitlementsSummary['features'] = [];
+    const quotas: TenantEntitlementsSummary['quotas'] = [];
+    for (const entitlement of entitlements) {
+      if (entitlement.quotaLimit === null) {
+        // Feature flags are only effective while the subscription is active.
+        features.push({
+          featureKey: entitlement.featureKey,
+          enabled: active && entitlement.enabled,
+        });
+      } else {
+        const used = usageByMetric.get(entitlement.featureKey) ?? 0;
+        const limit = entitlement.quotaLimit;
+        const remaining = limit === -1 ? -1 : Math.max(0, limit - used);
+        quotas.push({ metric: entitlement.featureKey, used, limit, remaining });
+      }
+    }
+
+    return {
+      subscribed: active,
+      status: lapsed ? 'trial_expired' : subscription.status,
+      planId: subscription.planId,
+      currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+      features,
+      quotas,
     };
   }
 

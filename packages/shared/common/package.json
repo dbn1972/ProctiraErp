@@ -10,7 +10,8 @@
     "./schemas": "./src/schemas/index.ts",
     "./constants": "./src/constants/index.ts",
     "./exceptions": "./src/exceptions/index.ts",
-    "./node-env": "./src/node-env.ts"
+    "./node-env": "./src/node-env.ts",
+    "./safe-fetch": "./src/safe-fetch.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

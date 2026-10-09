@@ -127,11 +127,15 @@ import {
   PrivacyService,
   privacyPlugin,
   readFinanceHealthErasureMode,
+  CompositeCorrectionApplier,
+  createStudentCorrectionApplier,
+  createStaffCorrectionApplier,
 } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
   createAdmissionsCrmStore,
   createAdmissionsPipelineStore,
+  createRegistrationDocumentStorage,
   createRegistrationRepository,
   createRegistrationSessionStore,
   registrationPlugin,
@@ -176,6 +180,7 @@ import {
 } from '@proctira/backend-workflow';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { createStorageAdapter } from '@proctira/storage';
 import type { FastifyInstance } from 'fastify';
 
 import {
@@ -192,10 +197,12 @@ import { insightsUiPlugin } from './insights-ui-plugin.js';
 import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
 import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
+import { buildStorageAdapterConfig, readStorageEnv } from './plugins/storage-health.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { invalidateTenantCustomRoles } from './tenant-custom-roles.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
 import { createWebhookSigningSecretsFromEnv } from './webhook-signing-secrets-wiring.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
@@ -1481,6 +1488,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(tenantAdminPlugin, {
         prefix: '/tenant',
         onAudit: async (event) => {
+          // PRC-H101: a role edit must change gateway allow/deny promptly. Drop the
+          // cached custom roles for this tenant so the next request reloads them.
+          if (event.entityType === 'role') invalidateTenantCustomRoles(event.tenantId);
           const auditService = (
             scope as unknown as {
               auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };
@@ -1525,6 +1535,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         prefsStore,
         queuePublisher: deliveryHandle?.publisher,
+        // g7_platform-003: dedicated consumer adapter so the plugin starts the retry/delivery
+        // worker (onReady/onClose). Without this, published retries are never consumed.
+        deliveryWorkerQueue: deliveryHandle?.createConsumerAdapter(),
         prefix: '/notifications',
       });
     },
@@ -1726,11 +1739,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // W1-SEC-05: Redis when REDIS_URL (shared across replicas); else in-memory
       // only when assertInMemoryFallbackAllowed permits (never production).
       const sessionStore = createRegistrationSessionStore();
+      // NEW-g4_apps_auth-006: durable object storage for admission document
+      // bytes (S3/MinIO via @proctira/storage) when configured. When unset the
+      // registration service fails closed in production for uploads with
+      // content (503) and only accepts metadata-less uploads outside production.
+      const storageAdapterConfig = buildStorageAdapterConfig(readStorageEnv());
+      const documentStorage = storageAdapterConfig
+        ? createRegistrationDocumentStorage(createStorageAdapter(storageAdapterConfig))
+        : undefined;
       await scope.register(registrationPlugin, {
         repository,
         sessionStore,
         crmStore,
         pipelineStore,
+        documentStorage,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
         publicTenantResolver: dependencies.publicTenantResolver,
@@ -1824,6 +1846,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           ? {
               anonymizer: new PgDomainSubjectAnonymizer(privacyPool, { financeHealthMode }),
               tenantWipeExecutor: new PgTenantWipeExecutor(privacyPool, { financeHealthMode }),
+              // NEW-g7_platform-006: wire the correction applier so approved DSAR rectifications
+              // actually write to the owning domain. Fail-closed per domain: a subject type with
+              // no applier exposes no correctable fields and is rejected before any write.
+              correctionApplier: new CompositeCorrectionApplier({
+                student: createStudentCorrectionApplier(privacyPool),
+                staff: createStaffCorrectionApplier(privacyPool),
+                employee: createStaffCorrectionApplier(privacyPool),
+                teacher: createStaffCorrectionApplier(privacyPool),
+              }),
             }
           : {}),
         // PRC-M323: privacy lifecycle writes land in the platform audit trail.

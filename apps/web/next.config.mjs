@@ -1,5 +1,6 @@
 import createNextIntlPlugin from 'next-intl/plugin';
 import bundleAnalyzer from '@next/bundle-analyzer';
+import { buildSecurityHeaders } from './security-headers.mjs';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const withBundleAnalyzer = bundleAnalyzer({
@@ -32,18 +33,24 @@ const nextConfig = {
     '@proctira/ui-dashboards',
     '@proctira/auth',
   ],
-  // PRC-L024: auth screens and auth route handlers never leak their URL
-  // (reset tokens, returnTo) to third parties via the Referer header.
+  // PRC-H009 / NEW-g1a_web-001: strict baseline security headers (CSP with
+  // frame-ancestors 'none', X-Frame-Options DENY, nosniff, Referrer-Policy,
+  // HSTS in prod) on every route, plus the stricter PRC-L024 no-referrer
+  // override on auth screens / auth route handlers (applied after the baseline
+  // so it wins for the Referrer-Policy key on those paths).
   async headers() {
     const noReferrer = [{ key: 'Referrer-Policy', value: 'no-referrer' }];
     return [
-      '/login',
-      '/mfa',
-      '/mfa-setup',
-      '/forgot-password',
-      '/reset-password',
-      '/api/auth/:path*',
-    ].map((source) => ({ source, headers: noReferrer }));
+      { source: '/:path*', headers: buildSecurityHeaders() },
+      ...[
+        '/login',
+        '/mfa',
+        '/mfa-setup',
+        '/forgot-password',
+        '/reset-password',
+        '/api/auth/:path*',
+      ].map((source) => ({ source, headers: noReferrer })),
+    ];
   },
   webpack: (config) => {
     // The shared `@proctira/auth` package keeps explicit `.js`

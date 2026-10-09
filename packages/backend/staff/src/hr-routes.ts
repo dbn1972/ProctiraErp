@@ -50,10 +50,17 @@ import {
 } from './hr-schemas.js';
 import type { StaffHrService } from './hr-service.js';
 import { staffHrActionFor } from './staff-access.js';
-import { requireStaffAction } from './staff-http-guard.js';
+import {
+  assertStaffWritableOr404,
+  callerInstitutionScope,
+  requireStaffAction,
+} from './staff-http-guard.js';
+import type { StaffService } from './staff-service.js';
 
 export interface StaffHrRoutesOptions {
   hrService: StaffHrService;
+  /** PRC-H090: used to enforce school-scope on HR writes (contracts/qualifications/attendance). */
+  staffService: StaffService;
   prefix?: string;
 }
 
@@ -164,7 +171,7 @@ export async function registerStaffHrRoutes(
   fastify: FastifyInstance,
   options: StaffHrRoutesOptions,
 ): Promise<void> {
-  const { hrService, prefix = '/staff' } = options;
+  const { hrService, staffService, prefix = '/staff' } = options;
 
   // PRC-H088: every HR route (reads included) is domain-gated. The old hook returned early for
   // GET, so GET /payroll/export — which persists/reverses payroll runs — never asserted
@@ -223,6 +230,17 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: contract writes are scoped to the caller's institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            result.data.staffId,
+          ))
+        )
+          return reply;
         const row = await hrService.createContract(tenantId, result.data);
         return reply.status(201).send(formatContract(row));
       } catch (error: unknown) {
@@ -286,6 +304,18 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: resolve the contract's staff and enforce school scope before updating.
+        const existing = await hrService.getContract(tenantId, paramsResult.data.id);
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            existing.staffId,
+          ))
+        )
+          return reply;
         const row = await hrService.updateContract(tenantId, paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(formatContract(row));
       } catch (error: unknown) {
@@ -342,6 +372,17 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: qualification writes are scoped to the caller's institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            result.data.staffId,
+          ))
+        )
+          return reply;
         const row = await hrService.createQualification(tenantId, result.data);
         return reply.status(201).send(formatQualification(row));
       } catch (error: unknown) {
@@ -378,6 +419,18 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: resolve the qualification's staff and enforce school scope.
+        const existing = await hrService.getQualification(tenantId, paramsResult.data.id);
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            existing.staffId,
+          ))
+        )
+          return reply;
         const row = await hrService.verifyQualification(
           tenantId,
           paramsResult.data.id,
@@ -458,6 +511,17 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: attendance writes are scoped to the caller's institution(s).
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            result.data.staffId,
+          ))
+        )
+          return reply;
         const row = await hrService.markAttendance(tenantId, result.data, getActorId(request));
         return reply.status(201).send(formatAttendance(row));
       } catch (error: unknown) {
@@ -485,6 +549,11 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
+        // PRC-H090: every staff member in the batch must be in the caller's institution(s).
+        for (const staffId of new Set(result.data.marks.map((m) => m.staffId))) {
+          if (!(await assertStaffWritableOr404(request, reply, staffService, tenantId, staffId)))
+            return reply;
+        }
         const rows = await hrService.markAttendanceBulk(tenantId, result.data, getActorId(request));
         return reply.status(200).send({ data: rows.map(formatAttendance) });
       } catch (error: unknown) {
@@ -553,6 +622,16 @@ export async function registerStaffHrRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      // PRC-H090: payroll export persists/reverses a tenant-wide run (every staff row, no
+      // per-institution scope on this endpoint). A school-bound caller cannot be scoped at row
+      // level here, so deny it (fail closed). Tenant-wide/board admins proceed.
+      if (callerInstitutionScope(request) !== undefined) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Payroll export is tenant-wide and not available to school-scoped roles',
+          statusCode: 403,
+        });
+      }
       const result = validate(PayrollExportQuerySchema, request.query ?? {});
       if (!result.success) {
         return reply.status(400).send({

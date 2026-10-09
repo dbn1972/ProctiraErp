@@ -2,8 +2,8 @@
   "$comment": "Every HTTP route the hand-written Dart api-client calls. Kept in sync by test/api_contract_test.dart (Dart) and checked against the gateway mount matrix by apps/api-gateway/src/dart-client-contract.test.ts (PRC-M254).",
   "routes": [
     "DELETE /api/v1/notifications/devices/:id",
+    "GET /api/v1/academic-periods",
     "GET /api/v1/institutions/:id",
-    "GET /api/v1/institutions/:id/academic-periods",
     "GET /api/v1/institutions/:id/contact",
     "GET /api/v1/institutions/:id/infrastructure",
     "GET /api/v1/notifications",

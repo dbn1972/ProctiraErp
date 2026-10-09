@@ -182,11 +182,25 @@ export async function assessFineAction(loanId: string): Promise<OpsActionState> 
   }
 }
 
-export async function markFinePaidAction(fineId: string): Promise<OpsActionState> {
-  const parsed = UUID.safeParse(fineId);
-  if (!parsed.success) return { status: 'error', message: 'A valid fine id is required.' };
+export async function markFinePaidAction(
+  fineId: string,
+  payment: { paymentMethod: string; reference: string },
+): Promise<OpsActionState> {
+  const parsed = z
+    .object({
+      fineId: UUID,
+      paymentMethod: z.enum(['cash', 'card', 'upi', 'bank_transfer', 'cheque', 'other']),
+      reference: z.string().trim().min(1).max(128),
+    })
+    .safeParse({ fineId, ...payment });
+  if (!parsed.success) {
+    return { status: 'error', message: 'A payment method and reference are required.' };
+  }
   try {
-    const fine = await payLibraryFine(parsed.data);
+    const fine = await payLibraryFine(parsed.data.fineId, {
+      paymentMethod: parsed.data.paymentMethod,
+      reference: parsed.data.reference,
+    });
     revalidatePath('/library/fines');
     revalidatePath('/library/overdues');
     return { status: 'success', id: fine.id, message: 'Fine marked paid.' };

@@ -21,6 +21,7 @@ import {
   ValidationError,
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
+import { isProductionNodeEnv } from '@proctira/common/node-env';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -28,6 +29,7 @@ import {
   type AdmissionsCrmStore,
   type WaitlistEntry,
 } from './admissions-crm-store.js';
+import { sniffDocumentContent } from './document-content-validation.js';
 import {
   dateOfBirthErrors,
   isRealIsoDate,
@@ -35,6 +37,7 @@ import {
   parseTimestamp,
 } from './input-validation.js';
 import type { ListPage } from './pagination.js';
+import type { RegistrationDocumentStorage } from './registration-document-storage.js';
 import type {
   InstitutionFilterOptions,
   RegistrationRepository,
@@ -130,6 +133,66 @@ export function validateDocuments(documents: DocumentUpload[]): FieldError[] {
   }
 
   return errors;
+}
+
+/**
+ * NEW-g4_apps_auth-006: when a document carries content, verify the bytes match
+ * the declared MIME type (magic bytes) and the real size is within limits. A
+ * declared image/png that is empty, text, or a mismatched type is rejected.
+ */
+export function validateDocumentContents(documents: DocumentUpload[]): FieldError[] {
+  const errors: FieldError[] = [];
+  for (let i = 0; i < documents.length; i++) {
+    const doc = documents[i]!;
+    if (doc.content === undefined) continue;
+    const result = sniffDocumentContent(doc.content, doc.fileType);
+    if (!result.ok) {
+      errors.push({
+        field: `documents[${i}].content`,
+        rule: 'fileContent',
+        message: result.reason ?? 'Uploaded file failed content validation',
+      });
+    }
+  }
+  return errors;
+}
+
+/**
+ * NEW-g4_apps_auth-006: a required (mandatory) document must carry an actual
+ * stored file. Previously the required-document rule was satisfied by metadata
+ * alone (a filename with no bytes), so a minor's identity document could appear
+ * uploaded without any file. Here a configured required file field must have a
+ * document whose `content` is present.
+ */
+export function validateRequiredDocumentFiles(
+  documents: DocumentUpload[],
+  formConfig: FormConfiguration,
+): FieldError[] {
+  const errors: FieldError[] = [];
+  const requiredFileFields = formConfig.fields.filter(
+    (field) => field.type === 'file' && field.required,
+  );
+  for (const field of requiredFileFields) {
+    const match = documents.find((doc) => doc.documentType === field.id);
+    // Absence of the document entirely is already reported by
+    // validateConfiguredDocuments; here we require real bytes when present.
+    if (match && (match.content === undefined || match.content.length === 0)) {
+      errors.push({
+        field: `documents.${field.id}`,
+        rule: 'fileRequired',
+        message: `Document '${field.label}' must include an uploaded file`,
+      });
+    }
+  }
+  return errors;
+}
+
+/** Strip path separators / control chars from a client-supplied file name. */
+export function sanitizeFileName(fileName: string): string {
+  // eslint-disable-next-line no-control-regex -- intentionally strip C0 control chars
+  const base = fileName.replace(/[/\\]/g, '_').replace(/[\u0000-\u001f]/g, '');
+  const trimmed = base.trim().slice(0, 128);
+  return trimmed.length > 0 ? trimmed : 'file';
 }
 
 /**
@@ -362,12 +425,15 @@ export function computeSubmissionPayloadHash(input: SubmitRegistrationInput): st
  */
 export class RegistrationService {
   private readonly crm: AdmissionsCrmStore;
+  private readonly documentStorage?: RegistrationDocumentStorage;
 
   constructor(
     private readonly repository: RegistrationRepository,
     crmStore?: AdmissionsCrmStore,
+    documentStorage?: RegistrationDocumentStorage,
   ) {
     this.crm = crmStore ?? new InMemoryAdmissionsCrmStore();
+    this.documentStorage = documentStorage;
   }
 
   /**
@@ -432,11 +498,21 @@ export class RegistrationService {
       ...dateOfBirthErrors(input.dateOfBirth),
       ...validateDocuments(documents),
       ...validateConfiguredDocuments(documents, formConfig),
+      ...validateDocumentContents(documents),
+      ...validateRequiredDocumentFiles(documents, formConfig),
       ...validateCustomFields(input.customFields ?? [], formConfig),
     ];
     if (fieldErrors.length > 0) {
       throw new ValidationError('Registration form validation failed', fieldErrors);
     }
+
+    // NEW-g4_apps_auth-006: persist the actual uploaded bytes via the shared
+    // storage abstraction and record the object key on the document. Metadata
+    // alone can no longer satisfy a required-document rule (see
+    // validateRequiredDocumentFiles). When any document carries content but no
+    // durable storage is configured, fail closed in production rather than
+    // silently dropping the bytes.
+    const storedDocuments = await this.persistDocuments(tenantId, documents);
 
     const entity: NewRegistrationEntity = {
       id: uuidv4(),
@@ -452,12 +528,7 @@ export class RegistrationService {
       guardianPhone: input.guardianPhone,
       guardianEmail: input.guardianEmail ?? null,
       customFields: input.customFields ?? [],
-      documents: documents.map((document) => ({
-        fileName: document.fileName,
-        fileType: document.fileType,
-        fileSize: document.fileSize,
-        documentType: document.documentType,
-      })),
+      documents: storedDocuments,
       preferredLanguage: input.preferredLanguage ?? null,
       remarks: null,
       formConfigurationId: formConfig.id,
@@ -490,6 +561,61 @@ export class RegistrationService {
       message: `Registration submitted successfully. Your tracking number is ${registration.trackingNumber}`,
       replayed: created.outcome === 'replayed',
     };
+  }
+
+  /**
+   * NEW-g4_apps_auth-006: store each document's actual bytes via the shared
+   * storage abstraction and return the persisted document records with
+   * `storagePath` populated. Size is taken from the real decoded bytes.
+   *
+   * Fail-closed: a document carrying content but no configured storage is
+   * rejected in production (503) instead of silently storing metadata only;
+   * outside production the content is accepted without a durable key so local
+   * dev/tests do not require object storage.
+   */
+  private async persistDocuments(
+    tenantId: string,
+    documents: DocumentUpload[],
+  ): Promise<NewRegistrationEntity['documents']> {
+    const stored: NewRegistrationEntity['documents'] = [];
+    for (const document of documents) {
+      const base: NewRegistrationEntity['documents'][number] = {
+        fileName: document.fileName,
+        fileType: document.fileType,
+        fileSize: document.fileSize,
+        documentType: document.documentType,
+      };
+      if (document.content === undefined) {
+        stored.push(base);
+        continue;
+      }
+      const bytes = Buffer.from(document.content, 'base64');
+      // Record the true byte length rather than the client-declared size.
+      base.fileSize = bytes.byteLength;
+      if (!this.documentStorage) {
+        if (isProductionNodeEnv(process.env['NODE_ENV'])) {
+          throw new AppError(
+            'Document uploads are temporarily unavailable; please try again shortly.',
+            'DOCUMENT_STORAGE_UNAVAILABLE',
+            503,
+          );
+        }
+        // Non-production: accept the upload without a durable key.
+        stored.push(base);
+        continue;
+      }
+      const key = `registration/${document.documentType}/${uuidv4()}-${sanitizeFileName(
+        document.fileName,
+      )}`;
+      const storagePath = await this.documentStorage.putDocument({
+        tenantId,
+        key,
+        bytes,
+        contentType: document.fileType,
+      });
+      stored.push({ ...base, storagePath });
+    }
+    return stored;
   }
 
   /**

@@ -22,6 +22,14 @@ import type {
   WebhookDeliveryFilter,
   WebhookEntity,
   WebhookFilter,
+  SandboxEntity,
+  PluginRatingEntity,
+  DocPageEntity,
+  DocPageFilter,
+  AnalyticsEventEntity,
+  PluginAnalyticsSummary,
+  AnalyticsTimeSeries,
+  AnalyticsFilter,
 } from './developer-portal-repository.js';
 import type { PgPoolLike } from './pg-api-key-store.js';
 
@@ -734,6 +742,363 @@ export class PgDeveloperPortalDurableStore {
       return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
     });
   }
+
+  // ─── Sandboxes (platform scope — PRC-H049 residual) ───────────────────────
+
+  async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `INSERT INTO developer_portal_sandboxes (
+           id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          sandbox.id,
+          sandbox.accountId,
+          sandbox.name,
+          sandbox.description,
+          sandbox.tenantId,
+          sandbox.status,
+          sandbox.expiresAt,
+          sandbox.apiEndpoint,
+          sandbox.createdAt,
+        ],
+      );
+      return mapSandbox(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getSandboxById(id: string): Promise<SandboxEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(`SELECT * FROM developer_portal_sandboxes WHERE id = $1`, [
+        id,
+      ]);
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapSandbox(row) : null;
+    });
+  }
+
+  async listSandboxes(accountId: string): Promise<SandboxEntity[]> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_sandboxes WHERE account_id = $1 ORDER BY created_at DESC`,
+        [accountId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapSandbox);
+    });
+  }
+
+  async updateSandboxStatus(
+    id: string,
+    status: SandboxEntity['status'],
+  ): Promise<SandboxEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `UPDATE developer_portal_sandboxes SET status = $2 WHERE id = $1 RETURNING *`,
+        [id, status],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapSandbox(row) : null;
+    });
+  }
+
+  // ─── Plugin ratings (platform scope — PRC-H049 residual) ──────────────────
+
+  async createRating(rating: PluginRatingEntity): Promise<PluginRatingEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `INSERT INTO developer_portal_ratings (
+           id, plugin_name, account_id, rating, review, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [
+          rating.id,
+          rating.pluginName,
+          rating.accountId,
+          rating.rating,
+          rating.review,
+          rating.createdAt,
+          rating.updatedAt,
+        ],
+      );
+      return mapRating(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getRatingByAccountAndPlugin(
+    accountId: string,
+    pluginName: string,
+  ): Promise<PluginRatingEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_ratings WHERE account_id = $1 AND plugin_name = $2`,
+        [accountId, pluginName],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapRating(row) : null;
+    });
+  }
+
+  async updateRating(
+    id: string,
+    rating: number,
+    review: string | null,
+  ): Promise<PluginRatingEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `UPDATE developer_portal_ratings SET rating = $2, review = $3, updated_at = now()
+         WHERE id = $1 RETURNING *`,
+        [id, rating, review],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapRating(row) : null;
+    });
+  }
+
+  async getAverageRating(pluginName: string): Promise<{ average: number; count: number }> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `SELECT COALESCE(AVG(rating), 0) AS average, COUNT(*) AS count
+           FROM developer_portal_ratings WHERE plugin_name = $1`,
+        [pluginName],
+      );
+      const row = result.rows[0] as { average?: unknown; count?: unknown } | undefined;
+      return {
+        average: Number(row?.average ?? 0),
+        count: Number(row?.count ?? 0),
+      };
+    });
+  }
+
+  // ─── Documentation pages (platform scope — PRC-H049 residual) ─────────────
+
+  async createDocPage(page: DocPageEntity): Promise<DocPageEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `INSERT INTO developer_portal_doc_pages (
+           id, slug, title, content, category, "order", published, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          page.id,
+          page.slug,
+          page.title,
+          page.content,
+          page.category,
+          page.order,
+          page.published,
+          page.createdAt,
+          page.updatedAt,
+        ],
+      );
+      return mapDocPage(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getDocPageBySlug(slug: string): Promise<DocPageEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_doc_pages WHERE slug = $1`,
+        [slug],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapDocPage(row) : null;
+    });
+  }
+
+  async listDocPages(filter: DocPageFilter): Promise<DocPageEntity[]> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (filter.category) {
+        params.push(filter.category);
+        where.push(`category = $${params.length}`);
+      }
+      if (filter.published !== undefined) {
+        params.push(filter.published);
+        where.push(`published = $${params.length}`);
+      }
+      const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+      const result = await client.query(
+        `SELECT * FROM developer_portal_doc_pages ${whereSql} ORDER BY category, "order"`,
+        params,
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapDocPage);
+    });
+  }
+
+  async updateDocPage(
+    id: string,
+    updates: Partial<Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>>,
+  ): Promise<DocPageEntity | null> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `UPDATE developer_portal_doc_pages SET
+           title = COALESCE($2, title),
+           content = COALESCE($3, content),
+           category = COALESCE($4, category),
+           "order" = COALESCE($5, "order"),
+           published = COALESCE($6, published),
+           updated_at = now()
+         WHERE id = $1 RETURNING *`,
+        [
+          id,
+          updates.title ?? null,
+          updates.content ?? null,
+          updates.category ?? null,
+          updates.order ?? null,
+          updates.published ?? null,
+        ],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapDocPage(row) : null;
+    });
+  }
+
+  async deleteDocPage(id: string): Promise<boolean> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(`DELETE FROM developer_portal_doc_pages WHERE id = $1`, [
+        id,
+      ]);
+      return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
+    });
+  }
+
+  // ─── Analytics (platform scope — PRC-H049 residual) ───────────────────────
+
+  async recordAnalyticsEvent(event: AnalyticsEventEntity): Promise<AnalyticsEventEntity> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const result = await client.query(
+        `INSERT INTO developer_portal_analytics_events (
+           id, plugin_name, event_type, metadata, created_at
+         ) VALUES ($1,$2,$3,$4::jsonb,$5) RETURNING *`,
+        [
+          event.id,
+          event.pluginName,
+          event.eventType,
+          event.metadata == null ? null : JSON.stringify(event.metadata),
+          event.createdAt,
+        ],
+      );
+      return mapAnalyticsEvent(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getPluginAnalyticsSummary(pluginName: string): Promise<PluginAnalyticsSummary> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const counts = await client.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE event_type = 'install')   AS installs,
+           COUNT(*) FILTER (WHERE event_type = 'uninstall') AS uninstalls,
+           COUNT(*) FILTER (WHERE event_type = 'api_call')  AS api_calls,
+           COUNT(*) FILTER (WHERE event_type = 'error')     AS errors
+         FROM developer_portal_analytics_events WHERE plugin_name = $1`,
+        [pluginName],
+      );
+      const c = counts.rows[0] as Record<string, unknown>;
+      const installs = Number(c['installs'] ?? 0);
+      const uninstalls = Number(c['uninstalls'] ?? 0);
+      const rating = await client.query(
+        `SELECT COALESCE(AVG(rating), 0) AS average, COUNT(*) AS count
+           FROM developer_portal_ratings WHERE plugin_name = $1`,
+        [pluginName],
+      );
+      const r = rating.rows[0] as { average?: unknown; count?: unknown };
+      return {
+        pluginName,
+        totalInstalls: installs,
+        activeInstalls: Math.max(0, installs - uninstalls),
+        totalApiCalls: Number(c['api_calls'] ?? 0),
+        totalErrors: Number(c['errors'] ?? 0),
+        averageRating: Number(r?.average ?? 0),
+        ratingCount: Number(r?.count ?? 0),
+      };
+    });
+  }
+
+  async getAnalyticsTimeSeries(
+    filter: AnalyticsFilter,
+    granularity: 'day' | 'week' | 'month',
+  ): Promise<AnalyticsTimeSeries[]> {
+    return withPlatformScope(this.pool, async (client: PgQueryable) => {
+      const params: unknown[] = [filter.pluginName, granularity];
+      const where: string[] = ['plugin_name = $1'];
+      if (filter.startDate) {
+        params.push(filter.startDate);
+        where.push(`created_at >= $${params.length}`);
+      }
+      if (filter.endDate) {
+        params.push(filter.endDate);
+        where.push(`created_at <= $${params.length}`);
+      }
+      const result = await client.query(
+        `SELECT to_char(date_trunc($2, created_at), 'YYYY-MM-DD') AS date,
+                COUNT(*) FILTER (WHERE event_type = 'install')   AS installs,
+                COUNT(*) FILTER (WHERE event_type = 'uninstall') AS uninstalls,
+                COUNT(*) FILTER (WHERE event_type = 'api_call')  AS api_calls,
+                COUNT(*) FILTER (WHERE event_type = 'error')     AS errors
+           FROM developer_portal_analytics_events
+          WHERE ${where.join(' AND ')}
+          GROUP BY date_trunc($2, created_at)
+          ORDER BY date_trunc($2, created_at)`,
+        params,
+      );
+      return (result.rows as Record<string, unknown>[]).map((row) => ({
+        date: String(row['date']),
+        installs: Number(row['installs'] ?? 0),
+        uninstalls: Number(row['uninstalls'] ?? 0),
+        apiCalls: Number(row['api_calls'] ?? 0),
+        errors: Number(row['errors'] ?? 0),
+      }));
+    });
+  }
+}
+
+function mapSandbox(row: Record<string, unknown>): SandboxEntity {
+  return {
+    id: String(row['id']),
+    accountId: String(row['account_id']),
+    name: String(row['name']),
+    description: row['description'] == null ? null : String(row['description']),
+    tenantId: String(row['sandbox_tenant_id']),
+    status: String(row['status']) as SandboxEntity['status'],
+    expiresAt: toDate(row['expires_at']),
+    apiEndpoint: String(row['api_endpoint']),
+    createdAt: toDate(row['created_at']),
+  };
+}
+
+function mapRating(row: Record<string, unknown>): PluginRatingEntity {
+  return {
+    id: String(row['id']),
+    pluginName: String(row['plugin_name']),
+    accountId: String(row['account_id']),
+    rating: Number(row['rating']),
+    review: row['review'] == null ? null : String(row['review']),
+    createdAt: toDate(row['created_at']),
+    updatedAt: toDate(row['updated_at']),
+  };
+}
+
+function mapDocPage(row: Record<string, unknown>): DocPageEntity {
+  return {
+    id: String(row['id']),
+    slug: String(row['slug']),
+    title: String(row['title']),
+    content: String(row['content']),
+    category: String(row['category']),
+    order: Number(row['order'] ?? 0),
+    published: row['published'] === true || row['published'] === 't',
+    createdAt: toDate(row['created_at']),
+    updatedAt: toDate(row['updated_at']),
+  };
+}
+
+function mapAnalyticsEvent(row: Record<string, unknown>): AnalyticsEventEntity {
+  return {
+    id: String(row['id']),
+    pluginName: String(row['plugin_name']),
+    eventType: String(row['event_type']) as AnalyticsEventEntity['eventType'],
+    metadata: row['metadata'] == null ? null : parseJsonObject(row['metadata']),
+    createdAt: toDate(row['created_at']),
+  };
 }
 
 function mapSubmission(row: Record<string, unknown>): PluginSubmissionEntity {

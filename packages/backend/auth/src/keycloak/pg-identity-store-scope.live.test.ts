@@ -80,11 +80,12 @@ describe('control-plane document scoping (live Postgres)', () => {
   });
 
   it.skipIf(!live)(
-    'an unscoped get returns another tenant\u2019s row; a scoped one does not',
+    'the platformAdmin escape returns another tenant\u2019s row; a tenant scope does not',
     async () => {
-      // This is the leak, reproduced: tenant B asks for a key owned by tenant A.
-      const unscoped = await usersDocs.get(A_USER_KEY);
-      expect(unscoped?.tenantId).toBe(TENANT_A);
+      // The cross-tenant read is now only reachable through the EXPLICIT platformAdmin
+      // escape (the former implicit unscoped behaviour is gone — scope is mandatory).
+      const escaped = await usersDocs.get(A_USER_KEY, { platformAdmin: true });
+      expect(escaped?.tenantId).toBe(TENANT_A);
 
       const asB = await usersDocs.get(A_USER_KEY, { tenantId: TENANT_B });
       expect(asB).toBeNull();

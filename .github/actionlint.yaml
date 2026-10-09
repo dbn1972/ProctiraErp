@@ -13,3 +13,6 @@ config-variables:
   - PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM
   # Per-environment ClusterSecretStore name consumed by deploy.yml (PRC-H062).
   - EXTERNAL_SECRET_STORE
+  # Pre-created cluster Secret (ESO/sealed-secrets) the proctira-platform chart's
+  # DR CronJobs + workers read via existingSecret (PRC-H062).
+  - PLATFORM_EXISTING_SECRET

@@ -36,6 +36,9 @@ on:
       - 'tools/scripts/check-deploy-workflow-contract.test.mjs'
       - 'tools/scripts/check-workflow-step-contracts.mjs'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      - 'tools/scripts/check-worker-secret-scope.mjs'
+      - 'tools/scripts/check-worker-secret-scope.test.mjs'
+      - 'tools/scripts/deploy-secret-wiring.test.mjs'
       # W1-OPS-09 — rollback runbook + COMPLETE evidence
       - 'docs/runbooks/deploy-rollback.md'
       - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
@@ -91,6 +94,9 @@ on:
       - 'tools/scripts/check-deploy-workflow-contract.test.mjs'
       - 'tools/scripts/check-workflow-step-contracts.mjs'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      - 'tools/scripts/check-worker-secret-scope.mjs'
+      - 'tools/scripts/check-worker-secret-scope.test.mjs'
+      - 'tools/scripts/deploy-secret-wiring.test.mjs'
       - 'docs/runbooks/deploy-rollback.md'
       - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
       - 'apps/api-gateway/src/plugins/health.ts'
@@ -151,6 +157,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Unit-test deploy workflow contract
         run: node --test tools/scripts/check-deploy-workflow-contract.test.mjs
+      - name: Unit-test deploy secret wiring (PRC-H062)
+        run: node --test tools/scripts/deploy-secret-wiring.test.mjs
+      - name: Unit-test worker secret scope (NEW-g3_infra_tools-001)
+        run: node --test tools/scripts/check-worker-secret-scope.test.mjs
+      - name: Fail when a workload envFroms the full secret bundle (NEW-g3_infra_tools-001)
+        run: node tools/scripts/check-worker-secret-scope.mjs
       - name: Lint + template charts (deploy path check)
         run: |
           ./tools/scripts/helm-template-check.sh

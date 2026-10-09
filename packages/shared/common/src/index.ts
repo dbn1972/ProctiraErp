@@ -91,3 +91,6 @@ export type {
   RegisterGracefulShutdownOptions,
   ShutdownStep,
 } from './graceful-shutdown.js';
+
+// Server-only SSRF-safe fetch lives at `@proctira/common/safe-fetch` (imports node:dns);
+// keep it out of this entry so browser bundles (apps/web) never pull Node builtins.

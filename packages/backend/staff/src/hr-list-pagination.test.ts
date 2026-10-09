@@ -26,9 +26,10 @@ describe('HR list pagination (PRC-M379)', () => {
     app.addHook('onRequest', async (request) => {
       Object.assign(request, { tenantId: TENANT_ID, user: { sub: 'hr', roles: ['hr_officer'] } });
     });
-    await registerStaffHrRoutes(app, { hrService });
+    await registerStaffHrRoutes(app, { hrService, staffService });
     await registerStaffLeaveRoutes(app, {
       leaveService: new StaffLeaveService(new InMemoryStaffLeaveRepository()),
+      staffService,
     });
     await app.ready();
   });

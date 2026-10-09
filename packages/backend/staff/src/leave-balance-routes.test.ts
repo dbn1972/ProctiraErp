@@ -5,8 +5,10 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
+import { InMemoryStaffRepository } from './in-memory-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
+import { StaffService } from './staff-service.js';
 
 const TENANT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const STAFF_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -26,6 +28,7 @@ async function buildApp(roles: string[]): Promise<FastifyInstance> {
   });
   await registerStaffLeaveRoutes(app, {
     leaveService,
+    staffService: new StaffService(new InMemoryStaffRepository()),
     staffExists: async (tenantId, staffId) => tenantId === TENANT_ID && staffId === STAFF_ID,
   });
   await app.ready();

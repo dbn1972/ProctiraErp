@@ -79,7 +79,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
    * scope parameter becomes mandatory.
    */
   async findIdentity(externalId: string) {
-    const row = await this.identities.get(externalId);
+    const row = await this.identities.get(externalId, { platformAdmin: true });
     return row
       ? { id: row.id, userId: row.userId, tenantId: row.tenantId, email: row.email }
       : null;

@@ -233,6 +233,63 @@ etlWorker:
     enabled: false
     minAvailable: 1
 
+# -- Exam Document Worker (durable exam document queue consumer, PRC-H051)
+# NEW-g3_infra_tools-001 / PRC-M279: least-privilege secrets. Only DATABASE_URL
+# (PG examination/document/blob repos) and RABBITMQ_URL (durable queue) are
+# mounted via secretKeyRef; the worker never signs JWTs or decrypts PHI.
+examDocumentWorker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: proctira/exam-document-worker
+    tag: ''
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3025
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: '1'
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+  livenessProbe:
+    httpGet:
+      path: /health/live
+      port: health
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  env:
+    EXAM_DOCUMENT_WORKER_PORT: '3025'
+    EXAM_DOCUMENT_WORKER_HOST: '0.0.0.0'
+    QUEUE_BACKEND: 'rabbitmq'
+    OTEL_SERVICE_NAME: exam-document-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
 # -- Registration Portal service
 registrationPortal:
   enabled: true
