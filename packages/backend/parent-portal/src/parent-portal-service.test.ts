@@ -64,22 +64,39 @@ describe('ParentPortalService', () => {
         custodyType: 'sole',
       });
     }
-    return service.linkChild(TENANT_A, parentUserId, {
-      studentId,
-      householdId,
-      relationship: opts.relationship,
-      isPrimary: opts.isPrimary,
-      canConsentMedical: opts.canConsentMedical,
-      canViewFees: opts.canViewFees,
-    });
+    return service.linkChild(
+      TENANT_A,
+      parentUserId,
+      {
+        studentId,
+        householdId,
+        relationship: opts.relationship,
+        // Staff provisioning grants full authority unless the test overrides it.
+        isPrimary: opts.isPrimary ?? true,
+        canConsentMedical: opts.canConsentMedical ?? true,
+        canViewFees: opts.canViewFees ?? true,
+      },
+      // These helpers model STAFF provisioning (W1-SEC-03) — an active, authority-
+      // bearing link. Self-service callers get a pending/zero-authority link (PRC-M531),
+      // covered by dedicated tests below.
+      { isStaff: true },
+    );
   }
 
   describe('linkChild', () => {
-    it('links a parent to a student', async () => {
-      const link = await service.linkChild(TENANT_A, PARENT_USER, {
-        studentId: STUDENT_ID,
-        relationship: 'guardian',
-      });
+    it('staff provisioning links a parent with full authority and active status', async () => {
+      const link = await service.linkChild(
+        TENANT_A,
+        PARENT_USER,
+        {
+          studentId: STUDENT_ID,
+          relationship: 'guardian',
+          isPrimary: true,
+          canConsentMedical: true,
+          canViewFees: true,
+        },
+        { isStaff: true },
+      );
 
       expect(link.tenantId).toBe(TENANT_A);
       expect(link.parentUserId).toBe(PARENT_USER);
@@ -91,25 +108,49 @@ describe('ParentPortalService', () => {
       expect(link.canViewFees).toBe(true);
     });
 
-    it('persists explicit authority flags on the link', async () => {
-      const link = await service.linkChild(TENANT_A, PARENT_LIMITED, {
-        studentId: STUDENT_ID,
-        relationship: 'other',
-        isPrimary: false,
-        canConsentMedical: false,
-        canViewFees: false,
-      });
+    it('persists explicit authority flags on a staff-provisioned link', async () => {
+      const link = await service.linkChild(
+        TENANT_A,
+        PARENT_LIMITED,
+        {
+          studentId: STUDENT_ID,
+          relationship: 'other',
+          isPrimary: false,
+          canConsentMedical: false,
+          canViewFees: false,
+        },
+        { isStaff: true },
+      );
 
       expect(link.isPrimary).toBe(false);
       expect(link.canConsentMedical).toBe(false);
       expect(link.canViewFees).toBe(false);
     });
 
+    // PRC-M531: a self-service caller cannot grant itself authority. The link is
+    // created pending with every authority flag off, regardless of the request body.
+    it('self-service link ignores authority flags and is created pending (PRC-M531)', async () => {
+      const link = await service.linkChild(TENANT_A, PARENT_USER, {
+        studentId: STUDENT_ID,
+        relationship: 'guardian',
+        isPrimary: true,
+        canConsentMedical: true,
+        canViewFees: true,
+        householdId: HOUSEHOLD_H1,
+      });
+
+      expect(link.status).toBe('pending');
+      expect(link.isPrimary).toBe(false);
+      expect(link.canConsentMedical).toBe(false);
+      expect(link.canViewFees).toBe(false);
+      expect(link.householdId).toBeNull();
+    });
+
     it('rejects duplicate active links', async () => {
-      await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID });
+      await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID }, { isStaff: true });
 
       await expect(
-        service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID }),
+        service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID }, { isStaff: true }),
       ).rejects.toThrow(BusinessRuleError);
     });
   });
@@ -489,10 +530,15 @@ describe('ParentPortalService', () => {
         custodyType: 'sole',
       });
 
-      await service.linkChild(TENANT_A, PARENT_USER, {
-        studentId: STUDENT_ID,
-        householdId: HOUSEHOLD_H1,
-      });
+      await service.linkChild(
+        TENANT_A,
+        PARENT_USER,
+        {
+          studentId: STUDENT_ID,
+          householdId: HOUSEHOLD_H1,
+        },
+        { isStaff: true },
+      );
 
       // Malicious/stale link: parent in H1 linked to student whose custody is H2 only.
       await repository.createChildLink({
@@ -525,7 +571,12 @@ describe('ParentPortalService', () => {
     });
 
     it('denies access when custody data is missing (fail closed)', async () => {
-      await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID });
+      await service.linkChild(
+        TENANT_A,
+        PARENT_USER,
+        { studentId: STUDENT_ID },
+        { isStaff: true },
+      );
 
       const children = await service.listChildrenForParent(TENANT_A, PARENT_USER);
       expect(children).toHaveLength(0);
@@ -552,10 +603,15 @@ describe('ParentPortalService', () => {
         custodyType: 'sole',
         effectiveFrom: new Date(Date.now() + 86_400_000),
       });
-      await service.linkChild(TENANT_A, PARENT_USER, {
-        studentId: STUDENT_ID,
-        householdId: HOUSEHOLD_H1,
-      });
+      await service.linkChild(
+        TENANT_A,
+        PARENT_USER,
+        {
+          studentId: STUDENT_ID,
+          householdId: HOUSEHOLD_H1,
+        },
+        { isStaff: true },
+      );
 
       await expect(
         service.createThread(TENANT_A, PARENT_USER, {
