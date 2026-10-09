@@ -141,7 +141,14 @@ function formatJobResponse(entity: {
     institutionId: entity.institutionId,
     status: entity.status,
     errorMessage: entity.errorMessage,
-    outputUrl: entity.outputUrl,
+    // PRC-L083: never expose the internal artifact storage key. Surface a
+    // boolean readiness flag + the authenticated download route instead so the
+    // object key / tmp path cannot leak to clients.
+    ready: entity.status === 'completed' && entity.outputUrl != null,
+    downloadUrl:
+      entity.status === 'completed' && entity.outputUrl != null
+        ? `/report-cards/jobs/${entity.id}/download`
+        : null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
     completedAt: entity.completedAt?.toISOString() ?? null,
