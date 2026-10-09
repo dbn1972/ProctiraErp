@@ -571,12 +571,7 @@ describe('ParentPortalService', () => {
     });
 
     it('denies access when custody data is missing (fail closed)', async () => {
-      await service.linkChild(
-        TENANT_A,
-        PARENT_USER,
-        { studentId: STUDENT_ID },
-        { isStaff: true },
-      );
+      await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID }, { isStaff: true });
 
       const children = await service.listChildrenForParent(TENANT_A, PARENT_USER);
       expect(children).toHaveLength(0);

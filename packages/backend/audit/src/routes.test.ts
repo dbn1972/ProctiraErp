@@ -443,7 +443,10 @@ describe('Audit Routes', () => {
           roles: ['admin'],
         };
       });
-      await bare.register(auditPlugin, { repository: new InMemoryAuditRepository(), prefix: '/audit' });
+      await bare.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
       await bare.ready();
 
       const post = await bare.inject({

@@ -336,9 +336,9 @@ describe('PolicyService', () => {
         targetId: tenantId,
       });
       const policyB = await service.create(tenantId, { ...validPasswordPolicy, name: 'B' });
-      await expect(
-        service.removeAssignment(tenantId, policyB.id, assignment.id),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.removeAssignment(tenantId, policyB.id, assignment.id)).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 });

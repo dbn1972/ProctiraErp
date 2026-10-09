@@ -149,7 +149,10 @@ describe('InMemoryAuditRepository chain', () => {
       prevHash: null,
       entryHash: null,
     };
-    const genesisInput = { ...input({ timestamp: new Date('2026-09-01T10:00:00.000Z') }), metadata: null };
+    const genesisInput = {
+      ...input({ timestamp: new Date('2026-09-01T10:00:00.000Z') }),
+      metadata: null,
+    };
     const genesis: AuditLogEntry = {
       ...genesisInput,
       chainSeq: 1,
