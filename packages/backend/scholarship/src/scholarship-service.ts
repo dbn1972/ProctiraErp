@@ -529,8 +529,12 @@ export class ScholarshipService {
       throw new BusinessRuleError('No available slots remaining for this scholarship program');
     }
 
-    const knownTypes = [...application.documents.map((doc) => doc.documentType), ...uploadedTypes];
-    this.assertRequiredDocuments(program, knownTypes);
+    // PRC-M347: required-document satisfaction must be driven by actually
+    // uploaded (and not-REJECTED) files — `uploadedTypes` — NOT by the
+    // client-declared JSON `application.documents`, which carry an arbitrary
+    // `fileUrl` string and need no real file. Counting the JSON documents let a
+    // caller satisfy the control with no uploaded/verified file at all.
+    this.assertRequiredDocuments(program, uploadedTypes);
 
     const mergedDocuments = [...application.documents];
     for (const doc of uploadedDocuments) {

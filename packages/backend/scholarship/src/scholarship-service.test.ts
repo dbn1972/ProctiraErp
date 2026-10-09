@@ -306,6 +306,56 @@ describe('ScholarshipService', () => {
     });
   });
 
+  describe('finalizeDraft required documents (PRC-M347)', () => {
+    async function openDraft() {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      // Create a DRAFT whose JSON documents claim both required types with an
+      // arbitrary fileUrl but with NO uploaded file behind them.
+      const draft = await service.submitApplication(
+        TENANT_ID,
+        makeApplicationInput(program.id, {
+          asDraft: true,
+          documents: [
+            { documentType: 'transcript', fileName: 'x.pdf', fileUrl: 'http://evil/x' },
+            { documentType: 'recommendation_letter', fileName: 'y.pdf', fileUrl: 'http://evil/y' },
+          ],
+        }),
+      );
+      return draft;
+    }
+
+    it('does not let client-declared JSON documents satisfy required docs', async () => {
+      const draft = await openDraft();
+      try {
+        // No real uploaded types → must fail even though the JSON documents
+        // claim both required types.
+        await expect(service.finalizeDraft(TENANT_ID, draft.id, [], [])).rejects.toThrow(
+          ValidationError,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('accepts the draft once the required files are actually uploaded', async () => {
+      const draft = await openDraft();
+      try {
+        const updated = await service.finalizeDraft(
+          TENANT_ID,
+          draft.id,
+          ['transcript', 'recommendation_letter'],
+          [],
+        );
+        expect(['submitted', 'under_review']).toContain(updated.status);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('approveApplication', () => {
     it('should approve a submitted application', async () => {
       const program = await service.createProgram(TENANT_ID, makeProgramInput());

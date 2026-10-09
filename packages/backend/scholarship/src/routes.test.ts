@@ -131,6 +131,24 @@ describe('Scholarship Routes', () => {
       expect(body.data.length).toBe(1);
       expect(body.meta.totalItems).toBe(1);
     });
+
+    // PRC-M351: the list query must be bounded.
+    it('rejects an unbounded pageSize with 400', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/scholarships/programs?pageSize=1000000',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejects a negative page with 400', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/scholarships/programs?page=-5',
+      });
+      expect(response.statusCode).toBe(400);
+    });
   });
 
   describe('GET /scholarships/programs/:id', () => {
