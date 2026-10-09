@@ -22,11 +22,13 @@ export function createBoard(overrides: Partial<Board> = {}): Board {
 }
 
 export function createBoardList(count: number, overrides: Partial<Board> = {}): Board[] {
-  return Array.from({ length: count }, (_, i) =>
-    createBoard({
-      ...overrides,
-      code: overrides.code ? `${overrides.code}${i + 1}` : undefined,
-      name: overrides.name ? `${overrides.name} ${i + 1}` : undefined,
-    }),
-  );
+  return Array.from({ length: count }, (_, i) => {
+    // PRC-L498: build per-item overrides without undefined code/name — spreading
+    // `code: undefined` previously clobbered the factory default (spread-of-undefined
+    // overrides a defined default with undefined).
+    const perItem: Partial<Board> = { ...overrides };
+    if (overrides.code !== undefined) perItem.code = `${overrides.code}${i + 1}`;
+    if (overrides.name !== undefined) perItem.name = `${overrides.name} ${i + 1}`;
+    return createBoard(perItem);
+  });
 }

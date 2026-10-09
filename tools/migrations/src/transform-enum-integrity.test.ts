@@ -64,4 +64,33 @@ describe('map_enum fallback (PRC-H105)', () => {
     const inserts = client.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO'));
     expect(inserts).toHaveLength(0);
   });
+
+  it('PRC-M556: reports source rows dropped by ON CONFLICT DO NOTHING', async () => {
+    const students = getMappingForTarget('students')!;
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('AS code')) return { rows: [] }; // no unmapped codes
+        if (sql.includes('COUNT(*)::int AS c')) return { rows: [{ c: 10 }] }; // 10 source rows
+        if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 7 }; // only 7 inserted
+        return { rows: [] };
+      }),
+    };
+    const result = await transformTable(client as never, students, 'migration_staging', 'public');
+    expect(result.inserted).toBe(7);
+    expect(result.dropped).toBe(3);
+  });
+
+  it('PRC-M556: dropped is zero when every source row inserts', async () => {
+    const students = getMappingForTarget('students')!;
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('AS code')) return { rows: [] };
+        if (sql.includes('COUNT(*)::int AS c')) return { rows: [{ c: 5 }] };
+        if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 5 };
+        return { rows: [] };
+      }),
+    };
+    const result = await transformTable(client as never, students, 'migration_staging', 'public');
+    expect(result).toEqual({ inserted: 5, dropped: 0 });
+  });
 });

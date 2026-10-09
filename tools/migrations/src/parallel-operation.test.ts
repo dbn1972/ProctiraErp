@@ -75,10 +75,10 @@ describe('parallel-operation', () => {
         manager.advancePhase();
         expect(manager.getPhase()).toBe('shadow_read');
 
-        manager.advancePhase();
+        manager.advancePhase({ bothHealthy: true, drift: 0 });
         expect(manager.getPhase()).toBe('cutover');
 
-        manager.advancePhase();
+        manager.advancePhase({ bothHealthy: true, drift: 0 });
         expect(manager.getPhase()).toBe('legacy_decommission');
       });
 
@@ -88,11 +88,31 @@ describe('parallel-operation', () => {
         // Advance to the end
         manager.advancePhase(); // dual_write
         manager.advancePhase(); // shadow_read
-        manager.advancePhase(); // cutover
-        manager.advancePhase(); // legacy_decommission
-        manager.advancePhase(); // should stay at legacy_decommission
+        manager.advancePhase({ bothHealthy: true, drift: 0 }); // cutover
+        manager.advancePhase({ bothHealthy: true, drift: 0 }); // legacy_decommission
+        manager.advancePhase({ bothHealthy: true, drift: 0 }); // should stay at legacy_decommission
 
         expect(manager.getPhase()).toBe('legacy_decommission');
+      });
+
+      it('PRC-L507: refuses cutover without a health+drift guard', () => {
+        const manager = new ParallelOperationManager(mockConfig);
+        manager.advancePhase(); // dual_write
+        manager.advancePhase(); // shadow_read
+        // No guard → must throw rather than silently cutting over.
+        expect(() => manager.advancePhase()).toThrow(/requires a health\+drift guard|PRC-L507/);
+        expect(manager.getPhase()).toBe('shadow_read');
+      });
+
+      it('PRC-L507: refuses cutover when systems unhealthy or drift != 0', () => {
+        const manager = new ParallelOperationManager(mockConfig);
+        manager.advancePhase();
+        manager.advancePhase();
+        expect(() => manager.advancePhase({ bothHealthy: false, drift: 0 })).toThrow(/healthy/);
+        expect(() => manager.advancePhase({ bothHealthy: true, drift: 5 })).toThrow(/drift/);
+        expect(manager.getPhase()).toBe('shadow_read');
+        // Clean state advances.
+        expect(manager.advancePhase({ bothHealthy: true, drift: 0 })).toBe('cutover');
       });
 
       it('should rollback to previous phase', () => {
@@ -137,7 +157,7 @@ describe('parallel-operation', () => {
         const manager = new ParallelOperationManager(mockConfig);
         manager.advancePhase(); // dual_write
         manager.advancePhase(); // shadow_read
-        manager.advancePhase(); // cutover
+        manager.advancePhase({ bothHealthy: true, drift: 0 }); // cutover
 
         const routing = manager.getRouting();
         expect(routing.readTrafficPercent).toBe(100);

@@ -3,13 +3,42 @@
  * Tests the report logic, unmigrated record diagnosis, and serialization.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   serializeReport,
+  identifyUnmigratedRows,
   MigrationReport,
   UnmigratedRecord,
   TableMigrationStats,
 } from './migration-report.js';
+import { getMappingForTarget } from './table-mappings.js';
+
+describe('identifyUnmigratedRows (PRC-M421)', () => {
+  it('correlates through migration_uuid_map on the legacy id (not an uncorrelated NOT EXISTS)', async () => {
+    const mapping = getMappingForTarget('institutions')!;
+    const calls: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        calls.push(sql);
+        // The unmigrated-detection query returns no rows (nothing lost).
+        return { rows: [] };
+      }),
+    };
+    const config = {
+      stagingSchema: 'migration_staging',
+      pg: { schema: 'public' },
+      mysql: {},
+    } as never;
+    await identifyUnmigratedRows(client as never, mapping, config);
+    const detectionSql = calls.find((s) => s.includes('NOT EXISTS'))!;
+    expect(detectionSql).toBeDefined();
+    // Correlated through the uuid map by legacy id — the old bug joined to the
+    // target table with an uncorrelated `t.id IS NOT NULL`.
+    expect(detectionSql).toContain('migration_uuid_map m');
+    expect(detectionSql).toContain('m.legacy_id::text = s.');
+    expect(detectionSql).not.toContain('t.id IS NOT NULL');
+  });
+});
 
 describe('migration-report', () => {
   describe('serializeReport', () => {

@@ -21,6 +21,22 @@ export function isProductionEnv(nodeEnv: string | undefined = process.env.NODE_E
   return isProductionNodeEnv(nodeEnv);
 }
 
+/**
+ * PRC-M542 — presigned URLs grant unauthenticated, time-boxed access to a tenant
+ * object. An uncapped lifetime (whatever a caller passes) is a standing data-exfil
+ * window. Clamp every signed URL to at most 7 days (the S3 SigV4 maximum) and a
+ * sane floor so a 0/negative value cannot mint a non-expiring URL.
+ */
+export const MAX_SIGNED_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 604800 (S3 SigV4 max)
+export const MIN_SIGNED_URL_EXPIRY_SECONDS = 1;
+
+/** Clamp a requested signed-URL lifetime into [MIN, MAX]; non-finite falls back to `fallback`. */
+export function clampSignedUrlExpiry(requested: number | undefined, fallback: number): number {
+  const base =
+    Number.isFinite(requested) && (requested as number) > 0 ? (requested as number) : fallback;
+  return Math.min(MAX_SIGNED_URL_EXPIRY_SECONDS, Math.max(MIN_SIGNED_URL_EXPIRY_SECONDS, base));
+}
+
 export function isUnscopedTenantNamespaceAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   const v = env.ALLOW_UNSCOPED_TENANT_NAMESPACES?.trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'yes';
@@ -33,8 +49,11 @@ export function shouldRequireTenantScopedObjectKeys(
 ): boolean {
   if (typeof explicit === 'boolean') return explicit;
   if (isUnscopedTenantNamespaceAllowed(env)) return false;
-  // Always enforce for builders; for raw key ops default to production fail-closed.
-  return isProductionEnv(env.NODE_ENV);
+  // PRC-M634: previously prod-only, so a non-prod misuse (unscoped raw key) was
+  // silently accepted and only caught in production. Fail closed in every
+  // environment unless the explicit emergency hatch is set, matching the
+  // queue-abstraction subscribe posture.
+  return true;
 }
 
 export function assertTenantId(
@@ -81,6 +100,29 @@ export function assertTenantScopedObjectKeyIfRequired(
   );
   if (required) {
     assertTenantScopedObjectKey(key, options.surface ?? 'storage');
+  }
+}
+
+/**
+ * PRC-M634 — ownership guard for raw-key operations. The previous scope check was
+ * shape-only ("is this key under *some* tenants/{id}/ prefix"), so one tenant
+ * could pass another tenant's well-formed key to download/delete/sign/list and the
+ * check still passed. When the caller supplies its own tenantId, assert the key is
+ * owned by that tenant (key segment === caller tenant), not merely scoped.
+ */
+export function assertTenantOwnedObjectKey(
+  key: string,
+  tenantId: string | undefined,
+  surface = 'storage',
+): void {
+  // When no caller tenant is supplied we fall back to the shape check elsewhere;
+  // ownership can only be enforced against a known caller identity.
+  if (tenantId === undefined) return;
+  assertTenantId(tenantId, surface);
+  if (!validateTenantOwnership(key, tenantId)) {
+    throw new TenantScopeError(
+      `${surface}: object key "${key}" is not owned by tenant "${tenantId}" (PRC-M634)`,
+    );
   }
 }
 

@@ -628,7 +628,12 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
         expect(response.statusCode).toBe(401);
         const body = JSON.parse(response.body);
         expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
-        expect(String(body.message)).toMatch(/Conflicting tenant identities/);
+        // PRC-L584: the rejection must NOT leak the conflicting tenant ids in the
+        // body — a generic message only. The code (401 + TENANT_RESOLUTION_FAILED)
+        // is what proves the spoof was rejected.
+        expect(String(body.message)).toBe('Tenant could not be resolved for this request.');
+        expect(String(body.message)).not.toContain(tenantA);
+        expect(String(body.message)).not.toContain(tenantB);
 
         await app.close();
       }),

@@ -4,7 +4,8 @@
  * MinIO-specific configuration (path-style, custom endpoint).
  */
 
-import { Readable } from 'node:stream';
+import type { Readable } from 'node:stream';
+
 import {
   S3Client,
   PutObjectCommand,
@@ -13,9 +14,16 @@ import {
   ListObjectsV2Command,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+import {
+  assertTenantOwnedObjectKey,
+  assertTenantScopedObjectKeyIfRequired,
+  buildTenantKey,
+  clampSignedUrlExpiry,
+  isProductionEnv,
+} from '../tenant-namespace.js';
 import type {
   StorageAdapter,
   MinIOAdapterConfig,
@@ -27,7 +35,6 @@ import type {
   AdapterHealth,
   EncryptionType,
 } from '../types.js';
-import { assertTenantScopedObjectKeyIfRequired, buildTenantKey } from '../tenant-namespace.js';
 
 /**
  * Lifecycle metadata tag key used to classify objects.
@@ -43,16 +50,26 @@ export class MinIOAdapter implements StorageAdapter {
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly defaultEncryption?: EncryptionType;
+  private readonly defaultKmsKeyId?: string;
   private readonly signedUrlExpiry: number;
   private readonly endpoint: string;
 
   constructor(config: MinIOAdapterConfig) {
     this.bucket = config.bucket;
     this.defaultEncryption = config.defaultEncryption;
+    this.defaultKmsKeyId = config.defaultKmsKeyId;
     this.signedUrlExpiry = config.signedUrlExpiry ?? 3600;
     this.endpoint = config.endpoint;
 
     const useSSL = config.useSSL ?? false;
+    // PRC-M542: never ship tenant objects / credentials over plaintext HTTP in
+    // production. useSSL defaults to false for local dev; refuse that default
+    // (and an explicit false) when NODE_ENV is production.
+    if (isProductionEnv() && !useSSL && !config.endpoint.startsWith('https')) {
+      throw new Error(
+        'MinIOAdapter: TLS is required in production — set useSSL=true or an https endpoint (PRC-M542)',
+      );
+    }
     const protocol = useSSL ? 'https' : 'http';
     const endpoint = config.endpoint.startsWith('http')
       ? config.endpoint
@@ -85,6 +102,12 @@ export class MinIOAdapter implements StorageAdapter {
       metadata[LIFECYCLE_TAG_KEY] = options.lifecycle;
     }
 
+    // PRC-M366: lifecycle (ILM) rules filter on object tags, not metadata. Set
+    // the class as a tag so a MinIO/S3 ILM rule can expire/transition it.
+    const tagging = options.lifecycle
+      ? `${encodeURIComponent(LIFECYCLE_TAG_KEY)}=${encodeURIComponent(options.lifecycle)}`
+      : undefined;
+
     if (Buffer.isBuffer(data)) {
       const command = new PutObjectCommand({
         Bucket: this.bucket,
@@ -92,6 +115,7 @@ export class MinIOAdapter implements StorageAdapter {
         Body: data,
         ContentType: options.contentType,
         Metadata: metadata,
+        ...(tagging ? { Tagging: tagging } : {}),
         ...this.getEncryptionParams(encryption),
       });
 
@@ -116,6 +140,7 @@ export class MinIOAdapter implements StorageAdapter {
         Body: data,
         ContentType: options.contentType,
         Metadata: metadata,
+        ...(tagging ? { Tagging: tagging } : {}),
         ...this.getEncryptionParams(encryption),
       },
     });
@@ -132,8 +157,9 @@ export class MinIOAdapter implements StorageAdapter {
     };
   }
 
-  async download(key: string): Promise<Readable> {
+  async download(key: string, callerTenantId?: string): Promise<Readable> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.download' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.download');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -148,8 +174,9 @@ export class MinIOAdapter implements StorageAdapter {
     return response.Body as unknown as Readable;
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string, callerTenantId?: string): Promise<void> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.delete' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.delete');
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -158,20 +185,26 @@ export class MinIOAdapter implements StorageAdapter {
     await this.client.send(command);
   }
 
-  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+  async getSignedUrl(key: string, expiresIn?: number, callerTenantId?: string): Promise<string> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.getSignedUrl' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.getSignedUrl');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
     });
 
     return awsGetSignedUrl(this.client, command, {
-      expiresIn: expiresIn ?? this.signedUrlExpiry,
+      expiresIn: clampSignedUrlExpiry(expiresIn, this.signedUrlExpiry),
     });
   }
 
-  async listObjects(prefix: string, options?: ListOptions): Promise<ListResult> {
+  async listObjects(
+    prefix: string,
+    options?: ListOptions,
+    callerTenantId?: string,
+  ): Promise<ListResult> {
     assertTenantScopedObjectKeyIfRequired(prefix, { surface: 'storage.listObjects' });
+    assertTenantOwnedObjectKey(prefix, callerTenantId, 'storage.listObjects');
     const command = new ListObjectsV2Command({
       Bucket: this.bucket,
       Prefix: prefix,
@@ -236,8 +269,14 @@ export class MinIOAdapter implements StorageAdapter {
     }
 
     if (encryption === 'aws:kms') {
-      // MinIO supports SSE-KMS with its built-in KMS or external KMS
-      return { ServerSideEncryption: 'aws:kms' };
+      // PRC-M542: SSE-KMS without a key id falls back to the bucket/default key
+      // (or, on misconfigured MinIO, to no real KMS envelope at all). Forward the
+      // configured key so KMS encryption actually uses the tenant-platform CMK,
+      // matching the S3 adapter.
+      return {
+        ServerSideEncryption: 'aws:kms',
+        SSEKMSKeyId: this.defaultKmsKeyId,
+      };
     }
 
     return {};

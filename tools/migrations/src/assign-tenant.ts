@@ -78,15 +78,39 @@ async function assignTenantToTable(
   table: string,
   tenantId: string,
 ): Promise<number> {
-  // Only update rows that don't already have a tenant_id
+  // PRC-M554: tenant_id is a uuid column; comparing it to the empty string ('')
+  // raises 22P02 (invalid input syntax for type uuid) and aborts the whole
+  // transaction. Only `IS NULL` is a valid "unassigned" predicate for uuid.
   const result = await client.query(
     `UPDATE "${targetSchema}"."${table}"
      SET tenant_id = $1
-     WHERE tenant_id IS NULL OR tenant_id = ''`,
+     WHERE tenant_id IS NULL`,
     [tenantId],
   );
 
   return result.rowCount ?? 0;
+}
+
+/**
+ * PRC-M554 — discover every tenant-scoped table from the catalog instead of a
+ * hardcoded list of 10. Any table with a `tenant_id` column in the target schema
+ * (except the tenants table itself and the migration bookkeeping table) must be
+ * assigned, so new domain tables are not silently left tenant-less.
+ */
+export async function discoverTenantScopedTables(
+  client: Pick<PoolClient, 'query'>,
+  targetSchema: string,
+): Promise<string[]> {
+  const result = await client.query<{ table_name: string }>(
+    `SELECT table_name
+       FROM information_schema.columns
+      WHERE table_schema = $1
+        AND column_name = 'tenant_id'
+        AND table_name NOT IN ('tenants', 'schema_migrations')
+      ORDER BY table_name`,
+    [targetSchema],
+  );
+  return result.rows.map((r) => r.table_name);
 }
 
 /**
@@ -95,13 +119,14 @@ async function assignTenantToTable(
 async function verifyTenantAssignment(
   client: PoolClient,
   targetSchema: string,
+  tables: readonly string[],
 ): Promise<{ table: string; orphanedCount: number }[]> {
   const orphans: { table: string; orphanedCount: number }[] = [];
 
-  for (const table of TENANT_SCOPED_TABLES) {
+  for (const table of tables) {
     const result = await client.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM "${targetSchema}"."${table}"
-       WHERE tenant_id IS NULL OR tenant_id = ''`,
+       WHERE tenant_id IS NULL`,
     );
     const count = parseInt(result.rows[0]!.count, 10);
     if (count > 0) {
@@ -146,9 +171,13 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
     );
     console.log(`[tenant] Default tenant ID: ${tenantId}`);
 
-    // Step 2: Assign tenant_id to all scoped tables
-    console.log(`[tenant] Assigning tenant_id to migrated data...`);
-    for (const table of TENANT_SCOPED_TABLES) {
+    // Step 2: Assign tenant_id to all scoped tables (discovered from the catalog,
+    // PRC-M554 — not a hardcoded 10). Fall back to the known core list only if
+    // discovery returns nothing (empty staging in a unit context).
+    const discovered = await discoverTenantScopedTables(client, config.pg.schema);
+    const tenantTables = discovered.length > 0 ? discovered : [...TENANT_SCOPED_TABLES];
+    console.log(`[tenant] Assigning tenant_id to ${tenantTables.length} discovered table(s)...`);
+    for (const table of tenantTables) {
       try {
         const count = await assignTenantToTable(client, config.pg.schema, table, tenantId);
         console.log(`[tenant]   ✓ ${table}: ${count} rows assigned`);
@@ -161,20 +190,34 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
       }
     }
 
-    // Step 3: Verify no orphaned rows
+    // Step 3: Verify no orphaned rows. PRC-M554: an orphan (row with no tenant)
+    // is a hard failure — a tenant-less row is invisible under RLS and a data
+    // leak risk — not a warning. Verify BEFORE committing.
     console.log(`[tenant] Verifying tenant assignment completeness...`);
-    const orphans = await verifyTenantAssignment(client, config.pg.schema);
-    if (orphans.length > 0) {
-      for (const { table, orphanedCount } of orphans) {
-        warnings.push({
-          table,
-          message: `${orphanedCount} rows still missing tenant_id`,
-          count: orphanedCount,
-        });
-        console.warn(`[tenant]   ⚠ ${table}: ${orphanedCount} rows without tenant_id`);
-      }
-    } else {
+    const orphans = await verifyTenantAssignment(client, config.pg.schema, tenantTables);
+    for (const { table, orphanedCount } of orphans) {
+      errors.push({
+        table,
+        message: `${orphanedCount} rows still missing tenant_id after assignment`,
+      });
+      console.error(`[tenant]   ✗ ${table}: ${orphanedCount} rows without tenant_id`);
+    }
+    if (orphans.length === 0 && errors.length === 0) {
       console.log(`[tenant]   ✓ All rows have tenant_id assigned`);
+    }
+
+    // PRC-M554: do not COMMIT a partial/failed assignment. Roll back instead.
+    if (errors.length > 0) {
+      await client.query('ROLLBACK');
+      return {
+        step: 'tenant-assignment',
+        status: 'error',
+        tablesProcessed,
+        rowsProcessed,
+        errors,
+        warnings,
+        durationMs: Date.now() - startTime,
+      };
     }
 
     // Store the tenant ID in the mapping table for reference
@@ -189,7 +232,7 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
 
     return {
       step: 'tenant-assignment',
-      status: errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'success',
+      status: 'success',
       tablesProcessed,
       rowsProcessed,
       errors,

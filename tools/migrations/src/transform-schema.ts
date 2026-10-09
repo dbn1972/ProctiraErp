@@ -149,14 +149,17 @@ export async function findUnmappedEnumCodes(
 
 /**
  * Transforms one mapping after the unmapped-enum pre-flight. Throws (without
- * writing any row) when a legacy code has no mapping.
+ * writing any row) when a legacy code has no mapping. Returns the number of rows
+ * actually inserted AND the number of source rows that were silently dropped by
+ * ON CONFLICT DO NOTHING (PRC-M556 — a non-zero drop count is a data-loss signal
+ * the caller must surface, not hide).
  */
 export async function transformTable(
   client: Pick<PoolClient, 'query'>,
   mapping: TableMapping,
   stagingSchema: string,
   targetSchema: string,
-): Promise<number> {
+): Promise<{ inserted: number; dropped: number }> {
   const unmapped = await findUnmappedEnumCodes(client, mapping, stagingSchema);
   if (unmapped.length > 0) {
     const detail = unmapped
@@ -167,8 +170,15 @@ export async function transformTable(
       .join('; ');
     throw new Error(`Unmapped legacy enum codes in ${mapping.sourceTable}: ${detail}`);
   }
+  // Count candidate source rows (same filter) so ON CONFLICT DO NOTHING cannot
+  // silently discard rows without the migration noticing.
+  const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
+  const sourceCountSql = `SELECT COUNT(*)::int AS c FROM "${stagingSchema}"."${mapping.sourceTable}" s ${filterClause}`;
+  const sourceCount = Number((await client.query<{ c: number }>(sourceCountSql)).rows[0]?.c ?? 0);
   const result = await client.query(buildTransformSQL(mapping, stagingSchema, targetSchema));
-  return result.rowCount ?? 0;
+  const inserted = result.rowCount ?? 0;
+  const dropped = Math.max(0, sourceCount - inserted);
+  return { inserted, dropped };
 }
 
 /**
@@ -227,15 +237,38 @@ export async function transformSchema(config: MigrationConfig): Promise<Migratio
     console.log(`[transform] Staging: ${config.stagingSchema} → Target: ${config.pg.schema}`);
 
     for (const mapping of TABLE_MAPPINGS) {
+      // PRC-M556: a failed statement poisons the whole transaction, so without a
+      // SAVEPOINT every later table failed with "current transaction is aborted"
+      // yet the loop kept going and COMMIT ran at the end — committing nothing
+      // while reporting partial success. Wrap each table in a SAVEPOINT so one
+      // table's failure rolls back only that table and the rest proceed cleanly.
+      await client.query(`SAVEPOINT transform_table`);
       try {
         console.log(`[transform] Processing: ${mapping.sourceTable} → ${mapping.targetTable}`);
 
-        const rows = await transformTable(client, mapping, config.stagingSchema, config.pg.schema);
+        const { inserted, dropped } = await transformTable(
+          client,
+          mapping,
+          config.stagingSchema,
+          config.pg.schema,
+        );
 
-        console.log(`[transform]   ✓ ${rows} rows transformed`);
+        if (dropped > 0) {
+          // PRC-M556: ON CONFLICT DO NOTHING silently discarded source rows.
+          // That is data loss, not success — record it as an error.
+          throw new Error(
+            `${dropped} source row(s) dropped by ON CONFLICT (inserted ${inserted} of ${inserted + dropped})`,
+          );
+        }
+
+        await client.query(`RELEASE SAVEPOINT transform_table`);
+        console.log(`[transform]   ✓ ${inserted} rows transformed`);
         tablesProcessed++;
-        rowsProcessed += rows;
+        rowsProcessed += inserted;
       } catch (error) {
+        // Roll back just this table so the transaction stays usable.
+        await client.query(`ROLLBACK TO SAVEPOINT transform_table`);
+        await client.query(`RELEASE SAVEPOINT transform_table`);
         const message = error instanceof Error ? error.message : String(error);
         errors.push({
           table: mapping.sourceTable,
@@ -247,19 +280,38 @@ export async function transformSchema(config: MigrationConfig): Promise<Migratio
 
     // Build materialized paths for area hierarchy
     console.log(`[transform] Building area hierarchy paths...`);
+    await client.query(`SAVEPOINT transform_paths`);
     try {
       await client.query(buildPathUpdateSQL(config.pg.schema));
+      await client.query(`RELEASE SAVEPOINT transform_paths`);
       console.log(`[transform]   ✓ Area paths generated`);
     } catch (error) {
+      await client.query(`ROLLBACK TO SAVEPOINT transform_paths`);
+      await client.query(`RELEASE SAVEPOINT transform_paths`);
       const message = error instanceof Error ? error.message : String(error);
       warnings.push({ table: 'geographic_areas', message: `Path generation warning: ${message}` });
+    }
+
+    // PRC-M556: only commit a clean transform. Any table error means we must not
+    // persist a half-migrated schema; roll the whole thing back instead.
+    if (errors.length > 0) {
+      await client.query('ROLLBACK');
+      return {
+        step: 'schema-transformation',
+        status: 'error',
+        tablesProcessed,
+        rowsProcessed,
+        errors,
+        warnings,
+        durationMs: Date.now() - startTime,
+      };
     }
 
     await client.query('COMMIT');
 
     return {
       step: 'schema-transformation',
-      status: errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'success',
+      status: warnings.length > 0 ? 'warning' : 'success',
       tablesProcessed,
       rowsProcessed,
       errors,

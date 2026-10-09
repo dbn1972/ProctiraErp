@@ -5,8 +5,11 @@
 
 // Factories
 export {
+  seedFactories,
   createTenant,
   createTenantConfig,
+  createBoard,
+  createBoardList,
   createInstitution,
   createInstitutionList,
   createStudent,
@@ -23,6 +26,8 @@ export type {
   Tenant,
   TenantConfig,
   Area,
+  Board,
+  BoardType,
   Institution,
   Student,
   Staff,
@@ -33,6 +38,7 @@ export type {
 // Database utilities
 export {
   TestDatabase,
+  assertTestDatabase,
   withTestTransaction,
   createTransactionScope,
   seedTestData,

@@ -144,4 +144,6 @@ export {
   tenantFromScopedName,
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedQueueTopics,
+  isWildcardTopic,
+  wildcardTopicToRegExp,
 } from './tenant-scope';
