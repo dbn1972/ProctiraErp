@@ -279,7 +279,10 @@ export class DeveloperPortalService {
 
   // ─── Developer Accounts ─────────────────────────────────────────────────
 
-  async createAccount(input: CreateDeveloperAccountInput): Promise<DeveloperAccountEntity> {
+  async createAccount(
+    input: CreateDeveloperAccountInput,
+    ownerUserId: string | null = null,
+  ): Promise<DeveloperAccountEntity> {
     // Check for duplicate email
     const existing = await this.repository.getAccountByEmail(input.email);
     if (existing) {
@@ -294,11 +297,31 @@ export class DeveloperPortalService {
       organization: input.organization ?? null,
       website: input.website ?? null,
       status: 'active',
+      // NEW-g7_platform-009 / PRC-M507: bind the account to its creating owner.
+      ownerUserId: ownerUserId ?? null,
       createdAt: now,
       updatedAt: now,
     };
 
     return this.repository.createAccount(account);
+  }
+
+  /**
+   * NEW-g7_platform-009 / PRC-M507: ownership check for account-scoped routes.
+   * Returns true when the authenticated subject owns the account OR is
+   * platform-staff. A `null` owner (legacy row) is only accessible to
+   * platform-staff. Anonymous callers (`subject === null`) are never allowed.
+   */
+  async isAccountAccessible(
+    accountId: string,
+    subject: string | null,
+    isPlatformStaff: boolean,
+  ): Promise<boolean> {
+    if (isPlatformStaff) return true;
+    if (!subject) return false;
+    const account = await this.repository.getAccountById(accountId);
+    if (!account) return false;
+    return account.ownerUserId !== null && account.ownerUserId === subject;
   }
 
   async getAccount(accountId: string): Promise<DeveloperAccountEntity> {
