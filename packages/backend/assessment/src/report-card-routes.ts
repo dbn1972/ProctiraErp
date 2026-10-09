@@ -23,7 +23,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { isAssessmentAdmin } from './assessment-access.js';
+import { isAssessmentAdmin, isReportCardOperator } from './assessment-access.js';
 import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 import {
   CreateReportCardTemplateSchema,
@@ -637,6 +637,17 @@ export async function registerReportCardRoutes(
           code: 'TENANT_REQUIRED',
           message: 'Tenant context is required',
           statusCode: 400,
+        });
+      }
+
+      // PRC-L080: reprocessing a job is an operator action. Restrict to
+      // admin/exam-officer; a plain teacher (assessment.write) is denied.
+      const operator = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+      if (!isReportCardOperator(operator?.roles)) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Only an administrator or exam officer may reprocess report-card jobs',
+          statusCode: 403,
         });
       }
 
