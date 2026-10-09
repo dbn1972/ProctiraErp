@@ -205,8 +205,20 @@ function normaliseQuestions(
           },
         ]);
       }
-      const idx = q.correctOptionIndex ?? 0;
-      if (idx >= options.length) {
+      // PRC-M297: correctOptionIndex is REQUIRED for an MCQ. Previously a missing
+      // index defaulted to 0 for the range check but was then stored as -1,
+      // silently marking every answer wrong. Fail closed instead.
+      if (q.correctOptionIndex === undefined || q.correctOptionIndex === null) {
+        throw new ValidationError('correctOptionIndex is required for MCQ questions', [
+          {
+            field: `questions[${index}].correctOptionIndex`,
+            rule: 'required',
+            message: 'An MCQ must declare which option is correct',
+          },
+        ]);
+      }
+      const idx = q.correctOptionIndex;
+      if (idx < 0 || idx >= options.length) {
         throw new ValidationError('correctOptionIndex is out of range', [
           {
             field: `questions[${index}].correctOptionIndex`,

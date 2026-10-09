@@ -80,3 +80,54 @@ describe('NEW-g5_academic-003 — question bank answer keys are staff-only', () 
     expect(staffList.data).toHaveLength(1);
   });
 });
+
+describe('PRC-M297 — MCQ answer key is required', () => {
+  it('rejects an MCQ created without a correctOptionIndex instead of storing -1', async () => {
+    const s = svc();
+    await expect(
+      s.createAssignment(
+        TENANT,
+        {
+          scope: 'school',
+          institutionId: SCHOOL_A,
+          kind: 'quiz',
+          title: 'Bad quiz',
+          subject: 'Maths',
+          questions: [
+            {
+              prompt: 'Pick one',
+              questionType: 'mcq',
+              options: ['a', 'b', 'c'],
+              // no correctOptionIndex
+            },
+          ],
+        },
+        teacherA,
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('accepts an MCQ with an explicit correctOptionIndex', async () => {
+    const s = svc();
+    const quiz = await s.createAssignment(
+      TENANT,
+      {
+        scope: 'school',
+        institutionId: SCHOOL_A,
+        kind: 'quiz',
+        title: 'Good quiz',
+        subject: 'Maths',
+        questions: [
+          {
+            prompt: 'Pick one',
+            questionType: 'mcq',
+            options: ['a', 'b', 'c'],
+            correctOptionIndex: 1,
+          },
+        ],
+      },
+      teacherA,
+    );
+    expect(quiz.questions[0]!.correctOptionIndex).toBe(1);
+  });
+});
