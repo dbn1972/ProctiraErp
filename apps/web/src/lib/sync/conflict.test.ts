@@ -197,4 +197,37 @@ describe('mergeResolutions', () => {
     expect(mergeResolutions(null, sampleConflicts, {})).toBeNull();
     expect(mergeResolutions(42, sampleConflicts, {})).toBe(42);
   });
+
+  // PRC-L440: a server-supplied conflict field path must never walk the
+  // prototype chain. These assertions fail if `setByPath` splits on '.' and
+  // writes through `__proto__` / `constructor` / `prototype`.
+  it('ignores __proto__ in a conflict field path (no prototype pollution)', () => {
+    const local = { safe: 'ok' };
+    const conflicts: FieldConflict[] = [
+      {
+        field: '__proto__.polluted',
+        server_value: 'yes',
+        server_version: 'v9',
+        client_value: null,
+      },
+    ];
+    const merged = mergeResolutions(local, conflicts, { '__proto__.polluted': 'server' });
+    expect((merged as Record<string, unknown>).safe).toBe('ok');
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((Object.prototype as unknown as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it('ignores constructor/prototype segments in a conflict field path', () => {
+    const local = { safe: 'ok' };
+    const conflicts: FieldConflict[] = [
+      {
+        field: 'constructor.prototype.polluted2',
+        server_value: 'yes',
+        server_version: 'v9',
+        client_value: null,
+      },
+    ];
+    mergeResolutions(local, conflicts, { 'constructor.prototype.polluted2': 'server' });
+    expect(({} as Record<string, unknown>).polluted2).toBeUndefined();
+  });
 });
