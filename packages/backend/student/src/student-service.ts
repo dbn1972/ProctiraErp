@@ -342,7 +342,49 @@ export class StudentService {
       patch.identityDocuments = duplicate.identityDocuments;
     }
 
-    const updatedSurvivor = await this.repository.update(survivor.id, tenantId, patch);
+    const duplicateRetire: Partial<StudentEntity> = {
+      customData: {
+        ...duplicate.customData,
+        mergedInto: survivor.id,
+        mergeId,
+        mergeReason: input.reason,
+        mergedAt: new Date().toISOString(),
+      },
+    };
+    // PRC-M383 / NEW: when the survivor is adopting the duplicate's nationalId,
+    // the duplicate must release it FIRST, otherwise both rows hold the same
+    // nationalId and the write violates UNIQUE(tenant_id, national_id). We clear
+    // it on the duplicate as part of the same transaction (ordered before the
+    // survivor update) so the survivor can safely take it.
+    const survivorAdoptsNationalId = patch.nationalId != null;
+    if (survivorAdoptsNationalId) {
+      duplicateRetire.nationalId = null;
+    }
+
+    // PRC-M546: survivor patch + duplicate retire must be all-or-nothing. Use the
+    // transactional bulkWrite when the repository supports it so a partial
+    // failure cannot leave a half-merged survivor beside a non-retired duplicate.
+    let updatedSurvivor: StudentEntity | null;
+    if (this.repository.bulkWrite) {
+      const result = await this.repository.bulkWrite(tenantId, {
+        creates: [],
+        // Order matters: clear the duplicate's nationalId before the survivor
+        // adopts it (see PRC-M383 above).
+        updates: [
+          { id: duplicate.id, data: duplicateRetire },
+          { id: survivor.id, data: patch },
+        ],
+      });
+      updatedSurvivor = result.updated.find((s) => s.id === survivor.id) ?? null;
+    } else {
+      // Non-transactional fallback (in-memory/dev). Still clear the duplicate's
+      // nationalId first so the collision in PRC-M383 cannot occur.
+      if (survivorAdoptsNationalId) {
+        await this.repository.update(duplicate.id, tenantId, { nationalId: null });
+      }
+      updatedSurvivor = await this.repository.update(survivor.id, tenantId, patch);
+      await this.repository.update(duplicate.id, tenantId, duplicateRetire);
+    }
     if (!updatedSurvivor) {
       throw new NotFoundError(`Survivor student '${input.survivorId}' not found`);
     }
@@ -356,15 +398,6 @@ export class StudentService {
       });
     }
 
-    await this.repository.update(duplicate.id, tenantId, {
-      customData: {
-        ...duplicate.customData,
-        mergedInto: survivor.id,
-        mergeId,
-        mergeReason: input.reason,
-        mergedAt: new Date().toISOString(),
-      },
-    });
     await this.repository.delete(duplicate.id, tenantId);
 
     return {
