@@ -735,7 +735,15 @@ export class DeveloperPortalService {
     // twice or loop back into another re-enqueue (review #5 on PR #555).
     let failedStatus: number | null;
     try {
-      const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
+      // NEW-g7_platform-005 / PRC-L465: deliver to the CURRENT webhook URL, not
+      // the (possibly stale) URL captured on the job at enqueue time. A webhook
+      // that was re-pointed or corrected after a compromise must not keep
+      // receiving signed tenant data at the old destination. The URL is
+      // re-validated with the SSRF guard at send time; a now-unsafe URL fails
+      // the attempt instead of being delivered.
+      const targetUrl = webhook.url;
+      assertPublicHttpsUrlShape(targetUrl);
+      const res = await this.httpFetch(targetUrl, { method: 'POST', headers, body });
       if (res.ok) {
         await this.markDeliverySuccess(job.deliveryId, res.status);
         return;

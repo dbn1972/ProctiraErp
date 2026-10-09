@@ -75,4 +75,49 @@ describe('PRC-H046 webhook fan-out via outbox', () => {
     await relayQueue.disconnect();
     expect(Object.keys(posts[0]!).some((h) => h.toLowerCase().includes('signature'))).toBe(true);
   });
+
+  it('delivers to the CURRENT webhook URL, not the stale enqueued job URL (NEW-g7_platform-005 / PRC-L465)', async () => {
+    const repository = new InMemoryDeveloperPortalRepository();
+    const urls: string[] = [];
+    const service = new DeveloperPortalService(repository, undefined, {
+      // No deliveryPublisher: processQueuedDelivery is driven directly.
+      httpFetch: async (url, _init) => {
+        urls.push(url);
+        return { status: 200, ok: true };
+      },
+      signingSecretResolver: {
+        async resolveSigningSecret() {
+          return 'decrypted-test-secret';
+        },
+      },
+      signingSecretWriter: { async storeSigningSecret() {} },
+    });
+    const account = await service.createAccount({ name: 'OEM', email: 'oem@example.com' });
+    const webhook = await service.createWebhook(account.id, TENANT_ID, {
+      url: 'https://old.example.com/hooks',
+      events: ['student.enrolled'],
+    });
+
+    // A delivery is created (job captures the OLD url).
+    const delivery = await service.createDelivery(webhook.id, 'student.enrolled', { id: 's1' });
+
+    // The webhook is re-pointed to a new URL AFTER the job was enqueued.
+    await service.updateWebhook(account.id, TENANT_ID, webhook.id, {
+      url: 'https://new.example.com/hooks',
+    });
+
+    await service.processQueuedDelivery(TENANT_ID, {
+      tenantId: TENANT_ID,
+      webhookId: webhook.id,
+      deliveryId: delivery.id,
+      event: 'student.enrolled',
+      url: 'https://old.example.com/hooks',
+      body: { id: 's1' },
+      attempt: 0,
+    });
+
+    expect(urls).toEqual(['https://new.example.com/hooks']);
+    const after = await repository.getDeliveryById(delivery.id);
+    expect(after?.status).toBe('delivered');
+  });
 });
