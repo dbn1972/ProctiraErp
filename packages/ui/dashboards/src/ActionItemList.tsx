@@ -23,10 +23,6 @@
  * `high`-priority item exists so SR users hear about urgent work.
  */
 
-import { ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
-
 import {
   Badge,
   Card,
@@ -37,9 +33,13 @@ import {
   Skeleton,
   useAnnounce,
 } from '@proctira/ui-components';
+import { ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { cn } from './lib/utils';
+
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
 
 /**
  * PRC-L595: only render `item.href` as a link when it is a safe target —

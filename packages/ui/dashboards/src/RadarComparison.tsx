@@ -18,16 +18,6 @@
  * error.
  */
 
-import type { ReactNode } from 'react';
-import {
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-} from 'recharts';
-
 import {
   Card,
   CardContent,
@@ -39,9 +29,19 @@ import {
   useChartPalette,
   useSeriesColors,
 } from '@proctira/ui-components';
+import type { ReactNode } from 'react';
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from 'recharts';
 
-import { cn } from './lib/utils';
+
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
 
 export interface RadarSeries {
   /** Stable id used as the React key + tooltip name. */
