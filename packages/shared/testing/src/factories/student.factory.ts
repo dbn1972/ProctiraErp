@@ -16,8 +16,12 @@ export function createStudent(overrides: Partial<Student> = {}): Student {
     lastName: faker.person.lastName(sex),
     dateOfBirth: faker.date.birthdate({ min: 5, max: 20, mode: 'age' }),
     gender: gender.toUpperCase(),
-    nationalId: faker.string.numeric(12),
-    email: faker.internet.email(),
+    // PRC-L587: never generate realistic-looking national IDs / emails for
+    // minors. Use a reserved, obviously-fake marker prefix for the id and the
+    // RFC 2606 reserved `.test` domain so this data can never be mistaken for or
+    // used as a real identity outside tests.
+    nationalId: `TEST-${faker.string.numeric(8)}`,
+    email: faker.internet.email({ provider: 'example.test' }),
     phone: faker.phone.number(),
     address: faker.location.streetAddress(),
     nationality: faker.location.country(),
