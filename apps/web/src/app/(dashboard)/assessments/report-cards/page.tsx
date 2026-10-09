@@ -14,6 +14,7 @@ import {
   listGradeEntries,
 } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/institutions/api';
+import { pickSelectedLookup } from '@/lib/admissions/lookups';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,12 @@ function formatJobDate(iso: string): string {
     : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
 }
 
-export default async function AssessmentReportCardsPage() {
+export default async function AssessmentReportCardsPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  } = {},
+) {
+  const searchParams = (await props.searchParams) ?? {};
   const [institutions, jobsResult] = await Promise.all([
     listInstitutions({ pageSize: 50 }).catch(() => ({
       data: [] as Array<{ id: string; name: string }>,
@@ -38,10 +44,11 @@ export default async function AssessmentReportCardsPage() {
   ]);
   const jobs = jobsResult.ok ? jobsResult.data : [];
   const institutionList = 'data' in institutions ? institutions.data : [];
-  const firstInstitutionId = institutionList[0]?.id;
+  // PRC-M070: operate on the institution the user selected (URL), not [0].
+  const selectedInstitutionId = pickSelectedLookup(institutionList, searchParams['institutionId']);
 
-  const sectionsResult = firstInstitutionId
-    ? await listGradebookSections({ institutionId: firstInstitutionId })
+  const sectionsResult = selectedInstitutionId
+    ? await listGradebookSections({ institutionId: selectedInstitutionId })
     : { ok: true as const, data: [] };
   const sections = sectionsResult.ok ? sectionsResult.data : [];
 
@@ -87,6 +94,32 @@ export default async function AssessmentReportCardsPage() {
       <Card>
         <CardContent className="space-y-3 p-6">
           <h2 className="text-base font-semibold">Classes</h2>
+          {institutionList.length > 0 ? (
+            <form
+              method="get"
+              className="flex flex-wrap items-end gap-2"
+              data-testid="report-cards-institution-form"
+            >
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-foreground">Institution</span>
+                <select
+                  name="institutionId"
+                  defaultValue={selectedInstitutionId ?? ''}
+                  className="min-h-11 rounded-md border border-input bg-background px-3 text-sm"
+                  aria-label="Institution"
+                >
+                  {institutionList.map((inst) => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="submit" variant="outline" size="sm">
+                Show
+              </Button>
+            </form>
+          ) : null}
           {classRows.length === 0 ? (
             <p className="text-sm text-muted-foreground" data-testid="report-cards-empty">
               No gradebook sections yet. Open an institution gradebook to enter and publish grades.

@@ -379,6 +379,24 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
   const [error, setError] = useState<string | null>(null);
   const [confirmExecute, setConfirmExecute] = useState(false);
 
+  // PRC-M135: any change to the target or the copy/promote options invalidates a
+  // previous preview. Clear the summary so Execute is disabled until the operator
+  // previews the *current* options — Execute can never run a different set than
+  // the one that was previewed.
+  const invalidatePreview = () => setSummary(null);
+
+  // PRC-M135: a stable fingerprint of the options that were previewed. It is
+  // folded into the idempotency key so an execute with different options cannot
+  // collapse onto a previous attempt's key.
+  const optionsHash = [
+    targetPeriodId,
+    institutionId,
+    promote ? 'p1' : 'p0',
+    copyFees ? 'f1' : 'f0',
+    copyTimetable ? 't1' : 't0',
+    copyLms ? 'l1' : 'l0',
+  ].join('|');
+
   const run = (dryRun: boolean) => {
     setError(null);
     startTransition(async () => {
@@ -389,7 +407,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
         copyFeeStructures: copyFees,
         copyTimetable,
         copyLmsAssignments: copyLms,
-        idempotencyKey: dryRun ? undefined : `rollover-${source.id}-${targetPeriodId}`,
+        idempotencyKey: dryRun
+          ? undefined
+          : `rollover-${source.id}-${targetPeriodId}-${optionsHash}`,
         dryRun,
       });
       if (!result.success) {
@@ -436,7 +456,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 <Label htmlFor="ro-target">Target year</Label>
                 <Select
                   value={targetPeriodId}
-                  onValueChange={setTargetPeriodId}
+                  onValueChange={(v) => {
+                    setTargetPeriodId(v);
+                    invalidatePreview();
+                  }}
                   disabled={isPending}
                 >
                   <SelectTrigger id="ro-target" data-testid="rollover-target">
@@ -453,7 +476,14 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ro-institution">Institution</Label>
-                <Select value={institutionId} onValueChange={setInstitutionId} disabled={isPending}>
+                <Select
+                  value={institutionId}
+                  onValueChange={(v) => {
+                    setInstitutionId(v);
+                    invalidatePreview();
+                  }}
+                  disabled={isPending}
+                >
                   <SelectTrigger id="ro-institution" data-testid="rollover-institution">
                     <SelectValue />
                   </SelectTrigger>
@@ -473,7 +503,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
               <Checkbox
                 id="ro-promote"
                 checked={promote}
-                onCheckedChange={(v) => setPromote(v === true)}
+                onCheckedChange={(v) => {
+                  setPromote(v === true);
+                  invalidatePreview();
+                }}
                 disabled={isPending}
                 data-testid="rollover-promote"
               />
@@ -491,7 +524,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 <Checkbox
                   id="ro-fees"
                   checked={copyFees}
-                  onCheckedChange={(v) => setCopyFees(v === true)}
+                  onCheckedChange={(v) => {
+                    setCopyFees(v === true);
+                    invalidatePreview();
+                  }}
                   disabled={isPending}
                   data-testid="rollover-copy-fees"
                 />
@@ -503,7 +539,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 <Checkbox
                   id="ro-tt"
                   checked={copyTimetable}
-                  onCheckedChange={(v) => setCopyTimetable(v === true)}
+                  onCheckedChange={(v) => {
+                    setCopyTimetable(v === true);
+                    invalidatePreview();
+                  }}
                   disabled={isPending}
                   data-testid="rollover-copy-timetable"
                 />
@@ -515,7 +554,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 <Checkbox
                   id="ro-lms"
                   checked={copyLms}
-                  onCheckedChange={(v) => setCopyLms(v === true)}
+                  onCheckedChange={(v) => {
+                    setCopyLms(v === true);
+                    invalidatePreview();
+                  }}
                   disabled={isPending}
                   data-testid="rollover-copy-lms"
                 />

@@ -64,57 +64,69 @@ export default function AnalyticsDashboard() {
   const numeracyColor = useSeriesColor(2);
 
   return (
-    <div className="grid gap-6 p-6 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Enrollment by stage</CardTitle>
-          <CardDescription>
-            Active enrolments across pre-primary through tertiary education.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={enrollmentByStage}>
-              <ThemedCartesianGrid />
-              <ThemedXAxis dataKey="stage" />
-              <ThemedYAxis />
-              <ThemedTooltip />
-              <Bar dataKey="students" fill={enrollmentColor} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+    <div className="space-y-4 p-6">
+      {/* PRC-L533: the figures below are a hard-coded demo fixture, not live
+          analytics. State that visibly so no viewer mistakes it for real data. */}
+      <div
+        role="status"
+        data-testid="analytics-sample-banner"
+        className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+      >
+        Sample data — these charts show an illustrative fixture. Live analytics are not yet wired
+        up.
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Enrollment by stage</CardTitle>
+            <CardDescription>
+              Active enrolments across pre-primary through tertiary education.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={enrollmentByStage}>
+                <ThemedCartesianGrid />
+                <ThemedXAxis dataKey="stage" />
+                <ThemedYAxis />
+                <ThemedTooltip />
+                <Bar dataKey="students" fill={enrollmentColor} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Assessment trend</CardTitle>
-          <CardDescription>Average literacy and numeracy scores per term.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={assessmentTrend}>
-              <ThemedCartesianGrid />
-              <ThemedXAxis dataKey="term" />
-              <ThemedYAxis domain={[0, 100]} />
-              <ThemedTooltip />
-              <Line
-                type="monotone"
-                dataKey="literacy"
-                stroke={literacyColor}
-                strokeWidth={2}
-                dot={{ fill: literacyColor }}
-              />
-              <Line
-                type="monotone"
-                dataKey="numeracy"
-                stroke={numeracyColor}
-                strokeWidth={2}
-                dot={{ fill: numeracyColor }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Assessment trend</CardTitle>
+            <CardDescription>Average literacy and numeracy scores per term.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={assessmentTrend}>
+                <ThemedCartesianGrid />
+                <ThemedXAxis dataKey="term" />
+                <ThemedYAxis domain={[0, 100]} />
+                <ThemedTooltip />
+                <Line
+                  type="monotone"
+                  dataKey="literacy"
+                  stroke={literacyColor}
+                  strokeWidth={2}
+                  dot={{ fill: literacyColor }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="numeracy"
+                  stroke={numeracyColor}
+                  strokeWidth={2}
+                  dot={{ fill: numeracyColor }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

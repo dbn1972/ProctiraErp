@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { type ImportProgress, type ImportResult } from '@/lib/api/students';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import { submitBulkImportAction } from '../../actions';
 
@@ -50,6 +51,9 @@ export function BulkImportPanel() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  // PRC-M127: the import commits immediately on submit; make the "nothing is
+  // saved until you confirm" promise true with an explicit confirmation step.
+  const [confirmImport, setConfirmImport] = useState(false);
 
   // Poll progress when an async job is in flight.
   useEffect(() => {
@@ -285,12 +289,37 @@ export function BulkImportPanel() {
         )}
         <Button
           type="button"
-          onClick={() => void onSubmit()}
+          onClick={() => {
+            if (!file) {
+              setValidationError('Select a file before importing.');
+              return;
+            }
+            setConfirmImport(true);
+          }}
           disabled={!file || status === 'submitting' || status === 'queued'}
         >
           {status === 'submitting' ? 'Uploading…' : 'Start import'}
         </Button>
       </div>
+      <ConfirmActionDialog
+        open={confirmImport}
+        onOpenChange={setConfirmImport}
+        title="Import these records?"
+        description={
+          duplicateResolution === 'update'
+            ? 'This commits the upload now: new students are created and existing matches are updated. Rows that fail validation are reported and skipped. This cannot be undone from here.'
+            : duplicateResolution === 'create'
+              ? 'This commits the upload now: a new student record is created for every valid row, including duplicates. This cannot be undone from here.'
+              : 'This commits the upload now: valid new students are created and duplicate rows are skipped. Rows that fail validation are reported. This cannot be undone from here.'
+        }
+        confirmLabel="Import now"
+        pending={status === 'submitting'}
+        testId="bulk-import-confirm"
+        onConfirm={() => {
+          setConfirmImport(false);
+          void onSubmit();
+        }}
+      />
     </div>
   );
 }

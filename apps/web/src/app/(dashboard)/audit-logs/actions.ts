@@ -30,16 +30,43 @@ function fail(error: unknown, fallback: string): AuditActionState {
   return { status: 'error', message: error instanceof Error ? error.message : fallback };
 }
 
-const retentionSchema = z.object({
-  retentionMonths: z.number().int().min(1, 'At least 1 month').max(120, 'At most 120 months'),
-  archivalEnabled: z.boolean(),
-  archivalDestination: z.string().trim().max(500).nullable(),
-});
+/**
+ * PRC-L032 / PRC-L256: audit retention has a statutory floor. A 1-month
+ * retention would let an operator erase the audit trail almost immediately.
+ * The minimum is configurable per deployment (AUDIT_RETENTION_MIN_MONTHS) but
+ * can never drop below a hard 12-month floor, and the policy ceiling is 120
+ * months. Enforced server-side so the UI cannot bypass it.
+ */
+export const AUDIT_RETENTION_HARD_FLOOR_MONTHS = 12;
+export const AUDIT_RETENTION_MAX_MONTHS = 120;
 
-export async function saveRetentionAction(
-  input: z.input<typeof retentionSchema>,
-): Promise<AuditActionState> {
-  const parsed = retentionSchema.safeParse(input);
+export function minAuditRetentionMonths(): number {
+  const raw = Number.parseInt(process.env['AUDIT_RETENTION_MIN_MONTHS'] ?? '', 10);
+  if (Number.isFinite(raw) && raw > AUDIT_RETENTION_HARD_FLOOR_MONTHS) {
+    return Math.min(raw, AUDIT_RETENTION_MAX_MONTHS);
+  }
+  return AUDIT_RETENTION_HARD_FLOOR_MONTHS;
+}
+
+function buildRetentionSchema() {
+  const min = minAuditRetentionMonths();
+  return z.object({
+    retentionMonths: z
+      .number()
+      .int()
+      .min(min, `At least ${min} months`)
+      .max(AUDIT_RETENTION_MAX_MONTHS, `At most ${AUDIT_RETENTION_MAX_MONTHS} months`),
+    archivalEnabled: z.boolean(),
+    archivalDestination: z.string().trim().max(500).nullable(),
+  });
+}
+
+export async function saveRetentionAction(input: {
+  retentionMonths: number;
+  archivalEnabled: boolean;
+  archivalDestination: string | null;
+}): Promise<AuditActionState> {
+  const parsed = buildRetentionSchema().safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed.error.flatten().fieldErrors)) {

@@ -40,7 +40,7 @@ const features: Feature[] = [
   {
     title: 'REST API',
     description:
-      '240+ versioned endpoints with cursor pagination, idempotency keys, and predictable errors. OpenAPI 3.1 spec included.',
+      'A versioned REST API with cursor pagination, idempotency keys, and predictable errors. OpenAPI spec included.',
     linkLabel: 'API reference',
     href: '/docs',
     icon: (
@@ -101,11 +101,11 @@ const features: Feature[] = [
     ),
   },
   {
-    title: 'Sandbox tenants',
+    title: 'Sandbox tenants (planned)',
     description:
-      'Spin up a disposable school pre-seeded with realistic demo data. Reset anytime, no production risk.',
-    linkLabel: 'Create sandbox',
-    href: '/dashboard',
+      'Planned: a disposable school pre-seeded with demo data you can reset anytime. Not yet available in this release.',
+    linkLabel: 'Roadmap',
+    href: '/docs',
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -149,7 +149,7 @@ const features: Feature[] = [
   {
     title: 'OAuth scopes',
     description:
-      'Granular, consent-based scopes down to the field level. Students’ personal data stays protected under DPDP Act 2023.',
+      'Granular, consent-based scopes down to the field level, designed for India’s DPDP Act 2023 obligations.',
     linkLabel: 'Auth guide',
     href: '/docs',
     icon: (
@@ -174,11 +174,8 @@ const steps = [
     title: 'Create a developer account',
     body: (
       <>
-        Sign in with GitHub or email. You get a sandbox tenant{' '}
-        <code className="rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-accent-700">
-          sandbox-*-demo
-        </code>{' '}
-        seeded with demo students automatically.
+        Sign in with email. Sandbox tenants are planned; today you work against your organisation’s
+        tenant with a scoped key.
       </>
     ),
   },
@@ -190,7 +187,7 @@ const steps = [
         <code className="rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-accent-700">
           PROCTIRA_API_KEY
         </code>
-        . Keys rotate without downtime.
+        . Keys can be revoked and reissued from the dashboard.
       </>
     ),
   },
@@ -226,7 +223,7 @@ export default function HomePage() {
             <div>
               <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-500" aria-hidden="true" />
-                API v3 is live · sandbox tenants now self-serve
+                REST API v1 · OpenAPI spec and docs available
               </span>
               <h1 className="mb-4 text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
                 Build for{' '}
@@ -267,10 +264,10 @@ export default function HomePage() {
                 className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]"
                 aria-label="Example API request"
               >
-                {`# List students enrolled this week in your sandbox tenant
-curl "https://api.proctira.dev/v3/students" \\
+                {`# List students enrolled this week in your tenant
+curl "https://api.proctira.dev/v1/students" \\
   -H "Authorization: Bearer $PROCTIRA_API_KEY" \\
-  -H "X-Tenant: sandbox-demo" \\
+  -H "X-Tenant: your-tenant" \\
   --data-urlencode "enrolled_after=2026-06-01"
 
 # 200 OK
@@ -391,8 +388,8 @@ curl "https://api.proctira.dev/v3/students" \\
               <Link href="/marketplace" className="text-gray-600 hover:text-gray-900">
                 Plugin marketplace
               </Link>
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-                Sandbox tenants
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Sandbox tenants (planned)
               </Link>
               <Link href="/docs" className="text-gray-600 hover:text-gray-900">
                 Changelog

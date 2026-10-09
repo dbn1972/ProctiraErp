@@ -14,7 +14,8 @@ interface ScaffoldModeBannerProps {
   className?: string;
   /**
    * When `'gateway'`, the banner is hidden (live Insights APIs responded).
-   * When `'scaffold'`, the honesty banner shows.
+   * Any other value — including `'scaffold'` or an unknown/undefined source —
+   * shows the honesty banner (PRC-L258: fail closed, never hide on unknown).
    */
   source?: ScaffoldDataSource;
   /** Force-show for write scaffolds that never hit a live API yet. */
@@ -41,7 +42,9 @@ export function ScaffoldModeBanner({
   force = false,
   title,
 }: ScaffoldModeBannerProps) {
-  if (!force && source !== 'scaffold') return null;
+  // PRC-L258: fail closed. The banner is only hidden when the caller proves the
+  // data came from the live gateway. An unknown/undefined source warns.
+  if (!force && source === 'gateway') return null;
 
   return (
     <Alert
