@@ -5,6 +5,7 @@
  * Stores workflow definitions, instances, and audit records in memory.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   WorkflowRepository,
   WorkflowDefinitionEntity,
@@ -12,6 +13,7 @@ import type {
   WorkflowInstanceEntity,
   WorkflowInstanceFilter,
   TransitionAuditEntity,
+  InstanceUpdateGuard,
 } from './workflow-repository.js';
 
 export class InMemoryWorkflowRepository implements WorkflowRepository {
@@ -121,11 +123,22 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
     id: string,
     tenantId: string,
     data: Partial<WorkflowInstanceEntity>,
+    expected?: InstanceUpdateGuard,
   ): Promise<WorkflowInstanceEntity | null> {
     const index = this.instances.findIndex((i) => i.id === id && i.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.instances[index]!;
+    // PRC-M457 / NEW-g7_platform-010: optimistic guard — reject if the row moved
+    // since the caller read it.
+    if (expected) {
+      if (
+        existing.currentStateId !== expected.currentStateId ||
+        existing.approvals.length !== expected.approvalCount
+      ) {
+        return null;
+      }
+    }
     const updated: WorkflowInstanceEntity = {
       id: existing.id,
       tenantId: existing.tenantId,
