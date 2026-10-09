@@ -258,21 +258,36 @@ export const ExaminationListQuerySchema = Type.Object({
   ),
   academicPeriodId: Type.Optional(Type.String({ description: 'Filter by academic period ID' })),
   status: Type.Optional(
-    Type.String({
-      enum: ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
-      description: 'Filter by status',
-    }),
+    // PRC-M241: enforced union (not an unchecked `enum` annotation) so an
+    // invalid status is rejected rather than silently returning an empty list.
+    Type.Union(
+      [
+        Type.Literal('DRAFT'),
+        Type.Literal('SCHEDULED'),
+        Type.Literal('IN_PROGRESS'),
+        Type.Literal('COMPLETED'),
+        Type.Literal('CANCELLED'),
+      ],
+      { description: 'Filter by status' },
+    ),
   ),
   search: Type.Optional(Type.String({ description: 'Search by name or code' })),
   sortBy: Type.Optional(
-    Type.String({
-      enum: ['name', 'code', 'startDate', 'createdAt'],
-      default: 'name',
-      description: 'Sort field',
-    }),
+    Type.Union(
+      [
+        Type.Literal('name'),
+        Type.Literal('code'),
+        Type.Literal('startDate'),
+        Type.Literal('createdAt'),
+      ],
+      { default: 'name', description: 'Sort field' },
+    ),
   ),
   sortOrder: Type.Optional(
-    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+      default: 'asc',
+      description: 'Sort direction',
+    }),
   ),
 });
 
