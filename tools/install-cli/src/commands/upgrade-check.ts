@@ -9,7 +9,7 @@
  * - Outputs go/no-go recommendation
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statfsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -210,15 +210,33 @@ function checkBackupExists(): boolean {
   const backupEnabled = process.env['DB_BACKUP_ENABLED'] === 'true';
   const lastBackup = process.env['LAST_BACKUP_TIMESTAMP'];
 
-  if (backupEnabled && lastBackup) {
-    // Verify backup is recent (within 24 hours)
-    const backupTime = new Date(lastBackup).getTime();
-    const now = Date.now();
-    const hoursSinceBackup = (now - backupTime) / (1000 * 60 * 60);
-    return hoursSinceBackup < 24;
+  // Require a verifiable, recent (within 24h) backup timestamp. An env flag
+  // alone is not evidence that a backup exists.
+  if (!lastBackup) {
+    return false;
   }
+  const backupTime = new Date(lastBackup).getTime();
+  if (Number.isNaN(backupTime)) {
+    return false;
+  }
+  const hoursSinceBackup = (Date.now() - backupTime) / (1000 * 60 * 60);
+  return backupEnabled && hoursSinceBackup < 24;
+}
 
-  return backupEnabled ?? false;
+/**
+ * Check free disk space at the project root using statfsSync (Node >= 18.15).
+ * Returns null if the platform/Node build does not expose statfsSync.
+ */
+function checkDiskSpace(projectRoot: string, minFreeGb = 2): boolean | null {
+  try {
+    if (typeof statfsSync !== 'function') return null;
+    const stats = statfsSync(projectRoot);
+    const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+    const freeGb = freeBytes / (1024 * 1024 * 1024);
+    return freeGb >= minFreeGb;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +256,16 @@ export async function runUpgradeCheck(opts: UpgradeCheckOptions = {}): Promise<U
   const recommendations: string[] = [];
   const migrationNotes: string[] = [];
 
-  // Version validation
-  const versionValid = targetVersion === 'latest' || isUpgradePath(currentVersion, targetVersion);
-  if (!versionValid && targetVersion !== 'latest') {
+  // Version validation. 'latest' is NOT a resolvable target — refuse to emit a
+  // 'go' decision against an unpinned version.
+  const targetIsUnresolved = targetVersion === 'latest';
+  if (targetIsUnresolved) {
+    blockers.push(
+      "Target version 'latest' is not pinned — resolve to a concrete semver (e.g. 1.4.0) before upgrading",
+    );
+  }
+  const versionValid = !targetIsUnresolved && isUpgradePath(currentVersion, targetVersion);
+  if (!versionValid && !targetIsUnresolved) {
     blockers.push(
       `Target version ${targetVersion} is not an upgrade from current ${currentVersion}`,
     );
@@ -285,10 +310,14 @@ export async function runUpgradeCheck(opts: UpgradeCheckOptions = {}): Promise<U
     warnings.push('Some themes may be incompatible with the target version');
   }
 
-  // Disk space (simplified check)
-  const diskSpaceSufficient = true; // Would use statfsSync in production
-  if (!diskSpaceSufficient) {
-    blockers.push('Insufficient disk space for upgrade');
+  // Disk space check via statfsSync. If unavailable, treat as a blocker
+  // rather than silently claiming sufficiency.
+  const diskResult = checkDiskSpace(projectRoot);
+  const diskSpaceSufficient = diskResult === true;
+  if (diskResult === false) {
+    blockers.push('Insufficient free disk space for upgrade (< 2 GB at project root)');
+  } else if (diskResult === null) {
+    warnings.push('Could not verify disk space (statfsSync unavailable) — verify manually');
   }
 
   // General recommendations

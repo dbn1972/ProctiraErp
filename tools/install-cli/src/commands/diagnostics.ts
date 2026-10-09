@@ -50,6 +50,7 @@ export interface DiagnosticBundle {
   configuration: Record<string, string | undefined>;
   adapterHealth: Record<string, { healthy: boolean; message: string; latencyMs: number }>;
   recentErrors: Record<string, string[]>;
+  logCollection: { collected: boolean; reason: string; guidance: string };
   readinessSnapshot: {
     totalScore: number;
     maxScore: number;
@@ -81,12 +82,35 @@ export interface DiagnosticsOptions {
 
 const REDACT_PATTERNS = [/password/i, /secret/i, /token/i, /key/i, /credential/i, /auth/i];
 
+/**
+ * Strip credentials embedded in a connection/URL string regardless of the
+ * env-var key name. Covers userinfo (user:pass@host) and common secret query
+ * params. Non-URL values are returned unchanged.
+ */
+export function redactUrlSecrets(value: string): string {
+  let out = value;
+  // userinfo: scheme://user:pass@host -> scheme://***:***@host
+  out = out.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/@\s]+)@/,
+    (_m, scheme: string) => `${scheme}***:***@`,
+  );
+  // secret-bearing query params
+  out = out.replace(
+    /([?&](?:password|secret|token|key|sig|signature|access[_-]?key|secret[_-]?key)=)[^&\s]+/gi,
+    (_m, prefix: string) => `${prefix}***`,
+  );
+  return out;
+}
+
 function redactValue(key: string, value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (REDACT_PATTERNS.some((p) => p.test(key))) {
     return '***REDACTED***';
   }
-  return value;
+  // Even when the key name looks benign (e.g. DATABASE_URL, REDIS_URL),
+  // strip any credentials embedded in URL userinfo/query so the bundle
+  // never leaks passwords from connection strings.
+  return redactUrlSecrets(value);
 }
 
 function getConfigSummary(): Record<string, string | undefined> {
@@ -254,14 +278,16 @@ export async function generateDiagnosticBundle(
     })),
   };
 
-  // Recent errors placeholder (would read from log aggregator in production)
+  // Log collection is not performed in-process: the CLI has no access to the
+  // container runtime or log aggregator. Report this honestly rather than
+  // emitting a fabricated per-service "recent errors" list.
   const recentErrors: Record<string, string[]> = {};
-  for (const svc of serviceEndpoints) {
-    recentErrors[svc.name] = [
-      '(Log collection requires access to log aggregator or container runtime)',
-      'Configure OTEL_EXPORTER_OTLP_ENDPOINT for centralized logging',
-    ];
-  }
+  const logCollection = {
+    collected: false,
+    reason:
+      'Log collection requires access to the log aggregator or container runtime, which the CLI does not have.',
+    guidance: 'Configure OTEL_EXPORTER_OTLP_ENDPOINT for centralized logging.',
+  };
 
   const cpuInfo = cpus();
 
@@ -285,6 +311,7 @@ export async function generateDiagnosticBundle(
     configuration: getConfigSummary(),
     adapterHealth,
     recentErrors,
+    logCollection,
     readinessSnapshot,
     versions: getVersionInfo(),
   };
@@ -324,7 +351,9 @@ export async function diagnosticsCommand(argv: string[]): Promise<void> {
     const filename = `diagnostics-${timestamp}.json`;
     const outputPath = join(opts.outputDir ?? process.cwd(), filename);
 
-    writeFileSync(outputPath, JSON.stringify(bundle, null, 2), 'utf-8');
+    // The bundle may contain host/service state; restrict to owner-only (0600)
+    // so it is not world-readable on shared hosts.
+    writeFileSync(outputPath, JSON.stringify(bundle, null, 2), { encoding: 'utf-8', mode: 0o600 });
     console.error(`\nDiagnostic bundle written to: ${outputPath}`);
     console.error(`Bundle size: ${JSON.stringify(bundle).length} bytes`);
   }

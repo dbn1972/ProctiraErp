@@ -44,6 +44,31 @@ const String kDefaultApiBaseUrl = String.fromEnvironment(
   defaultValue: 'http://127.0.0.1:3000',
 );
 
+/// Whether this binary was compiled in release mode (`flutter build`/`--release`).
+/// `dart.vm.product` is true only for AOT release builds.
+const bool kIsReleaseBuild = bool.fromEnvironment('dart.vm.product');
+
+/// Validates the effective API base URL (PRC-M470). In release builds a
+/// cleartext (`http://`) endpoint — including the localhost dev default — is
+/// refused so a shipped app can never talk to an unencrypted API. Debug/profile
+/// builds keep accepting `http://` for local development.
+void assertSecureApiBaseUrl(String url, {required bool isRelease}) {
+  final Uri? parsed = Uri.tryParse(url);
+  if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
+    throw ArgumentError('API_BASE_URL is not a valid absolute URL: "$url"');
+  }
+  final String scheme = parsed.scheme.toLowerCase();
+  if (isRelease && scheme != 'https') {
+    throw StateError(
+      'Insecure API_BASE_URL "$url" in a release build: HTTPS is required. '
+      'Pass --dart-define=API_BASE_URL=https://... when building for release.',
+    );
+  }
+  if (scheme != 'https' && scheme != 'http') {
+    throw ArgumentError('Unsupported API_BASE_URL scheme "$scheme": $url');
+  }
+}
+
 bool _isAuthPublicPath(String path) {
   return path.contains('/api/v1/auth/login') ||
       path.contains('/api/v1/auth/refresh');
@@ -102,9 +127,11 @@ Future<void> configureDependencies({
   );
 
   // HTTP client — tenant + Bearer interceptors. Refresh is best-effort on 401.
+  final String effectiveBaseUrl = apiBaseUrl ?? kDefaultApiBaseUrl;
+  assertSecureApiBaseUrl(effectiveBaseUrl, isRelease: kIsReleaseBuild);
   final Dio dio = Dio(
     BaseOptions(
-      baseUrl: apiBaseUrl ?? kDefaultApiBaseUrl,
+      baseUrl: effectiveBaseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
       headers: <String, dynamic>{'Content-Type': 'application/json'},
@@ -333,6 +360,7 @@ Future<void> configureDependencies({
     selectedStudent: selectedStudent,
     push: getIt<FcmService>(),
     tenantProvider: tenantProvider,
+    biometric: getIt<BiometricService>(),
     purgeLocalFiles: () async {
       await capturedDocuments.purgeAll();
       await reportFiles.purgeAll();

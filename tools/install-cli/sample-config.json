@@ -10,7 +10,7 @@
     "port": 5432,
     "database": "proctira",
     "username": "proctira",
-    "password": "changeme",
+    "password": "<required>",
     "ssl": false,
     "poolSize": 10
   },
@@ -18,8 +18,8 @@
     "adapter": "minio",
     "bucket": "proctira",
     "endpoint": "http://localhost:9000",
-    "accessKeyId": "minioadmin",
-    "secretAccessKey": "minioadmin",
+    "accessKeyId": "<required>",
+    "secretAccessKey": "<required>",
     "forcePathStyle": true
   },
   "cache": {
@@ -32,13 +32,13 @@
   "queue": {
     "backend": "rabbitmq",
     "rabbitmq": {
-      "url": "amqp://guest:guest@localhost:5672",
+      "url": "amqp://<required>@localhost:5672",
       "exchange": "proctira"
     }
   },
   "admin": {
     "username": "admin@proctira.org",
-    "password": "Admin123!",
+    "password": "<required>",
     "firstName": "System",
     "lastName": "Administrator"
   }

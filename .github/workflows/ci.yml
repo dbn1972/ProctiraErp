@@ -1412,8 +1412,10 @@ jobs:
         run: node tools/scripts/check-migration-timeouts.mjs
 
       - name: Lock-contention recovery drill (fail → resume)
-        run: node tools/scripts/migration-lock-recovery-drill.mjs
+        run: node tools/scripts/migration-lock-recovery-drill.mjs --confirm
         env:
+          DRILL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DRILL_CONFIRM: '1'
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           MIGRATOR_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
@@ -1696,6 +1698,11 @@ jobs:
 
       - name: Analyze (fail closed)
         run: flutter analyze
+
+      - name: Release security guards (PRC-M470, fail closed)
+        # Fail closed on insecure release posture: release build must not sign
+        # with debug keys, and the cleartext-URL guard must be wired.
+        run: node ../../tools/scripts/check-mobile-release-security.mjs
 
       - name: Test (fail closed)
         # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without

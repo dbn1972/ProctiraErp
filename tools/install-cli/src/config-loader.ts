@@ -12,8 +12,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline';
-import type { InstallConfig, AdminAccountConfig } from './types';
-import { ENV_VAR_MAP } from './types';
+
 import type {
   CdnConfigInput,
   DatabaseConfigInput,
@@ -21,6 +20,8 @@ import type {
   CacheConfigInput,
   QueueConfigInput,
 } from '@proctira/backend-install';
+
+import type { InstallConfig } from './types';
 
 /**
  * Loads configuration from a JSON file.
@@ -126,6 +127,9 @@ export function loadConfigFromEnv(
     },
   };
 
+  // Validate every source, not just the file path (M416): the env path
+  // previously accepted an empty password and skipped structural checks.
+  validateConfigStructure(config);
   return config;
 }
 
@@ -152,7 +156,33 @@ export async function loadConfigInteractive(rl?: readline.Interface): Promise<In
 
   const askPassword = (question: string): Promise<string> => {
     return new Promise((resolve) => {
-      reader.question(`${question}: `, (answer) => {
+      // Mute terminal echo while the password is typed (M416). The readline
+      // interface writes the prompt, then we suppress subsequent output until
+      // the answer is submitted.
+      const output = reader as unknown as { output?: NodeJS.WriteStream; _writeToOutput?: unknown };
+      const stream = output.output;
+      let muted = false;
+      const originalWrite =
+        stream && typeof stream.write === 'function' ? stream.write.bind(stream) : undefined;
+      if (stream && originalWrite) {
+        stream.write(`${question}: `);
+        muted = true;
+        // Override write to swallow echoed characters while muted.
+        (stream as unknown as { write: (c: string | Uint8Array) => boolean }).write = (
+          chunk: string | Uint8Array,
+        ) => {
+          if (muted && typeof chunk === 'string' && !chunk.includes('\n')) {
+            return true;
+          }
+          return originalWrite(chunk as string);
+        };
+      }
+      reader.question('', (answer) => {
+        muted = false;
+        if (stream && originalWrite) {
+          (stream as unknown as { write: unknown }).write = originalWrite;
+          originalWrite('\n');
+        }
         resolve(answer.trim());
       });
     });
@@ -300,6 +330,9 @@ export async function loadConfigInteractive(rl?: readline.Interface): Promise<In
       },
     };
 
+    // Validate interactive input too (M416): reject empty/weak/default admin
+    // passwords before proceeding.
+    validateConfigStructure(config);
     return config;
   } finally {
     if (!rl) {
@@ -333,13 +366,47 @@ export function validateConfigStructure(config: unknown): asserts config is Inst
   if (!admin['password'] || typeof admin['password'] !== 'string') {
     throw new Error('admin.password is required and must be a string');
   }
-  if (admin['password'].length < 8) {
-    throw new Error('admin.password must be at least 8 characters');
-  }
+  assertStrongAdminPassword(admin['password']);
   if (!admin['firstName'] || typeof admin['firstName'] !== 'string') {
     throw new Error('admin.firstName is required and must be a string');
   }
   if (!admin['lastName'] || typeof admin['lastName'] !== 'string') {
     throw new Error('admin.lastName is required and must be a string');
+  }
+}
+
+/**
+ * Known default/example credentials that must never be accepted. These ship in
+ * sample configs and .env.example files and are a frequent source of breaches.
+ */
+const KNOWN_DEFAULT_SECRETS = [
+  'changeme',
+  'admin123!',
+  'admin123',
+  'password',
+  'minioadmin',
+  'guest',
+  'proctira_dev_password',
+  'secret',
+  '<required>',
+];
+
+/**
+ * Enforce admin password complexity and reject known defaults.
+ * Throws with a clear message on violation (fail closed).
+ */
+export function assertStrongAdminPassword(password: string): void {
+  const lower = password.toLowerCase();
+  if (KNOWN_DEFAULT_SECRETS.some((d) => lower === d || lower.includes(d))) {
+    throw new Error('admin.password is a known default/example value — choose a unique password');
+  }
+  if (password.length < 12) {
+    throw new Error('admin.password must be at least 12 characters');
+  }
+  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((re) => re.test(password));
+  if (classes.length < 3) {
+    throw new Error(
+      'admin.password must include at least 3 of: lowercase, uppercase, digit, symbol',
+    );
   }
 }

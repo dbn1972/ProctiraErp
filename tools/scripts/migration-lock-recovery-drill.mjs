@@ -28,13 +28,39 @@ const applySqlPath = join(repoRoot, 'tools/scripts/apply-sql.sh');
  * @param {string[]} argv
  */
 export function parseDrillArgs(argv) {
-  let url = process.env.MIGRATOR_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
+  // M436: this drill DROPs schema_migrations CASCADE. Require an explicit,
+  // disposable target. Prefer DRILL_DATABASE_URL / --url; only accept
+  // MIGRATOR_DATABASE_URL/DATABASE_URL when DRILL_CONFIRM=1 is also set, so a
+  // normal env with a real migrator URL cannot be dropped by accident.
+  let url = process.env.DRILL_DATABASE_URL?.trim() || '';
   let skipIfNoDb = false;
+  let confirm = process.env.DRILL_CONFIRM === '1';
   for (const arg of argv) {
     if (arg === '--skip-if-no-db') skipIfNoDb = true;
+    else if (arg === '--confirm') confirm = true;
     else if (arg.startsWith('--url=')) url = arg.slice('--url='.length);
   }
-  return { url, skipIfNoDb };
+  if (!url && confirm) {
+    url = process.env.MIGRATOR_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || '';
+  }
+  return { url, skipIfNoDb, confirm };
+}
+
+/**
+ * A disposable target is one whose database name clearly marks it as a scratch
+ * DB (contains _test or _drill), OR the operator passed DRILL_CONFIRM=1/--confirm.
+ * @param {string} url
+ * @param {boolean} confirm
+ */
+export function isDisposableTarget(url, confirm) {
+  if (confirm) return true;
+  let dbName = '';
+  try {
+    dbName = new URL(url).pathname.replace(/^\//, '');
+  } catch {
+    return false;
+  }
+  return /(_test|_drill)(\b|$)/i.test(dbName);
 }
 
 /**
@@ -269,13 +295,27 @@ UPDATE ${table} SET recovered = true;
 }
 
 async function main() {
-  const { url, skipIfNoDb } = parseDrillArgs(process.argv.slice(2));
+  const { url, skipIfNoDb, confirm } = parseDrillArgs(process.argv.slice(2));
   if (!url) {
     if (skipIfNoDb) {
-      console.log('W1-DATA-17 lock recovery drill: SKIP (no DATABASE_URL)');
+      console.log('W1-DATA-17 lock recovery drill: SKIP (no DRILL_DATABASE_URL)');
       return;
     }
-    console.error('W1-DATA-17 lock recovery drill: DATABASE_URL / MIGRATOR_DATABASE_URL required');
+    console.error(
+      'W1-DATA-17 lock recovery drill: DRILL_DATABASE_URL / --url required (or DRILL_CONFIRM=1 to use MIGRATOR_DATABASE_URL/DATABASE_URL)',
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  // M436: refuse to DROP schema_migrations on a non-disposable target.
+  if (!isDisposableTarget(url, confirm)) {
+    console.error(
+      'W1-DATA-17 lock recovery drill: refusing to run — target DB is not disposable.',
+    );
+    console.error(
+      '  Use a database named *_test or *_drill, or set DRILL_CONFIRM=1 / --confirm to override.',
+    );
     process.exitCode = 2;
     return;
   }
