@@ -71,7 +71,7 @@ export function RetentionPolicyForm({ config }: { config: AuditRetentionConfig |
             id="retentionMonths"
             name="retentionMonths"
             type="number"
-            min={1}
+            min={12}
             max={120}
             required
             defaultValue={config?.retentionMonths ?? 84}
