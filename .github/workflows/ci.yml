@@ -1699,6 +1699,11 @@ jobs:
       - name: Analyze (fail closed)
         run: flutter analyze
 
+      - name: Release security guards (PRC-M470, fail closed)
+        # Fail closed on insecure release posture: release build must not sign
+        # with debug keys, and the cleartext-URL guard must be wired.
+        run: node ../../tools/scripts/check-mobile-release-security.mjs
+
       - name: Test (fail closed)
         # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without
         # --update-goldens; integration_test/ is not invoked (no device farm).
