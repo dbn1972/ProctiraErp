@@ -47,4 +47,12 @@ describe('GpsDeviceForms device key (PRC-L251)', () => {
     expect(register).toHaveBeenCalledTimes(1);
     confirm.mockRestore();
   });
+
+  it('masks the device key on the ingest-test form (PRC-L252)', () => {
+    const { container } = render(<GpsDeviceForms vehicles={vehicles} />);
+    const key = container.querySelector('#gps-key');
+    expect(key).not.toBeNull();
+    expect(key).toHaveAttribute('type', 'password');
+    expect(key).toHaveAttribute('autocomplete', 'off');
+  });
 });

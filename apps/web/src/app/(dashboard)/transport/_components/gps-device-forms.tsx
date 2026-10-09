@@ -192,7 +192,15 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
               <Input id="gps-device" name="deviceId" className="h-11 min-h-11" />
             </FormField>
             <FormField id="gps-key" label="Device key" required>
-              <Input id="gps-key" name="deviceKey" className="h-11 min-h-11" />
+              {/* PRC-L252: the device secret is sensitive; mask it and keep it
+                  out of autofill/history. */}
+              <Input
+                id="gps-key"
+                name="deviceKey"
+                type="password"
+                autoComplete="off"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="gps-ping" label="Ping id" required>
               <Input id="gps-ping" name="pingId" className="h-11 min-h-11" />
