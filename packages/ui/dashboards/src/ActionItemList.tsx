@@ -37,7 +37,6 @@ import { ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 
-
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
 import { cn } from './lib/utils';
 
