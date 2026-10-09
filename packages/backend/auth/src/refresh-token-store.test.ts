@@ -3,7 +3,11 @@
  * Uses a mocked PrismaClient to verify store operations.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PrismaRefreshTokenStore } from './refresh-token-store.js';
+import {
+  PrismaRefreshTokenStore,
+  RefreshTokenRotationConflictError,
+  hashRefreshToken,
+} from './refresh-token-store.js';
 
 // Mock PrismaClient
 function createMockPrismaClient() {
@@ -109,7 +113,7 @@ describe('PrismaRefreshTokenStore', () => {
 
       expect(mockPrisma.refreshToken.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          token: 'token-abc',
+          token: hashRefreshToken('token-abc'),
           userId: 'user-2',
           tenantId: 'tenant-2',
           sessionId: 'session-2',
@@ -118,6 +122,20 @@ describe('PrismaRefreshTokenStore', () => {
           createdByIp: null,
         }),
       });
+    });
+
+    it('should never persist the raw token value (PRC-M585)', async () => {
+      await store.create({
+        token: 'secret-raw-token',
+        userId: 'user-3',
+        tenantId: 'tenant-3',
+        sessionId: 'session-3',
+        expiresAt: new Date(Date.now() + 1000000),
+        revoked: false,
+      });
+      const stored = [...mockPrisma._tokens.keys()];
+      expect(stored).not.toContain('secret-raw-token');
+      expect(stored).toContain(hashRefreshToken('secret-raw-token'));
     });
   });
 
@@ -135,7 +153,8 @@ describe('PrismaRefreshTokenStore', () => {
       const result = await store.findByToken('find-me-token');
 
       expect(result).not.toBeNull();
-      expect(result!.token).toBe('find-me-token');
+      // Stored/returned value is the hash, never the raw token (PRC-M585).
+      expect(result!.token).toBe(hashRefreshToken('find-me-token'));
       expect(result!.userId).toBe('user-1');
     });
 
@@ -146,7 +165,7 @@ describe('PrismaRefreshTokenStore', () => {
   });
 
   describe('revoke', () => {
-    it('should revoke a token with reason', async () => {
+    it('should revoke an active token with reason via conditional updateMany', async () => {
       await store.create({
         token: 'revoke-me',
         userId: 'user-1',
@@ -158,8 +177,8 @@ describe('PrismaRefreshTokenStore', () => {
 
       await store.revoke('revoke-me', 'Token rotation');
 
-      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith({
-        where: { token: 'revoke-me' },
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { token: hashRefreshToken('revoke-me'), revoked: false },
         data: expect.objectContaining({
           revoked: true,
           revokedReason: 'Token rotation',
@@ -168,7 +187,7 @@ describe('PrismaRefreshTokenStore', () => {
       });
     });
 
-    it('should revoke a token with replacement token', async () => {
+    it('should store the replacement token as a hash', async () => {
       await store.create({
         token: 'old-token',
         userId: 'user-1',
@@ -180,14 +199,31 @@ describe('PrismaRefreshTokenStore', () => {
 
       await store.revoke('old-token', 'Rotated', 'new-token');
 
-      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith({
-        where: { token: 'old-token' },
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { token: hashRefreshToken('old-token'), revoked: false },
         data: expect.objectContaining({
           revoked: true,
           revokedReason: 'Rotated',
-          replacedByToken: 'new-token',
+          replacedByToken: hashRefreshToken('new-token'),
         }),
       });
+    });
+
+    it('rejects a second concurrent rotation (compare-and-set, PRC-L444)', async () => {
+      await store.create({
+        token: 'race-token',
+        userId: 'user-1',
+        tenantId: 'tenant-1',
+        sessionId: 'session-1',
+        expiresAt: new Date(Date.now() + 1000000),
+        revoked: false,
+      });
+
+      await store.revoke('race-token', 'Rotated', 'next-1');
+      // Second revoke affects zero rows (already revoked) -> conflict.
+      await expect(store.revoke('race-token', 'Rotated', 'next-2')).rejects.toBeInstanceOf(
+        RefreshTokenRotationConflictError,
+      );
     });
   });
 
