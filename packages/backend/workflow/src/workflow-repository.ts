@@ -5,6 +5,7 @@
  * Implementations can target PostgreSQL (production) or in-memory (testing).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   WorkflowStateInput,
   WorkflowTransitionInput,
@@ -51,8 +52,18 @@ export interface WorkflowInstanceEntity {
   updatedAt: Date;
 }
 
-// ─── Transition Audit Entity ─────────────────────────────────────────────────
+/**
+ * Optimistic-concurrency guard for {@link WorkflowRepository.updateInstance}
+ * (PRC-M457 / NEW-g7_platform-010).
+ */
+export interface InstanceUpdateGuard {
+  /** The current_state_id the caller observed when it read the instance. */
+  currentStateId: string;
+  /** The number of approvals the caller observed when it read the instance. */
+  approvalCount: number;
+}
 
+// ─── Transition Audit Entity ─────────────────────────────────────────────────
 export interface TransitionAuditEntity {
   id: string;
   tenantId: string;
@@ -107,6 +118,13 @@ export interface WorkflowRepository {
     id: string,
     tenantId: string,
     data: Partial<WorkflowInstanceEntity>,
+    /**
+     * PRC-M457 / NEW-g7_platform-010: optimistic concurrency guard. When provided,
+     * the update only applies if the row still matches the expected current state and
+     * approval count observed at read time; otherwise it returns null so the caller
+     * can fail closed (409) instead of silently clobbering a concurrent transition.
+     */
+    expected?: InstanceUpdateGuard,
   ): Promise<WorkflowInstanceEntity | null>;
   listInstances(
     tenantId: string,

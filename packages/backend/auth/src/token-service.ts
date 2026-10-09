@@ -139,9 +139,21 @@ export class TokenService {
       throw new InvalidRefreshTokenError('Refresh token tenant mismatch');
     }
 
-    // Revoke the old refresh token (rotation)
+    // Revoke the old refresh token (rotation). Uses a compare-and-set so two
+    // concurrent refreshes cannot both rotate the same token (PRC-L444); the
+    // loser observes zero affected rows and fails closed.
     const newRefreshTokenValue = uuidv4();
-    await this.refreshTokenStore.revoke(refreshToken, 'Rotated', newRefreshTokenValue);
+    try {
+      await this.refreshTokenStore.revoke(refreshToken, 'Rotated', newRefreshTokenValue);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error as { code?: string }).code === 'REFRESH_TOKEN_ROTATION_CONFLICT'
+      ) {
+        throw new InvalidRefreshTokenError('Refresh token already rotated (concurrent refresh)');
+      }
+      throw error;
+    }
 
     // Issue new token pair
     const jti = uuidv4();

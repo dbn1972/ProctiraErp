@@ -29,14 +29,19 @@ describe('W1-PRIV-01 COMPLETE consent lifecycle', () => {
       householdId: HOUSEHOLD,
       custodyType: 'sole',
     });
-    await service.linkChild(TENANT, PARENT, {
-      studentId: STUDENT,
-      householdId: HOUSEHOLD,
-      relationship: 'mother',
-      isPrimary: true,
-      canConsentMedical: true,
-      canViewFees: true,
-    });
+    await service.linkChild(
+      TENANT,
+      PARENT,
+      {
+        studentId: STUDENT,
+        householdId: HOUSEHOLD,
+        relationship: 'mother',
+        isPrimary: true,
+        canConsentMedical: true,
+        canViewFees: true,
+      },
+      { isStaff: true },
+    );
   }
 
   beforeEach(async () => {

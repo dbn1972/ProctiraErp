@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { isConsentStaff } from './parent-portal-consent-access.js';
 import { isFeesStaff } from './parent-portal-fees-access.js';
+import { deriveSenderRole } from './parent-portal-messaging-access.js';
 import type { ParentPortalService, StudentActor } from './parent-portal-service.js';
 import {
   AddMessageSchema,
@@ -382,7 +383,13 @@ export async function registerParentPortalRoutes(
       const parentUserId = getActorId(request);
 
       try {
-        const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data);
+        // PRC-M531: only a staff caller may assert authority flags / create an active
+        // link. A self-service guardian creates a pending, zero-authority link.
+        const roles = getActorRoles(request);
+        const isStaff = isConsentStaff(roles) || isFeesStaff(roles);
+        const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data, {
+          isStaff,
+        });
         return reply.status(201).send(formatLink(link));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -536,6 +543,7 @@ export async function registerParentPortalRoutes(
       }
 
       const parentUserId = getActorId(request);
+      const senderRole = deriveSenderRole(getActorRoles(request));
 
       try {
         const message = await parentPortalService.addMessage(
@@ -543,7 +551,7 @@ export async function registerParentPortalRoutes(
           parentUserId,
           paramsResult.data.threadId,
           bodyResult.data.body,
-          bodyResult.data.senderRole ?? 'parent',
+          senderRole,
         );
         return reply.status(201).send(formatMessage(message));
       } catch (error: unknown) {

@@ -294,6 +294,25 @@ export class PgAuditRepository implements AuditRepository {
           }
         : null;
 
+      // PRC-M176 / NEW-g7_platform-012: strict tamper-evidence. Once a tenant's
+      // chain exists, any unchained (chain_seq NULL) row written at/after the
+      // genesis chained row is a direct insert that bypassed chaining and MUST
+      // fail verification, not be excused as "legacy". Rows strictly before
+      // genesis are genuine pre-chain legacy data and are tolerated.
+      let unchainedAfterCutover = 0;
+      if (head) {
+        const cutoverRes = await client.query(
+          `SELECT count(*)::int AS n FROM ${union} g
+           WHERE g.chain_seq IS NULL
+             AND g.occurred_at >= (
+               SELECT occurred_at FROM ${union} h
+               WHERE h.chain_seq IS NOT NULL ORDER BY h.chain_seq ASC, h.id ASC LIMIT 1
+             )`,
+          [tenantId],
+        );
+        unchainedAfterCutover = Number((cutoverRes.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+      }
+
       // Keyset-page the hashed chain in (chain_seq, id) order, carrying
       // prev_hash in the verifier instead of buffering every row.
       const verifier = new ChainVerifier(tenantId);
@@ -322,7 +341,7 @@ export class PgAuditRepository implements AuditRepository {
         if (!keepGoing || res.rows.length < pageSize) break;
       }
       const legacyCount = Number((legacy.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
-      return verifier.finish(legacyCount, head);
+      return verifier.finish(legacyCount, head, unchainedAfterCutover);
     });
   }
 

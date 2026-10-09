@@ -314,16 +314,31 @@ describe('PolicyService', () => {
         targetId: tenantId,
       });
 
-      await service.removeAssignment(tenantId, assignment.id);
+      await service.removeAssignment(tenantId, policy.id, assignment.id);
 
       const assignments = await service.getAssignments(tenantId, policy.id);
       expect(assignments).toHaveLength(0);
     });
 
     it('should throw NotFoundError for non-existent assignment', async () => {
+      const policy = await service.create(tenantId, validPasswordPolicy);
       await expect(
-        service.removeAssignment(tenantId, '00000000-0000-4000-8000-000000000000'),
+        service.removeAssignment(tenantId, policy.id, '00000000-0000-4000-8000-000000000000'),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    it('throws NotFoundError when the assignment belongs to a different policy (PRC-L487)', async () => {
+      const policyA = await service.create(tenantId, validPasswordPolicy);
+      await service.activate(tenantId, policyA.id);
+      const assignment = await service.assignPolicy(tenantId, {
+        policyId: policyA.id,
+        targetType: 'tenant',
+        targetId: tenantId,
+      });
+      const policyB = await service.create(tenantId, { ...validPasswordPolicy, name: 'B' });
+      await expect(service.removeAssignment(tenantId, policyB.id, assignment.id)).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 });

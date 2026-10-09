@@ -59,39 +59,123 @@ export class KeycloakTokenError extends Error {
   }
 }
 
+export type KeycloakJwksClientOptions = {
+  /** TTL for a successful JWKS fetch before a background refresh is allowed. */
+  ttlMs?: number;
+  /** Timeout applied to every JWKS network fetch. */
+  fetchTimeoutMs?: number;
+  /** Minimum interval between forced (unknown-kid) refreshes. */
+  forcedRefreshCooldownMs?: number;
+  /** How long an unknown kid is negatively cached before another refetch is attempted. */
+  negativeCacheMs?: number;
+};
+
+/**
+ * JWKS client hardened against unauthenticated amplification (PRC-M181,
+ * NEW-g4_apps_auth-002):
+ *   - every fetch has an AbortSignal timeout,
+ *   - forced (unknown-kid) refreshes are rate-limited by a cooldown,
+ *   - concurrent refreshes share a single in-flight promise (no stampede),
+ *   - unknown kids are negatively cached so a flood of random kids cannot each
+ *     trigger a network round-trip,
+ *   - the new key map is built then swapped atomically so a concurrent getKey()
+ *     never observes an empty map (no transient 401s for valid tokens).
+ */
 export class KeycloakJwksClient {
   private keys = new Map<string, KeyObject>();
   private fetchedAt = 0;
-  private readonly ttlMs = 10 * 60 * 1000;
+  private lastForcedRefreshAt = 0;
+  private inFlight: Promise<void> | null = null;
+  private readonly negativeCache = new Map<string, number>();
+
+  private readonly ttlMs: number;
+  private readonly fetchTimeoutMs: number;
+  private readonly forcedRefreshCooldownMs: number;
+  private readonly negativeCacheMs: number;
 
   constructor(
     private readonly jwksUri: string,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+    options: KeycloakJwksClientOptions = {},
+  ) {
+    this.ttlMs = options.ttlMs ?? 10 * 60 * 1000;
+    this.fetchTimeoutMs = options.fetchTimeoutMs ?? 5_000;
+    this.forcedRefreshCooldownMs = options.forcedRefreshCooldownMs ?? 30_000;
+    this.negativeCacheMs = options.negativeCacheMs ?? 60_000;
+  }
 
   async getKey(kid?: string): Promise<KeyObject> {
     await this.refreshIfNeeded();
     if (kid && this.keys.has(kid)) return this.keys.get(kid)!;
     if (!kid && this.keys.size === 1) return [...this.keys.values()][0]!;
-    await this.refreshIfNeeded(true);
-    if (kid && this.keys.has(kid)) return this.keys.get(kid)!;
+
+    // Unknown kid. Only force a refetch if the kid has not been seen recently
+    // AND the forced-refresh cooldown has elapsed; otherwise fail closed
+    // without a network round-trip (prevents DoS amplification).
+    if (kid && this.isNegativelyCached(kid)) {
+      throw new KeycloakTokenError(`Unknown Keycloak signing key: ${kid}`);
+    }
+    const now = Date.now();
+    if (now - this.lastForcedRefreshAt >= this.forcedRefreshCooldownMs) {
+      await this.refreshIfNeeded(true);
+      if (kid && this.keys.has(kid)) return this.keys.get(kid)!;
+    }
+    if (kid) this.negativeCache.set(kid, Date.now());
     throw new KeycloakTokenError(`Unknown Keycloak signing key${kid ? `: ${kid}` : ''}`);
+  }
+
+  private isNegativelyCached(kid: string): boolean {
+    const seenAt = this.negativeCache.get(kid);
+    if (seenAt === undefined) return false;
+    if (Date.now() - seenAt >= this.negativeCacheMs) {
+      this.negativeCache.delete(kid);
+      return false;
+    }
+    return true;
   }
 
   private async refreshIfNeeded(force = false): Promise<void> {
     if (!force && this.keys.size > 0 && Date.now() - this.fetchedAt < this.ttlMs) return;
-    const response = await this.fetcher(this.jwksUri);
+    // Coalesce concurrent refreshes into a single in-flight fetch.
+    if (this.inFlight) {
+      await this.inFlight;
+      return;
+    }
+    if (force) this.lastForcedRefreshAt = Date.now();
+    this.inFlight = this.doRefresh().finally(() => {
+      this.inFlight = null;
+    });
+    await this.inFlight;
+  }
+
+  private async doRefresh(): Promise<void> {
+    const signal = AbortSignal.timeout(this.fetchTimeoutMs);
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await this.fetcher(this.jwksUri, { signal });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new KeycloakTokenError(`Failed to load Keycloak JWKS: ${reason}`);
+    }
     if (!response.ok) {
       throw new KeycloakTokenError(`Failed to load Keycloak JWKS (${response.status})`);
     }
     const body = (await response.json()) as { keys?: Jwk[] };
-    this.keys.clear();
+    // Build the new map first, then swap atomically so a concurrent getKey()
+    // never sees a cleared map.
+    const next = new Map<string, KeyObject>();
     for (const jwk of body.keys ?? []) {
       if (jwk.kty !== 'RSA' || !jwk.n || !jwk.e) continue;
       const key = createPublicKey({ key: jwk, format: 'jwk' });
-      this.keys.set(jwk.kid ?? `k${this.keys.size}`, key);
+      next.set(jwk.kid ?? `k${next.size}`, key);
     }
+    this.keys = next;
     this.fetchedAt = Date.now();
+    // A successful refresh may have introduced previously-unknown kids; drop
+    // any negative-cache entries that are now resolvable.
+    for (const kid of this.negativeCache.keys()) {
+      if (next.has(kid)) this.negativeCache.delete(kid);
+    }
   }
 }
 

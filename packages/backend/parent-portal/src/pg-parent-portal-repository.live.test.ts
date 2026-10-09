@@ -297,14 +297,24 @@ describe('PgParentPortalRepository (live)', () => {
         custodyType: 'sole',
       });
 
-      await service.linkChild(tenantId, parentUserId, {
-        studentId: studentAllowed,
-        householdId: householdH1,
-      });
-      await service.linkChild(tenantId, parentUserId, {
-        studentId: studentDenied,
-        householdId: householdH1,
-      });
+      await service.linkChild(
+        tenantId,
+        parentUserId,
+        {
+          studentId: studentAllowed,
+          householdId: householdH1,
+        },
+        { isStaff: true },
+      );
+      await service.linkChild(
+        tenantId,
+        parentUserId,
+        {
+          studentId: studentDenied,
+          householdId: householdH1,
+        },
+        { isStaff: true },
+      );
 
       const listed = await service.listChildrenForParent(tenantId, parentUserId);
       expect(listed.map((link) => link.studentId)).toEqual([studentAllowed]);
