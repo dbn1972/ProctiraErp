@@ -601,10 +601,16 @@ export async function listReceipts(scope: 'parent' | 'staff' = 'parent'): Promis
 // PRC-C001: the parent pay endpoint performs no PSP verification, so the client may only
 // request the honest 'sandbox' method. Real settlement (upi/card/cash) must go through a
 // verified payment provider on the fee ledger, never a caller-declared method here.
+// PRC-M484: a per-attempt Idempotency-Key is forwarded so a double-submit / retried
+// payment collapses to a single ledger entry on the gateway.
 export async function payInvoice(
   id: string,
   method: 'sandbox' = 'sandbox',
+  options?: { idempotencyKey?: string },
 ): Promise<{ invoice: FeeInvoice; payment: FeePayment; receipt: FeeReceipt }> {
+  const headers = options?.idempotencyKey
+    ? { 'Idempotency-Key': options.idempotencyKey }
+    : undefined;
   const result = await gatewayFetch<{
     invoice: FeeInvoice;
     payment: FeePayment;
@@ -612,6 +618,7 @@ export async function payInvoice(
   }>(`/parent-portal/fees/invoices/${encodeURIComponent(id)}/pay`, {
     method: 'POST',
     json: { method },
+    ...(headers ? { headers } : {}),
   });
   if (!result.data) {
     throw new GatewayError({
