@@ -433,6 +433,20 @@ describe('Audit Routes', () => {
 
   // PRC-L279: no cross-tenant 'default' fallback — missing tenant context fails closed.
   describe('tenant context required (PRC-L279)', () => {
+    it('does not affect routes outside the audit prefix (e.g. /health)', async () => {
+      const bare = Fastify();
+      bare.decorateRequest('tenantId', '');
+      bare.get('/health', async () => ({ status: 'healthy' }));
+      await bare.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await bare.ready();
+      const res = await bare.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(200);
+      await bare.close();
+    });
+
     it('rejects any audit route when tenant context is missing (400)', async () => {
       const bare = Fastify();
       bare.decorateRequest('tenantId', '');

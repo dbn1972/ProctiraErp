@@ -180,7 +180,14 @@ export async function registerAuditRoutes(
   //  - State-changing methods (POST/PUT/DELETE) additionally require an
   //    audit-write role, so a caller cannot write arbitrary evidence just by
   //    reaching the mount. Reads stay available to any authenticated tenant user.
+  // The hook is registered on the caller's instance (often the gateway root), so
+  // it must only act on this module's own routes — never /health, /docs, etc.
+  const isAuditRoute = (request: FastifyRequest): boolean => {
+    const url = request.routeOptions.url ?? '';
+    return url === prefix || url.startsWith(`${prefix}/`);
+  };
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!isAuditRoute(request)) return;
     if (!getTenantId(request)) {
       return reply.status(400).send({
         code: 'TENANT_REQUIRED',
