@@ -294,14 +294,26 @@ function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/**
+ * Segments that would let a server-supplied conflict field path walk into the
+ * prototype chain. Rejecting them prevents prototype pollution (PRC-L440):
+ * a merge payload with `field: "__proto__.isAdmin"` must never mutate
+ * `Object.prototype`.
+ */
+const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+
 function setByPath(target: Record<string, unknown>, path: string, value: unknown): void {
   const segments = path.split('.');
+  if (segments.some((segment) => UNSAFE_PATH_SEGMENTS.has(segment))) {
+    // Fail closed: never resolve a conflict onto an unsafe path.
+    return;
+  }
   let cursor: Record<string, unknown> = target;
   for (let i = 0; i < segments.length - 1; i += 1) {
     const key = segments[i]!;
     const next = cursor[key];
     if (typeof next !== 'object' || next === null) {
-      cursor[key] = {};
+      cursor[key] = Object.create(null) as Record<string, unknown>;
     }
     cursor = cursor[key] as Record<string, unknown>;
   }

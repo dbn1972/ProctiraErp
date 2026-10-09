@@ -24,8 +24,14 @@ export default async function NotificationRulesPage() {
   const [{ rules, source: rulesSource }, { templates, source: templatesSource }] =
     await Promise.all([listNotificationRules(), listNotificationTemplates()]);
 
+  // Fail closed: if either read is denied or unavailable, surface that state
+  // rather than labelling the page live (PRC-L267, NEW-g1b_web-001). 'denied'
+  // outranks 'unavailable' outranks 'scaffold'; 'gateway' only when both live.
   const source =
-    rulesSource === 'gateway' || templatesSource === 'gateway' ? 'gateway' : rulesSource;
+    [rulesSource, templatesSource].find((s) => s === 'denied') ??
+    [rulesSource, templatesSource].find((s) => s === 'unavailable') ??
+    [rulesSource, templatesSource].find((s) => s === 'scaffold') ??
+    'gateway';
 
   return (
     <div className="space-y-6 p-6">

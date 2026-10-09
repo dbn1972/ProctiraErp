@@ -304,10 +304,20 @@ export async function getExaminationResultsView(
   const gradeByKey = new Map(
     (published?.gradeResults ?? []).map((g) => [`${g.studentId}:${g.subjectId}`, g] as const),
   );
-  const maxScore = examination.subjects.reduce((sum, s) => sum + s.maxScore, 0);
+  const subjectById = new Map(examination.subjects.map((s) => [s.id, s] as const));
 
   const rows: ExaminationResult[] = candidates.map((candidate) => {
-    const subjects = examination.subjects.map((subject) => {
+    // PRC-M145: a candidate is only assessed on the subjects they registered
+    // for (the subjectResults the backend returns). Iterating every exam
+    // subject made partly-registered candidates permanently INCOMPLETE and
+    // inflated maxScore. Restrict both to the candidate's registered subjects.
+    const registeredIds = candidate.subjectResults
+      .map((r) => r.subjectId)
+      .filter((id) => subjectById.has(id));
+    const registeredSubjects =
+      registeredIds.length > 0 ? registeredIds : examination.subjects.map((s) => s.id);
+    const subjects = registeredSubjects.map((subjectId) => {
+      const subject = subjectById.get(subjectId)!;
       const recorded = candidate.subjectResults.find((r) => r.subjectId === subject.id);
       const graded = gradeByKey.get(`${candidate.studentId}:${subject.id}`);
       return {
@@ -317,6 +327,10 @@ export async function getExaminationResultsView(
         grade: graded?.grade ?? null,
       };
     });
+    const maxScore = registeredSubjects.reduce(
+      (sum, id) => sum + (subjectById.get(id)?.maxScore ?? 0),
+      0,
+    );
     const complete = subjects.every((s) => s.score !== null);
     const totalScore = complete ? subjects.reduce((sum, s) => sum + (s.score ?? 0), 0) : null;
     const hasGrades = subjects.some((s) => s.grade !== null);

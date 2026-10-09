@@ -3,7 +3,7 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 
 import { LiveRegion } from '@proctira/ui-components';
 
-import { ActionItemList, type ActionItem } from './ActionItemList';
+import { ActionItemList, isSafeHref, type ActionItem } from './ActionItemList';
 
 const items: ReadonlyArray<ActionItem> = [
   {
@@ -126,5 +126,42 @@ describe('<ActionItemList />', () => {
     expect(screen.getByTestId('live-region-assertive').textContent).toBe(
       '1 high-priority action item requires attention',
     );
+  });
+});
+
+describe('isSafeHref (PRC-L595)', () => {
+  it('allows relative paths, anchors and http(s) URLs', () => {
+    expect(isSafeHref('/orders/textbooks')).toBe(true);
+    expect(isSafeHref('#section')).toBe(true);
+    expect(isSafeHref('?q=1')).toBe(true);
+    expect(isSafeHref('orders/textbooks')).toBe(true);
+    expect(isSafeHref('https://example.com/x')).toBe(true);
+    expect(isSafeHref('http://example.com/x')).toBe(true);
+  });
+
+  it('rejects javascript:, data: and protocol-relative URLs', () => {
+    expect(isSafeHref('javascript:alert(1)')).toBe(false);
+    expect(isSafeHref('JavaScript:alert(1)')).toBe(false);
+    expect(isSafeHref('data:text/html,<script>')).toBe(false);
+    expect(isSafeHref('//evil.example.com')).toBe(false);
+    expect(isSafeHref('vbscript:msgbox(1)')).toBe(false);
+    expect(isSafeHref('')).toBe(false);
+  });
+});
+
+describe('<ActionItemList /> href safety (PRC-L595)', () => {
+  it('does not render a javascript: href as a link', () => {
+    const hostile: ReadonlyArray<ActionItem> = [
+      { id: 'x', title: 'Hostile', priority: 'low', href: 'javascript:alert(1)' },
+    ];
+    render(<ActionItemList title="Action items" items={hostile} data-testid="list" />);
+    const link = screen.queryByRole('link');
+    expect(link).toBeNull();
+  });
+
+  it('renders a safe relative href as a link', () => {
+    render(<ActionItemList title="Action items" items={items} data-testid="list2" />);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/orders/textbooks');
   });
 });

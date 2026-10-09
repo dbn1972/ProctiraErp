@@ -74,6 +74,60 @@ describe('brandToTenantTokens — Brand → --tenant-* token strings', () => {
     expect(tokens.name).toBe("'Tom\\'s School'");
     expect(tokens.shortName).toBe("'tom\\'s'");
   });
+
+  // PRC-M616: a hostile name must not be able to close the <style> element.
+  it('escapes angle brackets so a name cannot break out of <style>', () => {
+    const hostile: Brand = { ...SAMPLE_BRAND, name: '</style><script>alert(1)</script>' };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.name).not.toContain('</style>');
+    expect(tokens.name).not.toContain('<');
+    expect(tokens.name).not.toContain('>');
+  });
+
+  // PRC-L409: colours and URLs are validated against an allow-list and fall
+  // back to the default on any value that could inject CSS/markup.
+  it('rejects a colour that tries to inject extra CSS rules', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      primary_color: 'red;} body{display:none}',
+      accent_color: '#abc',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.primary).toBe(DEFAULT_BRAND.primary_color);
+    // a valid short hex is still accepted
+    expect(tokens.accent).toBe('#abc');
+  });
+
+  it('rejects javascript: and data: URLs for logo/favicon', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      logo: { url: 'javascript:alert(1)', alt: 'x' },
+      favicon: 'data:text/html,<script>',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.logo).toBe(`url("${DEFAULT_BRAND.logo.url}")`);
+    expect(tokens.favicon).toBe(`url("${DEFAULT_BRAND.favicon}")`);
+  });
+
+  it('accepts https and site-relative URLs for logo/favicon', () => {
+    const ok: Brand = {
+      ...SAMPLE_BRAND,
+      logo: { url: 'https://cdn.example.test/logo.svg', alt: 'x' },
+      favicon: '/favicon.ico',
+    };
+    const tokens = brandToTenantTokens(ok);
+    expect(tokens.logo).toBe('url("https://cdn.example.test/logo.svg")');
+    expect(tokens.favicon).toBe('url("/favicon.ico")');
+  });
+
+  it('rejects a login background that tries to break out', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      login_background: 'url("x")</style><script>',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
 });
 
 describe('renderTenantThemeCSS — :root { --tenant-* } block', () => {

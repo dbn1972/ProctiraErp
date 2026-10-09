@@ -36,8 +36,7 @@ export default function NewStaffPage() {
             Add staff member
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a service record for a teaching or non-teaching staff member. An employee ID is
-            generated on save and the record is routed to the BEO for verification.
+            Create a service record for a teaching or non-teaching staff member.
           </p>
         </div>
         <div className="shrink-0">

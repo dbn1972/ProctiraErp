@@ -23,10 +23,6 @@
  * `high`-priority item exists so SR users hear about urgent work.
  */
 
-import { ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
-
 import {
   Badge,
   Card,
@@ -37,9 +33,33 @@ import {
   Skeleton,
   useAnnounce,
 } from '@proctira/ui-components';
+import { ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
+
+/**
+ * PRC-L595: only render `item.href` as a link when it is a safe target —
+ * a site-relative path, a fragment/query, or an explicit http(s) URL. This
+ * blocks `javascript:`, `data:` and other active schemes from executing if an
+ * href is ever derived from user/tenant data. Anything else renders as a
+ * non-link (handled by the caller's `onSelect`/plain row fallback).
+ */
+export function isSafeHref(href: string): boolean {
+  const value = href.trim();
+  if (!value) return false;
+  // Relative paths and in-page anchors are always safe.
+  if (/^[/#?]/.test(value) && !value.startsWith('//')) return true;
+  // Reject protocol-relative URLs and any explicit non-http(s) scheme.
+  if (value.startsWith('//')) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    return /^https?:\/\//i.test(value);
+  }
+  // No scheme, not starting with / # ? — treat as a relative path.
+  return true;
+}
 
 export type ActionItemPriority = 'high' | 'medium' | 'low';
 
@@ -242,7 +262,7 @@ export function ActionItemList({
                   data-testid="action-item-list-item"
                   data-priority={item.priority ?? 'medium'}
                 >
-                  {item.href ? (
+                  {item.href && isSafeHref(item.href) ? (
                     <a href={item.href} className={className} aria-label={ariaLabel}>
                       {inner}
                     </a>

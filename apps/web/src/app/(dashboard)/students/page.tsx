@@ -42,6 +42,8 @@ import { StudentsBulkGraduateBar } from './_components/students-bulk-graduate-ba
 import {
   loadActiveEnrollments,
   loadPlacementDirectories,
+  canGraduateFromEnrollment,
+  deriveEnrollmentStatus,
 } from './_components/load-student-placement';
 import {
   classSectionLabel,
@@ -249,14 +251,13 @@ export default async function StudentListPage(props: PageProps) {
               <div className="border-b px-4 pt-3">
                 <StudentsBulkGraduateBar
                   rows={studentsResponse.data.map((student) => {
-                    const cd = student.customData ?? {};
-                    const status =
-                      (typeof cd['enrollmentStatus'] === 'string' && cd['enrollmentStatus']) ||
-                      'ENROLLED';
+                    // PRC-M128: derive enrollment status from the real active
+                    // enrollment, not from free-form customData.
+                    const enrollment = enrollmentByStudent.get(student.id) ?? null;
                     return {
                       studentId: student.id,
                       label: `${student.firstName} ${student.lastName}`,
-                      canGraduate: status === 'ENROLLED',
+                      canGraduate: canGraduateFromEnrollment(enrollment),
                     };
                   })}
                 />
@@ -283,6 +284,9 @@ export default async function StudentListPage(props: PageProps) {
                           student,
                           enrollmentByStudent.get(student.id) ?? null,
                           directories,
+                        )}
+                        enrollmentStatus={deriveEnrollmentStatus(
+                          enrollmentByStudent.get(student.id) ?? null,
                         )}
                       />
                     ))}
@@ -333,9 +337,11 @@ function rowPlacement(
 function StudentRow({
   student,
   placement,
+  enrollmentStatus,
 }: {
   student: Student;
   placement: { name: string; classSection: string; institution: string };
+  enrollmentStatus: string;
 }) {
   const cd = student.customData ?? {};
   const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
@@ -353,7 +359,8 @@ function StudentRow({
   const gradeSection = placement.classSection;
   const institution = placement.institution;
   const attendance = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
-  const enrollStatus = readStr(cd, 'enrollmentStatus') || 'ENROLLED';
+  // PRC-M128: status comes from the real active enrollment, not customData.
+  const enrollStatus = enrollmentStatus;
 
   return (
     <TableRow className="group">
@@ -501,6 +508,12 @@ function StatusPill({ status }: { status: string }) {
       );
     case 'WITHDRAWN':
       return <Badge variant="secondary">Withdrawn</Badge>;
+    case 'NOT_ENROLLED':
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          Not enrolled
+        </Badge>
+      );
     default:
       return <Badge variant="outline">{status}</Badge>;
   }

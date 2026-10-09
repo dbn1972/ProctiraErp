@@ -13,9 +13,10 @@ interface ScaffoldModeBannerProps {
   detail?: string;
   className?: string;
   /**
-   * When `'gateway'`, the banner is hidden (live Insights APIs responded).
-   * Any other value — including `'scaffold'` or an unknown/undefined source —
-   * shows the honesty banner (PRC-L258: fail closed, never hide on unknown).
+   * When `'gateway'`, the banner is hidden (live upstream responded 2xx).
+   * Any other value shows an honesty banner: `'scaffold'` (offline/demo),
+   * `'denied'` (access rejected — empty list is not "no rows"), or
+   * `'unavailable'` (upstream error — data could not be fetched).
    */
   source?: ScaffoldDataSource;
   /** Force-show for write scaffolds that never hit a live API yet. */
@@ -28,11 +29,33 @@ interface ScaffoldModeBannerProps {
   title?: string;
 }
 
+const SOURCE_COPY: Record<
+  Exclude<ScaffoldDataSource, 'gateway'>,
+  { title: (surface: string) => string; detail: string }
+> = {
+  scaffold: {
+    title: (surface) => `Scaffold / demo mode — ${surface}`,
+    detail:
+      'Live Insights APIs are not connected in this environment. Forms validate client-side; submits stay demo-only until the gateway is wired.',
+  },
+  denied: {
+    title: (surface) => `Access restricted — ${surface}`,
+    detail:
+      'You do not have permission to view this data. The list below is empty because access was denied, not because no records exist.',
+  },
+  unavailable: {
+    title: (surface) => `Temporarily unavailable — ${surface}`,
+    detail:
+      'This data could not be loaded right now. The list below may be incomplete or empty because the upstream service returned an error — not because no records exist.',
+  },
+};
+
 /**
  * Honesty banner for Insights & System scaffolds.
  *
- * Mirrors Platform Admin `StubDataBanner`: hide when the gateway responded,
- * show when data is scaffold/offline, or when `force` marks a write scaffold.
+ * Mirrors Platform Admin `StubDataBanner`: hide when the gateway responded 2xx,
+ * show when data is scaffold/offline/denied/unavailable, or when `force` marks
+ * a write scaffold.
  */
 export function ScaffoldModeBanner({
   surface,
@@ -42,24 +65,23 @@ export function ScaffoldModeBanner({
   force = false,
   title,
 }: ScaffoldModeBannerProps) {
-  // PRC-L258: fail closed. The banner is only hidden when the caller proves the
-  // data came from the live gateway. An unknown/undefined source warns.
+  // PRC-L258: fail closed — only a proven live 2xx gateway response hides the
+  // banner; an unknown/undefined source still warns (shown as scaffold copy).
   if (!force && source === 'gateway') return null;
+
+  const copy = source && source !== 'gateway' ? SOURCE_COPY[source] : SOURCE_COPY.scaffold;
 
   return (
     <Alert
       variant="warning"
       className={className}
       data-testid="scaffold-mode-banner"
-      data-mode="scaffold"
+      data-mode={source && source !== 'gateway' ? source : 'scaffold'}
       role="status"
     >
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-      <AlertTitle>{title ?? `Scaffold / demo mode — ${surface}`}</AlertTitle>
-      <AlertDescription>
-        {detail ??
-          'Live Insights APIs are not connected in this environment. Forms validate client-side; submits stay demo-only until the gateway is wired.'}
-      </AlertDescription>
+      <AlertTitle>{title ?? copy.title(surface)}</AlertTitle>
+      <AlertDescription>{detail ?? copy.detail}</AlertDescription>
     </Alert>
   );
 }

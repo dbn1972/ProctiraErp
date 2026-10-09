@@ -64,7 +64,12 @@ describe('getExaminationResultsView', () => {
     expect(view.published).toBe(true);
     const [r1, r2] = view.rows;
     expect(r1).toMatchObject({ totalScore: 120, maxScore: 150, status: 'PUBLISHED' });
-    expect(r2).toMatchObject({ totalScore: null, status: 'INCOMPLETE' });
+    // PRC-M145: c2 only registered for Maths, so it is assessed on that subject
+    // alone — complete (PENDING), with a per-candidate maxScore of 100, not
+    // permanently INCOMPLETE against the full exam of 150.
+    expect(r2).toMatchObject({ totalScore: 50, maxScore: 100, status: 'PENDING' });
+    expect(r2!.subjects).toHaveLength(1);
+    expect(r2!.subjects[0]!.code).toBe('MA');
   });
   it('treats a failed publication read as unpublished and marks complete rows PENDING', async () => {
     gatewayFetch.mockImplementation(async (path: string) =>
@@ -87,6 +92,29 @@ describe('getExaminationResultsView', () => {
     const view = await getExaminationResultsView(exam);
     expect(view.published).toBe(false);
     expect(view.rows[0]).toMatchObject({ totalScore: 3, status: 'PENDING' });
+  });
+  it('keeps a candidate INCOMPLETE when a registered subject has no score (PRC-M145)', async () => {
+    gatewayFetch.mockImplementation(async (path: string) =>
+      path.endsWith('/results/marks')
+        ? ok({
+            data: [
+              {
+                id: 'c1',
+                studentId: 's1',
+                centerId: null,
+                // Registered for both Maths and English, but English not marked yet.
+                subjectResults: [
+                  { subjectId: 'm', score: 80 },
+                  { subjectId: 'e', score: null },
+                ],
+              },
+            ],
+          })
+        : fail(404),
+    );
+    const view = await getExaminationResultsView(exam);
+    expect(view.rows[0]).toMatchObject({ status: 'INCOMPLETE', totalScore: null, maxScore: 150 });
+    expect(view.rows[0]!.subjects).toHaveLength(2);
   });
 });
 describe('admin.server sourceOf', () => {

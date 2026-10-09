@@ -265,20 +265,95 @@ export function brandToTenantTokens(brand: Brand): TenantThemeTokens {
   // Be resilient to a partial/empty brand object: the SSR head must always
   // render *some* branded baseline (see module contract), so every field falls
   // back to the canonical default rather than throwing on a missing value.
+  //
+  // PRC-M616 / PRC-L409: every value is interpolated into an inline
+  // `<style data-tenant-theme>` via `dangerouslySetInnerHTML`. Colours and
+  // URLs are validated against an allow-list (falling back to the default on
+  // any mismatch) and string values are CSS-escaped so a hostile tenant brand
+  // can neither break out of the `<style>` element nor inject arbitrary CSS.
   const b = (brand ?? {}) as Partial<Brand>;
   return {
     name: `'${escapeCss(b.name ?? DEFAULT_BRAND.name)}'`,
     shortName: `'${escapeCss(b.shortName ?? DEFAULT_BRAND.shortName)}'`,
-    primary: b.primary_color ?? DEFAULT_BRAND.primary_color,
-    accent: b.accent_color ?? DEFAULT_BRAND.accent_color,
-    logo: `url("${b.logo?.url ?? DEFAULT_BRAND.logo.url}")`,
-    favicon: `url("${b.favicon ?? DEFAULT_BRAND.favicon}")`,
-    loginBackground: b.login_background ?? DEFAULT_BRAND.login_background,
+    primary: safeCssColor(b.primary_color, DEFAULT_BRAND.primary_color),
+    accent: safeCssColor(b.accent_color, DEFAULT_BRAND.accent_color),
+    logo: `url("${safeCssUrl(b.logo?.url, DEFAULT_BRAND.logo.url)}")`,
+    favicon: `url("${safeCssUrl(b.favicon, DEFAULT_BRAND.favicon)}")`,
+    loginBackground: safeLoginBackground(b.login_background, DEFAULT_BRAND.login_background),
   };
 }
 
+/**
+ * CSS string escaping for values interpolated into an inline `<style>`.
+ *
+ * Escapes the backslash and single quote (CSS string delimiters) AND the HTML
+ * `<`/`>` characters so a value such as `</style><script>` can never close the
+ * element and inject markup (PRC-M616).
+ */
 function escapeCss(value: string | null | undefined): string {
-  return (value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return (value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/</g, '\\3c ')
+    .replace(/>/g, '\\3e ')
+    .replace(/[\r\n]/g, ' ');
+}
+
+/**
+ * Accept only well-formed CSS colours: #hex (3/4/6/8 digit), hsl()/hsla(),
+ * rgb()/rgba(), or the bare HSL triple used by the design tokens
+ * (e.g. `222 47% 11%`). Anything else falls back to the default colour so a
+ * value like `red;} body{display:none` cannot inject rules (PRC-L409).
+ */
+const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const FN_COLOR = /^(?:hsla?|rgba?)\(\s*[0-9.,%\s/]+\)$/i;
+const HSL_TRIPLE = /^\d{1,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%$/;
+
+function safeCssColor(value: string | null | undefined, fallback: string): string {
+  const v = (value ?? '').trim();
+  if (HEX_COLOR.test(v) || FN_COLOR.test(v) || HSL_TRIPLE.test(v)) return v;
+  return fallback;
+}
+
+/**
+ * Accept only an https URL or a site-relative path (`/...`) for logo/favicon.
+ * Rejects `javascript:`, `data:`, protocol-relative and any value containing
+ * characters that could terminate the CSS `url("...")` or `<style>` (PRC-L409).
+ */
+function safeCssUrl(value: string | null | undefined, fallback: string): string {
+  const v = (value ?? '').trim();
+  if (!v) return fallback;
+  // No quotes, parentheses, angle-brackets or whitespace that could break out.
+  if (/["'()<>\s\\]/.test(v)) return fallback;
+  if (v.startsWith('/') && !v.startsWith('//')) return v;
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol === 'https:') return v;
+  } catch {
+    /* not an absolute URL */
+  }
+  return fallback;
+}
+
+/**
+ * Login background may be a colour, a gradient, or a `url(...)`. Allow colours
+ * and `linear-gradient(...)`/`radial-gradient(...)` whose argument list has no
+ * breakout characters; a `url(...)` is validated via `safeCssUrl`. Anything
+ * else falls back to the default (PRC-L409).
+ */
+const GRADIENT = /^(?:linear|radial)-gradient\([^<>"'\\]*\)$/i;
+
+function safeLoginBackground(value: string | null | undefined, fallback: string): string {
+  const v = (value ?? '').trim();
+  if (!v) return fallback;
+  if (HEX_COLOR.test(v) || FN_COLOR.test(v) || HSL_TRIPLE.test(v) || GRADIENT.test(v)) return v;
+  const urlMatch = /^url\((.*)\)$/i.exec(v);
+  if (urlMatch) {
+    const inner = urlMatch[1]!.trim().replace(/^["']|["']$/g, '');
+    const safe = safeCssUrl(inner, '');
+    if (safe) return `url("${safe}")`;
+  }
+  return fallback;
 }
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────

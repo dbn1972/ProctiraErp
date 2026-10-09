@@ -105,7 +105,12 @@ export function SectionEnrollForm(props: {
       className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
-        const fd = new FormData(event.currentTarget);
+        // PRC-M141: capture the form element now. Inside the async transition
+        // `event.currentTarget` is null (React nulls it after the handler
+        // returns), so `event.currentTarget.reset()` threw and router.refresh()
+        // never ran. Reference the stable node instead.
+        const form = event.currentTarget;
+        const fd = new FormData(form);
         const studentId = String(fd.get('studentId') ?? '').trim();
         setError(null);
         startTransition(async () => {
@@ -118,7 +123,7 @@ export function SectionEnrollForm(props: {
             setError(result.error);
             return;
           }
-          event.currentTarget.reset();
+          form.reset();
           router.refresh();
         });
       }}
@@ -162,15 +167,27 @@ export function SectionBulkEnrollForm(props: {
       className="space-y-2"
       onSubmit={(event) => {
         event.preventDefault();
-        const fd = new FormData(event.currentTarget);
+        // PRC-M141: capture the form before the async transition (see note on
+        // the single-enrol form).
+        const form = event.currentTarget;
+        const fd = new FormData(form);
         const raw = String(fd.get('studentIds') ?? '');
-        const byAdmission = new Map<string, string>();
+        // PRC-M140: build a token → student-id index that records ambiguity. A
+        // token (admission code, name word, label) that points at more than one
+        // distinct student must NOT silently enrol the last match — it is
+        // reported as ambiguous so an operator resolves it explicitly.
+        const tokenToIds = new Map<string, Set<string>>();
+        const addToken = (token: string, id: string) => {
+          const key = token.toLowerCase();
+          if (!key) return;
+          const set = tokenToIds.get(key) ?? new Set<string>();
+          set.add(id);
+          tokenToIds.set(key, set);
+        };
         for (const option of props.studentOptions ?? []) {
-          byAdmission.set(option.id.toLowerCase(), option.id);
-          for (const token of option.searchText?.split(/\s+/) ?? []) {
-            if (token) byAdmission.set(token.toLowerCase(), option.id);
-          }
-          byAdmission.set(option.label.toLowerCase(), option.id);
+          addToken(option.id, option.id);
+          for (const token of option.searchText?.split(/\s+/) ?? []) addToken(token, option.id);
+          addToken(option.label, option.id);
         }
         const tokens = raw
           .split(/[\s,;]+/)
@@ -178,15 +195,33 @@ export function SectionBulkEnrollForm(props: {
           .filter(Boolean);
         const studentIds: string[] = [];
         const unknown: string[] = [];
+        const ambiguous: string[] = [];
+        const seen = new Set<string>();
         for (const token of tokens) {
-          const resolved = byAdmission.get(token.toLowerCase());
-          if (resolved) studentIds.push(resolved);
-          else unknown.push(token);
+          const matches = tokenToIds.get(token.toLowerCase());
+          if (!matches || matches.size === 0) {
+            unknown.push(token);
+          } else if (matches.size > 1) {
+            ambiguous.push(token);
+          } else {
+            const id = [...matches][0]!;
+            if (!seen.has(id)) {
+              seen.add(id);
+              studentIds.push(id);
+            }
+          }
         }
         setError(null);
         setMessage(null);
         if (tokens.length === 0) {
           setError('Enter at least one admission number');
+          return;
+        }
+        if (ambiguous.length > 0) {
+          setError(
+            `Ambiguous — more than one student matches: ${ambiguous.slice(0, 5).join(', ')}. ` +
+              'Use the unique admission number.',
+          );
           return;
         }
         if (studentIds.length === 0) {
@@ -213,7 +248,7 @@ export function SectionBulkEnrollForm(props: {
               named.length > 0 ? ` · ${named.length} failed (${named.slice(0, 3).join(', ')})` : '';
             setMessage(`Enrolled ${result.enrolled}${failNote}`);
           }
-          event.currentTarget.reset();
+          form.reset();
           router.refresh();
         });
       }}

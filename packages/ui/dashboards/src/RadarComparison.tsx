@@ -18,16 +18,6 @@
  * error.
  */
 
-import type { ReactNode } from 'react';
-import {
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-} from 'recharts';
-
 import {
   Card,
   CardContent,
@@ -39,9 +29,18 @@ import {
   useChartPalette,
   useSeriesColors,
 } from '@proctira/ui-components';
+import type { ReactNode } from 'react';
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from 'recharts';
 
-import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
+import { cn } from './lib/utils';
 
 export interface RadarSeries {
   /** Stable id used as the React key + tooltip name. */
@@ -49,9 +48,10 @@ export interface RadarSeries {
   /** Human-readable series label (e.g. board name). */
   label: string;
   /**
-   * Map of axis id → metric value. Missing axes fall back to `0`. Values
-   * should be normalised to a comparable scale per axis before being
-   * passed in (Recharts does not normalise per axis on its own).
+   * Map of axis id → metric value. A missing axis is treated as *unknown*
+   * (rendered as a gap, not a 0 — PRC-M456). Values should be normalised to a
+   * comparable scale per axis before being passed in (Recharts does not
+   * normalise per axis on its own).
    */
   values: Record<string, number>;
 }
@@ -93,7 +93,29 @@ export interface RadarComparisonProps {
 interface RadarRow {
   axis: string;
   label: string;
-  [seriesId: string]: number | string;
+  [seriesId: string]: number | string | null;
+}
+
+/**
+ * Pivot series into the per-axis row shape Recharts expects.
+ *
+ * PRC-M456: a metric that a series does not provide for an axis is `null`
+ * (unknown), never `0`. Coercing missing metrics to 0 drew a "no data" point
+ * as a failing score; with `null` + `connectNulls` the ring closes across the
+ * axes that do have data.
+ */
+export function buildRadarRows(
+  axes: ReadonlyArray<{ id: string; label: string }>,
+  series: ReadonlyArray<RadarSeries>,
+): ReadonlyArray<Record<string, number | string | null>> {
+  return axes.map((axis) => {
+    const row: Record<string, number | string | null> = { axis: axis.id, label: axis.label };
+    for (const s of series) {
+      const value = s.values[axis.id];
+      row[s.id] = typeof value === 'number' ? value : null;
+    }
+    return row;
+  });
 }
 
 export function RadarComparison({
@@ -121,13 +143,7 @@ export function RadarComparison({
 
   // Pivot the series into the row shape Recharts expects: one row per
   // axis with one column per series.
-  const rows: ReadonlyArray<RadarRow> = axes.map((axis) => {
-    const row: RadarRow = { axis: axis.id, label: axis.label };
-    for (const s of series) {
-      row[s.id] = s.values[axis.id] ?? 0;
-    }
-    return row;
-  });
+  const rows = buildRadarRows(axes, series);
 
   const isEmpty = !loading && !error && (series.length === 0 || axes.length === 0);
 
@@ -187,6 +203,7 @@ export function RadarComparison({
                       stroke={color}
                       fill={color}
                       fillOpacity={0.25}
+                      connectNulls
                       isAnimationActive={false}
                     />
                   );
