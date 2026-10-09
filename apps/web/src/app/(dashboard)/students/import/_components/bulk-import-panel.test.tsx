@@ -44,10 +44,12 @@ describe('BulkImportPanel', () => {
       },
     });
     render(<BulkImportPanel />);
-    const importButton = screen.getByRole('button', { name: /import/i });
+    const importButton = screen.getByRole('button', { name: 'Start import' });
     expect(importButton).toBeDisabled();
     choose(new File(['xlsx-bytes'], 'students.xlsx', { type: XLSX }));
-    fireEvent.click(screen.getByRole('button', { name: /import/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }));
+    // PRC-M127: an explicit confirmation now precedes the commit.
+    fireEvent.click(await screen.findByTestId('bulk-import-confirm-confirm'));
     await waitFor(() => expect(submitBulkImportAction).toHaveBeenCalledTimes(1));
     const payload = submitBulkImportAction.mock.calls[0]![0] as Record<string, unknown>;
     expect(payload).toMatchObject({

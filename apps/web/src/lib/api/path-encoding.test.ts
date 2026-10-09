@@ -28,7 +28,8 @@ describe('gateway path encoding (PRC-M488)', () => {
   it('grep gate: no unencoded `/${...}` path interpolation in lib/api clients', () => {
     const dir = __dirname;
     // browser-gateway/gateway build the base URL itself (`/${path}`), not a segment.
-    const skip = new Set(['browser-gateway.ts', 'gateway.ts']);
+    // gateway-proxy validates its sub-path with a SAFE_PATH allowlist before building the URL.
+    const skip = new Set(['browser-gateway.ts', 'gateway.ts', 'gateway-proxy.ts']);
     const offenders: string[] = [];
     for (const file of readdirSync(dir)) {
       if (!file.endsWith('.ts') || file.includes('.test.') || skip.has(file)) continue;
