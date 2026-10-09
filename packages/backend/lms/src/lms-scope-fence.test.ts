@@ -131,3 +131,52 @@ describe('PRC-M297 — MCQ answer key is required', () => {
     expect(quiz.questions[0]!.correctOptionIndex).toBe(1);
   });
 });
+
+describe('PRC-M304 — module endpoints enforce authz, scope, existence', () => {
+  it('forbids learners from creating modules', async () => {
+    const s = svc();
+    await expect(
+      s.createModule(TENANT, student.userId, { title: 'M1', institutionId: SCHOOL_A }, student),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('hides unpublished modules from learners and other schools', async () => {
+    const s = svc();
+    await s.createModule(
+      TENANT,
+      teacherA.userId,
+      { title: 'Unpublished A', institutionId: SCHOOL_A, published: false },
+      teacherA,
+    );
+    await s.createModule(
+      TENANT,
+      teacherA.userId,
+      { title: 'Published A', institutionId: SCHOOL_A, published: true },
+      teacherA,
+    );
+    // A student in school A sees only the published module.
+    const asStudent = await s.listModules(TENANT, {}, student);
+    expect(asStudent.map((m) => m.title)).toEqual(['Published A']);
+    // A teacher in school B sees neither (scope fence).
+    const asTeacherB = await s.listModules(TENANT, {}, teacherB);
+    expect(asTeacherB).toHaveLength(0);
+  });
+
+  it('rejects a module item that references a non-existent target', async () => {
+    const s = svc();
+    const mod = await s.createModule(
+      TENANT,
+      teacherA.userId,
+      { title: 'M', institutionId: SCHOOL_A, published: true },
+      teacherA,
+    );
+    await expect(
+      s.addModuleItem(
+        TENANT,
+        mod.id,
+        { itemType: 'assignment', itemId: randomUUID(), title: 'ghost' },
+        teacherA,
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});

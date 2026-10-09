@@ -1846,7 +1846,12 @@ export class LmsService {
       position?: number;
       published?: boolean;
     },
+    actor: LmsActor,
   ) {
+    // PRC-M304: authoring surface — only staff may create modules, and a
+    // school-bound author may only target their own institution.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can create modules');
+    assertInstitutionAllowed(actor, input.institutionId);
     const id = randomUUID();
     return this.repository.createModule({
       id,
@@ -1873,9 +1878,18 @@ export class LmsService {
       position?: number;
       required?: boolean;
     },
+    actor: LmsActor,
   ) {
+    // PRC-M304: only staff may add items, scoped to the module's institution.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can edit modules');
     const module = await this.repository.findModule(tenantId, moduleId);
     if (!module) throw new NotFoundError('Module not found');
+    assertInstitutionAllowed(actor, module.institutionId ?? undefined);
+    // PRC-M304: a referenced item (assignment/content/discussion) must exist so
+    // dangling itemIds are rejected rather than silently accepted.
+    if (input.itemId) {
+      await this.assertModuleItemExists(tenantId, input.itemType, input.itemId);
+    }
     const id = randomUUID();
     return this.repository.createModuleItem({
       id,
@@ -1890,14 +1904,57 @@ export class LmsService {
     });
   }
 
+  /** PRC-M304: verify a module item target exists in this tenant. */
+  private async assertModuleItemExists(
+    tenantId: string,
+    itemType: 'assignment' | 'content' | 'discussion' | 'url',
+    itemId: string,
+  ): Promise<void> {
+    let found: unknown = null;
+    if (itemType === 'assignment') {
+      found = await this.repository.findAssignmentById(tenantId, itemId);
+    } else if (itemType === 'content') {
+      found = await this.repository.findContentItem(tenantId, itemId);
+    } else if (itemType === 'discussion') {
+      found = await this.repository.findDiscussion(tenantId, itemId);
+    } else {
+      // 'url' items carry no referenced row.
+      return;
+    }
+    if (!found) {
+      throw new ValidationError('Module item target does not exist', [
+        { field: 'itemId', rule: 'exists', message: `No ${itemType} found for itemId` },
+      ]);
+    }
+  }
+
   async listModules(
     tenantId: string,
     filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+    actor: LmsActor,
   ) {
-    return this.repository.listModules(tenantId, filter);
+    // PRC-M304: fence school-bound callers and hide unpublished modules from learners.
+    assertInstitutionAllowed(actor, filter.institutionId);
+    const fence = scopeFenceFor(actor);
+    const modules = await this.repository.listModules(tenantId, filter);
+    return modules.filter((m) => {
+      if (isLearner(actor) && !m.published) return false;
+      if (fence && m.institutionId && !fence.includes(m.institutionId)) return false;
+      return true;
+    });
   }
 
-  async listModuleItems(tenantId: string, moduleId: string) {
+  async listModuleItems(tenantId: string, moduleId: string, actor: LmsActor) {
+    const module = await this.repository.findModule(tenantId, moduleId);
+    if (!module) throw new NotFoundError('Module not found');
+    if (isLearner(actor) && !module.published) throw new NotFoundError('Module not found');
+    if (
+      module.institutionId &&
+      isSchoolBound(actor) &&
+      !actor.institutions.includes(module.institutionId)
+    ) {
+      throw new NotFoundError('Module not found');
+    }
     return this.repository.listModuleItems(tenantId, moduleId);
   }
 }
