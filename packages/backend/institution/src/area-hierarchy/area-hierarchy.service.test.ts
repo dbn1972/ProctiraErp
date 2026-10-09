@@ -825,4 +825,56 @@ describe('AreaHierarchyService', () => {
       ).rejects.toThrow(NotFoundError);
     });
   });
+
+  // PRC-M281 / NEW-003: move() must recompute nested-set lft/rgt so that
+  // getTree(rootId) (which selects subtrees by lft/rgt) stays correct after a move.
+  describe('move recomputes nested-set lft/rgt (PRC-M281)', () => {
+    it('getTree(newParent) includes the moved subtree after a move', async () => {
+      // Build the tree through create() so lft/rgt stay consistent:
+      //   A (root), B (root). Move B under A.
+      const a = await service.create({ tenantId: TENANT_ID, name: 'A', code: 'A' });
+      const b = await service.create({ tenantId: TENANT_ID, name: 'B', code: 'B' });
+      // Give B a child so we move a real subtree.
+      const b1 = await service.create({
+        tenantId: TENANT_ID,
+        name: 'B1',
+        code: 'B1',
+        parentId: b.id,
+      });
+
+      await service.move(TENANT_ID, b.id, { newParentId: a.id });
+
+      // getTree(A) selects by A.lft/A.rgt. If lft/rgt were not recomputed on
+      // move, B and B1 would be outside A's range and this subtree would be wrong.
+      const subtree = await service.getTree(TENANT_ID, a.id);
+      expect(subtree).toHaveLength(1);
+      const aNode = subtree[0]!;
+      expect(aNode.id).toBe(a.id);
+      expect(aNode.children.map((c) => c.id)).toContain(b.id);
+      const bNode = aNode.children.find((c) => c.id === b.id)!;
+      expect(bNode.children.map((c) => c.id)).toContain(b1.id);
+
+      // Nested-set invariant: moved nodes are strictly contained within A.
+      const freshA = await service.getById(TENANT_ID, a.id);
+      const freshB = await service.getById(TENANT_ID, b.id);
+      const freshB1 = await service.getById(TENANT_ID, b1.id);
+      expect(freshB.lft).toBeGreaterThan(freshA.lft);
+      expect(freshB.rgt).toBeLessThan(freshA.rgt);
+      expect(freshB1.lft).toBeGreaterThan(freshB.lft);
+      expect(freshB1.rgt).toBeLessThan(freshB.rgt);
+    });
+
+    it('rejects moving an area under its own descendant via nested-set containment', async () => {
+      const a = await service.create({ tenantId: TENANT_ID, name: 'A', code: 'A' });
+      const child = await service.create({
+        tenantId: TENANT_ID,
+        name: 'child',
+        code: 'CH',
+        parentId: a.id,
+      });
+      await expect(service.move(TENANT_ID, a.id, { newParentId: child.id })).rejects.toThrow(
+        BusinessRuleError,
+      );
+    });
+  });
 });

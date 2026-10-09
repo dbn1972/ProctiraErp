@@ -164,6 +164,7 @@ export class LibraryService implements LibraryFinesPort {
       throw new NotFoundError('Library item not found');
     }
 
+    let fulfilsReservedHold = false;
     if (copy) {
       await this.expireReadyHolds(tenantId, item.id);
       if (copy.status === 'on_loan') {
@@ -178,6 +179,9 @@ export class LibraryService implements LibraryFinesPort {
         if (ready) {
           await this.repository.updateHold(ready.id, tenantId, { status: 'fulfilled' });
         }
+        // Availability for a reserved copy was already consumed when the copy was
+        // reserved on return, so a hold-fulfilment checkout must not decrement again.
+        fulfilsReservedHold = true;
       } else if (item.available <= 0) {
         throw new BusinessRuleError('No copies available for checkout');
       }
@@ -188,6 +192,20 @@ export class LibraryService implements LibraryFinesPort {
     const dueAt = input.dueAt
       ? resolveRequestedDueAt(input.dueAt)
       : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    // PRC-M291 / NEW-012: atomically claim one copy (decrement available + flip
+    // copy to on_loan) before recording the loan. This replaces the previous
+    // read-then-write that let two concurrent checkouts of the last copy both
+    // decrement available (double checkout / lost update).
+    const claim = await this.repository.claimCopyForCheckout({
+      tenantId,
+      itemId: item.id,
+      copyId: copy?.id ?? null,
+      decrementAvailable: !fulfilsReservedHold,
+    });
+    if (!claim.claimed) {
+      throw new BusinessRuleError(`Checkout failed: ${claim.reason}`);
+    }
 
     const loan = await this.repository.createLoan({
       id: uuidv4(),
@@ -203,12 +221,6 @@ export class LibraryService implements LibraryFinesPort {
       status: 'checked_out',
     });
 
-    if (copy) {
-      await this.repository.updateCopy(copy.id, tenantId, { status: 'on_loan' });
-    }
-    await this.repository.updateItem(item.id, tenantId, {
-      available: Math.max(0, item.available - 1),
-    });
     return loan;
   }
 

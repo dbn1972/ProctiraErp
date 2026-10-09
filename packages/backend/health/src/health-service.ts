@@ -33,8 +33,10 @@ import type {
   NurseIncidentEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
+import { assertNotPhiCiphertextInput } from './phi-crypto.js';
 import {
   PHI_FIELD_COUNSELLING_CASE_NOTES,
+  PHI_FIELD_REDACTED,
   HEALTH_BREAK_GLASS_DEFAULT_MINUTES,
   HEALTH_BREAK_GLASS_MAX_MINUTES,
   applyCounsellingCaseNotesAcl,
@@ -1040,6 +1042,10 @@ export class HealthService {
     },
   ): Promise<CounsellingSessionEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    // PRC-M272 / NEW-008: reject attacker-supplied enc:v* markers on write.
+    assertNotPhiCiphertextInput(input.caseNotes, 'caseNotes');
+    assertNotPhiCiphertextInput(input.reason, 'reason');
+    assertNotPhiCiphertextInput(input.outcome, 'outcome');
     if (input.followUpRequired && !input.followUpDate) {
       throw new BusinessRuleError(
         'Follow-up date is required when follow-up is marked as required',
@@ -1071,9 +1077,29 @@ export class HealthService {
     const existing = await this.repository.findCounsellingSessionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Counselling session with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    // Validate follow-up consistency
+
+    // PRC-M272 / NEW-008: never let a client store a crafted enc:v* marker.
+    assertNotPhiCiphertextInput(input.caseNotes, 'caseNotes');
+    assertNotPhiCiphertextInput(input.reason, 'reason');
+    assertNotPhiCiphertextInput(input.outcome, 'outcome');
+
+    // PRC-M274 / NEW-007: a client that GETs a redacted session (caseNotes =
+    // '[REDACTED]') and PUTs it back must not overwrite the real notes with the
+    // placeholder. Reject the write rather than silently losing PHI.
+    if (input.caseNotes === PHI_FIELD_REDACTED) {
+      throw new BusinessRuleError(
+        `caseNotes cannot be set to the redaction placeholder '${PHI_FIELD_REDACTED}'; ` +
+          'this value indicates a round-tripped redacted record. Omit the field to leave it unchanged.',
+      );
+    }
+
+    // Validate follow-up consistency. PRC-L562: use an explicit property check so
+    // that clearing the date (followUpDate: null) is validated against
+    // followUpRequired instead of silently falling back to the existing value.
     const followUpRequired = input.followUpRequired ?? existing.followUpRequired;
-    const followUpDate = input.followUpDate ?? existing.followUpDate;
+    const followUpDate = Object.prototype.hasOwnProperty.call(input, 'followUpDate')
+      ? (input.followUpDate ?? null)
+      : existing.followUpDate;
     if (followUpRequired && !followUpDate) {
       throw new BusinessRuleError(
         'Follow-up date is required when follow-up is marked as required',
@@ -1405,17 +1431,61 @@ export class HealthService {
     if (!create) {
       throw new BusinessRuleError('Nurse incidents are not available on this repository');
     }
+
+    // PRC-M272 / NEW-008: reject crafted enc:v* markers in free-text notes.
+    assertNotPhiCiphertextInput(input.notes, 'notes');
+
+    // PRC-M520 / NEW-013: incidentAt must be a valid, bounded calendar datetime.
+    // Reject unparseable values and timestamps implausibly far in the future
+    // (a small clock-skew allowance) or absurdly far in the past.
+    const incidentAt = new Date(input.incidentAt);
+    if (Number.isNaN(incidentAt.getTime())) {
+      throw new BusinessRuleError('incidentAt must be a valid ISO datetime');
+    }
+    const now = Date.now();
+    const skewMs = 24 * 60 * 60 * 1000; // allow 1 day of clock skew
+    if (incidentAt.getTime() > now + skewMs) {
+      throw new BusinessRuleError('incidentAt cannot be in the future');
+    }
+    if (incidentAt.getTime() < Date.UTC(1900, 0, 1)) {
+      throw new BusinessRuleError('incidentAt is out of the supported range');
+    }
+
+    // PRC-M520 / NEW-013: institutionId must be within the caller's scope. A
+    // tenant-wide health admin may file for any institution; a school-bound
+    // actor may only use one of their authoritative institutions.
+    const effective = await this.resolveAuthoritativeInstitutions(tenantId, access);
+    const institutionId: string | null = input.institutionId ?? null;
+    if (institutionId && !isTenantWideHealthActor(effective)) {
+      const allowed = effectiveInstitutionIds(effective);
+      if (!allowed.includes(institutionId)) {
+        throw new ForbiddenError(
+          'Access denied: institutionId is outside the caller’s institution scope',
+        );
+      }
+    }
+
+    // PRC-M520 / NEW-013: reportedBy is derived from the authenticated actor,
+    // never from the request body — a user cannot attribute an incident to
+    // another staff member.
+    const reportedBy = access.userId;
+    if (!reportedBy) {
+      throw new ForbiddenError(
+        'Access denied: authenticated actor is required to report incidents',
+      );
+    }
+
     return create(
       {
         id: uuidv4(),
         tenantId,
         studentId: input.studentId,
-        institutionId: input.institutionId ?? null,
-        incidentAt: new Date(input.incidentAt),
+        institutionId,
+        incidentAt,
         category: input.category,
         severity: input.severity,
         notes: input.notes ?? '',
-        reportedBy: input.reportedBy,
+        reportedBy,
       },
       options,
     );

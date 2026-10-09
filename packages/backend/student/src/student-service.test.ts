@@ -564,6 +564,44 @@ describe('StudentService', () => {
       });
     });
 
+    // PRC-M383: when the survivor adopts the duplicate's nationalId, the merge
+    // must clear it on the duplicate FIRST (same transaction / ordered) so the
+    // UNIQUE(tenant_id, national_id) constraint is never transiently violated.
+    it('clears the duplicate nationalId before the survivor adopts it (ordered bulkWrite)', async () => {
+      const survivor = await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Ada', nationalId: null }),
+      );
+      const duplicate = await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Ada', nationalId: 'NID-ADOPT-1' }),
+      );
+
+      const bulkWriteCalls: Array<Array<{ id: string; data: { nationalId?: unknown } }>> = [];
+      const originalBulkWrite = repository.bulkWrite.bind(repository);
+      repository.bulkWrite = async (tenantId, ops) => {
+        bulkWriteCalls.push(ops.updates as Array<{ id: string; data: { nationalId?: unknown } }>);
+        return originalBulkWrite(tenantId, ops);
+      };
+
+      const result = await service.mergeDuplicates(TENANT_ID, {
+        survivorId: survivor.id,
+        duplicateId: duplicate.id,
+        reason: 'same person',
+      });
+
+      expect(result.survivor.nationalId).toBe('NID-ADOPT-1');
+      expect(bulkWriteCalls).toHaveLength(1);
+      const updates = bulkWriteCalls[0]!;
+      // Duplicate release must come before survivor adoption.
+      const dupIdx = updates.findIndex((u) => u.id === duplicate.id);
+      const survIdx = updates.findIndex((u) => u.id === survivor.id);
+      expect(dupIdx).toBeGreaterThanOrEqual(0);
+      expect(survIdx).toBeGreaterThan(dupIdx);
+      expect(updates[dupIdx]!.data.nationalId).toBeNull();
+      expect(updates[survIdx]!.data.nationalId).toBe('NID-ADOPT-1');
+    });
+
     it('rejects merging a student into itself', async () => {
       const student = await service.create(TENANT_ID, validCreateInput());
       await expect(

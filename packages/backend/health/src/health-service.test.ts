@@ -596,6 +596,85 @@ describe('HealthService', () => {
       expect(updated.outcome).toBe('Positive progress');
     });
 
+    // PRC-M274 / NEW-007: round-tripping a redacted session must not overwrite notes.
+    it('rejects an update that sets caseNotes to the redaction placeholder', async () => {
+      const created = await service.createCounsellingSession(
+        tenantId,
+        {
+          studentId: 'student-001',
+          counsellorId: 'staff-001',
+          sessionDate: '2024-03-20',
+          sessionType: 'individual',
+          reason: 'Anxiety',
+          caseNotes: 'Real sensitive notes',
+          followUpRequired: false,
+          status: 'scheduled',
+        },
+        healthOfficerContext,
+      );
+
+      await expect(
+        service.updateCounsellingSession(
+          tenantId,
+          created.id,
+          { caseNotes: '[REDACTED]' },
+          healthOfficerContext,
+        ),
+      ).rejects.toThrow(BusinessRuleError);
+
+      // The original notes must survive the rejected write.
+      const fresh = await repository.findCounsellingSessionById(created.id, tenantId);
+      expect(fresh?.caseNotes).toBe('Real sensitive notes');
+    });
+
+    // PRC-L562: clearing followUpDate must be validated against followUpRequired.
+    it('rejects clearing followUpDate while followUp remains required', async () => {
+      const created = await service.createCounsellingSession(
+        tenantId,
+        {
+          studentId: 'student-001',
+          counsellorId: 'staff-001',
+          sessionDate: '2024-03-20',
+          sessionType: 'individual',
+          reason: 'Anxiety',
+          caseNotes: 'Notes',
+          followUpRequired: true,
+          followUpDate: '2024-04-03',
+          status: 'scheduled',
+        },
+        healthOfficerContext,
+      );
+
+      await expect(
+        service.updateCounsellingSession(
+          tenantId,
+          created.id,
+          { followUpDate: null },
+          healthOfficerContext,
+        ),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    // PRC-M272 / NEW-008: attacker-supplied enc:v* ciphertext markers are rejected.
+    it('rejects caseNotes that begin with an enc: ciphertext marker', async () => {
+      await expect(
+        service.createCounsellingSession(
+          tenantId,
+          {
+            studentId: 'student-001',
+            counsellorId: 'staff-001',
+            sessionDate: '2024-03-20',
+            sessionType: 'individual',
+            reason: 'Anxiety',
+            caseNotes: 'enc:v1:AAAA:BBBB:CCCC',
+            followUpRequired: false,
+            status: 'scheduled',
+          },
+          healthOfficerContext,
+        ),
+      ).rejects.toThrow(/enc:/);
+    });
+
     it('lists counselling sessions by student', async () => {
       await service.createCounsellingSession(
         tenantId,
@@ -860,6 +939,67 @@ describe('HealthService', () => {
       expect(created.category).toBe('clinic_visit');
       const listed = await service.listNurseIncidents(tenantId, healthOfficerContext);
       expect(listed.some((r) => r.id === created.id)).toBe(true);
+    });
+
+    // PRC-M520 / NEW-013: reportedBy is derived from the JWT actor, not the body.
+    it('derives reportedBy from the authenticated actor, ignoring the client value', async () => {
+      const created = await service.createNurseIncident(
+        tenantId,
+        {
+          studentId: 'student-001',
+          incidentAt: '2024-09-01T10:00:00.000Z',
+          category: 'clinic_visit',
+          severity: 'low',
+          notes: 'Headache',
+          reportedBy: 'SPOOFED-other-staff',
+        },
+        healthOfficerContext,
+      );
+      expect(created.reportedBy).toBe(healthOfficerContext.userId);
+      expect(created.reportedBy).not.toBe('SPOOFED-other-staff');
+    });
+
+    // PRC-M520 / NEW-013: incidentAt must be a bounded calendar datetime.
+    it('rejects a future incidentAt', async () => {
+      const future = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+      await expect(
+        service.createNurseIncident(
+          tenantId,
+          {
+            studentId: 'student-001',
+            incidentAt: future,
+            category: 'clinic_visit',
+            severity: 'low',
+            reportedBy: 'x',
+          },
+          healthOfficerContext,
+        ),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    // PRC-M520 / NEW-013: a school-bound actor cannot file for an institution
+    // outside their authoritative scope.
+    it('rejects an institutionId outside a school-bound actor scope', async () => {
+      const schoolBound: HealthAccessContext = {
+        userId: 'user-nurse-scoped',
+        roles: ['school_nurse'],
+        guardianOfStudentIds: [],
+        authoritativeInstitutionIds: ['inst-allowed'],
+      };
+      await expect(
+        service.createNurseIncident(
+          tenantId,
+          {
+            studentId: 'student-001',
+            institutionId: 'inst-FORBIDDEN',
+            incidentAt: '2024-09-01T10:00:00.000Z',
+            category: 'clinic_visit',
+            severity: 'low',
+            reportedBy: 'x',
+          },
+          schoolBound,
+        ),
+      ).rejects.toThrow(ForbiddenError);
     });
   });
 });
