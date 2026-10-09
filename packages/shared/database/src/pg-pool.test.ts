@@ -36,7 +36,25 @@ describe('W3-D3 pg pool sizing', () => {
       max: PG_POOL_DEFAULTS.max,
       idleTimeoutMillis: 45_000,
       connectionTimeoutMillis: 5_000,
+      statementTimeoutMillis: PG_POOL_DEFAULTS.statementTimeoutMillis,
+      queryTimeoutMillis: PG_POOL_DEFAULTS.queryTimeoutMillis,
+      idleInTransactionSessionTimeoutMillis: PG_POOL_DEFAULTS.idleInTransactionSessionTimeoutMillis,
     });
+  });
+
+  it('honours statement/query/idle-in-tx timeout env vars (M541)', () => {
+    const cfg = resolvePgPoolConfig({
+      PG_STATEMENT_TIMEOUT_MS: '15000',
+      PG_QUERY_TIMEOUT_MS: '12000',
+      PG_IDLE_IN_TX_TIMEOUT_MS: '90000',
+    });
+    expect(cfg.statementTimeoutMillis).toBe(15_000);
+    expect(cfg.queryTimeoutMillis).toBe(12_000);
+    expect(cfg.idleInTransactionSessionTimeoutMillis).toBe(90_000);
+    // Out-of-range values fall back to defaults (fail-closed, no unbounded statements).
+    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: '0' }).statementTimeoutMillis).toBe(
+      PG_POOL_DEFAULTS.statementTimeoutMillis,
+    );
   });
 
   it('buildPgPoolOptions always sets max, idleTimeoutMillis, and connectionTimeoutMillis', () => {
@@ -50,6 +68,19 @@ describe('W3-D3 pg pool sizing', () => {
     expect(opts.connectionTimeoutMillis).toBeGreaterThan(0);
   });
 
+  it('buildPgPoolOptions bounds every statement with server + client timeouts (M541)', () => {
+    const opts = buildPgPoolOptions('postgres://localhost/proctira', {});
+    expect(opts.statement_timeout).toBe(PG_POOL_DEFAULTS.statementTimeoutMillis);
+    expect(opts.query_timeout).toBe(PG_POOL_DEFAULTS.queryTimeoutMillis);
+    expect(opts.idle_in_transaction_session_timeout).toBe(
+      PG_POOL_DEFAULTS.idleInTransactionSessionTimeoutMillis,
+    );
+    // No unbounded (0 / undefined) timeouts may escape the builder.
+    expect(opts.statement_timeout).toBeGreaterThan(0);
+    expect(opts.query_timeout).toBeGreaterThan(0);
+    expect(opts.idle_in_transaction_session_timeout).toBeGreaterThan(0);
+  });
+
   it('deduplicates pools per connection string', () => {
     vi.stubEnv('DATABASE_URL', 'postgres://localhost/shared-pool-test');
     const a = getSharedPgPool();
@@ -61,5 +92,14 @@ describe('W3-D3 pg pool sizing', () => {
   it('returns null when DATABASE_URL is unset', () => {
     vi.stubEnv('DATABASE_URL', '');
     expect(getSharedPgPool()).toBeNull();
+  });
+
+  it('attaches an error listener so idle-client errors do not crash the process (M541)', () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://localhost/shared-pool-error-test');
+    const pool = getSharedPgPool();
+    expect(pool).not.toBeNull();
+    // Without a listener node-pg would throw on an idle-client error event.
+    expect(pool!.listenerCount('error')).toBeGreaterThan(0);
+    expect(() => pool!.emit('error', new Error('backend terminated connection'))).not.toThrow();
   });
 });

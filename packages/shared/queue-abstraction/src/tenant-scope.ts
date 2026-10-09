@@ -96,7 +96,52 @@ export function assertTenantScopedSubscribeTopic(
   }
 }
 
-/** PRC-L355 — tenant segment must not contain routing separators / wildcards / whitespace. */
+/**
+ * PRC-M365 — AMQP-style topic wildcards (`*` = exactly one segment, `#` = zero or
+ * more segments) are only honoured by the RabbitMQ and in-memory adapters. Kafka
+ * and SQS treated `tenant.*.jobs` as a *literal* topic/queue name, so a wildcard
+ * subscription silently matched nothing on those backends (a correctness bug, not
+ * a leak). These helpers let the Kafka adapter translate a wildcard to a RegExp
+ * (kafkajs supports RegExp topics) and let the SQS adapter fail closed.
+ */
+export function isWildcardTopic(topic: string): boolean {
+  return topic.split('.').some((seg) => seg === '*' || seg === '#');
+}
+
+/**
+ * Convert an AMQP-style wildcard routing key to an anchored RegExp for kafkajs.
+ *   `*` → exactly one dot-free segment
+ *   `#` → zero or more segments (including the dots between them)
+ * Literal segments are escaped so a tenant id or event name cannot inject regex.
+ */
+export function wildcardTopicToRegExp(topic: string): RegExp {
+  const parts = topic.split('.');
+  const tokens: string[] = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const seg = parts[i] ?? '';
+    if (seg === '*') {
+      tokens.push('[^.]+');
+    } else if (seg === '#') {
+      // `#` absorbs the following dot too, so `a.#` matches `a` and `a.b.c`.
+      tokens.push('(?:[^.]+(?:\\.[^.]+)*)?');
+    } else {
+      tokens.push(seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    }
+  }
+  // Join with `\.` but collapse the separator around a trailing/leading `#`.
+  let pattern = '';
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (i > 0) {
+      const prev = parts[i - 1] ?? '';
+      const cur = parts[i] ?? '';
+      // Avoid a mandatory separator next to a `#` that may match zero segments.
+      pattern += prev === '#' || cur === '#' ? '\\.?' : '\\.';
+    }
+    pattern += tokens[i];
+  }
+  return new RegExp(`^${pattern}$`);
+}
+
 // eslint-disable-next-line no-control-regex
 const UNSAFE_TENANT_SEGMENT = /[.*#>\s\u0000-\u001f\u007f]/;
 

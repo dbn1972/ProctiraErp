@@ -18,6 +18,7 @@ import {
 import {
   assertTenantScopedSubscribeTopic,
   isProductionEnv,
+  isWildcardTopic,
   messageTenantMatchesRoute,
 } from '../tenant-scope';
 import type {
@@ -236,6 +237,17 @@ export class SQSAdapter implements QueueAdapter {
 
     // W1-SEC-11: reject unscoped caller queue names.
     assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.sqs.subscribe' });
+
+    // PRC-M365: SQS has no topic-pattern subscription — a wildcard name would be
+    // created/polled as a literal queue ("tenant.*.jobs") that no publisher ever
+    // writes to, silently delivering nothing. Fail closed so callers that need
+    // fan-out use RabbitMQ (or per-job-type queues) rather than losing events.
+    if (isWildcardTopic(options.topic)) {
+      throw new QueueUnsupportedOperationError(
+        `SQSAdapter does not support wildcard subscribe topics ("${options.topic}"); ` +
+          'subscribe to a concrete tenant-scoped queue, or use RabbitMQ for pattern fan-out (PRC-M365)',
+      );
+    }
 
     const queueName = options.topic;
     const queueUrl = await this.getOrCreateQueueUrl(queueName);
