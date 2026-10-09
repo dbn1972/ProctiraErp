@@ -32,7 +32,19 @@ beforeEach(() => {
   }
 });
 function renderDesk() {
-  render(<CirculationDesk items={items} patronUserId="patron-1" />);
+  render(
+    <CirculationDesk
+      items={items}
+      patronUserId="patron-1"
+      studentOptions={[{ id: 'student-9', label: 'Asha Rao · ADM-9' }]}
+    />,
+  );
+}
+/** Select the mandatory borrower (PRC-M105) in the checkout form. */
+function selectBorrower() {
+  fireEvent.change(screen.getByLabelText('Borrower (student)'), {
+    target: { value: 'student-9' },
+  });
 }
 describe('CirculationDesk', () => {
   it('barcode checkout sends the due date (not dropped)', async () => {
@@ -40,12 +52,14 @@ describe('CirculationDesk', () => {
     fireEvent.change(screen.getByTestId('library-checkout-barcode'), {
       target: { value: 'BC-1' },
     });
+    selectBorrower();
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-02-01' } });
     fireEvent.submit(screen.getByTestId('library-checkout-form'));
     await waitFor(() => expect(actions.checkoutBarcodeAction).toHaveBeenCalledTimes(1));
     expect(actions.checkoutBarcodeAction.mock.calls[0]![0]).toMatchObject({
       barcode: 'BC-1',
       patronUserId: 'patron-1',
+      studentId: 'student-9',
       dueAt: '2026-02-01',
     });
     expect(actions.checkoutLibraryItemAction).not.toHaveBeenCalled();
@@ -53,13 +67,23 @@ describe('CirculationDesk', () => {
   it('catalog checkout uses the item action with the due date', async () => {
     renderDesk();
     fireEvent.change(screen.getByLabelText('Catalog item'), { target: { value: 'item-1' } });
+    selectBorrower();
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-02-01' } });
     fireEvent.submit(screen.getByTestId('library-checkout-form'));
     await waitFor(() => expect(actions.checkoutLibraryItemAction).toHaveBeenCalledTimes(1));
     expect(actions.checkoutLibraryItemAction.mock.calls[0]![0]).toMatchObject({
       itemId: 'item-1',
+      studentId: 'student-9',
       dueAt: '2026-02-01',
     });
+  });
+  it('requires a borrower before calling any checkout action (PRC-M105)', () => {
+    renderDesk();
+    fireEvent.change(screen.getByLabelText('Catalog item'), { target: { value: 'item-1' } });
+    fireEvent.submit(screen.getByTestId('library-checkout-form'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Select the borrower');
+    expect(actions.checkoutLibraryItemAction).not.toHaveBeenCalled();
+    expect(actions.checkoutBarcodeAction).not.toHaveBeenCalled();
   });
   it('requires an item or barcode before calling any action', () => {
     renderDesk();
