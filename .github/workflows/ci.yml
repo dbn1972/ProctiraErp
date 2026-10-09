@@ -1412,8 +1412,10 @@ jobs:
         run: node tools/scripts/check-migration-timeouts.mjs
 
       - name: Lock-contention recovery drill (fail → resume)
-        run: node tools/scripts/migration-lock-recovery-drill.mjs
+        run: node tools/scripts/migration-lock-recovery-drill.mjs --confirm
         env:
+          DRILL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DRILL_CONFIRM: '1'
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           MIGRATOR_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 

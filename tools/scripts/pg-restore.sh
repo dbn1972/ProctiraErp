@@ -30,13 +30,41 @@ trap cleanup EXIT
 
 DECRYPTED="$(backup_decrypt_if_needed "$DUMP_FILE")"
 
-echo "==> pg_restore ← ${DUMP_FILE}"
+# --- M438: destructive-restore guard ---------------------------------------
+# pg_restore --clean DROPs objects in the target DB. Refuse to run unless the
+# operator has explicitly confirmed the exact target database name, so a
+# mis-set DATABASE_URL cannot wipe the wrong database.
+CURRENT_DB="$(psql "$DB_URL" -At -c 'SELECT current_database();' 2>/dev/null || true)"
+if [[ -z "$CURRENT_DB" ]]; then
+  echo "ERROR: could not connect to target to resolve current_database()" >&2
+  exit 1
+fi
+if [[ "${RESTORE_CONFIRM_DB:-}" != "$CURRENT_DB" ]]; then
+  echo "ERROR: refusing destructive --clean restore." >&2
+  echo "       Set RESTORE_CONFIRM_DB to the exact target database name to proceed." >&2
+  echo "       target current_database() = '${CURRENT_DB}'" >&2
+  exit 1
+fi
+
+echo "==> pg_restore ← ${DUMP_FILE} (target db: ${CURRENT_DB})"
+# --single-transaction + --exit-on-error: all-or-nothing restore that aborts on
+# the first error instead of leaving a half-restored database.
 pg_restore \
   --dbname="$DB_URL" \
   --clean \
   --if-exists \
   --no-owner \
   --no-acl \
+  --single-transaction \
+  --exit-on-error \
   "$DECRYPTED"
 
-echo "==> Restore OK: ${DUMP_FILE}"
+# Post-restore sanity: the DB must be queryable and have user tables.
+TABLE_COUNT="$(psql "$DB_URL" -At -c \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema');" 2>/dev/null || echo 0)"
+if [[ "${TABLE_COUNT:-0}" -lt 1 ]]; then
+  echo "ERROR: post-restore sanity check failed — no user tables present" >&2
+  exit 1
+fi
+
+echo "==> Restore OK: ${DUMP_FILE} (${TABLE_COUNT} tables)"

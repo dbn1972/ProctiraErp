@@ -11,12 +11,47 @@ import { test } from 'node:test';
 import {
   parseDrillArgs,
   runLockRecoveryDrill,
+  isDisposableTarget,
 } from './migration-lock-recovery-drill.mjs';
 
 test('parseDrillArgs reads --url and --skip-if-no-db', () => {
   const parsed = parseDrillArgs(['--url=postgresql://x', '--skip-if-no-db']);
   assert.equal(parsed.url, 'postgresql://x');
   assert.equal(parsed.skipIfNoDb, true);
+});
+
+test('parseDrillArgs does NOT silently fall back to MIGRATOR/DATABASE_URL without confirm', () => {
+  const prev = { ...process.env };
+  process.env.MIGRATOR_DATABASE_URL = 'postgresql://host/proctira';
+  delete process.env.DRILL_DATABASE_URL;
+  try {
+    const parsed = parseDrillArgs([]);
+    assert.equal(parsed.url, '', 'url must be empty without DRILL_DATABASE_URL/--confirm');
+    assert.equal(parsed.confirm, false);
+  } finally {
+    process.env = prev;
+  }
+});
+
+test('parseDrillArgs falls back to MIGRATOR_DATABASE_URL only with --confirm', () => {
+  const prev = { ...process.env };
+  process.env.MIGRATOR_DATABASE_URL = 'postgresql://host/proctira';
+  delete process.env.DRILL_DATABASE_URL;
+  try {
+    const parsed = parseDrillArgs(['--confirm']);
+    assert.equal(parsed.url, 'postgresql://host/proctira');
+    assert.equal(parsed.confirm, true);
+  } finally {
+    process.env = prev;
+  }
+});
+
+test('isDisposableTarget allows *_test / *_drill names, rejects real names', () => {
+  assert.equal(isDisposableTarget('postgresql://h/proctira_test', false), true);
+  assert.equal(isDisposableTarget('postgresql://h/lock_drill', false), true);
+  assert.equal(isDisposableTarget('postgresql://h/proctira', false), false);
+  // confirm overrides the name heuristic
+  assert.equal(isDisposableTarget('postgresql://h/proctira', true), true);
 });
 
 test('runLockRecoveryDrill fails closed when blocked apply unexpectedly succeeds', async () => {
