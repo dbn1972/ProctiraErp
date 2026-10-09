@@ -159,6 +159,17 @@ function assertInstitutionAllowed(actor: LmsActor, institutionId: string | null 
   }
 }
 
+/**
+ * PRC-M298: the server-derived institution fence for list queries. School-bound
+ * callers may only see school-scoped rows for their own institutions (plus
+ * board-scoped rows). Applied even when the caller passes no institutionId, so
+ * omitting the filter can no longer leak other schools' rows. Tenant/board
+ * admins are unfenced (undefined). Derived from the actor, never client input.
+ */
+function scopeFenceFor(actor: LmsActor): string[] | undefined {
+  return isSchoolBound(actor) ? actor.institutions : undefined;
+}
+
 function assertScopeTarget(scope: 'board' | 'school', boardId?: string, institutionId?: string) {
   if (scope === 'board' && !boardId) {
     throw new ValidationError('boardId is required for board-scoped content', [
@@ -372,7 +383,11 @@ export class LmsService {
     actor: LmsActor,
   ): Promise<PaginatedResult<SkillEntity>> {
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listSkills(tenantId, filter, pagination);
+    return this.repository.listSkills(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   // ─── Assignments ───────────────────────────────────────────────────────
@@ -987,8 +1002,17 @@ export class LmsService {
     pagination: { page: number; pageSize: number },
     actor: LmsActor,
   ) {
+    // NEW-g5_academic-003: the question bank is an authoring surface whose rows
+    // carry the answer key (correctOptionIndex / correctValue / pairs). It must
+    // never be readable by learners, who could otherwise read correct answers
+    // for an upcoming quiz. Gate on canAuthor, not the coarse lms.learn action.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can read the question bank');
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listBankQuestions(tenantId, filter, pagination);
+    return this.repository.listBankQuestions(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async getBankQuestion(
@@ -996,6 +1020,8 @@ export class LmsService {
     id: string,
     actor: LmsActor,
   ): Promise<BankQuestionEntity> {
+    // NEW-g5_academic-003: see listBankQuestions — the bank exposes answer keys.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can read the question bank');
     const row = await this.repository.findBankQuestion(tenantId, id);
     if (!row) throw new NotFoundError('Question not found');
     if (
@@ -1055,7 +1081,11 @@ export class LmsService {
     actor: LmsActor,
   ) {
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listRubrics(tenantId, filter, pagination);
+    return this.repository.listRubrics(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async gradeWithRubric(
@@ -1536,13 +1566,23 @@ export class LmsService {
     assertInstitutionAllowed(actor, filter.institutionId);
     const effective = { ...filter };
     if (isLearner(actor)) effective.published = true;
-    return this.repository.listContentItems(tenantId, effective, pagination);
+    return this.repository.listContentItems(
+      tenantId,
+      { ...effective, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async getContentItem(tenantId: string, id: string, actor: LmsActor) {
     const item = await this.repository.findContentItem(tenantId, id);
     if (!item) throw new NotFoundError('Content not found');
     if (isLearner(actor) && !item.published) throw new NotFoundError('Content not found');
+    // PRC-M298: a school-bound caller must not read another school's content.
+    if (item.scope === 'school' && isSchoolBound(actor) && item.institutionId) {
+      if (!actor.institutions.includes(item.institutionId)) {
+        throw new NotFoundError('Content not found');
+      }
+    }
     return item;
   }
 
@@ -1661,7 +1701,11 @@ export class LmsService {
     assertInstitutionAllowed(actor, filter.institutionId);
     const effective = { ...filter };
     if (isLearner(actor)) effective.published = true;
-    return this.repository.listLessons(tenantId, effective, pagination);
+    return this.repository.listLessons(
+      tenantId,
+      { ...effective, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   /** PRC-M108: a page of lessons with their resources, in two repository reads. */
@@ -1692,6 +1736,12 @@ export class LmsService {
     const lesson = await this.repository.findLesson(tenantId, id);
     if (!lesson) throw new NotFoundError('Lesson not found');
     if (isLearner(actor) && !lesson.published) throw new NotFoundError('Lesson not found');
+    // PRC-M298: a school-bound caller must not read another school's lesson.
+    if (lesson.scope === 'school' && isSchoolBound(actor) && lesson.institutionId) {
+      if (!actor.institutions.includes(lesson.institutionId)) {
+        throw new NotFoundError('Lesson not found');
+      }
+    }
     const resources = await this.repository.listLessonResources(tenantId, id);
     return { ...lesson, resources };
   }
