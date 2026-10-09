@@ -107,6 +107,28 @@ export interface LibraryRepository {
     data: Partial<Pick<LibraryItemEntity, 'available' | 'copies'>>,
   ): Promise<LibraryItemEntity | null>;
 
+  /**
+   * Atomically claim one available copy of an item for checkout (PRC-M291 / NEW-012).
+   *
+   * Decrements `library_items.available` only when it is > 0 and, when
+   * `copyId` is supplied, flips exactly that copy from `available` to `on_loan`
+   * in the same transaction. Returns the claimed copy id (or `null` for
+   * copy-less items) when the claim succeeds, or throws when no stock is
+   * available. This replaces the previous read-then-write sequence that let two
+   * concurrent checkouts of the last copy both succeed.
+   */
+  claimCopyForCheckout(args: {
+    tenantId: string;
+    itemId: string;
+    copyId?: string | null;
+    /**
+     * When false the copy is flipped to on_loan without decrementing
+     * `available` — used for hold-fulfilment checkouts where availability was
+     * already consumed when the copy was reserved on return. Defaults to true.
+     */
+    decrementAvailable?: boolean;
+  }): Promise<{ claimed: true; copyId: string | null } | { claimed: false; reason: string }>;
+
   createLoan(data: NewLoan): Promise<LibraryLoanEntity>;
   findLoanById(id: string, tenantId: string): Promise<LibraryLoanEntity | null>;
   updateLoan(
