@@ -82,10 +82,17 @@ export function anyInstitutionFormDirty(): boolean {
 /**
  * Ask the user before leaving a dirty form. Resolves true when navigation may
  * proceed. Uses the in-app dialog host (InstitutionLeaveConfirmHost).
+ *
+ * PRC-M136: if no dialog host is mounted (the host lives inside the edit form,
+ * so it can be absent on list / detail routes) the promise would otherwise
+ * never resolve and the Back link / nav would hang. We detect a ready host via
+ * its marker element and fail *open* (resolve true) when none is listening, so
+ * navigation never deadlocks.
  */
 export function requestLeaveConfirm(): Promise<boolean> {
   if (!anyInstitutionFormDirty()) return Promise.resolve(true);
   if (typeof window === 'undefined') return Promise.resolve(true);
+  if (!isLeaveConfirmHostReady()) return Promise.resolve(true);
   // Replace any in-flight prompt (e.g. double-click) with a stay decision.
   if (leaveResolver) {
     leaveResolver(false);
@@ -95,6 +102,13 @@ export function requestLeaveConfirm(): Promise<boolean> {
     leaveResolver = resolve;
     window.dispatchEvent(new CustomEvent(LEAVE_CONFIRM_EVENT));
   });
+}
+
+/** True when a mounted InstitutionLeaveConfirmHost is listening for the event. */
+export function isLeaveConfirmHostReady(): boolean {
+  if (typeof document === 'undefined') return false;
+  const marker = document.querySelector('[data-testid="institution-leave-guard-ready"]');
+  return marker?.getAttribute('data-ready') === 'true';
 }
 
 /** Called by the dialog host when the user chooses Stay or Leave. */
