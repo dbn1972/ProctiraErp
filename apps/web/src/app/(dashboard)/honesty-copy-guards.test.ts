@@ -37,4 +37,11 @@ describe('honesty copy guards', () => {
     const src = read('./staff/_components/payroll-export-panel.tsx');
     expect(src).not.toContain('Deductions are a placeholder');
   });
+
+  it('PRC-L055: staff/new drops the unsupported employee-ID / BEO claim', () => {
+    const src = read('./staff/new/page.tsx');
+    expect(src).not.toContain('An employee ID is\n            generated on save');
+    expect(src).not.toContain('routed to the BEO for verification');
+    expect(src).not.toContain('employee ID is generated on save');
+  });
 });
