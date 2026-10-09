@@ -76,8 +76,16 @@ export interface ReportStore {
   /**
    * Claim due schedules. When `tenantId` is provided only that tenant's
    * schedules are claimed (PRC-M340: HTTP-triggered run-due is tenant-scoped).
+   * When `limit` is provided at most that many rows are leased per call
+   * (PRC-M346: bound the batch so a lease shorter than the sequential run
+   * cannot expire mid-batch and let another replica double-run).
    */
-  claimDueSchedules(now: Date, leaseMs: number, tenantId?: string): Promise<ReportScheduleRecord[]>;
+  claimDueSchedules(
+    now: Date,
+    leaseMs: number,
+    tenantId?: string,
+    limit?: number,
+  ): Promise<ReportScheduleRecord[]>;
 
   insertRun(record: ReportRunRecord): Promise<ReportRunRecord>;
   updateRun(
@@ -171,10 +179,17 @@ export class InMemoryReportStore implements ReportStore {
     now: Date,
     leaseMs: number,
     tenantId?: string,
+    limit?: number,
   ): Promise<ReportScheduleRecord[]> {
     const leaseUntil = new Date(now.getTime() + Math.max(1_000, leaseMs));
     const claimed: ReportScheduleRecord[] = [];
-    for (const s of this.schedules) {
+    // PRC-M346: lease in nextRunAt order so the oldest-due are taken first, and
+    // cap the batch when a limit is supplied.
+    const ordered = [...this.schedules].sort(
+      (a, b) => a.nextRunAt.getTime() - b.nextRunAt.getTime(),
+    );
+    for (const s of ordered) {
+      if (limit !== undefined && claimed.length >= limit) break;
       if (!s.enabled || s.nextRunAt.getTime() > now.getTime()) continue;
       if (tenantId !== undefined && s.tenantId !== tenantId) continue;
       s.nextRunAt = leaseUntil;

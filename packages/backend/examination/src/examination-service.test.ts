@@ -721,3 +721,46 @@ describe('ExaminationService', () => {
     });
   });
 });
+
+describe('ExaminationService status transition machine (PRC-M233)', () => {
+  let service: ExaminationService;
+  let repository: InMemoryExaminationRepository;
+  const tenantId = uuid();
+
+  beforeEach(() => {
+    repository = new InMemoryExaminationRepository();
+    service = new ExaminationService(repository);
+  });
+
+  it('rejects an illegal DRAFT → COMPLETED jump via update', async () => {
+    const exam = await service.create(tenantId, validExaminationInput());
+    expect(exam.status).toBe('DRAFT');
+    await expect(service.update(tenantId, exam.id, { status: 'COMPLETED' })).rejects.toThrow(
+      BusinessRuleError,
+    );
+    await expect(service.update(tenantId, exam.id, { status: 'IN_PROGRESS' })).rejects.toThrow(
+      BusinessRuleError,
+    );
+  });
+
+  it('allows the legal DRAFT → SCHEDULED → IN_PROGRESS → COMPLETED path', async () => {
+    const exam = await service.create(tenantId, validExaminationInput());
+    const scheduled = await service.update(tenantId, exam.id, { status: 'SCHEDULED' });
+    expect(scheduled.status).toBe('SCHEDULED');
+    const inProgress = await service.update(tenantId, exam.id, { status: 'IN_PROGRESS' });
+    expect(inProgress.status).toBe('IN_PROGRESS');
+    const completed = await service.update(tenantId, exam.id, { status: 'COMPLETED' });
+    expect(completed.status).toBe('COMPLETED');
+    // Terminal: no further transition.
+    await expect(service.update(tenantId, exam.id, { status: 'DRAFT' })).rejects.toThrow(
+      BusinessRuleError,
+    );
+  });
+
+  it('treats a same-status update as a no-op (allowed)', async () => {
+    const exam = await service.create(tenantId, validExaminationInput());
+    const same = await service.update(tenantId, exam.id, { status: 'DRAFT', name: 'Renamed' });
+    expect(same.status).toBe('DRAFT');
+    expect(same.name).toBe('Renamed');
+  });
+});

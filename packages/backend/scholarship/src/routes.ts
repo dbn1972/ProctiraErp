@@ -61,6 +61,7 @@ import {
   type RecipientComplianceInput,
   type UtilizationReportQuery,
   type ScholarshipListQuery,
+  ScholarshipListQuerySchema,
   type ScholarshipParams,
 } from './schemas.js';
 import { requireScholarshipAction } from './scholarship-http-guard.js';
@@ -291,8 +292,20 @@ export async function registerScholarshipRoutes(
       }
 
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-M351: validate pagination/sort against the schema so an unbounded
+      // pageSize cannot dump every program/application (incl. financial_info)
+      // and a negative page cannot reach the repository and 500.
+      const queryResult = validate(ScholarshipListQuerySchema, query, { convert: true });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid list query',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const page = queryResult.data.page ?? 1;
+      const pageSize = queryResult.data.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -522,8 +535,18 @@ export async function registerScholarshipRoutes(
       }
 
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-M351: validate pagination/sort against the schema (see programs list).
+      const queryResult = validate(ScholarshipListQuerySchema, query, { convert: true });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid list query',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const page = queryResult.data.page ?? 1;
+      const pageSize = queryResult.data.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 

@@ -38,6 +38,17 @@ import { createReportDownloadToken } from './signed-download.js';
 
 export const REPORT_SCHEDULE_LEASE_MS = 15 * 60_000;
 export const REPORT_SCHEDULE_RETRY_MS = 5 * 60_000;
+/**
+ * PRC-M346: cap how many schedules a single tick leases. Bounds the sequential
+ * run so it comfortably finishes inside REPORT_SCHEDULE_LEASE_MS; the remaining
+ * due schedules are picked up by the next tick.
+ */
+export const REPORT_SCHEDULE_TICK_BATCH = 50;
+
+/** Minimal structured logger for swallowed scheduler failures (PRC-M346). */
+export interface ReportSchedulerLogger {
+  error(message: string, context: Record<string, unknown>): void;
+}
 
 /** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
 export { MAX_CATALOGUE_REPORT_ROWS };
@@ -59,13 +70,16 @@ export interface GenerateResult {
 
 export class CatalogueService {
   private readonly delivery: ScheduleDeliveryPort;
+  private readonly logger?: ReportSchedulerLogger;
 
   constructor(
     private readonly store: ReportStore,
     private readonly blobs: ReportBlobStore,
     delivery?: ScheduleDeliveryPort,
+    logger?: ReportSchedulerLogger,
   ) {
     this.delivery = delivery ?? new InMemoryScheduleDelivery();
+    this.logger = logger;
   }
 
   /** Test/helper access to the delivery port. */
@@ -332,7 +346,13 @@ export class CatalogueService {
     tenantId?: string,
   ): Promise<{ due: number; completed: number; failed: number; delivered: number }> {
     // W2-JOB-08: claim (lease) before work so concurrent replicas do not double-run.
-    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS, tenantId);
+    // PRC-M346: bound the batch so the sequential run finishes inside the lease.
+    const due = await this.store.claimDueSchedules(
+      now,
+      REPORT_SCHEDULE_LEASE_MS,
+      tenantId,
+      REPORT_SCHEDULE_TICK_BATCH,
+    );
     let completed = 0;
     let failed = 0;
     let delivered = 0;
@@ -365,9 +385,17 @@ export class CatalogueService {
           nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
         });
         completed += 1;
-      } catch {
+      } catch (error) {
         failed += 1;
-        // Honest failure: retry after backoff — do not advance the cadence window.
+        // PRC-M346: do not silently swallow — record the failure so an operator
+        // can see a schedule is wedged. Still fail closed: retry after backoff
+        // without advancing the cadence window.
+        this.logger?.error('report schedule run failed', {
+          scheduleId: schedule.id,
+          tenantId: schedule.tenantId,
+          reportKey: schedule.reportKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
           nextRunAt: new Date(now.getTime() + REPORT_SCHEDULE_RETRY_MS),

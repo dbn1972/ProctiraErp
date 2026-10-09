@@ -42,6 +42,21 @@ export function isAssessmentAdmin(roles: unknown): boolean {
   return normalized.some((role) => (ADMIN_ROLES as readonly string[]).includes(role));
 }
 
+/**
+ * PRC-L080: the report-card job reprocess endpoint is an operator surface, not a
+ * teacher one. Only admin-tier roles or exam officers may drive it. Teachers
+ * (and other assessment.write holders) are denied even though they can author
+ * grades.
+ */
+const REPORT_CARD_OPERATOR_ROLES = [...ADMIN_ROLES, 'exam_officer', 'exam-officer'] as const;
+
+export function isReportCardOperator(roles: unknown): boolean {
+  const normalized = normalizeAssessmentRoles(roles);
+  return normalized.some((role) =>
+    (REPORT_CARD_OPERATOR_ROLES as readonly string[]).includes(role),
+  );
+}
+
 export function normalizeAssessmentRoles(roles: unknown): string[] {
   if (!Array.isArray(roles)) return [];
   return roles

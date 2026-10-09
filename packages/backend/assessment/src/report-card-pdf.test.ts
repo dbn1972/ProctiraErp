@@ -172,7 +172,7 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
         user: { sub: string; roles: string[] };
       };
       context.tenantId = tenantId;
-      context.user = { sub: 'test-user', roles: ['teacher'] };
+      context.user = { sub: 'test-user', roles: ['teacher', 'exam_officer'] };
     });
     await registerReportCardRoutes(app, { reportCardService: service });
     await app.ready();
@@ -206,9 +206,19 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
       payload: { studentId, academicPeriodId: uuidv4(), templateId, institutionId: uuidv4() },
     });
     expect(gen.statusCode).toBe(202);
-    const job = gen.json() as { id: string; status: string; outputUrl: string | null };
+    const job = gen.json() as {
+      id: string;
+      status: string;
+      ready?: boolean;
+      downloadUrl?: string | null;
+      outputUrl?: string;
+    };
     expect(job.status).toBe('completed');
-    expect(job.outputUrl).toMatch(new RegExp(`^report-cards/${tenantId}/${studentId}/`));
+    // PRC-L083: the internal artifact storage key must not leak in the response.
+    expect(job.outputUrl).toBeUndefined();
+    expect(JSON.stringify(job)).not.toContain(`report-cards/${tenantId}/${studentId}/`);
+    expect(job.ready).toBe(true);
+    expect(job.downloadUrl).toBe(`/report-cards/jobs/${job.id}/download`);
     expect(artifactStore.size).toBe(1);
 
     const download = await app.inject({

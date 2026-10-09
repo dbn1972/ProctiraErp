@@ -22,6 +22,7 @@ import {
   CreateExaminationSchema,
   UpdateExaminationSchema,
   ExaminationParamsSchema,
+  ExaminationListQuerySchema,
   RegisterCandidateSchema,
   type CreateExaminationInput,
   type UpdateExaminationInput,
@@ -265,17 +266,30 @@ export async function registerExaminationRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-M241: validate the querystring against the schema so pageSize/page/
+      // sortBy/status are bounded. Without this an unbounded pageSize=1e6 would
+      // serialise the whole table, page=-5 would 500, and an invalid status
+      // enum would silently return an empty list.
+      const queryResult = validate(ExaminationListQuerySchema, request.query, { convert: true });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid list query',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'name';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      const sortOrder = query.sortOrder ?? 'asc';
 
       const result = await examinationService.list(
         tenantId,
         {
           academicPeriodId: query.academicPeriodId,
-          status: query.status as ExaminationEntity['status'] | undefined,
+          status: query.status,
           search: query.search,
         },
         { page, pageSize, sortBy, sortOrder },

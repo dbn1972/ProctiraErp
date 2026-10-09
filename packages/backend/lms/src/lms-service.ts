@@ -159,6 +159,17 @@ function assertInstitutionAllowed(actor: LmsActor, institutionId: string | null 
   }
 }
 
+/**
+ * PRC-M298: the server-derived institution fence for list queries. School-bound
+ * callers may only see school-scoped rows for their own institutions (plus
+ * board-scoped rows). Applied even when the caller passes no institutionId, so
+ * omitting the filter can no longer leak other schools' rows. Tenant/board
+ * admins are unfenced (undefined). Derived from the actor, never client input.
+ */
+function scopeFenceFor(actor: LmsActor): string[] | undefined {
+  return isSchoolBound(actor) ? actor.institutions : undefined;
+}
+
 function assertScopeTarget(scope: 'board' | 'school', boardId?: string, institutionId?: string) {
   if (scope === 'board' && !boardId) {
     throw new ValidationError('boardId is required for board-scoped content', [
@@ -194,8 +205,20 @@ function normaliseQuestions(
           },
         ]);
       }
-      const idx = q.correctOptionIndex ?? 0;
-      if (idx >= options.length) {
+      // PRC-M297: correctOptionIndex is REQUIRED for an MCQ. Previously a missing
+      // index defaulted to 0 for the range check but was then stored as -1,
+      // silently marking every answer wrong. Fail closed instead.
+      if (q.correctOptionIndex === undefined || q.correctOptionIndex === null) {
+        throw new ValidationError('correctOptionIndex is required for MCQ questions', [
+          {
+            field: `questions[${index}].correctOptionIndex`,
+            rule: 'required',
+            message: 'An MCQ must declare which option is correct',
+          },
+        ]);
+      }
+      const idx = q.correctOptionIndex;
+      if (idx < 0 || idx >= options.length) {
         throw new ValidationError('correctOptionIndex is out of range', [
           {
             field: `questions[${index}].correctOptionIndex`,
@@ -372,7 +395,11 @@ export class LmsService {
     actor: LmsActor,
   ): Promise<PaginatedResult<SkillEntity>> {
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listSkills(tenantId, filter, pagination);
+    return this.repository.listSkills(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   // ─── Assignments ───────────────────────────────────────────────────────
@@ -987,8 +1014,17 @@ export class LmsService {
     pagination: { page: number; pageSize: number },
     actor: LmsActor,
   ) {
+    // NEW-g5_academic-003: the question bank is an authoring surface whose rows
+    // carry the answer key (correctOptionIndex / correctValue / pairs). It must
+    // never be readable by learners, who could otherwise read correct answers
+    // for an upcoming quiz. Gate on canAuthor, not the coarse lms.learn action.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can read the question bank');
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listBankQuestions(tenantId, filter, pagination);
+    return this.repository.listBankQuestions(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async getBankQuestion(
@@ -996,6 +1032,8 @@ export class LmsService {
     id: string,
     actor: LmsActor,
   ): Promise<BankQuestionEntity> {
+    // NEW-g5_academic-003: see listBankQuestions — the bank exposes answer keys.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can read the question bank');
     const row = await this.repository.findBankQuestion(tenantId, id);
     if (!row) throw new NotFoundError('Question not found');
     if (
@@ -1055,7 +1093,11 @@ export class LmsService {
     actor: LmsActor,
   ) {
     assertInstitutionAllowed(actor, filter.institutionId);
-    return this.repository.listRubrics(tenantId, filter, pagination);
+    return this.repository.listRubrics(
+      tenantId,
+      { ...filter, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async gradeWithRubric(
@@ -1536,13 +1578,23 @@ export class LmsService {
     assertInstitutionAllowed(actor, filter.institutionId);
     const effective = { ...filter };
     if (isLearner(actor)) effective.published = true;
-    return this.repository.listContentItems(tenantId, effective, pagination);
+    return this.repository.listContentItems(
+      tenantId,
+      { ...effective, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   async getContentItem(tenantId: string, id: string, actor: LmsActor) {
     const item = await this.repository.findContentItem(tenantId, id);
     if (!item) throw new NotFoundError('Content not found');
     if (isLearner(actor) && !item.published) throw new NotFoundError('Content not found');
+    // PRC-M298: a school-bound caller must not read another school's content.
+    if (item.scope === 'school' && isSchoolBound(actor) && item.institutionId) {
+      if (!actor.institutions.includes(item.institutionId)) {
+        throw new NotFoundError('Content not found');
+      }
+    }
     return item;
   }
 
@@ -1661,7 +1713,11 @@ export class LmsService {
     assertInstitutionAllowed(actor, filter.institutionId);
     const effective = { ...filter };
     if (isLearner(actor)) effective.published = true;
-    return this.repository.listLessons(tenantId, effective, pagination);
+    return this.repository.listLessons(
+      tenantId,
+      { ...effective, allowedInstitutionIds: scopeFenceFor(actor) },
+      pagination,
+    );
   }
 
   /** PRC-M108: a page of lessons with their resources, in two repository reads. */
@@ -1692,6 +1748,12 @@ export class LmsService {
     const lesson = await this.repository.findLesson(tenantId, id);
     if (!lesson) throw new NotFoundError('Lesson not found');
     if (isLearner(actor) && !lesson.published) throw new NotFoundError('Lesson not found');
+    // PRC-M298: a school-bound caller must not read another school's lesson.
+    if (lesson.scope === 'school' && isSchoolBound(actor) && lesson.institutionId) {
+      if (!actor.institutions.includes(lesson.institutionId)) {
+        throw new NotFoundError('Lesson not found');
+      }
+    }
     const resources = await this.repository.listLessonResources(tenantId, id);
     return { ...lesson, resources };
   }
@@ -1784,7 +1846,12 @@ export class LmsService {
       position?: number;
       published?: boolean;
     },
+    actor: LmsActor,
   ) {
+    // PRC-M304: authoring surface — only staff may create modules, and a
+    // school-bound author may only target their own institution.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can create modules');
+    assertInstitutionAllowed(actor, input.institutionId);
     const id = randomUUID();
     return this.repository.createModule({
       id,
@@ -1811,9 +1878,18 @@ export class LmsService {
       position?: number;
       required?: boolean;
     },
+    actor: LmsActor,
   ) {
+    // PRC-M304: only staff may add items, scoped to the module's institution.
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can edit modules');
     const module = await this.repository.findModule(tenantId, moduleId);
     if (!module) throw new NotFoundError('Module not found');
+    assertInstitutionAllowed(actor, module.institutionId ?? undefined);
+    // PRC-M304: a referenced item (assignment/content/discussion) must exist so
+    // dangling itemIds are rejected rather than silently accepted.
+    if (input.itemId) {
+      await this.assertModuleItemExists(tenantId, input.itemType, input.itemId);
+    }
     const id = randomUUID();
     return this.repository.createModuleItem({
       id,
@@ -1828,14 +1904,57 @@ export class LmsService {
     });
   }
 
+  /** PRC-M304: verify a module item target exists in this tenant. */
+  private async assertModuleItemExists(
+    tenantId: string,
+    itemType: 'assignment' | 'content' | 'discussion' | 'url',
+    itemId: string,
+  ): Promise<void> {
+    let found: unknown = null;
+    if (itemType === 'assignment') {
+      found = await this.repository.findAssignmentById(tenantId, itemId);
+    } else if (itemType === 'content') {
+      found = await this.repository.findContentItem(tenantId, itemId);
+    } else if (itemType === 'discussion') {
+      found = await this.repository.findDiscussion(tenantId, itemId);
+    } else {
+      // 'url' items carry no referenced row.
+      return;
+    }
+    if (!found) {
+      throw new ValidationError('Module item target does not exist', [
+        { field: 'itemId', rule: 'exists', message: `No ${itemType} found for itemId` },
+      ]);
+    }
+  }
+
   async listModules(
     tenantId: string,
     filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+    actor: LmsActor,
   ) {
-    return this.repository.listModules(tenantId, filter);
+    // PRC-M304: fence school-bound callers and hide unpublished modules from learners.
+    assertInstitutionAllowed(actor, filter.institutionId);
+    const fence = scopeFenceFor(actor);
+    const modules = await this.repository.listModules(tenantId, filter);
+    return modules.filter((m) => {
+      if (isLearner(actor) && !m.published) return false;
+      if (fence && m.institutionId && !fence.includes(m.institutionId)) return false;
+      return true;
+    });
   }
 
-  async listModuleItems(tenantId: string, moduleId: string) {
+  async listModuleItems(tenantId: string, moduleId: string, actor: LmsActor) {
+    const module = await this.repository.findModule(tenantId, moduleId);
+    if (!module) throw new NotFoundError('Module not found');
+    if (isLearner(actor) && !module.published) throw new NotFoundError('Module not found');
+    if (
+      module.institutionId &&
+      isSchoolBound(actor) &&
+      !actor.institutions.includes(module.institutionId)
+    ) {
+      throw new NotFoundError('Module not found');
+    }
     return this.repository.listModuleItems(tenantId, moduleId);
   }
 }
