@@ -11,9 +11,14 @@
  * rows migrated, and any data that could not be migrated with reasons.
  */
 
-import { Pool, PoolClient } from 'pg';
-import { MigrationConfig, MigrationStepResult, TableMapping } from './types.js';
+import { writeFileSync } from 'node:fs';
+
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
+
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import { MIGRATION_UUID_MAP_TABLE } from './types.js';
+import type { MigrationConfig, MigrationStepResult, TableMapping } from './types.js';
 
 /** Reason why a row could not be migrated. */
 export interface UnmigratedRecord {
@@ -168,6 +173,19 @@ export async function generateMigrationReport(
       }
     }
 
+    // PRC-M421: persist the report artifact. serializeReport was defined but
+    // never called, so the structured report (and its unmigrated-row list) was
+    // lost once the process exited. Write it to REPORT_OUTPUT_PATH (or a default)
+    // so the pipeline leaves an auditable record.
+    const reportPath = config.reportOutputPath ?? `migration-report-${report.migrationId}.json`;
+    try {
+      writeFileSync(reportPath, serializeReport(report), 'utf8');
+      console.log(`[report] Report written to ${reportPath}`);
+    } catch (writeErr) {
+      const msg = writeErr instanceof Error ? writeErr.message : String(writeErr);
+      warnings.push({ table: 'all', message: `Could not write report artifact: ${msg}` });
+    }
+
     return {
       step: 'report_generation',
       status: allUnmigrated.length > 0 ? 'warning' : 'success',
@@ -211,10 +229,10 @@ async function collectTableStats(
   const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
   let sourceRowCount = 0;
   try {
-    const sourceResult = await client.query(
+    const sourceResult = await client.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM "${config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
     );
-    sourceRowCount = parseInt(sourceResult.rows[0].count, 10);
+    sourceRowCount = parseInt(sourceResult.rows[0]!.count, 10);
   } catch {
     // Staging table may not exist
     sourceRowCount = 0;
@@ -223,10 +241,10 @@ async function collectTableStats(
   // Count target rows
   let migratedRowCount = 0;
   try {
-    const targetResult = await client.query(
+    const targetResult = await client.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${mapping.targetTable}"`,
     );
-    migratedRowCount = parseInt(targetResult.rows[0].count, 10);
+    migratedRowCount = parseInt(targetResult.rows[0]!.count, 10);
   } catch {
     migratedRowCount = 0;
   }
@@ -255,7 +273,7 @@ async function collectTableStats(
 /**
  * Identifies rows that exist in staging but not in target, and determines the reason.
  */
-async function identifyUnmigratedRows(
+export async function identifyUnmigratedRows(
   client: PoolClient,
   mapping: TableMapping,
   config: MigrationConfig,
@@ -264,20 +282,28 @@ async function identifyUnmigratedRows(
   const limit = 100; // Cap detailed analysis to first 100 unmigrated rows
 
   try {
-    // Find rows in staging that don't have a corresponding UUID mapping
-    // This indicates they were skipped during migration
+    // PRC-M421: a row is "unmigrated" when its legacy PK has no entry in the
+    // migration_uuid_map for THIS source table. The previous query used an
+    // UNCORRELATED `NOT EXISTS (SELECT 1 FROM target t WHERE t.id IS NOT NULL)`
+    // which evaluates the same for every staging row (all-or-nothing on whether
+    // the target has any row at all), so genuine lost rows were never detected.
+    // Correlate through the uuid map keyed by (legacy_table, legacy_id::text).
     const filterClause = mapping.sourceFilter ? `AND ${mapping.sourceFilter}` : '';
 
-    const result = await client.query(`
+    const result = await client.query<{ legacy_id: string | number }>(
+      `
       SELECT s."${mapping.legacyPkColumn}" as legacy_id
       FROM "${config.stagingSchema}"."${mapping.sourceTable}" s
       WHERE NOT EXISTS (
-        SELECT 1 FROM "${config.pg.schema}"."${mapping.targetTable}" t
-        WHERE t.id IS NOT NULL
+        SELECT 1 FROM ${MIGRATION_UUID_MAP_TABLE} m
+        WHERE m.legacy_table = $1
+          AND m.legacy_id::text = s."${mapping.legacyPkColumn}"::text
       )
       ${filterClause}
       LIMIT ${limit}
-    `);
+    `,
+      [mapping.sourceTable],
+    );
 
     // For each unmigrated row, determine the reason
     for (const row of result.rows) {
@@ -310,11 +336,11 @@ async function diagnoseUnmigratedRow(
   for (const col of mapping.columns) {
     if (['id', 'name', 'code'].includes(col.target)) {
       try {
-        const result = await client.query(
+        const result = await client.query<Record<string, unknown>>(
           `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
           [legacyId],
         );
-        if (result.rows.length > 0 && result.rows[0][col.source] === null) {
+        if (result.rows.length > 0 && result.rows[0]![col.source] === null) {
           return {
             table: mapping.sourceTable,
             legacyId,
@@ -331,7 +357,7 @@ async function diagnoseUnmigratedRow(
   // Check for broken foreign key references
   for (const fk of mapping.foreignKeys) {
     try {
-      const result = await client.query(
+      const result = await client.query<{ fk_value: unknown }>(
         `SELECT s."${fk.column}" as fk_value
          FROM "${config.stagingSchema}"."${mapping.sourceTable}" s
          WHERE s."${mapping.legacyPkColumn}" = $1
@@ -339,11 +365,11 @@ async function diagnoseUnmigratedRow(
         [legacyId],
       );
       if (result.rows.length > 0) {
-        const fkValue = result.rows[0].fk_value;
-        const refResult = await client.query(
+        const fkValue = String(result.rows[0]!.fk_value);
+        const refResult = await client.query<{ count: string }>(
           `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${fk.targetReferencesTable}" WHERE id IS NOT NULL`,
         );
-        if (parseInt(refResult.rows[0].count, 10) === 0) {
+        if (parseInt(refResult.rows[0]!.count, 10) === 0) {
           return {
             table: mapping.sourceTable,
             legacyId,
@@ -361,12 +387,12 @@ async function diagnoseUnmigratedRow(
   for (const col of mapping.columns) {
     if (col.transform?.type === 'map_enum') {
       try {
-        const result = await client.query(
+        const result = await client.query<Record<string, unknown>>(
           `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
           [legacyId],
         );
         if (result.rows.length > 0) {
-          const value = String(result.rows[0][col.source]);
+          const value = String(result.rows[0]![col.source]);
           if (!(value in col.transform.mapping)) {
             return {
               table: mapping.sourceTable,

@@ -17,9 +17,26 @@
  * - UUID format validity
  */
 
-import { Pool, PoolClient } from 'pg';
-import { MigrationConfig, MigrationStepResult } from './types.js';
-import { TABLE_MAPPINGS } from './table-mappings.js';
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
+
+import type { MigrationConfig, MigrationStepResult } from './types.js';
+
+/**
+ * PRC-M555 — sample values in violation reports are raw column contents, which
+ * for columns like identity_number / national id / names is PII written to logs
+ * and report artifacts. Mask every sample to a non-reversible fingerprint
+ * (length + first/last char) so a reviewer can still spot "all look the same /
+ * empty" without the report leaking the actual sensitive value.
+ */
+export function maskSample(value: unknown): string {
+  const s = value == null ? '' : String(value);
+  if (s.length === 0) return '<empty>';
+  if (s.length <= 2) return `${'*'.repeat(s.length)}(len=${s.length})`;
+  const first = s.charAt(0);
+  const last = s.charAt(s.length - 1);
+  return `${first}***${last}(len=${s.length})`;
+}
 
 /** A single constraint violation found during validation. */
 export interface ConstraintViolation {
@@ -252,6 +269,10 @@ export async function validateConstraints(config: MigrationConfig): Promise<Migr
     const violations: ConstraintViolation[] = [];
     let constraintsChecked = 0;
     const tablesChecked = new Set<string>();
+    // PRC-M555: a per-constraint query error used to be swallowed silently, so a
+    // missing table/column for an ERROR-severity constraint looked like a pass.
+    // Record every skip; a skipped error-severity constraint is itself an error.
+    const skipped: Array<{ table: string; column: string; severity: string; reason: string }> = [];
 
     for (const constraint of SCHEMA_CONSTRAINTS) {
       constraintsChecked++;
@@ -281,13 +302,30 @@ export async function validateConstraints(config: MigrationConfig): Promise<Migr
             `[constraint-validator]   ${icon} ${violation.table}.${violation.column}: ${violation.message}`,
           );
         }
-      } catch {
-        // Table or column might not exist yet — skip silently
+      } catch (err) {
+        // PRC-M555: do not swallow. Report the skip; escalate when the skipped
+        // constraint was error-severity (we could not prove the data is valid).
+        const reason = err instanceof Error ? err.message : String(err);
+        skipped.push({
+          table: constraint.table,
+          column: constraint.column,
+          severity: constraint.severity,
+          reason,
+        });
+        const msg = `could not check ${constraint.table}.${constraint.column} (${constraint.type}): ${reason}`;
+        if (constraint.severity === 'error') {
+          stepErrors.push({ table: constraint.table, column: constraint.column, message: msg });
+          console.log(`[constraint-validator]   ✗ ${msg}`);
+        } else {
+          stepWarnings.push({ table: constraint.table, message: msg });
+          console.log(`[constraint-validator]   ⚠ ${msg}`);
+        }
       }
     }
 
     const errorCount = violations.filter((v) => v.severity === 'error').length;
     const warningCount = violations.filter((v) => v.severity === 'warning').length;
+    const skippedErrorCount = skipped.filter((s) => s.severity === 'error').length;
 
     const report: ConstraintValidationReport = {
       timestamp: new Date().toISOString(),
@@ -297,7 +335,7 @@ export async function validateConstraints(config: MigrationConfig): Promise<Migr
       violations,
       tablesChecked: tablesChecked.size,
       constraintsChecked,
-      status: violations.length === 0 ? 'pass' : 'violations_found',
+      status: violations.length === 0 && skipped.length === 0 ? 'pass' : 'violations_found',
     };
 
     console.log('\n[constraint-validator] === CONSTRAINT VALIDATION REPORT ===');
@@ -306,11 +344,17 @@ export async function validateConstraints(config: MigrationConfig): Promise<Migr
     console.log(
       `[constraint-validator] Violations: ${report.totalViolations} (${errorCount} errors, ${warningCount} warnings)`,
     );
+    console.log(
+      `[constraint-validator] Skipped: ${skipped.length} (${skippedErrorCount} error-severity)`,
+    );
     console.log(`[constraint-validator] Status: ${report.status}`);
 
     return {
       step: 'constraint_validation',
-      status: errorCount > 0 ? 'warning' : 'success', // Never 'error' — we report but don't halt
+      // PRC-M555: fail the pipeline on any error-severity violation OR any skipped
+      // error-severity constraint — previously this could only ever be 'warning'
+      // or 'success', so lost/invalid rows never halted the migration.
+      status: errorCount > 0 || skippedErrorCount > 0 ? 'error' : 'success',
       tablesProcessed: tablesChecked.size,
       rowsProcessed: constraintsChecked,
       errors: stepErrors,
@@ -368,17 +412,17 @@ async function checkNotNull(
   constraint: SchemaConstraint,
   schema: string,
 ): Promise<ConstraintViolation | null> {
-  const result = await client.query(`
+  const result = await client.query<{ count: string; sample_ids: string[] | null }>(`
     SELECT COUNT(*) as count,
            ARRAY_AGG(id::text) FILTER (WHERE id IS NOT NULL) AS sample_ids
     FROM "${schema}"."${constraint.table}"
     WHERE "${constraint.column}" IS NULL
   `);
 
-  const count = parseInt(result.rows[0].count, 10);
+  const count = parseInt(result.rows[0]!.count, 10);
   if (count === 0) return null;
 
-  const sampleIds = (result.rows[0].sample_ids || []).slice(0, 5);
+  const sampleIds = (result.rows[0]!.sample_ids ?? []).slice(0, 5);
 
   return {
     table: constraint.table,
@@ -397,7 +441,7 @@ async function checkUnique(
   constraint: SchemaConstraint,
   schema: string,
 ): Promise<ConstraintViolation | null> {
-  const result = await client.query(`
+  const result = await client.query<Record<string, string>>(`
     SELECT "${constraint.column}", COUNT(*) as dup_count
     FROM "${schema}"."${constraint.table}"
     WHERE "${constraint.column}" IS NOT NULL
@@ -409,10 +453,10 @@ async function checkUnique(
   if (result.rows.length === 0) return null;
 
   const totalDuplicates = result.rows.reduce(
-    (sum, row) => sum + parseInt(row.dup_count, 10) - 1,
+    (sum, row) => sum + parseInt(row.dup_count ?? '0', 10) - 1,
     0,
   );
-  const sampleValues = result.rows.map((row) => String(row[constraint.column]));
+  const sampleValues = result.rows.map((row) => maskSample(row[constraint.column]));
 
   return {
     table: constraint.table,
@@ -434,7 +478,7 @@ async function checkForeignKey(
   const refTable = FK_REFERENCES[constraint.table]?.[constraint.column];
   if (!refTable) return null;
 
-  const result = await client.query(`
+  const result = await client.query<{ count: string; sample_values: unknown[] | null }>(`
     SELECT COUNT(*) as count,
            ARRAY_AGG(t."${constraint.column}"::text) FILTER (WHERE t."${constraint.column}" IS NOT NULL) AS sample_values
     FROM "${schema}"."${constraint.table}" t
@@ -442,10 +486,10 @@ async function checkForeignKey(
     WHERE t."${constraint.column}" IS NOT NULL AND ref.id IS NULL
   `);
 
-  const count = parseInt(result.rows[0].count, 10);
+  const count = parseInt(result.rows[0]!.count, 10);
   if (count === 0) return null;
 
-  const sampleValues = (result.rows[0].sample_values || []).slice(0, 5);
+  const sampleValues = (result.rows[0]!.sample_values ?? []).slice(0, 5).map(maskSample);
 
   return {
     table: constraint.table,
@@ -466,17 +510,17 @@ async function checkStringLength(
 ): Promise<ConstraintViolation | null> {
   if (!constraint.maxLength) return null;
 
-  const result = await client.query(`
+  const result = await client.query<{ count: string; sample_values: unknown[] | null }>(`
     SELECT COUNT(*) as count,
            ARRAY_AGG(LEFT("${constraint.column}"::text, 50)) FILTER (WHERE LENGTH("${constraint.column}"::text) > ${constraint.maxLength}) AS sample_values
     FROM "${schema}"."${constraint.table}"
     WHERE LENGTH("${constraint.column}"::text) > ${constraint.maxLength}
   `);
 
-  const count = parseInt(result.rows[0].count, 10);
+  const count = parseInt(result.rows[0]!.count, 10);
   if (count === 0) return null;
 
-  const sampleValues = (result.rows[0].sample_values || []).slice(0, 3);
+  const sampleValues = (result.rows[0]!.sample_values ?? []).slice(0, 3).map(maskSample);
 
   return {
     table: constraint.table,
@@ -499,7 +543,7 @@ async function checkEnumValue(
 
   const placeholders = constraint.allowedValues.map((_, i) => `$${i + 1}`).join(', ');
 
-  const result = await client.query(
+  const result = await client.query<Record<string, string>>(
     `SELECT "${constraint.column}", COUNT(*) as count
      FROM "${schema}"."${constraint.table}"
      WHERE "${constraint.column}" IS NOT NULL
@@ -511,8 +555,8 @@ async function checkEnumValue(
 
   if (result.rows.length === 0) return null;
 
-  const totalViolations = result.rows.reduce((sum, row) => sum + parseInt(row.count, 10), 0);
-  const invalidValues = result.rows.map((row) => String(row[constraint.column]));
+  const totalViolations = result.rows.reduce((sum, row) => sum + parseInt(row.count ?? '0', 10), 0);
+  const invalidValues = result.rows.map((row) => maskSample(row[constraint.column]));
 
   return {
     table: constraint.table,
@@ -533,7 +577,7 @@ async function checkUuidFormat(
 ): Promise<ConstraintViolation | null> {
   const uuidRegex = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
-  const result = await client.query(`
+  const result = await client.query<{ count: string; sample_values: unknown[] | null }>(`
     SELECT COUNT(*) as count,
            ARRAY_AGG("${constraint.column}"::text) FILTER (WHERE "${constraint.column}" IS NOT NULL) AS sample_values
     FROM "${schema}"."${constraint.table}"
@@ -541,10 +585,10 @@ async function checkUuidFormat(
       AND "${constraint.column}"::text !~ '${uuidRegex}'
   `);
 
-  const count = parseInt(result.rows[0].count, 10);
+  const count = parseInt(result.rows[0]!.count, 10);
   if (count === 0) return null;
 
-  const sampleValues = (result.rows[0].sample_values || []).slice(0, 5);
+  const sampleValues = (result.rows[0]!.sample_values ?? []).slice(0, 5).map(maskSample);
 
   return {
     table: constraint.table,
