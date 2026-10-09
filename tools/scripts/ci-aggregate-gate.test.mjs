@@ -362,3 +362,26 @@ test('mobile-flutter skip is proven when path filter is false', () => {
   assert.equal(report.ok, true);
   assert.ok(report.provenSkips.some((item) => item.job === 'mobile-flutter'));
 });
+
+// ─── PRC-M427: change flags must be exactly 'true'/'false' ───────────────────
+
+test('PRC-M427 fails closed when a change flag is unset (renamed detect-changes output)', () => {
+  const changes = { ...noChanges };
+  delete changes.backendChanged; // simulate a renamed/missing output
+  const report = evaluate({ changes, results: allSkipped() });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => /change-flag:backendChanged/.test(f.job)));
+});
+
+test('PRC-M427 fails closed when a change flag is a non-boolean string', () => {
+  const changes = { ...noChanges, infraChanged: 'maybe' };
+  const report = evaluate({ changes, results: allSkipped() });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => /change-flag:infraChanged/.test(f.job)));
+});
+
+test('PRC-M427 still passes when all change flags are well-formed booleans', () => {
+  const report = evaluate({ changes: noChanges, results: allSkipped() });
+  // noChanges + all skipped is a valid proven-skip scenario.
+  assert.equal(report.ok, true);
+});

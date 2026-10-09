@@ -43,10 +43,7 @@ test('unwaived high/critical advisories block; moderate/low do not', () => {
     allowlist,
     'high',
   );
-  assert.deepEqual(
-    report.blocking.map((b) => b.ghsa).sort(),
-    ['GHSA-aaaa', 'GHSA-bbbb'],
-  );
+  assert.deepEqual(report.blocking.map((b) => b.ghsa).sort(), ['GHSA-aaaa', 'GHSA-bbbb']);
   assert.equal(report.waived.length, 0);
   assert.equal(report.belowThreshold.length, 2);
 });
@@ -54,7 +51,12 @@ test('unwaived high/critical advisories block; moderate/low do not', () => {
 test('an active waiver removes the advisory from blocking and records its justification', () => {
   const allowlist = loadAllowlist(
     writeAllowlist([
-      { ghsa: 'GHSA-aaaa', reason: 'major upgrade pending', trackedBy: 'G-735', expires: '2999-01-01' },
+      {
+        ghsa: 'GHSA-aaaa',
+        reason: 'major upgrade pending',
+        trackedBy: 'G-735',
+        expires: '2999-01-01',
+      },
     ]),
   );
   const report = evaluate({ advisories: { 1: advisory('GHSA-aaaa', 'high') } }, allowlist, 'high');
@@ -78,11 +80,15 @@ test('an expired waiver is reported and no longer suppresses the advisory', () =
 
 test('waivers must carry a reason, owner gap and expiry', () => {
   assert.throws(
-    () => loadAllowlist(writeAllowlist([{ ghsa: 'GHSA-aaaa', reason: 'x', expires: '2999-01-01' }])),
+    () =>
+      loadAllowlist(writeAllowlist([{ ghsa: 'GHSA-aaaa', reason: 'x', expires: '2999-01-01' }])),
     /missing "trackedBy"/,
   );
   assert.throws(
-    () => loadAllowlist(writeAllowlist([{ ghsa: 'GHSA-aaaa', reason: 'x', trackedBy: 'G-1', expires: 'never' }])),
+    () =>
+      loadAllowlist(
+        writeAllowlist([{ ghsa: 'GHSA-aaaa', reason: 'x', trackedBy: 'G-1', expires: 'never' }]),
+      ),
     /invalid expires/,
   );
 });
@@ -91,8 +97,37 @@ test('the committed allowlist is well-formed and has no expired entries', () => 
   const allowlist = loadAllowlist(
     new URL('../supply-chain/audit-allowlist.json', import.meta.url).pathname,
   );
-  assert.equal(allowlist.expired.length, 0, `expired waivers: ${allowlist.expired.map((e) => e.ghsa).join(', ')}`);
+  assert.equal(
+    allowlist.expired.length,
+    0,
+    `expired waivers: ${allowlist.expired.map((e) => e.ghsa).join(', ')}`,
+  );
   for (const entry of allowlist.active.values()) {
     assert.match(entry.trackedBy, /^G-\d+$/);
   }
+});
+
+// ─── PRC-M426: fail closed on non-advisory payloads ──────────────────────────
+
+test('PRC-M426 rejects an error-envelope payload instead of passing', () => {
+  const allowlist = loadAllowlist(writeAllowlist([]));
+  assert.throws(
+    () => evaluate({ error: { code: 'ERR_PNPM_AUDIT' } }, allowlist, 'high'),
+    /reported an error/,
+  );
+});
+
+test('PRC-M426 rejects a payload lacking advisories and vulnerability metadata', () => {
+  const allowlist = loadAllowlist(writeAllowlist([]));
+  assert.throws(() => evaluate({ ok: true }, allowlist, 'high'), /lacks both advisories/);
+});
+
+test('PRC-M426 accepts a clean audit (empty advisories + metadata)', () => {
+  const allowlist = loadAllowlist(writeAllowlist([]));
+  const report = evaluate(
+    { advisories: {}, metadata: { vulnerabilities: { high: 0, critical: 0 } } },
+    allowlist,
+    'high',
+  );
+  assert.equal(report.blocking.length, 0);
 });

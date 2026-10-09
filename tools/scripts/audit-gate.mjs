@@ -40,7 +40,8 @@ export function loadAllowlist(path, now = new Date()) {
   const expired = [];
   for (const entry of raw.entries ?? []) {
     for (const key of ['ghsa', 'reason', 'trackedBy', 'expires']) {
-      if (!entry[key]) throw new Error(`allowlist entry missing "${key}": ${JSON.stringify(entry)}`);
+      if (!entry[key])
+        throw new Error(`allowlist entry missing "${key}": ${JSON.stringify(entry)}`);
     }
     const expires = new Date(entry.expires);
     if (Number.isNaN(expires.getTime())) {
@@ -54,6 +55,29 @@ export function loadAllowlist(path, now = new Date()) {
 
 export function evaluate(auditJson, allowlist, level) {
   const threshold = SEVERITY_RANK[level];
+
+  // PRC-M426: fail closed on a non-advisory payload. `pnpm audit` returns an
+  // envelope with `advisories` and `metadata.vulnerabilities`; a payload that
+  // only contains `{ "error": ... }` (or neither key) must NOT be treated as a
+  // clean/passing audit.
+  if (!auditJson || typeof auditJson !== 'object') {
+    throw new Error('audit-gate: audit payload is not an object');
+  }
+  if (auditJson.error) {
+    throw new Error(
+      `audit-gate: audit payload reported an error: ${JSON.stringify(auditJson.error)}`,
+    );
+  }
+  const hasAdvisories = Object.prototype.hasOwnProperty.call(auditJson, 'advisories');
+  const hasVulnMeta =
+    auditJson.metadata &&
+    Object.prototype.hasOwnProperty.call(auditJson.metadata, 'vulnerabilities');
+  if (!hasAdvisories && !hasVulnMeta) {
+    throw new Error(
+      'audit-gate: audit payload lacks both advisories and metadata.vulnerabilities — refusing to pass',
+    );
+  }
+
   const blocking = [];
   const waived = [];
   const belowThreshold = [];
@@ -73,7 +97,12 @@ export function evaluate(auditJson, allowlist, level) {
     }
     const waiver = allowlist.active.get(adv.github_advisory_id);
     if (waiver) {
-      waived.push({ ...record, reason: waiver.reason, trackedBy: waiver.trackedBy, expires: waiver.expires });
+      waived.push({
+        ...record,
+        reason: waiver.reason,
+        trackedBy: waiver.trackedBy,
+        expires: waiver.expires,
+      });
     } else {
       blocking.push(record);
     }
@@ -90,9 +119,17 @@ function runAudit() {
   // pnpm audit exits non-zero when advisories exist; the JSON is still on stdout.
   const stdout = (result.stdout ?? '').trim();
   if (!stdout.startsWith('{')) {
-    throw new Error(`pnpm audit produced no JSON (exit ${result.status}):\n${result.stderr ?? stdout}`);
+    throw new Error(
+      `pnpm audit produced no JSON (exit ${result.status}):\n${result.stderr ?? stdout}`,
+    );
   }
-  return JSON.parse(stdout);
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (err) {
+    throw new Error(`pnpm audit produced unparseable JSON (exit ${result.status}): ${err.message}`);
+  }
+  return parsed;
 }
 
 function main() {
@@ -118,15 +155,21 @@ function main() {
     writeFileSync(join(outDir, 'audit-gate-summary.json'), JSON.stringify(summary, null, 2));
   }
 
-  console.log(`audit-gate: level=${level} blocking=${report.blocking.length} waived=${report.waived.length} expiredWaivers=${allowlist.expired.length}`);
+  console.log(
+    `audit-gate: level=${level} blocking=${report.blocking.length} waived=${report.waived.length} expiredWaivers=${allowlist.expired.length}`,
+  );
   for (const w of report.waived) {
-    console.log(`  waived   ${w.ghsa} ${w.module}@${w.vulnerable} (${w.severity}) — ${w.trackedBy}, until ${w.expires}`);
+    console.log(
+      `  waived   ${w.ghsa} ${w.module}@${w.vulnerable} (${w.severity}) — ${w.trackedBy}, until ${w.expires}`,
+    );
   }
   for (const e of allowlist.expired) {
     console.log(`  EXPIRED  ${e.ghsa} — waiver lapsed on ${e.expires}; renew or fix`);
   }
   for (const b of report.blocking) {
-    console.log(`  BLOCKING ${b.ghsa} ${b.module}@${b.vulnerable} (${b.severity}) → patched ${b.patched}`);
+    console.log(
+      `  BLOCKING ${b.ghsa} ${b.module}@${b.vulnerable} (${b.severity}) → patched ${b.patched}`,
+    );
   }
 
   if (report.blocking.length > 0 || allowlist.expired.length > 0) {
