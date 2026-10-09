@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import { RadarComparison, type RadarSeries } from './RadarComparison';
+import { RadarComparison, buildRadarRows, type RadarSeries } from './RadarComparison';
 
 const axes = [
   { id: 'enrollment', label: 'Enrollment' },
@@ -83,5 +83,30 @@ describe('<RadarComparison />', () => {
     expect(screen.getByTestId('radar')).toHaveAttribute('data-state', 'error');
     const err = screen.getByTestId('radar-comparison-error');
     expect(err).toHaveAttribute('role', 'alert');
+  });
+});
+
+describe('buildRadarRows (PRC-M456)', () => {
+  it('maps a missing metric to null, not 0', () => {
+    const partial: ReadonlyArray<RadarSeries> = [
+      { id: 'cbse', label: 'CBSE', values: { enrollment: 80 } }, // attendance/pass_rate missing
+    ];
+    const rows = buildRadarRows(axes, partial);
+    const attendanceRow = rows.find((r) => r['axis'] === 'attendance')!;
+    const enrollmentRow = rows.find((r) => r['axis'] === 'enrollment')!;
+    expect(attendanceRow['cbse']).toBeNull();
+    expect(attendanceRow['cbse']).not.toBe(0);
+    expect(enrollmentRow['cbse']).toBe(80);
+  });
+
+  it('keeps real zero values distinct from missing ones', () => {
+    const withZero: ReadonlyArray<RadarSeries> = [
+      { id: 'icse', label: 'ICSE', values: { enrollment: 0 } },
+    ];
+    const rows = buildRadarRows(axes, withZero);
+    const enrollmentRow = rows.find((r) => r['axis'] === 'enrollment')!;
+    const passRow = rows.find((r) => r['axis'] === 'pass_rate')!;
+    expect(enrollmentRow['icse']).toBe(0);
+    expect(passRow['icse']).toBeNull();
   });
 });
