@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 const ARTIFACT_URI = 's3://tenant-a-reports/students/stu-123/report-card.pdf?X-Amz-Signature=abc';
 
+const listGradebookSections = vi.fn(async () => ({ ok: true, data: [] }));
+
 vi.mock('@/lib/api/gradebook', () => ({
-  listGradebookSections: vi.fn(async () => ({ ok: true, data: [] })),
+  listGradebookSections: (...args: unknown[]) => listGradebookSections(...args),
   listPublishedGradeEntries: vi.fn(async () => ({ ok: true, data: [] })),
   listGradeEntries: vi.fn(async () => ({ ok: true, data: [] })),
   readGradeWorkflowStatus: vi.fn(() => 'DRAFT'),
@@ -22,7 +24,12 @@ vi.mock('@/lib/api/gradebook', () => ({
   })),
 }));
 vi.mock('@/lib/institutions/api', () => ({
-  listInstitutions: vi.fn(async () => ({ data: [] })),
+  listInstitutions: vi.fn(async () => ({
+    data: [
+      { id: 'inst-1', name: 'North' },
+      { id: 'inst-2', name: 'South' },
+    ],
+  })),
 }));
 
 import AssessmentReportCardsPage from './page';
@@ -36,5 +43,15 @@ describe('AssessmentReportCardsPage jobs list (PRC-L030)', () => {
     expect(job.textContent).toContain('Report card · COMPLETED');
     expect(job.textContent).toContain('Artifact ready');
     expect(job.querySelector('time')?.getAttribute('dateTime')).toBe('2025-01-15T10:30:00.000Z');
+  });
+});
+
+describe('AssessmentReportCardsPage scope selection (PRC-M070)', () => {
+  it('loads sections for the URL-selected institution, not the first', async () => {
+    listGradebookSections.mockClear();
+    await AssessmentReportCardsPage({
+      searchParams: Promise.resolve({ institutionId: 'inst-2' }),
+    });
+    expect(listGradebookSections).toHaveBeenCalledWith({ institutionId: 'inst-2' });
   });
 });
