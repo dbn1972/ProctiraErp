@@ -95,6 +95,7 @@ function mapAccount(row: Record<string, unknown>): DeveloperAccountEntity {
     organization: row.organization == null ? null : String(row.organization),
     website: row.website == null ? null : String(row.website),
     status: String(row.status) as DeveloperAccountEntity['status'],
+    ownerUserId: row.owner_user_id == null ? null : String(row.owner_user_id),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -143,8 +144,8 @@ export class PgDeveloperPortalDurableStore {
     return withPlatformScope(this.pool, async (client) => {
       const result = await client.query(
         `INSERT INTO developer_portal_accounts (
-           id, name, email, organization, website, status, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           id, name, email, organization, website, status, owner_user_id, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING *`,
         [
           account.id,
@@ -153,6 +154,7 @@ export class PgDeveloperPortalDurableStore {
           account.organization,
           account.website,
           account.status,
+          account.ownerUserId,
           account.createdAt,
           account.updatedAt,
         ],

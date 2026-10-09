@@ -346,6 +346,15 @@ function validateLogoToken(rawValue: unknown, field: string): FieldError[] {
   if (probe === 'external-url') {
     return [];
   }
+  if (probe === 'invalid-url') {
+    return [
+      {
+        field,
+        rule: 'format',
+        message: `Logo URL '${rawValue}' is not an allowed external image reference. Use an https:// URL or an app-relative /path with no quotes, parentheses, or whitespace (CSS-injection guard).`,
+      },
+    ];
+  }
   if (probe === null) {
     return [
       {
@@ -411,6 +420,15 @@ function validateFaviconToken(rawValue: unknown, field: string): FieldError[] {
   if (probe === 'external-url') {
     return [];
   }
+  if (probe === 'invalid-url') {
+    return [
+      {
+        field,
+        rule: 'format',
+        message: `Favicon URL '${rawValue}' is not an allowed external image reference. Use an https:// URL or an app-relative /path with no quotes, parentheses, or whitespace (CSS-injection guard).`,
+      },
+    ];
+  }
   if (probe === null) {
     return [
       {
@@ -466,7 +484,7 @@ function validateFaviconToken(rawValue: unknown, field: string): FieldError[] {
  *     owns content checks.
  *   - `null` for malformed inputs.
  */
-function probeImageToken(rawValue: string): ImageProbe | 'external-url' | null {
+function probeImageToken(rawValue: string): ImageProbe | 'external-url' | 'invalid-url' | null {
   const stripped = stripCssUrlWrapper(rawValue.trim());
   if (stripped === null) return null;
 
@@ -474,17 +492,38 @@ function probeImageToken(rawValue: string): ImageProbe | 'external-url' | null {
     return decodeDataUri(stripped);
   }
 
-  // Treat anything else as an external/CDN URL the upload pipeline
-  // already validated.
-  if (
-    stripped.startsWith('http://') ||
-    stripped.startsWith('https://') ||
-    stripped.startsWith('/')
-  ) {
-    return 'external-url';
-  }
+  // External/CDN URL: the upload pipeline owns CONTENT validation, but this
+  // guard still enforces the URL GRAMMAR so a crafted value cannot inject into
+  // the generated stylesheet (PRC-M636 / PRC-L370 / NEW-g7_platform-008).
+  return isSafeExternalImageUrl(stripped) ? 'external-url' : 'invalid-url';
+}
 
-  return null;
+/**
+ * CSS-injection-safe check for an external image URL used inside `url(...)`.
+ *
+ * Fail-closed rules:
+ *   - must be `https://…` or an app-relative `/…` path (no `http://`,
+ *     `javascript:`, `data:` for external slots, `file:`, protocol-relative
+ *     `//host`, etc.);
+ *   - must NOT contain any character that can break out of the `url("…")`
+ *     wrapper or terminate the CSS declaration: quotes, parentheses,
+ *     whitespace/newlines, backslash, semicolon, or angle brackets.
+ */
+export function isSafeExternalImageUrl(value: string): boolean {
+  // Reject characters that could escape the url("…") context or inject CSS.
+  if (/["'()\\;<>]|\s/.test(value)) return false;
+  // Protocol-relative (//evil) and bare schemes are rejected implicitly below.
+  if (value.startsWith('/')) {
+    // App-relative path (e.g. /cdn/tenant/logo.svg) — but not protocol-relative.
+    return !value.startsWith('//');
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'https:';
 }
 
 /**

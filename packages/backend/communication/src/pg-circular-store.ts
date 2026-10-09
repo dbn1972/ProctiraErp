@@ -278,6 +278,27 @@ export class PgCircularStore implements CircularStore {
     });
   }
 
+  async claimCircularForSend(
+    tenantId: string,
+    id: string,
+    sentAt: Date,
+  ): Promise<CircularRecord | null> {
+    await ensureCircularSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      // PRC-M502: atomic compare-and-set — only transitions a draft, so two
+      // concurrent sends cannot both claim the same circular.
+      const { rows } = await client.query(
+        `UPDATE comms_circulars
+            SET status = 'sent', sent_at = $1, updated_at = now()
+          WHERE id = $2 AND tenant_id = $3 AND status = 'draft'
+          RETURNING *`,
+        [sentAt, id, tenantId],
+      );
+      if (!rows[0]) return null;
+      return mapCircular(rows[0] as Record<string, unknown>);
+    });
+  }
+
   async createAck(record: CircularAckRecord): Promise<CircularAckRecord> {
     await ensureCircularSchema(this.pool);
     return this.run(record.tenantId, async (client) => {
