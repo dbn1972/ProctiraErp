@@ -45,8 +45,12 @@ export {
   assertTenantId,
   assertTenantScopedObjectKey,
   assertTenantScopedObjectKeyIfRequired,
+  assertTenantOwnedObjectKey,
   isTenantScopedObjectKey,
   isProductionEnv,
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedObjectKeys,
+  clampSignedUrlExpiry,
+  MAX_SIGNED_URL_EXPIRY_SECONDS,
+  MIN_SIGNED_URL_EXPIRY_SECONDS,
 } from './tenant-namespace.js';
