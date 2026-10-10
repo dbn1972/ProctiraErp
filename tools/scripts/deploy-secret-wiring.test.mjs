@@ -99,12 +99,20 @@ test('platform deploy keeps edge apps and the Ingress out of the release', () =>
   assert.match(platformHelm, /--values "\$\{CHART\}\/values-workers-only\.yaml"/);
 });
 
-test('legacy thin-chart etl-worker release is removed before the platform install', () => {
-  const step = platformDeployStep();
-  const uninstall = step.indexOf('helm uninstall proctira-etl-worker');
-  assert.ok(uninstall >= 0, 'platform deploy must retire the thin-chart etl-worker release');
-  assert.ok(uninstall < step.indexOf(PLATFORM_INVOKE), 'uninstall must precede the install');
-  assert.match(step, /if helm status proctira-etl-worker/);
+test('legacy etl-worker release is retired only after the platform etl-worker is Ready', () => {
+  const job = deploy.slice(deploy.indexOf('deploy-platform:'), deploy.indexOf('record-diff-base:'));
+  const install = job.indexOf(PLATFORM_INVOKE);
+  const ready = job.indexOf('kubectl rollout status deployment/proctira-platform-etl-worker');
+  const uninstall = job.indexOf('helm uninstall proctira-etl-worker');
+  assert.ok(install >= 0 && ready >= 0 && uninstall >= 0, 'install, readiness and retire steps');
+  assert.ok(install < ready && ready < uninstall, 'install → etl-worker Ready → retire legacy');
+  assert.ok(!platformDeployStep().includes('helm uninstall'), 'no uninstall before the install');
+  assert.match(job, /if helm status proctira-etl-worker/);
+  assert.ok(
+    platformDeployStep().indexOf('deploy-platform-helm.sh template') <
+      platformDeployStep().indexOf(PLATFORM_INVOKE),
+    'render preflight precedes the upgrade',
+  );
 });
 
 test('platform images are built on every deploy and skipped by the thin chart', () => {

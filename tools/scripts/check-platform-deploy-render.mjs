@@ -52,6 +52,25 @@ export const CI_COORDS = Object.freeze({
   secret: 'ci-platform-secret',
 });
 
+/**
+ * Every kind the workers-only release may render. Anything else (NetworkPolicy,
+ * Role/RoleBinding, inline Secret, ServiceMonitor, …) needs a deliberate review
+ * and an entry here, so a new chart template cannot ride along silently.
+ */
+export const ALLOWED_KINDS = new Set([
+  'Deployment',
+  'CronJob',
+  'Service',
+  'HorizontalPodAutoscaler',
+  'PodDisruptionBudget',
+  'ConfigMap',
+  'ServiceAccount',
+  'PersistentVolumeClaim',
+]);
+
+/** DR CronJobs this release must render (container names). */
+export const REQUIRED_CRONJOB_CONTAINERS = ['pg-backup', 'phi-retention'];
+
 const FORBIDDEN_KINDS = new Set([
   'Ingress',
   'IngressRoute',
@@ -155,6 +174,9 @@ export function platformRenderViolations(docs, { registry, namespace, tag }) {
 
   for (const d of docs) {
     if (FORBIDDEN_KINDS.has(d.kind)) out.push(`${ref(d)}: kind ${d.kind} must not render`);
+    else if (!ALLOWED_KINDS.has(d.kind)) {
+      out.push(`${ref(d)}: kind ${d.kind} is not in the workers-only allowlist`);
+    }
     if (d.kind === 'Service') {
       const type = d?.spec?.type ?? 'ClusterIP';
       if (type !== 'ClusterIP') out.push(`${ref(d)}: Service type ${type} exposes the release`);
@@ -178,6 +200,11 @@ export function platformRenderViolations(docs, { registry, namespace, tag }) {
     for (const c of containersOf(spec)) {
       const image = String(c.image ?? '');
       const where = `${ref(d)} container ${c.name}`;
+      // PRC-M279 / #596 review: workers get per-key secretKeyRef only. The
+      // platform Secret holds the BYPASSRLS BACKUP_DATABASE_URL for DR.
+      if (d.kind === 'Deployment' && (c.envFrom ?? []).some((e) => e?.secretRef)) {
+        out.push(`${where}: envFrom secretRef mounts the whole platform Secret`);
+      }
       if (image.startsWith('proctira/') || image.startsWith('docker.io/proctira/')) {
         out.push(`${where}: Docker Hub default image ${image}`);
       }
@@ -194,6 +221,14 @@ export function platformRenderViolations(docs, { registry, namespace, tag }) {
     }
   }
   if (deployed.size === 0) out.push('no Deployments rendered');
+  const cronContainers = new Set(
+    docs
+      .filter((d) => d.kind === 'CronJob')
+      .flatMap((d) => containersOf(podSpecOf(d)).map((c) => c.name)),
+  );
+  for (const name of REQUIRED_CRONJOB_CONTAINERS) {
+    if (!cronContainers.has(name)) out.push(`DR CronJob ${name} did not render`);
+  }
   return out;
 }
 

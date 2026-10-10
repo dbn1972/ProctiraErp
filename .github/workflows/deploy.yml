@@ -596,8 +596,6 @@ jobs:
           # The Secret NAME is a GitHub environment *variable*, never a value.
           PLATFORM_EXISTING_SECRET: ${{ vars.PLATFORM_EXISTING_SECRET }}
         run: |
-          NAMESPACE="proctira-${ENVIRONMENT}"
-
           # PRC-H062: fail closed. Without the operator-provisioned Secret the
           # pg-backup / phi-retention CronJobs would start with no DATABASE_URL
           # and silently never run — exactly the gap this job closes.
@@ -606,14 +604,9 @@ jobs:
             exit 1
           fi
 
-          # etl-worker used to ship as the thin-chart release proctira-etl-worker.
-          # It now belongs to this platform release; leaving the old release up
-          # would run two ETL consumers on divergent code. Idempotent: no-op
-          # once the legacy release is gone.
-          if helm status proctira-etl-worker --namespace "${NAMESPACE}" >/dev/null 2>&1; then
-            echo "Removing legacy thin-chart release proctira-etl-worker (now in proctira-platform)."
-            helm uninstall proctira-etl-worker --namespace "${NAMESPACE}" --wait --timeout 300s
-          fi
+          # Render preflight: fail before touching the cluster if the chart or
+          # the value arguments are broken.
+          bash tools/scripts/deploy-platform-helm.sh template > /dev/null
 
           # The release owns ONLY etl-worker, exam-document-worker and the DR
           # CronJobs: edge apps and the Ingress stay off (values-workers-only.yaml
@@ -639,6 +632,26 @@ jobs:
           kubectl rollout status deployment \
             -l app.kubernetes.io/name=exam-document-worker \
             --namespace "${NAMESPACE}" --timeout=120s
+          kubectl rollout status deployment/proctira-platform-etl-worker \
+            --namespace "${NAMESPACE}" --timeout=120s
+
+      # etl-worker used to ship as the thin-chart release proctira-etl-worker.
+      # It now belongs to the platform release; leaving the old one up would run
+      # two ETL consumers on divergent code. Retire it only AFTER the platform
+      # etl-worker is rolled out and Ready (step above), so a failed platform
+      # install never leaves ETL with zero consumers; the brief overlap is two
+      # competing consumers on the same durable queue. Idempotent once gone.
+      - name: Retire legacy thin-chart etl-worker release
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          NAMESPACE="proctira-${ENVIRONMENT}"
+          if helm status proctira-etl-worker --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+            echo "Removing legacy thin-chart release proctira-etl-worker (now in proctira-platform)."
+            helm uninstall proctira-etl-worker --namespace "${NAMESPACE}" --wait --timeout 300s
+          else
+            echo "No legacy proctira-etl-worker release in ${NAMESPACE}."
+          fi
 
   # ---------------------------------------------------------------------------
   # #555 review #1 (PRC-M259): record the SHA this environment now runs, so the

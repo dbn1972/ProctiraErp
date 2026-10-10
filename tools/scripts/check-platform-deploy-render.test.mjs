@@ -79,6 +79,34 @@ test('worker on the wrong tag is rejected', () => {
   assert.match(platformRenderViolations(docs, coords).join('\n'), /etl-worker.*must be/);
 });
 
+test('worker envFrom of the platform Secret is rejected (BYPASSRLS backup URL)', () => {
+  const docs = workersOnly();
+  docs[0].spec.template.spec.containers[0].envFrom = [
+    { configMapRef: { name: 'proctira-platform-config' } },
+    { secretRef: { name: 'ci-platform-secret' } },
+  ];
+  assert.match(
+    platformRenderViolations(docs, coords).join('\n'),
+    /etl-worker.*envFrom secretRef mounts the whole platform Secret/,
+  );
+});
+
+test('kinds outside the workers-only allowlist are rejected', () => {
+  const docs = [...workersOnly(), { kind: 'NetworkPolicy', metadata: { name: 'deny-all' } }];
+  assert.match(
+    platformRenderViolations(docs, coords).join('\n'),
+    /NetworkPolicy.*not in the workers-only allowlist/,
+  );
+});
+
+test('a missing phi-retention CronJob is rejected', () => {
+  const docs = workersOnly().filter((d) => !d.metadata.name.endsWith('phi-retention'));
+  assert.match(
+    platformRenderViolations(docs, coords).join('\n'),
+    /DR CronJob phi-retention did not render/,
+  );
+});
+
 function helmAvailable() {
   try {
     execFileSync(process.env.HELM || 'helm', ['version', '--short'], { stdio: 'ignore' });
