@@ -266,7 +266,9 @@ export class PgAuditRepository implements AuditRepository {
       await client.query('SELECT pg_advisory_xact_lock_shared(hashtext($1))', [
         chainLockKey(tenantId),
       ]);
-      const union = `(
+      // Unaliased subquery; each FROM site adds its own alias (a second alias on
+      // an already-aliased subquery is a syntax error).
+      const unionSource = `(
            SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
                   ip_address, occurred_at, before_values, after_values, metadata,
                   chain_seq, prev_hash, entry_hash
@@ -276,7 +278,8 @@ export class PgAuditRepository implements AuditRepository {
                   ip_address, occurred_at, before_values, after_values, metadata,
                   chain_seq, prev_hash, entry_hash
            FROM audit_log_archive WHERE tenant_id = $1
-         ) u`;
+         )`;
+      const union = `${unionSource} u`;
       const legacy = await client.query(
         `SELECT count(*)::int AS n FROM ${union} WHERE chain_seq IS NULL`,
         [tenantId],
@@ -302,10 +305,10 @@ export class PgAuditRepository implements AuditRepository {
       let unchainedAfterCutover = 0;
       if (head) {
         const cutoverRes = await client.query(
-          `SELECT count(*)::int AS n FROM ${union} g
+          `SELECT count(*)::int AS n FROM ${unionSource} g
            WHERE g.chain_seq IS NULL
              AND g.occurred_at >= (
-               SELECT occurred_at FROM ${union} h
+               SELECT occurred_at FROM ${unionSource} h
                WHERE h.chain_seq IS NOT NULL ORDER BY h.chain_seq ASC, h.id ASC LIMIT 1
              )`,
           [tenantId],
