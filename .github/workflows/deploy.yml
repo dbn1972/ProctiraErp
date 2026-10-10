@@ -240,12 +240,29 @@ jobs:
           HEAD_SHA: ${{ needs.ci-gate.outputs.head-sha }}
         run: |
           set -euo pipefail
+          # deploy-platform pins etl-worker, exam-document-worker and the DR
+          # CronJobs (dr-tools) to this run's IMAGE_TAG on every deploy, so those
+          # images must be built on every deploy, not only when their paths
+          # change. Otherwise the platform release points at tags that were
+          # never pushed (and the DR CronJobs would fall back to the chart's
+          # Docker Hub default). The thin-chart loop skips these three.
+          with_platform_images() {
+            local list="$1" img
+            for img in etl-worker exam-document-worker dr-tools; do
+              case ",${list}," in
+                *",${img},"*) ;;
+                *) list="${list:+${list},}${img}" ;;
+              esac
+            done
+            printf '%s' "$list"
+          }
           if [ -n "${MANUAL_SERVICES:-}" ]; then
             # PRC-M256 / #555 review #7: format + services.json allowlist check
             # BEFORE anything reaches GITHUB_OUTPUT (a raw newline would inject
             # extra outputs into the secret-bearing build/deploy jobs).
             SERVICES=$(node tools/scripts/detect-affected-services.mjs validate --workflow deploy \
               --services "${MANUAL_SERVICES}")
+            SERVICES="$(with_platform_images "${SERVICES}")"
             echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
             # A subset deploy must not advance the diff base for every service.
             echo "record-base=false" >> "$GITHUB_OUTPUT"
@@ -262,6 +279,8 @@ jobs:
           SERVICES=$(node tools/scripts/detect-affected-services.mjs affected --workflow deploy \
             --base "${BASE_SHA:-}" --head "$HEAD_SHA")
           echo "Affected services: ${SERVICES:-<none>}"
+          SERVICES="$(with_platform_images "${SERVICES}")"
+          echo "Build list (affected + platform images): ${SERVICES}"
           echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "record-base=true" >> "$GITHUB_OUTPUT"
   # ---------------------------------------------------------------------------
@@ -459,8 +478,9 @@ jobs:
             # deployed by the proctira-platform chart (deploy-platform job), not
             # the HTTP-oriented thin chart. The thin chart would mis-port them
             # (targetPort 3000 / /health). They are still built as images above.
+            # dr-tools is the DR CronJob image of the same platform release.
             case "${SERVICE}" in
-              etl-worker|exam-document-worker)
+              etl-worker|exam-document-worker|dr-tools)
                 echo "Skipping ${SERVICE} in thin-chart deploy (handled by deploy-platform)."
                 continue
                 ;;
@@ -503,7 +523,7 @@ jobs:
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
             case "${SERVICE}" in
-              etl-worker|exam-document-worker)
+              etl-worker|exam-document-worker|dr-tools)
                 continue
                 ;;
             esac
@@ -534,12 +554,14 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # ---------------------------------------------------------------------------
-  # PRC-H062 — deploy the proctira-platform chart (pg-backup + phi-retention
-  # CronJobs, Ingress, NetworkPolicy, durable workers incl. exam-document-worker).
-  # The thin proctira-service chart above ships only app Deployments; the DR /
-  # retention / ingress / network-policy objects live ONLY in proctira-platform
-  # and were never applied by CI before this job. Same environment gating and
-  # fail-closed-on-missing-required-values discipline as the service deploy.
+  # PRC-H062 — deploy the proctira-platform chart, scoped to what CI owns there:
+  # the pg-backup + phi-retention CronJobs and the durable workers (etl-worker,
+  # exam-document-worker). Edge apps are the thin proctira-service releases
+  # above; this release must not run a second copy of them or publish an
+  # Ingress whose backends would be those duplicates (values-workers-only.yaml,
+  # render contract: tools/scripts/check-platform-deploy-render.mjs). Same
+  # environment gating and fail-closed-on-missing-required-values discipline
+  # as the service deploy.
   # ---------------------------------------------------------------------------
   deploy-platform:
     name: Deploy platform infra to ${{ needs.prepare.outputs.environment }}
@@ -574,8 +596,6 @@ jobs:
           # The Secret NAME is a GitHub environment *variable*, never a value.
           PLATFORM_EXISTING_SECRET: ${{ vars.PLATFORM_EXISTING_SECRET }}
         run: |
-          NAMESPACE="proctira-${ENVIRONMENT}"
-
           # PRC-H062: fail closed. Without the operator-provisioned Secret the
           # pg-backup / phi-retention CronJobs would start with no DATABASE_URL
           # and silently never run — exactly the gap this job closes.
@@ -584,29 +604,16 @@ jobs:
             exit 1
           fi
 
-          # Workers run the images this deploy just built/pushed — same canonical
-          # repository as the service deploy (lowercased registry/namespace).
-          EXAM_WORKER_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" exam-document-worker)"
-          ETL_WORKER_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" etl-worker)"
+          # Render preflight: fail before touching the cluster if the chart or
+          # the value arguments are broken.
+          bash tools/scripts/deploy-platform-helm.sh template > /dev/null
 
-          # W1-OPS-09: --atomic rolls back on failure; --wait blocks on readiness.
-          # Images for the in-process topology (api-gateway + edge apps + workers)
-          # use the same tag the service deploy just pushed.
-          helm upgrade --install proctira-platform \
-            ./infrastructure/helm/proctira-platform \
-            --namespace "${NAMESPACE}" \
-            --create-namespace \
-            --set global.environment="${ENVIRONMENT}" \
-            --set-string secrets.existingSecret="${PLATFORM_EXISTING_SECRET}" \
-            --set-string global.imageRegistry="" \
-            --set-string examDocumentWorker.image.repository="${EXAM_WORKER_REPOSITORY}" \
-            --set-string examDocumentWorker.image.tag="${IMAGE_TAG}" \
-            --set-string etlWorker.image.repository="${ETL_WORKER_REPOSITORY}" \
-            --set-string etlWorker.image.tag="${IMAGE_TAG}" \
-            --values "./infrastructure/helm/proctira-platform/values-${ENVIRONMENT}.yaml" \
-            --atomic \
-            --wait \
-            --timeout 600s
+          # The release owns ONLY etl-worker, exam-document-worker and the DR
+          # CronJobs: edge apps and the Ingress stay off (values-workers-only.yaml
+          # + explicit --set), and every image is pinned to the CI-built
+          # repository at IMAGE_TAG. The same script renders this exact
+          # invocation in CI (tools/scripts/check-platform-deploy-render.mjs).
+          bash tools/scripts/deploy-platform-helm.sh upgrade
 
       - name: Verify DR CronJobs and workers exist
         env:
@@ -625,6 +632,26 @@ jobs:
           kubectl rollout status deployment \
             -l app.kubernetes.io/name=exam-document-worker \
             --namespace "${NAMESPACE}" --timeout=120s
+          kubectl rollout status deployment/proctira-platform-etl-worker \
+            --namespace "${NAMESPACE}" --timeout=120s
+
+      # etl-worker used to ship as the thin-chart release proctira-etl-worker.
+      # It now belongs to the platform release; leaving the old one up would run
+      # two ETL consumers on divergent code. Retire it only AFTER the platform
+      # etl-worker is rolled out and Ready (step above), so a failed platform
+      # install never leaves ETL with zero consumers; the brief overlap is two
+      # competing consumers on the same durable queue. Idempotent once gone.
+      - name: Retire legacy thin-chart etl-worker release
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          NAMESPACE="proctira-${ENVIRONMENT}"
+          if helm status proctira-etl-worker --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+            echo "Removing legacy thin-chart release proctira-etl-worker (now in proctira-platform)."
+            helm uninstall proctira-etl-worker --namespace "${NAMESPACE}" --wait --timeout 300s
+          else
+            echo "No legacy proctira-etl-worker release in ${NAMESPACE}."
+          fi
 
   # ---------------------------------------------------------------------------
   # #555 review #1 (PRC-M259): record the SHA this environment now runs, so the

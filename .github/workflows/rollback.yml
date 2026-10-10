@@ -111,6 +111,21 @@ jobs:
             exit 1
           fi
 
+          # The durable workers and DR image now belong to the proctira-platform
+          # release (deploy.yml deploy-platform). A thin-chart rollback here
+          # would recreate the retired proctira-etl-worker release (a second ETL
+          # consumer without its ExternalSecret allowlist) or invent bogus
+          # releases. Refuse until a platform rollback path exists; use
+          # `helm rollback proctira-platform <rev>` by hand meanwhile.
+          for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            case "$(echo "$SERVICE" | xargs)" in
+              etl-worker|exam-document-worker|dr-tools)
+                echo "::error::${SERVICE} is deployed by the proctira-platform release; this workflow only rolls back thin-chart services"
+                exit 1
+                ;;
+            esac
+          done
+
           {
             echo "## Rollback plan (W1-OPS-09)"
             echo ""

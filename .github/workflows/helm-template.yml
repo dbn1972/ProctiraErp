@@ -39,6 +39,10 @@ on:
       - 'tools/scripts/check-worker-secret-scope.mjs'
       - 'tools/scripts/check-worker-secret-scope.test.mjs'
       - 'tools/scripts/deploy-secret-wiring.test.mjs'
+      - 'tools/scripts/deploy-platform-helm.sh'
+      - 'tools/scripts/check-platform-deploy-render.mjs'
+      - 'tools/scripts/check-platform-deploy-render.test.mjs'
+      - 'tools/scripts/image-repository.sh'
       # W1-OPS-09 — rollback runbook + COMPLETE evidence
       - 'docs/runbooks/deploy-rollback.md'
       - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
@@ -97,6 +101,10 @@ on:
       - 'tools/scripts/check-worker-secret-scope.mjs'
       - 'tools/scripts/check-worker-secret-scope.test.mjs'
       - 'tools/scripts/deploy-secret-wiring.test.mjs'
+      - 'tools/scripts/deploy-platform-helm.sh'
+      - 'tools/scripts/check-platform-deploy-render.mjs'
+      - 'tools/scripts/check-platform-deploy-render.test.mjs'
+      - 'tools/scripts/image-repository.sh'
       - 'docs/runbooks/deploy-rollback.md'
       - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
       - 'apps/api-gateway/src/plugins/health.ts'
@@ -159,6 +167,10 @@ jobs:
         run: node --test tools/scripts/check-deploy-workflow-contract.test.mjs
       - name: Unit-test deploy secret wiring (PRC-H062)
         run: node --test tools/scripts/deploy-secret-wiring.test.mjs
+      # #590 review: the platform release renders only CI-built workers + DR
+      # CronJobs (no edge apps, no Ingress, no Docker Hub defaults).
+      - name: Platform deploy render contract (PRC-H062)
+        run: node --test tools/scripts/check-platform-deploy-render.test.mjs
       - name: Unit-test worker secret scope (NEW-g3_infra_tools-001)
         run: node --test tools/scripts/check-worker-secret-scope.test.mjs
       - name: Fail when a workload envFroms the full secret bundle (NEW-g3_infra_tools-001)
