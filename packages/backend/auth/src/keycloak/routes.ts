@@ -94,6 +94,14 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   otpService?: OtpService;
   /** PRC-H043: how long held tokens await OTP completion (seconds, default 300). */
   otpPendingTtlSeconds?: number;
+  /**
+   * PRC-H043: single-use store holding ROPC tokens until POST /password/mfa verifies the OTP.
+   * It is deliberately separate from {@link webTicketStore}: GET /ticket must never be able to
+   * redeem a held MFA token set. Use a Redis store with its own key prefix (for example
+   * `new RedisWebTicketStore(redis, 'auth:mfa-pending:')`) in any multi-replica deployment; the
+   * default is process-local memory. Passing the same instance as `webTicketStore` is rejected.
+   */
+  mfaPendingStore?: WebTicketStore;
 };
 
 /** PRC-H043: server-resolved MFA requirement for a user. */
@@ -164,13 +172,30 @@ type IssuedTokens = {
 };
 
 const WEB_TICKET_TTL_SECONDS = 60;
-const MAX_TICKET_ID_LENGTH = 128;
+/** Web tickets are 32 random bytes, base64url without padding: exactly 43 chars. */
+const WEB_TICKET_BYTES = 32;
+const WEB_TICKET_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+function mintWebTicketId(): string {
+  return b64url(randomBytes(WEB_TICKET_BYTES));
+}
+
+/** True only for ids with the exact shape {@link mintWebTicketId} produces. */
+function isWebTicketId(value: unknown): value is string {
+  return typeof value === 'string' && WEB_TICKET_ID_PATTERN.test(value);
+}
 
 /** PRC-H043: how long tokens are held pending OTP completion, and the key namespace used. */
 const MFA_PENDING_TTL_SECONDS = 300;
 function mfaPendingKey(mfaToken: string): string {
   return `mfa-pending:${mfaToken}`;
 }
+
+/** PRC-H043: tokens held for an OTP challenge, bound to the principal the challenge was sent to. */
+type MfaHold = IssuedTokens & {
+  user?: LinkedKeycloakUser;
+  binding: { userId: string; tenantId: string };
+};
 
 /** PRC-M500: login transaction bound to the browser via an httpOnly cookie. */
 const OIDC_TXN_COOKIE = 'kc_oidc_txn';
@@ -494,6 +519,12 @@ export async function registerKeycloakAuthRoutes(
       ? config.maxRevocationTtlSeconds
       : DEFAULT_MAX_REVOCATION_TTL_SECONDS;
   const webTicketStore = config.webTicketStore ?? new MemoryWebTicketStore();
+  // PRC-H043: the MFA hold lives outside the redeemable web-ticket store so GET /ticket can never
+  // hand out tokens whose second factor has not been verified.
+  const mfaPendingStore = config.mfaPendingStore ?? new MemoryWebTicketStore();
+  if (mfaPendingStore === webTicketStore) {
+    throw new Error('mfaPendingStore must not be the same store instance as webTicketStore');
+  }
   const secureCookies = config.redirectUri.startsWith('https://');
   const sessionRevocationTtlSeconds =
     config.ssoSessionMaxSeconds && config.ssoSessionMaxSeconds > 0
@@ -708,7 +739,7 @@ export async function registerKeycloakAuthRoutes(
 
       const returnTo = webReturnTo(txn.a);
       if (returnTo && config.webOrigin) {
-        const ticket = b64url(randomBytes(32));
+        const ticket = mintWebTicketId();
         await webTicketStore.put(ticket, JSON.stringify(issued), WEB_TICKET_TTL_SECONDS);
         const next = new URL('/api/auth/callback', config.webOrigin);
         next.searchParams.set('ticket', ticket);
@@ -845,9 +876,13 @@ export async function registerKeycloakAuthRoutes(
 
       // PRC-H043: enforce MFA before issuing tokens. ROPC proves only the password (a single
       // factor), so a user whose policy requires MFA must complete a second factor. We do NOT
-      // return tokens here; instead we send an OTP challenge and return `mfa_required`. The IdP
-      // session behind the just-issued refresh token is ended so it cannot be replayed, and the
-      // tokens are held server-side under the OTP mfaToken until POST /password/mfa verifies it.
+      // return tokens here; instead we send an OTP challenge and return `mfa_required`. The
+      // tokens are held server-side in `mfaPendingStore` (never the web-ticket store) under the
+      // OTP mfaToken until POST /password/mfa verifies it. On this path the IdP session is NOT
+      // ended: the held refresh token must stay valid for the verified hand-out. Every refusal
+      // path below (policy outage, no OTP channel, send failure) does end it, as does a hold
+      // that fails its binding check in /password/mfa. A hold that is never completed expires
+      // after `otpPendingTtlSeconds`; its IdP session then lapses on Keycloak's own idle timeout.
       if (config.mfaPolicy) {
         const claims = (() => {
           try {
@@ -918,11 +953,17 @@ export async function registerKeycloakAuthRoutes(
               statusCode: 503,
             });
           }
-          // Hold the issued tokens keyed by the OTP mfaToken until verification. The web-ticket
-          // store is single-use and TTL-bounded; reuse it so no new store is needed.
-          await webTicketStore.put(
+          // Hold the issued tokens keyed by the OTP mfaToken until verification, bound to the
+          // principal the challenge was sent to. Single-use and TTL-bounded; not addressable
+          // through GET /ticket.
+          const hold: MfaHold = {
+            ...issuedTokens,
+            user,
+            binding: { userId: mfaUserId, tenantId: mfaTenantId },
+          };
+          await mfaPendingStore.put(
             mfaPendingKey(challenge.mfaToken),
-            JSON.stringify({ ...issuedTokens, user }),
+            JSON.stringify(hold),
             Math.max(1, config.otpPendingTtlSeconds ?? MFA_PENDING_TTL_SECONDS),
           );
           return reply.status(401).send({
@@ -978,8 +1019,9 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 501,
         });
       }
+      let verified: Awaited<ReturnType<OtpService['verifyChallenge']>>;
       try {
-        await config.otpService.verifyChallenge({ mfaToken, code });
+        verified = await config.otpService.verifyChallenge({ mfaToken, code });
       } catch (error) {
         if (error instanceof OtpRateLimitError) {
           return reply
@@ -993,16 +1035,26 @@ export async function registerKeycloakAuthRoutes(
         }
         throw error;
       }
-      // OTP verified: hand out the held tokens (single-use fetch).
-      const raw = await webTicketStore.take(mfaPendingKey(mfaToken));
-      if (!raw) {
-        return reply.status(401).send({
+      // OTP verified: consume the hold (atomic single-use take) only now, so a wrong code or a
+      // throttled attempt never burns it.
+      const raw = await mfaPendingStore.take(mfaPendingKey(mfaToken));
+      const sessionExpired = () =>
+        reply.status(401).send({
           code: 'MFA_SESSION_EXPIRED',
           message: 'Sign-in session expired; please sign in again',
           statusCode: 401,
         });
+      if (!raw) return sessionExpired();
+      const held = JSON.parse(raw) as MfaHold;
+      // The verified challenge must belong to the principal the hold was minted for.
+      if (
+        held.binding?.userId !== verified.userId ||
+        held.binding?.tenantId !== verified.tenantId
+      ) {
+        request.log.warn('MFA hold did not match the verified OTP challenge; refusing');
+        await endIdpSession(config, held.refreshToken);
+        return sessionExpired();
       }
-      const held = JSON.parse(raw) as IssuedTokens & { user?: LinkedKeycloakUser };
       return reply.status(200).send({
         provider: 'keycloak',
         realm: config.realm,
@@ -1032,7 +1084,9 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 400,
         });
       }
-      const raw = ticket.length <= MAX_TICKET_ID_LENGTH ? await webTicketStore.take(ticket) : null;
+      // Only the exact minted shape reaches the store. Anything else (including namespaced keys
+      // such as `mfa-pending:*`) gets the same response as an unknown ticket.
+      const raw = isWebTicketId(ticket) ? await webTicketStore.take(ticket) : null;
       const tokens = raw ? (JSON.parse(raw) as IssuedTokens) : null;
       if (!tokens) {
         return reply.status(401).send({

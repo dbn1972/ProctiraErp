@@ -369,5 +369,66 @@ describe('Keycloak auth routes', () => {
       fetchMock.mockRestore();
       await Promise.all([a.close(), b.close()]);
     });
+
+    it('issues tickets as 43-char base64url and still redeems them once', async () => {
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, base);
+      const fetchMock = mockToken();
+      const { cookie, state } = await beginLogin(app, 'web:/home');
+      const cb = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie },
+      });
+      const ticket = new URL(String(cb.headers.location)).searchParams.get('ticket') ?? '';
+      expect(ticket).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const ok = await app.inject({ method: 'GET', url: `/api/v1/auth/ticket?ticket=${ticket}` });
+      expect(ok.statusCode).toBe(200);
+      expect(ok.json().accessToken).toBe(jwt({ sub: 'kc-1' }));
+      fetchMock.mockRestore();
+      await app.close();
+    });
+
+    it('rejects malformed ticket shapes exactly like an unknown ticket, without a store lookup', async () => {
+      const store = new MemoryWebTicketStore();
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, { ...base, webTicketStore: store });
+      // Seed entries under the malformed ids so a pass-through lookup would succeed.
+      const malformed = [
+        'mfa-pending:3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f',
+        '3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f',
+        'a'.repeat(42),
+        'a'.repeat(44),
+        `${'a'.repeat(42)}=`,
+        `${'a'.repeat(42)}.`,
+        `${'a'.repeat(42)}+`,
+        `${'a'.repeat(42)}/`,
+      ];
+      for (const id of malformed) {
+        await store.put(id, JSON.stringify({ accessToken: 'leak', tokenType: 'Bearer' }), 60);
+      }
+      const unknown = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/ticket?ticket=${'b'.repeat(43)}`,
+      });
+      expect(unknown.statusCode).toBe(401);
+      const take = vi.spyOn(store, 'take');
+      for (const id of [...malformed, 'x'.repeat(129)]) {
+        const res = await app.inject({
+          method: 'GET',
+          url: `/api/v1/auth/ticket?ticket=${encodeURIComponent(id)}`,
+        });
+        expect(res.statusCode).toBe(401);
+        expect(res.body).toBe(unknown.body);
+      }
+      const dup = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/ticket?ticket=${'a'.repeat(43)}&ticket=${'b'.repeat(43)}`,
+      });
+      expect(dup.statusCode).toBe(401);
+      expect(dup.body).toBe(unknown.body);
+      expect(take).not.toHaveBeenCalled();
+      await app.close();
+    });
   });
 });
