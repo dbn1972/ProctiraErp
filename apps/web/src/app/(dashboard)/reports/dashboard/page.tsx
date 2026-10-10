@@ -37,6 +37,8 @@ export default async function ReportsDashboardPage(props: PageProps) {
   // non-parent user from requesting ?role=board/principal to widen scope.
   const sessionRole = detectDashboardRole(session?.user.roles);
   const role = requested && requested === sessionRole ? requested : sessionRole;
+  // Parents never see the role switcher (they can only ever load their own).
+  const parent = sessionRole === 'parent';
 
   const { dashboard, source, status, error } = await getRoleDashboard(role);
 
