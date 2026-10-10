@@ -1,0 +1,62 @@
+# =============================================================================
+# proctira-platform — CI deploy-platform overlay (workers + DR only)
+# =============================================================================
+# Passed LAST by tools/scripts/deploy-platform-helm.sh (after values-<env>.yaml)
+# so it wins over every environment overlay.
+#
+# The edge apps (api-gateway, web, registration-portal, public-website,
+# admin-console, developer-portal) are deployed by the thin proctira-service
+# chart in deploy.yml's `deploy` job with CI-built images. Rendering them here
+# too would run a second copy from the chart default `proctira/<app>:<appVersion>`
+# (Docker Hub), envFrom the full secret bundle into that gateway, and publish
+# public hosts through this chart's Ingress. This release therefore owns only:
+#   - etl-worker and exam-document-worker (durable queue consumers)
+#   - DR CronJobs (pg-backup, phi-retention) from the environment overlay
+# Every image this release renders is pinned to the CI-built repository/tag by
+# deploy-platform-helm.sh. Render contract:
+#   tools/scripts/check-platform-deploy-render.test.mjs
+# =============================================================================
+
+# No public entry point from this release.
+ingress:
+  enabled: false
+
+# Edge apps: owned by the thin proctira-service releases (proctira-<service>).
+apiGateway:
+  enabled: false
+web:
+  enabled: false
+registrationPortal:
+  enabled: false
+publicWebsite:
+  enabled: false
+adminConsole:
+  enabled: false
+developerPortal:
+  enabled: false
+
+# Workers owned by this release.
+etlWorker:
+  enabled: true
+examDocumentWorker:
+  enabled: true
+
+# W1-OPS-16 lab-only split domains: never from the CI platform release.
+institutionService:
+  enabled: false
+studentService:
+  enabled: false
+staffService:
+  enabled: false
+assessmentService:
+  enabled: false
+attendanceService:
+  enabled: false
+examinationService:
+  enabled: false
+workflowService:
+  enabled: false
+notificationService:
+  enabled: false
+reportService:
+  enabled: false
