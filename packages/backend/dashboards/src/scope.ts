@@ -26,7 +26,11 @@ export type DashboardScopeLevel =
   | 'board'
   | 'school'
   | 'teacher'
-  | 'parent_student';
+  | 'parent_student'
+  // PRC-L451: explicit deny level for unknown/no-role users. Previously such
+  // users silently fell through to `parent_student` (fail-open); `none` makes
+  // the "deny all dashboards" intent real.
+  | 'none';
 
 /**
  * Projected scope for a single authenticated request.
@@ -38,6 +42,12 @@ export type DashboardScopeLevel =
  */
 export interface DashboardScope {
   level: DashboardScopeLevel;
+  /**
+   * PRC-L451: every dashboard level the user holds (not just the most
+   * privileged one). `canAccessVariant` evaluates against this set so a user
+   * who is both a principal and a teacher can load both dashboards.
+   */
+  heldLevels: DashboardScopeLevel[];
   /** Area_Hierarchy IDs the user is authorised within. Empty for country scope. */
   areaIds: string[];
   /** Institution IDs the user is authorised within. */
@@ -92,23 +102,19 @@ export function deriveDashboardScope(jwt: JwtPayload): DashboardScope {
   const parentRoles = roles.filter((r) => PARENT_STUDENT_ROLE_IDS.has(r.roleId));
 
   // Most-privileged level (country > state > board > school > teacher > parent_student).
-  let level: DashboardScopeLevel;
-  if (hasCountry) {
-    level = 'country';
-  } else if (stateRoles.length > 0) {
-    level = 'state';
-  } else if (boardRoles.length > 0) {
-    level = 'board';
-  } else if (schoolRoles.length > 0) {
-    level = 'school';
-  } else if (teacherRoles.length > 0) {
-    level = 'teacher';
-  } else if (parentRoles.length > 0) {
-    level = 'parent_student';
-  } else {
-    // Unknown role — deny all dashboards by default.
-    level = 'parent_student';
-  }
+  // PRC-L451: also collect *every* level the user holds so canAccessVariant can
+  // authorise a multi-role user (e.g. principal + teacher) for all of them, and
+  // unknown/no-role users resolve to the explicit `none` deny level.
+  const heldLevels: DashboardScopeLevel[] = [];
+  if (hasCountry) heldLevels.push('country');
+  if (stateRoles.length > 0) heldLevels.push('state');
+  if (boardRoles.length > 0) heldLevels.push('board');
+  if (schoolRoles.length > 0) heldLevels.push('school');
+  if (teacherRoles.length > 0) heldLevels.push('teacher');
+  if (parentRoles.length > 0) heldLevels.push('parent_student');
+
+  // The most-privileged held level, or `none` for unknown/absent roles.
+  const level: DashboardScopeLevel = heldLevels[0] ?? 'none';
 
   // Collect area / institution / board IDs across every relevant role.
   const areaIds = new Set<string>();
@@ -116,13 +122,15 @@ export function deriveDashboardScope(jwt: JwtPayload): DashboardScope {
   const boardIds = new Set<string>();
 
   for (const role of stateRoles) areaIds.add(role.areaId);
+  // PRC-M591: school/teacher roles are anchored to an *institution*, not an
+  // area. Treating their `areaId` as an area-wide grant let a principal read
+  // every school in their state (horizontal escalation). Authorise these
+  // levels by institutionIds only; area breadth is reserved for state/country.
   for (const role of schoolRoles) {
     if (role.institutionId) institutionIds.add(role.institutionId);
-    areaIds.add(role.areaId);
   }
   for (const role of teacherRoles) {
     if (role.institutionId) institutionIds.add(role.institutionId);
-    areaIds.add(role.areaId);
   }
   for (const role of parentRoles) {
     if (role.institutionId) institutionIds.add(role.institutionId);
@@ -138,6 +146,7 @@ export function deriveDashboardScope(jwt: JwtPayload): DashboardScope {
   // country, as "any area").
   return {
     level,
+    heldLevels,
     areaIds: Array.from(areaIds),
     institutionIds: Array.from(institutionIds),
     boardIds: Array.from(boardIds),
@@ -154,31 +163,33 @@ export type DashboardVariant = 'country' | 'state' | 'board-admin' | 'school' | 
  * Whether a derived scope is allowed to *load* a given dashboard variant.
  * This is the first gate; per-resource Area_Hierarchy filtering happens
  * after this check.
+ *
+ * PRC-L451: evaluated against *every* level the user holds (not just the most
+ * privileged one), so a principal-and-teacher can load both dashboards, and
+ * the `none` level (unknown/absent roles) is denied every variant.
  */
 export function canAccessVariant(scope: DashboardScope, variant: DashboardVariant): boolean {
+  const levels = scope.heldLevels.length > 0 ? scope.heldLevels : [scope.level];
+  const has = (level: DashboardScopeLevel) => levels.includes(level);
+  const isCountry = has('country');
   switch (variant) {
     case 'country':
-      return scope.level === 'country';
+      return isCountry;
     case 'state':
       // Country admins can read any state; state admins can read theirs.
-      return scope.level === 'country' || scope.level === 'state';
+      return isCountry || has('state');
     case 'board-admin':
       // Country admins and explicit board admins.
-      return scope.level === 'country' || scope.level === 'board';
+      return isCountry || has('board');
     case 'school':
       // Country admins, state admins, board admins, principals.
-      return (
-        scope.level === 'country' ||
-        scope.level === 'state' ||
-        scope.level === 'board' ||
-        scope.level === 'school'
-      );
+      return isCountry || has('state') || has('board') || has('school');
     case 'teacher':
       // Only the teacher themselves (and country admins for ops).
-      return scope.level === 'teacher' || scope.level === 'country';
+      return has('teacher') || isCountry;
     case 'me':
       // Parent/student — and country admins for ops.
-      return scope.level === 'parent_student' || scope.level === 'country';
+      return has('parent_student') || isCountry;
     default:
       return false;
   }

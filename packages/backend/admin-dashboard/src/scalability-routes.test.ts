@@ -76,6 +76,11 @@ interface HarnessOptions {
   cache?: ReturnType<typeof buildMockCache>;
   queue?: ReturnType<typeof buildMockQueue>;
   isAdmin?: (request: FastifyRequest) => boolean | Promise<boolean>;
+  auditLog?: (entry: {
+    action: 'admin.scalability.cache.flush';
+    tenantId: string;
+    request: FastifyRequest;
+  }) => void | Promise<void>;
 }
 
 interface Harness {
@@ -92,7 +97,11 @@ async function buildHarness(options?: HarnessOptions): Promise<Harness> {
   await registerScalabilityRoutes(app, {
     cache: cacheMock.cache,
     queue: queueMock.queue,
-    isAdmin: options?.isAdmin,
+    // PRC-M560: isAdmin is now mandatory. Default the harness to an
+    // allow-all admin so the metrics tests keep exercising the handlers;
+    // individual tests override it to assert the deny path.
+    isAdmin: options?.isAdmin ?? (() => true),
+    auditLog: options?.auditLog,
   });
   await app.ready();
 
@@ -271,12 +280,14 @@ describe('scalability routes', () => {
   });
 
   describe(`POST ${BASE}/cache/flush`, () => {
-    it('invalidates all 3 tenant-scoped patterns and sums keysDeleted when no isAdmin is configured', async () => {
+    const TENANT_UUID = '11111111-1111-4111-8111-111111111111';
+
+    it('invalidates all 3 tenant-scoped patterns and sums keysDeleted for an admin', async () => {
       const invalidatePattern = vi
         .fn<[string], Promise<number>>()
-        .mockResolvedValueOnce(3) // t:tenant-1:*
-        .mockResolvedValueOnce(2) // lst:tenant-1:*
-        .mockResolvedValueOnce(7); // cfg:tenant-1:*
+        .mockResolvedValueOnce(3) // t:<uuid>:*
+        .mockResolvedValueOnce(2) // lst:<uuid>:*
+        .mockResolvedValueOnce(7); // cfg:<uuid>:*
 
       const { app } = await buildHarness({
         cache: buildMockCache({ invalidatePattern }),
@@ -285,20 +296,20 @@ describe('scalability routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: `${BASE}/cache/flush`,
-        payload: { tenantId: 'tenant-1' },
+        payload: { tenantId: TENANT_UUID },
       });
 
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.success).toBe(true);
-      expect(body.tenantId).toBe('tenant-1');
+      expect(body.tenantId).toBe(TENANT_UUID);
       expect(body.keysDeleted).toBe(12);
       expect(typeof body.timestamp).toBe('string');
 
       expect(invalidatePattern).toHaveBeenCalledTimes(3);
-      expect(invalidatePattern).toHaveBeenNthCalledWith(1, 't:tenant-1:*');
-      expect(invalidatePattern).toHaveBeenNthCalledWith(2, 'lst:tenant-1:*');
-      expect(invalidatePattern).toHaveBeenNthCalledWith(3, 'cfg:tenant-1:*');
+      expect(invalidatePattern).toHaveBeenNthCalledWith(1, `t:${TENANT_UUID}:*`);
+      expect(invalidatePattern).toHaveBeenNthCalledWith(2, `lst:${TENANT_UUID}:*`);
+      expect(invalidatePattern).toHaveBeenNthCalledWith(3, `cfg:${TENANT_UUID}:*`);
     });
 
     it('returns 400 with an explanatory error when tenantId is missing', async () => {
@@ -311,7 +322,7 @@ describe('scalability routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
-      expect(response.json()).toEqual({ error: 'tenantId is required in request body' });
+      expect(response.json()).toEqual({ error: 'tenantId must be a valid UUID' });
       expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
     });
 
@@ -325,8 +336,49 @@ describe('scalability routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
-      expect(response.json()).toEqual({ error: 'tenantId is required in request body' });
+      expect(response.json()).toEqual({ error: 'tenantId must be a valid UUID' });
       expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
+    });
+
+    // PRC-M560: the glob-injection vector must be rejected.
+    it("returns 400 for tenantId='*' and never calls invalidatePattern", async () => {
+      const { app, cacheMock } = await buildHarness();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `${BASE}/cache/flush`,
+        payload: { tenantId: '*' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'tenantId must be a valid UUID' });
+      expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for a non-UUID string that is not a glob (e.g. "tenant-1")', async () => {
+      const { app, cacheMock } = await buildHarness();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `${BASE}/cache/flush`,
+        payload: { tenantId: 'tenant-1' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
+    });
+
+    // PRC-M560: fail closed even when the mount site forgot the isAdmin option.
+    it('refuses to mount when isAdmin is absent (fail closed)', async () => {
+      const app = Fastify();
+      await expect(
+        registerScalabilityRoutes(app, {
+          cache: buildMockCache().cache,
+          queue: buildMockQueue().queue,
+          // @ts-expect-error — deliberately omitting the now-required isAdmin
+          isAdmin: undefined,
+        }),
+      ).rejects.toThrow(/isAdmin.*required/i);
     });
 
     it('returns 403 and does not touch the cache when isAdmin resolves false', async () => {
@@ -337,7 +389,7 @@ describe('scalability routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: `${BASE}/cache/flush`,
-        payload: { tenantId: 'tenant-1' },
+        payload: { tenantId: TENANT_UUID },
       });
 
       expect(response.statusCode).toBe(403);
@@ -345,7 +397,7 @@ describe('scalability routes', () => {
       expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
     });
 
-    it('proceeds to 200 when isAdmin (async) resolves true, same as the no-isAdmin case', async () => {
+    it('proceeds to 200 when isAdmin (async) resolves true', async () => {
       const { app, cacheMock } = await buildHarness({
         isAdmin: async () => true,
       });
@@ -353,7 +405,7 @@ describe('scalability routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: `${BASE}/cache/flush`,
-        payload: { tenantId: 'tenant-1' },
+        payload: { tenantId: TENANT_UUID },
       });
 
       expect(response.statusCode).toBe(200);
@@ -362,8 +414,6 @@ describe('scalability routes', () => {
     });
 
     it('proceeds to 200 when isAdmin returns a plain boolean (not a Promise)', async () => {
-      // The handler does `await isAdmin(request)` unconditionally, so a
-      // synchronous boolean return must work identically to an async one.
       const { app, cacheMock } = await buildHarness({
         // eslint-disable-next-line @typescript-eslint/require-await -- intentionally synchronous to test the non-Promise path
         isAdmin: () => true,
@@ -372,7 +422,7 @@ describe('scalability routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: `${BASE}/cache/flush`,
-        payload: { tenantId: 'tenant-1' },
+        payload: { tenantId: TENANT_UUID },
       });
 
       expect(response.statusCode).toBe(200);
@@ -389,11 +439,75 @@ describe('scalability routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: `${BASE}/cache/flush`,
-        payload: { tenantId: 'tenant-1' },
+        payload: { tenantId: TENANT_UUID },
       });
 
       expect(response.statusCode).toBe(403);
       expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
     });
+
+    // PRC-M560: the destructive flush writes an audit row before flushing.
+    it('writes an audit row (with the request actor) before flushing', async () => {
+      const order: string[] = [];
+      const invalidatePattern = vi.fn(async () => {
+        order.push('flush');
+        return 0;
+      });
+      const auditLog = vi.fn(async () => {
+        order.push('audit');
+      });
+      const { app } = await buildHarness({
+        cache: buildMockCache({ invalidatePattern }),
+        auditLog,
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `${BASE}/cache/flush`,
+        payload: { tenantId: TENANT_UUID },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(auditLog).toHaveBeenCalledTimes(1);
+      expect(auditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'admin.scalability.cache.flush',
+          tenantId: TENANT_UUID,
+          request: expect.anything(),
+        }),
+      );
+      // Audit must be written before the first flush call.
+      expect(order[0]).toBe('audit');
+      expect(order).toContain('flush');
+    });
+
+    it('aborts the flush (no cache writes) when the audit write fails', async () => {
+      const { app, cacheMock } = await buildHarness({
+        auditLog: async () => {
+          throw new Error('audit sink down');
+        },
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `${BASE}/cache/flush`,
+        payload: { tenantId: TENANT_UUID },
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(cacheMock.invalidatePattern).not.toHaveBeenCalled();
+    });
+  });
+
+  // PRC-M560: the read endpoints are also admin-guarded (previously open).
+  describe('GET endpoints require admin', () => {
+    for (const path of ['cache', 'queue', 'health']) {
+      it(`GET ${BASE}/${path} returns 403 when isAdmin resolves false`, async () => {
+        const { app } = await buildHarness({ isAdmin: async () => false });
+        const response = await app.inject({ method: 'GET', url: `${BASE}/${path}` });
+        expect(response.statusCode).toBe(403);
+        expect(response.json()).toEqual({ error: 'Forbidden: admin access required' });
+      });
+    }
   });
 });
