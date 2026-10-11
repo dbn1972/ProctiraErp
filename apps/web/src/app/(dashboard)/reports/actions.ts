@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { createImportJob, type CreateImportJobInput } from '@/lib/api/data-warehouse';
+import type { ScaffoldDataSource } from '@/lib/api/insights-source';
 import {
   createReportSchedule,
   deleteReportSchedule,
@@ -28,7 +29,7 @@ export interface InsightsActionState {
   id?: string;
   artifactId?: string;
   sha256?: string;
-  source?: 'gateway' | 'scaffold';
+  source?: ScaffoldDataSource;
   fieldErrors?: Record<string, string>;
 }
 

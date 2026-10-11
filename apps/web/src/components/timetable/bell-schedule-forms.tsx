@@ -43,7 +43,9 @@ export function BellScheduleCreateForm(props: {
           if (!result.ok) {
             setError(
               result.code === 'TIMETABLE_SCHEMA_MISSING'
-                ? `${result.error} (apply db/sql/003_sis_timetable_schedule_schema.sql)`
+                ? // PRC-L260: do not leak the internal migration file path to the user.
+                  // The provisioning hint is logged server-side via the action, not shown here.
+                  'Timetable scheduling is not provisioned yet for this environment. Please contact your administrator.'
                 : result.error,
             );
             return;

@@ -121,4 +121,17 @@ describe('gatewayFetch', () => {
     expect(result).toMatchObject({ ok: true, status: 204, data: null });
     expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/api\/v1\/audit\?x=1$/);
   });
+
+  it('bounds the request with an AbortSignal (PRC-L527)', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
+    await gatewayFetch('/tenants');
+    const init = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('maps an upstream timeout to a GATEWAY_TIMEOUT envelope (PRC-L527)', async () => {
+    vi.mocked(fetch).mockRejectedValue(new DOMException('timeout', 'TimeoutError'));
+    const result = await gatewayFetch('/tenants');
+    expect(result).toMatchObject({ status: 0, ok: false, error: { code: 'GATEWAY_TIMEOUT' } });
+  });
 });

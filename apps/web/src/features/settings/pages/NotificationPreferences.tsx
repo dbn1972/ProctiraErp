@@ -72,6 +72,22 @@ const CATEGORIES: NotificationCategory[] = [
 const DIGEST_OPTIONS: DigestFrequency[] = ['immediate', 'daily', 'weekly'];
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 
+/**
+ * PRC-L269: critical categories keep a mandatory delivery channel that a user
+ * cannot switch off. System and workflow alerts (approvals, account/security,
+ * mandatory notices) always deliver in-app so a recipient cannot silence them
+ * entirely. The server remains the source of truth; this is the fail-closed UI
+ * mirror so a locked channel reads as locked and stays enabled.
+ */
+const MANDATORY_CHANNELS: Partial<Record<NotificationCategory, NotificationChannel[]>> = {
+  system: ['in_app'],
+  workflow: ['in_app'],
+};
+
+function isMandatoryChannel(category: NotificationCategory, channel: NotificationChannel): boolean {
+  return MANDATORY_CHANNELS[category]?.includes(channel) ?? false;
+}
+
 /** Default preferences used when the API returns no data. */
 function getDefaultPreferences(): NotificationPreferencesData {
   return {
@@ -148,6 +164,8 @@ export default function NotificationPreferences({
 
   const handleChannelToggle = useCallback(
     (category: NotificationCategory, channel: NotificationChannel, enabled: boolean) => {
+      // PRC-L269: a mandatory channel cannot be switched off.
+      if (!enabled && isMandatoryChannel(category, channel)) return;
       setPreferences((prev) => ({
         ...prev,
         categories: prev.categories.map((cat) =>
@@ -312,7 +330,10 @@ export default function NotificationPreferences({
                 {CHANNELS.map((channel) => (
                   <div key={channel} className="flex justify-center">
                     <Switch
-                      checked={catPref.channels[channel]}
+                      checked={
+                        catPref.channels[channel] || isMandatoryChannel(catPref.category, channel)
+                      }
+                      disabled={isMandatoryChannel(catPref.category, channel)}
                       onCheckedChange={(checked) =>
                         handleChannelToggle(catPref.category, channel, checked)
                       }
@@ -320,7 +341,13 @@ export default function NotificationPreferences({
                         category: t(`settings.notifications.categories.${catPref.category}`),
                         channel: t(`settings.notifications.channels.${channel}`),
                       })}
+                      aria-readonly={
+                        isMandatoryChannel(catPref.category, channel) ? true : undefined
+                      }
                       data-testid={`toggle-${catPref.category}-${channel}`}
+                      data-mandatory={
+                        isMandatoryChannel(catPref.category, channel) ? 'true' : undefined
+                      }
                       className="min-h-[24px] min-w-[44px]"
                     />
                   </div>

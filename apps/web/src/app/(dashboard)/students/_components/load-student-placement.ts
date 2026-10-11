@@ -42,6 +42,20 @@ export function preferActiveEnrollment(rows: EnrollmentEntry[]): EnrollmentEntry
   return rows.find((row) => row.status === 'ENROLLED') ?? rows[0] ?? null;
 }
 
+/**
+ * PRC-M128: the student list status pill and graduate eligibility must come
+ * from the real active enrollment, not free-form `customData.enrollmentStatus`
+ * (which defaulted everyone to "Enrolled"). A student with no active enrollment
+ * is "NOT_ENROLLED" and cannot graduate.
+ */
+export function deriveEnrollmentStatus(enrollment: EnrollmentEntry | null): string {
+  return enrollment?.status ?? 'NOT_ENROLLED';
+}
+
+export function canGraduateFromEnrollment(enrollment: EnrollmentEntry | null): boolean {
+  return deriveEnrollmentStatus(enrollment) === 'ENROLLED';
+}
+
 export async function loadActiveEnrollments(
   studentIds: string[],
 ): Promise<Map<string, EnrollmentEntry | null>> {

@@ -15,12 +15,14 @@ import {
   Home,
   Layers,
   Library,
+  LogOut,
   MessageSquare,
   ShieldCheck,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 
+import { signOut } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useBrand } from '@/providers/BrandConfigProvider';
 
@@ -166,6 +168,17 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
             <span className="text-base font-semibold tracking-tight">Family portal</span>
             <span className="text-[11px] font-normal text-muted-foreground">{brandName}</span>
           </Link>
+          <button
+            type="button"
+            data-testid="parent-shell-signout"
+            onClick={() => {
+              void signOut('/login');
+            }}
+            className="inline-flex min-h-12 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+            Sign out
+          </button>
         </div>
       </header>
 
