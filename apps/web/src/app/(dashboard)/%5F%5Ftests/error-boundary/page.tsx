@@ -25,8 +25,11 @@ export default function ErrorBoundaryTestPage() {
   }
 
   return (
-    <Suspense fallback={null}>
-      <ErrorThrowingContent />
-    </Suspense>
+    <section>
+      <h1 className="text-2xl font-bold">Error Boundary Test Page</h1>
+      <Suspense fallback={null}>
+        <ErrorThrowingContent />
+      </Suspense>
+    </section>
   );
 }
