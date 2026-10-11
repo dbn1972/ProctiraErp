@@ -42,7 +42,8 @@ function isExamDocumentPayload(payload: unknown): payload is ExamDocumentJobPayl
   return (
     typeof payload === 'object' &&
     payload !== null &&
-    typeof (payload as ExamDocumentJobPayload).jobId === 'string'
+    typeof (payload as ExamDocumentJobPayload).jobId === 'string' &&
+    (payload as ExamDocumentJobPayload).jobId.length > 0
   );
 }
 
@@ -66,15 +67,20 @@ export function createExamDocumentWorker(options: ExamDocumentWorkerOptions): Ex
           autoAck: false,
         },
         async (message: QueueMessage) => {
-          if (message.type !== EXAM_DOCUMENT_JOB_TYPE && !isExamDocumentPayload(message.payload)) {
+          // PRC-L103: a valid job requires BOTH the exact message type AND a
+          // well-formed payload. The previous `type !== JOB_TYPE && !isPayload`
+          // guard let a wrong-typed message carrying a jobId-shaped payload slip
+          // through to processJob. Fail closed: reject unless both hold, and
+          // throw (nack -> DLQ) for foreign/malformed messages so they are not
+          // silently acked and lost.
+          if (message.type !== EXAM_DOCUMENT_JOB_TYPE || !isExamDocumentPayload(message.payload)) {
             options.logger?.error(
               { type: message.type, id: message.id },
-              'exam-document worker ignored unexpected message',
+              'exam-document worker rejected unexpected message',
             );
-            return;
-          }
-          if (!isExamDocumentPayload(message.payload)) {
-            throw new Error(`Invalid exam document payload on message ${message.id}`);
+            throw new Error(
+              `Unexpected exam document message ${message.id} (type=${String(message.type)})`,
+            );
           }
           const { jobId } = message.payload;
           options.logger?.info(
