@@ -111,36 +111,38 @@ export function isWildcardTopic(topic: string): boolean {
 /**
  * Convert an AMQP-style wildcard routing key to an anchored RegExp for kafkajs.
  *   `*` → exactly one dot-free segment
- *   `#` → zero or more whole segments, always including the dot that joins them
+ *   `#` → zero or more whole segments
  * Literal segments are escaped so a tenant id or event name cannot inject regex.
  *
- * PRC-L355 — the dot adjacent to a `#` is part of the `#` token, never an
- * independent optional separator. A previous `\.?` form let `tenant.abc.#`
- * match `tenant.abc-evil.jobs` and `tenant.abcdef` (sibling-prefix leak). A
- * trailing `#` must only match a boundary-aligned continuation: `tenant.abc`
- * then either nothing or `.<segment>(.<segment>)*`.
+ * PRC-L355 / PRC-M365 — segment boundaries must survive every `#` position:
+ *  - bare `#`            → any topic (zero or more segments)
+ *  - leading `#.x`       → `(?:[^.]+\.)*x` — the `#` token carries the dot on its
+ *                          RIGHT, so the following segment adds no separator
+ *  - interior/trailing   → `(?:\.[^.]+)*` — the `#` token carries the dot on its
+ *                          LEFT; a following literal still needs its own `\.`,
+ *                          so `tenant.#.abc.jobs` cannot match `tenant.evilabc.jobs`
+ *                          and `tenant.abc.#` cannot match `tenant.abc-evil.jobs`.
+ * Consecutive `#` segments are collapsed (`#.#` ≡ `#`).
  */
 export function wildcardTopicToRegExp(topic: string): RegExp {
-  const parts = topic.split('.');
+  const parts = topic.split('.').filter((seg, i, all) => !(seg === '#' && all[i - 1] === '#'));
+  if (parts.length === 1 && parts[0] === '#') {
+    return /^(?:[^.]+(?:\.[^.]+)*)?$/;
+  }
+  const leadingHash = parts[0] === '#';
   let pattern = '';
   for (let i = 0; i < parts.length; i += 1) {
     const seg = parts[i] ?? '';
-    const prev = i > 0 ? (parts[i - 1] ?? '') : '';
-    const isFirst = i === 0;
     if (seg === '#') {
-      if (isFirst) {
-        // Leading `#`: zero or more leading segments, each with its trailing dot.
-        pattern += '(?:[^.]+\\.)*';
-      } else {
-        // Trailing/interior `#`: absorb the preceding dot plus zero or more
-        // whole segments. The dot is mandatory iff at least one segment follows.
-        pattern += '(?:\\.[^.]+)*';
-      }
+      // i === 0: leading `#` (zero or more segments, each with its trailing dot).
+      // otherwise: interior/trailing `#` (zero or more `.segment` continuations).
+      pattern += i === 0 ? '(?:[^.]+\\.)*' : '(?:\\.[^.]+)*';
       continue;
     }
-    // A literal/`*` segment needs a separating dot, EXCEPT when it directly
-    // follows a `#` token, which already carries its own adjacent dot.
-    if (!isFirst && prev !== '#') pattern += '\\.';
+    // Every literal/`*` segment after the first needs its own separating dot,
+    // EXCEPT directly after a leading `#`, whose token already ends with a dot.
+    const afterLeadingHash = i === 1 && leadingHash;
+    if (i > 0 && !afterLeadingHash) pattern += '\\.';
     if (seg === '*') {
       pattern += '[^.]+';
     } else {

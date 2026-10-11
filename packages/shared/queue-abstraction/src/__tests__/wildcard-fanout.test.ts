@@ -55,6 +55,48 @@ describe('PRC-M365 wildcard topic helpers', () => {
     expect(re.test('tenant.acme.other')).toBe(false);
   });
 
+  it('trailing # on a tenant keeps the segment boundary (review blocker 2)', () => {
+    const re = wildcardTopicToRegExp('tenant.abc.#');
+    expect(re.test('tenant.abc')).toBe(true);
+    expect(re.test('tenant.abc.x.y')).toBe(true);
+    expect(re.test('tenant.abc-evil.jobs')).toBe(false);
+  });
+  it('leading # absorbs its following separator only', () => {
+    const re = wildcardTopicToRegExp('#.jobs');
+    expect(re.test('jobs')).toBe(true);
+    expect(re.test('tenant.acme.jobs')).toBe(true);
+    expect(re.test('evil-jobs')).toBe(false);
+    expect(re.test('tenant.acmejobs')).toBe(false);
+  });
+  it('interior # keeps segment boundaries on both sides', () => {
+    const re = wildcardTopicToRegExp('tenant.#.abc.jobs');
+    expect(re.test('tenant.abc.jobs')).toBe(true);
+    expect(re.test('tenant.x.abc.jobs')).toBe(true);
+    expect(re.test('tenant.x.y.abc.jobs')).toBe(true);
+    expect(re.test('tenant.evilabc.jobs')).toBe(false);
+    expect(re.test('tenantabc.jobs')).toBe(false);
+  });
+  it('interior # after * keeps the boundary before the trailing literal', () => {
+    const re = wildcardTopicToRegExp('tenant.*.#.created');
+    expect(re.test('tenant.abc.created')).toBe(true);
+    expect(re.test('tenant.abc.x.created')).toBe(true);
+    expect(re.test('tenant.abc.uncreated')).toBe(false);
+    expect(re.test('tenant.created')).toBe(false);
+  });
+  it('bare # matches any topic', () => {
+    const re = wildcardTopicToRegExp('#');
+    expect(re.test('jobs')).toBe(true);
+    expect(re.test('a.b.c')).toBe(true);
+    expect(re.test('tenant.acme.jobs.created')).toBe(true);
+  });
+  it('consecutive # collapse to one', () => {
+    expect(wildcardTopicToRegExp('#.#').test('a.b')).toBe(true);
+    expect(wildcardTopicToRegExp('#.#').test('jobs')).toBe(true);
+    const re = wildcardTopicToRegExp('tenant.#.#.jobs');
+    expect(re.test('tenant.jobs')).toBe(true);
+    expect(re.test('tenant.a.b.jobs')).toBe(true);
+    expect(re.test('tenant.ajobs')).toBe(false);
+  });
   it('escapes literal segments so tenant ids cannot inject regex', () => {
     const re = wildcardTopicToRegExp('tenant.a.c.jobs');
     // The dot is a literal separator, not "any char".
