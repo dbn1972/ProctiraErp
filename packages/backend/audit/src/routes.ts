@@ -18,7 +18,7 @@
  * - 21.4: Query with filtering by entity type, user, date range, operation type
  * - 21.5: Configurable retention with automated archival
  */
-import { AppError } from '@proctira/common';
+import { AppError, PLATFORM_ADMIN_ROLE_IDS } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -136,8 +136,25 @@ function normaliseAuditRoles(roles: unknown): string[] {
  * Writing arbitrary audit rows is a privileged, security-sensitive operation; it must
  * not be available to any caller who merely reaches the mount. Reads remain available
  * to any authenticated principal within the tenant (RLS + tenant guard still apply).
+ *
+ * The set stays fail-closed (an unlisted role is denied) but MUST contain every
+ * legitimate in-repo writer of the `/audit-logs` routes:
+ *   - canonical platform-admin role ids (`platform_admin`, `super-admin`) sourced
+ *     from {@link PLATFORM_ADMIN_ROLE_IDS} so this list cannot silently diverge
+ *     from the gateway's platform-admin definition. The web `/billing`,
+ *     `/audit-logs` and `/tenant-lifecycle` surfaces (apps/web platform.server.ts)
+ *     and the admin-console platform surfaces are rendered for this persona and
+ *     POST/PUT/DELETE audit evidence (retention, archival, DSAR export, direct
+ *     record writes). Omitting `platform_admin` 403'd the platform administrator
+ *     on legitimate audit writes (G-727 regression).
+ *   - the tenant administrator (`admin`) plus common `super_admin`/`system(-|_)admin`
+ *     spellings, and the audit/security/compliance officer roles that own audit
+ *     evidence directly.
+ * Role ids are matched case-insensitively (see {@link normaliseAuditRoles}); the
+ * canonical platform ids are already lowercase.
  */
 const AUDIT_WRITE_ROLES = new Set<string>([
+  ...[...PLATFORM_ADMIN_ROLE_IDS].map((r) => r.toLowerCase()),
   'admin',
   'super-admin',
   'super_admin',

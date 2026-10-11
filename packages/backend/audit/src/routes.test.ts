@@ -526,5 +526,77 @@ describe('Audit Routes', () => {
       expect(res.statusCode).toBe(201);
       await scoped.close();
     });
+
+    // PRC-L280 regression (G-727): the platform administrator persona renders
+    // /billing, /audit-logs and /tenant-lifecycle and writes audit evidence
+    // (direct record, retention, archival, DSAR export). The canonical
+    // platform-admin role ids must be able to write or the surface 403s.
+    it('allows the canonical platform-admin role ids to write (201)', async () => {
+      for (const roleId of ['platform_admin', 'super-admin']) {
+        const scoped = await appWithRoles([roleId]);
+        const res = await scoped.inject({
+          method: 'POST',
+          url: '/audit',
+          payload: {
+            entityType: 'e2e-platform-surface',
+            entityId: 's1',
+            operation: 'UPDATE',
+            beforeValues: { status: 'draft' },
+            afterValues: { status: 'published' },
+          },
+        });
+        expect(res.statusCode, `role ${roleId} should be allowed to write audit`).toBe(201);
+        await scoped.close();
+      }
+    });
+
+    // The platform-admin role claim can arrive as the gateway JWT
+    // `{ roleId }` record shape, not only a bare string.
+    it('allows a platform_admin role record ({ roleId }) to write (201)', async () => {
+      const scoped = Fastify();
+      scoped.decorateRequest('tenantId', '');
+      scoped.addHook('onRequest', async (request) => {
+        (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
+        (request as unknown as { user: { sub: string; roles: Array<{ roleId: string }> } }).user = {
+          sub: 'u',
+          roles: [{ roleId: 'platform_admin' }],
+        };
+      });
+      await scoped.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await scoped.ready();
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'e2e-platform-surface',
+          entityId: 's1',
+          operation: 'UPDATE',
+          beforeValues: { status: 'draft' },
+          afterValues: { status: 'published' },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
+    });
+
+    it('allows the tenant administrator (admin) to write (201)', async () => {
+      const scoped = await appWithRoles(['admin']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'institution',
+          entityId: 'i1',
+          operation: 'UPDATE',
+          beforeValues: { name: 'Old' },
+          afterValues: { name: 'New' },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
+    });
   });
 });
