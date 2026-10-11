@@ -54,10 +54,29 @@ BEGIN
       END IF;
     END IF;
 
-    -- Approval requires a distinct approver (dual control).
+    -- Approval requires a distinct approver (dual control) and a bounded,
+    -- near-now authority window. Freezing only kicks in AFTER approval, so the
+    -- bound must be enforced on the pending->approved edge itself — otherwise a
+    -- single abused app-role UPDATE could approve with expires_at years out.
     IF NEW.status = 'approved' AND OLD.status = 'pending' THEN
       IF NEW.approver_user_id IS NULL OR NEW.approver_user_id = NEW.requester_user_id THEN
         RAISE EXCEPTION 'health_phi_break_glass: approval needs a distinct approver (dual control)'
+          USING ERRCODE = '42501';
+      END IF;
+      IF NEW.approved_at IS NULL OR NEW.expires_at IS NULL THEN
+        RAISE EXCEPTION 'health_phi_break_glass: approval must set approved_at and expires_at'
+          USING ERRCODE = '42501';
+      END IF;
+      -- approved_at must be ~now (allow small clock skew), never back-dated.
+      IF NEW.approved_at < now() - interval '5 minutes'
+         OR NEW.approved_at > now() + interval '5 minutes' THEN
+        RAISE EXCEPTION 'health_phi_break_glass: approved_at must be close to now()'
+          USING ERRCODE = '42501';
+      END IF;
+      -- expires_at must not exceed the authorised cap (approved_at + duration).
+      IF NEW.expires_at <= NEW.approved_at
+         OR NEW.expires_at > NEW.approved_at + make_interval(mins => NEW.duration_minutes) THEN
+        RAISE EXCEPTION 'health_phi_break_glass: expires_at must be within approved_at + duration_minutes'
           USING ERRCODE = '42501';
       END IF;
     END IF;

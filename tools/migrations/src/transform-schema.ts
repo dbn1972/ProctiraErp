@@ -149,10 +149,18 @@ export async function findUnmappedEnumCodes(
 
 /**
  * Transforms one mapping after the unmapped-enum pre-flight. Throws (without
- * writing any row) when a legacy code has no mapping. Returns the number of rows
- * actually inserted AND the number of source rows that were silently dropped by
- * ON CONFLICT DO NOTHING (PRC-M556 — a non-zero drop count is a data-loss signal
- * the caller must surface, not hide).
+ * writing any row) when a legacy code has no mapping. Returns:
+ *   - `inserted`: rows written on THIS call
+ *   - `dropped`:  source rows that are GENUINELY missing from the target after
+ *                 the insert (true data loss) — NOT rows that ON CONFLICT
+ *                 skipped because an identical target row already exists.
+ *
+ * PRC-M556 — the original "dropped = sourceCount - inserted" treated every
+ * ON CONFLICT skip as data loss, which made a second pipeline run (after an
+ * earlier step failed and left rows in the target) fail on every table even
+ * though nothing was lost. We instead count source primary keys that are
+ * absent from the target, so re-runs against a partially-populated target are
+ * idempotent while real data loss is still surfaced.
  */
 export async function transformTable(
   client: Pick<PoolClient, 'query'>,
@@ -170,14 +178,32 @@ export async function transformTable(
       .join('; ');
     throw new Error(`Unmapped legacy enum codes in ${mapping.sourceTable}: ${detail}`);
   }
-  // Count candidate source rows (same filter) so ON CONFLICT DO NOTHING cannot
-  // silently discard rows without the migration noticing.
-  const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
-  const sourceCountSql = `SELECT COUNT(*)::int AS c FROM "${stagingSchema}"."${mapping.sourceTable}" s ${filterClause}`;
-  const sourceCount = Number((await client.query<{ c: number }>(sourceCountSql)).rows[0]?.c ?? 0);
   const result = await client.query(buildTransformSQL(mapping, stagingSchema, targetSchema));
   const inserted = result.rowCount ?? 0;
-  const dropped = Math.max(0, sourceCount - inserted);
+
+  // Genuine data loss: source rows whose primary key is not present in the
+  // target after the insert. A skipped-but-already-present row (idempotent
+  // re-run) is NOT counted. We resolve the key from the column mapping: the
+  // source column that maps to the target `id`.
+  const idColumn = mapping.columns.find((c) => c.target === 'id');
+  if (!idColumn) {
+    // No id key to verify against; fall back to the conservative count.
+    const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
+    const sourceCountSql = `SELECT COUNT(*)::int AS c FROM "${stagingSchema}"."${mapping.sourceTable}" s ${filterClause}`;
+    const sourceCount = Number((await client.query<{ c: number }>(sourceCountSql)).rows[0]?.c ?? 0);
+    return { inserted, dropped: Math.max(0, sourceCount - inserted) };
+  }
+
+  const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
+  const missingSql = `
+    SELECT COUNT(*)::int AS c
+    FROM "${stagingSchema}"."${mapping.sourceTable}" s
+    ${filterClause}
+    ${filterClause ? 'AND' : 'WHERE'} NOT EXISTS (
+      SELECT 1 FROM "${targetSchema}"."${mapping.targetTable}" t
+      WHERE t."id" = s."${idColumn.source}"
+    )`;
+  const dropped = Number((await client.query<{ c: number }>(missingSql)).rows[0]?.c ?? 0);
   return { inserted, dropped };
 }
 

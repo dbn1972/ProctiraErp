@@ -34,6 +34,27 @@ describe('PRC-M365 wildcard topic helpers', () => {
     expect(re.test('tenant.beta.jobs')).toBe(false);
   });
 
+  it('trailing # must not cross a sibling tenant prefix (PRC-L355)', () => {
+    const re = wildcardTopicToRegExp('tenant.abc.#');
+    // Exact tenant: fine.
+    expect(re.test('tenant.abc')).toBe(true);
+    expect(re.test('tenant.abc.jobs')).toBe(true);
+    // Sibling tenants whose slug starts with "abc" must NOT match — this was
+    // the leak: the dot before `#` must be mandatory when a segment follows.
+    expect(re.test('tenant.abc-evil.jobs')).toBe(false);
+    expect(re.test('tenant.abcdef')).toBe(false);
+    expect(re.test('tenant.abcdef.jobs')).toBe(false);
+  });
+
+  it('leading # matches zero or more leading segments without crossing boundaries', () => {
+    const re = wildcardTopicToRegExp('#.jobs');
+    expect(re.test('jobs')).toBe(true);
+    expect(re.test('tenant.acme.jobs')).toBe(true);
+    // Must still anchor on the trailing literal segment.
+    expect(re.test('tenant.acme.jobs.created')).toBe(false);
+    expect(re.test('tenant.acme.other')).toBe(false);
+  });
+
   it('escapes literal segments so tenant ids cannot inject regex', () => {
     const re = wildcardTopicToRegExp('tenant.a.c.jobs');
     // The dot is a literal separator, not "any char".

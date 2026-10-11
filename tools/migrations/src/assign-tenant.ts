@@ -93,9 +93,16 @@ async function assignTenantToTable(
 
 /**
  * PRC-M554 — discover every tenant-scoped table from the catalog instead of a
- * hardcoded list of 10. Any table with a `tenant_id` column in the target schema
- * (except the tenants table itself and the migration bookkeeping table) must be
- * assigned, so new domain tables are not silently left tenant-less.
+ * hardcoded list of 10. A table is tenant-scoped only when its `tenant_id`
+ * column is NOT NULL: a mandatory `tenant_id` is the schema's contract that
+ * every row in that table belongs to exactly one tenant.
+ *
+ * Tables whose `tenant_id` is NULLable are deliberately excluded. A NULL
+ * `tenant_id` is a legitimate "platform-owned" marker (e.g.
+ * `control_plane_documents`, db/sql/022; `PgDocumentStore` treats
+ * `tenant_id IS NULL` as `{ platform: true }`). Blanket-assigning the migrated
+ * tenant to those NULL rows would silently re-home platform control-plane data
+ * into one school's tenant and then falsely report "all rows assigned".
  */
 export async function discoverTenantScopedTables(
   client: Pick<PoolClient, 'query'>,
@@ -106,6 +113,7 @@ export async function discoverTenantScopedTables(
        FROM information_schema.columns
       WHERE table_schema = $1
         AND column_name = 'tenant_id'
+        AND is_nullable = 'NO'
         AND table_name NOT IN ('tenants', 'schema_migrations')
       ORDER BY table_name`,
     [targetSchema],

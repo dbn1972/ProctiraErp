@@ -51,8 +51,23 @@ describe('W3-D3 pg pool sizing', () => {
     expect(cfg.statementTimeoutMillis).toBe(15_000);
     expect(cfg.queryTimeoutMillis).toBe(12_000);
     expect(cfg.idleInTransactionSessionTimeoutMillis).toBe(90_000);
-    // Out-of-range values fall back to defaults (fail-closed, no unbounded statements).
-    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: '0' }).statementTimeoutMillis).toBe(
+    // Contract change (PR4 re-audit, review item 5): `0` is now an explicit
+    // per-deployment OPT-OUT so long-running workers (reports, ETL, privacy)
+    // can disable the cap. Previously `0` fell back to the 30s default.
+    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: '0' }).statementTimeoutMillis).toBe(0);
+    expect(resolvePgPoolConfig({ PG_QUERY_TIMEOUT_MS: '0' }).queryTimeoutMillis).toBe(0);
+    expect(
+      resolvePgPoolConfig({ PG_IDLE_IN_TX_TIMEOUT_MS: '0' }).idleInTransactionSessionTimeoutMillis,
+    ).toBe(0);
+    // Non-zero out-of-range / bogus values still fall back to the bounded
+    // default (fail-safe: never silently unbound a statement by typo).
+    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: '-5' }).statementTimeoutMillis).toBe(
+      PG_POOL_DEFAULTS.statementTimeoutMillis,
+    );
+    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: 'abc' }).statementTimeoutMillis).toBe(
+      PG_POOL_DEFAULTS.statementTimeoutMillis,
+    );
+    expect(resolvePgPoolConfig({ PG_STATEMENT_TIMEOUT_MS: '999' }).statementTimeoutMillis).toBe(
       PG_POOL_DEFAULTS.statementTimeoutMillis,
     );
   });

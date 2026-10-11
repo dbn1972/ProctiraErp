@@ -65,13 +65,13 @@ describe('map_enum fallback (PRC-H105)', () => {
     expect(inserts).toHaveLength(0);
   });
 
-  it('PRC-M556: reports source rows dropped by ON CONFLICT DO NOTHING', async () => {
+  it('PRC-M556: reports source rows GENUINELY missing from the target as dropped', async () => {
     const students = getMappingForTarget('students')!;
     const client = {
       query: vi.fn(async (sql: string) => {
         if (sql.includes('AS code')) return { rows: [] }; // no unmapped codes
-        if (sql.includes('COUNT(*)::int AS c')) return { rows: [{ c: 10 }] }; // 10 source rows
-        if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 7 }; // only 7 inserted
+        if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 7 }; // 7 inserted
+        if (sql.includes('NOT EXISTS')) return { rows: [{ c: 3 }] }; // 3 still missing
         return { rows: [] };
       }),
     };
@@ -80,17 +80,39 @@ describe('map_enum fallback (PRC-H105)', () => {
     expect(result.dropped).toBe(3);
   });
 
-  it('PRC-M556: dropped is zero when every source row inserts', async () => {
+  it('PRC-M556: dropped is zero when every source row is present in the target', async () => {
     const students = getMappingForTarget('students')!;
     const client = {
       query: vi.fn(async (sql: string) => {
         if (sql.includes('AS code')) return { rows: [] };
-        if (sql.includes('COUNT(*)::int AS c')) return { rows: [{ c: 5 }] };
         if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 5 };
+        if (sql.includes('NOT EXISTS')) return { rows: [{ c: 0 }] };
         return { rows: [] };
       }),
     };
     const result = await transformTable(client as never, students, 'migration_staging', 'public');
     expect(result).toEqual({ inserted: 5, dropped: 0 });
+  });
+
+  it('PRC-M556 re-run: ON CONFLICT skips of already-present rows are NOT data loss', async () => {
+    // Second pipeline run: 10 source rows, 0 inserted (all already present in
+    // the target), and NOT EXISTS finds none missing. The old
+    // `sourceCount - inserted` logic would report 10 "dropped" and fail the
+    // table; the fixed logic reports zero.
+    const students = getMappingForTarget('students')!;
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('AS code')) return { rows: [] };
+        if (sql.includes('INSERT INTO')) return { rows: [], rowCount: 0 };
+        if (sql.includes('NOT EXISTS')) return { rows: [{ c: 0 }] };
+        return { rows: [] };
+      }),
+    };
+    const result = await transformTable(client as never, students, 'migration_staging', 'public');
+    expect(result).toEqual({ inserted: 0, dropped: 0 });
+    // The data-loss check must query NOT EXISTS against the target, not a bare
+    // source COUNT compared to inserted.
+    const usedNotExists = client.query.mock.calls.some(([sql]) => sql.includes('NOT EXISTS'));
+    expect(usedNotExists).toBe(true);
   });
 });

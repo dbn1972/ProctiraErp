@@ -111,33 +111,41 @@ export function isWildcardTopic(topic: string): boolean {
 /**
  * Convert an AMQP-style wildcard routing key to an anchored RegExp for kafkajs.
  *   `*` → exactly one dot-free segment
- *   `#` → zero or more segments (including the dots between them)
+ *   `#` → zero or more whole segments, always including the dot that joins them
  * Literal segments are escaped so a tenant id or event name cannot inject regex.
+ *
+ * PRC-L355 — the dot adjacent to a `#` is part of the `#` token, never an
+ * independent optional separator. A previous `\.?` form let `tenant.abc.#`
+ * match `tenant.abc-evil.jobs` and `tenant.abcdef` (sibling-prefix leak). A
+ * trailing `#` must only match a boundary-aligned continuation: `tenant.abc`
+ * then either nothing or `.<segment>(.<segment>)*`.
  */
 export function wildcardTopicToRegExp(topic: string): RegExp {
   const parts = topic.split('.');
-  const tokens: string[] = [];
+  let pattern = '';
   for (let i = 0; i < parts.length; i += 1) {
     const seg = parts[i] ?? '';
+    const prev = i > 0 ? (parts[i - 1] ?? '') : '';
+    const isFirst = i === 0;
+    if (seg === '#') {
+      if (isFirst) {
+        // Leading `#`: zero or more leading segments, each with its trailing dot.
+        pattern += '(?:[^.]+\\.)*';
+      } else {
+        // Trailing/interior `#`: absorb the preceding dot plus zero or more
+        // whole segments. The dot is mandatory iff at least one segment follows.
+        pattern += '(?:\\.[^.]+)*';
+      }
+      continue;
+    }
+    // A literal/`*` segment needs a separating dot, EXCEPT when it directly
+    // follows a `#` token, which already carries its own adjacent dot.
+    if (!isFirst && prev !== '#') pattern += '\\.';
     if (seg === '*') {
-      tokens.push('[^.]+');
-    } else if (seg === '#') {
-      // `#` absorbs the following dot too, so `a.#` matches `a` and `a.b.c`.
-      tokens.push('(?:[^.]+(?:\\.[^.]+)*)?');
+      pattern += '[^.]+';
     } else {
-      tokens.push(seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      pattern += seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
-  }
-  // Join with `\.` but collapse the separator around a trailing/leading `#`.
-  let pattern = '';
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (i > 0) {
-      const prev = parts[i - 1] ?? '';
-      const cur = parts[i] ?? '';
-      // Avoid a mandatory separator next to a `#` that may match zero segments.
-      pattern += prev === '#' || cur === '#' ? '\\.?' : '\\.';
-    }
-    pattern += tokens[i];
   }
   return new RegExp(`^${pattern}$`);
 }

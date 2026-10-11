@@ -62,16 +62,35 @@ android {
     buildTypes {
         release {
             val releaseSigning = signingConfigs.getByName("release")
-            val allowDebugSigned =
-                System.getenv("ALLOW_DEBUG_SIGNED_RELEASE") == "1"
             if (releaseSigning.storeFile != null) {
                 // Properly configured release keystore.
                 signingConfig = releaseSigning
-            } else if (allowDebugSigned) {
+            } else if (System.getenv("ALLOW_DEBUG_SIGNED_RELEASE") == "1") {
                 // Explicit local opt-in for `flutter run --release` smoke tests.
                 signingConfig = signingConfigs.getByName("debug")
-            } else {
-                // PRC-M470: fail closed — never silently ship debug-signed.
+            }
+            // PRC-M470: when neither a real keystore nor the explicit debug
+            // opt-in is present we must fail closed — but ONLY for release
+            // builds. The check is deferred to the release task's execution
+            // phase (doFirst, below) instead of running here in the
+            // configuration phase. AGP configures EVERY build type while
+            // building any variant's model, so throwing here broke
+            // `assembleDebug` / `flutter run` (debug) when no keystore existed.
+        }
+    }
+
+    // PRC-M470: enforce the release-signing contract at execution time, scoped
+    // to release-assembling tasks only. Debug builds never reach this block.
+    tasks.matching { task ->
+        val name = task.name
+        name.startsWith("assemble") && name.contains("Release") ||
+            name.startsWith("bundle") && name.contains("Release") ||
+            name.startsWith("package") && name.contains("Release")
+    }.configureEach {
+        doFirst {
+            val releaseSigning = signingConfigs.getByName("release")
+            val allowDebugSigned = System.getenv("ALLOW_DEBUG_SIGNED_RELEASE") == "1"
+            if (releaseSigning.storeFile == null && !allowDebugSigned) {
                 throw org.gradle.api.GradleException(
                     "Release build has no signing config. Provide key.properties " +
                         "or ANDROID_KEYSTORE_* env, or set ALLOW_DEBUG_SIGNED_RELEASE=1 " +

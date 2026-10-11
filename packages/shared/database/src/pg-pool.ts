@@ -14,9 +14,17 @@
  *   PG_POOL_MAX / DATABASE_POOL_SIZE — max clients per process (default 10, cap 100)
  *   PG_POOL_IDLE_TIMEOUT_MS — close idle clients after N ms (default 30000)
  *   PG_POOL_CONNECTION_TIMEOUT_MS — fail acquisition after N ms (default 10000)
- *   PG_STATEMENT_TIMEOUT_MS — server-side per-statement cap (default 30000)
- *   PG_QUERY_TIMEOUT_MS — client-side per-query cap (default 30000)
- *   PG_IDLE_IN_TX_TIMEOUT_MS — abort sessions idle-in-transaction (default 60000)
+ *   PG_STATEMENT_TIMEOUT_MS — server-side per-statement cap (default 30000; 0 = disabled)
+ *   PG_QUERY_TIMEOUT_MS — client-side per-query cap (default 30000; 0 = disabled)
+ *   PG_IDLE_IN_TX_TIMEOUT_MS — abort sessions idle-in-transaction (default 60000; 0 = disabled)
+ *
+ * ROLLOUT / long-running consumers: the three *_TIMEOUT_MS caps are new as of
+ * the PR4 data-infra hardening and apply to EVERY `getSharedPgPool` consumer
+ * (reports, privacy/erasure executor, ETL pipelines, dashboards). A job whose
+ * legitimate queries can exceed 30s MUST set a higher value, or `0` to disable
+ * the cap for that process, via its deployment env. See the Helm
+ * `values-*.yaml` worker env and `docs/runbooks` for the per-workload values.
+ * Disabling (`0`) emits the Postgres default (no timeout).
  */
 import pg from 'pg';
 
@@ -62,6 +70,21 @@ function parseBoundedInt(
 }
 
 /**
+ * Like parseBoundedInt but accepts an explicit `0` meaning "disabled" (emit the
+ * Postgres default of no timeout). Used only for the per-statement/query/idle
+ * timeout caps so a long-running worker can opt out via env. Any other
+ * out-of-range value falls back to the default cap (fail safe, still bounded).
+ */
+function parseTimeoutMs(raw: string | undefined, fallback: number, max: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed === 0) return 0; // explicit opt-out
+  if (parsed < 1_000 || parsed > max) return fallback;
+  return parsed;
+}
+
+/**
  * Resolves bounded node-pg pool sizing from environment.
  * Exported for unit tests and observability hooks.
  */
@@ -81,22 +104,19 @@ export function resolvePgPoolConfig(env: PgPoolEnv = process.env): PgPoolSizing 
       1_000,
       120_000,
     ),
-    statementTimeoutMillis: parseBoundedInt(
+    statementTimeoutMillis: parseTimeoutMs(
       env['PG_STATEMENT_TIMEOUT_MS'],
       PG_POOL_DEFAULTS.statementTimeoutMillis,
-      1_000,
       600_000,
     ),
-    queryTimeoutMillis: parseBoundedInt(
+    queryTimeoutMillis: parseTimeoutMs(
       env['PG_QUERY_TIMEOUT_MS'],
       PG_POOL_DEFAULTS.queryTimeoutMillis,
-      1_000,
       600_000,
     ),
-    idleInTransactionSessionTimeoutMillis: parseBoundedInt(
+    idleInTransactionSessionTimeoutMillis: parseTimeoutMs(
       env['PG_IDLE_IN_TX_TIMEOUT_MS'],
       PG_POOL_DEFAULTS.idleInTransactionSessionTimeoutMillis,
-      1_000,
       600_000,
     ),
   };
