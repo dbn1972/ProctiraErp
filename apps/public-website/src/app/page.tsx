@@ -191,10 +191,12 @@ export default function HomePage() {
               </span>
             </div>
             <div className="mt-6 grid grid-cols-3 gap-3">
+              {/* PRC-M472: decorative product mockup — use neutral sample labels,
+                  never specific fabricated counts that read as real usage data. */}
               {[
-                { label: 'Students', value: '24,812' },
-                { label: 'Schools', value: '142' },
-                { label: 'Attendance', value: '96.4%' },
+                { label: 'Students', value: '—' },
+                { label: 'Schools', value: '—' },
+                { label: 'Attendance', value: '—' },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -338,29 +340,41 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats band */}
+      {/* Capabilities band */}
       <section
         className="border-t border-border bg-primary text-primary-foreground"
         aria-label="Platform at a glance"
       >
         <div className="container py-16">
+          {/*
+            PRC-M472: do not present fabricated usage metrics (student / school
+            counts, attendance %) as real pilot data. Until figures come from a
+            verified, dated source we state capabilities, not invented numbers.
+          */}
           <div className="grid gap-10 text-center md:grid-cols-3">
             {[
-              { value: '24,812', label: 'students managed every day' },
-              { value: '142', label: 'schools live in the pilot deployment' },
               {
-                value: '96.4%',
-                label: 'average attendance captured digitally',
+                value: 'Multi-tenant',
+                label: 'one platform, isolated data per school or district',
+              },
+              {
+                value: 'Open source',
+                label: 'self-host today — see it running in under an hour',
+              },
+              {
+                value: 'Attendance to results',
+                label: 'admissions, timetabling, fees, exams and reporting in one place',
               },
             ].map((stat) => (
               <div key={stat.label}>
-                <p className="text-4xl font-extrabold tracking-tight md:text-5xl">{stat.value}</p>
+                <p className="text-3xl font-extrabold tracking-tight md:text-4xl">{stat.value}</p>
                 <p className="mt-2 text-sm text-primary-foreground/70">{stat.label}</p>
               </div>
             ))}
           </div>
           <p className="mt-9 text-center text-sm text-primary-foreground/60">
-            Illustrative figures from a pilot deployment preview.
+            Deployment figures are shared with prospective customers on request, not published as
+            unverified marketing numbers.
           </p>
         </div>
       </section>

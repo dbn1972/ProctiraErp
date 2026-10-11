@@ -296,3 +296,40 @@ describe('<NotificationPreferences>', () => {
     expect(screen.getByText('Network error')).toBeTruthy();
   });
 });
+
+// ─── PRC-L269: mandatory channels ─────────────────────────────────────────
+
+describe('<NotificationPreferences> mandatory channels (PRC-L269)', () => {
+  it('locks the in-app channel on for system and workflow and cannot be turned off', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
+    });
+
+    const systemInApp = screen.getByTestId('toggle-system-in_app') as HTMLButtonElement;
+    const workflowInApp = screen.getByTestId('toggle-workflow-in_app') as HTMLButtonElement;
+    expect(systemInApp.getAttribute('data-mandatory')).toBe('true');
+    expect(systemInApp).toBeDisabled();
+    expect(systemInApp.getAttribute('aria-checked')).toBe('true');
+    expect(workflowInApp).toBeDisabled();
+
+    // Attempting to toggle it off leaves it checked and does not dirty the form.
+    act(() => {
+      fireEvent.click(systemInApp);
+    });
+    expect(systemInApp.getAttribute('aria-checked')).toBe('true');
+    expect((screen.getByTestId('notification-prefs-submit') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('leaves non-critical channels freely toggleable', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
+    });
+    const academicEmail = screen.getByTestId('toggle-academic-email') as HTMLButtonElement;
+    expect(academicEmail.getAttribute('data-mandatory')).toBeNull();
+    expect(academicEmail).not.toBeDisabled();
+  });
+});

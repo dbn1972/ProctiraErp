@@ -59,6 +59,13 @@ export function CirculationDesk({
       setError('Select a catalog item or scan a barcode.');
       return;
     }
+    // PRC-M105: a loan must name a borrower. Without one the backend would
+    // attribute the loan to the logged-in clerk (patronUserId = session user),
+    // so fail closed and require an explicit student/patron selection.
+    if (!studentId) {
+      setError('Select the borrower (student) before checking out.');
+      return;
+    }
 
     startTransition(async () => {
       setError(null);
@@ -67,14 +74,14 @@ export function CirculationDesk({
         ? await checkoutBarcodeAction({
             barcode,
             patronUserId,
-            studentId: studentId || undefined,
+            studentId,
             // PRC-M104 / PRC-M573: the due date applies to barcode checkouts too.
             dueAt: dueAt || undefined,
           })
         : await checkoutLibraryItemAction({
             itemId,
             patronUserId,
-            studentId: studentId || undefined,
+            studentId,
             // Wall-clock date; the server action converts it in the tenant timezone.
             dueAt: dueAt || undefined,
           });
@@ -182,10 +189,13 @@ export function CirculationDesk({
             <EntitySearchSelect
               id="checkout-student"
               name="studentId"
-              label="Student (optional)"
+              label="Borrower (student)"
               options={studentOptions}
               placeholder="Search student by name or code…"
             />
+            <p className="-mt-1 text-xs text-muted-foreground">
+              A borrower is required; the loan is not attributed to the clerk.
+            </p>
             <FormField id="checkout-due" label="Due date">
               <Input
                 id="checkout-due"

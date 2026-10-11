@@ -14,6 +14,8 @@ import {
   type AuditChainVerification,
 } from '@/lib/api/platform.server';
 
+import { AUDIT_RETENTION_MAX_MONTHS, minAuditRetentionMonths } from './retention-policy';
+
 export interface AuditActionState {
   status: 'idle' | 'success' | 'error';
   message?: string;
@@ -30,16 +32,25 @@ function fail(error: unknown, fallback: string): AuditActionState {
   return { status: 'error', message: error instanceof Error ? error.message : fallback };
 }
 
-const retentionSchema = z.object({
-  retentionMonths: z.number().int().min(1, 'At least 1 month').max(120, 'At most 120 months'),
-  archivalEnabled: z.boolean(),
-  archivalDestination: z.string().trim().max(500).nullable(),
-});
+function buildRetentionSchema() {
+  const min = minAuditRetentionMonths();
+  return z.object({
+    retentionMonths: z
+      .number()
+      .int()
+      .min(min, `At least ${min} months`)
+      .max(AUDIT_RETENTION_MAX_MONTHS, `At most ${AUDIT_RETENTION_MAX_MONTHS} months`),
+    archivalEnabled: z.boolean(),
+    archivalDestination: z.string().trim().max(500).nullable(),
+  });
+}
 
-export async function saveRetentionAction(
-  input: z.input<typeof retentionSchema>,
-): Promise<AuditActionState> {
-  const parsed = retentionSchema.safeParse(input);
+export async function saveRetentionAction(input: {
+  retentionMonths: number;
+  archivalEnabled: boolean;
+  archivalDestination: string | null;
+}): Promise<AuditActionState> {
+  const parsed = buildRetentionSchema().safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed.error.flatten().fieldErrors)) {

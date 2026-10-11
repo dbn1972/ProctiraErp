@@ -32,61 +32,155 @@ const exam: Examination = {
   ],
   centers: [],
 };
+function registration(studentId: string, subjectIds: string[], status = 'REGISTERED') {
+  return {
+    id: `reg-${studentId}`,
+    examinationId: 'ex-1',
+    studentId,
+    centerId: 'ctr-1',
+    subjectIds,
+    status,
+    registeredAt: '2025-01-01T00:00:00.000Z',
+  };
+}
+/** Route the three reads the results view makes: marks, publication, registrations. */
+function mockExamReads(opts: {
+  marks: unknown[];
+  publication?: unknown;
+  registrations?: unknown[] | null;
+}) {
+  gatewayFetch.mockImplementation(async (path: string) => {
+    if (path.endsWith('/results/marks')) return ok({ data: opts.marks });
+    if (path.endsWith('/candidates')) {
+      return opts.registrations === null ? fail(500) : ok({ data: opts.registrations ?? [] });
+    }
+    return opts.publication ? ok(opts.publication) : fail(404);
+  });
+}
 describe('getExaminationResultsView', () => {
   it('merges marks with published grades and computes totals/status', async () => {
-    gatewayFetch.mockImplementation(async (path: string) =>
-      path.endsWith('/results/marks')
-        ? ok({
-            data: [
-              {
-                id: 'c1',
-                studentId: 's1',
-                centerId: null,
-                subjectResults: [
-                  { subjectId: 'm', score: 80 },
-                  { subjectId: 'e', score: 40 },
-                ],
-              },
-              {
-                id: 'c2',
-                studentId: 's2',
-                centerId: null,
-                subjectResults: [{ subjectId: 'm', score: 50 }],
-              },
-            ],
-          })
-        : ok({
-            publishedAt: '2025-02-01',
-            gradeResults: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }],
-          }),
-    );
+    mockExamReads({
+      marks: [
+        {
+          id: 'c1',
+          studentId: 's1',
+          centerId: null,
+          subjectResults: [
+            { subjectId: 'm', score: 80, isComplete: true },
+            { subjectId: 'e', score: 40, isComplete: true },
+          ],
+        },
+        {
+          id: 'c2',
+          studentId: 's2',
+          centerId: null,
+          subjectResults: [{ subjectId: 'm', score: 50, isComplete: true }],
+        },
+      ],
+      registrations: [registration('s1', ['m', 'e']), registration('s2', ['m', 'e'])],
+      publication: {
+        publishedAt: '2025-02-01',
+        gradeResults: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }],
+      },
+    });
     const view = await getExaminationResultsView(exam);
     expect(view.published).toBe(true);
     const [r1, r2] = view.rows;
     expect(r1).toMatchObject({ totalScore: 120, maxScore: 150, status: 'PUBLISHED' });
-    expect(r2).toMatchObject({ totalScore: null, status: 'INCOMPLETE' });
+    // s2 is registered for Maths and English but only Maths has a marks row.
+    expect(r2).toMatchObject({ totalScore: null, maxScore: 150, status: 'INCOMPLETE' });
   });
   it('treats a failed publication read as unpublished and marks complete rows PENDING', async () => {
-    gatewayFetch.mockImplementation(async (path: string) =>
-      path.endsWith('/results/marks')
-        ? ok({
-            data: [
-              {
-                id: 'c1',
-                studentId: 's1',
-                centerId: null,
-                subjectResults: [
-                  { subjectId: 'm', score: 1 },
-                  { subjectId: 'e', score: 2 },
-                ],
-              },
-            ],
-          })
-        : fail(404),
-    );
+    mockExamReads({
+      marks: [
+        {
+          id: 'c1',
+          studentId: 's1',
+          centerId: null,
+          subjectResults: [
+            { subjectId: 'm', score: 1, isComplete: true },
+            { subjectId: 'e', score: 2, isComplete: true },
+          ],
+        },
+      ],
+      registrations: [registration('s1', ['m', 'e'])],
+    });
     const view = await getExaminationResultsView(exam);
     expect(view.published).toBe(false);
     expect(view.rows[0]).toMatchObject({ totalScore: 3, status: 'PENDING' });
+  });
+  it('keeps a candidate INCOMPLETE when a registered subject has no marks row (PRC-M145)', async () => {
+    // Backend contract: subjectResults only contains subjects with recorded marks.
+    mockExamReads({
+      marks: [
+        {
+          id: 'c1',
+          studentId: 's1',
+          centerId: null,
+          subjectResults: [{ subjectId: 'm', score: 80, isComplete: true }],
+        },
+      ],
+      registrations: [registration('s1', ['m', 'e'])],
+    });
+    const view = await getExaminationResultsView(exam);
+    expect(view.rows[0]).toMatchObject({ status: 'INCOMPLETE', totalScore: null, maxScore: 150 });
+    expect(view.rows[0]!.subjects.map((s) => [s.code, s.score])).toEqual([
+      ['MA', 80],
+      ['EN', null],
+    ]);
+  });
+  it('assesses a partly-registered candidate only on registered subjects (PRC-M145)', async () => {
+    mockExamReads({
+      marks: [
+        {
+          id: 'c2',
+          studentId: 's2',
+          centerId: null,
+          subjectResults: [{ subjectId: 'm', score: 50, isComplete: true }],
+        },
+      ],
+      registrations: [registration('s2', ['m'])],
+    });
+    const view = await getExaminationResultsView(exam);
+    expect(view.rows[0]).toMatchObject({ totalScore: 50, maxScore: 100, status: 'PENDING' });
+    expect(view.rows[0]!.subjects.map((s) => s.code)).toEqual(['MA']);
+  });
+  it('lists registered candidates with no marks row as INCOMPLETE and skips cancelled ones', async () => {
+    mockExamReads({
+      marks: [
+        {
+          id: 'c3',
+          studentId: 's3',
+          centerId: null,
+          subjectResults: [{ subjectId: 'm', score: 70, isComplete: true }],
+        },
+      ],
+      registrations: [registration('s3', ['m'], 'CANCELLED'), registration('s4', ['m', 'e'])],
+    });
+    const view = await getExaminationResultsView(exam);
+    expect(view.rows).toHaveLength(1);
+    expect(view.rows[0]).toMatchObject({
+      candidateId: 'reg-s4',
+      studentId: 's4',
+      status: 'INCOMPLETE',
+      totalScore: null,
+      maxScore: 150,
+    });
+  });
+  it('falls back to every exam subject when no registration is readable', async () => {
+    mockExamReads({
+      marks: [
+        {
+          id: 'c1',
+          studentId: 's1',
+          centerId: null,
+          subjectResults: [{ subjectId: 'm', score: 80, isComplete: true }],
+        },
+      ],
+      registrations: null,
+    });
+    const view = await getExaminationResultsView(exam);
+    expect(view.rows[0]).toMatchObject({ status: 'INCOMPLETE', maxScore: 150 });
   });
 });
 describe('admin.server sourceOf', () => {

