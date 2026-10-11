@@ -27,7 +27,9 @@ test.describe('Registration Portal — a11y axe (ungated)', () => {
     // ADM-CFG-01: without a selected school the wizard renders an accessible
     // alert guiding the applicant to pick a school (not an empty mock form).
     await page.goto('/apply/primary');
-    await expect(page.getByRole('alert')).toBeVisible();
+    // Scoped to <main> so Next's body-level route announcer (role="alert")
+    // cannot cause a timing-dependent strict-mode violation.
+    await expect(page.locator('main').getByRole('alert')).toBeVisible();
     await runAxe(page, { checkpointLabel: '/apply/primary' });
   });
 

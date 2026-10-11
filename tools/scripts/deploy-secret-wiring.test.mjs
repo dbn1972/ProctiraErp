@@ -61,19 +61,65 @@ test('deploy-platform job exists and is gated on migrate + runtime-role', () => 
   assert.match(block, /environment: \$\{\{ needs\.prepare\.outputs\.environment \}\}/);
 });
 
+// The helm invocation lives in tools/scripts/deploy-platform-helm.sh so the
+// render contract (check-platform-deploy-render.mjs) templates the same args.
+const platformHelm = readFileSync(join(root, 'tools/scripts/deploy-platform-helm.sh'), 'utf8');
+const PLATFORM_INVOKE = 'bash tools/scripts/deploy-platform-helm.sh upgrade';
+
 test('platform deploy installs the proctira-platform chart with the pre-created Secret', () => {
   const step = platformDeployStep();
-  assert.match(step, /helm upgrade --install proctira-platform/);
-  assert.match(step, /\.\/infrastructure\/helm\/proctira-platform/);
-  assert.match(step, /secrets\.existingSecret="\$\{PLATFORM_EXISTING_SECRET\}"/);
+  assert.ok(step.includes(PLATFORM_INVOKE), 'platform step must run deploy-platform-helm.sh');
+  assert.match(platformHelm, /RELEASE=proctira-platform/);
+  assert.match(platformHelm, /CHART=\.\/infrastructure\/helm\/proctira-platform/);
+  assert.match(platformHelm, /"\$HELM" upgrade --install "\$RELEASE" "\$CHART"/);
+  assert.match(platformHelm, /secrets\.existingSecret="\$\{PLATFORM_EXISTING_SECRET\}"/);
+  assert.match(platformHelm, /for var in [^\n]*PLATFORM_EXISTING_SECRET/);
 });
 
 test('platform deploy fails closed before helm when the Secret var is unset', () => {
   const step = platformDeployStep();
   const guard = step.indexOf('if [ -z "${PLATFORM_EXISTING_SECRET}" ]');
   assert.ok(guard >= 0, 'platform deploy must refuse an empty PLATFORM_EXISTING_SECRET');
-  assert.ok(guard < step.indexOf('helm upgrade --install'), 'guard must precede helm');
-  assert.match(step.slice(guard, step.indexOf('helm upgrade --install')), /exit 1/);
+  assert.ok(guard < step.indexOf(PLATFORM_INVOKE), 'guard must precede helm');
+  assert.match(step.slice(guard, step.indexOf(PLATFORM_INVOKE)), /exit 1/);
+});
+
+test('platform deploy keeps edge apps and the Ingress out of the release', () => {
+  for (const key of [
+    'ingress',
+    'apiGateway',
+    'web',
+    'registrationPortal',
+    'publicWebsite',
+    'adminConsole',
+    'developerPortal',
+  ]) {
+    assert.match(platformHelm, new RegExp(`--set ${key}\\.enabled=false`));
+  }
+  assert.match(platformHelm, /--values "\$\{CHART\}\/values-workers-only\.yaml"/);
+});
+
+test('legacy etl-worker release is retired only after the platform etl-worker is Ready', () => {
+  const job = deploy.slice(deploy.indexOf('deploy-platform:'), deploy.indexOf('record-diff-base:'));
+  const install = job.indexOf(PLATFORM_INVOKE);
+  const ready = job.indexOf('kubectl rollout status deployment/proctira-platform-etl-worker');
+  const uninstall = job.indexOf('helm uninstall proctira-etl-worker');
+  assert.ok(install >= 0 && ready >= 0 && uninstall >= 0, 'install, readiness and retire steps');
+  assert.ok(install < ready && ready < uninstall, 'install → etl-worker Ready → retire legacy');
+  assert.ok(!platformDeployStep().includes('helm uninstall'), 'no uninstall before the install');
+  assert.match(job, /if helm status proctira-etl-worker/);
+  assert.ok(
+    platformDeployStep().indexOf('deploy-platform-helm.sh template') <
+      platformDeployStep().indexOf(PLATFORM_INVOKE),
+    'render preflight precedes the upgrade',
+  );
+});
+
+test('platform images are built on every deploy and skipped by the thin chart', () => {
+  const prep = deploy.slice(deploy.indexOf('- name: Detect affected services'));
+  assert.match(prep, /for img in etl-worker exam-document-worker dr-tools/);
+  assert.equal((prep.match(/with_platform_images "\$\{SERVICES\}"/g) ?? []).length, 2);
+  assert.match(deployStep(), /etl-worker\|exam-document-worker\|dr-tools\)/);
 });
 
 test('platform secret var reaches the shell only through env', () => {
@@ -92,13 +138,18 @@ test('platform deploy verifies the DR CronJobs it just introduced', () => {
   assert.match(block, /exam-document-worker/);
 });
 
-test('PRC-H062: platform deploy runs the CI-pushed worker images', () => {
-  const wf = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+test('PRC-H062: platform deploy runs the CI-pushed worker and DR images', () => {
+  assert.match(platformHelm, /image-repository\.sh "\$REGISTRY" "\$IMAGE_NAMESPACE" "\$1"/);
   for (const [key, svc] of [
     ['examDocumentWorker', 'exam-document-worker'],
     ['etlWorker', 'etl-worker'],
+    ['dr', 'dr-tools'],
   ]) {
-    assert.match(wf, new RegExp(`image-repository\\.sh "\\$REGISTRY" "\\$IMAGE_NAMESPACE" ${svc}`));
-    assert.match(wf, new RegExp(`--set-string ${key}\\.image\\.repository=`));
+    assert.match(platformHelm, new RegExp(`repo ${svc}\\)`));
+    assert.match(platformHelm, new RegExp(`--set-string ${key}\\.image\\.repository=`));
+    assert.match(
+      platformHelm,
+      new RegExp(`--set-string ${key}\\.image\\.tag="\\$\\{IMAGE_TAG\\}"`),
+    );
   }
 });

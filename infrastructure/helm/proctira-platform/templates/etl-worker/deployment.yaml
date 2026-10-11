@@ -58,11 +58,36 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            # PRC-M279 / #596 review: least-privilege per-key secrets, same keys
+            # the thin-chart release had (proctira-service serviceKeys.etl-worker).
+            # Never envFrom the platform Secret: it carries the BYPASSRLS
+            # BACKUP_DATABASE_URL for the DR CronJobs and possibly the full
+            # gateway bundle (JWT/cookie/Keycloak/S3 secrets).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: DATABASE_URL
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: RABBITMQ_URL
+            - name: KAFKA_BROKERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: KAFKA_BROKERS
+                  optional: true
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "proctira.secretName" . }}
+                  key: REDIS_URL
+                  optional: true
           envFrom:
             - configMapRef:
                 name: {{ include "proctira.configmapName" . }}
-            - secretRef:
-                name: {{ include "proctira.secretName" . }}
           resources:
             {{- toYaml .Values.etlWorker.resources | nindent 12 }}
           {{- with .Values.etlWorker.livenessProbe }}
