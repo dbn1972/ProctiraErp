@@ -34,22 +34,19 @@ test('double-quoted identifier with escaped quote is handled', () => {
 });
 
 test('ordinary CONCURRENTLY statements still split per statement', () => {
-  const sql =
-    'CREATE INDEX CONCURRENTLY i1 ON t (a);\nCREATE INDEX CONCURRENTLY i2 ON t (b);\n';
+  const sql = 'CREATE INDEX CONCURRENTLY i1 ON t (a);\nCREATE INDEX CONCURRENTLY i2 ON t (b);\n';
   const phases = splitSqlPhases(sql);
   assert.equal(phases.length, 2);
 });
 
 test('dollar-quoted PL/pgSQL body with BEGIN...END is NOT treated as txn control', () => {
-  const sql =
-    "CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END; $$;";
+  const sql = 'CREATE FUNCTION f() RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END; $$;';
   const phases = splitSqlPhases(sql);
   assert.equal(phases.length, 1);
 });
 
 test('BEGIN ATOMIC routine body is refused fail-closed', () => {
-  const sql =
-    'CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; END;';
+  const sql = 'CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; END;';
   assert.throws(() => splitSqlPhases(sql), SqlPhaseSplitError);
 });
 
