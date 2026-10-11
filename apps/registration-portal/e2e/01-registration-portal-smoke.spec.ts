@@ -22,7 +22,10 @@ test.describe('Registration Portal — public surfaces', () => {
     // Visiting an institution *type* alone must guide the applicant to pick a
     // school rather than render an empty/mock form.
     await page.goto('/apply/primary');
-    await expect(page.getByRole('alert')).toBeVisible();
+    // Scope to <main>: after hydration Next mounts #__next-route-announcer__
+    // (role="alert") on <body>, which makes an unscoped getByRole('alert') a
+    // strict-mode violation depending on timing.
+    await expect(page.locator('main').getByRole('alert')).toBeVisible();
     await expect(page.getByRole('link', { name: /choose a school/i })).toBeVisible();
   });
 
