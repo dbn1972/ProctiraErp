@@ -19,12 +19,13 @@
  *   PG_IDLE_IN_TX_TIMEOUT_MS — abort sessions idle-in-transaction (default 60000; 0 = disabled)
  *
  * ROLLOUT / long-running consumers: the three *_TIMEOUT_MS caps are new as of
- * the PR4 data-infra hardening and apply to EVERY `getSharedPgPool` consumer
- * (reports, privacy/erasure executor, ETL pipelines, dashboards). A job whose
- * legitimate queries can exceed 30s MUST set a higher value, or `0` to disable
- * the cap for that process, via its deployment env. See the Helm
- * `values-*.yaml` worker env and `docs/runbooks` for the per-workload values.
- * Disabling (`0`) emits the Postgres default (no timeout).
+ * the PR4 data-infra hardening and apply to EVERY `getSharedPgPool` consumer in
+ * the process (reports, privacy/erasure executor, ETL pipelines, dashboards).
+ * A process whose legitimate queries can exceed 30s must set a higher value, or
+ * `0` to disable the cap, via its deployment env. No Helm values or env file
+ * sets these today, so the defaults apply on rollout. Operator guidance (affected
+ * workloads, symptoms, where to set the env) is in packages/shared/database/README.md.
+ * Disabling (`0`) leaves the role/database default (normally no timeout).
  */
 import pg from 'pg';
 
