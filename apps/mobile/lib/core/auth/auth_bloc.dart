@@ -69,6 +69,17 @@ class AuthBiometricUnlockRequested extends AuthEvent {
   const AuthBiometricUnlockRequested();
 }
 
+/// Re-lock an authenticated session when the app is resumed from the
+/// background and biometric app-lock is enabled (PRC-M469).
+///
+/// A backgrounded authenticated session must not come back to foreground
+/// showing PII without a fresh biometric check. Dispatched from the app
+/// lifecycle observer on resume; a no-op unless the session is currently
+/// authenticated and the biometric gate is enabled+available.
+class AuthAppLockRequested extends AuthEvent {
+  const AuthAppLockRequested();
+}
+
 /// User picked a different workspace while signed in (PRC-M034).
 ///
 /// Tokens are minted for one tenant, so switching performs a full logout
@@ -191,6 +202,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoggedIn>(_onLoggedIn);
     on<AuthLogoutRequested>(_onLogout);
     on<AuthBiometricUnlockRequested>(_onBiometricUnlock);
+    on<AuthAppLockRequested>(_onAppLock);
     on<AuthWorkspaceSwitchRequested>(_onWorkspaceSwitch);
   }
 
@@ -265,6 +277,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // in, require an unlock attempt rather than exposing the session.
       return true;
     }
+  }
+
+  /// Re-lock a foregrounded authenticated session when biometric app-lock is
+  /// enabled (PRC-M469). Tokens stay in secure storage; only the in-memory
+  /// session is downgraded to [AuthStatus.locked] so the router routes to the
+  /// lock screen before any PII is re-displayed.
+  Future<void> _onAppLock(
+    AuthAppLockRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.status != AuthStatus.authenticated) return;
+    if (!await _biometricLockRequired()) return;
+    emit(const AuthState.locked());
   }
 
   Future<void> _onBiometricUnlock(

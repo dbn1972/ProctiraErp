@@ -105,5 +105,50 @@ void main() {
         isNull,
       );
     });
+
+    test('resume re-locks an authenticated session when biometric enabled',
+        () async {
+      final bio = _FakeBiometric(enabled: true, available: true);
+      final bloc =
+          AuthBloc(secureStorage: _storageWithSession(), biometric: bio);
+      // Reach an authenticated session via login (bootstrap gating is only on
+      // cold start; login does not re-prompt).
+      bloc.add(const AuthLoggedIn(
+        userId: 'user-1',
+        accessToken: 'header.${'eyJyb2xlcyI6WyJzdGFmZiJdfQ'}.sig',
+        refreshToken: 'refresh-token',
+      ));
+      await bloc.stream.firstWhere((s) => s.isAuthenticated);
+      bloc.add(const AuthAppLockRequested());
+      await bloc.stream.firstWhere((s) => s.isLocked);
+      expect(bloc.state.status, AuthStatus.locked);
+      await bloc.close();
+    });
+
+    test('resume does not re-lock when biometric is disabled', () async {
+      final bio = _FakeBiometric(enabled: false);
+      final bloc =
+          AuthBloc(secureStorage: _storageWithSession(), biometric: bio);
+      bloc.add(const AuthLoggedIn(
+        userId: 'user-1',
+        accessToken: 'header.${'eyJyb2xlcyI6WyJzdGFmZiJdfQ'}.sig',
+        refreshToken: 'refresh-token',
+      ));
+      await bloc.stream.firstWhere((s) => s.isAuthenticated);
+      bloc.add(const AuthAppLockRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(bloc.state.status, AuthStatus.authenticated);
+      await bloc.close();
+    });
+
+    test('resume re-lock is a no-op for an unauthenticated session', () async {
+      final bio = _FakeBiometric(enabled: true, available: true);
+      final bloc =
+          AuthBloc(secureStorage: _storageWithSession(), biometric: bio);
+      bloc.add(const AuthAppLockRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(bloc.state.status, isNot(AuthStatus.locked));
+      await bloc.close();
+    });
   });
 }
