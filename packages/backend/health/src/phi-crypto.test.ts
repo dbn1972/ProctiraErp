@@ -4,11 +4,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  assertNotPhiCiphertextInput,
   assertPhiKeyConfigured,
   decryptPhi,
   encryptPhi,
   isPhiCiphertext,
   isPhiEncryptionEnabled,
+  PhiCiphertextInputError,
   PhiEnvelopeMisconfiguredError,
   PhiKeyMissingError,
   resetPhiEnvelopeProviderForTests,
@@ -118,5 +120,19 @@ describe('phi-crypto', () => {
     expect(decryptPhi(cipher)).toBe('hex-key-payload');
     expect(isPhiCiphertext(cipher)).toBe(true);
     expect(isPhiCiphertext('x')).toBe(false);
+  });
+
+  // PRC-M272 / NEW-008: write-path guard against attacker-supplied enc:v* markers.
+  it('assertNotPhiCiphertextInput rejects values that begin with enc:v*', () => {
+    expect(() => assertNotPhiCiphertextInput('enc:v1:AAAA:BBBB:CCCC', 'caseNotes')).toThrow(
+      PhiCiphertextInputError,
+    );
+    expect(() => assertNotPhiCiphertextInput('enc:v3:1:t:i:a:b:c', 'notes')).toThrow(
+      PhiCiphertextInputError,
+    );
+    // Plain text and null/undefined pass through untouched.
+    expect(() => assertNotPhiCiphertextInput('ordinary notes', 'notes')).not.toThrow();
+    expect(() => assertNotPhiCiphertextInput(null, 'notes')).not.toThrow();
+    expect(() => assertNotPhiCiphertextInput(undefined, 'notes')).not.toThrow();
   });
 });

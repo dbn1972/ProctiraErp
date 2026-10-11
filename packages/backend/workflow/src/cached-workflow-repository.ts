@@ -17,6 +17,7 @@ import type {
   WorkflowInstanceEntity,
   WorkflowInstanceFilter,
   TransitionAuditEntity,
+  InstanceUpdateGuard,
 } from './workflow-repository.js';
 
 /** TTL for workflow definition cache (10 minutes — definitions rarely change) */
@@ -96,8 +97,9 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     id: string,
     tenantId: string,
     data: Partial<WorkflowInstanceEntity>,
+    expected?: InstanceUpdateGuard,
   ): Promise<WorkflowInstanceEntity | null> {
-    return this.delegate.updateInstance(id, tenantId, data);
+    return this.delegate.updateInstance(id, tenantId, data, expected);
   }
 
   async listInstances(

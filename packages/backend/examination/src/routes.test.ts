@@ -200,6 +200,32 @@ describe('Examination Routes', () => {
       expect(json.data).toHaveLength(1);
       expect(json.meta.totalItems).toBe(1);
     });
+
+    // PRC-M241: the list querystring must be validated against the schema.
+    it('rejects an out-of-bounds pageSize with 400', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/examinations?pageSize=1000000',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejects a negative page with 400', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/examinations?page=-5',
+      });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('rejects an invalid status enum with 400', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/examinations?status=NOPE',
+      });
+      expect(response.statusCode).toBe(400);
+    });
   });
 
   describe('PUT /examinations/:id', () => {

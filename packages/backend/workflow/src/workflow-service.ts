@@ -386,18 +386,30 @@ export class WorkflowService {
       timestamp: new Date(),
     };
 
-    await this.repository.createAuditRecord(auditRecord);
-
-    // Update the instance
-    const updated = await this.repository.updateInstance(instanceId, tenantId, {
-      currentStateId: newStateId,
-      status: newStatus,
-      approvals: updatedApprovals,
-    });
+    // PRC-M457 / NEW-g7_platform-010: apply the approval + state advance with an
+    // optimistic guard on the state and approval count observed at read time. Two
+    // concurrent transitions therefore cannot both win: the loser's conditional
+    // update affects zero rows and we fail closed with a 409 instead of recording a
+    // lost update or a double transition past a required-approval gate. The audit row
+    // is written only after the update commits, so a conflict leaves no orphan.
+    const updated = await this.repository.updateInstance(
+      instanceId,
+      tenantId,
+      {
+        currentStateId: newStateId,
+        status: newStatus,
+        approvals: updatedApprovals,
+      },
+      { currentStateId: instance.currentStateId, approvalCount: instance.approvals.length },
+    );
 
     if (!updated) {
-      throw new NotFoundError(`Workflow instance with id '${instanceId}' not found`);
+      throw new ConflictError(
+        'Workflow instance was modified by a concurrent transition; please retry',
+      );
     }
+
+    await this.repository.createAuditRecord(auditRecord);
 
     // Schedule escalation for the new state if it changed (Requirement 13.6)
     if (this.escalationService && newStateId !== instance.currentStateId) {

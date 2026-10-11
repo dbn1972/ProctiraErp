@@ -46,6 +46,8 @@ export interface CircularAuditEvent {
 export type CircularAuditSink = (event: CircularAuditEvent) => void | Promise<void>;
 
 export class CircularsService {
+  /** PRC-L287: hard cap for the in-process audit fallback ring buffer. */
+  static readonly MAX_LOCAL_AUDIT_ENTRIES = 1000;
   private readonly whatsapp: WhatsAppChannelAdapter;
   private readonly auditSink: CircularAuditSink | null;
   /** In-process audit trail (unit tests / honesty when no durable sink is wired). */
@@ -144,6 +146,15 @@ export class CircularsService {
       throw new ConflictError('Circular is already marked sent');
     }
 
+    const now = new Date();
+    // PRC-M502: atomically claim the draft BEFORE fanning out deliveries. A
+    // concurrent send loses the compare-and-set and is rejected, so recipients
+    // are never double-delivered by two racing requests.
+    const claimed = await this.store.claimCircularForSend(tenantId, id, now);
+    if (!claimed) {
+      throw new ConflictError('Circular is already being sent or has been sent');
+    }
+
     const recipients = circular.acks.length
       ? circular.acks.map((ack) => ({
           id: ack.recipientId,
@@ -151,7 +162,6 @@ export class CircularsService {
         }))
       : [{ id: 'audience', label: circular.audienceType }];
 
-    const now = new Date();
     for (const recipient of recipients) {
       for (const channel of circular.channels) {
         await this.deliverOne(tenantId, {
@@ -167,10 +177,6 @@ export class CircularsService {
       }
     }
 
-    const updated = await this.store.updateCircular(tenantId, id, {
-      status: 'sent',
-      sentAt: now,
-    });
     // eslint-disable-next-line no-console
     console.info(
       JSON.stringify({
@@ -181,7 +187,7 @@ export class CircularsService {
         channels: circular.channels,
       }),
     );
-    return this.toView(tenantId, updated!);
+    return this.toView(tenantId, claimed);
   }
 
   async ackCircular(
@@ -251,7 +257,16 @@ export class CircularsService {
 
   private async recordAudit(event: CircularAuditEvent): Promise<void> {
     if (this.auditSink) await this.auditSink(event);
+    // PRC-L287: the in-process trail is a bounded ring buffer so a process with
+    // no durable audit sink wired cannot grow memory without limit. The durable
+    // sink (when set) is the system of record; this is only a local fallback.
     this.localAuditLog.push(event);
+    if (this.localAuditLog.length > CircularsService.MAX_LOCAL_AUDIT_ENTRIES) {
+      this.localAuditLog.splice(
+        0,
+        this.localAuditLog.length - CircularsService.MAX_LOCAL_AUDIT_ENTRIES,
+      );
+    }
   }
 
   async listDeliveryLogs(
@@ -262,6 +277,18 @@ export class CircularsService {
     return toPage(await this.store.listDeliveryLogs(tenantId, filter, page), page);
   }
 
+  /**
+   * PRC-M189 / PRC-L088: retry re-delivers through the SAME channel adapter path
+   * as the original send (never fabricates a `sent` status with a made-up
+   * providerRef, and never resends an empty WhatsApp body).
+   *
+   * The original message content is recovered from its source record so the
+   * retried delivery carries the real title/body. If the source content cannot
+   * be recovered (e.g. the circular was deleted, or a campaign/emergency body is
+   * not retrievable in this slice), the retry FAILS CLOSED — the row stays
+   * `failed` with an explanatory error rather than being marked sent with no
+   * content.
+   */
   async retryFailed(tenantId: string, logId: string): Promise<DeliveryLogRecord> {
     const row = await this.store.findDeliveryLog(tenantId, logId);
     if (!row) throw new NotFoundError(`Delivery log '${logId}' not found`);
@@ -269,34 +296,72 @@ export class CircularsService {
       throw new ConflictError('Only failed deliveries can be retried');
     }
 
+    const content = await this.resolveSourceContent(tenantId, row);
     const now = new Date();
+    if (!content) {
+      // Fail closed: do not mark sent without recoverable content (PRC-L088).
+      await this.store.updateDeliveryLog(tenantId, logId, {
+        status: 'failed',
+        errorMessage:
+          'Retry could not recover the original message content; delivery not re-attempted',
+        failedAt: now,
+        retriedAt: now,
+      });
+      throw new BusinessRuleError(
+        'Original message content for this delivery is no longer available; cannot retry',
+      );
+    }
+
     if (row.channel === 'whatsapp') {
       const result = await this.whatsapp.send({
         tenantId,
         recipientId: row.recipientId,
         recipientLabel: row.recipientLabel ?? undefined,
-        body: '',
+        title: content.title,
+        body: content.body,
         sourceType: row.sourceType,
         sourceId: row.sourceId ?? logId,
       });
       const updated = await this.store.updateDeliveryLog(tenantId, logId, {
-        status: 'sent',
+        status: result.status === 'sent' ? 'sent' : 'failed',
         providerRef: result.providerRef,
-        errorMessage: null,
-        sentAt: now,
+        errorMessage: result.status === 'sent' ? null : result.honestyNote,
+        sentAt: result.status === 'sent' ? now : null,
+        failedAt: result.status === 'sent' ? null : now,
         retriedAt: now,
       });
       return updated!;
     }
 
+    // Non-WhatsApp sandbox channel: use the same self-labelled `sandbox:` ref
+    // shape as the original delivery so the log never fabricates provider
+    // acceptance it did not receive.
     const updated = await this.store.updateDeliveryLog(tenantId, logId, {
       status: 'sent',
-      providerRef: `sandbox-retry:${logId}`,
+      providerRef: `sandbox:${row.channel}:${row.sourceId ?? logId}`,
       errorMessage: null,
       sentAt: now,
       retriedAt: now,
     });
     return updated!;
+  }
+
+  /**
+   * Recover the original title/body for a failed delivery so a retry can resend
+   * the real content. Only circular sources can be recovered in this slice;
+   * campaign/emergency bodies are not persisted on the log, so they return null
+   * and the retry fails closed (never sends an empty body).
+   */
+  private async resolveSourceContent(
+    tenantId: string,
+    row: DeliveryLogRecord,
+  ): Promise<{ title?: string; body: string } | null> {
+    if (row.sourceType === 'circular' && row.sourceId) {
+      const circular = await this.store.findCircular(tenantId, row.sourceId);
+      if (!circular) return null;
+      return { title: circular.title, body: circular.body };
+    }
+    return null;
   }
 
   async appendSourceDelivery(

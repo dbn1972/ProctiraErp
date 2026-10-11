@@ -46,7 +46,12 @@ export function generateSeatingPlan(
 
   const seats: GeneratedSeat[] = [];
   for (const group of byCenter.values()) {
-    const ordered = [...group].sort((a, b) => a.rollNumber.localeCompare(b.rollNumber));
+    // PRC-M242: order candidates by roll number using natural numeric ordering
+    // so R2 precedes R10 (plain localeCompare sorts "R10" before "R2"). This
+    // keeps adjacent seats in true roll-number sequence.
+    const ordered = [...group].sort((a, b) =>
+      a.rollNumber.localeCompare(b.rollNumber, undefined, { numeric: true, sensitivity: 'base' }),
+    );
     ordered.forEach((candidate, index) => {
       seats.push({
         candidateId: candidate.candidateId,

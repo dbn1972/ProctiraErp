@@ -3,7 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { describe, expect, it } from 'vitest';
 
 import { InMemoryCircularStore } from './circular-store.js';
@@ -45,9 +45,77 @@ describe('CircularsService (G-922)', () => {
     await expect(service.getCircular(TENANT_B, circular.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it('retries only failed delivery rows', async () => {
+  it('bounds the in-process audit fallback log (PRC-L287)', async () => {
     const store = new InMemoryCircularStore();
     const service = new CircularsService(store);
+    const total = CircularsService.MAX_LOCAL_AUDIT_ENTRIES + 25;
+    for (let i = 0; i < total; i++) {
+      const circular = await service.createCircular(TENANT_A, {
+        title: `slip-${i}`,
+        body: 'Return the signed slip.',
+        audienceType: 'all',
+        requiresAck: true,
+        channels: ['in_app'],
+        recipientIds: [`r-${i}`],
+      });
+      await service.ackCircularOnBehalf(TENANT_A, circular.id, `r-${i}`, {
+        actorId: 'admin-1',
+        reason: 'paper slip',
+      });
+    }
+    expect(service.localAuditLog.length).toBe(CircularsService.MAX_LOCAL_AUDIT_ENTRIES);
+  });
+
+  it('rejects a concurrent second send so recipients are not double-delivered (PRC-M502)', async () => {
+    const store = new InMemoryCircularStore();
+    const service = new CircularsService(store);
+    const circular = await service.createCircular(TENANT_A, {
+      title: 'Exam schedule',
+      body: 'Exams begin Monday.',
+      audienceType: 'all',
+      requiresAck: true,
+      channels: ['in_app'],
+      recipientIds: ['s1', 's2', 's3'],
+    });
+
+    const results = await Promise.allSettled([
+      service.sendCircular(TENANT_A, circular.id),
+      service.sendCircular(TENANT_A, circular.id),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError);
+
+    // Exactly one delivery per recipient (3), not six.
+    const logs = (await service.listDeliveryLogs(TENANT_A, { sourceType: 'circular' })).data;
+    expect(logs).toHaveLength(3);
+  });
+
+  it('retries only failed delivery rows, resending the real circular body (PRC-M189/L088)', async () => {
+    const store = new InMemoryCircularStore();
+    const bodies: string[] = [];
+    const service = new CircularsService(store, {
+      whatsappAdapter: {
+        async send(req) {
+          bodies.push(req.body);
+          return {
+            mode: 'sandbox' as const,
+            providerRef: `sandbox-wa:${req.recipientId}`,
+            status: 'sent' as const,
+            honestyNote: 'test',
+          };
+        },
+      },
+    });
+    const circular = await service.createCircular(TENANT_A, {
+      title: 'Reminder',
+      body: 'Please submit forms by Friday.',
+      audienceType: 'all',
+      channels: ['whatsapp'],
+      recipientIds: ['staff-9'],
+    });
     const now = new Date();
     const failed = await store.createDeliveryLog({
       id: randomUUID(),
@@ -58,7 +126,7 @@ describe('CircularsService (G-922)', () => {
       status: 'failed',
       providerRef: null,
       sourceType: 'circular',
-      sourceId: randomUUID(),
+      sourceId: circular.id,
       errorMessage: 'sandbox simulated fail',
       queuedAt: now,
       sentAt: null,
@@ -71,6 +139,8 @@ describe('CircularsService (G-922)', () => {
     const retried = await service.retryFailed(TENANT_A, failed.id);
     expect(retried.status).toBe('sent');
     expect(retried.retriedAt).not.toBeNull();
+    // PRC-L088: the retry must resend the real body, never an empty string.
+    expect(bodies).toEqual(['Please submit forms by Friday.']);
 
     const sent = await store.createDeliveryLog({
       ...failed,
@@ -79,5 +149,38 @@ describe('CircularsService (G-922)', () => {
       errorMessage: null,
     });
     await expect(service.retryFailed(TENANT_A, sent.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('fails closed (does not mark sent) when the retry cannot recover message content (PRC-L088)', async () => {
+    const store = new InMemoryCircularStore();
+    const service = new CircularsService(store);
+    const now = new Date();
+    // campaign source body is not recoverable from the log
+    const failed = await store.createDeliveryLog({
+      id: randomUUID(),
+      tenantId: TENANT_A,
+      channel: 'whatsapp',
+      recipientId: 'staff-9',
+      recipientLabel: null,
+      status: 'failed',
+      providerRef: null,
+      sourceType: 'campaign',
+      sourceId: randomUUID(),
+      errorMessage: 'sandbox simulated fail',
+      queuedAt: now,
+      sentAt: null,
+      deliveredAt: null,
+      failedAt: now,
+      retriedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await expect(service.retryFailed(TENANT_A, failed.id)).rejects.toBeInstanceOf(
+      BusinessRuleError,
+    );
+    const after = (await service.listDeliveryLogs(TENANT_A, { status: 'failed' })).data;
+    expect(after).toHaveLength(1);
+    expect(after[0]!.status).toBe('failed');
+    expect(after[0]!.providerRef).toBeNull();
   });
 });
