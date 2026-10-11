@@ -8,10 +8,9 @@
  * DELETE /classes/:id            - Soft-delete a class
  */
 import { AppError } from '@proctira/common';
-import { Type, validate, validateQuery } from '@proctira/validation';
+import { Type, UuidSchema, validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { CreateClassSchema, UpdateClassSchema } from './class-schemas.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
 import type { ClassService } from './class-service.js';
 
@@ -20,11 +19,32 @@ export interface ClassRoutesOptions {
   prefix?: string;
 }
 
-const IdParamsSchema = Type.Object({ id: Type.String({ format: 'uuid' }) });
+/**
+ * PRC-M283: route-level validation. UUID fields use the shared pattern-based
+ * `UuidSchema` (not `format: 'uuid'`, which TypeBox's validator leaves
+ * unregistered — the DTO schemas in class-schemas.ts were dead code).
+ */
+const CreateClassBodySchema = Type.Object({
+  institutionId: UuidSchema,
+  gradeId: UuidSchema,
+  academicPeriodId: UuidSchema,
+  name: Type.String({ minLength: 1, maxLength: 100 }),
+  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 32767 })),
+  classTeacherStaffId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+  roomName: Type.Optional(Type.Union([Type.String({ maxLength: 120 }), Type.Null()])),
+});
+const UpdateClassBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 32767 })),
+  gradeId: Type.Optional(UuidSchema),
+  classTeacherStaffId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+  roomName: Type.Optional(Type.Union([Type.String({ maxLength: 120 }), Type.Null()])),
+});
+const IdParamsSchema = Type.Object({ id: UuidSchema });
 const ClassListQuerySchema = Type.Object({
-  institutionId: Type.String({ format: 'uuid' }),
-  academicPeriodId: Type.Optional(Type.String({ format: 'uuid' })),
-  gradeId: Type.Optional(Type.String({ format: 'uuid' })),
+  institutionId: UuidSchema,
+  academicPeriodId: Type.Optional(UuidSchema),
+  gradeId: Type.Optional(UuidSchema),
 });
 
 function validationError(reply: FastifyReply, message: string, errors: unknown) {
@@ -97,7 +117,7 @@ export async function registerClassRoutes(
       const tenantId = getTenantId(request, reply);
       if (!tenantId) return reply;
 
-      const body = validate(CreateClassSchema, request.body);
+      const body = validate(CreateClassBodySchema, request.body);
       if (!body.success) return validationError(reply, 'Validation failed', body.errors);
 
       try {
@@ -171,7 +191,7 @@ export async function registerClassRoutes(
       const params = validate(IdParamsSchema, request.params);
       if (!params.success) return validationError(reply, 'Invalid class ID', params.errors);
 
-      const body = validate(UpdateClassSchema, request.body);
+      const body = validate(UpdateClassBodySchema, request.body);
       if (!body.success) return validationError(reply, 'Validation failed', body.errors);
 
       try {

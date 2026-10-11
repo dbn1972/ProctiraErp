@@ -8,7 +8,7 @@
  * DELETE /grades/:id   - Soft-delete a grade
  */
 import { AppError } from '@proctira/common';
-import { Type, validate } from '@proctira/validation';
+import { Type, UuidSchema, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { CreateGradeSchema, UpdateGradeSchema } from './grade-schemas.js';
@@ -20,7 +20,7 @@ export interface GradeRoutesOptions {
   prefix?: string;
 }
 
-const IdParamsSchema = Type.Object({ id: Type.String({ format: 'uuid' }) });
+const IdParamsSchema = Type.Object({ id: UuidSchema });
 
 function validationError(reply: FastifyReply, message: string, errors: unknown) {
   return reply.status(400).send({

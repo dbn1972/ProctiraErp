@@ -35,6 +35,11 @@ export class GradeService {
       throw new ConflictError(`Grade with code '${dto.code}' already exists`);
     }
 
+    // PRC-M280: grade `order` drives rollover promotion, so it must be unique
+    // within the tenant. A duplicate order collapses two grades into one slot
+    // and sends students to an arbitrary grade on rollover. Reject up front.
+    await this.requireUniqueOrder(tenantId, dto.order, null);
+
     return this.prisma.grade.create({
       data: {
         tenantId,
@@ -43,6 +48,30 @@ export class GradeService {
         order: dto.order,
       },
     });
+  }
+
+  /**
+   * PRC-M280: enforce a unique grade `order` per tenant (excluding soft-deleted
+   * rows and, on update, the row being changed). The DB also carries a partial
+   * unique index (db/sql/200) as the authoritative guard; this gives a clean
+   * 409 instead of a raw 23505.
+   */
+  private async requireUniqueOrder(
+    tenantId: string,
+    order: number,
+    excludeId: string | null,
+  ): Promise<void> {
+    const clash = await this.prisma.grade.findFirst({
+      where: {
+        tenantId,
+        order,
+        deletedAt: null,
+        ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      },
+    });
+    if (clash) {
+      throw new ConflictError(`Grade with order '${order}' already exists`);
+    }
   }
 
   /**
@@ -65,6 +94,11 @@ export class GradeService {
       if (existing) {
         throw new ConflictError(`Grade with code '${dto.code}' already exists`);
       }
+    }
+
+    // PRC-M280: keep grade order unique within the tenant on update too.
+    if (dto.order !== undefined && dto.order !== grade.order) {
+      await this.requireUniqueOrder(tenantId, dto.order, id);
     }
 
     return this.prisma.grade.update({

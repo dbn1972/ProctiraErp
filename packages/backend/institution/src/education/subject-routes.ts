@@ -11,14 +11,10 @@
  * DELETE /institution-subjects/:id      - Remove a subject-grade link
  */
 import { AppError } from '@proctira/common';
-import { Type, validate, validateQuery } from '@proctira/validation';
+import { Type, UuidSchema, validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import {
-  CreateSubjectSchema,
-  UpdateSubjectSchema,
-  LinkSubjectToGradeSchema,
-} from './subject-schemas.js';
+import { CreateSubjectSchema, UpdateSubjectSchema } from './subject-schemas.js';
 import type {
   CreateSubjectDto,
   UpdateSubjectDto,
@@ -32,10 +28,17 @@ export interface SubjectRoutesOptions {
   institutionSubjectPrefix?: string;
 }
 
-const IdParamsSchema = Type.Object({ id: Type.String({ format: 'uuid' }) });
+const IdParamsSchema = Type.Object({ id: UuidSchema });
+// PRC-M283: pattern-based UUID (the DTO LinkSubjectToGradeSchema used an
+// unregistered `format: 'uuid'`, so it never actually validated).
+const LinkSubjectBodySchema = Type.Object({
+  institutionId: UuidSchema,
+  subjectId: UuidSchema,
+  gradeId: UuidSchema,
+});
 const InstitutionSubjectListQuerySchema = Type.Object({
-  institutionId: Type.String({ format: 'uuid' }),
-  gradeId: Type.Optional(Type.String({ format: 'uuid' })),
+  institutionId: UuidSchema,
+  gradeId: Type.Optional(UuidSchema),
 });
 
 function validationError(reply: FastifyReply, message: string, errors: unknown) {
@@ -231,7 +234,7 @@ export async function registerSubjectRoutes(
       const tenantId = getTenantId(request, reply);
       if (!tenantId) return reply;
 
-      const body = validate(LinkSubjectToGradeSchema, request.body);
+      const body = validate(LinkSubjectBodySchema, request.body);
       if (!body.success) return validationError(reply, 'Validation failed', body.errors);
 
       try {
