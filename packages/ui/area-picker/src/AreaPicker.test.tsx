@@ -230,4 +230,90 @@ describe('AreaPicker', () => {
       expect(unhandled).not.toHaveBeenCalled();
     });
   });
+
+  describe('keyboard tree model (PRC-M454)', () => {
+    it('exposes a single roving tab stop and moves focus with Arrow/Home/End', () => {
+      render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />);
+      fireEvent.click(screen.getByRole('button', { name: /select area/i }));
+
+      const treeitems = screen.getAllByRole('treeitem');
+      // Exactly one treeitem is tabbable (roving tabindex).
+      const tabbable = treeitems.filter((t) => t.getAttribute('tabindex') === '0');
+      expect(tabbable).toHaveLength(1);
+
+      const treeitemOf = (btnName: RegExp) =>
+        screen.getByRole('button', { name: btnName }).closest('[role="treeitem"]') as HTMLElement;
+
+      // Expand Country A up front (via its expand control) so the keyboard test
+      // operates on a stable, fully-rendered visible set.
+      fireEvent.click(screen.getByRole('button', { name: /expand country a/i }));
+      const country = treeitemOf(/select country a/i);
+      country.focus();
+      expect(country).toHaveFocus();
+      expect(country).toHaveAttribute('aria-expanded', 'true');
+
+      // ArrowDown moves to the next visible node (Region 1).
+      fireEvent.keyDown(country, { key: 'ArrowDown' });
+      expect(treeitemOf(/select region 1/i)).toHaveFocus();
+
+      // ArrowUp moves back to Country A.
+      fireEvent.keyDown(treeitemOf(/select region 1/i), { key: 'ArrowUp' });
+      expect(country).toHaveFocus();
+
+      // End jumps to the last visible node (Region 2).
+      fireEvent.keyDown(country, { key: 'End' });
+      expect(treeitemOf(/select region 2/i)).toHaveFocus();
+
+      // Home jumps back to the first node.
+      fireEvent.keyDown(treeitemOf(/select region 2/i), { key: 'Home' });
+      expect(country).toHaveFocus();
+
+      // ArrowLeft collapses the expanded node.
+      fireEvent.keyDown(country, { key: 'ArrowLeft' });
+      expect(country).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByText('Region 1')).not.toBeInTheDocument();
+    });
+
+    it('selects the focused node with Enter', () => {
+      const onSelect = vi.fn();
+      render(<AreaPicker areas={testAreas} onSelect={onSelect} ariaLabel="Select area" />);
+      fireEvent.click(screen.getByRole('button', { name: /select area/i }));
+
+      const country = screen
+        .getByRole('button', { name: /select country a/i })
+        .closest('[role="treeitem"]') as HTMLElement;
+      country.focus();
+      fireEvent.keyDown(country, { key: 'Enter' });
+      expect(onSelect).toHaveBeenCalledWith(
+        ['country-1'],
+        [expect.objectContaining({ id: 'country-1' })],
+      );
+    });
+
+    it('returns focus to the trigger when Escape closes the tree', () => {
+      render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />);
+      const trigger = screen.getByRole('button', { name: /select area/i });
+      fireEvent.click(trigger);
+      expect(screen.getByRole('tree')).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('tree')).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
+    it('gives two pickers on one page distinct search input ids', () => {
+      render(
+        <>
+          <AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="First" searchable />
+          <AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Second" searchable />
+        </>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^first$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^second$/i }));
+      const inputs = screen.getAllByLabelText(/search areas/i) as HTMLInputElement[];
+      expect(inputs).toHaveLength(2);
+      expect(inputs[0]?.id).not.toBe(inputs[1]?.id);
+      expect(inputs[0]?.id).toBeTruthy();
+    });
+  });
 });

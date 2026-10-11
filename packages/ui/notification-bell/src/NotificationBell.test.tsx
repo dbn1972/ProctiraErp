@@ -141,4 +141,73 @@ describe('NotificationBell', () => {
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
   });
+
+  // PRC-L526: invalid timestamps must never render "NaNm ago".
+  it('does not render NaN for an invalid createdAt', () => {
+    const bad: Notification[] = [
+      {
+        id: 'x',
+        title: 'Broken',
+        message: 'Bad timestamp',
+        type: 'info',
+        read: false,
+        createdAt: 'not-a-date',
+      },
+    ];
+    render(<NotificationBell notifications={bad} />);
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+    // Falls back to the raw string rather than a broken relative label.
+    expect(screen.getByText('not-a-date')).toBeInTheDocument();
+  });
+
+  // PRC-L526: relative time honours the supplied locale (not hard-coded English).
+  it('formats relative time using the supplied locale', () => {
+    const recent: Notification[] = [
+      {
+        id: 'r',
+        title: 'Recent',
+        message: 'Five minutes ago',
+        type: 'info',
+        read: true,
+        createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
+      },
+    ];
+    render(<NotificationBell notifications={recent} locale="fr" />);
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
+    // French RelativeTimeFormat for -5 minutes: "il y a 5 minutes".
+    const expected = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' }).format(-5, 'minute');
+    const time = document.querySelector('.proctira-notification-bell__item-time');
+    expect(time?.textContent).toBe(expected);
+    // Guard against the old hard-coded English label leaking through.
+    expect(screen.queryByText('5m ago')).not.toBeInTheDocument();
+  });
+
+  // PRC-L525: notification type is conveyed as text, not emoji-only.
+  it('exposes the notification type as text for assistive tech', () => {
+    render(<NotificationBell notifications={testNotifications} />);
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
+    // The success notification carries a textual "Success" label (sr-only +
+    // in the accessible name), independent of the ✅ emoji.
+    const successItem = screen.getByRole('button', { name: /success\. transfer approved/i });
+    expect(successItem).toBeInTheDocument();
+  });
+
+  // PRC-L525: real-time updates are announced via a polite live region.
+  it('announces real-time updates through a live region', () => {
+    render(
+      <NotificationBell notifications={testNotifications} hasRealTimeUpdates unreadCount={2} />,
+    );
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion?.textContent).toMatch(/2 unread notifications/i);
+    expect(liveRegion?.textContent).toMatch(/new notifications available/i);
+  });
+
+  it('keeps the live region empty when there are no real-time updates', () => {
+    render(<NotificationBell notifications={testNotifications} unreadCount={2} />);
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion?.textContent).toBe('');
+  });
 });
