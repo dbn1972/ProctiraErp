@@ -16,7 +16,7 @@ const ROOT = join(__dirname);
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
-    if (entry === 'node_modules' || entry === '__tests') continue;
+    if (entry === 'node_modules' || entry === '__tests' || entry === '%5F%5Ftests') continue;
     if (statSync(full).isDirectory()) walk(full, out);
     else if (/\.tsx$/.test(entry) && !/\.test\.tsx$/.test(entry)) out.push(full);
   }
