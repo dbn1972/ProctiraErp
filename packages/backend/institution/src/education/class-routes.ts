@@ -7,14 +7,33 @@
  * PUT    /classes/:id            - Update a class
  * DELETE /classes/:id            - Soft-delete a class
  */
+import { AppError } from '@proctira/common';
+import { Type, validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { CreateClassSchema, UpdateClassSchema } from './class-schemas.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
 import type { ClassService } from './class-service.js';
 
 export interface ClassRoutesOptions {
   service: ClassService;
   prefix?: string;
+}
+
+const IdParamsSchema = Type.Object({ id: Type.String({ format: 'uuid' }) });
+const ClassListQuerySchema = Type.Object({
+  institutionId: Type.String({ format: 'uuid' }),
+  academicPeriodId: Type.Optional(Type.String({ format: 'uuid' })),
+  gradeId: Type.Optional(Type.String({ format: 'uuid' })),
+});
+
+function validationError(reply: FastifyReply, message: string, errors: unknown) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message,
+    statusCode: 400,
+    errors,
+  });
 }
 
 function formatClassResponse(cls: {
@@ -56,23 +75,40 @@ export async function registerClassRoutes(
 ): Promise<void> {
   const { service, prefix = '/classes' } = options;
 
+  function getTenantId(request: FastifyRequest, reply: FastifyReply): string | undefined {
+    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+    if (!tenantId) {
+      void reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+      return undefined;
+    }
+    return tenantId;
+  }
+
   fastify.post(
     prefix,
     async function createHandler(
       request: FastifyRequest<{ Body: CreateClassDto }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const cls = await service.create(tenantId, request.body);
-      return reply.status(201).send(formatClassResponse(cls));
+      const body = validate(CreateClassSchema, request.body);
+      if (!body.success) return validationError(reply, 'Validation failed', body.errors);
+
+      try {
+        const cls = await service.create(tenantId, body.data);
+        return reply.status(201).send(formatClassResponse(cls));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -84,24 +120,13 @@ export async function registerClassRoutes(
       }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const { institutionId, academicPeriodId, gradeId } = request.query;
-      if (!institutionId) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'institutionId query parameter is required',
-          statusCode: 400,
-        });
-      }
+      const query = validateQuery(ClassListQuerySchema, request.query);
+      if (!query.success) return validationError(reply, 'Invalid query parameters', query.errors);
 
+      const { institutionId, academicPeriodId, gradeId } = query.data;
       const classes = await service.list(tenantId, institutionId, {
         academicPeriodId,
         gradeId,
@@ -116,17 +141,21 @@ export async function registerClassRoutes(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const cls = await service.getById(tenantId, request.params.id);
-      return reply.status(200).send(formatClassResponse(cls));
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid class ID', params.errors);
+
+      try {
+        const cls = await service.getById(tenantId, params.data.id);
+        return reply.status(200).send(formatClassResponse(cls));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -136,17 +165,24 @@ export async function registerClassRoutes(
       request: FastifyRequest<{ Params: { id: string }; Body: UpdateClassDto }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const cls = await service.update(tenantId, request.params.id, request.body);
-      return reply.status(200).send(formatClassResponse(cls));
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid class ID', params.errors);
+
+      const body = validate(UpdateClassSchema, request.body);
+      if (!body.success) return validationError(reply, 'Validation failed', body.errors);
+
+      try {
+        const cls = await service.update(tenantId, params.data.id, body.data);
+        return reply.status(200).send(formatClassResponse(cls));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -156,17 +192,21 @@ export async function registerClassRoutes(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      await service.delete(tenantId, request.params.id);
-      return reply.status(204).send();
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid class ID', params.errors);
+
+      try {
+        await service.delete(tenantId, params.data.id);
+        return reply.status(204).send();
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 }

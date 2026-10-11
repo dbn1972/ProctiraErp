@@ -10,19 +10,41 @@
  * GET    /institution-subjects          - List subject-grade links (filter by institutionId, gradeId)
  * DELETE /institution-subjects/:id      - Remove a subject-grade link
  */
+import { AppError } from '@proctira/common';
+import { Type, validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { SubjectService } from './subject-service.js';
+import {
+  CreateSubjectSchema,
+  UpdateSubjectSchema,
+  LinkSubjectToGradeSchema,
+} from './subject-schemas.js';
 import type {
   CreateSubjectDto,
   UpdateSubjectDto,
   LinkSubjectToGradeDto,
 } from './subject-schemas.js';
+import type { SubjectService } from './subject-service.js';
 
 export interface SubjectRoutesOptions {
   service: SubjectService;
   subjectPrefix?: string;
   institutionSubjectPrefix?: string;
+}
+
+const IdParamsSchema = Type.Object({ id: Type.String({ format: 'uuid' }) });
+const InstitutionSubjectListQuerySchema = Type.Object({
+  institutionId: Type.String({ format: 'uuid' }),
+  gradeId: Type.Optional(Type.String({ format: 'uuid' })),
+});
+
+function validationError(reply: FastifyReply, message: string, errors: unknown) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message,
+    statusCode: 400,
+    errors,
+  });
 }
 
 function formatSubjectResponse(subject: {
@@ -73,6 +95,19 @@ export async function registerSubjectRoutes(
     institutionSubjectPrefix = '/institution-subjects',
   } = options;
 
+  function getTenantId(request: FastifyRequest, reply: FastifyReply): string | undefined {
+    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+    if (!tenantId) {
+      void reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+      return undefined;
+    }
+    return tenantId;
+  }
+
   // ─── Subject CRUD ──────────────────────────────────────────────────────────
 
   fastify.post(
@@ -81,31 +116,29 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Body: CreateSubjectDto }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const subject = await service.create(tenantId, request.body);
-      return reply.status(201).send(formatSubjectResponse(subject));
+      const body = validate(CreateSubjectSchema, request.body);
+      if (!body.success) return validationError(reply, 'Validation failed', body.errors);
+
+      try {
+        const subject = await service.create(tenantId, body.data);
+        return reply.status(201).send(formatSubjectResponse(subject));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
   fastify.get(
     subjectPrefix,
     async function listHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
       const subjects = await service.list(tenantId);
       return reply.status(200).send(subjects.map(formatSubjectResponse));
@@ -118,17 +151,21 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const subject = await service.getById(tenantId, request.params.id);
-      return reply.status(200).send(formatSubjectResponse(subject));
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid subject ID', params.errors);
+
+      try {
+        const subject = await service.getById(tenantId, params.data.id);
+        return reply.status(200).send(formatSubjectResponse(subject));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -138,17 +175,24 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Params: { id: string }; Body: UpdateSubjectDto }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const subject = await service.update(tenantId, request.params.id, request.body);
-      return reply.status(200).send(formatSubjectResponse(subject));
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid subject ID', params.errors);
+
+      const body = validate(UpdateSubjectSchema, request.body);
+      if (!body.success) return validationError(reply, 'Validation failed', body.errors);
+
+      try {
+        const subject = await service.update(tenantId, params.data.id, body.data);
+        return reply.status(200).send(formatSubjectResponse(subject));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -158,17 +202,21 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      await service.delete(tenantId, request.params.id);
-      return reply.status(204).send();
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid subject ID', params.errors);
+
+      try {
+        await service.delete(tenantId, params.data.id);
+        return reply.status(204).send();
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -180,17 +228,21 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Body: LinkSubjectToGradeDto }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const link = await service.linkToGrade(tenantId, request.body);
-      return reply.status(201).send(formatInstitutionSubjectResponse(link));
+      const body = validate(LinkSubjectToGradeSchema, request.body);
+      if (!body.success) return validationError(reply, 'Validation failed', body.errors);
+
+      try {
+        const link = await service.linkToGrade(tenantId, body.data);
+        return reply.status(201).send(formatInstitutionSubjectResponse(link));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -202,24 +254,13 @@ export async function registerSubjectRoutes(
       }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      const { institutionId, gradeId } = request.query;
-      if (!institutionId) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'institutionId query parameter is required',
-          statusCode: 400,
-        });
-      }
+      const query = validateQuery(InstitutionSubjectListQuerySchema, request.query);
+      if (!query.success) return validationError(reply, 'Invalid query parameters', query.errors);
 
+      const { institutionId, gradeId } = query.data;
       const links = await service.listInstitutionSubjects(tenantId, institutionId, { gradeId });
       return reply.status(200).send(links.map(formatInstitutionSubjectResponse));
     },
@@ -231,17 +272,21 @@ export async function registerSubjectRoutes(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+      const tenantId = getTenantId(request, reply);
+      if (!tenantId) return reply;
 
-      await service.unlinkFromGrade(tenantId, request.params.id);
-      return reply.status(204).send();
+      const params = validate(IdParamsSchema, request.params);
+      if (!params.success) return validationError(reply, 'Invalid link ID', params.errors);
+
+      try {
+        await service.unlinkFromGrade(tenantId, params.data.id);
+        return reply.status(204).send();
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 }
