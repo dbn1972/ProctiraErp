@@ -72,19 +72,36 @@ export default definePlugin({
 
         const errors: HookValidationError[] = [];
 
-        // Validate minimum enrollment duration
+        // Validate minimum enrollment duration. Fail CLOSED: a missing or
+        // unparseable enrollmentStartDate is a validation error, never a pass
+        // (PRC-L485) — otherwise a transfer request could skip the rule simply
+        // by omitting the date.
         const enrollmentStartDate = payload.data['enrollmentStartDate'] as string | undefined;
-        if (enrollmentStartDate) {
+        if (!enrollmentStartDate) {
+          errors.push({
+            field: 'enrollmentStartDate',
+            message: 'Enrollment start date is required to evaluate the minimum-enrollment rule.',
+            code: 'MISSING_ENROLLMENT_START_DATE',
+          });
+        } else {
           const start = new Date(enrollmentStartDate);
-          const now = new Date();
-          const daysDiff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (daysDiff < MIN_ENROLLMENT_DAYS) {
+          if (Number.isNaN(start.getTime())) {
             errors.push({
-              field: 'enrollmentDuration',
-              message: `Student must be enrolled for at least ${MIN_ENROLLMENT_DAYS} days before transfer. Current: ${daysDiff} days.`,
-              code: 'INSUFFICIENT_ENROLLMENT_DURATION',
+              field: 'enrollmentStartDate',
+              message: `Enrollment start date '${enrollmentStartDate}' is not a valid date.`,
+              code: 'INVALID_ENROLLMENT_START_DATE',
             });
+          } else {
+            const now = new Date();
+            const daysDiff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (daysDiff < MIN_ENROLLMENT_DAYS) {
+              errors.push({
+                field: 'enrollmentDuration',
+                message: `Student must be enrolled for at least ${MIN_ENROLLMENT_DAYS} days before transfer. Current: ${daysDiff} days.`,
+                code: 'INSUFFICIENT_ENROLLMENT_DURATION',
+              });
+            }
           }
         }
 
