@@ -264,4 +264,130 @@ describe('Communication Routes', () => {
       expect(response.json().source).toBe('estimator');
     });
   });
+
+  // ─── RBAC denial & cross-tenant isolation (PRC-L547) ─────────────────────
+
+  describe('RBAC denial on staff surfaces', () => {
+    /** Build an app whose session carries the given roles (and a user). */
+    async function appWithRoles(roles: string[], sub = 'actor'): Promise<FastifyInstance> {
+      const a = Fastify({ logger: false });
+      a.decorateRequest('tenantId', '');
+      a.addHook('onRequest', async (request) => {
+        (request as { tenantId: string }).tenantId = TENANT_ID;
+        (request as { user?: { sub: string; roles: string[] } }).user = { sub, roles };
+      });
+      await a.register(communicationPlugin, {
+        repository: new InMemoryCommunicationRepository(),
+        circularStore: new InMemoryCircularStore(),
+      });
+      await a.ready();
+      return a;
+    }
+
+    it('denies a teacher role creating a campaign (403)', async () => {
+      const teacherApp = await appWithRoles(['teacher']);
+      const res = await teacherApp.inject({
+        method: 'POST',
+        url: '/communication/campaigns',
+        payload: { name: 'Should be blocked', channels: ['email'] },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN');
+      await teacherApp.close();
+    });
+
+    it('denies a teacher role listing campaigns and sending emergency blasts (403)', async () => {
+      const teacherApp = await appWithRoles(['teacher']);
+      const list = await teacherApp.inject({ method: 'GET', url: '/communication/campaigns' });
+      expect(list.statusCode).toBe(403);
+      const emergency = await teacherApp.inject({
+        method: 'POST',
+        url: '/communication/emergency',
+        payload: { reason: 'nope', channels: ['sms'] },
+      });
+      expect(emergency.statusCode).toBe(403);
+      await teacherApp.close();
+    });
+
+    it('denies an empty-role session (fail closed, 403)', async () => {
+      const noRoleApp = await appWithRoles([]);
+      const res = await noRoleApp.inject({ method: 'GET', url: '/communication/campaigns' });
+      expect(res.statusCode).toBe(403);
+      await noRoleApp.close();
+    });
+  });
+
+  describe('cross-tenant isolation', () => {
+    const TENANT_B = '660e8400-e29b-41d4-a716-4466554400bb';
+    let sharedRepo: InMemoryCommunicationRepository;
+    let sharedStore: InMemoryCircularStore;
+    let tenantHeader = TENANT_ID;
+    let crossApp: FastifyInstance;
+
+    beforeEach(async () => {
+      sharedRepo = new InMemoryCommunicationRepository();
+      sharedStore = new InMemoryCircularStore();
+      tenantHeader = TENANT_ID;
+      crossApp = Fastify({ logger: false });
+      crossApp.decorateRequest('tenantId', '');
+      crossApp.addHook('onRequest', async (request) => {
+        (request as { tenantId: string }).tenantId = tenantHeader;
+        (request as { user?: { sub: string; roles: string[] } }).user = {
+          sub: 'comms-staff',
+          roles: ['communications_officer'],
+        };
+      });
+      await crossApp.register(communicationPlugin, {
+        repository: sharedRepo,
+        circularStore: sharedStore,
+      });
+      await crossApp.ready();
+    });
+
+    it('does not expose tenant A campaign ids to tenant B (404)', async () => {
+      // Tenant A creates a campaign.
+      tenantHeader = TENANT_ID;
+      const created = (
+        await crossApp.inject({
+          method: 'POST',
+          url: '/communication/campaigns',
+          payload: { name: 'Tenant A only', channels: ['email'] },
+        })
+      ).json();
+
+      // Tenant B (same shared repo) must not be able to read it.
+      tenantHeader = TENANT_B;
+      const res = await crossApp.inject({
+        method: 'GET',
+        url: `/communication/campaigns/${created.id}`,
+      });
+      expect(res.statusCode).toBe(404);
+
+      // And tenant A can still read its own.
+      tenantHeader = TENANT_ID;
+      const ownRes = await crossApp.inject({
+        method: 'GET',
+        url: `/communication/campaigns/${created.id}`,
+      });
+      expect(ownRes.statusCode).toBe(200);
+    });
+
+    it('does not let tenant B send tenant A campaigns (404)', async () => {
+      tenantHeader = TENANT_ID;
+      const created = (
+        await crossApp.inject({
+          method: 'POST',
+          url: '/communication/campaigns',
+          payload: { name: 'A send', channels: ['email'] },
+        })
+      ).json();
+
+      tenantHeader = TENANT_B;
+      const res = await crossApp.inject({
+        method: 'POST',
+        url: `/communication/campaigns/${created.id}/send`,
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 });
