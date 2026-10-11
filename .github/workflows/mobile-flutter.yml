@@ -76,6 +76,11 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: node tools/scripts/check-mobile-release-security.mjs
 
+      - name: Release security guard unit tests (fail closed)
+        # Unit tests for the checker above (no dependencies; node:test only).
+        working-directory: ${{ github.workspace }}
+        run: node --test tools/scripts/check-mobile-release-security.test.mjs
+
       - name: Test (fail closed)
         # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without
         # --update-goldens; integration_test/ is not invoked (no device farm).
