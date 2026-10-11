@@ -337,16 +337,45 @@ function safeCssUrl(value: string | null | undefined, fallback: string): string 
 
 /**
  * Login background may be a colour, a gradient, or a `url(...)`. Allow colours
- * and `linear-gradient(...)`/`radial-gradient(...)` whose argument list has no
- * breakout characters; a `url(...)` is validated via `safeCssUrl`. Anything
- * else falls back to the default (PRC-L409).
+ * and `linear-gradient(...)`/`radial-gradient(...)` that pass `isSafeGradient`;
+ * a `url(...)` is validated via `safeCssUrl`. Anything else falls back to the
+ * default (PRC-L409, PRC-M616).
  */
-const GRADIENT = /^(?:linear|radial)-gradient\([^<>"'\\]*\)$/i;
+const GRADIENT_PREFIX = /^(?:linear|radial)-gradient\(/i;
+/**
+ * Gradient values are emitted raw into `--tenant-login-bg:<value>;` inside
+ * `:root{…}`, so anything that can end the declaration or rule, open a comment,
+ * escape, or fetch a resource must be rejected: `;`, `{`, `}`, `\`, `/*`,
+ * `url(`, `@`, `<`, `>`, quotes, and control characters. On top of that deny
+ * list, only a conservative character set (letters, digits, space, `#%.,+-/()`)
+ * is accepted, and parentheses must balance with the outer `gradient(` closed by
+ * the final character, so nothing can trail after the gradient.
+ */
+const GRADIENT_DENY = /[;{}\\@<>"'`]|\/\*|url\(/i;
+const GRADIENT_CHARSET = /^[a-z0-9 #%.,+\-/()]+$/i;
+
+export function isSafeGradient(value: string): boolean {
+  if (value.length > 512) return false;
+  if (!GRADIENT_PREFIX.test(value)) return false;
+  if (GRADIENT_DENY.test(value) || !GRADIENT_CHARSET.test(value)) return false;
+  let depth = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === '(') depth += 1;
+    else if (ch === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+      // The outer gradient( must close only at the very end.
+      if (depth === 0 && i !== value.length - 1) return false;
+    }
+  }
+  return depth === 0 && value.endsWith(')');
+}
 
 function safeLoginBackground(value: string | null | undefined, fallback: string): string {
   const v = (value ?? '').trim();
   if (!v) return fallback;
-  if (HEX_COLOR.test(v) || FN_COLOR.test(v) || HSL_TRIPLE.test(v) || GRADIENT.test(v)) return v;
+  if (HEX_COLOR.test(v) || FN_COLOR.test(v) || HSL_TRIPLE.test(v) || isSafeGradient(v)) return v;
   const urlMatch = /^url\((.*)\)$/i.exec(v);
   if (urlMatch) {
     const inner = urlMatch[1]!.trim().replace(/^["']|["']$/g, '');

