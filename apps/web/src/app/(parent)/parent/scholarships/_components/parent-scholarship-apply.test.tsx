@@ -48,7 +48,7 @@ describe('ParentScholarshipApply (PRC-M131)', () => {
     render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
     await screen.findByRole('button', { name: 'Start application' });
     fillField('Current school or institution', 'North High');
-    fillField('GPA', '8.5');
+    fillField('GPA', '3.6');
     fillField('Declared annual family income', '0');
     fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/family income/i);
@@ -63,7 +63,7 @@ describe('ParentScholarshipApply (PRC-M131)', () => {
     await screen.findByRole('button', { name: 'Start application' });
     fillField('Current school or institution', 'North High');
     fillField('Education level', 'senior_secondary');
-    fillField('GPA', '8.5');
+    fillField('GPA', '3.6');
     fillField('Declared annual family income', '240000');
     fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
     await waitFor(() => {
@@ -77,8 +77,42 @@ describe('ParentScholarshipApply (PRC-M131)', () => {
     );
     const json = (post![1] as { json: Record<string, unknown> }).json;
     expect(json.academicRecords).toEqual([
-      { institutionName: 'North High', educationLevel: 'senior_secondary', gpa: 8.5 },
+      { institutionName: 'North High', educationLevel: 'senior_secondary', gpa: 3.6 },
     ]);
     expect(json.financialInfo).toEqual({ familyIncome: 240000 });
+  });
+
+  it('rejects a GPA above the gateway 4.0 maximum client-side without POSTing', async () => {
+    render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
+    await screen.findByRole('button', { name: 'Start application' });
+    fillField('Current school or institution', 'North High');
+    fillField('GPA', '8.5');
+    fillField('Declared annual family income', '240000');
+    fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/between 0 and 4\.0/i);
+    const input = screen.getByLabelText('GPA');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input.getAttribute('aria-describedby')).toContain('parent-scholarship-gpa-error');
+    expect(screen.getByTestId('parent-scholarship-gpa-error')).toHaveTextContent(/4\.0 scale/);
+    expect(input).toHaveAttribute('max', '4');
+    const posts = browserFetch.mock.calls.filter(
+      (c) => (c[1] as { method?: string } | undefined)?.method === 'POST',
+    );
+    expect(posts).toHaveLength(0);
+  });
+
+  it('accepts the 4.0 boundary', async () => {
+    render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
+    await screen.findByRole('button', { name: 'Start application' });
+    fillField('Current school or institution', 'North High');
+    fillField('GPA', '4');
+    fillField('Declared annual family income', '240000');
+    fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
+    await waitFor(() => {
+      const posts = browserFetch.mock.calls.filter(
+        (c) => (c[1] as { method?: string } | undefined)?.method === 'POST',
+      );
+      expect(posts).toHaveLength(1);
+    });
   });
 });

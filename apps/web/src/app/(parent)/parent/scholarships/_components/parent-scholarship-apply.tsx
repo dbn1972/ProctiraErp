@@ -15,6 +15,15 @@ import {
 
 const API = '/api/parent-portal/scholarships';
 
+/**
+ * Gateway contract: `AcademicRecordSchema.gpa` is `minimum: 0, maximum: 4.0`
+ * (packages/backend/scholarship/src/schemas.ts). The form validates against the same
+ * scale so a guardian never submits a value the gateway rejects with 400. 10-point
+ * CGPA support needs a backend contract change (declared scale) first.
+ */
+const GPA_MAX = 4.0;
+const GPA_ERROR = `Enter a GPA between 0 and ${GPA_MAX.toFixed(1)} (4.0 scale).`;
+
 interface OpenProgram {
   id: string;
   name: string;
@@ -47,6 +56,7 @@ export function ParentScholarshipApply({
   const [institutionName, setInstitutionName] = useState('');
   const [educationLevel, setEducationLevel] = useState('secondary');
   const [gpa, setGpa] = useState('');
+  const [gpaError, setGpaError] = useState<string | null>(null);
   const [familyIncome, setFamilyIncome] = useState('');
 
   useEffect(() => {
@@ -71,6 +81,7 @@ export function ParentScholarshipApply({
 
   const startDraft = async () => {
     setError(null);
+    setGpaError(null);
     // PRC-M131: reject fabricated / default academic + financial data. The guardian
     // must declare a real GPA, education level and family income; a zero or blank
     // income is treated as "not declared" and blocks the draft rather than being sent.
@@ -80,8 +91,9 @@ export function ParentScholarshipApply({
       setError('Enter the current school / institution name.');
       return;
     }
-    if (!Number.isFinite(gpaValue) || gpaValue < 0 || gpaValue > 10) {
-      setError('Enter a valid GPA between 0 and 10.');
+    if (!Number.isFinite(gpaValue) || gpaValue < 0 || gpaValue > GPA_MAX) {
+      setGpaError(GPA_ERROR);
+      setError(GPA_ERROR);
       return;
     }
     if (!Number.isFinite(incomeValue) || incomeValue <= 0) {
@@ -245,21 +257,45 @@ export function ParentScholarshipApply({
                 <option value="undergraduate">Undergraduate</option>
               </select>
             </label>
-            <label className="block text-sm">
-              GPA (0–10)
+            <div className="text-sm">
+              <label className="block" htmlFor="parent-scholarship-gpa">
+                GPA (0–4.0 scale)
+              </label>
               <input
+                id="parent-scholarship-gpa"
                 type="number"
                 inputMode="decimal"
                 min={0}
-                max={10}
+                max={GPA_MAX}
                 step="0.01"
                 className="mt-1 min-h-12 w-full rounded-md border px-3"
                 value={gpa}
                 aria-label="GPA"
-                onChange={(event) => setGpa(event.target.value)}
+                aria-invalid={gpaError ? true : undefined}
+                aria-describedby={
+                  gpaError
+                    ? 'parent-scholarship-gpa-hint parent-scholarship-gpa-error'
+                    : 'parent-scholarship-gpa-hint'
+                }
+                onChange={(event) => {
+                  setGpa(event.target.value);
+                  setGpaError(null);
+                }}
                 required
               />
-            </label>
+              <p id="parent-scholarship-gpa-hint" className="mt-1 text-xs text-muted-foreground">
+                Enter the GPA on a 4.0 scale.
+              </p>
+              {gpaError ? (
+                <p
+                  id="parent-scholarship-gpa-error"
+                  className="mt-1 text-xs text-destructive"
+                  data-testid="parent-scholarship-gpa-error"
+                >
+                  {gpaError}
+                </p>
+              ) : null}
+            </div>
             <label className="block text-sm">
               Declared annual family income
               <input
