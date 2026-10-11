@@ -37,8 +37,9 @@ export default async function ReportsDashboardPage(props: PageProps) {
   // non-parent user from requesting ?role=board/principal to widen scope.
   const sessionRole = detectDashboardRole(session?.user.roles);
   const role = requested && requested === sessionRole ? requested : sessionRole;
-  // Parents never see the role switcher (they can only ever load their own).
-  const parent = sessionRole === 'parent';
+  // PRC-L271 follow-up: no role switcher is rendered. With the session clamp
+  // above every ?role other than the session's own is ignored, so links to the
+  // other roles would silently render the same dashboard (dead UI).
 
   const { dashboard, source, status, error } = await getRoleDashboard(role);
 
@@ -64,23 +65,6 @@ export default async function ReportsDashboardPage(props: PageProps) {
       </div>
 
       <ScaffoldModeBanner source={source} surface="Role dashboards" />
-
-      {!parent && (
-        <nav aria-label="Dashboard roles" className="flex flex-wrap gap-2">
-          {ROLES.map((r) => (
-            <Button
-              key={r}
-              asChild
-              size="sm"
-              variant={role === r || (!role && r === 'principal') ? 'default' : 'outline'}
-            >
-              <Link href={`/reports/dashboard?role=${r}`} data-testid={`dashboard-role-${r}`}>
-                {r}
-              </Link>
-            </Button>
-          ))}
-        </nav>
-      )}
 
       {status === 403 || !dashboard ? (
         <Card>
