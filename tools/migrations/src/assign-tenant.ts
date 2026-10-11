@@ -15,22 +15,9 @@ import type { PoolClient } from 'pg';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 
+import { getAllTargetTables } from './table-mappings.js';
 import type { MigrationConfig, MigrationStepResult } from './types.js';
 import { MIGRATION_UUID_MAP_TABLE } from './types.js';
-
-/** Tables that require tenant_id assignment. */
-const TENANT_SCOPED_TABLES = [
-  'geographic_areas',
-  'institutions',
-  'students',
-  'staff',
-  'enrollments',
-  'academic_periods',
-  'grades',
-  'classes',
-  'subjects',
-  'institution_subjects',
-] as const;
 
 /**
  * Creates or retrieves the default tenant for migration.
@@ -73,7 +60,7 @@ export async function ensureDefaultTenant(
  * Assigns the default tenant_id to all rows in a tenant-scoped table.
  */
 async function assignTenantToTable(
-  client: PoolClient,
+  client: Pick<PoolClient, 'query'>,
   targetSchema: string,
   table: string,
   tenantId: string,
@@ -92,40 +79,53 @@ async function assignTenantToTable(
 }
 
 /**
- * PRC-M554 — discover every tenant-scoped table from the catalog instead of a
- * hardcoded list of 10. A table is tenant-scoped only when its `tenant_id`
- * column is NOT NULL: a mandatory `tenant_id` is the schema's contract that
- * every row in that table belongs to exactly one tenant.
+ * PRC-M554 — the tables this step assigns and verifies are exactly the
+ * migration targets declared in `TABLE_MAPPINGS` (`getAllTargetTables()`),
+ * intersected with the catalog tables in `targetSchema` that have a
+ * `tenant_id` column.
  *
- * Tables whose `tenant_id` is NULLable are deliberately excluded. A NULL
- * `tenant_id` is a legitimate "platform-owned" marker (e.g.
- * `control_plane_documents`, db/sql/022; `PgDocumentStore` treats
- * `tenant_id IS NULL` as `{ platform: true }`). Blanket-assigning the migrated
- * tenant to those NULL rows would silently re-home platform control-plane data
- * into one school's tenant and then falsely report "all rows assigned".
+ * Why the mapping list and not catalog discovery:
+ *  - The transform step never writes `tenant_id`, so the rows this step must
+ *    stamp exist only in mapped target tables, and their `tenant_id` is NULL
+ *    until this step runs. Filtering on `is_nullable = 'NO'` would select only
+ *    columns that cannot hold NULL, making the UPDATE a guaranteed no-op and the
+ *    verification tautological.
+ *  - Non-mapped tables are never touched. In particular, platform-owned tables
+ *    whose NULL `tenant_id` means "platform" (e.g. `control_plane_documents`,
+ *    db/sql/022; `PgDocumentStore` treats `tenant_id IS NULL` as
+ *    `{ platform: true }`) must never be re-homed into the migrated tenant.
+ *
+ * A mapped target that has no `tenant_id` column (or does not exist) is
+ * returned in `missing`; the caller treats that as a hard error because
+ * migrated rows in that table could not be tenant-scoped under RLS.
  */
-export async function discoverTenantScopedTables(
+export async function resolveTenantAssignmentTables(
   client: Pick<PoolClient, 'query'>,
   targetSchema: string,
-): Promise<string[]> {
+): Promise<{ tables: string[]; missing: string[] }> {
+  const targets = getAllTargetTables();
   const result = await client.query<{ table_name: string }>(
-    `SELECT table_name
+    `SELECT DISTINCT table_name
        FROM information_schema.columns
       WHERE table_schema = $1
         AND column_name = 'tenant_id'
-        AND is_nullable = 'NO'
-        AND table_name NOT IN ('tenants', 'schema_migrations')
-      ORDER BY table_name`,
-    [targetSchema],
+        AND table_name = ANY($2::text[])`,
+    [targetSchema, targets],
   );
-  return result.rows.map((r) => r.table_name);
+  const withTenantId = new Set(result.rows.map((r) => r.table_name));
+  // Iterate the mapping list (not the catalog rows) so a catalog that returns
+  // extra tables can never widen the set beyond the declared migration targets.
+  return {
+    tables: targets.filter((t) => withTenantId.has(t)),
+    missing: targets.filter((t) => !withTenantId.has(t)),
+  };
 }
 
 /**
  * Verifies that no rows in tenant-scoped tables are missing a tenant_id.
  */
 async function verifyTenantAssignment(
-  client: PoolClient,
+  client: Pick<PoolClient, 'query'>,
   targetSchema: string,
   tables: readonly string[],
 ): Promise<{ table: string; orphanedCount: number }[]> {
@@ -143,6 +143,68 @@ async function verifyTenantAssignment(
   }
 
   return orphans;
+}
+
+export interface TenantAssignmentOutcome {
+  /** Mapped target tables that were assigned and verified. */
+  tables: string[];
+  /** Rows stamped per table. */
+  assigned: { table: string; count: number }[];
+  errors: MigrationStepResult['errors'];
+}
+
+/**
+ * PRC-M554 — assign `tenantId` to every NULL-tenant row in the mapped migration
+ * targets, then verify none remain. Runs inside the caller's transaction; the
+ * caller must ROLLBACK when `errors` is non-empty.
+ */
+export async function assignAndVerifyTenant(
+  client: Pick<PoolClient, 'query'>,
+  targetSchema: string,
+  tenantId: string,
+): Promise<TenantAssignmentOutcome> {
+  const errors: MigrationStepResult['errors'] = [];
+  const assigned: { table: string; count: number }[] = [];
+
+  const { tables, missing } = await resolveTenantAssignmentTables(client, targetSchema);
+  for (const table of missing) {
+    errors.push({
+      table,
+      message: `Mapped migration target has no tenant_id column in schema "${targetSchema}"`,
+    });
+    console.error(`[tenant]   ✗ ${table}: no tenant_id column`);
+  }
+
+  console.log(`[tenant] Assigning tenant_id to ${tables.length} mapped target table(s)...`);
+  for (const table of tables) {
+    try {
+      const count = await assignTenantToTable(client, targetSchema, table, tenantId);
+      console.log(`[tenant]   ✓ ${table}: ${count} rows assigned`);
+      assigned.push({ table, count });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push({ table, message: `Tenant assignment failed: ${message}` });
+      console.error(`[tenant]   ✗ ${table}: ${message}`);
+    }
+  }
+
+  // PRC-M554: an orphan (row with no tenant) is a hard failure — a tenant-less
+  // row is invisible under RLS and a data leak risk — not a warning. Verify the
+  // same mapped targets BEFORE committing.
+  console.log(`[tenant] Verifying tenant assignment completeness...`);
+  const orphans = await verifyTenantAssignment(client, targetSchema, tables);
+  for (const { table, orphanedCount } of orphans) {
+    errors.push({
+      table,
+      message: `${orphanedCount} rows still missing tenant_id after assignment`,
+    });
+    console.error(`[tenant]   ✗ ${table}: ${orphanedCount} rows without tenant_id`);
+  }
+  if (errors.length === 0) {
+    console.log(`[tenant]   ✓ All rows in mapped targets have tenant_id assigned`);
+  }
+
+  return { tables, assigned, errors };
 }
 
 /**
@@ -179,40 +241,11 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
     );
     console.log(`[tenant] Default tenant ID: ${tenantId}`);
 
-    // Step 2: Assign tenant_id to all scoped tables (discovered from the catalog,
-    // PRC-M554 — not a hardcoded 10). Fall back to the known core list only if
-    // discovery returns nothing (empty staging in a unit context).
-    const discovered = await discoverTenantScopedTables(client, config.pg.schema);
-    const tenantTables = discovered.length > 0 ? discovered : [...TENANT_SCOPED_TABLES];
-    console.log(`[tenant] Assigning tenant_id to ${tenantTables.length} discovered table(s)...`);
-    for (const table of tenantTables) {
-      try {
-        const count = await assignTenantToTable(client, config.pg.schema, table, tenantId);
-        console.log(`[tenant]   ✓ ${table}: ${count} rows assigned`);
-        tablesProcessed++;
-        rowsProcessed += count;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        errors.push({ table, message: `Tenant assignment failed: ${message}` });
-        console.error(`[tenant]   ✗ ${table}: ${message}`);
-      }
-    }
-
-    // Step 3: Verify no orphaned rows. PRC-M554: an orphan (row with no tenant)
-    // is a hard failure — a tenant-less row is invisible under RLS and a data
-    // leak risk — not a warning. Verify BEFORE committing.
-    console.log(`[tenant] Verifying tenant assignment completeness...`);
-    const orphans = await verifyTenantAssignment(client, config.pg.schema, tenantTables);
-    for (const { table, orphanedCount } of orphans) {
-      errors.push({
-        table,
-        message: `${orphanedCount} rows still missing tenant_id after assignment`,
-      });
-      console.error(`[tenant]   ✗ ${table}: ${orphanedCount} rows without tenant_id`);
-    }
-    if (orphans.length === 0 && errors.length === 0) {
-      console.log(`[tenant]   ✓ All rows have tenant_id assigned`);
-    }
+    // Steps 2–3: assign + verify over the TABLE_MAPPINGS targets (PRC-M554).
+    const outcome = await assignAndVerifyTenant(client, config.pg.schema, tenantId);
+    tablesProcessed = outcome.assigned.length;
+    rowsProcessed = outcome.assigned.reduce((sum, a) => sum + a.count, 0);
+    errors.push(...outcome.errors);
 
     // PRC-M554: do not COMMIT a partial/failed assignment. Roll back instead.
     if (errors.length > 0) {
