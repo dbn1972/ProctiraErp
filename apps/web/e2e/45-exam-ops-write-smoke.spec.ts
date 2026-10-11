@@ -8,6 +8,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -80,7 +81,11 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
   const grade = await postOk(
     request,
     '/grades',
-    { name: `Ops Grade ${stamp}`, code: `OG${stamp.slice(-4).toUpperCase()}`, order: 10 },
+    {
+      name: `Ops Grade ${stamp}`,
+      code: `OG${stamp.slice(-4).toUpperCase()}`,
+      order: uniqueGradeOrder(),
+    },
     201,
   );
   const klass = await postOk(

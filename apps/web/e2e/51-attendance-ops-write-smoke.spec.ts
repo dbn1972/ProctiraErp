@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -106,7 +107,7 @@ async function buildClassStudent(request: APIRequestContext): Promise<Attendance
   const grade = await postOk(
     request,
     '/grades',
-    { name: `Att-${tag}`, code: `A${tag.slice(0, 4)}`, order: 6 },
+    { name: `Att-${tag}`, code: `A${tag.slice(0, 4)}`, order: uniqueGradeOrder() },
     201,
   );
   const klass = await postOk(

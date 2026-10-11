@@ -8,6 +8,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -183,7 +184,11 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
 
     const grade = await request.post(`${GATEWAY_URL}/api/v1/grades`, {
       headers: headers(),
-      data: { name: `G914-${stamp()}`, code: `G9${stamp().slice(0, 4)}`, order: 6 },
+      data: {
+        name: `G914-${stamp()}`,
+        code: `G9${stamp().slice(0, 4)}`,
+        order: uniqueGradeOrder(),
+      },
     });
     expect(grade.status(), await grade.text()).toBe(201);
     const gradeId = (await grade.json()).id as string;
