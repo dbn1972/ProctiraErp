@@ -161,6 +161,18 @@ ruleTester.run('no-hardcoded-brand-strings', rule, {
       filename: '/repo/apps/web/src/welcome.ts',
       errors: [{ messageId: 'hardcoded', data: { brand: 'ProctiraERP' } }],
     },
+    // PRC-L300: brand at the END of a sentence (trailing period) must flag.
+    {
+      code: 'function Hero() { return <p>Welcome to ProctiraERP.</p>; }',
+      filename: '/repo/apps/web/src/hero.tsx',
+      errors: [{ messageId: 'hardcoded', data: { brand: 'ProctiraERP' } }],
+    },
+    // PRC-L300: brand followed by a colon (title prefix) must flag.
+    {
+      code: "const title = 'ProctiraERP: Home';",
+      filename: '/repo/apps/web/src/title.ts',
+      errors: [{ messageId: 'hardcoded', data: { brand: 'ProctiraERP' } }],
+    },
     // Case-insensitive: lowercase brand still flagged.
     {
       code: "const x = 'powered by proctira';",
