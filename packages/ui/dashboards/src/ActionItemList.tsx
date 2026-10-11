@@ -41,26 +41,39 @@ import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
 import { cn } from './lib/utils';
 
 /**
- * PRC-L595: only render `item.href` as a link when it is a safe target —
- * a site-relative path, a fragment/query, or an explicit http(s) URL. This
- * blocks `javascript:`, `data:` and other active schemes from executing if an
- * href is ever derived from user/tenant data. Anything else renders as a
- * non-link (handled by the caller's `onSelect`/plain row fallback).
+ * PRC-L595: only render `item.href` as a link when it is a safe target.
+ *
+ * Deny-by-default using the WHATWG URL parser (the same algorithm browsers use
+ * for `<a href>`), so scheme obfuscation such as `java\tscript:`, a leading
+ * `\x01` / space, or mixed case is normalised before the protocol check:
+ *
+ *   - An absolute URL is safe only when its protocol is `http:` or `https:`.
+ *   - A relative URL (path, `?query`, `#fragment`) is safe only when it resolves
+ *     to the placeholder origin, which rejects protocol-relative `//host` and
+ *     `\\host` forms that would navigate off-site.
+ *
+ * Anything else (including unparseable input) renders as a non-link.
  */
-export function isSafeHref(href: string): boolean {
-  const value = href.trim();
-  if (!value) return false;
-  // Relative paths and in-page anchors are always safe.
-  if (/^[/#?]/.test(value) && !value.startsWith('//')) return true;
-  // Reject protocol-relative URLs and any explicit non-http(s) scheme.
-  if (value.startsWith('//')) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
-    return /^https?:\/\//i.test(value);
-  }
-  // No scheme, not starting with / # ? — treat as a relative path.
-  return true;
-}
+const SAFE_HREF_BASE = 'https://placeholder.invalid';
+const SAFE_HREF_ORIGIN = new URL(SAFE_HREF_BASE).origin;
+const SAFE_PROTOCOLS = new Set(['http:', 'https:']);
 
+export function isSafeHref(href: string): boolean {
+  if (typeof href !== 'string' || href.trim() === '') return false;
+  let absolute: URL | null = null;
+  try {
+    absolute = new URL(href);
+  } catch {
+    absolute = null;
+  }
+  if (absolute) return SAFE_PROTOCOLS.has(absolute.protocol);
+  try {
+    const resolved = new URL(href, SAFE_HREF_BASE);
+    return SAFE_PROTOCOLS.has(resolved.protocol) && resolved.origin === SAFE_HREF_ORIGIN;
+  } catch {
+    return false;
+  }
+}
 export type ActionItemPriority = 'high' | 'medium' | 'low';
 
 export interface ActionItem {

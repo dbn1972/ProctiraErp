@@ -146,6 +146,37 @@ describe('isSafeHref (PRC-L595)', () => {
     expect(isSafeHref('//evil.example.com')).toBe(false);
     expect(isSafeHref('vbscript:msgbox(1)')).toBe(false);
     expect(isSafeHref('')).toBe(false);
+    expect(isSafeHref('   ')).toBe(false);
+  });
+
+  // Browsers strip ASCII tab/newline and leading C0 controls/space before
+  // parsing the scheme, so these all resolve to an active scheme.
+  it.each([
+    ['tab inside scheme', 'java\tscript:alert(1)'],
+    ['newline inside scheme', 'java\nscript:alert(1)'],
+    ['leading C0 control', '\x01javascript:alert(1)'],
+    ['leading space', ' javascript:alert(1)'],
+    ['upper case', 'JAVASCRIPT:alert(1)'],
+    ['data:', 'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='],
+    ['vbscript:', 'vbscript:msgbox(1)'],
+    ['file:', 'file:///etc/passwd'],
+    ['protocol-relative', '//evil.example.com/x'],
+    ['backslash protocol-relative', '\\\\evil.example.com/x'],
+    ['tab-split protocol-relative', '/\t/evil.example.com'],
+  ])('rejects %s', (_label, href) => {
+    expect(isSafeHref(href)).toBe(false);
+  });
+
+  it.each([
+    '/students/123?tab=fees',
+    '../reports',
+    'reports/attendance',
+    '#pending',
+    '?page=2',
+    'https://docs.example.com/guide',
+    'HTTPS://docs.example.com/guide',
+  ])('allows %s', (href) => {
+    expect(isSafeHref(href)).toBe(true);
   });
 });
 
@@ -159,6 +190,14 @@ describe('<ActionItemList /> href safety (PRC-L595)', () => {
     expect(link).toBeNull();
   });
 
+  it('does not render an obfuscated java\\tscript: href as a link', () => {
+    const hostile: ReadonlyArray<ActionItem> = [
+      { id: 'y', title: 'Obfuscated', priority: 'low', href: 'java\tscript:alert(1)' },
+    ];
+    render(<ActionItemList title="Action items" items={hostile} data-testid="list3" />);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('Obfuscated')).toBeInTheDocument();
+  });
   it('renders a safe relative href as a link', () => {
     render(<ActionItemList title="Action items" items={items} data-testid="list2" />);
     const link = screen.getByRole('link');
