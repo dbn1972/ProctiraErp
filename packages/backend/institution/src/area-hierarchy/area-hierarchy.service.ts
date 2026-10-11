@@ -96,7 +96,35 @@ export interface AreaHierarchyDbClient {
    * run inside this when available so concurrent writers cannot interleave and
    * corrupt the nested set (PRC-M282 / NEW-004).
    */
-  $transaction?<T>(fn: (tx: AreaHierarchyDbClient) => Promise<T>): Promise<T>;
+  $transaction?<T>(
+    fn: (tx: AreaHierarchyDbClient) => Promise<T>,
+    options?: { isolationLevel?: 'Serializable' },
+  ): Promise<T>;
+}
+
+/** Retries for a serializable tree rewrite that lost a write-write race. */
+const SERIALIZATION_RETRIES = 3;
+
+/** Prisma P2034 / Postgres 40001: the transaction must be retried. */
+function isSerializationFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: unknown; message?: unknown; meta?: { code?: unknown } };
+  return (
+    e.code === 'P2034' ||
+    e.code === '40001' ||
+    e.meta?.code === '40001' ||
+    (typeof e.message === 'string' && /could not serialize access|40001/.test(e.message))
+  );
+}
+
+/**
+ * True when `candidate` sits inside the subtree rooted at `ancestorId`, judged
+ * by the materialized path (`/rootId/.../parentId`). The path is the field this
+ * service has always kept correct on create and move; `lft/rgt` were not
+ * maintained by moves before PRC-M281, so they must not decide cycle safety.
+ */
+function isInSubtreeOf(candidate: GeographicArea, ancestorId: string): boolean {
+  return (candidate.path ?? '').split('/').includes(ancestorId);
 }
 
 /**
@@ -112,10 +140,21 @@ export class AreaHierarchyService {
    * (PRC-M282 / NEW-004).
    */
   private async runInTransaction<T>(fn: (db: AreaHierarchyDbClient) => Promise<T>): Promise<T> {
-    if (typeof this.db.$transaction === 'function') {
-      return this.db.$transaction((tx) => fn(tx));
+    const db = this.db;
+    if (typeof db.$transaction !== 'function') {
+      return fn(db);
     }
-    return fn(this.db);
+    // Postgres: the tenant-bound client runs this through withTenantTransaction,
+    // so `tx` carries app.tenant_id under FORCE RLS. SERIALIZABLE makes two
+    // concurrent nested-set rewrites for the same tenant conflict instead of
+    // interleaving; the loser is retried on a fresh snapshot.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await db.$transaction<T>((tx) => fn(tx), { isolationLevel: 'Serializable' });
+      } catch (error) {
+        if (attempt >= SERIALIZATION_RETRIES || !isSerializationFailure(error)) throw error;
+      }
+    }
   }
 
   /**
@@ -277,8 +316,10 @@ export class AreaHierarchyService {
           throw new NotFoundError(`New parent area with id '${newParentId}' not found`);
         }
 
-        // Cannot move to a descendant of itself (nested-set containment check)
-        if (newParent.lft > area.lft && newParent.rgt < area.rgt) {
+        // Cannot move to a descendant of itself. Decided by the materialized
+        // path, which is always maintained; lft/rgt can be stale on tenants
+        // whose areas were moved before PRC-M281 and would let a cycle through.
+        if (isInSubtreeOf(newParent, areaId)) {
           throw new BusinessRuleError('Cannot move an area to one of its own descendants');
         }
 

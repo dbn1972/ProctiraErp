@@ -41,6 +41,11 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   // the outbox silently returns to being a one-way sink. Kept permanently required
   // so a later marker bump cannot stop verifying it.
   '101_outbox_redrive.sql',
+  // #597: the report scheduler's platform claim needs the 150 policy, and the
+  // developer-portal SQL reads/writes `owner_user_id` from 170. Keep both
+  // required so a later marker bump (e.g. #598 → 192) still verifies them.
+  '150_report_schedules_platform_claim_policy.sql',
+  '170_developer_portal_account_owner.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {
