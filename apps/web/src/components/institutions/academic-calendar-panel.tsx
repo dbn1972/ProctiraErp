@@ -385,17 +385,26 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
   // the one that was previewed.
   const invalidatePreview = () => setSummary(null);
 
-  // PRC-M135: a stable fingerprint of the options that were previewed. It is
-  // folded into the idempotency key so an execute with different options cannot
-  // collapse onto a previous attempt's key.
-  const optionsHash = [
-    targetPeriodId,
-    institutionId,
-    promote ? 'p1' : 'p0',
-    copyFees ? 'f1' : 'f0',
-    copyTimetable ? 't1' : 't0',
-    copyLms ? 'l1' : 'l0',
-  ].join('|');
+  // PRC-M135: a stable, compact fingerprint of the options that were previewed.
+  // It is folded into the idempotency key so an execute with different options
+  // cannot collapse onto a previous attempt's key — digested (djb2 → base36) so
+  // the key stays within the gateway/schema 128-char ceiling even with two
+  // embedded UUIDs.
+  const optionsFingerprint = (() => {
+    const raw = [
+      targetPeriodId,
+      institutionId,
+      promote ? 'p1' : 'p0',
+      copyFees ? 'f1' : 'f0',
+      copyTimetable ? 't1' : 't0',
+      copyLms ? 'l1' : 'l0',
+    ].join('|');
+    let hash = 5381;
+    for (let i = 0; i < raw.length; i++) {
+      hash = ((hash << 5) + hash + raw.charCodeAt(i)) | 0;
+    }
+    return (hash >>> 0).toString(36);
+  })();
 
   const run = (dryRun: boolean) => {
     setError(null);
@@ -407,9 +416,7 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
         copyFeeStructures: copyFees,
         copyTimetable,
         copyLmsAssignments: copyLms,
-        idempotencyKey: dryRun
-          ? undefined
-          : `rollover-${source.id}-${targetPeriodId}-${optionsHash}`,
+        idempotencyKey: dryRun ? undefined : `rollover-${source.id}-${optionsFingerprint}`,
         dryRun,
       });
       if (!result.success) {

@@ -21,15 +21,25 @@ vi.mock('@/lib/institutions/actions', () => ({
 
 import { RolloverCard } from './academic-calendar-panel';
 
-const SOURCE = { id: 'src-1', name: '2025-26', startDate: '2025-06-01', status: 'active' };
-const TARGET = { id: 'tgt-1', name: '2026-27', startDate: '2026-06-01', status: 'active' };
+const SOURCE = {
+  id: '00000000-0000-4000-8000-0000000005a1',
+  name: '2025-26',
+  startDate: '2025-06-01',
+  status: 'active',
+};
+const TARGET = {
+  id: '00000000-0000-4000-8000-0000000005b2',
+  name: '2026-27',
+  startDate: '2026-06-01',
+  status: 'active',
+};
 
 function previewSummary() {
   return {
     success: true,
     data: {
       dryRun: true,
-      targetPeriodId: 'tgt-1',
+      targetPeriodId: TARGET.id,
       classes: { toCreate: 1, created: 0, existing: 0 },
       enrollments: {
         considered: 1,
@@ -60,7 +70,7 @@ describe('RolloverCard execute parity (PRC-M135)', () => {
     expect(screen.getByTestId('rollover-execute')).toBeDisabled();
   });
 
-  it('encodes the option set into the executed idempotency key', async () => {
+  it('encodes the option set into a bounded executed idempotency key', async () => {
     rolloverAction.mockImplementation((_id: string, input: { dryRun: boolean }) =>
       Promise.resolve(
         input.dryRun
@@ -68,7 +78,9 @@ describe('RolloverCard execute parity (PRC-M135)', () => {
           : { success: true, data: { ...previewSummary().data, dryRun: false } },
       ),
     );
-    render(<RolloverCard source={SOURCE as never} targets={[TARGET as never]} institutions={[]} />);
+    const { unmount } = render(
+      <RolloverCard source={SOURCE as never} targets={[TARGET as never]} institutions={[]} />,
+    );
 
     fireEvent.click(screen.getByTestId('rollover-preview'));
     await waitFor(() => expect(screen.getByTestId('rollover-execute')).toBeEnabled());
@@ -85,7 +97,36 @@ describe('RolloverCard execute parity (PRC-M135)', () => {
       (c) => (c[1] as { dryRun: boolean }).dryRun === false,
     );
     const key = (executeCall![1] as { idempotencyKey: string }).idempotencyKey;
-    expect(key).toContain('rollover-src-1-tgt-1-');
-    expect(key).toContain('f1'); // copyFees on in the previewed+executed set
+    // Scoped to the source period…
+    expect(key.startsWith(`rollover-${SOURCE.id}-`)).toBe(true);
+    // …and — the regression this guards — within the gateway/schema bound
+    // (`rolloverFormSchema` caps idempotencyKey at 128 chars). The previous
+    // key embedded two raw UUIDs plus the option string and overflowed, so the
+    // execute failed validation and the summary stayed in dry-run.
+    expect(key.length).toBeGreaterThanOrEqual(8);
+    expect(key.length).toBeLessThanOrEqual(128);
+    const feesOnKey = key;
+    unmount();
+
+    // Toggling an option changes the fingerprint, so a different option set can
+    // never collapse onto a previous attempt's idempotency key.
+    rolloverAction.mockClear();
+    render(<RolloverCard source={SOURCE as never} targets={[TARGET as never]} institutions={[]} />);
+    fireEvent.click(screen.getByTestId('rollover-copy-fees')); // fees off
+    fireEvent.click(screen.getByTestId('rollover-preview'));
+    await waitFor(() => expect(screen.getByTestId('rollover-execute')).toBeEnabled());
+    fireEvent.click(screen.getByTestId('rollover-execute'));
+    fireEvent.click(await screen.findByTestId('academic-period-rollover-confirm-confirm'));
+    await waitFor(() =>
+      expect(
+        rolloverAction.mock.calls.find((c) => (c[1] as { dryRun: boolean }).dryRun === false),
+      ).toBeTruthy(),
+    );
+    const feesOffCall = rolloverAction.mock.calls.find(
+      (c) => (c[1] as { dryRun: boolean }).dryRun === false,
+    );
+    const feesOffKey = (feesOffCall![1] as { idempotencyKey: string }).idempotencyKey;
+    expect(feesOffKey).not.toBe(feesOnKey);
+    expect(feesOffKey.length).toBeLessThanOrEqual(128);
   });
 });

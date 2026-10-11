@@ -383,8 +383,14 @@ async function exerciseCurriculum(
   await taught.locator('input[name="title"]').fill(lesson);
   await serverAction(page, () => taught.getByRole('button', { name: 'Add lesson' }).click());
   await expect(taught.getByText(lesson)).toBeVisible({ timeout: ACTION_TIMEOUT });
-  page.once('dialog', (dialog) => dialog.accept(lessonEdited));
-  await serverAction(page, () => taught.getByRole('button', { name: 'Edit' }).click());
+  // PRC-M137: lesson edits use an accessible, cancellable dialog instead of the
+  // native window.prompt. Opening the dialog fires no server action; the
+  // confirm click does. Drive the dialog's own input + confirm button.
+  await clickDom(taught.getByRole('button', { name: 'Edit' }).first());
+  const editInput = page.getByTestId('curriculum-edit-lesson-input').filter({ visible: true });
+  await expect(editInput).toBeVisible();
+  await editInput.fill(lessonEdited);
+  await serverAction(page, () => confirm(page, 'curriculum-edit-lesson'));
   await expect(taught.getByText(lessonEdited)).toBeVisible({ timeout: ACTION_TIMEOUT });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
