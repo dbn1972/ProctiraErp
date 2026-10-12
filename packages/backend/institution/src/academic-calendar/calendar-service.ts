@@ -428,8 +428,37 @@ export class AcademicCalendarService {
         where: { tenantId, deletedAt: null },
         orderBy: { order: 'asc' },
       })) as GradeRow[];
+
+      // PRC-M280: promotion is inferred from the numeric grade order. A
+      // duplicate order collapses two grades into one Map slot (students go to
+      // an arbitrary grade); a gap (e.g. 5 -> 7) makes a non-terminal student
+      // look terminal and get an irreversible GRADUATED write. Refuse the whole
+      // rollover (fail closed) rather than silently corrupting data. The caller
+      // must fix the grade ladder first.
+      const seenOrders = new Set<number>();
+      const duplicateOrders = new Set<number>();
+      for (const g of grades) {
+        if (seenOrders.has(g.order)) duplicateOrders.add(g.order);
+        seenOrders.add(g.order);
+      }
+      if (duplicateOrders.size > 0) {
+        throw new BusinessRuleError(
+          `Cannot roll over: grade order is not unique (duplicate order(s): ${[...duplicateOrders]
+            .sort((a, b) => a - b)
+            .join(', ')}). Fix the grade ladder before promoting students.`,
+        );
+      }
+      const sortedOrders = [...seenOrders].sort((a, b) => a - b);
+      const gapAfter: number[] = [];
+      for (let i = 0; i < sortedOrders.length - 1; i += 1) {
+        const current = sortedOrders[i]!;
+        const next = sortedOrders[i + 1]!;
+        if (next - current > 1) gapAfter.push(current);
+      }
+
       const gradeOrder = new Map(grades.map((g) => [g.id, g.order]));
       const gradeByOrder = new Map(grades.map((g) => [g.order, g.id]));
+      const maxOrder = sortedOrders.length > 0 ? sortedOrders[sortedOrders.length - 1]! : -1;
 
       const [sourceEnrollments, targetEnrollments] = await Promise.all([
         this.prisma.enrollment.findMany({
@@ -494,6 +523,18 @@ export class AcademicCalendarService {
         const order = gradeOrder.get(e.gradeId);
         const nextGradeId = order === undefined ? undefined : gradeByOrder.get(order + 1);
         if (!nextGradeId) {
+          // PRC-M280: only a genuine terminal grade (highest order in the
+          // ladder) graduates. A missing order+1 while a higher grade exists
+          // means the ladder has a gap — graduating here would be a wrong,
+          // irreversible status change, so refuse the whole run.
+          if (order !== undefined && order < maxOrder) {
+            throw new BusinessRuleError(
+              `Cannot roll over: grade order ${order} has no successor (order ${order + 1} is missing) ` +
+                `while higher grades exist${
+                  gapAfter.length > 0 ? ` (gaps after order ${gapAfter.join(', ')})` : ''
+                }. Fix the grade ladder before promoting students.`,
+            );
+          }
           summary.enrollments.graduating += 1;
           graduating.push(e);
           continue;

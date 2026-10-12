@@ -7,6 +7,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -132,7 +133,7 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
     const grade = await postOk(request, '/grades', {
       name: `P004 Grade ${tag}`,
       code: `PG${tag.slice(-4)}`,
-      order: 5,
+      order: uniqueGradeOrder(),
     });
     const section = await postOk(request, '/classes', {
       institutionId: INSTITUTION_A,
