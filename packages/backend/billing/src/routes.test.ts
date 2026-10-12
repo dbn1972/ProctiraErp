@@ -107,6 +107,81 @@ describe('Billing Routes', () => {
       expect(body.data).toHaveLength(1);
       expect(body.meta.totalItems).toBe(1);
     });
+
+    // PRC-L285: GET /billing/plans must validate the querystring like every
+    // other handler (bounded pageSize, non-negative page, allowlisted sortBy).
+    it('returns 400 for pageSize over the max (PRC-L285)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/billing/plans?pageSize=101',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for a non-allowlisted sortBy (PRC-L285)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/billing/plans?sortBy=__proto__',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 400 for a negative page (PRC-L285)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/billing/plans?page=-5',
+      });
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
+  // PRC-L085: upgrade/downgrade are keyed by the subscription id in the URL and
+  // must reject when that id is not the tenant's current active subscription.
+  describe('POST /billing/subscriptions/:id/upgrade (PRC-L085)', () => {
+    async function activePlan(name: string, tier: 'free' | 'starter' | 'professional') {
+      const plan = await service.createPlan({ name, tier, features: [], quotas: [] });
+      await service.updatePlan(plan.id, { status: 'active' });
+      return plan;
+    }
+
+    it('returns 409 when the addressed subscription id is cancelled and changes nothing', async () => {
+      const starter = await activePlan('Starter L085', 'starter');
+      const pro = await activePlan('Pro L085', 'professional');
+      const sub = await service.subscribeTenant({ tenantId, planId: starter.id });
+      // Cancel the subscription so it is no longer the active one.
+      const cancelled = await service.cancelSubscription(sub.id);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/billing/subscriptions/${cancelled.id}/upgrade`,
+        payload: { newPlanId: pro.id },
+      });
+
+      // Would be 200 before the fix (it acted on the tenant's active sub).
+      expect(response.statusCode).toBe(409);
+      const stillCancelled = await service.getSubscription(cancelled.id);
+      expect(stillCancelled.status).toBe('cancelled');
+      expect(stillCancelled.planId).toBe(starter.id);
+    });
+
+    it('rejects upgrading a suspended subscription', async () => {
+      const starter = await activePlan('Starter L085b', 'starter');
+      const pro = await activePlan('Pro L085b', 'professional');
+      const sub = await service.subscribeTenant({ tenantId, planId: starter.id });
+      const suspended = await service.suspendSubscription(sub.id);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/billing/subscriptions/${suspended.id}/upgrade`,
+        payload: { newPlanId: pro.id },
+      });
+
+      expect(response.statusCode).toBe(409);
+      const still = await service.getSubscription(suspended.id);
+      expect(still.planId).toBe(starter.id);
+    });
   });
 
   describe('GET /billing/plans/:id', () => {

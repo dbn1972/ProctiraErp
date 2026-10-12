@@ -25,7 +25,7 @@
  * Charter: Section 10 (Subscription, Entitlements, Feature Control)
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { requireBillingAction } from './billing-http-guard.js';
@@ -188,11 +188,20 @@ export async function registerBillingRoutes(
       request: FastifyRequest<{ Querystring: PlanListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as PlanListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = validateQuery(PlanListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
       const sortBy = query.sortBy ?? 'sortOrder';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      const sortOrder = query.sortOrder ?? 'asc';
 
       const result = await billingService.listPlans(
         {
@@ -490,6 +499,7 @@ export async function registerBillingRoutes(
         const subscription = await billingService.upgradePlan(
           existingSub.tenantId,
           bodyResult.data,
+          paramsResult.data.id,
         );
         const plan = await billingService.getPlanById(subscription.planId);
         return reply
@@ -536,7 +546,11 @@ export async function registerBillingRoutes(
 
       try {
         const existingSub = await billingService.getSubscription(paramsResult.data.id);
-        const result = await billingService.downgradePlan(existingSub.tenantId, bodyResult.data);
+        const result = await billingService.downgradePlan(
+          existingSub.tenantId,
+          bodyResult.data,
+          paramsResult.data.id,
+        );
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
