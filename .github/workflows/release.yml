@@ -85,6 +85,13 @@ jobs:
     outputs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
+      # NEW-g3_infra_tools-003: Docker-tag-safe form of the branch. Branch names
+      # for release/** (and any other ref) may contain '/', which is NOT a legal
+      # OCI tag character. An unsanitised value makes docker push AND the cosign
+      # sign/verify steps fail, so release-branch builds never produce a signed
+      # image — defeating the fail-closed supply-chain control. We sanitise every
+      # illegal character to '-' and feed this to docker/metadata-action.
+      head-branch-tag: ${{ steps.resolve.outputs.head-branch-tag }}
     steps:
       # PRC-M256: context values reach the shell only through env (never inline in script).
       - name: Resolve commit and branch
@@ -113,7 +120,13 @@ jobs:
           fi
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
-          echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+          # NEW-g3_infra_tools-003: produce an OCI-valid tag. A legal tag matches
+          # [A-Za-z0-9_][A-Za-z0-9._-]{0,127}; replace every other character
+          # (notably '/') with '-', strip leading separators, then cap length.
+          HEAD_BRANCH_TAG="$(printf '%s' "${HEAD_BRANCH}" | sed -E 's/[^A-Za-z0-9._-]/-/g; s/^[._-]+//')"
+          HEAD_BRANCH_TAG="${HEAD_BRANCH_TAG:0:128}"
+          echo "head-branch-tag=${HEAD_BRANCH_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH} (image tag: ${HEAD_BRANCH_TAG})" >> "$GITHUB_STEP_SUMMARY"
       # Defense in depth for PRC-H061: fail (not skip) if the job-level guard
       # is ever weakened, and prove the SHA is on the protected branch.
       - name: Assert trusted push-triggered CI run
@@ -332,7 +345,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
           tags: |
-            type=raw,value=${{ needs.ci-gate.outputs.head-branch }},enable=${{ needs.ci-gate.outputs.head-branch != '' }}
+            type=raw,value=${{ needs.ci-gate.outputs.head-branch-tag }},enable=${{ needs.ci-gate.outputs.head-branch-tag != '' }}
             type=raw,value=sha-${{ needs.ci-gate.outputs.head-sha }}
             type=sha,format=short,prefix=sha-,sha=${{ needs.ci-gate.outputs.head-sha }}
           labels: |
