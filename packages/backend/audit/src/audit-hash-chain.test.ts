@@ -113,6 +113,58 @@ describe('InMemoryAuditRepository chain', () => {
     expect(v.checkedEntries).toBe(0);
   });
 
+  // PRC-M176 / NEW-g7_platform-012: an unchained row inserted AFTER the chain
+  // started (a direct insert framed as "legacy") must fail strict verification.
+  it('fails strict verification on an unchained row inserted after cutover', async () => {
+    const repo = new InMemoryAuditRepository();
+    const genesis = await repo.create(input({ timestamp: new Date('2026-09-01T10:00:00.000Z') }));
+    const second = await repo.create(input({ timestamp: new Date('2026-09-01T11:00:00.000Z') }));
+
+    // A forged direct insert dated after genesis with no chain columns.
+    const forged: AuditLogEntry = {
+      ...input({ timestamp: new Date('2026-09-01T12:00:00.000Z') }),
+      metadata: null,
+      chainSeq: null,
+      prevHash: null,
+      entryHash: null,
+    };
+
+    const chained: AuditLogEntry[] = [genesis, second, forged];
+
+    // Non-strict (legacy behaviour): tolerated.
+    expect(verifyEntrySequence(TENANT, chained).valid).toBe(true);
+
+    // Strict: the post-cutover unchained row is a tamper event.
+    const strict = verifyEntrySequence(TENANT, chained, { strict: true });
+    expect(strict.valid).toBe(false);
+    expect(strict.unchainedAfterCutover).toBe(1);
+    expect(strict.brokenAt?.reason).toBe('missing-hash');
+  });
+
+  it('strict verification still tolerates genuine pre-chain legacy rows', () => {
+    const preChain: AuditLogEntry = {
+      ...input({ timestamp: new Date('2026-08-01T09:00:00.000Z') }),
+      metadata: null,
+      chainSeq: null,
+      prevHash: null,
+      entryHash: null,
+    };
+    const genesisInput = {
+      ...input({ timestamp: new Date('2026-09-01T10:00:00.000Z') }),
+      metadata: null,
+    };
+    const genesis: AuditLogEntry = {
+      ...genesisInput,
+      chainSeq: 1,
+      prevHash: null,
+      entryHash: computeEntryHash(genesisInput, null),
+    };
+    const v = verifyEntrySequence(TENANT, [preChain, genesis], { strict: true });
+    expect(v.valid).toBe(true);
+    expect(v.unchainedAfterCutover).toBe(0);
+    expect(v.legacyEntries).toBe(1);
+  });
+
   it('archival keeps the chain verifiable across active + archive', async () => {
     const repo = new InMemoryAuditRepository();
     const old = new Date();

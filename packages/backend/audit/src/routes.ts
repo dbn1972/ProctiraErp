@@ -18,7 +18,7 @@
  * - 21.4: Query with filtering by entity type, user, date range, operation type
  * - 21.5: Configurable retention with automated archival
  */
-import { AppError } from '@proctira/common';
+import { AppError, PLATFORM_ADMIN_ROLE_IDS } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -108,9 +108,68 @@ function getClientIp(request: FastifyRequest): string {
 
 /**
  * Extracts tenant ID from the request (set by tenant resolution middleware).
+ * PRC-L279: returns '' (not a shared 'default' bucket) when context is missing;
+ * the preHandler guard rejects such requests so audit rows can never be written
+ * to or read from a cross-tenant 'default' tenant.
  */
 function getTenantId(request: FastifyRequest): string {
-  return (request as unknown as { tenantId?: string }).tenantId ?? 'default';
+  return (request as unknown as { tenantId?: string }).tenantId ?? '';
+}
+
+/** Normalise JWT role claims (string[] or RoleAssignment[]) to lowercase names. */
+function normaliseAuditRoles(roles: unknown): string[] {
+  if (!Array.isArray(roles)) return [];
+  return roles
+    .map((r) => {
+      if (typeof r === 'string') return r.toLowerCase();
+      if (r && typeof r === 'object') {
+        const obj = r as { roleId?: string; roleName?: string; id?: string };
+        return String(obj.roleId ?? obj.roleName ?? obj.id ?? '').toLowerCase();
+      }
+      return '';
+    })
+    .filter(Boolean);
+}
+
+/**
+ * PRC-L280: roles permitted to WRITE audit evidence directly via the audit routes.
+ * Writing arbitrary audit rows is a privileged, security-sensitive operation; it must
+ * not be available to any caller who merely reaches the mount. Reads remain available
+ * to any authenticated principal within the tenant (RLS + tenant guard still apply).
+ *
+ * The set stays fail-closed (an unlisted role is denied) but MUST contain every
+ * legitimate in-repo writer of the `/audit-logs` routes:
+ *   - canonical platform-admin role ids (`platform_admin`, `super-admin`) sourced
+ *     from {@link PLATFORM_ADMIN_ROLE_IDS} so this list cannot silently diverge
+ *     from the gateway's platform-admin definition. The web `/billing`,
+ *     `/audit-logs` and `/tenant-lifecycle` surfaces (apps/web platform.server.ts)
+ *     and the admin-console platform surfaces are rendered for this persona and
+ *     POST/PUT/DELETE audit evidence (retention, archival, DSAR export, direct
+ *     record writes). Omitting `platform_admin` 403'd the platform administrator
+ *     on legitimate audit writes (G-727 regression).
+ *   - the tenant administrator (`admin`) plus common `super_admin`/`system(-|_)admin`
+ *     spellings, and the audit/security/compliance officer roles that own audit
+ *     evidence directly.
+ * Role ids are matched case-insensitively (see {@link normaliseAuditRoles}); the
+ * canonical platform ids are already lowercase.
+ */
+const AUDIT_WRITE_ROLES = new Set<string>([
+  ...[...PLATFORM_ADMIN_ROLE_IDS].map((r) => r.toLowerCase()),
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system-admin',
+  'system_admin',
+  'security_officer',
+  'auditor',
+  'compliance_officer',
+  'data_protection_officer',
+  'dpo',
+]);
+
+function canWriteAudit(request: FastifyRequest): boolean {
+  const user = (request as unknown as { user?: { roles?: unknown } }).user;
+  return normaliseAuditRoles(user?.roles).some((r) => AUDIT_WRITE_ROLES.has(r));
 }
 
 /**
@@ -132,6 +191,36 @@ export async function registerAuditRoutes(
   options: AuditRoutesOptions,
 ): Promise<void> {
   const { auditService, prefix = '/audit' } = options;
+
+  // PRC-L279 / PRC-L280: fail-closed guard for every audit route.
+  //  - Tenant context is required (no cross-tenant 'default' bucket).
+  //  - State-changing methods (POST/PUT/DELETE) additionally require an
+  //    audit-write role, so a caller cannot write arbitrary evidence just by
+  //    reaching the mount. Reads stay available to any authenticated tenant user.
+  // The hook is registered on the caller's instance (often the gateway root), so
+  // it must only act on this module's own routes — never /health, /docs, etc.
+  const isAuditRoute = (request: FastifyRequest): boolean => {
+    const url = request.routeOptions.url ?? '';
+    return url === prefix || url.startsWith(`${prefix}/`);
+  };
+  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!isAuditRoute(request)) return;
+    if (!getTenantId(request)) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const method = request.method.toUpperCase();
+    if ((method === 'POST' || method === 'PUT' || method === 'DELETE') && !canWriteAudit(request)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Audit write access requires an audit/security/admin role',
+        statusCode: 403,
+      });
+    }
+  });
 
   // POST /audit - Record a single audit log entry
   fastify.post(prefix, async (request: FastifyRequest, reply: FastifyReply) => {

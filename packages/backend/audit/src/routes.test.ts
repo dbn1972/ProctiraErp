@@ -21,9 +21,11 @@ describe('Audit Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
-      (request as unknown as { user: { sub: string; name: string } }).user = {
+      (request as unknown as { user: { sub: string; name: string; roles: string[] } }).user = {
         sub: 'test-user-id',
         name: 'Test User',
+        // PRC-L280: default test principal holds an audit-write role.
+        roles: ['admin'],
       };
     });
 
@@ -426,6 +428,175 @@ describe('Audit Routes', () => {
       const body = response.json();
       expect(body.entryCount).toBe(0);
       expect(body.entries).toEqual([]);
+    });
+  });
+
+  // PRC-L279: no cross-tenant 'default' fallback — missing tenant context fails closed.
+  describe('tenant context required (PRC-L279)', () => {
+    it('does not affect routes outside the audit prefix (e.g. /health)', async () => {
+      const bare = Fastify();
+      bare.decorateRequest('tenantId', '');
+      bare.get('/health', async () => ({ status: 'healthy' }));
+      await bare.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await bare.ready();
+      const res = await bare.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(200);
+      await bare.close();
+    });
+
+    it('rejects any audit route when tenant context is missing (400)', async () => {
+      const bare = Fastify();
+      bare.decorateRequest('tenantId', '');
+      bare.addHook('onRequest', async (request) => {
+        // No tenantId set; grant a write role so only the tenant guard can block.
+        (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+          sub: 'u',
+          roles: ['admin'],
+        };
+      });
+      await bare.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await bare.ready();
+
+      const post = await bare.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(post.statusCode).toBe(400);
+      expect(post.json().code).toBe('TENANT_REQUIRED');
+
+      const get = await bare.inject({ method: 'GET', url: '/audit' });
+      expect(get.statusCode).toBe(400);
+      await bare.close();
+    });
+  });
+
+  // PRC-L280: writing audit evidence requires an audit/security/admin role.
+  describe('audit write authorization (PRC-L280)', () => {
+    async function appWithRoles(roles: string[]): Promise<FastifyInstance> {
+      const scoped = Fastify();
+      scoped.decorateRequest('tenantId', '');
+      scoped.addHook('onRequest', async (request) => {
+        (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
+        (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+          sub: 'u',
+          roles,
+        };
+      });
+      await scoped.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await scoped.ready();
+      return scoped;
+    }
+
+    it('rejects a non-privileged caller writing an audit entry (403)', async () => {
+      const scoped = await appWithRoles(['teacher']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN');
+      await scoped.close();
+    });
+
+    it('allows a non-privileged caller to READ audit logs (200)', async () => {
+      const scoped = await appWithRoles(['teacher']);
+      const res = await scoped.inject({ method: 'GET', url: '/audit' });
+      expect(res.statusCode).toBe(200);
+      await scoped.close();
+    });
+
+    it('allows an auditor role to write (201)', async () => {
+      const scoped = await appWithRoles(['auditor']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: { entityType: 'student', entityId: 's1', operation: 'CREATE' },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
+    });
+
+    // PRC-L280 regression (G-727): the platform administrator persona renders
+    // /billing, /audit-logs and /tenant-lifecycle and writes audit evidence
+    // (direct record, retention, archival, DSAR export). The canonical
+    // platform-admin role ids must be able to write or the surface 403s.
+    it('allows the canonical platform-admin role ids to write (201)', async () => {
+      for (const roleId of ['platform_admin', 'super-admin']) {
+        const scoped = await appWithRoles([roleId]);
+        const res = await scoped.inject({
+          method: 'POST',
+          url: '/audit',
+          payload: {
+            entityType: 'e2e-platform-surface',
+            entityId: 's1',
+            operation: 'UPDATE',
+            beforeValues: { status: 'draft' },
+            afterValues: { status: 'published' },
+          },
+        });
+        expect(res.statusCode, `role ${roleId} should be allowed to write audit`).toBe(201);
+        await scoped.close();
+      }
+    });
+
+    // The platform-admin role claim can arrive as the gateway JWT
+    // `{ roleId }` record shape, not only a bare string.
+    it('allows a platform_admin role record ({ roleId }) to write (201)', async () => {
+      const scoped = Fastify();
+      scoped.decorateRequest('tenantId', '');
+      scoped.addHook('onRequest', async (request) => {
+        (request as unknown as { tenantId: string }).tenantId = 'test-tenant';
+        (request as unknown as { user: { sub: string; roles: Array<{ roleId: string }> } }).user = {
+          sub: 'u',
+          roles: [{ roleId: 'platform_admin' }],
+        };
+      });
+      await scoped.register(auditPlugin, {
+        repository: new InMemoryAuditRepository(),
+        prefix: '/audit',
+      });
+      await scoped.ready();
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'e2e-platform-surface',
+          entityId: 's1',
+          operation: 'UPDATE',
+          beforeValues: { status: 'draft' },
+          afterValues: { status: 'published' },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
+    });
+
+    it('allows the tenant administrator (admin) to write (201)', async () => {
+      const scoped = await appWithRoles(['admin']);
+      const res = await scoped.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'institution',
+          entityId: 'i1',
+          operation: 'UPDATE',
+          beforeValues: { name: 'Old' },
+          afterValues: { name: 'New' },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      await scoped.close();
     });
   });
 });

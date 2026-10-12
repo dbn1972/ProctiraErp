@@ -400,6 +400,52 @@ function authenticatedSubject(request: FastifyRequest): string | null {
   return typeof sub === 'string' && sub.length > 0 ? sub : null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * NEW-g7_platform-009 / PRC-M507: account-scoped authorization guard.
+ *
+ * Developer accounts live in a single global namespace, so tenant-admin RBAC
+ * alone does not stop one admin from reading/modifying another developer's
+ * account (and its keys/webhooks/sandboxes/submissions) by guessing the
+ * accountId. This guard binds each account-scoped operation to its owner:
+ *
+ *   - anonymous callers → 401;
+ *   - platform-staff → allowed (global moderation);
+ *   - otherwise the authenticated `sub` must equal the account's `ownerUserId`,
+ *     else 403. A legacy account with a NULL owner is only reachable by
+ *     platform-staff (fail-closed).
+ *
+ * Returns `true` when the handler should proceed; otherwise it has already sent
+ * the 401/403 response and the caller must return immediately.
+ */
+async function ensureAccountAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  service: DeveloperPortalService,
+  accountId: string,
+): Promise<boolean> {
+  const subject = authenticatedSubject(request);
+  if (!subject && !isPlatformStaff(request)) {
+    await reply.status(401).send({
+      code: 'UNAUTHORIZED',
+      message: 'Authentication is required for account-scoped operations',
+      statusCode: 401,
+    });
+    return false;
+  }
+  const allowed = await service.isAccountAccessible(accountId, subject, isPlatformStaff(request));
+  if (!allowed) {
+    await reply.status(403).send({
+      code: 'FORBIDDEN',
+      message: 'You do not have access to this developer account',
+      statusCode: 403,
+    });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Register developer portal routes on a Fastify instance.
  */
@@ -408,6 +454,31 @@ export async function registerDeveloperPortalRoutes(
   options: DeveloperPortalRoutesOptions,
 ): Promise<void> {
   const { service, prefix = '/developer' } = options;
+
+  // ─── NEW-g7_platform-009 / PRC-M507: account-scoped ownership guard ──────
+  // Any route carrying an `:accountId` path param binds to the account owner.
+  // Registered as a preHandler so every current and future `:accountId` route
+  // is covered uniformly (fail-closed), rather than relying on each handler to
+  // remember the check. The `POST /accounts` create route has no `:accountId`
+  // param and is handled inside its own handler (owner binding at creation).
+  fastify.addHook('preHandler', async (request, reply) => {
+    const params = request.params as { accountId?: unknown } | undefined;
+    const accountId = params?.accountId;
+    if (typeof accountId !== 'string' || accountId.length === 0) {
+      return; // not an account-scoped route
+    }
+    // Only guard syntactically valid account IDs — a malformed path param must
+    // still surface the handler's 400 VALIDATION_ERROR (ordering contract),
+    // and a non-existent well-formed id fails closed with 403/401.
+    if (!UUID_RE.test(accountId)) {
+      return;
+    }
+    const ok = await ensureAccountAccess(request, reply, service, accountId);
+    if (!ok) {
+      // ensureAccountAccess already sent 401/403; stop the lifecycle.
+      return reply;
+    }
+  });
 
   // ─── Developer Account Routes ─────────────────────────────────────────
 
@@ -432,7 +503,18 @@ export async function registerDeveloperPortalRoutes(
       }
 
       try {
-        const account = await service.createAccount(result.data);
+        // NEW-g7_platform-009 / PRC-M507: bind the new account to the
+        // authenticated principal. Anonymous account creation is refused so
+        // every account has an owner it can be bound to.
+        const owner = authenticatedSubject(request);
+        if (!owner) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication is required to create a developer account',
+            statusCode: 401,
+          });
+        }
+        const account = await service.createAccount(result.data, owner);
         return reply.status(201).send(formatAccountResponse(account));
       } catch (error: unknown) {
         if (error instanceof AppError) {

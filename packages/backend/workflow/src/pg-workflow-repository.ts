@@ -35,6 +35,7 @@ import type {
   WorkflowInstanceFilter,
   WorkflowInstanceStatus,
   WorkflowRepository,
+  InstanceUpdateGuard,
 } from './workflow-repository.js';
 
 export type WorkflowPgPool = Pick<PgPool, 'query'> & Partial<Pick<PgPool, 'connect' | 'end'>>;
@@ -370,6 +371,7 @@ export class PgWorkflowRepository extends PgWorkflowBase implements WorkflowRepo
     id: string,
     tenantId: string,
     data: Partial<WorkflowInstanceEntity>,
+    expected?: InstanceUpdateGuard,
   ): Promise<WorkflowInstanceEntity | null> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
@@ -382,6 +384,8 @@ export class PgWorkflowRepository extends PgWorkflowBase implements WorkflowRepo
                 metadata = CASE WHEN $8::boolean THEN $9::jsonb ELSE metadata END,
                 approvals = COALESCE($10::jsonb, approvals)
           WHERE id = $1 AND tenant_id = $2
+            AND ($11::text IS NULL OR current_state_id = $11)
+            AND ($12::int IS NULL OR jsonb_array_length(approvals) = $12)
           RETURNING *`,
         [
           id,
@@ -394,6 +398,8 @@ export class PgWorkflowRepository extends PgWorkflowBase implements WorkflowRepo
           data.metadata !== undefined,
           jsonOrNull(data.metadata),
           data.approvals ? JSON.stringify(data.approvals) : null,
+          expected?.currentStateId ?? null,
+          expected?.approvalCount ?? null,
         ],
       );
       const row = res.rows[0] as Row | undefined;

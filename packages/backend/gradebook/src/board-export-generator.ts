@@ -39,11 +39,37 @@ function defaultArtifactRoot(): string {
   return process.env.SIS_BOARD_EXPORT_DIR?.trim() || '/opt/cursor/artifacts/sis-board-exports';
 }
 
-function csvEscape(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+// PRC-M516 / NEW-g5_academic-005: neutralise spreadsheet formula injection.
+// A board marksheet carries minors' national IDs + marks and is opened by board
+// officers in Excel/Sheets. A cell beginning with = + - @ (or a leading tab/CR)
+// is treated as a formula, so a registrar/import-sourced value like
+// =HYPERLINK("http://evil","x") would execute. Prefix such cells with a single
+// quote so the spreadsheet treats them as text, then apply RFC-4180 quoting.
+function neutraliseFormula(value: string): string {
+  if (value.length > 0 && /^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
   }
   return value;
+}
+
+function csvEscape(value: string): string {
+  const neutralised = neutraliseFormula(value);
+  if (/[",\n\r]/.test(neutralised)) {
+    return `"${neutralised.replace(/"/g, '""')}"`;
+  }
+  return neutralised;
+}
+
+// PRC-M516 / NEW-g5_academic-005: HTML-escape every value interpolated into the
+// PDF-lite marksheet HTML so a student name / national ID containing markup
+// (e.g. <img onerror=...>) cannot execute when the artifact is opened.
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function studentName(c: BoardExportCandidate): string {
@@ -201,16 +227,16 @@ export function buildPdfLiteHtml(ctx: BoardExportContext): string {
       const marks = ctx.pack.requiredSubjects
         .map((s) => `${s}:${map[s]?.marks ?? '—'}`)
         .join(' · ');
-      return `<tr><td>${c.nationalId ?? c.studentId}</td><td>${studentName(c)}</td><td>${marks}</td><td>${deriveResult(ctx.pack, c)}</td></tr>`;
+      return `<tr><td>${escapeHtml(c.nationalId ?? c.studentId)}</td><td>${escapeHtml(studentName(c))}</td><td>${escapeHtml(marks)}</td><td>${escapeHtml(deriveResult(ctx.pack, c))}</td></tr>`;
     })
     .join('');
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8"/>',
-    `<title>${ctx.pack.code} Marksheet Pack</title>`,
+    `<title>${escapeHtml(ctx.pack.code)} Marksheet Pack</title>`,
     '<style>body{font-family:Georgia,serif;margin:2rem}table{border-collapse:collapse;width:100%}td,th{border:1px solid #333;padding:.4rem;text-align:left}.mark{font-size:.8rem;color:#666}</style>',
     '</head><body>',
-    `<h1>${ctx.pack.name}</h1>`,
-    `<p class="mark">${ctx.pack.securityMark} · ${ctx.institutionCode} · ${ctx.affiliationCode}</p>`,
+    `<h1>${escapeHtml(ctx.pack.name)}</h1>`,
+    `<p class="mark">${escapeHtml(ctx.pack.securityMark)} · ${escapeHtml(ctx.institutionCode)} · ${escapeHtml(ctx.affiliationCode)}</p>`,
     '<table><thead><tr><th>ID</th><th>Name</th><th>Subjects</th><th>Result</th></tr></thead>',
     `<tbody>${rows}</tbody></table>`,
     '</body></html>',

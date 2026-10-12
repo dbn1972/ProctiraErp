@@ -150,4 +150,26 @@ describe('LibraryService holds + barcode + fines (G-916)', () => {
     expect(await lib.searchOpac(TENANT_B, 'Tenant')).toHaveLength(0);
     expect(await lib.searchOpac(TENANT_A, 'Tenant A')).toHaveLength(1);
   });
+
+  // PRC-M291 / NEW-012: two concurrent checkouts of the single remaining copy
+  // must not both succeed. Before the atomic claim, both passed the
+  // read-then-write availability check and item.available double-decremented.
+  it('does not double-checkout the last copy under concurrency', async () => {
+    const { service: lib } = service();
+    const item = await lib.createItem(TENANT_A, { title: 'Only Copy', copies: 1 });
+    expect(item.available).toBe(1);
+
+    const results = await Promise.allSettled([
+      lib.checkout(TENANT_A, { itemId: item.id, studentId: STUDENT_A }),
+      lib.checkout(TENANT_A, { itemId: item.id, studentId: STUDENT_B }),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+
+    const after = await lib.getItem(TENANT_A, item.id);
+    expect(after.available).toBe(0);
+  });
 });

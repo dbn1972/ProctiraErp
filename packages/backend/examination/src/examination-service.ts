@@ -43,6 +43,32 @@ export const MAX_GRADING_SCHEMES = 10;
 /** Minimum number of grading schemes per examination */
 export const MIN_GRADING_SCHEMES = 1;
 
+/**
+ * PRC-M233: allowed examination status transitions. Status may only move along
+ * this machine, so DRAFT can no longer jump straight to IN_PROGRESS/COMPLETED
+ * via a PUT. A no-op (same→same) is always allowed. Terminal states
+ * (COMPLETED, CANCELLED) accept no further transitions.
+ */
+export const EXAMINATION_STATUS_TRANSITIONS: Record<
+  ExaminationEntity['status'],
+  ReadonlyArray<ExaminationEntity['status']>
+> = {
+  DRAFT: ['SCHEDULED', 'CANCELLED'],
+  SCHEDULED: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+/** True when `to` is reachable from `from` (same→same is a no-op and allowed). */
+export function isAllowedExaminationStatusTransition(
+  from: ExaminationEntity['status'],
+  to: ExaminationEntity['status'],
+): boolean {
+  if (from === to) return true;
+  return EXAMINATION_STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 /** Clock/timezone options for exam date rules (PRC-L104). */
 export interface ExaminationServiceOptions {
   /** IANA timezone (or per-tenant resolver) used for calendar-date rules. Default: 'UTC'. */
@@ -371,7 +397,16 @@ export class ExaminationService {
     if (input.academicPeriodId !== undefined) updateData.academicPeriodId = input.academicPeriodId;
     if (input.startDate !== undefined) updateData.startDate = input.startDate;
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
-    if (input.status !== undefined) updateData.status = input.status;
+    if (input.status !== undefined) {
+      // PRC-M233: a status change must follow the transition machine. DRAFT can
+      // no longer be flipped straight to IN_PROGRESS/COMPLETED via PUT.
+      if (!isAllowedExaminationStatusTransition(existing.status, input.status)) {
+        throw new BusinessRuleError(
+          `Illegal examination status transition ${existing.status} → ${input.status}`,
+        );
+      }
+      updateData.status = input.status;
+    }
 
     // PRC-H053: nested arrays are merged by id. Supplied ids are preserved;
     // only entries without an id receive a new UUID.

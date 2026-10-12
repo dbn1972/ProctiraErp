@@ -49,6 +49,13 @@ function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult
 /** Shared visibility rule: own-school rows + board-shared rows. */
 export function matchesScope(row: ScopeTarget, filter: ScopeFilter): boolean {
   if (filter.scope && row.scope !== filter.scope) return false;
+  // PRC-M298: fence school-bound callers even when no explicit institutionId is
+  // passed — school-scoped rows must belong to an allowed institution.
+  if (filter.allowedInstitutionIds && filter.allowedInstitutionIds.length > 0) {
+    if (row.scope === 'school' && !filter.allowedInstitutionIds.includes(row.institutionId ?? '')) {
+      return false;
+    }
+  }
   if (!filter.institutionId && !filter.boardId) return true;
   if (
     filter.institutionId &&

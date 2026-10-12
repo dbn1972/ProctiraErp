@@ -10,10 +10,22 @@
  * Rather than rewriting the four services, this wraps the real client so each
  * model operation runs inside `withTenantTransaction(prisma, currentTenantId())`,
  * with the tenant taken from the request-scoped `tenantContext` the plugin
- * enters in its `onRequest` hook. Non-model members (`$transaction`,
- * `$executeRaw`, `$connect`, …) are passed through untouched.
+ * enters in its `onRequest` hook.
+ *
+ * Interactive `$transaction(fn, options)` is also tenant-bound: it runs through
+ * `withTenantTransaction`, so every query on the callback's `tx` sees
+ * `app.tenant_id`. Passing it through raw (as before) ran the callback with no
+ * GUC, and FORCE RLS denied every write inside it (#597 review: area hierarchy
+ * create/move). The array (batch) form of `$transaction` is rejected because it
+ * cannot bind the GUC first. Other non-model members (`$executeRaw`,
+ * `$connect`, …) are passed through untouched.
  */
-import { withTenantTransaction, type PrismaClient } from '@proctira/database';
+import {
+  withTenantTransaction,
+  type PrismaClient,
+  type TenantTransactionClient,
+  type TenantTransactionOptions,
+} from '@proctira/database';
 
 import { requireTenantId } from './tenant-context.js';
 
@@ -40,6 +52,21 @@ export function createTenantBoundPrisma(prisma: PrismaClient): PrismaClient {
 
   return new Proxy(prisma, {
     get(target, prop, receiver) {
+      if (prop === '$transaction') {
+        return (fn: unknown, options?: TenantTransactionOptions) => {
+          if (typeof fn !== 'function') {
+            throw new Error(
+              'tenant-bound prisma: batch $transaction([...]) cannot bind app.tenant_id; use the callback form',
+            );
+          }
+          return withTenantTransaction(
+            prisma,
+            requireTenantId(),
+            fn as (tx: TenantTransactionClient) => Promise<unknown>,
+            options,
+          );
+        };
+      }
       if (typeof prop !== 'string' || prop.startsWith('$') || prop.startsWith('_')) {
         return Reflect.get(target, prop, receiver) as unknown;
       }

@@ -5,6 +5,12 @@ import { Type, type Static } from '@sinclair/typebox';
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
+// PRC-M317: ISO-8601 date-time (e.g. 2026-10-09T00:00:00Z or with ±hh:mm offset).
+// Expressed as a pattern (not `format`) so it is enforced by TypeBox's value
+// checker without depending on a registered ajv format.
+const ISO_DATE_TIME_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?(Z|[+-]\\d{2}:\\d{2})$';
+
 export const LinkChildSchema = Type.Object({
   parentUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   studentId: Type.String({ pattern: UUID_PATTERN }),
@@ -40,9 +46,10 @@ export type ThreadParams = Static<typeof ThreadParamsSchema>;
 
 export const AddMessageSchema = Type.Object({
   body: Type.String({ minLength: 1, maxLength: 10000 }),
-  senderRole: Type.Optional(
-    Type.Union([Type.Literal('parent'), Type.Literal('staff'), Type.Literal('system')]),
-  ),
+  // PRC-M314 / NEW-g4_apps_auth-003: senderRole is intentionally NOT accepted from
+  // the client. It is derived server-side from the caller's verified JWT roles
+  // (see parent-portal-messaging-access.ts) so a guardian/student cannot post as
+  // 'staff'/'system' or bypass the guardian-link check.
 });
 
 export type AddMessageInput = Static<typeof AddMessageSchema>;
@@ -94,7 +101,9 @@ export const CreateFeePlanSchema = Type.Object({
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   name: Type.String({ minLength: 1, maxLength: 500 }),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
-  amountCents: Type.Number({ minimum: 0 }),
+  // PRC-M317: integer cents only, bounded, to reject fractional/huge amounts that
+  // would otherwise 500 downstream. ~1e13 cents = 100 billion major units.
+  amountCents: Type.Integer({ minimum: 0, maximum: 1_000_000_000_000 }),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
   frequency: Type.Optional(
     Type.Union([
@@ -113,9 +122,10 @@ export const CreateInvoiceSchema = Type.Object({
   planId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
-  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  // PRC-M317: integer cents only, bounded; date-time formatted dueAt.
+  amountCents: Type.Optional(Type.Integer({ minimum: 0, maximum: 1_000_000_000_000 })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
-  dueAt: Type.Optional(Type.String()),
+  dueAt: Type.Optional(Type.String({ pattern: ISO_DATE_TIME_PATTERN, maxLength: 40 })),
 });
 
 export type CreateInvoiceInput = Static<typeof CreateInvoiceSchema>;

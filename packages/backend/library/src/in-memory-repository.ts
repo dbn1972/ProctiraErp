@@ -77,6 +77,34 @@ export class InMemoryLibraryRepository implements LibraryRepository {
     return entity;
   }
 
+  // PRC-M291 / NEW-012: single-step claim. The in-memory repo runs on a single
+  // event-loop turn with no awaits between the check and the writes, so the
+  // decrement + copy flip are effectively atomic for the dev/test client.
+  async claimCopyForCheckout(args: {
+    tenantId: string;
+    itemId: string;
+    copyId?: string | null;
+    decrementAvailable?: boolean;
+  }): Promise<{ claimed: true; copyId: string | null } | { claimed: false; reason: string }> {
+    const decrement = args.decrementAvailable ?? true;
+    const item = this.items.find((i) => i.id === args.itemId && i.tenantId === args.tenantId);
+    if (!item) return { claimed: false, reason: 'item not found' };
+    if (decrement && item.available <= 0) return { claimed: false, reason: 'no copies available' };
+
+    if (args.copyId) {
+      const copy = this.copies.find((c) => c.id === args.copyId && c.tenantId === args.tenantId);
+      if (!copy) return { claimed: false, reason: 'copy not found' };
+      if (copy.status === 'on_loan') return { claimed: false, reason: 'copy already on loan' };
+      copy.status = 'on_loan';
+      copy.updatedAt = new Date();
+    }
+    if (decrement) {
+      item.available = Math.max(0, item.available - 1);
+      item.updatedAt = new Date();
+    }
+    return { claimed: true, copyId: args.copyId ?? null };
+  }
+
   async findLoanById(id: string, tenantId: string): Promise<LibraryLoanEntity | null> {
     return this.loans.find((l) => l.id === id && l.tenantId === tenantId) ?? null;
   }

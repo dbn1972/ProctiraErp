@@ -250,14 +250,21 @@ export const PolicyListQuerySchema = Type.Object({
   status: Type.Optional(PolicyStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name or description' })),
   sortBy: Type.Optional(
-    Type.String({
-      enum: ['name', 'type', 'createdAt', 'priority'],
-      default: 'name',
-      description: 'Sort field',
-    }),
+    Type.Union(
+      [
+        Type.Literal('name'),
+        Type.Literal('type'),
+        Type.Literal('createdAt'),
+        Type.Literal('priority'),
+      ],
+      { default: 'name', description: 'Sort field' },
+    ),
   ),
   sortOrder: Type.Optional(
-    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+      default: 'asc',
+      description: 'Sort direction',
+    }),
   ),
 });
 
@@ -270,7 +277,9 @@ export type PolicyListQuery = Static<typeof PolicyListQuerySchema>;
  */
 export const PolicyEvaluationRequestSchema = Type.Object({
   type: PolicyTypeEnum,
-  tenantId: Type.Optional(Type.String({ description: 'Tenant ID for scoped evaluation' })),
+  // PRC-M607: tenantId is intentionally NOT accepted here. The effective tenant is
+  // taken from the authenticated request context so a caller cannot evaluate another
+  // tenant's policies by supplying a tenantId in the body.
   institutionId: Type.Optional(
     Type.String({ description: 'Institution ID for scoped evaluation' }),
   ),

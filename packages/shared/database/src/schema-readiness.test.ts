@@ -143,6 +143,8 @@ describe('database schema readiness', () => {
       '099_w1_data_02_legacy_guc_safe_deny.sql',
       '100_tenant_id_uuid_fks.sql',
       '101_outbox_redrive.sql',
+      '150_report_schedules_platform_claim_policy.sql',
+      '170_developer_portal_account_owner.sql',
       '097_future_schema.sql',
     ]);
   });

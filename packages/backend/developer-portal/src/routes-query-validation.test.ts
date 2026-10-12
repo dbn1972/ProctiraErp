@@ -91,21 +91,25 @@ describe('developer-portal list query validation (PRC-M220)', () => {
   });
 
   it('webhook and api-key lists reject out-of-range paging', async () => {
-    const account = await app.developerPortalService.createAccount({
-      name: 'Dev',
-      email: 'dev-m220@example.com',
-    });
+    const ownerSub = 'owner-m220';
+    const account = await app.developerPortalService.createAccount(
+      {
+        name: 'Dev',
+        email: 'dev-m220@example.com',
+      },
+      ownerSub,
+    );
     for (const path of ['webhooks', 'keys']) {
       const ok = await app.inject({
         method: 'GET',
         url: `/developer/accounts/${account.id}/${path}?page=1&pageSize=10`,
-        headers: { 'x-test-sub': account.id },
+        headers: { 'x-test-sub': ownerSub },
       });
       expect(ok.statusCode).toBe(200);
       const res = await app.inject({
         method: 'GET',
         url: `/developer/accounts/${account.id}/${path}?pageSize=500`,
-        headers: { 'x-test-sub': account.id },
+        headers: { 'x-test-sub': ownerSub },
       });
       expect(res.statusCode).toBe(400);
       expect(res.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
@@ -113,8 +117,27 @@ describe('developer-portal list query validation (PRC-M220)', () => {
     const active = await app.inject({
       method: 'GET',
       url: `/developer/accounts/${account.id}/webhooks?active=true`,
-      headers: { 'x-test-sub': account.id },
+      headers: { 'x-test-sub': ownerSub },
     });
     expect(active.statusCode).toBe(200);
+  });
+
+  it('rejects access to an account owned by a different principal (NEW-g7_platform-009/PRC-M507)', async () => {
+    const account = await app.developerPortalService.createAccount(
+      { name: 'Dev', email: 'owner-only@example.com' },
+      'owner-real',
+    );
+    const forged = await app.inject({
+      method: 'GET',
+      url: `/developer/accounts/${account.id}/webhooks`,
+      headers: { 'x-test-sub': 'attacker' },
+    });
+    expect(forged.statusCode).toBe(403);
+    const owned = await app.inject({
+      method: 'GET',
+      url: `/developer/accounts/${account.id}/webhooks`,
+      headers: { 'x-test-sub': 'owner-real' },
+    });
+    expect(owned.statusCode).toBe(200);
   });
 });
