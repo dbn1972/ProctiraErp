@@ -13,6 +13,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 /** Server Action + route refresh can exceed 15s on loaded CI runners (fits the 90s CI test timeout). */
@@ -54,7 +55,7 @@ async function ensureGrade(request: APIRequestContext): Promise<{ id: string; co
   const code = `G${Date.now().toString(36).slice(-5).toUpperCase()}`;
   const res = await request.post(`${GATEWAY_URL}/api/v1/grades`, {
     headers: headers(),
-    data: { name: `Grade ${code}`, code, order: 7 },
+    data: { name: `Grade ${code}`, code, order: uniqueGradeOrder() },
   });
   expect(res.status(), await res.text()).toBe(201);
   return { id: (await res.json()).id as string, code };
