@@ -94,15 +94,15 @@ export function CircularAckPanel({
       </p>
       {status !== 'sent' ? (
         <Button type="button" onClick={() => setConfirmSend(true)} disabled={!hydrated || pending}>
-          {pending ? 'Sending…' : 'Send circular'}
+          {pending ? 'Sending…' : 'Sandbox send'}
         </Button>
       ) : null}
       <ConfirmActionDialog
         open={confirmSend}
         onOpenChange={setConfirmSend}
         title="Send this circular?"
-        description="Recipients will receive the circular and acknowledgement tracking will start. Confirm the audience before sending."
-        confirmLabel="Send circular"
+        description="Sandbox dispatch marks the circular as sent and starts acknowledgement tracking; WhatsApp/SMS use the sandbox adapter (no live provider), so recipients are not messaged until a live provider is configured. Confirm the audience before sending."
+        confirmLabel="Sandbox send"
         pending={pending}
         onConfirm={onConfirmSend}
         testId="send-circular-confirm"

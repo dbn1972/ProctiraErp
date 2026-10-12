@@ -1,10 +1,13 @@
 /**
  * G-909 — authenticated proxy for catalogue artifact downloads.
- * Forwards session cookies to the gateway and surfaces X-Artifact-Sha256.
+ * Forwards the session to the gateway and surfaces X-Artifact-Sha256.
+ *
+ * NEW-g1a_web-002: upstream fetch bounded by timeout + size cap via
+ * `fetchFromGateway`; body is streamed (not buffered).
  */
 import { NextResponse } from 'next/server';
 
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import { fetchFromGateway, ProxyError } from '@/lib/api/proxy-download';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -17,18 +20,15 @@ export async function GET(
     return NextResponse.json({ code: 'VALIDATION_ERROR', message: 'Invalid id' }, { status: 400 });
   }
 
-  const { tenantId, accessToken } = await getSessionContext();
-  if (!accessToken) {
-    return NextResponse.json({ code: 'UNAUTHENTICATED', message: 'Sign in' }, { status: 401 });
+  let upstream: Response;
+  try {
+    upstream = await fetchFromGateway(`/reports/artifacts/${id}/download`);
+  } catch (err) {
+    if (err instanceof ProxyError) {
+      return NextResponse.json({ code: err.code, message: err.message }, { status: err.status });
+    }
+    throw err;
   }
-
-  const upstream = await fetch(
-    `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/reports/artifacts/${id}/download`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}`, 'X-Tenant-ID': tenantId },
-      cache: 'no-store',
-    },
-  );
 
   if (!upstream.ok) {
     const body = await upstream.text();

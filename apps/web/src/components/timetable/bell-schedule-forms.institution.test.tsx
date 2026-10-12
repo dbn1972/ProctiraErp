@@ -60,3 +60,30 @@ describe('BellScheduleCreateForm institution picker (PRC-M070)', () => {
     );
   });
 });
+
+describe('BellScheduleCreateForm schema-missing error (PRC-L260)', () => {
+  beforeEach(() => {
+    createBellScheduleAction.mockReset();
+  });
+
+  it('does not leak the migration file path to the user', async () => {
+    createBellScheduleAction.mockResolvedValue({
+      ok: false,
+      code: 'TIMETABLE_SCHEMA_MISSING',
+      error: 'Timetable schema missing',
+    });
+    render(
+      <BellScheduleCreateForm
+        academicPeriodId="per-1"
+        institutions={[{ id: 'inst-1', name: 'North' }]}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    });
+    const body = document.body.textContent ?? '';
+    expect(body).not.toContain('db/sql');
+    expect(body).not.toContain('003_sis_timetable_schedule_schema.sql');
+    expect(body).toMatch(/not provisioned/i);
+  });
+});

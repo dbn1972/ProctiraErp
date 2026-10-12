@@ -50,7 +50,8 @@ export interface ExaminationCandidate {
   studentId: string;
   centerId: string;
   subjectIds: string[];
-  status: 'REGISTERED' | 'CONFIRMED' | 'WITHDRAWN';
+  /** Backend registration status is REGISTERED | CONFIRMED | CANCELLED. */
+  status: 'REGISTERED' | 'CONFIRMED' | 'CANCELLED' | 'WITHDRAWN';
   registeredAt: string;
 }
 
@@ -289,7 +290,7 @@ interface PublicationRecord {
 export async function getExaminationResultsView(
   examination: Examination,
 ): Promise<ExaminationResultsView> {
-  const [marks, publication] = await Promise.all([
+  const [marks, publication, registrations] = await Promise.all([
     gatewayFetch<{ data: MarksCandidateRecord[] }>(
       `/examinations/${encodeURIComponent(examination.id)}/results/marks`,
       { throwOnError: false, next: { revalidate: 0 } },
@@ -298,16 +299,61 @@ export async function getExaminationResultsView(
       throwOnError: false,
       next: { revalidate: 0 },
     }),
+    listExaminationCandidates(examination.id),
   ]);
-  const candidates = marks.data?.data ?? [];
+  const markRows = marks.data?.data ?? [];
   const published = publication.data ?? null;
   const gradeByKey = new Map(
     (published?.gradeResults ?? []).map((g) => [`${g.studentId}:${g.subjectId}`, g] as const),
   );
-  const maxScore = examination.subjects.reduce((sum, s) => sum + s.maxScore, 0);
+  const subjectById = new Map(examination.subjects.map((s) => [s.id, s] as const));
+  const allExamSubjectIds = examination.subjects.map((s) => s.id);
+  const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r] as const));
+  const isCancelled = (r: ExaminationCandidate | undefined) =>
+    r?.status === 'CANCELLED' || r?.status === 'WITHDRAWN';
 
-  const rows: ExaminationResult[] = candidates.map((candidate) => {
-    const subjects = examination.subjects.map((subject) => {
+  // PRC-M145 / PRC-H056: mirror result-publication-service. The candidate
+  // population is the non-cancelled registrations plus legacy marks rows with no
+  // registration, and each candidate's required subjects are the registration
+  // `subjectIds` (not the subjects that happen to have marks rows). A registered
+  // subject with no marks row keeps the candidate INCOMPLETE; a marks row with no
+  // registration falls back to every exam subject, as the backend does.
+  const population: Array<{
+    candidateId: string;
+    studentId: string;
+    centerId: string;
+    requiredSubjectIds: string[];
+    subjectResults: MarksCandidateRecord['subjectResults'];
+  }> = [];
+  const markedStudentIds = new Set(markRows.map((c) => c.studentId));
+  for (const candidate of markRows) {
+    const registration = registrationByStudent.get(candidate.studentId);
+    if (isCancelled(registration)) continue;
+    population.push({
+      candidateId: candidate.id,
+      studentId: candidate.studentId,
+      centerId: candidate.centerId,
+      requiredSubjectIds: registration ? registration.subjectIds : allExamSubjectIds,
+      subjectResults: candidate.subjectResults,
+    });
+  }
+  for (const registration of registrations) {
+    if (isCancelled(registration) || markedStudentIds.has(registration.studentId)) continue;
+    population.push({
+      candidateId: registration.id,
+      studentId: registration.studentId,
+      centerId: registration.centerId,
+      requiredSubjectIds: registration.subjectIds,
+      subjectResults: [],
+    });
+  }
+
+  const rows: ExaminationResult[] = population.map((candidate) => {
+    const requiredIds = [...new Set(candidate.requiredSubjectIds)].filter((id) =>
+      subjectById.has(id),
+    );
+    const subjects = requiredIds.map((subjectId) => {
+      const subject = subjectById.get(subjectId)!;
       const recorded = candidate.subjectResults.find((r) => r.subjectId === subject.id);
       const graded = gradeByKey.get(`${candidate.studentId}:${subject.id}`);
       return {
@@ -317,11 +363,12 @@ export async function getExaminationResultsView(
         grade: graded?.grade ?? null,
       };
     });
-    const complete = subjects.every((s) => s.score !== null);
+    const maxScore = requiredIds.reduce((sum, id) => sum + (subjectById.get(id)?.maxScore ?? 0), 0);
+    const complete = subjects.length > 0 && subjects.every((s) => s.score !== null);
     const totalScore = complete ? subjects.reduce((sum, s) => sum + (s.score ?? 0), 0) : null;
     const hasGrades = subjects.some((s) => s.grade !== null);
     return {
-      candidateId: candidate.id,
+      candidateId: candidate.candidateId,
       studentId: candidate.studentId,
       centerId: candidate.centerId,
       subjects,
