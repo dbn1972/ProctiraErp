@@ -8,12 +8,18 @@
  *   backend route (packages/backend/<pkg>/src/**  fastify.get(`${prefix}/plans`) or fastify.get('/plans')) mounted under a prefix (apps/api-gateway/src/domain-plugins.ts)
  *   backend package → SQL tables it reads/writes (raw SQL FROM/INTO/UPDATE/JOIN, prisma.<model>) → db/sql CREATE TABLE + prisma models
  *
- * Usage: node tools/trace-graph.mjs [/path/to/proctira] [outDir]
+ * Usage: node docs/multitenant/trace-graph.mjs [/path/to/proctira] [outDir]
+ *   Defaults the repo root to the directory two levels above this script
+ *   (the repository root), so it works from any checkout without arguments.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(process.argv[2] || '/home/claude/proctira');
+// This script lives at docs/multitenant/trace-graph.mjs, so the repository root
+// is two directories up. Portable default — no machine-specific absolute path.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ROOT = path.resolve(process.argv[2] || REPO_ROOT);
 const OUT = path.resolve(process.argv[3] || path.join(process.cwd(), 'graph'));
 fs.mkdirSync(OUT, { recursive: true });
 const read = (p) => fs.readFileSync(p, 'utf8');
