@@ -45,6 +45,7 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+          automountServiceAccountToken: false
           {{- with .Values.global.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}

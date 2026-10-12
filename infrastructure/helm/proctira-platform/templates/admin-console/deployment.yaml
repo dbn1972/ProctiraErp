@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: admin-console
     app.kubernetes.io/component: frontend
 spec:
+  {{- if not .Values.adminConsole.autoscaling.enabled }}
   replicas: {{ .Values.adminConsole.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

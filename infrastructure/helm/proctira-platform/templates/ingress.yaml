@@ -25,6 +25,20 @@ spec:
   {{- end }}
   rules:
     {{- if .Values.apiGateway.enabled }}
+    # Dedicated API host (api.<domain>) — serves the gateway at the root path so
+    # external consumers (mobile, developer-portal integrations, partners) can
+    # reach https://api.<domain>/ as advertised in TLS/NOTES. Without this rule
+    # the api host falls through to the ingress default backend (404).
+    - host: {{ .Values.ingress.hosts.api | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-api-gateway
+                port:
+                  name: http
     # API Gateway — handles all /api/* traffic on tenant subdomains
     - host: {{ .Values.ingress.hosts.web | quote }}
       http:

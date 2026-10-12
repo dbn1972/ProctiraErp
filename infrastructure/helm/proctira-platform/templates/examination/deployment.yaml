@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: examination-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.examinationService.autoscaling.enabled }}
   replicas: {{ .Values.examinationService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:
