@@ -4,7 +4,7 @@
  * Manages registered external authentication providers.
  * Provides lookup by provider ID and listing of available providers.
  */
-import type { ExternalAuthProvider, ExternalProviderConfig } from './types.js';
+import type { ExternalAuthProvider } from './types.js';
 import { ExternalAuthError } from './types.js';
 
 /**

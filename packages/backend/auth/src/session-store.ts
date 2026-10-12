@@ -4,8 +4,8 @@
  * Stores user sessions with activity tracking and invalidation support.
  * Sessions are valid across all platform modules for a configurable duration.
  */
-import type { Session } from '@proctira/auth';
 import type { PrismaClient } from '@prisma/client';
+import type { Session } from '@proctira/auth';
 
 import type { SessionStore } from './session-service.js';
 
