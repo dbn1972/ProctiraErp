@@ -462,7 +462,17 @@ export function registerCatalogueRoutes(
 
   fastify.get(`${prefix}/dashboard`, async (request, reply) => {
     const query = validate(DashboardQuerySchema, request.query ?? {});
-    const role = query.success ? query.data.role : undefined;
+    // PRC-L343: an explicitly supplied but invalid role is a client error, not
+    // a silent fall-through to the actor's default dashboard.
+    if (!query.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid dashboard role',
+        statusCode: 400,
+        errors: query.errors,
+      });
+    }
+    const role = query.data.role;
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
     try {
