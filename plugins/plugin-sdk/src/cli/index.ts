@@ -111,7 +111,7 @@ async function runValidation(): Promise<void> {
     }
 
     const content = fs.readFileSync(manifestPath, 'utf-8');
-    const manifest = JSON.parse(content);
+    const manifest: unknown = JSON.parse(content);
 
     const { validateManifest } = await import('../manifest/index.js');
     const result = validateManifest(manifest);
