@@ -8,6 +8,7 @@ import { Button, Card, CardDescription, CardHeader, CardTitle } from '@proctira/
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { getSession } from '@/lib/auth/server';
 import { getRoleDashboard, type DashboardRole } from '@/lib/api/reports';
+import { detectDashboardRole } from '@/lib/dashboard/role-detection';
 
 import { RoleDashboardPanel } from '../_components/role-dashboard-panel';
 
@@ -21,15 +22,6 @@ function parseRole(value: string | string[] | undefined): DashboardRole | undefi
   return undefined;
 }
 
-function isParentSession(
-  roles: Array<{ roleId?: string; roleName?: string }> | undefined,
-): boolean {
-  return (roles ?? []).some((r) => {
-    const n = `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase();
-    return n.includes('parent') || n.includes('guardian');
-  });
-}
-
 interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -38,8 +30,16 @@ export default async function ReportsDashboardPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const requested = parseRole(searchParams?.role);
   const session = await getSession();
-  const parent = isParentSession(session?.user.roles);
-  const role = parent ? 'parent' : requested;
+  // NEW-g1b_web-002 / PRC-L271: the dashboard role is derived from the verified
+  // session token, never from the client-chosen ?role. A ?role is only honoured
+  // when it matches the role the session actually holds; otherwise it is
+  // ignored and the session's own role is used (fail closed). This stops a
+  // non-parent user from requesting ?role=board/principal to widen scope.
+  const sessionRole = detectDashboardRole(session?.user.roles);
+  const role = requested && requested === sessionRole ? requested : sessionRole;
+  // PRC-L271 follow-up: no role switcher is rendered. With the session clamp
+  // above every ?role other than the session's own is ignored, so links to the
+  // other roles would silently render the same dashboard (dead UI).
 
   const { dashboard, source, status, error } = await getRoleDashboard(role);
 
@@ -65,23 +65,6 @@ export default async function ReportsDashboardPage(props: PageProps) {
       </div>
 
       <ScaffoldModeBanner source={source} surface="Role dashboards" />
-
-      {!parent && (
-        <nav aria-label="Dashboard roles" className="flex flex-wrap gap-2">
-          {ROLES.map((r) => (
-            <Button
-              key={r}
-              asChild
-              size="sm"
-              variant={role === r || (!role && r === 'principal') ? 'default' : 'outline'}
-            >
-              <Link href={`/reports/dashboard?role=${r}`} data-testid={`dashboard-role-${r}`}>
-                {r}
-              </Link>
-            </Button>
-          ))}
-        </nav>
-      )}
 
       {status === 403 || !dashboard ? (
         <Card>

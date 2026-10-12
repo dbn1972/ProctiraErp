@@ -12,9 +12,11 @@ import {
   GraduationCap,
   Home,
   Library,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react';
 
+import { signOut } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useBrand } from '@/providers/BrandConfigProvider';
 
@@ -111,6 +113,17 @@ export function StudentPortalShell({ children }: StudentPortalShellProps) {
             <span className="text-base font-semibold tracking-tight">Student portal</span>
             <span className="text-[11px] font-normal text-muted-foreground">{brandName}</span>
           </Link>
+          <button
+            type="button"
+            data-testid="student-shell-signout"
+            onClick={() => {
+              void signOut('/login');
+            }}
+            className="inline-flex min-h-12 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+            Sign out
+          </button>
         </div>
       </header>
 

@@ -51,6 +51,13 @@ export interface FieldError {
 export type ActionResult<T = unknown> =
   { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
+/** RFC-4122-ish UUID matcher used to validate ids before any gateway call. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INVALID_ID_RESULT: ActionResult<never> = {
+  success: false,
+  error: 'Invalid institution id.',
+};
+
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
     (messages ?? []).map((message) => ({ field, message })),
@@ -65,9 +72,11 @@ function toActionError(error: unknown): ActionResult<never> {
       fieldErrors: error.fieldErrors?.map((e) => ({ field: e.field, message: e.message })),
     };
   }
+  // PRC-L272: never echo a raw non-gateway error message (could leak internals);
+  // map to a generic message.
   return {
     success: false,
-    error: error instanceof Error ? error.message : 'Unexpected error',
+    error: 'Unexpected error. Please try again.',
   };
 }
 
@@ -100,6 +109,7 @@ export async function updateInstitutionAction(
   id: string,
   values: InstitutionFormValues,
 ): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(id)) return INVALID_ID_RESULT;
   const parsed = institutionFormSchema.safeParse(values);
   if (!parsed.success) {
     return {
@@ -123,6 +133,7 @@ export async function deactivateInstitutionAction(
   id: string,
   reason: string,
 ): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(id)) return INVALID_ID_RESULT;
   if (!reason || reason.trim().length === 0) {
     return {
       success: false,
@@ -145,6 +156,7 @@ export async function reactivateInstitutionAction(
   id: string,
   reason: string,
 ): Promise<ActionResult<{ id: string; status: string }>> {
+  if (!UUID_RE.test(id)) return INVALID_ID_RESULT;
   if (!reason || reason.trim().length === 0) {
     return {
       success: false,
@@ -232,8 +244,6 @@ export async function deleteAcademicPeriodAction(
 // ---------------------------------------------------------------------------
 // G-905 — Academic calendar events + year-end rollover
 // ---------------------------------------------------------------------------
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function createCalendarEventAction(
   periodId: string,

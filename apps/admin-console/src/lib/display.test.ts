@@ -57,10 +57,15 @@ describe('display helpers', () => {
 
   it('lists the hosting regions the form is allowed to submit', () => {
     expect(HOSTING_REGIONS.map((region) => region.value)).toEqual([
+      'ap-south-1',
       'us-east-1',
       'us-west-2',
       'eu-west-1',
     ]);
+  });
+
+  it('offers India (ap-south-1) for data residency (PRC-L203)', () => {
+    expect(HOSTING_REGIONS.map((region) => region.value)).toContain('ap-south-1');
   });
 
   it('builds auth cookie options', () => {

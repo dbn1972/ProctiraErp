@@ -22,6 +22,13 @@ export const GATEWAY_BASE_URL =
 export const GATEWAY_API_PREFIX = '/api/v1';
 
 /**
+ * PRC-L527: default upstream timeout. A hung gateway must not pin an SSR worker
+ * indefinitely; the fetch is bounded with `AbortSignal.timeout` and a timeout
+ * surfaces as a `GATEWAY_TIMEOUT` error envelope (never a silent success).
+ */
+export const DEFAULT_GATEWAY_TIMEOUT_MS = 15_000;
+
+/**
  * PRC-H002: returned by every privileged write helper when the gateway is unreachable
  * (gatewayFetch status 0). Writes must fail visibly, never simulate success.
  */
@@ -37,6 +44,8 @@ export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   tenantId?: string;
   /** Whether to throw on non-2xx (default: false — return error envelope). */
   throwOnError?: boolean;
+  /** Upstream timeout in ms (PRC-L527). Defaults to DEFAULT_GATEWAY_TIMEOUT_MS. */
+  timeoutMs?: number;
   /** Next.js fetch caching options. */
   next?: { revalidate?: number | false; tags?: string[] };
 }
@@ -103,15 +112,22 @@ export async function gatewayFetch<T>(
     body: body ?? null,
   };
   if (init.next) fetchInit.next = init.next;
+  // PRC-L527: bound the upstream call so a hung gateway cannot hang SSR.
+  if (!fetchInit.signal) {
+    fetchInit.signal = AbortSignal.timeout(init.timeoutMs ?? DEFAULT_GATEWAY_TIMEOUT_MS);
+  }
 
   let response: Response;
   try {
     response = await fetch(url, fetchInit);
   } catch (error) {
-    const err = {
-      code: 'NETWORK_ERROR',
-      message: error instanceof Error ? error.message : 'Network error',
-    };
+    const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
+    const err = timedOut
+      ? { code: 'GATEWAY_TIMEOUT', message: 'The gateway did not respond in time.' }
+      : {
+          code: 'NETWORK_ERROR',
+          message: error instanceof Error ? error.message : 'Network error',
+        };
     if (init.throwOnError) {
       throw new GatewayError({ status: 0, ...err });
     }
