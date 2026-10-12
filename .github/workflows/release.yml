@@ -85,6 +85,7 @@ jobs:
     outputs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
+      head-branch-tag: ${{ steps.resolve.outputs.head-branch-tag }}
     steps:
       # PRC-M256: context values reach the shell only through env (never inline in script).
       - name: Resolve commit and branch
@@ -113,7 +114,19 @@ jobs:
           fi
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
-          echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+          # PRC-L109: a raw branch name containing '/' (e.g. release/1.0) is NOT a
+          # valid Docker image tag and makes `docker push` fail only after CI has
+          # already passed. Sanitise '/' (and any other disallowed char) to '-'
+          # for the image tag while keeping the real branch for everything else.
+          HEAD_BRANCH_TAG="$(printf '%s' "${HEAD_BRANCH}" | sed 's#[^A-Za-z0-9._-]#-#g')"
+          # Docker tags may not start with '.' or '-'; trim leading separators.
+          HEAD_BRANCH_TAG="$(printf '%s' "${HEAD_BRANCH_TAG}" | sed 's/^[.-]*//')"
+          if [ -z "${HEAD_BRANCH_TAG}" ]; then
+            echo "::error::Branch name '${HEAD_BRANCH}' sanitises to an empty tag"
+            exit 1
+          fi
+          echo "head-branch-tag=${HEAD_BRANCH_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH} (image tag ${HEAD_BRANCH_TAG})" >> "$GITHUB_STEP_SUMMARY"
       # Defense in depth for PRC-H061: fail (not skip) if the job-level guard
       # is ever weakened, and prove the SHA is on the protected branch.
       - name: Assert trusted push-triggered CI run
@@ -332,7 +345,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
           tags: |
-            type=raw,value=${{ needs.ci-gate.outputs.head-branch }},enable=${{ needs.ci-gate.outputs.head-branch != '' }}
+            type=raw,value=${{ needs.ci-gate.outputs.head-branch-tag }},enable=${{ needs.ci-gate.outputs.head-branch-tag != '' }}
             type=raw,value=sha-${{ needs.ci-gate.outputs.head-sha }}
             type=sha,format=short,prefix=sha-,sha=${{ needs.ci-gate.outputs.head-sha }}
           labels: |

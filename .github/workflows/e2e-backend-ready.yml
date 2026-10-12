@@ -55,8 +55,9 @@ on:
     - cron: '15 4 * * *'
 
 concurrency:
-  # Include sha so a queued-but-never-started run cannot hold the group forever.
-  group: e2e-backend-ready-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  # PRC-L110: PR runs cancel superseded peers (keyed on PR number); push/schedule
+  # keep the sha so a stuck queued run cannot hold the group forever.
+  group: e2e-backend-ready-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 env:

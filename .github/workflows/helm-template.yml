@@ -19,6 +19,9 @@ on:
       - 'infrastructure/helm/**'
       - 'infrastructure/k8s/**'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/release.yml'
+      - 'tools/scripts/check-release-image-tag.mjs'
+      - 'tools/scripts/check-release-image-tag.test.mjs'
       - '.github/workflows/rollback.yml'
       - '.github/workflows/helm-template.yml'
       - 'tools/scripts/helm-template-check.sh'
@@ -82,6 +85,9 @@ on:
       - 'infrastructure/helm/**'
       - 'infrastructure/k8s/**'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/release.yml'
+      - 'tools/scripts/check-release-image-tag.mjs'
+      - 'tools/scripts/check-release-image-tag.test.mjs'
       - '.github/workflows/rollback.yml'
       - 'tools/scripts/helm-template-check.sh'
       # W1-SEC-07 — application/Helm/Prometheus metrics contract
@@ -180,3 +186,8 @@ jobs:
           ./tools/scripts/helm-template-check.sh
           ./tools/scripts/deploy-rollback-check.sh
           ./tools/scripts/deploy-secrets-gate-check.sh
+      # PRC-L109 — release image tags must be valid for release/** branches.
+      - name: Unit-test release image-tag contract (PRC-L109)
+        run: node --test tools/scripts/check-release-image-tag.test.mjs
+      - name: Assert release.yml tags are Docker-valid (PRC-L109)
+        run: node tools/scripts/check-release-image-tag.mjs

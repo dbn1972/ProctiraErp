@@ -63,8 +63,20 @@ updates:
         patterns: ['*']
 
   # ---- Container base images ---------------------------------------------------
+  # PRC-L111: cover the per-app Dockerfiles (apps/*/Dockerfile) and the shared
+  # base images under infrastructure/docker. Without these, base-image CVE bumps
+  # for the service/web images are never proposed and CI images silently lag.
   - package-ecosystem: docker
-    directory: /infrastructure/docker
+    directories:
+      - /infrastructure/docker
+      - /apps/admin-console
+      - /apps/api-gateway
+      - /apps/developer-portal
+      - /apps/etl-worker
+      - /apps/install-wizard
+      - /apps/public-website
+      - /apps/registration-portal
+      - /apps/web
     schedule:
       interval: weekly
       day: monday
@@ -73,6 +85,9 @@ updates:
     labels: [dependencies, docker]
     commit-message:
       prefix: chore(docker)
+    groups:
+      docker-images:
+        patterns: ['*']
 
   # ---- Flutter / Dart mobile app -------------------------------------------------
   - package-ecosystem: pub
