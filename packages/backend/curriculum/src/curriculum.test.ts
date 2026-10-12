@@ -63,4 +63,25 @@ describe('CurriculumService coverage', () => {
     const foreign = await service.listUnits(TENANT_B, { subjectId: SUBJECT });
     expect(foreign).toEqual([]);
   });
+
+  // PRC-L090: a duplicate (subject, grade, period, code) must be a 409, not a 500.
+  it('rejects a duplicate unit code with a 409 ConflictError', async () => {
+    const service = new CurriculumService(new InMemoryCurriculumStore());
+    await service.createUnit(TENANT, {
+      subjectId: SUBJECT,
+      gradeId: GRADE,
+      academicPeriodId: PERIOD,
+      code: 'DUP',
+      name: 'First',
+    });
+    await expect(
+      service.createUnit(TENANT, {
+        subjectId: SUBJECT,
+        gradeId: GRADE,
+        academicPeriodId: PERIOD,
+        code: 'DUP',
+        name: 'Second',
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
 });

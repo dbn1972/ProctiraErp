@@ -17,9 +17,11 @@ async function buildApp(repository: InMemoryAuditRepository): Promise<FastifyIns
   app.addHook('onRequest', async (request) => {
     const tenant = (request.headers['x-tenant-id'] as string | undefined) ?? 'tenant-a';
     (request as unknown as { tenantId: string }).tenantId = tenant;
-    (request as unknown as { user: { sub: string; name: string } }).user = {
+    (request as unknown as { user: { sub: string; name: string; roles: string[] } }).user = {
       sub: 'user-1',
       name: 'Asha Rao',
+      // PRC-L280: seeding uses POST, which requires an audit-write role.
+      roles: ['admin'],
     };
   });
   await app.register(auditPlugin, { repository, prefix: PREFIX });

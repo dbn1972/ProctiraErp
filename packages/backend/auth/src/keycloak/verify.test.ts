@@ -125,3 +125,104 @@ describe('Keycloak token verify', () => {
     expect(payload.roles.map((role) => role.roleId)).toEqual(['teacher']);
   });
 });
+
+describe('KeycloakJwksClient hardening (PRC-M181, NEW-g4_apps_auth-002)', () => {
+  const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: 'jwk' });
+  const jwksBody = () => JSON.stringify({ keys: [{ ...jwk, kid: 'known', kty: 'RSA' }] });
+
+  it('negative-caches an unknown kid and does not refetch per request', async () => {
+    let fetchCount = 0;
+    const client = new KeycloakJwksClient(
+      'http://jwks',
+      async () => {
+        fetchCount += 1;
+        return new Response(jwksBody());
+      },
+      { forcedRefreshCooldownMs: 60_000, negativeCacheMs: 60_000 },
+    );
+    // First unknown-kid lookup: 1 initial fetch + 1 forced refresh = 2.
+    await expect(client.getKey('bogus')).rejects.toThrow(/Unknown Keycloak signing key: bogus/);
+    const afterFirst = fetchCount;
+    expect(afterFirst).toBe(2);
+    // Subsequent lookups for the same unknown kid must NOT trigger more fetches.
+    for (let i = 0; i < 10; i += 1) {
+      await expect(client.getKey('bogus')).rejects.toThrow(/Unknown/);
+    }
+    expect(fetchCount).toBe(afterFirst);
+  });
+
+  it('respects the forced-refresh cooldown across distinct unknown kids', async () => {
+    let fetchCount = 0;
+    const client = new KeycloakJwksClient(
+      'http://jwks',
+      async () => {
+        fetchCount += 1;
+        return new Response(jwksBody());
+      },
+      { forcedRefreshCooldownMs: 60_000 },
+    );
+    await expect(client.getKey('k1')).rejects.toThrow(/Unknown/); // initial + forced = 2
+    expect(fetchCount).toBe(2);
+    // Different unknown kid within cooldown: no additional forced refresh.
+    await expect(client.getKey('k2')).rejects.toThrow(/Unknown/);
+    expect(fetchCount).toBe(2);
+  });
+
+  it('coalesces concurrent refreshes into a single in-flight fetch', async () => {
+    let fetchCount = 0;
+    const client = new KeycloakJwksClient('http://jwks', async () => {
+      fetchCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return new Response(jwksBody());
+    });
+    const results = await Promise.all([
+      client.getKey('known'),
+      client.getKey('known'),
+      client.getKey('known'),
+    ]);
+    expect(results).toHaveLength(3);
+    expect(fetchCount).toBe(1);
+  });
+
+  it('applies a fetch timeout via AbortSignal', async () => {
+    const client = new KeycloakJwksClient(
+      'http://jwks',
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit | undefined)?.signal;
+          expect(signal).toBeDefined();
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+      { fetchTimeoutMs: 20 },
+    );
+    await expect(client.getKey('known')).rejects.toThrow(/Failed to load Keycloak JWKS/);
+  });
+
+  it('never exposes an empty map during a refresh (atomic swap)', async () => {
+    let resolveSecond: (() => void) | undefined;
+    let call = 0;
+    const client = new KeycloakJwksClient(
+      'http://jwks',
+      async () => {
+        call += 1;
+        if (call >= 2) {
+          await new Promise<void>((resolve) => {
+            resolveSecond = resolve;
+          });
+        }
+        return new Response(jwksBody());
+      },
+      { ttlMs: 0 },
+    );
+    await client.getKey('known');
+    // Trigger a refresh (ttl 0) that will block mid-flight, and ensure the
+    // previously loaded key is still resolvable from the current map.
+    const pending = client.getKey('known');
+    expect(resolveSecond).toBeDefined();
+    resolveSecond?.();
+    await expect(pending).resolves.toBeTruthy();
+  });
+});

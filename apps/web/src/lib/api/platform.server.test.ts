@@ -96,7 +96,7 @@ describe('platform.server clients', () => {
     expect(result.data[0]?.userName).toBe('Asha');
   });
 
-  it('classifies 403 as forbidden (not scaffold) and unreachable gateway as scaffold', async () => {
+  it('classifies 403 as forbidden (denied, not live) and unreachable gateway as scaffold', async () => {
     gatewayFetch.mockResolvedValueOnce({
       status: 403,
       ok: false,
@@ -105,7 +105,9 @@ describe('platform.server clients', () => {
     });
     const forbidden = await listTenants();
     expect(forbidden.access).toBe('forbidden');
-    expect(forbidden.source).toBe('gateway');
+    // PRC-L267 / NEW-g1b_web-001: a denied response must NOT be labelled live
+    // ('gateway'); an empty list here means "not permitted", not "no rows".
+    expect(forbidden.source).toBe('denied');
     expect(forbidden.data).toEqual([]);
 
     gatewayFetch.mockResolvedValueOnce({

@@ -403,6 +403,13 @@ function scopeConditions(filter: ScopeFilter, params: unknown[]): string[] {
     }
     conditions.push(`(${ors.join(' OR ')})`);
   }
+  // PRC-M298: fence school-bound callers. Even without an explicit
+  // institutionId filter, a school-bound caller may only see school-scoped rows
+  // for their own institutions; board-scoped rows remain visible to all.
+  if (filter.allowedInstitutionIds && filter.allowedInstitutionIds.length > 0) {
+    params.push(filter.allowedInstitutionIds);
+    conditions.push(`(scope <> 'school' OR institution_id = ANY($${params.length}::uuid[]))`);
+  }
   return conditions;
 }
 

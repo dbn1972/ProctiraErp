@@ -105,4 +105,24 @@ describe('PRC-M156 student picker labels', () => {
     const labels = await loadStudentLabelsForIds(['s-7']);
     expect(labels.get('s-7')).toBe('ADM-7 · Kid 7');
   });
+  it('loadStudentDirectory omits nationalId from label and searchText', async () => {
+    api.listStudents.mockImplementation(
+      async ({ page = 1, pageSize }: { page?: number; pageSize: number }) => {
+        const all = Array.from({ length: 250 }, (_, i) => student(i + 1));
+        return {
+          data: all.slice((page - 1) * pageSize, page * pageSize),
+          meta: { page, pageSize, totalItems: 250, totalPages: Math.ceil(250 / pageSize) },
+        };
+      },
+    );
+    const dir = await loadStudentDirectory();
+    expect(dir.total).toBe(250);
+    expect(dir.options.length).toBeGreaterThan(0);
+    for (const option of dir.options) {
+      expect(option.label).not.toContain('NID-SECRET');
+      expect(option.searchText ?? '').not.toContain('NID-SECRET');
+    }
+    expect(dir.options[0]!.label).toBe('ADM-1 · Kid 1');
+    expect(dir.options[0]!.searchText).toBe('Kid 1 ADM-1');
+  });
 });

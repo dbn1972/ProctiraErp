@@ -74,22 +74,14 @@ export class HostelService {
       throw new ConflictError('Bed is not available for assignment');
     }
 
-    let invoice: Awaited<ReturnType<HostelFeesPort['postAllocationInvoice']>> | null = null;
+    // Resolve the fee structure up front (cheap read, no side effects) so an
+    // invalid structure fails before we claim the bed.
+    let structure: Awaited<ReturnType<HostelRepository['listFeeStructures']>>[number] | undefined;
     if (input.feeStructureId) {
       const structures = await this.repository.listFeeStructures(tenantId);
-      const structure = structures.find((row) => row.id === input.feeStructureId);
+      structure = structures.find((row) => row.id === input.feeStructureId);
       if (!structure) {
         throw new NotFoundError(`Hostel fee structure with id '${input.feeStructureId}' not found`);
-      }
-      if (this.feesLedger) {
-        invoice = await this.feesLedger.postAllocationInvoice(tenantId, actorId, {
-          studentId: input.studentId,
-          title: `Hostel ${structure.roomType} — ${structure.termLabel}`,
-          description: `Allocation fee for bed ${input.bedId}`,
-          amountCents: structure.amountCents,
-          currency: structure.currency,
-          structureId: structure.id,
-        });
       }
     }
 
@@ -103,23 +95,42 @@ export class HostelService {
       isActive,
     };
 
+    // PRC-M276 / NEW-005: claim the bed FIRST. The previous order posted the fee
+    // invoice before createActiveAssignment, so a BedAssignmentConflictError left
+    // an orphan posted invoice (money owed for a bed that was never allocated).
+    let assignment: Awaited<ReturnType<HostelRepository['createActiveAssignment']>>;
     try {
       if (isActive) {
         // P2-HOSTEL: unique-active-bed + concurrency guard (FOR UPDATE / sync claim).
-        const assignment = await this.repository.createActiveAssignment({
+        assignment = await this.repository.createActiveAssignment({
           ...payload,
           isActive: true,
         });
-        return { ...assignment, invoice };
+      } else {
+        assignment = await this.repository.createAssignment(payload);
       }
-      const assignment = await this.repository.createAssignment(payload);
-      return { ...assignment, invoice };
     } catch (err) {
       if (err instanceof BedAssignmentConflictError) {
         throw new ConflictError(err.message);
       }
       throw err;
     }
+
+    // Bed is claimed; now post the allocation invoice. If invoicing fails we
+    // surface the error (the caller sees a failure) but no invoice is orphaned.
+    let invoice: Awaited<ReturnType<HostelFeesPort['postAllocationInvoice']>> | null = null;
+    if (structure && this.feesLedger) {
+      invoice = await this.feesLedger.postAllocationInvoice(tenantId, actorId, {
+        studentId: input.studentId,
+        title: `Hostel ${structure.roomType} — ${structure.termLabel}`,
+        description: `Allocation fee for bed ${input.bedId}`,
+        amountCents: structure.amountCents,
+        currency: structure.currency,
+        structureId: structure.id,
+      });
+    }
+
+    return { ...assignment, invoice };
   }
 
   async listAssignments(tenantId: string) {

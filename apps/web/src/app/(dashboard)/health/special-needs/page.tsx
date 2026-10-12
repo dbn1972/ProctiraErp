@@ -10,7 +10,7 @@
  *    accommodations, IEP pill, icon actions
  */
 import Link from 'next/link';
-import { ArrowLeft, Eye, Info, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Eye, Info, Plus } from 'lucide-react';
 
 import {
   Button,
@@ -150,10 +150,12 @@ export default async function SpecialNeedsPage() {
           aria-hidden="true"
         />
         <p>
-          <span className="font-semibold">Accommodations are binding. </span>
-          Once recorded here, accommodations (extra exam time, scribes, front-row seating,
-          accessible materials) are applied automatically in attendance, assessments, and
-          examination seating plans. Schools are notified of every change.
+          <span className="font-semibold">
+            Accommodations recorded here are a reference record.{' '}
+          </span>
+          Recorded accommodations (extra exam time, scribes, front-row seating, accessible
+          materials) are not yet automatically enforced in attendance, assessments, or examination
+          seating; staff must apply them manually until those integrations ship.
         </p>
       </div>
 
@@ -255,23 +257,18 @@ function SpecialNeedRow({ record }: { record: SpecialNeedRecord }) {
       {/* Actions */}
       <TableCell className="pe-4">
         <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+          {/* PRC-M093: "View" links to the real student profile; the former
+              inert "Edit" button was removed until an editor exists. */}
           <Button
-            type="button"
+            asChild
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
             aria-label={`View ${record.studentName}`}
           >
-            <Eye className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label={`Edit ${record.studentName}`}
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
+            <Link href={`/students/${record.studentId}`}>
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </Button>
         </div>
       </TableCell>

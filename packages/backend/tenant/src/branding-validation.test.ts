@@ -304,6 +304,55 @@ describe('validateBrandingTokens — logo', () => {
       expect(result.errors[0]!.rule).toBe('mimeType');
     }
   });
+
+  // PRC-M636 / PRC-L370 / NEW-g7_platform-008: CSS/URL-injection guard.
+  it('accepts a well-formed https CDN logo URL', () => {
+    const tokens: ThemeTokens = {
+      '--tenant-logo': 'url("https://cdn.proctira.example/tenant-1/logo.svg")',
+    };
+    expect(validateBrandingTokens(tokens)).toEqual({ ok: true });
+  });
+
+  it('rejects a javascript: logo URL', () => {
+    const tokens: ThemeTokens = {
+      '--tenant-logo': 'url("javascript:alert(1)")',
+    };
+    const result = validateBrandingTokens(tokens);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0]!.rule).toBe('format');
+      expect(result.errors[0]!.message).toMatch(/CSS-injection guard/);
+    }
+  });
+
+  it('rejects an http:// (non-https) logo URL', () => {
+    const result = validateBrandingTokens({
+      '--tenant-logo': 'url("http://cdn.example/logo.svg")',
+    } as ThemeTokens);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a protocol-relative //host logo URL', () => {
+    const result = validateBrandingTokens({
+      '--tenant-logo': 'url("//evil.example/logo.svg")',
+    } as ThemeTokens);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a logo URL that tries to break out of url() with a quote/paren', () => {
+    // A value engineered to inject a second CSS declaration if interpolated raw.
+    const result = validateBrandingTokens({
+      '--tenant-logo': '/cdn/logo.svg");background:url(javascript:alert(1',
+    } as ThemeTokens);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a data: URL in a non-image external slot (bare javascript scheme)', () => {
+    const result = validateBrandingTokens({
+      '--tenant-favicon': 'javascript:alert(1)',
+    } as ThemeTokens);
+    expect(result.ok).toBe(false);
+  });
 });
 
 // ─── validateBrandingTokens — favicon (Requirement 28 AC 7) ─────────────────

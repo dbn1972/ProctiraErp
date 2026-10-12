@@ -143,6 +143,14 @@ export interface ScopeFilter {
   institutionId?: string;
   boardId?: string;
   scope?: LmsScope;
+  /**
+   * PRC-M298: server-derived visibility fence for school-bound callers. When
+   * set, school-scoped rows are only visible when their institution_id is in
+   * this list (board-scoped rows stay visible). Set by the service from the
+   * actor, never from client input, and applied even when the caller passes no
+   * institutionId — so a school-bound user cannot list other schools' rows.
+   */
+  allowedInstitutionIds?: string[];
 }
 
 export interface SkillFilter extends ScopeFilter {

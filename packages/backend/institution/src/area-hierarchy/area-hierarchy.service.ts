@@ -90,6 +90,41 @@ export interface AreaHierarchyDbClient {
     }): Promise<Institution[]>;
     count(args: { where: Record<string, unknown> }): Promise<number>;
   };
+  /**
+   * Optional serializable transaction wrapper. Postgres (tenant-bound Prisma)
+   * supplies this; the in-memory client omits it. Tree rewrites (create/move)
+   * run inside this when available so concurrent writers cannot interleave and
+   * corrupt the nested set (PRC-M282 / NEW-004).
+   */
+  $transaction?<T>(
+    fn: (tx: AreaHierarchyDbClient) => Promise<T>,
+    options?: { isolationLevel?: 'Serializable' },
+  ): Promise<T>;
+}
+
+/** Retries for a serializable tree rewrite that lost a write-write race. */
+const SERIALIZATION_RETRIES = 3;
+
+/** Prisma P2034 / Postgres 40001: the transaction must be retried. */
+function isSerializationFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: unknown; message?: unknown; meta?: { code?: unknown } };
+  return (
+    e.code === 'P2034' ||
+    e.code === '40001' ||
+    e.meta?.code === '40001' ||
+    (typeof e.message === 'string' && /could not serialize access|40001/.test(e.message))
+  );
+}
+
+/**
+ * True when `candidate` sits inside the subtree rooted at `ancestorId`, judged
+ * by the materialized path (`/rootId/.../parentId`). The path is the field this
+ * service has always kept correct on create and move; `lft/rgt` were not
+ * maintained by moves before PRC-M281, so they must not decide cycle safety.
+ */
+function isInSubtreeOf(candidate: GeographicArea, ancestorId: string): boolean {
+  return (candidate.path ?? '').split('/').includes(ancestorId);
 }
 
 /**
@@ -99,88 +134,114 @@ export class AreaHierarchyService {
   constructor(private readonly db: AreaHierarchyDbClient) {}
 
   /**
+   * Run `fn` inside a serializable DB transaction when the client supports one,
+   * otherwise run it directly (in-memory single-process client). Tree rewrites
+   * (create/move) use this so concurrent writers cannot corrupt the nested set
+   * (PRC-M282 / NEW-004).
+   */
+  private async runInTransaction<T>(fn: (db: AreaHierarchyDbClient) => Promise<T>): Promise<T> {
+    const db = this.db;
+    if (typeof db.$transaction !== 'function') {
+      return fn(db);
+    }
+    // Postgres: the tenant-bound client runs this through withTenantTransaction,
+    // so `tx` carries app.tenant_id under FORCE RLS. SERIALIZABLE makes two
+    // concurrent nested-set rewrites for the same tenant conflict instead of
+    // interleaving; the loser is retried on a fresh snapshot.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await db.$transaction<T>((tx) => fn(tx), { isolationLevel: 'Serializable' });
+      } catch (error) {
+        if (attempt >= SERIALIZATION_RETRIES || !isSerializationFailure(error)) throw error;
+      }
+    }
+  }
+
+  /**
    * Create a new area hierarchy node.
    * Enforces maximum nesting depth of 10 levels.
    */
   async create(input: CreateAreaInput): Promise<GeographicArea> {
     const { tenantId, name, code, parentId } = input;
 
-    // Check for duplicate code within tenant
-    const existingCode = await this.db.geographicArea.findFirst({
-      where: { tenantId, code, deletedAt: null },
-    });
-    if (existingCode) {
-      throw new ConflictError(`Area with code '${code}' already exists in this tenant`);
-    }
-
-    let level = 0;
-    let path = '';
-    let lft = 1;
-    let rgt = 2;
-
-    if (parentId) {
-      const parent = await this.db.geographicArea.findUnique({
-        where: { id: parentId },
+    const area = await this.runInTransaction(async (db) => {
+      // Check for duplicate code within tenant
+      const existingCode = await db.geographicArea.findFirst({
+        where: { tenantId, code, deletedAt: null },
       });
-
-      if (!parent) {
-        throw new NotFoundError(`Parent area with id '${parentId}' not found`);
+      if (existingCode) {
+        throw new ConflictError(`Area with code '${code}' already exists in this tenant`);
       }
 
-      if (parent.tenantId !== tenantId) {
-        throw new ValidationError('Parent area belongs to a different tenant');
+      let level = 0;
+      let path = '';
+      let lft = 1;
+      let rgt = 2;
+
+      if (parentId) {
+        const parent = await db.geographicArea.findUnique({
+          where: { id: parentId },
+        });
+
+        if (!parent) {
+          throw new NotFoundError(`Parent area with id '${parentId}' not found`);
+        }
+
+        if (parent.tenantId !== tenantId) {
+          throw new ValidationError('Parent area belongs to a different tenant');
+        }
+
+        // Enforce maximum depth
+        level = parent.level + 1;
+        if (level >= MAX_AREA_DEPTH) {
+          throw new BusinessRuleError(
+            `Maximum area hierarchy depth of ${MAX_AREA_DEPTH} levels exceeded. Current parent is at level ${parent.level}.`,
+          );
+        }
+
+        // Build materialized path
+        path = parent.path ? `${parent.path}/${parent.id}` : `/${parent.id}`;
+
+        // Calculate nested set values: insert at the right of the parent
+        lft = parent.rgt;
+        rgt = parent.rgt + 1;
+
+        // Shift existing nodes to make room
+        await db.geographicArea.updateMany({
+          where: { tenantId, rgt: { gte: parent.rgt } },
+          data: { rgt: { increment: 2 } },
+        });
+        await db.geographicArea.updateMany({
+          where: { tenantId, lft: { gt: parent.rgt } },
+          data: { lft: { increment: 2 } },
+        });
+      } else {
+        // Root node - find the max rgt value to place after all existing roots
+        const maxNode = await db.geographicArea.findFirst({
+          where: { tenantId, deletedAt: null },
+          orderBy: { rgt: 'desc' } as Record<string, unknown>,
+        });
+
+        if (maxNode) {
+          lft = maxNode.rgt + 1;
+          rgt = maxNode.rgt + 2;
+        }
+
+        path = '';
       }
 
-      // Enforce maximum depth
-      level = parent.level + 1;
-      if (level >= MAX_AREA_DEPTH) {
-        throw new BusinessRuleError(
-          `Maximum area hierarchy depth of ${MAX_AREA_DEPTH} levels exceeded. Current parent is at level ${parent.level}.`,
-        );
-      }
-
-      // Build materialized path
-      path = parent.path ? `${parent.path}/${parent.id}` : `/${parent.id}`;
-
-      // Calculate nested set values: insert at the right of the parent
-      lft = parent.rgt;
-      rgt = parent.rgt + 1;
-
-      // Shift existing nodes to make room
-      await this.db.geographicArea.updateMany({
-        where: { tenantId, rgt: { gte: parent.rgt } },
-        data: { rgt: { increment: 2 } },
+      return db.geographicArea.create({
+        data: {
+          tenantId,
+          name,
+          code,
+          level,
+          parentId: parentId || null,
+          path,
+          lft,
+          rgt,
+        },
       });
-      await this.db.geographicArea.updateMany({
-        where: { tenantId, lft: { gt: parent.rgt } },
-        data: { lft: { increment: 2 } },
-      });
-    } else {
-      // Root node - find the max rgt value to place after all existing roots
-      const maxNode = await this.db.geographicArea.findFirst({
-        where: { tenantId, deletedAt: null },
-        orderBy: { rgt: 'desc' } as Record<string, unknown>,
-      });
-
-      if (maxNode) {
-        lft = maxNode.rgt + 1;
-        rgt = maxNode.rgt + 2;
-      }
-
-      path = '';
-    }
-
-    const area = await this.db.geographicArea.create({
-      data: {
-        tenantId,
-        name,
-        code,
-        level,
-        parentId: parentId || null,
-        path,
-        lft,
-        rgt,
-      },
     });
     await publishAreaHierarchyChanged(tenantId);
 
@@ -226,14 +287,6 @@ export class AreaHierarchyService {
    * Enforces maximum nesting depth for the moved subtree.
    */
   async move(tenantId: string, areaId: string, input: MoveAreaInput): Promise<GeographicArea> {
-    const area = await this.db.geographicArea.findUnique({
-      where: { id: areaId },
-    });
-
-    if (!area || area.tenantId !== tenantId || area.deletedAt !== null) {
-      throw new NotFoundError(`Area with id '${areaId}' not found`);
-    }
-
     const { newParentId } = input;
 
     // Cannot move to itself
@@ -241,75 +294,141 @@ export class AreaHierarchyService {
       throw new BusinessRuleError('Cannot move an area to be its own parent');
     }
 
-    let newLevel = 0;
-    let newPath = '';
-
-    if (newParentId) {
-      const newParent = await this.db.geographicArea.findUnique({
-        where: { id: newParentId },
+    await this.runInTransaction(async (db) => {
+      const area = await db.geographicArea.findUnique({
+        where: { id: areaId },
       });
 
-      if (!newParent || newParent.tenantId !== tenantId || newParent.deletedAt !== null) {
-        throw new NotFoundError(`New parent area with id '${newParentId}' not found`);
+      if (!area || area.tenantId !== tenantId || area.deletedAt !== null) {
+        throw new NotFoundError(`Area with id '${areaId}' not found`);
       }
 
-      // Cannot move to a descendant of itself
-      const isDescendant = await this.isDescendant(tenantId, newParentId, areaId);
-      if (isDescendant) {
-        throw new BusinessRuleError('Cannot move an area to one of its own descendants');
+      let newLevel = 0;
+      let newPath = '';
+      let newParent: GeographicArea | null = null;
+
+      if (newParentId) {
+        newParent = await db.geographicArea.findUnique({
+          where: { id: newParentId },
+        });
+
+        if (!newParent || newParent.tenantId !== tenantId || newParent.deletedAt !== null) {
+          throw new NotFoundError(`New parent area with id '${newParentId}' not found`);
+        }
+
+        // Cannot move to a descendant of itself. Decided by the materialized
+        // path, which is always maintained; lft/rgt can be stale on tenants
+        // whose areas were moved before PRC-M281 and would let a cycle through.
+        if (isInSubtreeOf(newParent, areaId)) {
+          throw new BusinessRuleError('Cannot move an area to one of its own descendants');
+        }
+
+        newLevel = newParent.level + 1;
+        newPath = newParent.path ? `${newParent.path}/${newParent.id}` : `/${newParent.id}`;
+
+        // Check depth constraint for the entire subtree
+        const subtreeDepth = await this.getSubtreeDepth(tenantId, areaId, db);
+        const totalDepth = newLevel + subtreeDepth;
+        if (totalDepth >= MAX_AREA_DEPTH) {
+          throw new BusinessRuleError(
+            `Moving this area would exceed the maximum hierarchy depth of ${MAX_AREA_DEPTH} levels. ` +
+              `New parent is at level ${newParent.level}, subtree has depth ${subtreeDepth}.`,
+          );
+        }
       }
 
-      newLevel = newParent.level + 1;
-      newPath = newParent.path ? `${newParent.path}/${newParent.id}` : `/${newParent.id}`;
+      const oldPath = area.path ? `${area.path}/${area.id}` : `/${area.id}`;
+      const newFullPath = newPath ? `${newPath}/${area.id}` : `/${area.id}`;
 
-      // Check depth constraint for the entire subtree
-      const subtreeDepth = await this.getSubtreeDepth(tenantId, areaId);
-      const totalDepth = newLevel + subtreeDepth;
-      if (totalDepth >= MAX_AREA_DEPTH) {
-        throw new BusinessRuleError(
-          `Moving this area would exceed the maximum hierarchy depth of ${MAX_AREA_DEPTH} levels. ` +
-            `New parent is at level ${newParent.level}, subtree has depth ${subtreeDepth}.`,
-        );
+      // --- Nested-set relocation (PRC-M281 / NEW-003) ---
+      // move() previously updated parentId/level/path but never touched lft/rgt,
+      // so getTree(rootId) — which selects subtrees by lft/rgt — returned the
+      // wrong subtree after a move. We recompute the whole tenant's nested set
+      // from a snapshot and write back only the rows whose coordinates changed.
+      const allNodes = await db.geographicArea.findMany({
+        where: { tenantId, deletedAt: null },
+        orderBy: { lft: 'asc' } as Record<string, unknown>,
+      });
+
+      // Build child adjacency keyed by effective parentId (apply the move first).
+      const effectiveParentId = new Map<string, string | null>();
+      for (const node of allNodes) {
+        effectiveParentId.set(node.id, node.parentId);
       }
-    }
+      effectiveParentId.set(areaId, newParentId);
 
-    // Calculate level difference for updating descendants
-    const levelDiff = newLevel - area.level;
-    const oldPath = area.path ? `${area.path}/${area.id}` : `/${area.id}`;
-    const newFullPath = newPath ? `${newPath}/${area.id}` : `/${area.id}`;
+      const childrenByParent = new Map<string | null, GeographicArea[]>();
+      for (const node of allNodes) {
+        const pid = effectiveParentId.get(node.id) ?? null;
+        const bucket = childrenByParent.get(pid) ?? [];
+        bucket.push(node);
+        childrenByParent.set(pid, bucket);
+      }
+      // Deterministic ordering within a parent: by existing lft so unrelated
+      // ordering is preserved.
+      for (const bucket of childrenByParent.values()) {
+        bucket.sort((a1, a2) => a1.lft - a2.lft);
+      }
 
-    // Update the area itself
-    await this.db.geographicArea.update({
-      where: { id: areaId },
-      data: {
-        parentId: newParentId,
-        level: newLevel,
-        path: newPath,
-      },
-    });
+      // DFS assign new lft/rgt (and level) for every node.
+      const newCoords = new Map<string, { lft: number; rgt: number; level: number }>();
+      let counter = 0;
+      const assign = (node: GeographicArea, level: number): void => {
+        counter += 1;
+        const lft = counter;
+        for (const child of childrenByParent.get(node.id) ?? []) {
+          assign(child, level + 1);
+        }
+        counter += 1;
+        newCoords.set(node.id, { lft, rgt: counter, level });
+      };
+      for (const root of childrenByParent.get(null) ?? []) {
+        assign(root, 0);
+      }
 
-    // Update all descendants' paths and levels
-    const descendants = await this.db.geographicArea.findMany({
-      where: {
-        tenantId,
-        path: { startsWith: oldPath },
-        deletedAt: null,
-      },
-      orderBy: { level: 'asc' } as Record<string, unknown>,
-    });
+      // Write back changed coordinates/levels.
+      for (const node of allNodes) {
+        const coords = newCoords.get(node.id);
+        if (!coords) continue;
+        if (coords.lft !== node.lft || coords.rgt !== node.rgt || coords.level !== node.level) {
+          await db.geographicArea.update({
+            where: { id: node.id },
+            data: { lft: coords.lft, rgt: coords.rgt, level: coords.level },
+          });
+        }
+      }
 
-    for (const descendant of descendants) {
-      const updatedPath = descendant.path.replace(oldPath, newFullPath);
-      await this.db.geographicArea.update({
-        where: { id: descendant.id },
+      // Update parent/path for the moved node.
+      await db.geographicArea.update({
+        where: { id: areaId },
         data: {
-          path: updatedPath,
-          level: descendant.level + levelDiff,
+          parentId: newParentId,
+          path: newPath,
         },
       });
-    }
 
-    // Return the updated area
+      // Rewrite descendant materialized paths (levels already set above).
+      const descendants = await db.geographicArea.findMany({
+        where: {
+          tenantId,
+          path: { startsWith: oldPath },
+          deletedAt: null,
+        },
+        orderBy: { level: 'asc' } as Record<string, unknown>,
+      });
+
+      for (const descendant of descendants) {
+        if (descendant.id === areaId) continue;
+        const updatedPath = descendant.path.replace(oldPath, newFullPath);
+        if (updatedPath !== descendant.path) {
+          await db.geographicArea.update({
+            where: { id: descendant.id },
+            data: { path: updatedPath },
+          });
+        }
+      }
+    });
+
     const updated = await this.db.geographicArea.findUnique({
       where: { id: areaId },
     });
@@ -458,30 +577,15 @@ export class AreaHierarchyService {
   }
 
   /**
-   * Check if targetId is a descendant of ancestorId.
-   */
-  private async isDescendant(
-    tenantId: string,
-    targetId: string,
-    ancestorId: string,
-  ): Promise<boolean> {
-    const target = await this.db.geographicArea.findUnique({
-      where: { id: targetId },
-    });
-
-    if (!target || target.tenantId !== tenantId) return false;
-
-    // Check if the ancestor's ID appears in the target's path
-    const pathSegments = target.path.split('/').filter((s) => s.length > 0);
-    return pathSegments.includes(ancestorId);
-  }
-
-  /**
    * Get the maximum depth of a subtree rooted at the given area.
    * Returns 0 if the area has no children.
    */
-  private async getSubtreeDepth(tenantId: string, areaId: string): Promise<number> {
-    const area = await this.db.geographicArea.findUnique({
+  private async getSubtreeDepth(
+    tenantId: string,
+    areaId: string,
+    db: AreaHierarchyDbClient = this.db,
+  ): Promise<number> {
+    const area = await db.geographicArea.findUnique({
       where: { id: areaId },
     });
 
@@ -489,7 +593,7 @@ export class AreaHierarchyService {
 
     const pathPrefix = area.path ? `${area.path}/${area.id}` : `/${area.id}`;
 
-    const descendants = await this.db.geographicArea.findMany({
+    const descendants = await db.geographicArea.findMany({
       where: {
         tenantId,
         path: { startsWith: pathPrefix },

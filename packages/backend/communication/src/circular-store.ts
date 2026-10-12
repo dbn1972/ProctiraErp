@@ -77,6 +77,15 @@ export interface CircularStore {
   ): Promise<CircularRecord | null>;
 
   /**
+   * PRC-M502: atomically claim a draft circular for sending. Transitions
+   * status draft→sent in ONE conditional UPDATE and returns the claimed row.
+   * Returns null when the circular is missing or NOT in 'draft' status (i.e.
+   * a concurrent send already claimed it), so the caller can refuse to
+   * double-deliver.
+   */
+  claimCircularForSend(tenantId: string, id: string, sentAt: Date): Promise<CircularRecord | null>;
+
+  /**
    * PRC-M193: insert the circular and all of its ack rows in ONE transaction
    * (bulk insert, duplicates ignored). Nothing is persisted on failure.
    */
@@ -181,6 +190,19 @@ export class InMemoryCircularStore implements CircularStore {
     const row = this.circulars.get(id);
     if (!row || row.tenantId !== tenantId) return null;
     const updated: CircularRecord = { ...row, ...patch, updatedAt: new Date() };
+    this.circulars.set(id, updated);
+    return clone(updated);
+  }
+
+  async claimCircularForSend(
+    tenantId: string,
+    id: string,
+    sentAt: Date,
+  ): Promise<CircularRecord | null> {
+    const row = this.circulars.get(id);
+    // Conditional transition: only a draft can be claimed (PRC-M502).
+    if (!row || row.tenantId !== tenantId || row.status !== 'draft') return null;
+    const updated: CircularRecord = { ...row, status: 'sent', sentAt, updatedAt: new Date() };
     this.circulars.set(id, updated);
     return clone(updated);
   }

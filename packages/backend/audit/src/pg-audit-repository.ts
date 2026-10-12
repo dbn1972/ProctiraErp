@@ -266,7 +266,9 @@ export class PgAuditRepository implements AuditRepository {
       await client.query('SELECT pg_advisory_xact_lock_shared(hashtext($1))', [
         chainLockKey(tenantId),
       ]);
-      const union = `(
+      // Unaliased subquery; each FROM site adds its own alias (a second alias on
+      // an already-aliased subquery is a syntax error).
+      const unionSource = `(
            SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
                   ip_address, occurred_at, before_values, after_values, metadata,
                   chain_seq, prev_hash, entry_hash
@@ -276,7 +278,8 @@ export class PgAuditRepository implements AuditRepository {
                   ip_address, occurred_at, before_values, after_values, metadata,
                   chain_seq, prev_hash, entry_hash
            FROM audit_log_archive WHERE tenant_id = $1
-         ) u`;
+         )`;
+      const union = `${unionSource} u`;
       const legacy = await client.query(
         `SELECT count(*)::int AS n FROM ${union} WHERE chain_seq IS NULL`,
         [tenantId],
@@ -293,6 +296,25 @@ export class PgAuditRepository implements AuditRepository {
             hash: headRow.entry_hash == null ? null : String(headRow.entry_hash),
           }
         : null;
+
+      // PRC-M176 / NEW-g7_platform-012: strict tamper-evidence. Once a tenant's
+      // chain exists, any unchained (chain_seq NULL) row written at/after the
+      // genesis chained row is a direct insert that bypassed chaining and MUST
+      // fail verification, not be excused as "legacy". Rows strictly before
+      // genesis are genuine pre-chain legacy data and are tolerated.
+      let unchainedAfterCutover = 0;
+      if (head) {
+        const cutoverRes = await client.query(
+          `SELECT count(*)::int AS n FROM ${unionSource} g
+           WHERE g.chain_seq IS NULL
+             AND g.occurred_at >= (
+               SELECT occurred_at FROM ${unionSource} h
+               WHERE h.chain_seq IS NOT NULL ORDER BY h.chain_seq ASC, h.id ASC LIMIT 1
+             )`,
+          [tenantId],
+        );
+        unchainedAfterCutover = Number((cutoverRes.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+      }
 
       // Keyset-page the hashed chain in (chain_seq, id) order, carrying
       // prev_hash in the verifier instead of buffering every row.
@@ -322,7 +344,7 @@ export class PgAuditRepository implements AuditRepository {
         if (!keepGoing || res.rows.length < pageSize) break;
       }
       const legacyCount = Number((legacy.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
-      return verifier.finish(legacyCount, head);
+      return verifier.finish(legacyCount, head, unchainedAfterCutover);
     });
   }
 

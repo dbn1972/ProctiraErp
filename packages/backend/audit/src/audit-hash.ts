@@ -74,10 +74,27 @@ export interface ChainVerification {
   checkedEntries: number;
   /** Entries written before the chain existed (no hash) — reported, not failed. */
   legacyEntries: number;
+  /**
+   * PRC-M176 / NEW-g7_platform-012: in strict mode, the number of unchained
+   * (chain_seq NULL) rows that appear AFTER the chain has started — i.e. direct
+   * inserts framed as "legacy". These fail verification because tamper-evidence
+   * cannot cover rows that were never chained.
+   */
+  unchainedAfterCutover: number;
   headHash: string | null;
   headSeq: number;
   brokenAt: ChainBreak | null;
   verifiedAt: string;
+}
+
+export interface VerifyOptions {
+  /**
+   * When true (default false for backward compatibility), any unchained row whose
+   * timestamp is at/after the first chained row's timestamp is treated as a chain
+   * break (reason 'missing-hash'). Pre-chain rows strictly before the genesis row
+   * are still tolerated as genuine legacy data.
+   */
+  strict?: boolean;
 }
 
 /**
@@ -159,22 +176,38 @@ export class ChainVerifier {
   finish(
     legacyEntries: number,
     head: { seq: number; hash: string | null } | null = this.lastHead,
+    unchainedAfterCutover = 0,
   ): ChainVerification {
     const checkedEntries = this.brokenAt ? this.brokenAt.chainSeq - 1 : this.hashedCount;
     return {
       tenantId: this.tenantId,
-      valid: this.brokenAt === null,
+      valid: this.brokenAt === null && unchainedAfterCutover === 0,
       checkedEntries,
       legacyEntries,
+      unchainedAfterCutover,
       headHash: head?.hash ?? null,
       headSeq: head?.seq ?? 0,
-      brokenAt: this.brokenAt,
+      brokenAt:
+        this.brokenAt ??
+        (unchainedAfterCutover > 0
+          ? {
+              chainSeq: 0,
+              entryId: '',
+              reason: 'missing-hash',
+              expected: null,
+              actual: null,
+            }
+          : null),
       verifiedAt: new Date().toISOString(),
     };
   }
 }
 
-export function verifyEntrySequence(tenantId: string, entries: AuditLogEntry[]): ChainVerification {
+export function verifyEntrySequence(
+  tenantId: string,
+  entries: AuditLogEntry[],
+  options: VerifyOptions = {},
+): ChainVerification {
   const hashed = entries
     .filter((e) => e.chainSeq != null)
     .sort((a, b) => (a.chainSeq ?? 0) - (b.chainSeq ?? 0));
@@ -183,8 +216,20 @@ export function verifyEntrySequence(tenantId: string, entries: AuditLogEntry[]):
     if (!verifier.push(entry)) break;
   }
   const last = hashed[hashed.length - 1];
+  const legacy = entries.filter((e) => e.chainSeq == null);
+
+  // PRC-M176 / NEW-g7_platform-012: in strict mode, any unchained row at/after the
+  // genesis chained row's timestamp is a direct insert that evaded chaining and must
+  // fail verification. Rows strictly before genesis are genuine pre-chain legacy data.
+  let unchainedAfterCutover = 0;
+  if (options.strict && hashed.length > 0) {
+    const genesisTs = hashed[0]!.timestamp.getTime();
+    unchainedAfterCutover = legacy.filter((e) => e.timestamp.getTime() >= genesisTs).length;
+  }
+
   return verifier.finish(
-    entries.length - hashed.length,
+    legacy.length,
     last ? { seq: last.chainSeq ?? 0, hash: last.entryHash ?? null } : null,
+    unchainedAfterCutover,
   );
 }

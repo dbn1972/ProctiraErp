@@ -2,17 +2,16 @@
  * Scholarship disbursements list (Server Component).
  *
  * Layout per redesign/web/scholarships-disbursements.html:
- *  - Page head with New batch CTA
+ *  - Page head (PRC-M112: no "New batch" CTA until batch creation exists)
  *  - KPI cards (disbursed total, success rate, failed, scheduled)
  *  - Optional failed-transfer alert
  *  - Payment records table with status pills
  *
  * Validates: Requirement 11.1 — schedule and track scholarship disbursements.
  */
-import { AlertTriangle, CheckCircle2, Clock, Plus, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Wallet, XCircle } from 'lucide-react';
 
 import {
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -130,18 +129,11 @@ export default async function ScholarshipDisbursementsPage(props: {
             Disbursements
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            DBT payments to student bank accounts. Each batch is reconciled against PFMS within 48
-            hours of processing.
+            DBT payments to student bank accounts.
             {disbursements.length > 0
               ? ` ${disbursements.length.toLocaleString()} payment records.`
               : null}
           </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button size="sm">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            New batch
-          </Button>
         </div>
       </div>
 

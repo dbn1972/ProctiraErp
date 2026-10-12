@@ -1035,7 +1035,12 @@ export async function registerLmsRoutes(
     if (!tenantId) return tenantRequired(reply);
     try {
       const actor = getLmsActor(request);
-      const created = await lmsService.createModule(tenantId, actor.userId ?? 'system', body.data);
+      const created = await lmsService.createModule(
+        tenantId,
+        actor.userId ?? 'system',
+        body.data,
+        actor,
+      );
       return reply.status(201).send(serialise(created));
     } catch (error) {
       return sendError(reply, error);
@@ -1048,11 +1053,12 @@ export async function registerLmsRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     try {
-      const modules = await lmsService.listModules(tenantId, query.data);
+      const actor = getLmsActor(request);
+      const modules = await lmsService.listModules(tenantId, query.data, actor);
       const withItems = await Promise.all(
         modules.map(async (mod) => ({
           ...mod,
-          items: await lmsService.listModuleItems(tenantId, mod.id),
+          items: await lmsService.listModuleItems(tenantId, mod.id, actor),
         })),
       );
       return reply.send({ data: withItems.map(serialise) });
@@ -1069,7 +1075,12 @@ export async function registerLmsRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     try {
-      const item = await lmsService.addModuleItem(tenantId, params.data.id, body.data);
+      const item = await lmsService.addModuleItem(
+        tenantId,
+        params.data.id,
+        body.data,
+        getLmsActor(request),
+      );
       return reply.status(201).send(serialise(item));
     } catch (error) {
       return sendError(reply, error);

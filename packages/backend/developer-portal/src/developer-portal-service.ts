@@ -279,7 +279,10 @@ export class DeveloperPortalService {
 
   // ─── Developer Accounts ─────────────────────────────────────────────────
 
-  async createAccount(input: CreateDeveloperAccountInput): Promise<DeveloperAccountEntity> {
+  async createAccount(
+    input: CreateDeveloperAccountInput,
+    ownerUserId: string | null = null,
+  ): Promise<DeveloperAccountEntity> {
     // Check for duplicate email
     const existing = await this.repository.getAccountByEmail(input.email);
     if (existing) {
@@ -294,11 +297,31 @@ export class DeveloperPortalService {
       organization: input.organization ?? null,
       website: input.website ?? null,
       status: 'active',
+      // NEW-g7_platform-009 / PRC-M507: bind the account to its creating owner.
+      ownerUserId: ownerUserId ?? null,
       createdAt: now,
       updatedAt: now,
     };
 
     return this.repository.createAccount(account);
+  }
+
+  /**
+   * NEW-g7_platform-009 / PRC-M507: ownership check for account-scoped routes.
+   * Returns true when the authenticated subject owns the account OR is
+   * platform-staff. A `null` owner (legacy row) is only accessible to
+   * platform-staff. Anonymous callers (`subject === null`) are never allowed.
+   */
+  async isAccountAccessible(
+    accountId: string,
+    subject: string | null,
+    isPlatformStaff: boolean,
+  ): Promise<boolean> {
+    if (isPlatformStaff) return true;
+    if (!subject) return false;
+    const account = await this.repository.getAccountById(accountId);
+    if (!account) return false;
+    return account.ownerUserId !== null && account.ownerUserId === subject;
   }
 
   async getAccount(accountId: string): Promise<DeveloperAccountEntity> {
@@ -735,7 +758,15 @@ export class DeveloperPortalService {
     // twice or loop back into another re-enqueue (review #5 on PR #555).
     let failedStatus: number | null;
     try {
-      const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
+      // NEW-g7_platform-005 / PRC-L465: deliver to the CURRENT webhook URL, not
+      // the (possibly stale) URL captured on the job at enqueue time. A webhook
+      // that was re-pointed or corrected after a compromise must not keep
+      // receiving signed tenant data at the old destination. The URL is
+      // re-validated with the SSRF guard at send time; a now-unsafe URL fails
+      // the attempt instead of being delivered.
+      const targetUrl = webhook.url;
+      assertPublicHttpsUrlShape(targetUrl);
+      const res = await this.httpFetch(targetUrl, { method: 'POST', headers, body });
       if (res.ok) {
         await this.markDeliverySuccess(job.deliveryId, res.status);
         return;

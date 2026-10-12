@@ -125,8 +125,9 @@ export default function StudentBulkImportPage() {
             Bulk import students
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Map your spreadsheet columns to ProctiraERP fields. Every row is validated before any
-            record is created — nothing is saved until you confirm.
+            Map your spreadsheet columns to ProctiraERP fields. On import, every row is validated;
+            valid rows are created and invalid rows are reported and skipped. You confirm before
+            anything is written.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -173,9 +174,9 @@ export default function StudentBulkImportPage() {
         <CardHeader>
           <CardTitle className="text-base">Step 2 — Upload and review</CardTitle>
           <CardDescription>
-            Drop the completed Excel file (.xlsx, up to 50&nbsp;MB). We&apos;ll validate every row
-            and highlight failures or duplicates before importing. Nothing is saved until you
-            confirm.
+            Drop the completed Excel file (.xlsx, up to 50&nbsp;MB). On import we validate every
+            row, create the valid ones and report failures or duplicates. You confirm before the
+            import is committed.
           </CardDescription>
         </CardHeader>
         <CardContent>

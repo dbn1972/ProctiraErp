@@ -183,7 +183,12 @@ export const ReportCardJobResponseSchema = Type.Object({
   errorMessage: Type.Union([Type.String(), Type.Null()], {
     description: 'Error message if failed',
   }),
-  outputUrl: Type.Union([Type.String(), Type.Null()], { description: 'URL to generated PDF' }),
+  // PRC-L083: internal artifact key is never exposed; clients use the
+  // authenticated download route and a readiness flag.
+  ready: Type.Boolean({ description: 'True when the PDF is generated and downloadable' }),
+  downloadUrl: Type.Union([Type.String(), Type.Null()], {
+    description: 'Authenticated download route when ready, else null',
+  }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
   completedAt: Type.Union([Type.String(), Type.Null()], { description: 'Completion timestamp' }),
