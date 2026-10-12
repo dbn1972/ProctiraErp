@@ -85,3 +85,26 @@ groups:
             (current: {{ $value | humanizePercentage }}). Page on-call.
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-rate-critical'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
+
+      # PRC-L473: nightly disaster-recovery Jobs (pg-backup, phi-retention) fail
+      # silently today — nothing alerts on a failed CronJob. kube_job_failed is
+      # exported by kube-state-metrics; match the DR jobs by name prefix.
+      - alert: DisasterRecoveryJobFailed
+        expr: |
+          max by (namespace, job_name) (
+            kube_job_failed{job_name=~"(.*-)?(pg-backup|phi-retention).*", condition="true"}
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: ops
+          slo: availability
+        annotations:
+          summary: 'DR job {{ $labels.job_name }} failed'
+          description: |
+            The disaster-recovery CronJob {{ $labels.job_name }} in namespace
+            {{ $labels.namespace }} reported a failed completion. Backups or PHI
+            retention did not run — investigate immediately; data-protection and
+            compliance posture is degraded until the next successful run.
+          runbook_url: 'https://runbooks.proctira.org/dr/jobs.md#job-failed'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dr-overview'

@@ -91,3 +91,44 @@ groups:
             and being routed to DLX. Investigate consumer errors.
           runbook_url: 'https://runbooks.proctira.org/services/notification.md#dead-letter-queue'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
+
+      # ─── Exporter liveness watchdogs ─────────────────────────────────────────
+      # The lag/depth rules above evaluate to an empty vector (and therefore
+      # never fire) when the backing exporter is not scraped. These absent()
+      # watchdogs make a missing exporter loud instead of silently "healthy",
+      # so operators cannot mistake "no data" for "no backlog".
+      - alert: KafkaLagMetricsAbsent
+        expr: |
+          absent(kafka_consumergroup_lag)
+        for: 15m
+        labels:
+          severity: warning
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: 'Kafka consumer-lag metrics are absent'
+          description: |
+            No `kafka_consumergroup_lag` series are being scraped. The
+            KafkaConsumerLagHigh/Critical alerts cannot fire while this is true.
+            Deploy/scrape a kafka-exporter (e.g. danielqsj/kafka-exporter) and add
+            a scrape job so consumer backlogs are actually monitored.
+          runbook_url: 'https://runbooks.proctira.org/observability/queue-lag.md#kafka-exporter-missing'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
+
+      - alert: RabbitMQQueueMetricsAbsent
+        expr: |
+          absent(rabbitmq_queue_messages_ready)
+        for: 15m
+        labels:
+          severity: warning
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: 'RabbitMQ queue metrics are absent'
+          description: |
+            No `rabbitmq_queue_messages_ready` series are being scraped. The
+            RabbitMQ queue-depth and dead-letter alerts cannot fire while this is
+            true. Enable the RabbitMQ Prometheus plugin (port 15692) and add a
+            scrape job.
+          runbook_url: 'https://runbooks.proctira.org/observability/queue-lag.md#rabbitmq-exporter-missing'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'

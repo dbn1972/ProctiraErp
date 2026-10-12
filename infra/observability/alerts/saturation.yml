@@ -27,11 +27,18 @@ groups:
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
       - alert: ProcessMemoryHigh
+        # SLI: resident memory relative to the pod's allocated memory *limit*
+        # (the quota the kernel OOM-kills against), NOT the V8 heap total.
+        # RSS routinely exceeds nodejs_heap_size_total_bytes (native allocations,
+        # buffers, code), so dividing by heap total made this alert near-always
+        # true. kube_pod_container_resource_limits{resource="memory"} is exported
+        # by kube-state-metrics for every pod with a memory limit set.
         expr: |
           (
-            process_resident_memory_bytes
+            container_memory_working_set_bytes{container!="",container!="POD"}
             /
-            on (service) group_left() (nodejs_heap_size_total_bytes + 1)
+            on (namespace, pod, container) group_left()
+              kube_pod_container_resource_limits{resource="memory"}
           ) > 0.9
         for: 5m
         labels:
@@ -39,10 +46,11 @@ groups:
           team: ops
           slo: saturation
         annotations:
-          summary: '{{ $labels.service }} memory usage above 90%'
+          summary: '{{ $labels.container }} memory usage above 90% of limit'
           description: |
-            Resident memory on {{ $labels.service }} is at {{ $value | humanizePercentage }}
-            of heap capacity. Risk of OOM and restart.
+            Working-set memory on {{ $labels.container }} (pod {{ $labels.pod }}) is at
+            {{ $value | humanizePercentage }} of its configured memory limit.
+            Risk of OOM kill and restart.
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#memory-saturation'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
