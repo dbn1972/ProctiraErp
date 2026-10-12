@@ -8,6 +8,24 @@ export function uniqueSuffix(): string {
   return randomBytes(4).toString('hex');
 }
 
+/**
+ * Generates a unique grade `order` within the Postgres `smallint` range
+ * (`1..32767`).
+ *
+ * PRC-M280 made grade `order` unique per tenant (a duplicate order collapses
+ * two grades into one rollover slot). Live E2E specs share one TENANT_A against
+ * a per-run Postgres, and several specs/tests create a throwaway grade, so a
+ * hard-coded `order` collides with `409 CONFLICT`. Draw a high-entropy value
+ * (mirroring {@link uniqueSuffix}) so concurrent shards and repeated tests do
+ * not clash; the rare collision self-heals on Playwright's test retry, which
+ * re-runs the fixture and redraws. No spec asserts on the order value itself —
+ * only that creation succeeds and tenant isolation holds.
+ */
+export function uniqueGradeOrder(): number {
+  // 2 random bytes → 0..65535; map into 1..32767 (smallint, non-zero).
+  return (randomBytes(2).readUInt16BE(0) % 32767) + 1;
+}
+
 export interface TestStudent {
   firstName: string;
   lastName: string;
