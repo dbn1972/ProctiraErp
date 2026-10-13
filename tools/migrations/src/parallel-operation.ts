@@ -15,9 +15,10 @@
  * - Rollback capability
  */
 
-import { Pool, PoolClient } from 'pg';
-import { MigrationConfig, MigrationStepResult } from './types.js';
+import { Pool } from 'pg';
+
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import type { MigrationConfig, MigrationStepResult } from './types.js';
 
 /** System health status. */
 export interface SystemHealth {
@@ -172,15 +173,15 @@ export class ParallelOperationManager {
         try {
           const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
-          const legacyResult = await client.query(
+          const legacyResult = await client.query<{ count: string }>(
             `SELECT COUNT(*) as count FROM "${this.config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
           );
-          const legacyCount = parseInt(legacyResult.rows[0].count, 10);
+          const legacyCount = parseInt(legacyResult.rows[0]!.count, 10);
 
-          const newResult = await client.query(
+          const newResult = await client.query<{ count: string }>(
             `SELECT COUNT(*) as count FROM "${this.config.pg.schema}"."${mapping.targetTable}"`,
           );
-          const newCount = parseInt(newResult.rows[0].count, 10);
+          const newCount = parseInt(newResult.rows[0]!.count, 10);
 
           results.push({
             table: mapping.targetTable,
@@ -210,8 +211,15 @@ export class ParallelOperationManager {
 
   /**
    * Advances the parallel operation to the next phase.
+   *
+   * PRC-L507: advancing into `cutover` or `legacy_decommission` flips read/write
+   * traffic to the new system and abandons the legacy source — a destructive,
+   * hard-to-reverse step. It must NOT happen while the systems disagree. Callers
+   * must pass the latest health + drift; this method fails closed (throws) if a
+   * destructive transition is attempted without both systems healthy and zero
+   * drift. Non-destructive transitions are allowed without the guard.
    */
-  advancePhase(): ParallelOperationStatus['phase'] {
+  advancePhase(guard?: { bothHealthy: boolean; drift: number }): ParallelOperationStatus['phase'] {
     const phases: ParallelOperationStatus['phase'][] = [
       'initial_sync',
       'dual_write',
@@ -221,9 +229,31 @@ export class ParallelOperationManager {
     ];
 
     const currentIndex = phases.indexOf(this.phase);
-    if (currentIndex < phases.length - 1) {
-      this.phase = phases[currentIndex + 1] as ParallelOperationStatus['phase'];
+    if (currentIndex >= phases.length - 1) {
+      return this.phase;
     }
+    const next = phases[currentIndex + 1] as ParallelOperationStatus['phase'];
+
+    const destructive = next === 'cutover' || next === 'legacy_decommission';
+    if (destructive) {
+      if (!guard) {
+        throw new Error(
+          `advancePhase to "${next}" requires a health+drift guard { bothHealthy, drift } (PRC-L507)`,
+        );
+      }
+      if (!guard.bothHealthy) {
+        throw new Error(
+          `Refusing to advance to "${next}": both systems must be healthy (PRC-L507)`,
+        );
+      }
+      if (guard.drift !== 0) {
+        throw new Error(
+          `Refusing to advance to "${next}": data drift is ${guard.drift}, must be 0 (PRC-L507)`,
+        );
+      }
+    }
+
+    this.phase = next;
 
     // Update routing based on phase
     switch (this.phase) {

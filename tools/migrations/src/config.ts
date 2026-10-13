@@ -76,5 +76,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Migrat
     stagingSchema: env('MIGRATION_STAGING_SCHEMA', 'migration_staging'),
     logLevel: env('MIGRATION_LOG_LEVEL', 'info') as MigrationConfig['logLevel'],
     pgloaderBin: env('PGLOADER_BIN', 'pgloader'),
+    reportOutputPath: process.env['MIGRATION_REPORT_OUTPUT_PATH'] || undefined,
   };
 }

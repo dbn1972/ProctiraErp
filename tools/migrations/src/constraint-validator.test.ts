@@ -7,9 +7,24 @@ import { describe, it, expect } from 'vitest';
 import {
   SCHEMA_CONSTRAINTS,
   serializeConstraintReport,
+  maskSample,
   ConstraintValidationReport,
   ConstraintViolation,
 } from './constraint-validator.js';
+
+describe('maskSample (PRC-M555)', () => {
+  it('does not reveal the raw PII value', () => {
+    const id = '199012345678';
+    const masked = maskSample(id);
+    expect(masked).not.toContain(id);
+    expect(masked).toBe('1***8(len=12)');
+  });
+  it('marks empty and short values without leaking them', () => {
+    expect(maskSample('')).toBe('<empty>');
+    expect(maskSample(null)).toBe('<empty>');
+    expect(maskSample('ab')).toBe('**(len=2)');
+  });
+});
 
 describe('constraint-validator', () => {
   describe('SCHEMA_CONSTRAINTS', () => {

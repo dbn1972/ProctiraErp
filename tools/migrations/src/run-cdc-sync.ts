@@ -4,22 +4,9 @@
  */
 
 import 'dotenv/config';
+import { loadCDCConfig } from './cdc-config.js';
+import { runIncrementalSync } from './cdc-sync.js';
 import { loadConfig } from './config.js';
-import { runIncrementalSync, CDCSyncConfig } from './cdc-sync.js';
-
-function loadCDCConfig(): CDCSyncConfig {
-  return {
-    kafkaBrokers: (process.env.KAFKA_BROKERS ?? 'localhost:9092').split(','),
-    kafkaClientId: process.env.KAFKA_CLIENT_ID ?? 'proctira-cdc-producer',
-    consumerGroupId: process.env.CDC_CONSUMER_GROUP ?? 'proctira-cdc-consumers',
-    topicPrefix: process.env.CDC_TOPIC_PREFIX ?? 'cdc.migration',
-    pollIntervalMs: parseInt(process.env.CDC_POLL_INTERVAL_MS ?? '5000', 10),
-    batchSize: parseInt(process.env.CDC_BATCH_SIZE ?? '1000', 10),
-    tenantId: process.env.CDC_TENANT_ID ?? 'default',
-    conflictResolution: (process.env.CDC_CONFLICT_RESOLUTION ??
-      'source_wins') as CDCSyncConfig['conflictResolution'],
-  };
-}
 
 async function main(): Promise<void> {
   const config = loadConfig();

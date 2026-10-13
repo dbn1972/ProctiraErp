@@ -96,7 +96,62 @@ export function assertTenantScopedSubscribeTopic(
   }
 }
 
-/** PRC-L355 — tenant segment must not contain routing separators / wildcards / whitespace. */
+/**
+ * PRC-M365 — AMQP-style topic wildcards (`*` = exactly one segment, `#` = zero or
+ * more segments) are only honoured by the RabbitMQ and in-memory adapters. Kafka
+ * and SQS treated `tenant.*.jobs` as a *literal* topic/queue name, so a wildcard
+ * subscription silently matched nothing on those backends (a correctness bug, not
+ * a leak). These helpers let the Kafka adapter translate a wildcard to a RegExp
+ * (kafkajs supports RegExp topics) and let the SQS adapter fail closed.
+ */
+export function isWildcardTopic(topic: string): boolean {
+  return topic.split('.').some((seg) => seg === '*' || seg === '#');
+}
+
+/**
+ * Convert an AMQP-style wildcard routing key to an anchored RegExp for kafkajs.
+ *   `*` → exactly one dot-free segment
+ *   `#` → zero or more whole segments
+ * Literal segments are escaped so a tenant id or event name cannot inject regex.
+ *
+ * PRC-L355 / PRC-M365 — segment boundaries must survive every `#` position:
+ *  - bare `#`            → any topic (zero or more segments)
+ *  - leading `#.x`       → `(?:[^.]+\.)*x` — the `#` token carries the dot on its
+ *                          RIGHT, so the following segment adds no separator
+ *  - interior/trailing   → `(?:\.[^.]+)*` — the `#` token carries the dot on its
+ *                          LEFT; a following literal still needs its own `\.`,
+ *                          so `tenant.#.abc.jobs` cannot match `tenant.evilabc.jobs`
+ *                          and `tenant.abc.#` cannot match `tenant.abc-evil.jobs`.
+ * Consecutive `#` segments are collapsed (`#.#` ≡ `#`).
+ */
+export function wildcardTopicToRegExp(topic: string): RegExp {
+  const parts = topic.split('.').filter((seg, i, all) => !(seg === '#' && all[i - 1] === '#'));
+  if (parts.length === 1 && parts[0] === '#') {
+    return /^(?:[^.]+(?:\.[^.]+)*)?$/;
+  }
+  const leadingHash = parts[0] === '#';
+  let pattern = '';
+  for (let i = 0; i < parts.length; i += 1) {
+    const seg = parts[i] ?? '';
+    if (seg === '#') {
+      // i === 0: leading `#` (zero or more segments, each with its trailing dot).
+      // otherwise: interior/trailing `#` (zero or more `.segment` continuations).
+      pattern += i === 0 ? '(?:[^.]+\\.)*' : '(?:\\.[^.]+)*';
+      continue;
+    }
+    // Every literal/`*` segment after the first needs its own separating dot,
+    // EXCEPT directly after a leading `#`, whose token already ends with a dot.
+    const afterLeadingHash = i === 1 && leadingHash;
+    if (i > 0 && !afterLeadingHash) pattern += '\\.';
+    if (seg === '*') {
+      pattern += '[^.]+';
+    } else {
+      pattern += seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`^${pattern}$`);
+}
+
 // eslint-disable-next-line no-control-regex
 const UNSAFE_TENANT_SEGMENT = /[.*#>\s\u0000-\u001f\u007f]/;
 

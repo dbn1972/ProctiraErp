@@ -3,6 +3,11 @@
 # pg-restore.sh. Never commit real keys; operators supply env vars / secrets.
 set -euo pipefail
 
+# PRC-L383: backup artifacts (plaintext or ciphertext) and decrypted restore
+# copies must never be world/group readable. Restrict file creation to the
+# owner for every file this library produces.
+umask 077
+
 # Encrypt a plaintext dump when BACKUP_AGE_RECIPIENT, BACKUP_GPG_RECIPIENT, or
 # BACKUP_ENCRYPT=1 is set. Removes the plaintext file on success.
 # Prints the path of the artifact to keep (encrypted or original).
