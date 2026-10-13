@@ -10,7 +10,9 @@ import { Kafka } from 'kafkajs';
 import {
   assertTenantScopedSubscribeTopic,
   isProductionEnv,
+  isWildcardTopic,
   messageTenantMatchesRoute,
+  wildcardTopicToRegExp,
 } from '../tenant-scope';
 import type {
   QueueAdapter,
@@ -138,7 +140,10 @@ export class KafkaAdapter implements QueueAdapter {
 
     const topic = options.topic;
     await consumer.subscribe({
-      topic,
+      // PRC-M365: AMQP-style wildcards (`tenant.*.jobs`, `tenant.#`) are not
+      // literal Kafka topic names. kafkajs matches a RegExp against existing
+      // topics, so translate wildcards; concrete names stay literal strings.
+      topic: isWildcardTopic(topic) ? wildcardTopicToRegExp(topic) : topic,
       fromBeginning: options.fromBeginning ?? false,
     });
 

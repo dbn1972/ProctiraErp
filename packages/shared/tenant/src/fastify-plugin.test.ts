@@ -96,6 +96,24 @@ describe('tenantPlugin', () => {
     expect(publicResponse.statusCode).toBe(200);
   });
 
+  it('PRC-L584: a wildcard exclude does not match sibling prefixes', async () => {
+    const siblingApp = Fastify();
+    await siblingApp.register(tenantPlugin, {
+      excludePaths: ['/api/v1/public/*'],
+      getDbClient: () => ({ $executeRawUnsafe: vi.fn() }),
+    });
+    siblingApp.get('/api/v1/public-internal/secret', async () => ({ ok: true }));
+
+    // No tenant context — a sibling prefix must NOT be treated as excluded, so
+    // tenant resolution runs and rejects (401), rather than silently skipping.
+    const res = await siblingApp.inject({
+      method: 'GET',
+      url: '/api/v1/public-internal/secret',
+    });
+    expect(res.statusCode).toBe(401);
+    await siblingApp.close();
+  });
+
   it('should skip an exact excluded path when the request has a query string', async () => {
     await app.register(tenantPlugin, {
       excludePaths: ['/api/v1/scholarships/document-downloads'],
@@ -202,7 +220,9 @@ describe('tenantPlugin', () => {
     expect(response.statusCode).toBe(401);
     const body = JSON.parse(response.body);
     expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(body.message)).toMatch(/trusted slug/);
+    // PRC-L584: the 4xx body must be generic and must not leak resolution detail.
+    expect(String(body.message)).toBe('Tenant could not be resolved for this request.');
+    expect(String(body.message)).not.toMatch(/trusted slug/);
   });
 
   it('resolves authenticated subdomain via trusted slug→UUID lookup (W1-SEC-01)', async () => {
@@ -273,7 +293,9 @@ describe('tenantPlugin', () => {
     expect(response.statusCode).toBe(401);
     const body = JSON.parse(response.body);
     expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(body.message)).toMatch(/Conflicting tenant identities/);
+    // PRC-L584: generic message, no tenant UUID/slug conflict detail in the body.
+    expect(String(body.message)).toBe('Tenant could not be resolved for this request.');
+    expect(String(body.message)).not.toMatch(/Conflicting tenant identities|550e8400|ministry/);
   });
 
   it('should not set session variable when no DB client available', async () => {

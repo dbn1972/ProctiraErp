@@ -11,7 +11,7 @@
  */
 
 // CLI entry point
-export { run, parseArgs, formatResultText, createConsoleLogger } from './cli';
+export { run, parseArgs, formatResultText, createConsoleLogger, SUBCOMMANDS } from './cli';
 
 // Installer
 export {

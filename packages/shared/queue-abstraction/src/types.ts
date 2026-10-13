@@ -155,6 +155,13 @@ export interface RabbitMQAdapterConfig {
   url: string;
   /** Exchange name */
   exchange: string;
+  /**
+   * Stable identity of this consuming service (PRC-L582). Used as the default
+   * subscribe() queue group when `options.groupId` is omitted, so each distinct
+   * service gets its own fan-out queue instead of all services competing on one
+   * shared queue. Set this to the service/app name.
+   */
+  clientId?: string;
   /** Exchange type */
   exchangeType?: 'direct' | 'topic' | 'fanout' | 'headers';
   /** Dead-letter exchange name */

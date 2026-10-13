@@ -198,6 +198,40 @@ describe('RabbitMQAdapter dead-letter + retry (PRC-H086)', () => {
   });
 });
 
+describe('RabbitMQAdapter subscribe() fan-out group (PRC-L582)', () => {
+  beforeEach(() => {
+    channel = new FakeConfirmChannel();
+  });
+
+  it('refuses a subscribe with no groupId and no configured clientId', async () => {
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex' });
+    await adapter.connect();
+    // Previously this silently used a shared 'shared.sub.*' queue so every
+    // service competed on one queue instead of each receiving the event.
+    await expect(
+      adapter.subscribe({ topic: 'tenant.*.report.generate' }, async () => {}),
+    ).rejects.toThrow(/distinct consumer group|PRC-L582/);
+  });
+
+  it('defaults the fan-out queue to the configured clientId (service name)', async () => {
+    const adapter = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex', clientId: 'svc-a' });
+    await adapter.connect();
+    await adapter.subscribe({ topic: 'tenant.*.report.generate' }, async () => {});
+    expect(channel.assertedQueues).toContain('tenant.svc-a.sub.tenant.*.report.generate');
+  });
+
+  it('two different services get distinct fan-out queues', async () => {
+    const a = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex', clientId: 'svc-a' });
+    const b = new RabbitMQAdapter({ url: 'amqp://x', exchange: 'ex', clientId: 'svc-b' });
+    await a.connect();
+    await a.subscribe({ topic: 'tenant.*.report.generate' }, async () => {});
+    await b.connect();
+    await b.subscribe({ topic: 'tenant.*.report.generate' }, async () => {});
+    expect(channel.assertedQueues).toContain('tenant.svc-a.sub.tenant.*.report.generate');
+    expect(channel.assertedQueues).toContain('tenant.svc-b.sub.tenant.*.report.generate');
+  });
+});
+
 describe('RabbitMQAdapter publisher confirms (PRC-H087)', () => {
   beforeEach(() => {
     channel = new FakeConfirmChannel();

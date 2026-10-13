@@ -37,6 +37,8 @@ export interface MigrationConfig {
   stagingSchema: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   pgloaderBin: string;
+  /** PRC-M421: where generateMigrationReport writes its serialized JSON artifact. */
+  reportOutputPath?: string;
 }
 
 /** Mapping from a legacy table/column to the new schema. */

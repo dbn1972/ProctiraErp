@@ -217,6 +217,7 @@ jobs:
                                -c 'CREATE DATABASE proctira_encrypted_drill;'
           BACKUP_AGE_IDENTITY_FILE="$key" \
             DATABASE_URL="${DATABASE_URL%/*}/proctira_encrypted_drill" \
+            RESTORE_CONFIRM_DB="proctira_encrypted_drill" \
             bash tools/scripts/pg-restore.sh "$enc_out" | tee "$ARTIFACT_DIR/encrypted-restore.log"
           restored="$(psql "${DATABASE_URL%/*}/proctira_encrypted_drill" -At -c "
             SELECT 'tenants', count(*) FROM tenants

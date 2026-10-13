@@ -21,6 +21,8 @@ const IMMUTABLE_APPEND_ONLY_TRIGGERS = [
   { table: 'audit_log_archive', trigger: 'trg_audit_log_archive_append_only' },
   { table: 'workflow_transition_audit', trigger: 'trg_workflow_transition_audit_immutable' },
   { table: 'transcript_issuances', trigger: 'trg_transcript_issuances_append_only' },
+  // PRC-M199/M217/M504 (db/sql/190): PHI access log is append-only.
+  { table: 'health_phi_access_log', trigger: 'trg_health_phi_access_log_append_only' },
 ] as const;
 
 describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () => {
