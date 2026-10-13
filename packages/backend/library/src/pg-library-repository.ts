@@ -260,6 +260,60 @@ export class PgLibraryRepository implements LibraryRepository {
     return mapItem(result.rows[0] as Record<string, unknown>);
   }
 
+  // PRC-M291 / NEW-012: atomic claim. withPgTenant runs this inside BEGIN/COMMIT
+  // on a dedicated client, so the SELECT ... FOR UPDATE lock, the conditional
+  // decrement and the copy flip all commit together. Two concurrent checkouts of
+  // the last copy can no longer both pass the availability check.
+  async claimCopyForCheckout(args: {
+    tenantId: string;
+    itemId: string;
+    copyId?: string | null;
+    decrementAvailable?: boolean;
+  }): Promise<{ claimed: true; copyId: string | null } | { claimed: false; reason: string }> {
+    await this.ensureSchema();
+    const decrement = args.decrementAvailable ?? true;
+    return withPgTenant(this.pool, args.tenantId, async (client) => {
+      const itemRes = await client.query(
+        `SELECT available FROM library_items WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [args.itemId, args.tenantId],
+      );
+      if (!itemRes.rows[0]) {
+        return { claimed: false as const, reason: 'item not found' };
+      }
+      if (decrement && Number((itemRes.rows[0] as Record<string, unknown>).available) <= 0) {
+        return { claimed: false as const, reason: 'no copies available' };
+      }
+
+      if (args.copyId) {
+        // Flip exactly one available copy to on_loan; row is locked by this UPDATE.
+        const copyRes = await client.query(
+          `UPDATE library_copies SET status = 'on_loan', updated_at = now()
+           WHERE id = $1 AND tenant_id = $2 AND status <> 'on_loan'
+           RETURNING id`,
+          [args.copyId, args.tenantId],
+        );
+        if (!copyRes.rows[0]) {
+          return { claimed: false as const, reason: 'copy already on loan' };
+        }
+      }
+
+      if (decrement) {
+        // Conditional decrement — WHERE available > 0 guards against underflow.
+        const decRes = await client.query(
+          `UPDATE library_items SET available = available - 1, updated_at = now()
+           WHERE id = $1 AND tenant_id = $2 AND available > 0
+           RETURNING id`,
+          [args.itemId, args.tenantId],
+        );
+        if (!decRes.rows[0]) {
+          // Should not happen under FOR UPDATE, but fail closed if it does.
+          throw new Error('library checkout: concurrent decrement race detected');
+        }
+      }
+      return { claimed: true as const, copyId: args.copyId ?? null };
+    });
+  }
+
   async createLoan(data: NewLoan): Promise<LibraryLoanEntity> {
     await this.ensureSchema();
     const result = await this.query(

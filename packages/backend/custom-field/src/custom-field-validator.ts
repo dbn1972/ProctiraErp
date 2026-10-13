@@ -15,6 +15,7 @@ import type {
   CustomFieldType,
   CustomFieldValidationRules,
 } from './custom-field-repository.js';
+import { safeRegexTest } from './safe-regex-guard.js';
 
 /**
  * Result of validating a custom field value.
@@ -141,17 +142,25 @@ function validateText(
   }
 
   if (rules.pattern !== undefined) {
-    try {
-      const regex = new RegExp(rules.pattern);
-      if (!regex.test(value)) {
-        errors.push({
-          field: fieldPath,
-          message: `${label} does not match the required pattern`,
-          rule: 'pattern',
-        });
-      }
-    } catch {
-      // Invalid regex in definition — skip pattern validation
+    // PRC-M590: never execute a user-supplied regex synchronously without a
+    // ReDoS guard. An unsafe or invalid pattern fails the field CLOSED rather
+    // than silently skipping validation (which would let any value through).
+    const result = safeRegexTest(rules.pattern, value);
+    if (!result.ok) {
+      errors.push({
+        field: fieldPath,
+        message:
+          result.reason === 'invalid-pattern'
+            ? `${label} has an invalid validation pattern`
+            : `${label} could not be validated against its pattern safely`,
+        rule: 'pattern',
+      });
+    } else if (!result.matches) {
+      errors.push({
+        field: fieldPath,
+        message: `${label} does not match the required pattern`,
+        rule: 'pattern',
+      });
     }
   }
 
@@ -328,7 +337,7 @@ function validateFile(
 
   // Check file extension
   if (rules.allowedExtensions && rules.allowedExtensions.length > 0) {
-    const filename = fileValue['filename'] as string;
+    const filename = fileValue['filename'];
     const ext = filename.includes('.') ? '.' + filename.split('.').pop()!.toLowerCase() : '';
     if (!rules.allowedExtensions.includes(ext)) {
       errors.push({
@@ -341,7 +350,7 @@ function validateFile(
 
   // Check file size
   if (rules.maxFileSize !== undefined) {
-    const size = fileValue['size'] as number;
+    const size = fileValue['size'];
     if (size > rules.maxFileSize) {
       errors.push({
         field: fieldPath,

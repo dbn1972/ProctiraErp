@@ -82,6 +82,35 @@ export function isPhiCiphertext(value: string | null | undefined): boolean {
   );
 }
 
+/**
+ * Thrown when a client submits a value that looks like PHI ciphertext (`enc:v*`)
+ * on a write path. See {@link assertNotPhiCiphertextInput}.
+ */
+export class PhiCiphertextInputError extends Error {
+  constructor(public readonly field: string) {
+    super(
+      `Field '${field}' must not begin with an 'enc:' ciphertext marker; submit plaintext only`,
+    );
+    this.name = 'PhiCiphertextInputError';
+  }
+}
+
+/**
+ * PRC-M272 / NEW-008 — reject attacker-supplied ciphertext markers on writes.
+ *
+ * `encryptPhi` returns any value that already starts with `enc:v1/v2/v3`
+ * unchanged (so re-encrypting during migrations is a no-op). That means a
+ * client could store a crafted `enc:v1:...` string verbatim; a later read would
+ * call `decryptPhi` and throw `Invalid enc:vN PHI ciphertext` → 500 on every
+ * read of that record (PHI denial-of-service). Write paths must call this on
+ * free-text PHI fields BEFORE encryption so such input is rejected at the edge.
+ */
+export function assertNotPhiCiphertextInput(value: string | null | undefined, field: string): void {
+  if (typeof value === 'string' && isPhiCiphertext(value)) {
+    throw new PhiCiphertextInputError(field);
+  }
+}
+
 function deriveScopedKeyV2(scope: PhiCryptoScope, root: Buffer): Buffer {
   // Legacy enc:v2 derivation (no key version) for backward compatibility.
   return createHmac('sha256', root)

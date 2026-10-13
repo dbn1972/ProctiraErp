@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { HostelService } from './hostel-service.js';
 import { InMemoryHostelRepository } from './in-memory-repository.js';
+import { InMemoryHostelFeesPort } from './fees-ledger-port.js';
 import { isPgHostelEnabled } from './create-hostel-repository.js';
 import { getSharedHostelPool, PgHostelRepository } from './pg-hostel-repository.js';
 
@@ -60,6 +61,39 @@ describe('unique-active-bed concurrency guard (in-memory)', () => {
         startDate: '2026-09-02',
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  // PRC-M276 / NEW-005: a bed conflict must not leave an orphan posted invoice.
+  it('posts no fee invoice when the bed claim conflicts', async () => {
+    const fees = new InMemoryHostelFeesPort();
+    const service = new HostelService(new InMemoryHostelRepository(), fees);
+    const { hostel, bed } = await seedBed(service);
+    const structure = await service.createFeeStructure(TENANT, {
+      hostelId: hostel.id,
+      roomType: 'single',
+      termLabel: '2026-T1',
+      amountCents: 50000,
+    });
+
+    // First student claims the bed with a fee structure -> one invoice posted.
+    await service.createAssignment(TENANT, {
+      studentId: STUDENT_A,
+      bedId: bed.id,
+      startDate: '2026-09-01',
+      feeStructureId: structure.id,
+    });
+    expect(fees.invoices).toHaveLength(1);
+
+    // Second student hits a bed conflict -> must NOT post another invoice.
+    await expect(
+      service.createAssignment(TENANT, {
+        studentId: STUDENT_B,
+        bedId: bed.id,
+        startDate: '2026-09-02',
+        feeStructureId: structure.id,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(fees.invoices).toHaveLength(1);
   });
 
   it('rejects a second active bed for the same student', async () => {

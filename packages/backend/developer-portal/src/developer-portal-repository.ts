@@ -15,6 +15,15 @@ export interface DeveloperAccountEntity {
   organization: string | null;
   website: string | null;
   status: 'active' | 'suspended' | 'deactivated';
+  /**
+   * NEW-g7_platform-009 / PRC-M507: the authenticated principal (JWT `sub`)
+   * that owns this developer account. Account-scoped routes bind operations to
+   * this owner so one tenant admin cannot read/modify another developer's
+   * account, sandboxes or submissions by guessing the accountId. `null` for
+   * legacy rows created before owner binding — those fail closed (only
+   * platform-staff may access them).
+   */
+  ownerUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -61,6 +61,13 @@ export function CurriculumPanel({
   const [confirmTaught, setConfirmTaught] = useState<{ unitId: string; undo: boolean } | null>(
     null,
   );
+  // PRC-M137: replace native window.prompt for lesson-title edits with a
+  // controlled, accessible dialog so the edit is cancellable and testable.
+  const [editLesson, setEditLesson] = useState<{
+    plan: LessonPlan;
+    unitId: string;
+    title: string;
+  } | null>(null);
   const [scope, setScope] = useState({
     subjectId: defaultSubjectId,
     gradeId: defaultGradeId,
@@ -304,23 +311,7 @@ export function CurriculumPanel({
                           disabled={pending}
                           data-testid={`edit-lesson-${plan.id}`}
                           onClick={() => {
-                            const title = window.prompt('Lesson title', plan.title);
-                            if (!title?.trim()) return;
-                            startTransition(async () => {
-                              const result = await updateLessonPlanAction(institutionId, {
-                                id: plan.id,
-                                title: title.trim(),
-                                plannedDate: plan.plannedDate ?? '',
-                              });
-                              if (!result.ok) {
-                                setFormError((current) => ({
-                                  ...current,
-                                  [`lesson-${unit.id}`]: result.error,
-                                }));
-                                return;
-                              }
-                              router.refresh();
-                            });
+                            setEditLesson({ plan, unitId: unit.id, title: plan.title });
                           }}
                         >
                           Edit
@@ -526,6 +517,50 @@ export function CurriculumPanel({
           if (confirmTaught) runTaught(confirmTaught.unitId, confirmTaught.undo);
         }}
       />
+      <ConfirmActionDialog
+        open={editLesson !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditLesson(null);
+        }}
+        title="Edit lesson title"
+        description="Rename this lesson plan. The planned date is unchanged."
+        confirmLabel="Save"
+        pending={pending}
+        testId="curriculum-edit-lesson"
+        onConfirm={() => {
+          if (!editLesson) return;
+          const title = editLesson.title.trim();
+          if (!title) return;
+          const { plan, unitId } = editLesson;
+          startTransition(async () => {
+            const result = await updateLessonPlanAction(institutionId, {
+              id: plan.id,
+              title,
+              plannedDate: plan.plannedDate ?? '',
+            });
+            if (!result.ok) {
+              setFormError((current) => ({ ...current, [`lesson-${unitId}`]: result.error }));
+              return;
+            }
+            setEditLesson(null);
+            router.refresh();
+          });
+        }}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="curriculum-edit-lesson-title">Lesson title</Label>
+          <Input
+            id="curriculum-edit-lesson-title"
+            data-testid="curriculum-edit-lesson-input"
+            value={editLesson?.title ?? ''}
+            onChange={(event) =>
+              setEditLesson((current) =>
+                current ? { ...current, title: event.target.value } : current,
+              )
+            }
+          />
+        </div>
+      </ConfirmActionDialog>
     </div>
   );
 }

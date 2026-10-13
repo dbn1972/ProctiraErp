@@ -14,6 +14,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 import { parentPortalJwtHeaders } from './fixtures/parent-portal-auth';
+import { uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -116,7 +117,7 @@ async function createPeriodAndGrade(request: APIRequestContext): Promise<{
   const gradeCode = `AG${tag}`;
   const gradeRes = await request.post(`${GATEWAY_URL}/api/v1/grades`, {
     headers: headers(),
-    data: { name: `Grade ${gradeCode}`, code: gradeCode, order: 4 },
+    data: { name: `Grade ${gradeCode}`, code: gradeCode, order: uniqueGradeOrder() },
   });
   const grade = (await jsonStatus(gradeRes, 201)) as { id: string; name: string };
 

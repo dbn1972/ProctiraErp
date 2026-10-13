@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
+import { isSandboxPaymentEnabled } from '@/lib/fees/validation';
+import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 import {
   acceptGuardianOffer,
   createThread,
@@ -84,8 +86,22 @@ export async function decideConsentAction(
 }
 
 export async function payInvoiceAction(invoiceId: string): Promise<ParentActionState> {
+  // PRC-M484: the parent "Pay" button records a sandbox payment + receipt with no PSP
+  // settlement. That is only acceptable in an explicitly-flagged non-production sandbox
+  // deployment; in any other environment we fail closed rather than fabricate a payment.
+  if (!isSandboxPaymentEnabled()) {
+    return {
+      status: 'error',
+      message:
+        'Online payment is not available yet. Please pay at the school office or use the ' +
+        'approved payment channel; this portal cannot settle payments.',
+    };
+  }
   try {
-    const { payment, receipt } = await payInvoice(invoiceId, 'sandbox');
+    const { payment, receipt } = await payInvoice(invoiceId, 'sandbox', {
+      // PRC-M484: collapse double-submits / retries into one ledger entry.
+      idempotencyKey: generateIdempotencyKey(),
+    });
     revalidatePath('/parent/fees');
     return {
       status: 'success',

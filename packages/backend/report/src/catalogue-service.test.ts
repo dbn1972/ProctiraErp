@@ -112,6 +112,50 @@ describe('G-909 scheduler next_run_at', () => {
     expect(claimedB.map((s) => s.id)).toEqual([b.id]);
   });
 
+  it('PRC-M346 claimDueSchedules caps the batch when a limit is given', async () => {
+    const store = new InMemoryReportStore();
+    const blobs = new InMemoryReportBlobStore();
+    const service = new CatalogueService(store, blobs);
+    const past = new Date(Date.now() - 60_000);
+    for (let i = 0; i < 5; i++) {
+      const s = await service.createSchedule(TENANT_A, 'tester', {
+        reportKey: 'attendance_summary',
+        format: 'csv',
+        cadence: 'daily',
+        recipients: [],
+      });
+      await store.updateSchedule(TENANT_A, s.id, { nextRunAt: past });
+    }
+    const claimed = await store.claimDueSchedules(new Date(), 60_000, TENANT_A, 2);
+    expect(claimed).toHaveLength(2);
+  });
+
+  it('PRC-M346 logs (does not silently swallow) a failed schedule run', async () => {
+    const store = new InMemoryReportStore();
+    const blobs = new InMemoryReportBlobStore();
+    const errors: Array<{ message: string; context: Record<string, unknown> }> = [];
+    const service = new CatalogueService(store, blobs, undefined, {
+      error: (message, context) => errors.push({ message, context }),
+    });
+    const schedule = await service.createSchedule(TENANT_A, 'boom', {
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      recipients: [],
+    });
+    const past = new Date(Date.now() - 60_000);
+    await store.updateSchedule(TENANT_A, schedule.id, { nextRunAt: past });
+    // Force generate() to throw by stubbing the blob store put.
+    blobs.put = async () => {
+      throw new Error('blob store offline');
+    };
+    const tick = await service.tickDueSchedules(new Date());
+    expect(tick.failed).toBe(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.context.scheduleId).toBe(schedule.id);
+    expect(errors[0]!.context.error).toContain('blob store offline');
+  });
+
   it('createReportScheduler.runOnce is idempotent while in flight', async () => {
     const { service } = makeService();
     const scheduler = createReportScheduler({

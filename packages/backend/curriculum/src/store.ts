@@ -2,6 +2,7 @@
  * G-923 — curriculum persistence: raw pg (db/sql/033, RLS via withPgTenant)
  * or an in-memory map for dev / unit tests.
  */
+import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 export interface SyllabusUnitRecord {
@@ -104,6 +105,21 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   private readonly coverage = new Map<string, UnitCoverageRecord>();
 
   async createUnit(row: SyllabusUnitRecord): Promise<SyllabusUnitRecord> {
+    // PRC-L090: mirror the db/sql/033 UNIQUE (tenant, subject, grade, period,
+    // code) so the in-memory store fails closed with the same 409.
+    const clash = [...this.units.values()].some(
+      (u) =>
+        u.tenantId === row.tenantId &&
+        u.subjectId === row.subjectId &&
+        u.gradeId === row.gradeId &&
+        u.academicPeriodId === row.academicPeriodId &&
+        u.code === row.code,
+    );
+    if (clash) {
+      throw new ConflictError(
+        `A syllabus unit with code '${row.code}' already exists for this subject/grade/period`,
+      );
+    }
     this.units.set(row.id, { ...row });
     return { ...row };
   }
@@ -322,29 +338,40 @@ export class PgCurriculumStore implements CurriculumStore {
 
   async createUnit(row: SyllabusUnitRecord): Promise<SyllabusUnitRecord> {
     return this.run(row.tenantId, async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO syllabus_units (
-           id, tenant_id, institution_id, subject_id, grade_id, academic_period_id,
-           code, name, sequence, planned, notes, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-         RETURNING *`,
-        [
-          row.id,
-          row.tenantId,
-          row.institutionId,
-          row.subjectId,
-          row.gradeId,
-          row.academicPeriodId,
-          row.code,
-          row.name,
-          row.sequence,
-          row.planned,
-          row.notes,
-          row.createdAt,
-          row.updatedAt,
-        ],
-      );
-      return mapUnit(rows[0] as Record<string, unknown>);
+      try {
+        const { rows } = await client.query(
+          `INSERT INTO syllabus_units (
+             id, tenant_id, institution_id, subject_id, grade_id, academic_period_id,
+             code, name, sequence, planned, notes, created_at, updated_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           RETURNING *`,
+          [
+            row.id,
+            row.tenantId,
+            row.institutionId,
+            row.subjectId,
+            row.gradeId,
+            row.academicPeriodId,
+            row.code,
+            row.name,
+            row.sequence,
+            row.planned,
+            row.notes,
+            row.createdAt,
+            row.updatedAt,
+          ],
+        );
+        return mapUnit(rows[0] as Record<string, unknown>);
+      } catch (error) {
+        // PRC-L090: the (tenant, subject, grade, period, code) UNIQUE (db/sql/033)
+        // must surface as a 409, not a raw Postgres 500.
+        if ((error as { code?: string }).code === '23505') {
+          throw new ConflictError(
+            `A syllabus unit with code '${row.code}' already exists for this subject/grade/period`,
+          );
+        }
+        throw error;
+      }
     });
   }
 

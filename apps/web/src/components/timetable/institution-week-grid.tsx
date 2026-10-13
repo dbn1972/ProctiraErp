@@ -33,14 +33,33 @@ const TONE: Record<string, string> = {
   c5: 'border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40',
 };
 
-const DAYS = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-];
+const DAY_LABELS: Record<number, string> = {
+  0: 'Sun',
+  1: 'Mon',
+  2: 'Tue',
+  3: 'Wed',
+  4: 'Thu',
+  5: 'Fri',
+  6: 'Sat',
+  7: 'Sun',
+};
+
+/** Standard teaching week shown even when a day has no meetings. */
+const BASE_DAYS = [1, 2, 3, 4, 5, 6];
+
+/**
+ * PRC-M142: columns are derived from the days the create form allows (any day
+ * that actually has a meeting, including Sunday 0/7) unioned with the standard
+ * Mon–Sat week — so a meeting on Sunday is never hidden by a fixed Mon–Sat
+ * header. Days are ordered Mon→Sun (Sunday rendered as 7).
+ */
+function visibleDays(meetings: { dayOfWeek: number }[]): { value: number; label: string }[] {
+  const present = new Set<number>(BASE_DAYS);
+  for (const m of meetings) present.add(m.dayOfWeek === 0 ? 7 : m.dayOfWeek);
+  return [...present]
+    .sort((a, b) => a - b)
+    .map((value) => ({ value, label: DAY_LABELS[value] ?? `D${value}` }));
+}
 
 export function InstitutionWeekGrid(props: {
   institutionId: string;
@@ -73,6 +92,8 @@ export function InstitutionWeekGrid(props: {
     params.set('period', periodId);
     router.push(`/institutions/${props.institutionId}/timetable?${params.toString()}#add-meeting`);
   }
+
+  const DAYS = visibleDays(props.meetings);
 
   return (
     <div
@@ -119,10 +140,12 @@ export function InstitutionWeekGrid(props: {
                       </td>
                     );
                   }
-                  const meeting = props.meetings.find(
-                    (item) => item.dayOfWeek === day.value && item.periodId === period.id,
+                  const cellMeetings = props.meetings.filter(
+                    (item) =>
+                      (item.dayOfWeek === 0 ? 7 : item.dayOfWeek) === day.value &&
+                      item.periodId === period.id,
                   );
-                  if (!meeting) {
+                  if (cellMeetings.length === 0) {
                     return (
                       <td key={day.value} className="p-0 align-top">
                         <button
@@ -138,23 +161,28 @@ export function InstitutionWeekGrid(props: {
                     );
                   }
                   return (
-                    <td key={day.value} className="p-0 align-top">
-                      <button
-                        type="button"
-                        className={`min-h-[52px] w-full rounded-md border px-2 py-1.5 text-start ${TONE[meeting.tone] ?? TONE.c5}`}
-                        onClick={() => {
-                          setError(null);
-                          setSelected(meeting);
-                        }}
-                      >
-                        <span className="block text-xs font-semibold">{meeting.title}</span>
-                        <span className="block text-[10px] text-muted-foreground">
-                          {meeting.detail}
-                        </span>
-                        {meeting.draft ? (
-                          <span className="block text-[10px] font-bold text-amber-700">Draft</span>
-                        ) : null}
-                      </button>
+                    <td key={day.value} className="space-y-1 p-0 align-top">
+                      {cellMeetings.map((meeting) => (
+                        <button
+                          key={meeting.id}
+                          type="button"
+                          className={`min-h-[52px] w-full rounded-md border px-2 py-1.5 text-start ${TONE[meeting.tone] ?? TONE.c5}`}
+                          onClick={() => {
+                            setError(null);
+                            setSelected(meeting);
+                          }}
+                        >
+                          <span className="block text-xs font-semibold">{meeting.title}</span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            {meeting.detail}
+                          </span>
+                          {meeting.draft ? (
+                            <span className="block text-[10px] font-bold text-amber-700">
+                              Draft
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
                     </td>
                   );
                 })}

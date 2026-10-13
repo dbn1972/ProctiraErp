@@ -81,24 +81,33 @@ export class ParentPortalService {
     private readonly fees?: FeesLedgerPort,
   ) {}
 
-  async linkChild(tenantId: string, parentUserId: string, input: LinkChildInput) {
+  async linkChild(
+    tenantId: string,
+    parentUserId: string,
+    input: LinkChildInput,
+    options: { isStaff?: boolean } = {},
+  ) {
     const existing = await this.repository.hasActiveLink(tenantId, parentUserId, input.studentId);
     if (existing) {
       throw new BusinessRuleError('Parent is already linked to this student');
     }
 
+    // PRC-M531: a self-service (non-staff) caller MUST NOT be able to grant itself
+    // authority. Such links are created in a 'pending' state with every authority
+    // flag off; a staff member reviews and elevates them. Only a staff caller may
+    // assert isPrimary / canConsentMedical / canViewFees and create an 'active' link.
+    const isStaff = options.isStaff === true;
     return this.repository.createChildLink({
       id: uuidv4(),
       tenantId,
       parentUserId,
       studentId: input.studentId,
       relationship: input.relationship ?? 'guardian',
-      status: 'active',
-      // Defaults true preserve pre-P0-03 full-access behaviour for existing callers/seeds.
-      isPrimary: input.isPrimary ?? true,
-      canConsentMedical: input.canConsentMedical ?? true,
-      canViewFees: input.canViewFees ?? true,
-      householdId: input.householdId ?? null,
+      status: isStaff ? 'active' : 'pending',
+      isPrimary: isStaff ? (input.isPrimary ?? false) : false,
+      canConsentMedical: isStaff ? (input.canConsentMedical ?? false) : false,
+      canViewFees: isStaff ? (input.canViewFees ?? false) : false,
+      householdId: isStaff ? (input.householdId ?? null) : null,
     });
   }
 
@@ -713,8 +722,20 @@ export class ParentPortalService {
     if (title == null || title.trim() === '') {
       throw new BusinessRuleError('Invoice title is required');
     }
-    if (amountCents == null || amountCents < 0) {
-      throw new BusinessRuleError('Invoice amountCents is required');
+    if (amountCents == null || !Number.isInteger(amountCents) || amountCents < 0) {
+      throw new BusinessRuleError('Invoice amountCents must be a non-negative integer');
+    }
+
+    // PRC-M317: a syntactically valid pattern can still be a semantically invalid
+    // calendar date (e.g. 2026-13-40T...). Reject it as a 422 instead of letting
+    // an Invalid Date reach the repository.
+    let dueAt: Date | null = null;
+    if (input.dueAt) {
+      const parsed = new Date(input.dueAt);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BusinessRuleError('Invoice dueAt is not a valid date-time');
+      }
+      dueAt = parsed;
     }
 
     return this.repository.createInvoice({
@@ -727,7 +748,7 @@ export class ParentPortalService {
       amountCents,
       currency,
       status: 'open',
-      dueAt: input.dueAt ? new Date(input.dueAt) : null,
+      dueAt,
       createdBy: actorId,
     });
   }

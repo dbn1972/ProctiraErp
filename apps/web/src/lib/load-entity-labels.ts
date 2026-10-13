@@ -82,11 +82,10 @@ export interface DirectoryPage {
 }
 export async function loadStudentDirectory(): Promise<DirectoryPage> {
   const result = await listStudents({ pageSize: MAX_API_PAGE_SIZE }).catch(() => null);
-  const options = (result?.data ?? []).map((student) => ({
-    id: student.id,
-    label: formatPersonLabel(student.firstName, student.lastName, student.nationalId),
-    searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
-  }));
+  // PRC-M156: never place national ID (sensitive child identity data) into
+  // option labels or search text. Use the non-sensitive display code
+  // (admission/roll number) exactly like `toStudentOption`.
+  const options = (result?.data ?? []).map(toStudentOption);
   return { options, total: Math.max(result?.meta?.totalItems ?? 0, options.length) };
 }
 export async function loadStaffDirectory(): Promise<DirectoryPage> {
