@@ -14,7 +14,7 @@
 
 export interface DefaultTemplate {
   name: string;
-  channel: 'email' | 'in_app' | 'push' | 'webhook';
+  channel: 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
   subject: string | null;
   body: string;
   variables: string[];
@@ -172,6 +172,42 @@ export const inAppCertificationExpiryTemplate: DefaultTemplate = {
   variables: ['brand_name', 'certification_name'],
 };
 
+// ─── SMS Notification Templates ──────────────────────────────────────────────
+
+export const smsWelcomeTemplate: DefaultTemplate = {
+  name: 'Welcome SMS',
+  channel: 'sms',
+  subject: null,
+  body: 'Welcome to {{brand_name}}! Your account is ready. Log in to get started.',
+  variables: ['brand_name'],
+};
+
+export const smsOtpTemplate: DefaultTemplate = {
+  name: 'OTP SMS',
+  channel: 'sms',
+  subject: null,
+  body: '{{brand_name}}: Your verification code is {{otp_code}}. It expires in {{expiry_minutes}} minutes.',
+  variables: ['brand_name', 'otp_code', 'expiry_minutes'],
+};
+
+export const smsAbsenceAlertTemplate: DefaultTemplate = {
+  name: 'Absence Alert SMS',
+  channel: 'sms',
+  subject: null,
+  body: '{{brand_name}}: {{student_name}} has exceeded the absence threshold at {{institution_name}}.',
+  variables: ['brand_name', 'student_name', 'institution_name'],
+};
+
+// ─── Webhook Notification Templates ──────────────────────────────────────────
+
+export const webhookGenericTemplate: DefaultTemplate = {
+  name: 'Generic Webhook Payload',
+  channel: 'webhook',
+  subject: null,
+  body: '{"event":"{{event_type}}","brand":"{{brand_name}}","payload":{{payload_json}}}',
+  variables: ['event_type', 'brand_name', 'payload_json'],
+};
+
 // ─── All Default Templates ───────────────────────────────────────────────────
 
 export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
@@ -186,4 +222,8 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
   inAppWelcomeTemplate,
   inAppWorkflowAssignedTemplate,
   inAppCertificationExpiryTemplate,
+  smsWelcomeTemplate,
+  smsOtpTemplate,
+  smsAbsenceAlertTemplate,
+  webhookGenericTemplate,
 ];
