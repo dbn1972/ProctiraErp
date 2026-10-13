@@ -101,6 +101,35 @@ export async function provisionTenant(
 ): Promise<ProvisionTenantResult> {
   logger.info({ slug: input.slug, name: input.name }, 'Starting tenant provisioning');
 
+  // PRC-L496: this function is NOT a usable provisioning path. It inserted into a
+  // non-existent `users` table (password_hash/role) and had no production caller —
+  // identity is owned by Keycloak and tenant-admin onboarding runs through the
+  // backend `provisionTenantAdmin` flow (packages/backend/tenant). Rather than
+  // leave a half-built path that fails deep inside a transaction (undefined
+  // relation) and implies a credential store that does not exist, fail closed
+  // immediately with a clear pointer to the correct flow.
+  void db;
+  void input;
+  await Promise.resolve();
+  throw new Error(
+    'provisionTenant is not implemented: there is no `users` table and identity is managed by ' +
+      'Keycloak. Create tenants via the backend tenant service (provisionTenantAdmin), which ' +
+      'provisions the Keycloak admin and emits the audit event (PRC-L496).',
+  );
+}
+
+/**
+ * Legacy reference implementation retained for the eventual Keycloak-backed
+ * rewrite. Not exported and not called — kept so the SQL shape for the tenant +
+ * root-area inserts is not lost. Do NOT wire this up without replacing the admin
+ * step with Keycloak + a real identity schema and adding platform-admin authz +
+ * an audit event (PRC-L496).
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function provisionTenantLegacyReference(
+  db: ProvisioningDbClient,
+  input: ProvisionTenantInput,
+): Promise<Omit<ProvisionTenantResult, 'adminUser'>> {
   const result = await db.$transaction(async (tx) => {
     // Control-plane scope for the tenants insert (transaction-local; is_local=true).
     await tx.$executeRawUnsafe(`SELECT set_config('app.platform_admin', '1', true)`);
@@ -170,34 +199,6 @@ export async function provisionTenant(
 
     logger.info({ tenantId: tenant.id, areaId: rootArea.id }, 'Root area created');
 
-    // Step 3: Create admin user
-    // Note: The users table may not exist yet in the current schema iteration.
-    // We create a minimal admin record that the auth service can use.
-    const adminRows = await tx.$queryRawUnsafe<
-      Array<{
-        id: string;
-        email: string;
-        first_name: string;
-        last_name: string;
-      }>
-    >(
-      `INSERT INTO users (tenant_id, email, first_name, last_name, password_hash, role, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'admin', 'active', NOW(), NOW())
-       RETURNING id, email, first_name, last_name`,
-      tenant.id,
-      input.admin.email,
-      input.admin.firstName,
-      input.admin.lastName,
-      input.admin.passwordHash,
-    );
-
-    const adminUser = adminRows[0];
-    if (!adminUser) {
-      throw new Error('Failed to create admin user');
-    }
-
-    logger.info({ tenantId: tenant.id, adminEmail: adminUser.email }, 'Admin user created');
-
     return {
       tenant: {
         id: tenant.id,
@@ -210,12 +211,6 @@ export async function provisionTenant(
         id: rootArea.id,
         name: rootArea.name,
         code: rootArea.code,
-      },
-      adminUser: {
-        id: adminUser.id,
-        email: adminUser.email,
-        firstName: adminUser.first_name,
-        lastName: adminUser.last_name,
       },
     };
   });

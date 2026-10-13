@@ -2,17 +2,27 @@ import 'package:local_auth/local_auth.dart';
 
 import '../storage/secure_storage.dart';
 
+/// Minimal contract the auth bloc depends on for the app-lock gate (PRC-M469).
+/// Keeping this narrow lets tests supply a fake without pulling in platform
+/// channels.
+abstract class BiometricGate {
+  Future<bool> isAvailable();
+  Future<bool> isEnabled();
+  Future<bool> authenticate({String reason});
+}
+
 /// Wraps [LocalAuthentication] to support fingerprint and face unlock.
 ///
 /// Stores a per-device opt-in flag in [SecureStorage]; the actual tokens are
 /// re-issued by the backend after a successful biometric check.
-class BiometricService {
+class BiometricService implements BiometricGate {
   BiometricService(this._auth, this._storage);
 
   final LocalAuthentication _auth;
   final SecureStorage _storage;
 
   /// Whether the device has biometric hardware (and the OS supports it).
+  @override
   Future<bool> isAvailable() async {
     try {
       final bool supported = await _auth.isDeviceSupported();
@@ -37,6 +47,7 @@ class BiometricService {
   }
 
   /// Whether the user opted into biometric login.
+  @override
   Future<bool> isEnabled() => _storage.readBiometricEnabled();
 
   /// Persist the user's preference. The caller is responsible for re-issuing
@@ -45,6 +56,7 @@ class BiometricService {
 
   /// Prompt the user for biometric authentication. Returns true if the
   /// platform reported a successful match.
+  @override
   Future<bool> authenticate({
     String reason = 'Sign in to ProctiraERP',
   }) async {

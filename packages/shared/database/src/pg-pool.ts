@@ -14,6 +14,18 @@
  *   PG_POOL_MAX / DATABASE_POOL_SIZE — max clients per process (default 10, cap 100)
  *   PG_POOL_IDLE_TIMEOUT_MS — close idle clients after N ms (default 30000)
  *   PG_POOL_CONNECTION_TIMEOUT_MS — fail acquisition after N ms (default 10000)
+ *   PG_STATEMENT_TIMEOUT_MS — server-side per-statement cap (default 30000; 0 = disabled)
+ *   PG_QUERY_TIMEOUT_MS — client-side per-query cap (default 30000; 0 = disabled)
+ *   PG_IDLE_IN_TX_TIMEOUT_MS — abort sessions idle-in-transaction (default 60000; 0 = disabled)
+ *
+ * ROLLOUT / long-running consumers: the three *_TIMEOUT_MS caps are new as of
+ * the PR4 data-infra hardening and apply to EVERY `getSharedPgPool` consumer in
+ * the process (reports, privacy/erasure executor, ETL pipelines, dashboards).
+ * A process whose legitimate queries can exceed 30s must set a higher value, or
+ * `0` to disable the cap, via its deployment env. No Helm values or env file
+ * sets these today, so the defaults apply on rollout. Operator guidance (affected
+ * workloads, symptoms, where to set the env) is in packages/shared/database/README.md.
+ * Disabling (`0`) leaves the role/database default (normally no timeout).
  */
 import pg from 'pg';
 
@@ -24,12 +36,24 @@ export const PG_POOL_DEFAULTS = {
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
+  /**
+   * W1-DATA — a shared pool with no statement/query timeout lets a single slow
+   * or hung upstream query pin a connection forever, starving the pool. These
+   * bound every statement at both the Postgres server (`statement_timeout`,
+   * `idle_in_transaction_session_timeout`) and the node-pg client (`query_timeout`).
+   */
+  statementTimeoutMillis: 30_000,
+  queryTimeoutMillis: 30_000,
+  idleInTransactionSessionTimeoutMillis: 60_000,
 } as const;
 
 export type PgPoolSizing = {
   max: number;
   idleTimeoutMillis: number;
   connectionTimeoutMillis: number;
+  statementTimeoutMillis: number;
+  queryTimeoutMillis: number;
+  idleInTransactionSessionTimeoutMillis: number;
 };
 
 export type PgPoolEnv = Record<string, string | undefined>;
@@ -43,6 +67,21 @@ function parseBoundedInt(
   if (raw === undefined || raw.trim() === '') return fallback;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed < min || parsed > max) return fallback;
+  return parsed;
+}
+
+/**
+ * Like parseBoundedInt but accepts an explicit `0` meaning "disabled" (emit the
+ * Postgres default of no timeout). Used only for the per-statement/query/idle
+ * timeout caps so a long-running worker can opt out via env. Any other
+ * out-of-range value falls back to the default cap (fail safe, still bounded).
+ */
+function parseTimeoutMs(raw: string | undefined, fallback: number, max: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed === 0) return 0; // explicit opt-out
+  if (parsed < 1_000 || parsed > max) return fallback;
   return parsed;
 }
 
@@ -66,6 +105,21 @@ export function resolvePgPoolConfig(env: PgPoolEnv = process.env): PgPoolSizing 
       1_000,
       120_000,
     ),
+    statementTimeoutMillis: parseTimeoutMs(
+      env['PG_STATEMENT_TIMEOUT_MS'],
+      PG_POOL_DEFAULTS.statementTimeoutMillis,
+      600_000,
+    ),
+    queryTimeoutMillis: parseTimeoutMs(
+      env['PG_QUERY_TIMEOUT_MS'],
+      PG_POOL_DEFAULTS.queryTimeoutMillis,
+      600_000,
+    ),
+    idleInTransactionSessionTimeoutMillis: parseTimeoutMs(
+      env['PG_IDLE_IN_TX_TIMEOUT_MS'],
+      PG_POOL_DEFAULTS.idleInTransactionSessionTimeoutMillis,
+      600_000,
+    ),
   };
 }
 
@@ -80,6 +134,12 @@ export function buildPgPoolOptions(
     max: sizing.max,
     idleTimeoutMillis: sizing.idleTimeoutMillis,
     connectionTimeoutMillis: sizing.connectionTimeoutMillis,
+    // Client-side cap: node-pg rejects the query and destroys the socket.
+    query_timeout: sizing.queryTimeoutMillis,
+    statement_timeout: sizing.statementTimeoutMillis,
+    // Server-side cap: Postgres aborts statements / idle-in-tx sessions even if
+    // the client never notices (e.g. a dropped connection mid-query).
+    idle_in_transaction_session_timeout: sizing.idleInTransactionSessionTimeoutMillis,
   };
 }
 
@@ -90,6 +150,19 @@ export function resolveDatabaseUrl(explicit?: string): string | null {
   return url && url.length > 0 ? url : null;
 }
 
+/**
+ * Attaches an `error` listener to a pool. node-pg emits `error` on idle clients
+ * (e.g. the backend terminates the connection); without a listener the event is
+ * an unhandled `EventEmitter` error and crashes the process. We log and let the
+ * pool evict the dead client — the next acquisition opens a fresh connection.
+ */
+function attachPoolErrorHandler(pool: pg.Pool): void {
+  pool.on('error', (err) => {
+    // eslint-disable-next-line no-console -- shared package has no logger dependency; stderr is the floor.
+    console.error('[pg-pool] idle client error (connection evicted):', err.message);
+  });
+}
+
 /** Returns the shared pool for `DATABASE_URL` (or the given url), or null when unset. */
 export function getSharedPgPool(databaseUrl?: string): pg.Pool | null {
   const url = resolveDatabaseUrl(databaseUrl);
@@ -97,6 +170,7 @@ export function getSharedPgPool(databaseUrl?: string): pg.Pool | null {
   let pool = pools.get(url);
   if (!pool) {
     pool = new Pool(buildPgPoolOptions(url));
+    attachPoolErrorHandler(pool);
     pools.set(url, pool);
   }
   return pool;

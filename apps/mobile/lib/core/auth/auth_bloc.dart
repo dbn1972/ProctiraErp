@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../notifications/push_device_lifecycle.dart';
+import 'biometric_service.dart';
 import 'session_roles.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
@@ -59,6 +60,15 @@ class AuthLogoutRequested extends AuthEvent {
   const AuthLogoutRequested();
 }
 
+/// User attempted to unlock a biometric-gated session (PRC-M469).
+///
+/// Emitted from the lock screen. The bloc runs the platform biometric prompt;
+/// on success the restored tokens become an authenticated session, otherwise
+/// the session stays [AuthStatus.locked].
+class AuthBiometricUnlockRequested extends AuthEvent {
+  const AuthBiometricUnlockRequested();
+}
+
 /// User picked a different workspace while signed in (PRC-M034).
 ///
 /// Tokens are minted for one tenant, so switching performs a full logout
@@ -95,7 +105,7 @@ class AuthWorkspaceSwitchRequested extends AuthEvent {
 // State
 // ---------------------------------------------------------------------------
 
-enum AuthStatus { unknown, loading, authenticated, unauthenticated }
+enum AuthStatus { unknown, loading, authenticated, unauthenticated, locked }
 
 class AuthState extends Equatable {
   const AuthState({
@@ -108,6 +118,7 @@ class AuthState extends Equatable {
   const AuthState.unknown() : this(status: AuthStatus.unknown);
   const AuthState.loading() : this(status: AuthStatus.loading);
   const AuthState.unauthenticated() : this(status: AuthStatus.unauthenticated);
+  const AuthState.locked() : this(status: AuthStatus.locked);
 
   final AuthStatus status;
   final String? userId;
@@ -125,6 +136,9 @@ class AuthState extends Equatable {
   );
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
+
+  /// Session restored but awaiting a biometric unlock (PRC-M469).
+  bool get isLocked => status == AuthStatus.locked;
 
   /// Roles from the access token's `roles` claim (PRC-M040).
   List<String> get roles => rolesFromAccessToken(accessToken);
@@ -156,6 +170,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     SelectedStudentStore? selectedStudent,
     PushDeviceLifecycle? push,
     TenantProvider? tenantProvider,
+    BiometricGate? biometric,
     Future<void> Function()? purgeLocalFiles,
     Future<UnsyncedWork> Function()? inspectUnsyncedWork,
     Future<void> Function()? flushPendingWork,
@@ -167,6 +182,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
        _flushTimeout = flushTimeout,
        _tenantProvider = tenantProvider,
        _push = push,
+       _biometric = biometric,
        _database = database,
        _authApi = authApi,
        _selectedStudent = selectedStudent,
@@ -174,6 +190,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
     on<AuthLogoutRequested>(_onLogout);
+    on<AuthBiometricUnlockRequested>(_onBiometricUnlock);
     on<AuthWorkspaceSwitchRequested>(_onWorkspaceSwitch);
   }
 
@@ -183,6 +200,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SelectedStudentStore? _selectedStudent;
   final PushDeviceLifecycle? _push;
   final TenantProvider? _tenantProvider;
+
+  /// Optional biometric app-lock gate (PRC-M469). When the user has opted in
+  /// and the device can perform a biometric check, a restored session starts
+  /// [AuthStatus.locked] until unlocked.
+  final BiometricGate? _biometric;
 
   /// Deletes on-device files holding user data (captured documents,
   /// PRC-M046).
@@ -208,6 +230,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         refresh != null &&
         refresh.isNotEmpty) {
       final String? userId = await _storage.readUserId();
+      // PRC-M469: when the user opted into biometric app-lock and the device
+      // can actually perform a check, a restored session must be unlocked
+      // before any PII is shown. Fail closed to `locked`; the lock screen
+      // dispatches AuthBiometricUnlockRequested.
+      if (await _biometricLockRequired()) {
+        emit(const AuthState.locked());
+        return;
+      }
       emit(
         AuthState(
           status: AuthStatus.authenticated,
@@ -219,6 +249,51 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } else {
       emit(const AuthState.unauthenticated());
     }
+  }
+
+  /// True when a biometric unlock gate must be shown for a restored session.
+  Future<bool> _biometricLockRequired() async {
+    final BiometricGate? bio = _biometric;
+    if (bio == null) return false;
+    try {
+      if (!await bio.isEnabled()) return false;
+      // Only lock when the device can actually satisfy the check; otherwise an
+      // enrolled-then-removed sensor would permanently lock the user out.
+      return await bio.isAvailable();
+    } on Object {
+      // Fail closed: if we cannot determine availability but the user opted
+      // in, require an unlock attempt rather than exposing the session.
+      return true;
+    }
+  }
+
+  Future<void> _onBiometricUnlock(
+    AuthBiometricUnlockRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.status != AuthStatus.locked) return;
+    final BiometricGate? bio = _biometric;
+    if (bio == null) return;
+    final bool ok = await bio.authenticate();
+    if (!ok) {
+      // Stay locked on failure/cancel.
+      emit(const AuthState.locked());
+      return;
+    }
+    final String? access = await _storage.readAccessToken();
+    final String? userId = await _storage.readUserId();
+    if (access == null || access.isEmpty) {
+      emit(const AuthState.unauthenticated());
+      return;
+    }
+    emit(
+      AuthState(
+        status: AuthStatus.authenticated,
+        userId: userId,
+        accessToken: access,
+      ),
+    );
+    _registerPush();
   }
 
   Future<void> _onLoggedIn(AuthLoggedIn event, Emitter<AuthState> emit) async {

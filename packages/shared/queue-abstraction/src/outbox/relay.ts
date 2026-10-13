@@ -4,8 +4,6 @@
  * At-least-once: markPublished only after successful dispatch/publish.
  * On failure, optionally reschedule via markFailed(..., availableAt).
  */
-import { randomUUID } from 'node:crypto';
-
 import type { QueueAdapter, QueueMessage } from '../types.js';
 import { QueueUnsupportedOperationError } from '../types.js';
 
@@ -161,7 +159,12 @@ export class OutboxRelay {
     // the remaining delay computed below (PRC-H110) may reach the transport.
     const { delay: _ignoredDelay, ...rowMetadata } = row.metadata ?? {};
     const message: QueueMessage = {
-      id: randomUUID(),
+      // PRC-M362: use the outbox row id as the stable message/dedup id. A fresh
+      // randomUUID() per delivery meant every retry looked like a brand-new
+      // message to the broker's dedup window, so a redelivered row could be
+      // double-processed downstream. The outbox id is stable across retries and
+      // is the natural idempotency key (also mirrored into x-outbox-id below).
+      id: row.id,
       tenantId: row.tenantId,
       type: row.eventType,
       payload: row.payload,

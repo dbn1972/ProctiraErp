@@ -3,7 +3,8 @@
  * Provides tenant-aware object storage with encryption and lifecycle support.
  */
 
-import { Readable } from 'node:stream';
+import type { Readable } from 'node:stream';
+
 import {
   S3Client,
   PutObjectCommand,
@@ -12,9 +13,15 @@ import {
   ListObjectsV2Command,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+import {
+  assertTenantOwnedObjectKey,
+  assertTenantScopedObjectKeyIfRequired,
+  buildTenantKey,
+  clampSignedUrlExpiry,
+} from '../tenant-namespace.js';
 import type {
   StorageAdapter,
   S3AdapterConfig,
@@ -26,7 +33,6 @@ import type {
   AdapterHealth,
   EncryptionType,
 } from '../types.js';
-import { assertTenantScopedObjectKeyIfRequired, buildTenantKey } from '../tenant-namespace.js';
 
 /**
  * Lifecycle metadata tag key used to classify objects.
@@ -82,6 +88,16 @@ export class S3Adapter implements StorageAdapter {
       metadata[LIFECYCLE_TAG_KEY] = options.lifecycle;
     }
 
+    // PRC-M366: S3/MinIO lifecycle (expiry/transition) rules filter on object
+    // TAGS, not user metadata. Carrying the class only in metadata meant no
+    // bucket rule could ever match it, so "temporary"/"archive" objects never
+    // expired or transitioned. Set the class as a tag so an IaC lifecycle rule
+    // (Terraform `aws_s3_bucket_lifecycle_configuration` with a tag filter) can
+    // expire/transition it. The tag is the contract between app and IaC.
+    const tagging = options.lifecycle
+      ? `${encodeURIComponent(LIFECYCLE_TAG_KEY)}=${encodeURIComponent(options.lifecycle)}`
+      : undefined;
+
     // Use multipart upload for streams, simple put for buffers
     if (Buffer.isBuffer(data)) {
       const command = new PutObjectCommand({
@@ -90,6 +106,7 @@ export class S3Adapter implements StorageAdapter {
         Body: data,
         ContentType: options.contentType,
         Metadata: metadata,
+        ...(tagging ? { Tagging: tagging } : {}),
         ...this.getEncryptionParams(encryption, kmsKeyId),
       });
 
@@ -114,6 +131,7 @@ export class S3Adapter implements StorageAdapter {
         Body: data,
         ContentType: options.contentType,
         Metadata: metadata,
+        ...(tagging ? { Tagging: tagging } : {}),
         ...this.getEncryptionParams(encryption, kmsKeyId),
       },
     });
@@ -130,8 +148,9 @@ export class S3Adapter implements StorageAdapter {
     };
   }
 
-  async download(key: string): Promise<Readable> {
+  async download(key: string, callerTenantId?: string): Promise<Readable> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.download' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.download');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -147,8 +166,9 @@ export class S3Adapter implements StorageAdapter {
     return response.Body as unknown as Readable;
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string, callerTenantId?: string): Promise<void> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.delete' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.delete');
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -157,20 +177,26 @@ export class S3Adapter implements StorageAdapter {
     await this.client.send(command);
   }
 
-  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+  async getSignedUrl(key: string, expiresIn?: number, callerTenantId?: string): Promise<string> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.getSignedUrl' });
+    assertTenantOwnedObjectKey(key, callerTenantId, 'storage.getSignedUrl');
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
     });
 
     return awsGetSignedUrl(this.client, command, {
-      expiresIn: expiresIn ?? this.signedUrlExpiry,
+      expiresIn: clampSignedUrlExpiry(expiresIn, this.signedUrlExpiry),
     });
   }
 
-  async listObjects(prefix: string, options?: ListOptions): Promise<ListResult> {
+  async listObjects(
+    prefix: string,
+    options?: ListOptions,
+    callerTenantId?: string,
+  ): Promise<ListResult> {
     assertTenantScopedObjectKeyIfRequired(prefix, { surface: 'storage.listObjects' });
+    assertTenantOwnedObjectKey(prefix, callerTenantId, 'storage.listObjects');
     const command = new ListObjectsV2Command({
       Bucket: this.bucket,
       Prefix: prefix,

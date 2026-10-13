@@ -68,8 +68,11 @@ function isExcludedPath(path: string, excludePaths: string[]): boolean {
   const pathname = path.split('?')[0] ?? path;
   for (const excluded of excludePaths) {
     if (excluded.endsWith('/*')) {
-      const prefix = excluded.slice(0, -2);
-      if (pathname.startsWith(prefix)) return true;
+      // PRC-L584: `/api/v1/public/*` must match the base and its subpaths, but
+      // NOT sibling prefixes. `startsWith('/api/v1/public')` wrongly matched
+      // `/api/v1/public-internal`. Require an exact base or a `/`-delimited child.
+      const base = excluded.slice(0, -2);
+      if (pathname === base || pathname.startsWith(`${base}/`)) return true;
     } else if (pathname === excluded) {
       return true;
     }
@@ -242,10 +245,14 @@ export const tenantPlugin = fp(
           );
         } catch (error) {
           if (error instanceof TenantResolutionError) {
+            // PRC-L584: the detailed message can contain tenant UUIDs/slugs and
+            // JWT↔host conflict specifics. Log it server-side, but return only a
+            // generic, stable code/message to the client so a 4xx body cannot
+            // enumerate tenant identifiers.
             logger.warn({ path: request.url, error: error.message }, 'Tenant resolution failed');
             return reply.status(error.statusCode).send({
               code: error.code,
-              message: error.message,
+              message: 'Tenant could not be resolved for this request.',
               statusCode: error.statusCode,
             });
           }
