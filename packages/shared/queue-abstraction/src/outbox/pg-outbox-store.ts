@@ -146,7 +146,16 @@ function metadataJson(entry: NewOutboxEntry): string {
 }
 
 export class PgOutboxStore implements OutboxStore {
-  constructor(private readonly pool: PgOutboxPool) {}
+  /**
+   * @param pool platform-scoped PG pool.
+   * @param leaseMs claim lease (visibility timeout) in ms (PRC-M362). A claimed
+   *   row is invisible to other relays until it is published/failed or the lease
+   *   expires, after which `claimPending` reclaims it. Default 60s.
+   */
+  constructor(
+    private readonly pool: PgOutboxPool,
+    private readonly leaseMs: number = 60_000,
+  ) {}
 
   async enqueue(entry: NewOutboxEntry, client?: OutboxQueryable): Promise<OutboxRecord> {
     const now = new Date();
@@ -217,19 +226,27 @@ export class PgOutboxStore implements OutboxStore {
   }
 
   async claimPending(limit: number, now: Date = new Date()): Promise<OutboxRecord[]> {
+    const lockedUntil = new Date(now.getTime() + this.leaseMs);
     return withPlatformClient(this.pool, async (client) => {
+      // PRC-M362: a claim leases the row (status=processing, locked_until) so a
+      // second relay (another replica) cannot claim it. Rows whose lease has
+      // expired (a crashed relay) are reclaimed. FOR UPDATE SKIP LOCKED still
+      // guards the brief window between two concurrent SELECTs.
       const result = await client.query(
         `UPDATE transactional_outbox
-         SET attempts = attempts + 1
+         SET attempts = attempts + 1,
+             status = 'processing',
+             locked_until = $3
          WHERE id IN (
            SELECT id FROM transactional_outbox
-           WHERE status = 'pending' AND available_at <= $1
+           WHERE (status = 'pending' AND available_at <= $1)
+              OR (status = 'processing' AND locked_until <= $1)
            ORDER BY created_at ASC
            FOR UPDATE SKIP LOCKED
            LIMIT $2
          )
          RETURNING *`,
-        [now.toISOString(), limit],
+        [now.toISOString(), limit, lockedUntil.toISOString()],
       );
       return (result.rows as OutboxRow[]).map(mapRow);
     });
@@ -239,7 +256,7 @@ export class PgOutboxStore implements OutboxStore {
     await withPlatformClient(this.pool, async (client) => {
       await client.query(
         `UPDATE transactional_outbox
-         SET status = 'published', published_at = $2, last_error = NULL
+         SET status = 'published', published_at = $2, last_error = NULL, locked_until = NULL
          WHERE id = $1`,
         [id, publishedAt.toISOString()],
       );
@@ -251,14 +268,14 @@ export class PgOutboxStore implements OutboxStore {
       if (availableAt) {
         await client.query(
           `UPDATE transactional_outbox
-           SET status = 'pending', last_error = $2, available_at = $3
+           SET status = 'pending', last_error = $2, available_at = $3, locked_until = NULL
            WHERE id = $1`,
           [id, error, availableAt.toISOString()],
         );
       } else {
         await client.query(
           `UPDATE transactional_outbox
-           SET status = 'failed', last_error = $2
+           SET status = 'failed', last_error = $2, locked_until = NULL
            WHERE id = $1`,
           [id, error],
         );

@@ -83,8 +83,15 @@ export function normalizeType(raw) {
   t = t.replace(/double precision/g, 'float8');
   t = t.replace(/timestamptz\(\d+\)/g, 'timestamptz');
   t = t.replace(/timestamp\(\d+\)/g, 'timestamp');
-  t = t.replace(/numeric\(\d+(?:\s*,\s*\d+)?\)/g, 'numeric');
-  t = t.replace(/decimal\(\d+(?:\s*,\s*\d+)?\)/g, 'numeric');
+  // Preserve numeric precision/scale: money columns (fees, payroll,
+  // scholarship) must not silently diverge in precision between Prisma and
+  // applied SQL (PRC-M432). Collapse only the keyword, keep the (p,s).
+  t = t.replace(/decimal(\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?/g, (m, p) =>
+    p ? `numeric(${p.replace(/[()\s]/g, '')})` : 'numeric',
+  );
+  t = t.replace(/numeric(\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?/g, (m, p) =>
+    p ? `numeric(${p.replace(/[()\s]/g, '')})` : 'numeric',
+  );
   if (t === 'decimal') t = 'numeric';
   if (t === 'character') t = 'char';
   if (t === 'bool') t = 'boolean';
@@ -107,11 +114,25 @@ export function typesCompatible(prismaType, sqlType) {
   if (!a || !b) return false;
   if (a === b) return true;
 
-  const stripLen = (t) => t.replace(/\(\d+\)/g, '');
+  const stripLen = (t) => t.replace(/\(\d+(?:,\d+)?\)/g, '');
   const aBase = stripLen(a);
   const bBase = stripLen(b);
 
-  // timestamp family (Prisma often omits @db.Timestamptz)
+  // numeric/decimal family — precision and scale must match when BOTH sides
+  // specify them. Money columns (fees, payroll, scholarship amounts) must not
+  // silently diverge in precision/scale (PRC-M432).
+  if (aBase === 'numeric' && bBase === 'numeric') {
+    const aParams = a.match(/\((\d+(?:,\d+)?)\)/)?.[1];
+    const bParams = b.match(/\((\d+(?:,\d+)?)\)/)?.[1];
+    if (aParams && bParams) return aParams === bParams;
+    // One side unqualified numeric: treat as compatible (unconstrained).
+    return true;
+  }
+
+  // timestamp family (Prisma often omits @db.Timestamptz). tz-ness drift is
+  // surfaced as a warning by typeDriftSeverity(), not a hard error here, to
+  // avoid flagging the repo-wide Prisma-default timestamp vs SQL timestamptz
+  // convention. See PRC-M432.
   if (
     (aBase === 'timestamp' || aBase === 'timestamptz') &&
     (bBase === 'timestamp' || bBase === 'timestamptz')
@@ -137,6 +158,45 @@ export function typesCompatible(prismaType, sqlType) {
   if (aBase === bBase) return true;
 
   return false;
+}
+
+/**
+ * Classify a Prisma↔SQL type difference (PRC-M432).
+ *
+ * - 'error': incompatible families OR numeric precision/scale mismatch when
+ *   both sides specify them (money columns must not silently diverge).
+ * - 'warn':  tz-ness mismatch within the timestamp family (Prisma commonly
+ *   omits @db.Timestamptz, so this is a convention gap, surfaced but not
+ *   fail-closed to avoid repo-wide false positives).
+ * - 'none':  compatible.
+ *
+ * @param {string} prismaType
+ * @param {string} sqlType
+ * @returns {'none'|'warn'|'error'}
+ */
+export function typeDriftSeverity(prismaType, sqlType) {
+  const a = normalizeType(prismaType);
+  const b = normalizeType(sqlType);
+  if (!a || !b) return 'error';
+  const stripLen = (t) => t.replace(/\(\d+(?:,\d+)?\)/g, '');
+  const aBase = stripLen(a);
+  const bBase = stripLen(b);
+
+  // Numeric precision/scale mismatch is a hard error.
+  if (aBase === 'numeric' && bBase === 'numeric') {
+    const aParams = a.match(/\((\d+(?:,\d+)?)\)/)?.[1];
+    const bParams = b.match(/\((\d+(?:,\d+)?)\)/)?.[1];
+    if (aParams && bParams && aParams !== bParams) return 'error';
+    return 'none';
+  }
+
+  // tz-ness mismatch within timestamp family is a warning.
+  const tsFamily = (x) => x === 'timestamp' || x === 'timestamptz';
+  if (tsFamily(aBase) && tsFamily(bBase)) {
+    return aBase === bBase ? 'none' : 'warn';
+  }
+
+  return typesCompatible(prismaType, sqlType) ? 'none' : 'error';
 }
 
 /**
@@ -1156,10 +1216,17 @@ export function evaluateDrift(input) {
         );
         continue;
       }
-      if (sqlCol.type && !typesCompatible(field.pgType, sqlCol.type)) {
-        errors.push(
-          `table "${model.table}": column "${field.column}" type drift Prisma=${field.pgType} SQL=${sqlCol.type}`,
-        );
+      if (sqlCol.type) {
+        const sev = typeDriftSeverity(field.pgType, sqlCol.type);
+        if (sev === 'error') {
+          errors.push(
+            `table "${model.table}": column "${field.column}" type drift Prisma=${field.pgType} SQL=${sqlCol.type}`,
+          );
+        } else if (sev === 'warn') {
+          warnings.push(
+            `table "${model.table}": column "${field.column}" tz drift Prisma=${field.pgType} SQL=${sqlCol.type} (Prisma omits @db.Timestamptz)`,
+          );
+        }
       }
       if (field.nullable !== sqlCol.nullable) {
         errors.push(
@@ -1324,17 +1391,20 @@ export function evaluateDrift(input) {
     warnings,
     modelsChecked: models.length,
     criticalModels: CRITICAL_SQL_BACKED_MODELS.map((c) => c.model),
+    // Parity flags are derived from the actual error categories, not asserted
+    // constants (PRC-M432): a flag is true only when no error of that class
+    // was recorded.
     parity: {
-      columns: true,
-      types: true,
-      nullability: true,
-      defaults: true,
-      pk: true,
-      unique: true,
-      check: true,
-      fk: true,
-      index: true,
-      authority: true,
+      columns: !errors.some((e) => /missing from (SQL catalog|schema\.prisma|db\/sql)/.test(e)),
+      types: !errors.some((e) => /type drift/.test(e)),
+      nullability: !errors.some((e) => /nullability drift/.test(e)),
+      defaults: !errors.some((e) => /default drift/.test(e)),
+      pk: !errors.some((e) => /primary key|pk drift/i.test(e)),
+      unique: !errors.some((e) => /unique/i.test(e)),
+      check: !errors.some((e) => /check/i.test(e)),
+      fk: !errors.some((e) => /foreign key|fk drift/i.test(e)),
+      index: !errors.some((e) => /index/i.test(e)),
+      authority: !errors.some((e) => /authority/i.test(e)),
     },
   };
 }
