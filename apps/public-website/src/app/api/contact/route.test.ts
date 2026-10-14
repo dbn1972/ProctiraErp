@@ -165,4 +165,35 @@ describe('POST /api/contact', () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it('rejects the 6th request from one client within the window with 429 (PRC-L403)', async () => {
+    const ip = '203.0.113.200';
+    // The first 5 are allowed (no webhook configured → 503), the 6th is throttled.
+    for (let i = 0; i < 5; i += 1) {
+      const res = await POST(post(valid, { 'x-forwarded-for': ip }));
+      expect(res.status).toBe(503);
+    }
+    const throttled = await POST(post(valid, { 'x-forwarded-for': ip }));
+    expect(throttled.status).toBe(429);
+    expect(((await throttled.json()) as { error: string }).error).toMatch(/too many/i);
+  });
+
+  it('rejects a syntactically invalid JSON body with 400 (PRC-L403)', async () => {
+    const res = await POST(post('{ not json', { 'x-forwarded-for': '203.0.113.201' }));
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/invalid json/i);
+  });
+
+  it('rejects a payload that fails field validation with 400 and field errors (PRC-L403)', async () => {
+    const res = await POST(
+      post(
+        { name: '', email: 'not-an-email', organization: '', message: 'hi' },
+        { 'x-forwarded-for': '203.0.113.202' },
+      ),
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error: string; errors: Record<string, string> };
+    expect(json.errors).toBeTruthy();
+    expect(Object.keys(json.errors).length).toBeGreaterThan(0);
+  });
 });
