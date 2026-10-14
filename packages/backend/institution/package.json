@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.0",
     "@proctira/auth": "workspace:*",
     "@proctira/cache": "workspace:*",
     "@proctira/common": "workspace:*",
