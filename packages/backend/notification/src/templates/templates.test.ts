@@ -387,4 +387,27 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
       expect(notifications[0]!.variables.brand_name).toBe('EduZo');
     });
   });
+
+  // ─── Every DeliveryChannel has at least one default template (PRC-L133) ───
+
+  describe('default template coverage per delivery channel', () => {
+    const ALL_CHANNELS: DefaultTemplate['channel'][] = [
+      'email',
+      'in_app',
+      'push',
+      'webhook',
+      'sms',
+    ];
+
+    for (const channel of ALL_CHANNELS) {
+      it(`has at least one default template for channel "${channel}"`, () => {
+        const matches = DEFAULT_TEMPLATES.filter((t) => t.channel === channel);
+        expect(matches.length).toBeGreaterThanOrEqual(1);
+      });
+    }
+
+    it('ships at least one SMS template', () => {
+      expect(DEFAULT_TEMPLATES.some((t) => t.channel === 'sms')).toBe(true);
+    });
+  });
 });

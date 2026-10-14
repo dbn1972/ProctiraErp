@@ -94,6 +94,17 @@ describe('DateSchema', () => {
   it('rejects empty string', () => {
     expect(Value.Check(DateSchema, '')).toBe(false);
   });
+
+  it('rejects impossible calendar dates (PRC-L588)', () => {
+    expect(Value.Check(DateSchema, '2026-02-31')).toBe(false);
+    expect(Value.Check(DateSchema, '2026-02-30')).toBe(false);
+    expect(Value.Check(DateSchema, '2026-04-31')).toBe(false);
+    expect(Value.Check(DateSchema, '2025-02-29')).toBe(false); // not a leap year
+  });
+
+  it('accepts valid leap-year date (PRC-L588)', () => {
+    expect(Value.Check(DateSchema, '2024-02-29')).toBe(true);
+  });
 });
 
 describe('PaginationSchema', () => {
@@ -145,6 +156,16 @@ describe('PhoneSchema', () => {
 
   it('rejects letters', () => {
     expect(Value.Check(PhoneSchema, '+1-555-ABC-4567')).toBe(false);
+  });
+
+  it('rejects separators-only values with too few digits (PRC-L588)', () => {
+    expect(Value.Check(PhoneSchema, '(((((((')).toBe(false);
+    expect(Value.Check(PhoneSchema, '---- ----')).toBe(false);
+    expect(Value.Check(PhoneSchema, '12-34-5')).toBe(false); // only 5 digits
+  });
+
+  it('rejects numbers with more than 15 digits (PRC-L588)', () => {
+    expect(Value.Check(PhoneSchema, '+1234567890123456')).toBe(false);
   });
 });
 

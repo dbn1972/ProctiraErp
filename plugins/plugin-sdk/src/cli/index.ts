@@ -102,14 +102,16 @@ async function runValidation(): Promise<void> {
     }
 
     if (!manifestPath) {
-      // Try loading from the plugin entry file
-      console.log('  No manifest.json found. Checking plugin entry file...');
-      console.log('  Tip: Export your manifest from your plugin entry file.');
-      return;
+      // PRC-L482: fail closed. A validate command that finds no manifest must
+      // NOT exit 0 — a CI gate relying on it would otherwise pass invalid or
+      // misplaced manifests through to registration.
+      console.error('  ✗ No manifest.json found in ./ or ./src.');
+      console.error('  Export your manifest to manifest.json or pass a built entry file.');
+      process.exit(1);
     }
 
     const content = fs.readFileSync(manifestPath, 'utf-8');
-    const manifest = JSON.parse(content);
+    const manifest: unknown = JSON.parse(content);
 
     const { validateManifest } = await import('../manifest/index.js');
     const result = validateManifest(manifest);
