@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app/app.dart';
+import 'core/auth/app_lock_lifecycle.dart';
 import 'core/auth/auth_bloc.dart';
 import 'core/di/injector.dart';
 import 'core/notifications/fcm_service.dart';
@@ -41,6 +42,10 @@ Future<void> main() async {
     initiallyAuthenticated: authBloc.state.isAuthenticated,
   ).attach();
   authBloc.add(const AuthBootstrapRequested());
+
+  // Re-lock a backgrounded authenticated session on resume when biometric
+  // app-lock is enabled (PRC-M469).
+  AppLockLifecycleObserver(authBloc).attach();
 
   runApp(const OpenEmisApp());
 

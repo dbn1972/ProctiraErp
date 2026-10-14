@@ -36,7 +36,14 @@ function detach(r: OutboxRecord): OutboxRecord {
 }
 
 export class InMemoryOutboxStore implements OutboxStore {
-  private readonly rows = new Map<string, OutboxRecord>();
+  private readonly rows = new Map<string, OutboxRecord & { lockedUntil?: Date }>();
+
+  /**
+   * @param leaseMs claim lease (visibility timeout) in ms (PRC-M362), mirroring
+   *   PgOutboxStore so single-process proofs and the crash-recovery test match
+   *   the production reclaim behaviour. Default 60s.
+   */
+  constructor(private readonly leaseMs: number = 60_000) {}
 
   async enqueue(entry: NewOutboxEntry, _client?: OutboxQueryable): Promise<OutboxRecord> {
     const record = toRecord(entry, new Date());
@@ -46,12 +53,22 @@ export class InMemoryOutboxStore implements OutboxStore {
 
   async claimPending(limit: number, now: Date = new Date()): Promise<OutboxRecord[]> {
     const due = Array.from(this.rows.values())
-      .filter((r) => r.status === 'pending' && r.availableAt.getTime() <= now.getTime())
+      .filter(
+        (r) =>
+          (r.status === 'pending' && r.availableAt.getTime() <= now.getTime()) ||
+          // PRC-M362: reclaim a lease whose holder crashed before publish/fail.
+          (r.status === 'processing' &&
+            r.lockedUntil !== undefined &&
+            r.lockedUntil.getTime() <= now.getTime()),
+      )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit);
 
+    const lockedUntil = new Date(now.getTime() + this.leaseMs);
     for (const row of due) {
       row.attempts += 1;
+      row.status = 'processing';
+      row.lockedUntil = lockedUntil;
       this.rows.set(row.id, row);
     }
     return due.map(detach);
@@ -62,6 +79,7 @@ export class InMemoryOutboxStore implements OutboxStore {
     if (!row) return;
     row.status = 'published';
     row.publishedAt = publishedAt;
+    row.lockedUntil = undefined;
     this.rows.set(id, row);
   }
 
@@ -69,6 +87,7 @@ export class InMemoryOutboxStore implements OutboxStore {
     const row = this.rows.get(id);
     if (!row) return;
     row.lastError = error;
+    row.lockedUntil = undefined;
     if (availableAt) {
       row.status = 'pending';
       row.availableAt = availableAt;

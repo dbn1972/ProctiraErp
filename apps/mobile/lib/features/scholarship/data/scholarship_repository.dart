@@ -347,16 +347,28 @@ class ScholarshipRepository {
   }
 
   /// Whether this gateway exposes scholarship document upload.
-  /// A missing route is 404. The signed-download route answers 401 without a token.
-  Future<bool> scholarshipDocumentUploadsAvailable() async {
+  /// A missing route is 404 (absent). The signed-download route answers 401
+  /// without a token (present). A transient network error / 5xx is `unknown`
+  /// and the caller must fail closed (keep the required-document gate) rather
+  /// than treat it as absent (PRC-L212).
+  Future<ScholarshipDocumentRouteState>
+  scholarshipDocumentUploadsState() async {
     try {
       final Response<dynamic> response = await _dio.get(
         '/api/v1/scholarships/document-downloads',
       );
-      return scholarshipDocumentUploadRoutePresent(response.statusCode);
+      return scholarshipDocumentRouteState(response.statusCode);
     } on DioException catch (error) {
-      return scholarshipDocumentUploadRoutePresent(error.response?.statusCode);
+      return scholarshipDocumentRouteState(error.response?.statusCode);
     }
+  }
+
+  /// Back-compat boolean (present only). Prefer
+  /// [scholarshipDocumentUploadsState] so a transient error does not bypass
+  /// the gate.
+  Future<bool> scholarshipDocumentUploadsAvailable() async {
+    return await scholarshipDocumentUploadsState() ==
+        ScholarshipDocumentRouteState.present;
   }
 
   /// Name of the student's cached school, for prefilling the academic

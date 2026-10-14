@@ -26,17 +26,41 @@ const Map<String, String> scholarshipDocumentTypeLabels = <String, String>{
   'other': 'Other supporting document',
 };
 
+/// Tri-state result of probing the scholarship document route (PRC-L212).
+///
+/// A probe is feature detection, not a business-rule switch. Only a definitive
+/// 404 proves the server has no document API; a transient network error
+/// (null status) or a 5xx is *unknown* and must NOT silently drop the
+/// required-document gate, or a connectivity blip at screen load lets a user
+/// submit a documents-required application with no files (then a confusing
+/// server 400). On [unknown] the UI shows retry and keeps the gate.
+enum ScholarshipDocumentRouteState { present, absent, unknown }
+
+/// Classify a probe status code. 2xx/4xx (except 404) => present (the signed
+/// route answered); 404 => absent; null (network error) / 5xx => unknown.
+ScholarshipDocumentRouteState scholarshipDocumentRouteState(int? statusCode) {
+  if (statusCode == null) {
+    return ScholarshipDocumentRouteState.unknown;
+  }
+  if (statusCode == 404) {
+    return ScholarshipDocumentRouteState.absent;
+  }
+  if (statusCode >= 500) {
+    return ScholarshipDocumentRouteState.unknown;
+  }
+  return ScholarshipDocumentRouteState.present;
+}
+
 /// True when GET /scholarships/document-downloads is a real route.
 /// 401/400 means the signed-download route exists. 404 means this server
 /// has no document API yet, so the apply screen must not require uploads.
+///
+/// Retained for callers that only need the present/absent distinction, but
+/// prefer [scholarshipDocumentRouteState] so a transient error (unknown) does
+/// not collapse to `false` and bypass the gate (PRC-L212).
 bool scholarshipDocumentUploadRoutePresent(int? statusCode) {
-  if (statusCode == null) {
-    return false;
-  }
-  if (statusCode == 404 || statusCode >= 500) {
-    return false;
-  }
-  return true;
+  return scholarshipDocumentRouteState(statusCode) ==
+      ScholarshipDocumentRouteState.present;
 }
 
 String scholarshipDocumentTypeLabel(String type) {

@@ -6,7 +6,7 @@
  */
 import type { QueueMessageMetadata } from '../types.js';
 
-export type OutboxStatus = 'pending' | 'published' | 'failed';
+export type OutboxStatus = 'pending' | 'processing' | 'published' | 'failed';
 
 /** How the relay should deliver the message on the QueueAdapter. */
 export type OutboxDispatchMode = 'dispatch' | 'publish';
