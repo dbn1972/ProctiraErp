@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.1146.0",
+    "@aws-sdk/client-sqs": "^3.1149.0",
     "@proctira/common": "workspace:*",
     "@proctira/events": "workspace:*",
     "amqplib": "^0.10.4",
