@@ -31,6 +31,13 @@ interface ExportResult {
   filename: string;
 }
 
+/** Options the host may thread through payload metadata. */
+interface ExportConfig {
+  delimiter?: string;
+  includeHeaders?: boolean;
+  maxRows?: number;
+}
+
 export default definePlugin({
   manifest: {
     name: 'custom-csv-export',
@@ -79,14 +86,22 @@ export default definePlugin({
   hooks: [
     defineHook<ExportPayload, ExportResult>(
       'report.export',
-      async (payload, context): Promise<HookResult<ExportResult>> => {
+      async (payload, _context): Promise<HookResult<ExportResult>> => {
         // Only handle our custom format
         if (payload.format !== 'custom-csv') {
           return { success: true, executionTimeMs: 0 };
         }
 
-        const delimiter = ','; // Would come from plugin configuration
-        const includeHeaders = true;
+        // NOTE: the SDK HookContext does not yet thread tenant configuration
+        // into hook invocation, so the example reads its options from the
+        // payload metadata (populated by the host) and falls back to the
+        // manifest configSchema defaults. The important behaviours — CSV
+        // formula-injection neutralisation and the row cap — are always
+        // enforced regardless of configuration.
+        const exportConfig = (payload.metadata as { exportConfig?: ExportConfig }).exportConfig;
+        const delimiter = exportConfig?.delimiter ?? ',';
+        const includeHeaders = exportConfig?.includeHeaders ?? true;
+        const maxRows = exportConfig?.maxRows ?? 50000;
 
         // Transform data to CSV
         const rows = payload.data;
@@ -98,6 +113,22 @@ export default definePlugin({
               mimeType: 'text/csv',
               filename: `${payload.metadata.reportName}.csv`,
             },
+            executionTimeMs: 1,
+          };
+        }
+
+        // Enforce the configured row cap (fail closed rather than silently
+        // exporting an unbounded file).
+        if (rows.length > maxRows) {
+          return {
+            success: false,
+            errors: [
+              {
+                field: 'maxRows',
+                message: `Export of ${rows.length} rows exceeds the configured maximum of ${maxRows}.`,
+                code: 'EXPORT_ROW_LIMIT_EXCEEDED',
+              },
+            ],
             executionTimeMs: 1,
           };
         }
@@ -150,11 +181,27 @@ export default definePlugin({
 });
 
 /**
- * Escape a value for CSV output.
+ * Escape a value for CSV output with spreadsheet formula-injection
+ * neutralisation (PRC-L484).
+ *
+ * A cell whose first character is one of `= + - @` or a leading tab/CR is a
+ * potential formula in Excel / Google Sheets / LibreOffice. We prefix such a
+ * cell with a single apostrophe so the spreadsheet treats it as text and never
+ * executes it. We then apply standard RFC-4180 quoting for the delimiter,
+ * embedded quotes, and newlines (including a bare carriage return).
  */
-function escapeCSV(value: string, delimiter: string): string {
-  if (value.includes(delimiter) || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
+export function escapeCSV(value: string, delimiter: string): string {
+  let sanitised = value;
+  if (/^[=+\-@\t\r]/.test(sanitised)) {
+    sanitised = `'${sanitised}`;
   }
-  return value;
+  if (
+    sanitised.includes(delimiter) ||
+    sanitised.includes('"') ||
+    sanitised.includes('\n') ||
+    sanitised.includes('\r')
+  ) {
+    return `"${sanitised.replace(/"/g, '""')}"`;
+  }
+  return sanitised;
 }
