@@ -46,7 +46,7 @@ dependencies:
 
   # Device capabilities for mobile features
   geolocator: ^14.1.1 # GPS for attendance geofence validation
-  image_picker: ^1.1.0 # Camera + gallery for document capture
+  image_picker: ^1.2.4 # Camera + gallery for document capture
   file_picker: ^13.1.0 # PDF, JPEG, and PNG files for scholarship documents
   permission_handler: ^13.0.2 # Runtime permissions (location, camera)
 
