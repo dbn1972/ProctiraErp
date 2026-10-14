@@ -229,10 +229,15 @@ describe('PRC-L528 service-router rejects path traversal', () => {
     '/api/v1/students/a\\..\\admin',
   ]) {
     it(`${url} → 400, upstream not called`, async () => {
-      captured = [];
+      const before = captured.length;
       const res = await rawGet(url);
       expect(res.status, res.body).toBe(400);
-      expect(captured).toHaveLength(0);
+      // The 400 proves the gateway rejected the path before proxying. Assert no
+      // NEW upstream capture appeared for this request rather than that the shared
+      // `captured` array is globally empty: these tests run over a real socket and
+      // a late push from a sibling forwarding test could otherwise race in and make
+      // `toHaveLength(0)` flaky.
+      expect(captured.length).toBe(before);
     });
   }
 
