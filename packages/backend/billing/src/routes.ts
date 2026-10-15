@@ -29,8 +29,8 @@ import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { requireBillingAction } from './billing-http-guard.js';
+import type { PlanEntity } from './billing-repository.js';
 import type { BillingService } from './billing-service.js';
-import type { PlanEntity, SubscriptionEntity } from './billing-repository.js';
 import {
   CreatePlanSchema,
   UpdatePlanSchema,
