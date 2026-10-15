@@ -42,6 +42,9 @@ export const DashboardQuerySchema = Type.Object({
       Type.Literal('board'),
       Type.Literal('principal'),
       Type.Literal('teacher'),
+      // PRC-L343: 'staff' is a first-class dashboard role (see DashboardRole),
+      // so the query schema must accept it rather than silently dropping it.
+      Type.Literal('staff'),
       Type.Literal('parent'),
     ]),
   ),

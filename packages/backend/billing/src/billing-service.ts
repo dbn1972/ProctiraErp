@@ -417,11 +417,60 @@ export class BillingService {
    * @throws NotFoundError if tenant has no active subscription or plan not found
    * @throws BusinessRuleError if new plan is not a higher tier
    */
-  async upgradePlan(tenantId: string, input: ChangePlanInput): Promise<SubscriptionEntity> {
-    const subscription = await this.repository.findActiveSubscription(tenantId);
-    if (!subscription) {
+  /**
+   * PRC-L085: resolve the subscription a change-plan request targets.
+   *
+   * When the caller supplies the subscription id from the URL, that exact
+   * subscription must exist, belong to the tenant, be active/trial, and be the
+   * tenant's current active subscription — otherwise a {@link ConflictError}
+   * (409) is raised so the request can never silently act on a different
+   * subscription than the one addressed. When no id is supplied the tenant's
+   * current active subscription is used (legacy callers).
+   */
+  private async resolveChangePlanSubscription(
+    tenantId: string,
+    expectedSubscriptionId?: string,
+  ): Promise<SubscriptionEntity> {
+    const active = await this.repository.findActiveSubscription(tenantId);
+
+    if (expectedSubscriptionId) {
+      const addressed = await this.repository.findSubscriptionById(expectedSubscriptionId);
+      if (!addressed || addressed.tenantId !== tenantId) {
+        throw new ConflictError(
+          `Subscription '${expectedSubscriptionId}' is not the tenant's current active subscription`,
+        );
+      }
+      if (addressed.status !== 'active' && addressed.status !== 'trial') {
+        throw new ConflictError(
+          `Subscription is '${addressed.status}'; only active or trial subscriptions can change plan`,
+        );
+      }
+      if (!active || active.id !== addressed.id) {
+        throw new ConflictError(
+          `Subscription '${expectedSubscriptionId}' is not the tenant's current active subscription`,
+        );
+      }
+      return addressed;
+    }
+
+    if (!active) {
       throw new NotFoundError(`No active subscription found for tenant '${tenantId}'`);
     }
+    if (active.status !== 'active' && active.status !== 'trial') {
+      throw new ConflictError(
+        `Subscription is '${active.status}'; only active or trial subscriptions can change plan`,
+      );
+    }
+    return active;
+  }
+
+  async upgradePlan(
+    tenantId: string,
+    input: ChangePlanInput,
+    expectedSubscriptionId?: string,
+  ): Promise<SubscriptionEntity> {
+    // PRC-L085: resolve/validate the addressed subscription before any work.
+    const subscription = await this.resolveChangePlanSubscription(tenantId, expectedSubscriptionId);
 
     const currentPlan = await this.repository.findPlanById(subscription.planId);
     const newPlan = await this.repository.findPlanById(input.newPlanId);
@@ -462,11 +511,13 @@ export class BillingService {
    * @throws NotFoundError if tenant has no active subscription or plan not found
    * @throws BusinessRuleError if new plan is not a lower tier
    */
-  async downgradePlan(tenantId: string, input: ChangePlanInput): Promise<DowngradeResult> {
-    const subscription = await this.repository.findActiveSubscription(tenantId);
-    if (!subscription) {
-      throw new NotFoundError(`No active subscription found for tenant '${tenantId}'`);
-    }
+  async downgradePlan(
+    tenantId: string,
+    input: ChangePlanInput,
+    expectedSubscriptionId?: string,
+  ): Promise<DowngradeResult> {
+    // PRC-L085: resolve/validate the addressed subscription (see upgradePlan).
+    const subscription = await this.resolveChangePlanSubscription(tenantId, expectedSubscriptionId);
 
     const currentPlan = await this.repository.findPlanById(subscription.planId);
     const newPlan = await this.repository.findPlanById(input.newPlanId);

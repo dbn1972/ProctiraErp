@@ -264,6 +264,16 @@ export class TransportService {
       throw new NotFoundError(`Transport route with id '${input.routeId}' not found`);
     }
 
+    // PRC-L189: stop_order is UNIQUE(route_id, stop_order). Pre-check so a
+    // duplicate (a common data-entry error) returns 409 with a field message
+    // instead of a raw unique-violation surfacing as a 500.
+    const siblings = await this.repository.listStopsByRoute(input.routeId, tenantId);
+    if (siblings.some((s) => s.stopOrder === input.stopOrder)) {
+      throw new ConflictError(
+        `A stop with order ${input.stopOrder} already exists on route '${input.routeId}'`,
+      );
+    }
+
     const stop: Omit<RouteStopEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -298,7 +308,18 @@ export class TransportService {
     if (input.name !== undefined) updateData.name = input.name;
     if (input.latitude !== undefined) updateData.latitude = input.latitude;
     if (input.longitude !== undefined) updateData.longitude = input.longitude;
-    if (input.stopOrder !== undefined) updateData.stopOrder = input.stopOrder;
+    if (input.stopOrder !== undefined) {
+      // PRC-L189: reject a move onto an order already taken by another stop.
+      if (input.stopOrder !== existing.stopOrder) {
+        const siblings = await this.repository.listStopsByRoute(existing.routeId, tenantId);
+        if (siblings.some((s) => s.id !== id && s.stopOrder === input.stopOrder)) {
+          throw new ConflictError(
+            `A stop with order ${input.stopOrder} already exists on route '${existing.routeId}'`,
+          );
+        }
+      }
+      updateData.stopOrder = input.stopOrder;
+    }
     if (input.pickupTime !== undefined) updateData.pickupTime = input.pickupTime;
     if (input.dropoffTime !== undefined) updateData.dropoffTime = input.dropoffTime;
 

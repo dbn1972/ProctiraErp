@@ -9,7 +9,9 @@ export const CreateLibraryItemSchema = Type.Object({
   isbn: Type.Optional(Type.String({ maxLength: 32 })),
   title: Type.String({ minLength: 1, maxLength: 500 }),
   author: Type.Optional(Type.String({ maxLength: 255 })),
-  copies: Type.Optional(Type.Number({ minimum: 1 })),
+  // PRC-L128: bound + integer-validate copies to prevent resource exhaustion
+  // (sequential inserts) and non-integer values that corrupt the INT column.
+  copies: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
   barcode: Type.Optional(Type.String({ maxLength: 64 })),
   accessionNo: Type.Optional(Type.String({ maxLength: 64 })),
   publisher: Type.Optional(Type.String({ maxLength: 255 })),
@@ -20,7 +22,8 @@ export type CreateLibraryItemInput = Static<typeof CreateLibraryItemSchema>;
 
 export const ImportIsbnSchema = Type.Object({
   isbn: Type.String({ minLength: 10, maxLength: 32 }),
-  copies: Type.Optional(Type.Number({ minimum: 1 })),
+  // PRC-L128: bound + integer-validate copies on import as well.
+  copies: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
 });
 
 export type ImportIsbnInput = Static<typeof ImportIsbnSchema>;
@@ -115,9 +118,13 @@ export type PatronParams = Static<typeof PatronParamsSchema>;
 /** G-603 — assess overdue fine and post to fees ledger. */
 export const AssessFineSchema = Type.Object({
   loanId: Type.String({ pattern: UUID_PATTERN }),
-  amountCents: Type.Optional(Type.Number({ minimum: 1 })),
-  centsPerDay: Type.Optional(Type.Number({ minimum: 1 })),
-  capCents: Type.Optional(Type.Number({ minimum: 1 })),
+  // PRC-M526: cents must be integers with an upper bound to prevent INT
+  // overflow (library_fines.amount_cents is INT) and policy bypass. The
+  // service additionally clamps/validates any override against the tenant
+  // fine policy cap (see assessFine).
+  amountCents: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000_000 })),
+  centsPerDay: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000_000 })),
+  capCents: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000_000 })),
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   description: Type.Optional(Type.String({ maxLength: 2000 })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
@@ -126,8 +133,9 @@ export const AssessFineSchema = Type.Object({
 export type AssessFineInput = Static<typeof AssessFineSchema>;
 
 export const FinePolicySchema = Type.Object({
-  centsPerDay: Type.Number({ minimum: 0 }),
-  capCents: Type.Number({ minimum: 0 }),
+  // PRC-M526 / PRC-L131: integer + bounded policy values.
+  centsPerDay: Type.Integer({ minimum: 0, maximum: 100_000_000 }),
+  capCents: Type.Integer({ minimum: 0, maximum: 100_000_000 }),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
 });
 

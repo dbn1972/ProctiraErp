@@ -507,4 +507,42 @@ describe('TransportService', () => {
       expect(updated.endDate).toBe('2024-06-30');
     });
   });
+
+  describe('Route stop ordering (PRC-L189)', () => {
+    it('rejects a duplicate stopOrder with a 409 ConflictError', async () => {
+      const { ConflictError } = await import('@proctira/common');
+      const route = await service.createRoute(tenantId, {
+        name: 'Route Dup',
+        startLocation: 'A',
+        endLocation: 'B',
+        operatingDays: ['monday'],
+      });
+      await service.createStop(tenantId, { routeId: route.id, name: 'First', stopOrder: 1 });
+
+      // Would surface as a raw unique-violation (500) before the fix.
+      await expect(
+        service.createStop(tenantId, { routeId: route.id, name: 'Dup', stopOrder: 1 }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it('rejects moving a stop onto an order taken by another stop', async () => {
+      const { ConflictError } = await import('@proctira/common');
+      const route = await service.createRoute(tenantId, {
+        name: 'Route Move',
+        startLocation: 'A',
+        endLocation: 'B',
+        operatingDays: ['monday'],
+      });
+      await service.createStop(tenantId, { routeId: route.id, name: 'S1', stopOrder: 1 });
+      const s2 = await service.createStop(tenantId, {
+        routeId: route.id,
+        name: 'S2',
+        stopOrder: 2,
+      });
+
+      await expect(service.updateStop(tenantId, s2.id, { stopOrder: 1 })).rejects.toBeInstanceOf(
+        ConflictError,
+      );
+    });
+  });
 });

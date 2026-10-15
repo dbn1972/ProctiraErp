@@ -153,3 +153,78 @@ describe('LibraryService.markFinePaid (PRC-H025)', () => {
     expect(stillOpen[0]!.status).toBe('open');
   });
 });
+
+describe('LibraryService fine policy enforcement (PRC-M526 / PRC-L131)', () => {
+  it('rejects an override amount above the tenant policy cap', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+    await service.upsertFinePolicy(TENANT, { centsPerDay: 500, capCents: 2000 });
+    const item = await service.createItem(TENANT, { title: 'Capped', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+
+    // Would succeed before the fix: a clerk could post any amount.
+    await expect(
+      service.assessFine(TENANT, 'librarian-1', { loanId: loan.id, amountCents: 5_000_000 }),
+    ).rejects.toThrow(/exceeds the tenant policy cap/);
+  });
+
+  it('rejects an override cap that exceeds the tenant policy cap', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+    await service.upsertFinePolicy(TENANT, { centsPerDay: 500, capCents: 2000 });
+    const item = await service.createItem(TENANT, { title: 'Capped2', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+
+    await expect(
+      service.assessFine(TENANT, 'librarian-1', { loanId: loan.id, capCents: 9999 }),
+    ).rejects.toThrow(/exceeds the tenant policy cap/);
+  });
+
+  it('forces the fine currency to the tenant policy currency, ignoring the client value', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+    await service.upsertFinePolicy(TENANT, { centsPerDay: 500, capCents: 5000, currency: 'INR' });
+    const item = await service.createItem(TENANT, { title: 'Currency', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+
+    const assessed = await service.assessFine(TENANT, 'librarian-1', {
+      loanId: loan.id,
+      amountCents: 1500,
+      currency: 'USD',
+    });
+    // Would be 'USD' before the fix.
+    expect(assessed.fine.currency).toBe('INR');
+  });
+});
+
+describe('LibraryService.getFinePolicy read-only (PRC-L131)', () => {
+  it('does not persist a policy row on a read of an unconfigured tenant', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+
+    const policy = await service.getFinePolicy(TENANT);
+    expect(policy.centsPerDay).toBeGreaterThanOrEqual(0);
+    // Would be non-null before the fix: GET upserted a default row.
+    const persisted = await repo.getFinePolicy(TENANT);
+    expect(persisted).toBeNull();
+  });
+});
+
+describe('LibraryService.getStudentClearance counts fines (PRC-L131)', () => {
+  it('is not clear while an open fine exists even with no open loans', async () => {
+    const repo = new InMemoryLibraryRepository();
+    const service = new LibraryService(repo, null);
+    const item = await service.createItem(TENANT, { title: 'Clearance', copies: 1 });
+    const loan = await checkoutOverdue(repo, service, item.id);
+    await service.assessFine(TENANT, 'librarian-1', { loanId: loan.id, amountCents: 1500 });
+    // Return the book so there are no open loans — only the fine remains.
+    await service.returnLoan(TENANT, loan.id);
+
+    const clearance = await service.getStudentClearance(TENANT, STUDENT);
+    expect(clearance.openLoanCount).toBe(0);
+    // Would be true before the fix: clearance ignored unpaid fines.
+    expect(clearance.clear).toBe(false);
+    expect(clearance.openFineCount).toBe(1);
+    expect(clearance.openFineAmountCents).toBe(1500);
+  });
+});
