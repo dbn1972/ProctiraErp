@@ -63,7 +63,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@lhci/cli": "^0.15.1",
-    "@next/bundle-analyzer": "^14.2.35",
+    "@next/bundle-analyzer": "^16.4.0",
     "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^15.0.0",
@@ -73,7 +73,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.6.1",
-    "eslint-config-next": "15.5.27",
+    "eslint-config-next": "15.5.28",
     "eslint-plugin-proctira": "workspace:*",
     "exceljs": "^4.4.0",
     "fake-indexeddb": "6.2.5",

@@ -145,6 +145,7 @@
     "playwright-report",
     "test-results",
     "**/.dart_tool/**",
-    "redesign/**"
+    "redesign/**",
+    "plugins/plugin-sdk/examples/**"
   ]
 }

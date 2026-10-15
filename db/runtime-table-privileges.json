@@ -126,7 +126,7 @@
     "health_insurance": "dml",
     "health_measurements": "dml",
     "health_nurse_incidents": "dml",
-    "health_phi_access_log": "dml",
+    "health_phi_access_log": "append_only",
     "health_phi_break_glass": "dml",
     "health_referrals": "dml",
     "health_screening_programs": "dml",

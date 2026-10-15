@@ -5,10 +5,9 @@
  * unavailable. In-memory mode is reported honestly when DATABASE_URL is unset
  * and persistence policy allows it.
  */
-import pg from 'pg';
-
 import { isProductionNodeEnv } from './node-env.js';
 import { readPersistencePolicyEnv, type PersistencePolicyEnv } from './persistence-policy.js';
+import { getSharedPgPool } from './pg-pool.js';
 
 export type DatabaseDependencyStatus = 'up' | 'down' | 'in-memory' | 'required-missing';
 
@@ -47,13 +46,21 @@ async function defaultProbeDatabase(
   databaseUrl: string,
   timeoutMs: number,
 ): Promise<{ ok: boolean; message?: string; latencyMs?: number }> {
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  // W1-DATA (M541): reuse the shared, bounded pool instead of opening (and
+  // leaking) a fresh `new Pool` on every probe call. The previous code never
+  // called `pool.end()` on the race-win path and left the timeout timer
+  // dangling, leaking a pool + timer per readiness check.
+  const pool = getSharedPgPool(databaseUrl);
+  if (!pool) {
+    return { ok: false, message: 'DATABASE_URL unresolved for probe' };
+  }
   const start = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
       pool.query('SELECT 1 AS ok'),
       new Promise<never>((_, reject) => {
-        setTimeout(
+        timer = setTimeout(
           () => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)),
           timeoutMs,
         );
@@ -67,7 +74,7 @@ async function defaultProbeDatabase(
       latencyMs: Date.now() - start,
     };
   } finally {
-    await pool.end().catch(() => undefined);
+    if (timer) clearTimeout(timer);
   }
 }
 

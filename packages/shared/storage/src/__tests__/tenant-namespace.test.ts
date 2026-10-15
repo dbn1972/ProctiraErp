@@ -130,7 +130,13 @@ describe('W1-SEC-11 unscoped object key rejection', () => {
       assertTenantScopedObjectKeyIfRequired,
     } = await import('../tenant-namespace.js');
 
-    for (const key of ['documents/file.pdf', 'tenants/', 'tenants//file.pdf', 'other/t1/file', '']) {
+    for (const key of [
+      'documents/file.pdf',
+      'tenants/',
+      'tenants//file.pdf',
+      'other/t1/file',
+      '',
+    ]) {
       expect(isTenantScopedObjectKey(key)).toBe(false);
       expect(() => assertTenantScopedObjectKey(key)).toThrow(TenantScopeError);
     }
@@ -144,11 +150,13 @@ describe('W1-SEC-11 unscoped object key rejection', () => {
       }),
     ).toThrow(TenantScopeError);
 
+    // PRC-M634: raw-key scope is now fail-closed in EVERY environment (previously
+    // prod-only), so an unscoped key is rejected under NODE_ENV=test too.
     expect(() =>
       assertTenantScopedObjectKeyIfRequired('documents/file.pdf', {
         env: { NODE_ENV: 'test' },
       }),
-    ).not.toThrow();
+    ).toThrow(TenantScopeError);
 
     expect(() =>
       assertTenantScopedObjectKeyIfRequired('tenants/t1/documents/file.pdf', {
@@ -163,15 +171,19 @@ describe('W1-SEC-11 unscoped object key rejection', () => {
     ).not.toThrow();
   });
 
-  it('shouldRequireTenantScopedObjectKeys fails closed in production', async () => {
+  it('shouldRequireTenantScopedObjectKeys fails closed in every env (PRC-M634)', async () => {
     const { shouldRequireTenantScopedObjectKeys } = await import('../tenant-namespace.js');
     expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'production' })).toBe(true);
-    expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'test' })).toBe(false);
+    // PRC-M634: non-prod now also requires tenant scope (was false before).
+    expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'test' })).toBe(true);
+    // Only the explicit emergency escape hatch relaxes it.
     expect(
       shouldRequireTenantScopedObjectKeys({
         NODE_ENV: 'production',
         ALLOW_UNSCOPED_TENANT_NAMESPACES: '1',
       }),
     ).toBe(false);
+    // Explicit override still wins.
+    expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'test' }, false)).toBe(false);
   });
 });

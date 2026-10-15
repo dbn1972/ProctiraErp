@@ -1,6 +1,35 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+
+/**
+ * PRC-L506: the final status line must not claim a clean "passed" when the
+ * local gate truncated the file/workspace set — otherwise a large change ends
+ * with a "passed" message although most workspaces were never checked, and
+ * that message may be quoted as validation evidence.
+ *
+ * @param {{ failed: boolean, truncated: boolean }} state
+ * @returns {{ line: string, exitCode: number }}
+ */
+export function finalStatus({ failed: didFail, truncated: wasTruncated }) {
+  if (didFail) {
+    return {
+      line: '\n[Kiro quality] One or more targeted checks failed. Fix them before declaring the task complete.\n',
+      exitCode: 1,
+    };
+  }
+  if (wasTruncated) {
+    return {
+      line: '\n[Kiro quality] PARTIAL: too many changed files/workspaces for the local gate; some were NOT checked. Run full affected CI before declaring the task complete.\n',
+      exitCode: 1,
+    };
+  }
+  return {
+    line: '\n[Kiro quality] Targeted changed-workspace checks passed. Run full CI/release gates when required.\n',
+    exitCode: 0,
+  };
+}
 
 const root = resolve(process.cwd());
 const ignored = /(?:^|\/)(?:node_modules|\.next|dist|build|coverage|generated)(?:\/|$)/;
@@ -65,128 +94,143 @@ function nearestWorkspace(file) {
   return undefined;
 }
 
-let files;
-try {
-  files = changedFiles();
-} catch (error) {
-  process.stderr.write(`[Kiro quality] Could not discover changed files: ${error.message}\n`);
-  process.exit(1);
+const isDirectRun = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+
+if (isDirectRun) {
+  main();
 }
 
-if (files.length === 0) {
-  process.stdout.write('[Kiro quality] No changed files detected.\n');
-  process.exit(0);
-}
+function main() {
+  let files;
+  try {
+    files = changedFiles();
+  } catch (error) {
+    process.stderr.write(`[Kiro quality] Could not discover changed files: ${error.message}\n`);
+    process.exit(1);
+  }
 
-let failed = false;
-function record(result) {
-  if (!result) failed = true;
-}
+  if (files.length === 0) {
+    process.stdout.write('[Kiro quality] No changed files detected.\n');
+    process.exit(0);
+  }
 
-const allFormattable = files.filter(
-  (file) => existsSync(join(root, file)) && formatExtensions.has(extname(file).toLowerCase()),
-);
-const formattable = allFormattable.slice(0, 100);
-if (allFormattable.length > formattable.length) {
-  process.stderr.write(
-    `[Kiro quality] ${allFormattable.length - formattable.length} additional files were omitted from the local formatting gate; run full CI before merge.\n`,
+  let failed = false;
+  let truncated = false;
+  const record = (result) => {
+    if (!result) failed = true;
+  };
+
+  const allFormattable = files.filter(
+    (file) => existsSync(join(root, file)) && formatExtensions.has(extname(file).toLowerCase()),
   );
-}
-if (formattable.length > 0) {
-  record(
-    run(
-      'Prettier on changed files',
-      'pnpm',
-      ['exec', 'prettier', '--check', '--', ...formattable],
-      root,
-      60_000,
+  const formattable = allFormattable.slice(0, 100);
+  if (allFormattable.length > formattable.length) {
+    truncated = true;
+    process.stderr.write(
+      `[Kiro quality] ${allFormattable.length - formattable.length} additional files were omitted from the local formatting gate; run full CI before merge.\n`,
+    );
+  }
+  if (formattable.length > 0) {
+    record(
+      run(
+        'Prettier on changed files',
+        'pnpm',
+        ['exec', 'prettier', '--check', '--', ...formattable],
+        root,
+        60_000,
+      ),
+    );
+  }
+
+  const workspaces = new Map();
+  for (const file of files) {
+    const workspace = nearestWorkspace(file);
+    if (!workspace) continue;
+    if (!workspaces.has(workspace)) workspaces.set(workspace, []);
+    workspaces.get(workspace).push(file);
+  }
+
+  const selected = [...workspaces.entries()].slice(0, 8);
+  if (workspaces.size > selected.length) {
+    truncated = true;
+    process.stderr.write(
+      `[Kiro quality] ${workspaces.size - selected.length} additional changed workspaces were skipped; run full affected CI before merge.\n`,
+    );
+  }
+
+  for (const [workspace, workspaceFiles] of selected) {
+    const manifest = JSON.parse(readFileSync(join(workspace, 'package.json'), 'utf8'));
+    const scripts = manifest.scripts ?? {};
+    const label = manifest.name ?? relative(root, workspace);
+    for (const script of ['lint', 'typecheck']) {
+      if (scripts[script]) record(run(`${label} ${script}`, 'pnpm', ['run', script], workspace));
+    }
+    const testsChanged = workspaceFiles.some((file) =>
+      /(?:^|\/).+\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file),
+    );
+    if (testsChanged && scripts.test) {
+      record(
+        run(`${label} tests (test files changed)`, 'pnpm', ['run', 'test'], workspace, 180_000),
+      );
+    }
+  }
+
+  const hasReactChanges = files.some((file) =>
+    /^(?:apps\/(?:web|admin-console|developer-portal|install-wizard|public-website|registration-portal)|packages\/ui)\/.*\.tsx?$/.test(
+      file,
     ),
   );
-}
-
-const workspaces = new Map();
-for (const file of files) {
-  const workspace = nearestWorkspace(file);
-  if (!workspace) continue;
-  if (!workspaces.has(workspace)) workspaces.set(workspace, []);
-  workspaces.get(workspace).push(file);
-}
-
-const selected = [...workspaces.entries()].slice(0, 8);
-if (workspaces.size > selected.length) {
-  process.stderr.write(
-    `[Kiro quality] ${workspaces.size - selected.length} additional changed workspaces were skipped; run full affected CI before merge.\n`,
+  const hasThemeChanges = files.some((file) =>
+    /(?:theme|tailwind|tokens?|styles?).*\.(?:ts|tsx|js|css|json)$/i.test(file),
   );
-}
+  const hasI18nChanges = files.some((file) =>
+    /(?:locales?|messages|i18n|language).*\.(?:json|ts|tsx|dart)$/i.test(file),
+  );
+  const hasPrismaChanges = files.some((file) =>
+    /(?:^|\/)prisma\/(?:schema\.prisma|migrations\/)/.test(file),
+  );
+  const hasTenantCriticalChanges = files.some(
+    (file) =>
+      /(?:tenant|auth|rbac|rls|cache|events?|queue|report)/i.test(file) &&
+      /\.(?:ts|prisma|sql)$/.test(file),
+  );
 
-for (const [workspace, workspaceFiles] of selected) {
-  const manifest = JSON.parse(readFileSync(join(workspace, 'package.json'), 'utf8'));
-  const scripts = manifest.scripts ?? {};
-  const label = manifest.name ?? relative(root, workspace);
-  for (const script of ['lint', 'typecheck']) {
-    if (scripts[script]) record(run(`${label} ${script}`, 'pnpm', ['run', script], workspace));
+  if (hasReactChanges) {
+    record(run('Accessibility icon-label gate', 'pnpm', ['run', 'lint:a11y'], root, 60_000));
   }
-  const testsChanged = workspaceFiles.some((file) =>
-    /(?:^|\/).+\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file),
-  );
-  if (testsChanged && scripts.test) {
-    record(run(`${label} tests (test files changed)`, 'pnpm', ['run', 'test'], workspace, 180_000));
+  if (hasThemeChanges) {
+    record(run('Theme contrast gate', 'pnpm', ['run', 'check:contrast'], root, 60_000));
   }
-}
+  if (hasI18nChanges) {
+    record(run('Localization catalog gate', 'pnpm', ['run', 'check:i18n'], root, 60_000));
+  }
+  if (hasPrismaChanges) {
+    record(
+      run(
+        'Prisma schema validation',
+        'pnpm',
+        ['exec', 'prisma', 'validate', '--schema', 'packages/shared/database/prisma/schema.prisma'],
+        root,
+        60_000,
+      ),
+    );
+  }
+  if (hasTenantCriticalChanges) {
+    record(
+      run(
+        'Tenant isolation unit gate',
+        'pnpm',
+        ['run', 'test:tenant-isolation:unit'],
+        root,
+        180_000,
+      ),
+    );
+  }
 
-const hasReactChanges = files.some((file) =>
-  /^(?:apps\/(?:web|admin-console|developer-portal|install-wizard|public-website|registration-portal)|packages\/ui)\/.*\.tsx?$/.test(
-    file,
-  ),
-);
-const hasThemeChanges = files.some((file) =>
-  /(?:theme|tailwind|tokens?|styles?).*\.(?:ts|tsx|js|css|json)$/i.test(file),
-);
-const hasI18nChanges = files.some((file) =>
-  /(?:locales?|messages|i18n|language).*\.(?:json|ts|tsx|dart)$/i.test(file),
-);
-const hasPrismaChanges = files.some((file) =>
-  /(?:^|\/)prisma\/(?:schema\.prisma|migrations\/)/.test(file),
-);
-const hasTenantCriticalChanges = files.some(
-  (file) =>
-    /(?:tenant|auth|rbac|rls|cache|events?|queue|report)/i.test(file) &&
-    /\.(?:ts|prisma|sql)$/.test(file),
-);
-
-if (hasReactChanges) {
-  record(run('Accessibility icon-label gate', 'pnpm', ['run', 'lint:a11y'], root, 60_000));
+  const { line: statusLine, exitCode } = finalStatus({ failed, truncated });
+  if (exitCode !== 0) {
+    process.stderr.write(statusLine);
+    process.exit(exitCode);
+  }
+  process.stdout.write(statusLine);
 }
-if (hasThemeChanges) {
-  record(run('Theme contrast gate', 'pnpm', ['run', 'check:contrast'], root, 60_000));
-}
-if (hasI18nChanges) {
-  record(run('Localization catalog gate', 'pnpm', ['run', 'check:i18n'], root, 60_000));
-}
-if (hasPrismaChanges) {
-  record(
-    run(
-      'Prisma schema validation',
-      'pnpm',
-      ['exec', 'prisma', 'validate', '--schema', 'packages/shared/database/prisma/schema.prisma'],
-      root,
-      60_000,
-    ),
-  );
-}
-if (hasTenantCriticalChanges) {
-  record(
-    run('Tenant isolation unit gate', 'pnpm', ['run', 'test:tenant-isolation:unit'], root, 180_000),
-  );
-}
-
-if (failed) {
-  process.stderr.write(
-    '\n[Kiro quality] One or more targeted checks failed. Fix them before declaring the task complete.\n',
-  );
-  process.exit(1);
-}
-
-process.stdout.write(
-  '\n[Kiro quality] Targeted changed-workspace checks passed. Run full CI/release gates when required.\n',
-);

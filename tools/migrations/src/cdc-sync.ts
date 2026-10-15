@@ -132,6 +132,7 @@ export class CDCProducer {
       const result = await client.query<{
         table_name: string;
         last_synced_at: string;
+        last_sequence: number;
         last_legacy_id: number;
         status: SyncPosition['status'];
         error_message?: string;
@@ -140,8 +141,11 @@ export class CDCProducer {
         this.syncPositions.set(row.table_name, {
           table: row.table_name,
           lastSyncedAt: row.last_synced_at,
-          lastSequence: row.last_legacy_id,
-          lastLegacyId: row.last_legacy_id,
+          // PRC-M417: lastSequence must come from last_sequence, not last_legacy_id
+          // (they are distinct — sequence is a monotonic event counter, legacy id
+          // is the source PK). Conflating them corrupted event ids on resume.
+          lastSequence: Number(row.last_sequence ?? 0),
+          lastLegacyId: Number(row.last_legacy_id ?? 0),
           status: row.status,
           errorMessage: row.error_message,
         });
@@ -192,13 +196,21 @@ export class CDCProducer {
     try {
       const filterClause = mapping.sourceFilter ? `AND ${mapping.sourceFilter}` : '';
 
-      // Query for rows modified since last sync
+      // PRC-M417: a strict `modified > $1` keyset with LIMIT silently SKIPS rows
+      // that share the cutoff timestamp but fall beyond the batch — on resume the
+      // next query advances past them because it only looks at `modified >`. Use
+      // a COMPOUND keyset on (modified, legacyPk): take everything strictly after
+      // the timestamp, OR equal to it but with a legacy id greater than the last
+      // one we processed. Ordering matches the keyset so pagination is stable.
       const result = await client.query<Record<string, unknown>>(
         `SELECT * FROM "${mapping.sourceTable}"
-         WHERE "modified" > $1 ${filterClause}
+         WHERE (
+           "modified" > $1
+           OR ("modified" = $1 AND "${mapping.legacyPkColumn}" > $2)
+         ) ${filterClause}
          ORDER BY "modified" ASC, "${mapping.legacyPkColumn}" ASC
-         LIMIT $2`,
-        [position.lastSyncedAt, this.config.batchSize],
+         LIMIT $3`,
+        [position.lastSyncedAt, position.lastLegacyId, this.config.batchSize],
       );
 
       let sequence = position.lastSequence;

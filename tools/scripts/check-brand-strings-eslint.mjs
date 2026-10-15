@@ -60,6 +60,7 @@ const KNOWN_VIOLATIONS = new Set([
   // apps/install-wizard
   'apps/install-wizard/src/app/layout.tsx',
   'apps/install-wizard/src/components/install-wizard.tsx',
+  'apps/install-wizard/src/components/steps/cache-step.tsx',
   'apps/install-wizard/src/components/steps/complete-step.tsx',
   'apps/install-wizard/src/components/steps/database-step.tsx',
   'apps/install-wizard/src/components/steps/queue-step.tsx',
@@ -78,6 +79,7 @@ const KNOWN_VIOLATIONS = new Set([
   'apps/public-website/src/app/security/page.tsx',
   'apps/public-website/src/app/status/page.tsx',
   'apps/public-website/src/app/terms/page.tsx',
+  'apps/public-website/src/components/layout/site-footer.tsx',
   'apps/public-website/src/components/layout/site-header.tsx',
   // apps/registration-portal
   'apps/registration-portal/src/app/layout.tsx',

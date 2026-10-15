@@ -66,10 +66,25 @@ function escapeRegExp(s) {
  *              "TheProctiraERPClass", "myproctira2024", "proctira_token"
  */
 const IDENTIFIER_CHARS = 'A-Za-z0-9\\-_./@:';
+// Trailing boundary: a brand at the end of prose ("ProctiraERP." / "ProctiraERP:")
+// MUST be flagged, but a brand inside a hostname / package path / URL
+// ("proctira.org", "@proctira/auth", "audit.proctira.com") must NOT. We keep
+// the full identifier set on the LEADING side, but on the TRAILING side we only
+// treat `.`/`:` as part of an identifier when they are themselves followed by
+// another identifier char (i.e. a real hostname/path segment, not sentence
+// punctuation). Core identifier chars (letters, digits, - _ / @) still block a
+// match on either side. (PRC-L300)
+const TRAILING_CORE_CHARS = 'A-Za-z0-9\\-_/@';
 
 function buildBrandRegex(brands) {
   const alternation = brands.map((b) => escapeRegExp(b)).join('|');
-  return new RegExp(`(?<![${IDENTIFIER_CHARS}])(${alternation})(?![${IDENTIFIER_CHARS}])`, 'gi');
+  // (?<![id chars])  leading boundary (unchanged)
+  // (?![core])       not immediately followed by a core identifier char
+  // (?![.:][id])     not followed by `.`/`:` that begins another id segment
+  return new RegExp(
+    `(?<![${IDENTIFIER_CHARS}])(${alternation})(?![${TRAILING_CORE_CHARS}])(?![.:][A-Za-z0-9])`,
+    'gi',
+  );
 }
 
 /**

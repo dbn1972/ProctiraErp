@@ -9,7 +9,7 @@
  * - Outputs go/no-go recommendation
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statfsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,30 @@ export interface UpgradeCheckOptions {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Minimal shape of the package.json fields this command reads. */
+interface PackageManifest {
+  version?: string;
+  peerDependencies?: Record<string, string>;
+}
+
+function readManifest(path: string): PackageManifest {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object') throw new Error(`invalid manifest: ${path}`);
+  const raw = parsed as Record<string, unknown>;
+  const peers = raw['peerDependencies'];
+  return {
+    version: typeof raw['version'] === 'string' ? raw['version'] : undefined,
+    peerDependencies:
+      peers && typeof peers === 'object'
+        ? Object.fromEntries(
+            Object.entries(peers as Record<string, unknown>).filter(
+              (e): e is [string, string] => typeof e[1] === 'string',
+            ),
+          )
+        : undefined,
+  };
+}
+
 function parseVersion(version: string): { major: number; minor: number; patch: number } | null {
   const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
@@ -94,7 +118,7 @@ function getCurrentVersion(projectRoot: string): string {
   try {
     const pkgPath = join(projectRoot, 'package.json');
     if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      const pkg = readManifest(pkgPath);
       return pkg.version ?? '0.0.0';
     }
   } catch {
@@ -115,7 +139,6 @@ function checkPluginCompatibility(
   }
 
   try {
-    const { readdirSync } = require('node:fs');
     const entries = readdirSync(pluginsDir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -125,7 +148,7 @@ function checkPluginCompatibility(
       if (!existsSync(pluginPkgPath)) continue;
 
       try {
-        const pluginPkg = JSON.parse(readFileSync(pluginPkgPath, 'utf-8'));
+        const pluginPkg = readManifest(pluginPkgPath);
         const peerDeps = pluginPkg.peerDependencies ?? {};
         const platformDep = peerDeps['@proctira/common'] ?? peerDeps['@proctira/plugin-sdk'];
 
@@ -164,7 +187,10 @@ function checkPluginCompatibility(
   return results;
 }
 
-function checkThemeCompatibility(projectRoot: string, targetVersion: string): CompatibilityCheck[] {
+function checkThemeCompatibility(
+  projectRoot: string,
+  _targetVersion: string,
+): CompatibilityCheck[] {
   const results: CompatibilityCheck[] = [];
   const themesDir = join(projectRoot, 'themes');
 
@@ -173,7 +199,6 @@ function checkThemeCompatibility(projectRoot: string, targetVersion: string): Co
   }
 
   try {
-    const { readdirSync } = require('node:fs');
     const entries = readdirSync(themesDir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -183,12 +208,12 @@ function checkThemeCompatibility(projectRoot: string, targetVersion: string): Co
       if (!existsSync(themePkgPath)) continue;
 
       try {
-        const themePkg = JSON.parse(readFileSync(themePkgPath, 'utf-8'));
+        const themePkg = readManifest(themePkgPath);
         results.push({
           name: entry.name,
           compatible: true,
           currentVersion: themePkg.version,
-          message: `Theme "${entry.name}" v${themePkg.version} — assumed compatible`,
+          message: `Theme "${entry.name}" v${themePkg.version ?? 'unknown'} — assumed compatible`,
         });
       } catch {
         results.push({
@@ -210,15 +235,33 @@ function checkBackupExists(): boolean {
   const backupEnabled = process.env['DB_BACKUP_ENABLED'] === 'true';
   const lastBackup = process.env['LAST_BACKUP_TIMESTAMP'];
 
-  if (backupEnabled && lastBackup) {
-    // Verify backup is recent (within 24 hours)
-    const backupTime = new Date(lastBackup).getTime();
-    const now = Date.now();
-    const hoursSinceBackup = (now - backupTime) / (1000 * 60 * 60);
-    return hoursSinceBackup < 24;
+  // Require a verifiable, recent (within 24h) backup timestamp. An env flag
+  // alone is not evidence that a backup exists.
+  if (!lastBackup) {
+    return false;
   }
+  const backupTime = new Date(lastBackup).getTime();
+  if (Number.isNaN(backupTime)) {
+    return false;
+  }
+  const hoursSinceBackup = (Date.now() - backupTime) / (1000 * 60 * 60);
+  return backupEnabled && hoursSinceBackup < 24;
+}
 
-  return backupEnabled ?? false;
+/**
+ * Check free disk space at the project root using statfsSync (Node >= 18.15).
+ * Returns null if the platform/Node build does not expose statfsSync.
+ */
+function checkDiskSpace(projectRoot: string, minFreeGb = 2): boolean | null {
+  try {
+    if (typeof statfsSync !== 'function') return null;
+    const stats = statfsSync(projectRoot);
+    const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+    const freeGb = freeBytes / (1024 * 1024 * 1024);
+    return freeGb >= minFreeGb;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +281,16 @@ export async function runUpgradeCheck(opts: UpgradeCheckOptions = {}): Promise<U
   const recommendations: string[] = [];
   const migrationNotes: string[] = [];
 
-  // Version validation
-  const versionValid = targetVersion === 'latest' || isUpgradePath(currentVersion, targetVersion);
-  if (!versionValid && targetVersion !== 'latest') {
+  // Version validation. 'latest' is NOT a resolvable target — refuse to emit a
+  // 'go' decision against an unpinned version.
+  const targetIsUnresolved = targetVersion === 'latest';
+  if (targetIsUnresolved) {
+    blockers.push(
+      "Target version 'latest' is not pinned — resolve to a concrete semver (e.g. 1.4.0) before upgrading",
+    );
+  }
+  const versionValid = !targetIsUnresolved && isUpgradePath(currentVersion, targetVersion);
+  if (!versionValid && !targetIsUnresolved) {
     blockers.push(
       `Target version ${targetVersion} is not an upgrade from current ${currentVersion}`,
     );
@@ -285,10 +335,14 @@ export async function runUpgradeCheck(opts: UpgradeCheckOptions = {}): Promise<U
     warnings.push('Some themes may be incompatible with the target version');
   }
 
-  // Disk space (simplified check)
-  const diskSpaceSufficient = true; // Would use statfsSync in production
-  if (!diskSpaceSufficient) {
-    blockers.push('Insufficient disk space for upgrade');
+  // Disk space check via statfsSync. If unavailable, treat as a blocker
+  // rather than silently claiming sufficiency.
+  const diskResult = checkDiskSpace(projectRoot);
+  const diskSpaceSufficient = diskResult === true;
+  if (diskResult === false) {
+    blockers.push('Insufficient free disk space for upgrade (< 2 GB at project root)');
+  } else if (diskResult === null) {
+    warnings.push('Could not verify disk space (statfsSync unavailable) — verify manually');
   }
 
   // General recommendations

@@ -44,6 +44,8 @@ export interface HealthOptions {
   tenantId?: string;
   /** Timeout per check in ms (default 10000) */
   timeoutMs?: number;
+  /** Treat missing (404) endpoints as failures rather than warnings */
+  strict?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +178,7 @@ async function checkTenantResolution(
   baseUrl: string,
   tenantId: string | undefined,
   timeoutMs: number,
+  strict: boolean,
 ): Promise<HealthCheckResult> {
   const tenant = tenantId ?? process.env['TENANT_ID'] ?? 'default';
   const url = `${baseUrl}/api/v1/tenants/resolve`;
@@ -191,12 +194,12 @@ async function checkTenantResolution(
     };
   }
 
-  // A 404 might mean the endpoint doesn't exist yet — treat as warning
+  // A 404 might mean the endpoint doesn't exist yet — warning unless --strict
   if (result.status === 404) {
     return {
       name: 'tenant-resolution',
-      status: 'warning',
-      message: 'Tenant resolution endpoint not found (may not be deployed yet)',
+      status: strict ? 'fail' : 'warning',
+      message: 'Tenant resolution endpoint not found (404)',
       latencyMs: result.latencyMs,
     };
   }
@@ -209,7 +212,11 @@ async function checkTenantResolution(
   };
 }
 
-async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<HealthCheckResult> {
+async function checkAuditWrite(
+  baseUrl: string,
+  timeoutMs: number,
+  strict: boolean,
+): Promise<HealthCheckResult> {
   const url = `${baseUrl}/api/v1/audit/health`;
   const result = await httpGet(url, timeoutMs);
 
@@ -217,7 +224,8 @@ async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<Heal
     return {
       name: 'audit-write',
       status: 'pass',
-      message: 'Audit service is healthy and writable',
+      message:
+        'Audit health endpoint responded OK (endpoint reachable; write round-trip not performed by CLI)',
       latencyMs: result.latencyMs,
     };
   }
@@ -225,8 +233,8 @@ async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<Heal
   if (result.status === 404) {
     return {
       name: 'audit-write',
-      status: 'warning',
-      message: 'Audit health endpoint not found — may not be deployed yet',
+      status: strict ? 'fail' : 'warning',
+      message: 'Audit health endpoint not found (404)',
       latencyMs: result.latencyMs,
     };
   }
@@ -234,7 +242,7 @@ async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<Heal
   return {
     name: 'audit-write',
     status: 'fail',
-    message: `Audit write check failed: HTTP ${result.status}`,
+    message: `Audit health check failed: HTTP ${result.status}`,
     latencyMs: result.latencyMs,
   };
 }
@@ -242,6 +250,7 @@ async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<Heal
 async function checkObjectStorageRoundTrip(
   baseUrl: string,
   timeoutMs: number,
+  strict: boolean,
 ): Promise<HealthCheckResult> {
   const url = `${baseUrl}/api/v1/storage/health`;
   const result = await httpGet(url, timeoutMs);
@@ -250,7 +259,8 @@ async function checkObjectStorageRoundTrip(
     return {
       name: 'object-storage-roundtrip',
       status: 'pass',
-      message: 'Object storage read/write verified',
+      message:
+        'Storage health endpoint responded OK (server-side storage probe; CLI did not upload)',
       latencyMs: result.latencyMs,
     };
   }
@@ -258,8 +268,8 @@ async function checkObjectStorageRoundTrip(
   if (result.status === 404) {
     return {
       name: 'object-storage-roundtrip',
-      status: 'warning',
-      message: 'Storage health endpoint not found — may not be deployed yet',
+      status: strict ? 'fail' : 'warning',
+      message: 'Storage health endpoint not found (404)',
       latencyMs: result.latencyMs,
     };
   }
@@ -267,12 +277,16 @@ async function checkObjectStorageRoundTrip(
   return {
     name: 'object-storage-roundtrip',
     status: 'fail',
-    message: `Object storage round-trip failed: HTTP ${result.status}`,
+    message: `Object storage health check failed: HTTP ${result.status}`,
     latencyMs: result.latencyMs,
   };
 }
 
-async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<HealthCheckResult> {
+async function checkQueuePubSub(
+  baseUrl: string,
+  timeoutMs: number,
+  strict: boolean,
+): Promise<HealthCheckResult> {
   const url = `${baseUrl}/api/v1/queue/health`;
   const result = await httpGet(url, timeoutMs);
 
@@ -280,7 +294,8 @@ async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<Hea
     return {
       name: 'queue-publish-consume',
       status: 'pass',
-      message: 'Queue publish/consume verified',
+      message:
+        'Queue health endpoint responded OK (endpoint reachable; publish/consume not performed by CLI)',
       latencyMs: result.latencyMs,
     };
   }
@@ -288,8 +303,8 @@ async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<Hea
   if (result.status === 404) {
     return {
       name: 'queue-publish-consume',
-      status: 'warning',
-      message: 'Queue health endpoint not found — may not be deployed yet',
+      status: strict ? 'fail' : 'warning',
+      message: 'Queue health endpoint not found (404)',
       latencyMs: result.latencyMs,
     };
   }
@@ -297,7 +312,7 @@ async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<Hea
   return {
     name: 'queue-publish-consume',
     status: 'fail',
-    message: `Queue pub/sub check failed: HTTP ${result.status}`,
+    message: `Queue health check failed: HTTP ${result.status}`,
     latencyMs: result.latencyMs,
   };
 }
@@ -312,15 +327,16 @@ async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<Hea
 export async function runHealthCheck(opts: HealthOptions = {}): Promise<HealthReport> {
   const baseUrl = opts.gatewayUrl ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
   const timeoutMs = opts.timeoutMs ?? 10_000;
+  const strict = opts.strict ?? false;
 
   const checks: HealthCheckResult[] = [];
 
   checks.push(await checkServiceHealth(baseUrl, timeoutMs));
   checks.push(await checkAdminLogin(baseUrl, opts.adminUsername, opts.adminPassword, timeoutMs));
-  checks.push(await checkTenantResolution(baseUrl, opts.tenantId, timeoutMs));
-  checks.push(await checkAuditWrite(baseUrl, timeoutMs));
-  checks.push(await checkObjectStorageRoundTrip(baseUrl, timeoutMs));
-  checks.push(await checkQueuePubSub(baseUrl, timeoutMs));
+  checks.push(await checkTenantResolution(baseUrl, opts.tenantId, timeoutMs, strict));
+  checks.push(await checkAuditWrite(baseUrl, timeoutMs, strict));
+  checks.push(await checkObjectStorageRoundTrip(baseUrl, timeoutMs, strict));
+  checks.push(await checkQueuePubSub(baseUrl, timeoutMs, strict));
 
   const summary = { pass: 0, fail: 0, warning: 0 };
   for (const check of checks) {
@@ -360,6 +376,9 @@ export async function healthCommand(argv: string[]): Promise<void> {
         break;
       case '--timeout':
         opts.timeoutMs = parseInt(argv[++i] ?? '10000', 10);
+        break;
+      case '--strict':
+        opts.strict = true;
         break;
     }
   }

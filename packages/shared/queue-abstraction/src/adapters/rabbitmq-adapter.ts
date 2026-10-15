@@ -470,7 +470,20 @@ export class RabbitMQAdapter implements QueueAdapter {
     // W1-SEC-11: reject unscoped caller topics / binding patterns.
     assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.rabbitmq.subscribe' });
 
-    const queueName = buildTenantName(options.groupId ?? 'shared', `sub.${options.topic}`);
+    // PRC-L582: subscribe() is fan-out — each distinct service must own a queue so
+    // all of them receive every event. Defaulting to a shared literal ('shared')
+    // made different services compete on one queue, so events were split across
+    // them instead of broadcast. Prefer an explicit groupId, else the configured
+    // service identity (clientId); refuse rather than silently share a queue.
+    const subscriberGroup = options.groupId ?? this.config.clientId;
+    if (!subscriberGroup || subscriberGroup.trim().length === 0) {
+      throw new Error(
+        'RabbitMQAdapter.subscribe requires a distinct consumer group: pass options.groupId ' +
+          'or configure RabbitMQAdapterConfig.clientId (the service name). A shared default ' +
+          'queue would make services compete instead of each receiving the event (PRC-L582).',
+      );
+    }
+    const queueName = buildTenantName(subscriberGroup, `sub.${options.topic}`);
     await this.consumeQueue(queueName, options, handler);
   }
 

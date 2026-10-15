@@ -139,19 +139,38 @@ function checkSecrets(): ReadinessCategory {
   const cookieSecret = process.env['COOKIE_SECRET'];
   const dbPassword = process.env['POSTGRES_PASSWORD'];
 
-  const weakSecrets: string[] = [];
-  const defaultValues = ['changeme', 'secret', 'password', 'proctira_dev_password', 'dev'];
+  // Known weak/example values that must never pass (substrings, case-insensitive).
+  const defaultValues = [
+    'changeme',
+    'secret',
+    'password',
+    'proctira_dev_password',
+    'proctira-gateway-dev-secret',
+    'dev-secret',
+    'admin123',
+    'minioadmin',
+    'guest',
+    'example',
+    'placeholder',
+  ];
 
-  if (jwtSecret && defaultValues.some((d) => jwtSecret.toLowerCase().includes(d))) {
-    weakSecrets.push('JWT_SECRET');
-  }
-  if (cookieSecret && defaultValues.some((d) => cookieSecret.toLowerCase().includes(d))) {
-    weakSecrets.push('COOKIE_SECRET');
-  }
-  if (dbPassword && defaultValues.some((d) => dbPassword.toLowerCase().includes(d))) {
-    weakSecrets.push('POSTGRES_PASSWORD');
+  const MIN_SECRET_LEN = 32;
+
+  /** Returns a failure reason for a secret, or null if it is strong enough. */
+  function assess(name: string, value: string | undefined, requireLength: boolean): string | null {
+    if (!value) return `${name} is not set`;
+    const lower = value.toLowerCase();
+    if (defaultValues.some((d) => lower.includes(d)))
+      return `${name} contains a known default/example value`;
+    if (requireLength && value.length < MIN_SECRET_LEN)
+      return `${name} is too short (<${MIN_SECRET_LEN} chars)`;
+    // Reject trivially low-entropy secrets (single repeated char / all digits).
+    if (requireLength && new Set(value).size < 8)
+      return `${name} has insufficient character diversity`;
+    return null;
   }
 
+  const problems: string[] = [];
   if (!jwtSecret || !cookieSecret) {
     return {
       name: 'secrets',
@@ -167,17 +186,29 @@ function checkSecrets(): ReadinessCategory {
     };
   }
 
-  if (weakSecrets.length > 0) {
+  for (const [name, value, requireLength] of [
+    ['JWT_SECRET', jwtSecret, true],
+    ['COOKIE_SECRET', cookieSecret, true],
+    ['POSTGRES_PASSWORD', dbPassword, false],
+  ] as Array<[string, string | undefined, boolean]>) {
+    // Only assess POSTGRES_PASSWORD if present.
+    if (name === 'POSTGRES_PASSWORD' && !value) continue;
+    const problem = assess(name, value, requireLength);
+    if (problem) problems.push(problem);
+  }
+
+  if (problems.length > 0) {
     return {
       name: 'secrets',
       description: 'Secure secrets management',
-      status: 'warning',
-      score: 5,
+      status: 'fail',
+      score: 0,
       maxScore: 10,
-      message: `Weak/default secrets detected: ${weakSecrets.join(', ')}`,
+      message: `Weak or default secrets detected: ${problems.join('; ')}`,
       recommendations: [
-        'Replace default secrets with cryptographically random values',
+        'Replace with cryptographically random values >= 32 chars',
         'Use: openssl rand -base64 32',
+        'Never ship .env.example defaults to production',
       ],
     };
   }
@@ -188,7 +219,7 @@ function checkSecrets(): ReadinessCategory {
     status: 'pass',
     score: 10,
     maxScore: 10,
-    message: 'All secrets are configured with non-default values',
+    message: 'All secrets are configured with strong, non-default values',
   };
 }
 
@@ -460,9 +491,10 @@ function checkMonitoring(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: tracingConfigured && !tracingForcedOff
-        ? 'Metrics + alerting configured; OTLP tracing endpoint set (collector ingest not verified here)'
-        : 'Metrics + alerting configured; tracing available when OTEL_EXPORTER_OTLP_* is set',
+      message:
+        tracingConfigured && !tracingForcedOff
+          ? 'Metrics + alerting configured; OTLP tracing endpoint set (collector ingest not verified here)'
+          : 'Metrics + alerting configured; tracing available when OTEL_EXPORTER_OTLP_* is set',
       ...(recommendations.length > 0 ? { recommendations } : {}),
     };
   }
@@ -634,7 +666,18 @@ export async function runReadinessCheck(opts: ReadinessOptions = {}): Promise<Re
 
   const totalScore = categories.reduce((sum, c) => sum + c.score, 0);
   const maxScore = categories.reduce((sum, c) => sum + c.maxScore, 0);
-  const grade = computeGrade(totalScore);
+  let grade = computeGrade(totalScore);
+
+  // Grade cap (W1-SEC): a deployment cannot be graded A/B while a critical
+  // security control (TLS/HTTPS or secrets) is failing or unverified. This
+  // prevents "Grade A" from being reachable with no real control in place.
+  const criticalNames = ['https', 'secrets'];
+  const criticalFail = categories.some(
+    (c) => criticalNames.includes(c.name) && c.status === 'fail',
+  );
+  if (criticalFail && (grade === 'A' || grade === 'B')) {
+    grade = 'C';
+  }
 
   const hasFail = categories.some((c) => c.status === 'fail');
   const hasWarning = categories.some((c) => c.status === 'warning');

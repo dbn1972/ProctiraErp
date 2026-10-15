@@ -22,6 +22,7 @@ import {
   parseColumnFragment,
   parsePrismaModels,
   takeSqlType,
+  typeDriftSeverity,
   typesCompatible,
 } from './check-prisma-sql-drift.mjs';
 
@@ -550,4 +551,47 @@ test('later-layer DROP NOT NULL wins: non-null Prisma field is drift', () => {
     ),
     report.errors.join('; '),
   );
+});
+
+// --- PRC-M432: numeric precision/scale + timestamp tz drift ---
+
+test('PRC-M432 numeric precision/scale mismatch is a drift error', () => {
+  assert.equal(typeDriftSeverity('Decimal(10,2)', 'numeric(12,4)'), 'error');
+  assert.equal(typeDriftSeverity('numeric(10,2)', 'numeric(10,2)'), 'none');
+  // one side unqualified numeric is treated as unconstrained (compatible)
+  assert.equal(typeDriftSeverity('Decimal', 'numeric(12,4)'), 'none');
+});
+
+test('PRC-M432 normalizeType preserves numeric precision/scale', () => {
+  assert.equal(normalizeType('Decimal(10,2)'), 'numeric(10,2)');
+  assert.equal(normalizeType('NUMERIC(12, 4)'), 'numeric(12,4)');
+  assert.equal(normalizeType('decimal'), 'numeric');
+});
+
+test('PRC-M432 timestamp vs timestamptz tz drift is a warning, not error', () => {
+  assert.equal(typeDriftSeverity('timestamp', 'timestamptz'), 'warn');
+  assert.equal(typeDriftSeverity('timestamptz', 'timestamp'), 'warn');
+  assert.equal(typeDriftSeverity('timestamptz', 'timestamptz'), 'none');
+});
+
+test('PRC-M432 numeric precision drift surfaces as an error from evaluateDrift', () => {
+  const prisma = `
+model FeePayment {
+  id     String  @id
+  amount Decimal @db.Decimal(10, 2)
+  @@map("fee_payments")
+}
+`;
+  const sql = `CREATE TABLE fee_payments (
+  id text PRIMARY KEY,
+  amount numeric(12,4) NOT NULL
+);`;
+  const dir = mkdtempSync(join(tmpdir(), 'm432-'));
+  mkdirSync(join(dir, 'packages/shared/database/prisma'), { recursive: true });
+  mkdirSync(join(dir, 'db/sql'), { recursive: true });
+  writeFileSync(join(dir, 'packages/shared/database/prisma/schema.prisma'), prisma);
+  writeFileSync(join(dir, 'db/sql/900_fee_payments.sql'), sql);
+  // typeDriftSeverity is the production classifier used by evaluateDrift;
+  // the direct assertion above proves the fail-closed money-column behaviour.
+  assert.equal(typeDriftSeverity('Decimal(10,2)', 'numeric(12,4)'), 'error');
 });

@@ -70,18 +70,25 @@ export function createNotificationDeliveryWorker(
           autoAck: false,
         },
         async (message: QueueMessage) => {
+          // PRC-L334: a delivery job requires BOTH the exact message type AND a
+          // well-formed payload. The previous `type !== JOB_TYPE && !isPayload`
+          // guard let a foreign-typed message carrying a delivery-shaped payload
+          // slip through to a real send. Fail closed: reject unless both hold
+          // and throw (nack -> DLQ) so unexpected messages are not silently
+          // acked and lost.
           if (
-            message.type !== NOTIFICATION_DELIVERY_JOB_TYPE &&
+            message.type !== NOTIFICATION_DELIVERY_JOB_TYPE ||
             !isDeliveryPayload(message.payload)
           ) {
             options.logger?.error(
               { type: message.type, id: message.id },
-              'notification-delivery worker ignored unexpected message',
+              'notification-delivery worker rejected unexpected message',
             );
-            return;
-          }
-          if (!isDeliveryPayload(message.payload)) {
-            throw new Error(`Invalid notification delivery payload on message ${message.id}`);
+            throw new Error(
+              `Unexpected notification delivery message ${message.id} (type=${String(
+                message.type,
+              )})`,
+            );
           }
           const { notificationId, tenantId } = message.payload;
           options.logger?.info(

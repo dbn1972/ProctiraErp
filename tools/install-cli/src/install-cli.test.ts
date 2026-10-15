@@ -50,7 +50,7 @@ const validConfig: InstallConfig = {
   },
   admin: {
     username: 'admin@proctira.org',
-    password: 'Admin123!',
+    password: 'Str0ng!Passw0rd#2026',
     firstName: 'System',
     lastName: 'Administrator',
   },
@@ -140,7 +140,7 @@ describe('loadConfigFromEnv', () => {
       OPENEMIS_DB_PASSWORD: 'pass',
       OPENEMIS_DB_SSL: 'true',
       OPENEMIS_ADMIN_USERNAME: 'admin@test.org',
-      OPENEMIS_ADMIN_PASSWORD: 'password123',
+      OPENEMIS_ADMIN_PASSWORD: 'Str0ng!Passw0rd#2026',
       OPENEMIS_ADMIN_FIRST_NAME: 'Test',
       OPENEMIS_ADMIN_LAST_NAME: 'Admin',
     };
@@ -161,7 +161,7 @@ describe('loadConfigFromEnv', () => {
       OPENEMIS_QUEUE_KAFKA_BROKERS: 'broker1:9092,broker2:9092',
       OPENEMIS_QUEUE_KAFKA_CLIENT_ID: 'my-client',
       OPENEMIS_ADMIN_USERNAME: 'admin@test.org',
-      OPENEMIS_ADMIN_PASSWORD: 'password123',
+      OPENEMIS_ADMIN_PASSWORD: 'Str0ng!Passw0rd#2026',
       OPENEMIS_ADMIN_FIRST_NAME: 'Test',
       OPENEMIS_ADMIN_LAST_NAME: 'Admin',
     };
@@ -172,14 +172,25 @@ describe('loadConfigFromEnv', () => {
     expect(config.queue.kafka?.clientId).toBe('my-client');
   });
 
-  it('uses defaults when env vars are not set', () => {
-    const config = loadConfigFromEnv({});
+  it('uses defaults when optional env vars are not set', () => {
+    // The env path now validates (M416), so a valid admin block is required;
+    // all other fields should still fall back to their documented defaults.
+    const config = loadConfigFromEnv({
+      OPENEMIS_ADMIN_USERNAME: 'admin@test.org',
+      OPENEMIS_ADMIN_PASSWORD: 'Str0ng!Passw0rd#2026',
+      OPENEMIS_ADMIN_FIRST_NAME: 'Test',
+      OPENEMIS_ADMIN_LAST_NAME: 'Admin',
+    });
     expect(config.cdn.adapter).toBe('nginx');
     expect(config.database.provider).toBe('postgresql');
     expect(config.database.host).toBe('localhost');
     expect(config.database.port).toBe(5432);
     expect(config.cache.adapter).toBe('redis');
     expect(config.queue.backend).toBe('rabbitmq');
+  });
+
+  it('rejects an env config with no admin password (fail closed)', () => {
+    expect(() => loadConfigFromEnv({})).toThrow(/admin\.password/);
   });
 
   it('loads storage config for minio', () => {
@@ -191,7 +202,7 @@ describe('loadConfigFromEnv', () => {
       OPENEMIS_STORAGE_SECRET_KEY: 'secret456',
       OPENEMIS_STORAGE_FORCE_PATH_STYLE: 'true',
       OPENEMIS_ADMIN_USERNAME: 'admin@test.org',
-      OPENEMIS_ADMIN_PASSWORD: 'password123',
+      OPENEMIS_ADMIN_PASSWORD: 'Str0ng!Passw0rd#2026',
       OPENEMIS_ADMIN_FIRST_NAME: 'Test',
       OPENEMIS_ADMIN_LAST_NAME: 'Admin',
     };
@@ -228,8 +239,21 @@ describe('validateConfigStructure', () => {
   });
 
   it('rejects config with short admin password', () => {
-    const config = { ...validConfig, admin: { ...validConfig.admin, password: 'short' } };
-    expect(() => validateConfigStructure(config)).toThrow('at least 8 characters');
+    const config = { ...validConfig, admin: { ...validConfig.admin, password: 'Shrt1!' } };
+    expect(() => validateConfigStructure(config)).toThrow('at least 12 characters');
+  });
+
+  it('rejects a known default admin password (Admin123!)', () => {
+    const config = { ...validConfig, admin: { ...validConfig.admin, password: 'Admin123!' } };
+    expect(() => validateConfigStructure(config)).toThrow('known default');
+  });
+
+  it('rejects admin password lacking complexity', () => {
+    const config = {
+      ...validConfig,
+      admin: { ...validConfig.admin, password: 'aaaaaaaaaaaaaaaa' },
+    };
+    expect(() => validateConfigStructure(config)).toThrow(/complexity|at least 3/);
   });
 
   it('rejects config with missing admin firstName', () => {

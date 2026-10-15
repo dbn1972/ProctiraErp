@@ -71,6 +71,9 @@ class _ScholarshipApplicationFormState
   ScholarshipDocumentUploadController? _documents;
   String? _draftApplicationId;
   bool _documentUploadsAvailable = false;
+  // PRC-L212: true when the document route probe was inconclusive (network
+  // error / 5xx). The gate stays on (fail closed) and the UI offers retry.
+  bool _documentRouteUnknown = false;
 
   @override
   void didChangeDependencies() {
@@ -100,8 +103,8 @@ class _ScholarshipApplicationFormState
       if (!mounted) {
         return;
       }
-      final bool uploadsAvailable = await repository
-          .scholarshipDocumentUploadsAvailable();
+      final ScholarshipDocumentRouteState uploadsState = await repository
+          .scholarshipDocumentUploadsState();
       final String? schoolName = await repository
           .institutionNameForStudent(widget.studentId)
           .catchError((Object _) => null);
@@ -113,7 +116,14 @@ class _ScholarshipApplicationFormState
       }
       setState(() {
         _program = program;
-        _documentUploadsAvailable = uploadsAvailable;
+        // PRC-L212: only a definitive 404 (absent) drops the document gate. A
+        // transient error / 5xx (unknown) fails closed — keep the gate so a
+        // connectivity blip cannot let a documents-required application be
+        // submitted with no files.
+        _documentUploadsAvailable =
+            uploadsState != ScholarshipDocumentRouteState.absent;
+        _documentRouteUnknown =
+            uploadsState == ScholarshipDocumentRouteState.unknown;
         _loadingProgram = false;
       });
     } catch (error) {
@@ -405,6 +415,30 @@ class _ScholarshipApplicationFormState
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
+                              if (_documentRouteUnknown) ...<Widget>[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        'Could not confirm the document service. '
+                                        'Required documents are still required — '
+                                        'retry if upload fails.',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme.colorScheme.error,
+                                            ),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: _loadingProgram
+                                          ? null
+                                          : _loadProgram,
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               ScholarshipDocumentUploadPanel(
                                 controller: _documents!,

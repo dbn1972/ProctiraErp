@@ -72,6 +72,40 @@ export function evaluate({ changes, results }) {
     successes: [],
   };
 
+  // PRC-M427: every change flag MUST be present and bound to exactly 'true' or
+  // 'false'. A missing (renamed/unset) flag or a non-boolean value would make
+  // `truthy()` read false and silently convert required jobs into "proven
+  // skips". Fail closed instead.
+  const REQUIRED_CHANGE_FLAGS = [
+    'packagesChanged',
+    'appsChanged',
+    'sharedChanged',
+    'frontendChanged',
+    'backendChanged',
+    'infraChanged',
+    'secondaryAppsChanged',
+    'mobileFlutterChanged',
+  ];
+  const invalidFlags = [];
+  for (const name of REQUIRED_CHANGE_FLAGS) {
+    const value = changes[name];
+    if (value !== 'true' && value !== 'false') {
+      invalidFlags.push({ name, value: value ?? '<unset>' });
+    }
+  }
+  if (invalidFlags.length > 0) {
+    report.ok = false;
+    for (const f of invalidFlags) {
+      report.failures.push({
+        job: `change-flag:${f.name}`,
+        result: f.value,
+        reason:
+          "change flag must be exactly 'true' or 'false' (unset/renamed detect-changes output)",
+      });
+    }
+    return report;
+  }
+
   const detectResult = results.detectChanges ?? 'unknown';
   if (detectResult !== 'success') {
     report.ok = false;

@@ -155,6 +155,8 @@ export interface MinIOAdapterConfig {
   useSSL?: boolean;
   /** Default encryption for all uploads */
   defaultEncryption?: EncryptionType;
+  /** Default KMS key ID for aws:kms encryption (required for KMS to be meaningful) */
+  defaultKmsKeyId?: string;
   /** Signed URL expiration in seconds (default: 3600) */
   signedUrlExpiry?: number;
 }
@@ -163,8 +165,7 @@ export interface MinIOAdapterConfig {
  * Union configuration for creating a storage adapter via factory.
  */
 export type StorageAdapterConfig =
-  | { adapter: 's3'; config: S3AdapterConfig }
-  | { adapter: 'minio'; config: MinIOAdapterConfig };
+  { adapter: 's3'; config: S3AdapterConfig } | { adapter: 'minio'; config: MinIOAdapterConfig };
 
 /**
  * The core StorageAdapter interface that all implementations must satisfy.
@@ -180,28 +181,33 @@ export interface StorageAdapter {
   /**
    * Download an object from storage.
    * The key should be the full namespaced key (as returned by upload).
+   * @param callerTenantId - When provided, the key must be owned by this tenant
+   *   (PRC-M634 ownership check); otherwise only the shape scope check applies.
    */
-  download(key: string): Promise<Readable>;
+  download(key: string, callerTenantId?: string): Promise<Readable>;
 
   /**
    * Delete an object from storage.
    * The key should be the full namespaced key.
+   * @param callerTenantId - When provided, the key must be owned by this tenant (PRC-M634).
    */
-  delete(key: string): Promise<void>;
+  delete(key: string, callerTenantId?: string): Promise<void>;
 
   /**
    * Generate a pre-signed URL for temporary access to an object.
    * @param key - The full namespaced key
    * @param expiresIn - Expiration time in seconds
+   * @param callerTenantId - When provided, the key must be owned by this tenant (PRC-M634).
    */
-  getSignedUrl(key: string, expiresIn: number): Promise<string>;
+  getSignedUrl(key: string, expiresIn: number, callerTenantId?: string): Promise<string>;
 
   /**
    * List objects under a given prefix.
    * @param prefix - The prefix to list (should include tenant namespace)
    * @param options - Pagination and filtering options
+   * @param callerTenantId - When provided, the prefix must be owned by this tenant (PRC-M634).
    */
-  listObjects(prefix: string, options?: ListOptions): Promise<ListResult>;
+  listObjects(prefix: string, options?: ListOptions, callerTenantId?: string): Promise<ListResult>;
 
   /**
    * Check the health of the storage backend.

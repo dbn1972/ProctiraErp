@@ -21,12 +21,16 @@ on:
       - 'apps/mobile/**'
       - 'packages/flutter-core/**'
       - '.github/workflows/mobile-flutter.yml'
+      - 'tools/scripts/check-mobile-release-security.mjs'
+      - 'tools/scripts/check-mobile-release-security.test.mjs'
   push:
     branches: [main, develop]
     paths:
       - 'apps/mobile/**'
       - 'packages/flutter-core/**'
       - '.github/workflows/mobile-flutter.yml'
+      - 'tools/scripts/check-mobile-release-security.mjs'
+      - 'tools/scripts/check-mobile-release-security.test.mjs'
 
 concurrency:
   group: mobile-flutter-${{ github.workflow }}-${{ github.ref }}
@@ -63,6 +67,19 @@ jobs:
 
       - name: Analyze (fail closed)
         run: flutter analyze
+
+      - name: Release security guards (PRC-M470, fail closed)
+        # Fail closed on insecure release posture: release build must not sign
+        # with debug keys unconditionally, the fail-closed throw must be
+        # release-task scoped (never configuration-phase, which breaks debug),
+        # and the cleartext-URL guard must be wired. Runs from repo root.
+        working-directory: ${{ github.workspace }}
+        run: node tools/scripts/check-mobile-release-security.mjs
+
+      - name: Release security guard unit tests (fail closed)
+        # Unit tests for the checker above (no dependencies; node:test only).
+        working-directory: ${{ github.workspace }}
+        run: node --test tools/scripts/check-mobile-release-security.test.mjs
 
       - name: Test (fail closed)
         # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without

@@ -72,40 +72,55 @@ export async function withTestTransaction<TClient extends DatabaseClient>(
 export function createTransactionScope<TClient extends DatabaseClient>(client: TClient) {
   let currentTx: TClient | null = null;
   let resolveTransaction: (() => void) | null = null;
-  let _rejectTransaction: ((err: Error) => void) | null = null;
   let transactionPromise: Promise<void> | null = null;
+  // PRC-L586: the tx-held promise so afterEach can AWAIT the rollback instead of
+  // firing-and-forgetting (which leaked an open transaction into the next test).
+  let txPromise: Promise<void> | null = null;
 
   const beforeEachHook = async () => {
-    transactionPromise = new Promise<void>((resolve, reject) => {
+    transactionPromise = new Promise<void>((resolve) => {
       resolveTransaction = resolve;
-      _rejectTransaction = reject;
     });
 
-    // Start a transaction that will be held open until afterEach
-    const txPromise = client.$transaction(async (tx) => {
-      currentTx = tx as TClient;
-      // Wait for the test to complete
-      await transactionPromise;
-      // Force rollback
-      throw new RollbackError();
+    // PRC-L586: resolve a "started" promise from INSIDE $transaction instead of
+    // guessing with setTimeout(..., 10). We wait on this so the transaction is
+    // provably open before the test runs — no race, no arbitrary delay.
+    let signalStarted: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
     });
 
-    // Suppress the expected rollback error
-    txPromise.catch((err) => {
-      if (!(err instanceof RollbackError)) {
-        throw err;
-      }
-    });
+    txPromise = client
+      .$transaction(async (tx) => {
+        currentTx = tx as TClient;
+        signalStarted();
+        // Hold the transaction open until afterEach resolves it.
+        await transactionPromise;
+        // Force rollback.
+        throw new RollbackError();
+      })
+      .then(
+        () => undefined,
+        (err: unknown) => {
+          // Suppress the expected rollback; re-throw anything real.
+          if (err instanceof RollbackError) return;
+          throw err;
+        },
+      );
 
-    // Give the transaction time to start
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await started;
   };
 
   const afterEachHook = async () => {
-    // Signal the transaction to complete (and rollback)
+    // Signal the transaction to complete (and rollback), then AWAIT it so the
+    // rollback is finished before the next test's beforeEach opens a new one.
     if (resolveTransaction) {
       resolveTransaction();
       resolveTransaction = null;
+    }
+    if (txPromise) {
+      await txPromise;
+      txPromise = null;
     }
     currentTx = null;
   };
