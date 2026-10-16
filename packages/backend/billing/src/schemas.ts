@@ -175,14 +175,21 @@ export const PlanListQuerySchema = Type.Object({
   status: Type.Optional(PlanStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name or description' })),
   sortBy: Type.Optional(
-    Type.String({
-      enum: ['name', 'tier', 'createdAt', 'sortOrder'],
-      default: 'sortOrder',
-      description: 'Sort field',
-    }),
+    Type.Union(
+      [
+        Type.Literal('name'),
+        Type.Literal('tier'),
+        Type.Literal('createdAt'),
+        Type.Literal('sortOrder'),
+      ],
+      { default: 'sortOrder', description: 'Sort field' },
+    ),
   ),
   sortOrder: Type.Optional(
-    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+      default: 'asc',
+      description: 'Sort direction',
+    }),
   ),
 });
 

@@ -315,11 +315,18 @@ export class LibraryService implements LibraryFinesPort {
     );
     const overdueCount = openLoans.filter((loan) => loan.dueAt.getTime() < Date.now()).length;
 
+    // PRC-L131: a student with unpaid library fines is not clear for transfer.
+    const fines = await this.repository.listFines(tenantId, studentId);
+    const openFines = fines.filter((f) => f.status === 'open');
+    const openFineAmountCents = openFines.reduce((sum, f) => sum + f.amountCents, 0);
+
     return {
       studentId,
-      clear: openLoans.length === 0,
+      clear: openLoans.length === 0 && openFines.length === 0,
       openLoanCount: openLoans.length,
       overdueCount,
+      openFineCount: openFines.length,
+      openFineAmountCents,
       openLoans,
       checkedAt: new Date(),
     };
@@ -397,13 +404,19 @@ export class LibraryService implements LibraryFinesPort {
   async getFinePolicy(tenantId: string) {
     const existing = await this.repository.getFinePolicy(tenantId);
     if (existing) return existing;
-    return this.repository.upsertFinePolicy({
+    // PRC-L131: a GET must be side-effect free. Return the default policy in
+    // memory without persisting a row. The policy is only written when staff
+    // explicitly PUT it via upsertFinePolicy.
+    const now = new Date();
+    return {
       id: uuidv4(),
       tenantId,
       centsPerDay: DEFAULT_CENTS_PER_DAY,
       capCents: DEFAULT_CAP_CENTS,
       currency: 'INR',
-    });
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   async upsertFinePolicy(
@@ -451,6 +464,25 @@ export class LibraryService implements LibraryFinesPort {
       throw new BusinessRuleError('Fine amountCents must be positive');
     }
 
+    // PRC-M526: the fine amount is money posted to the student's fee ledger.
+    // A library.write clerk must not be able to override the amount above the
+    // server-side policy cap. Any explicit override (amountCents/centsPerDay/
+    // capCents) is validated against the tenant policy cap; the cap itself may
+    // never be raised per-request.
+    if (input.capCents !== undefined && input.capCents > policy.capCents) {
+      throw new BusinessRuleError(
+        `Fine cap ${input.capCents} exceeds the tenant policy cap ${policy.capCents}`,
+      );
+    }
+    if (policy.capCents > 0 && amountCents > policy.capCents) {
+      throw new BusinessRuleError(
+        `Fine amount ${amountCents} exceeds the tenant policy cap ${policy.capCents}`,
+      );
+    }
+
+    // PRC-M526: the currency is the tenant policy currency, never a client value.
+    const currency = policy.currency;
+
     const item = await this.repository.findItemById(loan.itemId, tenantId);
     const title = input.title ?? `Library fine — ${item?.title ?? loan.itemId}`;
     const description =
@@ -465,7 +497,7 @@ export class LibraryService implements LibraryFinesPort {
         title,
         description,
         amountCents,
-        currency: input.currency ?? policy.currency,
+        currency,
         loanId: loan.id,
       });
       invoiceId = invoice.id;
@@ -477,7 +509,7 @@ export class LibraryService implements LibraryFinesPort {
       loanId: loan.id,
       studentId: loan.studentId,
       amountCents,
-      currency: input.currency ?? policy.currency,
+      currency,
       overdueDays: days,
       status: 'open',
       invoiceId,

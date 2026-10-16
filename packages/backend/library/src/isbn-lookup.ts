@@ -5,6 +5,8 @@
  * Tests and the default path use the offline stub — never the network.
  */
 
+import { AppError } from '@proctira/common';
+
 export interface IsbnLookupResult {
   isbn: string;
   title: string;
@@ -63,21 +65,51 @@ export class StubIsbnLookup implements IsbnLookup {
 }
 
 export class OpenLibraryIsbnLookup implements IsbnLookup {
-  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(
+    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly timeoutMs = 5000,
+  ) {}
 
   async lookup(isbn: string): Promise<IsbnLookupResult | null> {
     const key = normalizeIsbn(isbn);
     if (!key) return null;
-    const response = await this.fetchImpl(
-      `https://openlibrary.org/isbn/${encodeURIComponent(key)}.json`,
-    );
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
+    // PRC-L328: outbound HTTP must not pin a request handler indefinitely and a
+    // network error / non-JSON body must not surface as an unhandled 500.
+    // Bound the call with an abort timeout and map any transport failure to a
+    // 503 so the caller sees a retryable upstream error, not a crash.
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await this.fetchImpl(
+        `https://openlibrary.org/isbn/${encodeURIComponent(key)}.json`,
+        { signal: AbortSignal.timeout(this.timeoutMs) },
+      );
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      throw new AppError(`ISBN catalog lookup failed: ${reason}`, 'ISBN_LOOKUP_UNAVAILABLE', 503);
+    }
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new AppError(
+        `ISBN catalog lookup failed with upstream status ${response.status}`,
+        'ISBN_LOOKUP_UNAVAILABLE',
+        503,
+      );
+    }
+    let body: {
       title?: string;
       authors?: Array<{ name?: string }>;
       publishers?: string[];
       publish_date?: string;
     };
+    try {
+      body = (await response.json()) as typeof body;
+    } catch {
+      throw new AppError(
+        'ISBN catalog lookup returned a non-JSON response',
+        'ISBN_LOOKUP_UNAVAILABLE',
+        503,
+      );
+    }
     const title = body.title?.trim();
     if (!title) return null;
     const yearMatch = body.publish_date?.match(/(19|20)\d{2}/);
