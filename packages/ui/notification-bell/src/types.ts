@@ -38,4 +38,9 @@ export interface NotificationBellProps {
   disabled?: boolean;
   /** Additional CSS class name */
   className?: string;
+  /**
+   * BCP-47 locale (or locale list) used to format relative timestamps
+   * (`Intl.RelativeTimeFormat`). Defaults to the runtime locale when omitted.
+   */
+  locale?: string | string[];
 }

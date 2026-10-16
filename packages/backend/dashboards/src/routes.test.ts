@@ -181,8 +181,23 @@ function seedFixtures(repository: InMemoryDashboardRepository): void {
     pendingTasks: [],
   });
 
+  // PRC-M591: a second school in the SAME state as the principal above.
+  // Used to prove a principal cannot read a sibling school in their area.
+  repository.setSchoolAggregate(TENANT_ID, 'inst-MH-002', 'state-MH', {
+    institutionId: 'inst-MH-002',
+    institutionName: 'MH School 2',
+    kpis: {
+      totalStudents: 210,
+      attendanceRatePercent: 91,
+      staffOnDuty: 19,
+      totalStaff: 21,
+      pendingApprovals: 2,
+    },
+    recentActivity: [],
+    pendingTasks: [],
+  });
+
   repository.setSchoolAggregate(TENANT_ID, 'inst-KA-001', 'state-KA', {
-    institutionId: 'inst-KA-001',
     institutionName: 'KA School 1',
     kpis: {
       totalStudents: 180,
@@ -459,6 +474,31 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
       const response = await harness.app.inject({
         method: 'GET',
         url: '/dashboards/school/inst-KA-001',
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('FORBIDDEN');
+    });
+
+    // PRC-M591: a principal must NOT read another school in their own state.
+    // Before the fix, the principal's role.areaId ('state-MH') was added to
+    // areaIds, so the repository's area check authorised every MH school.
+    it('blocks a principal from reading a sibling school in the SAME state (PRC-M591)', async () => {
+      harness.authJwt.value = jwtFor({
+        roles: [
+          {
+            roleId: 'principal',
+            roleName: 'Principal',
+            areaId: 'state-MH',
+            institutionId: 'inst-MH-001',
+          },
+        ],
+        institutions: ['inst-MH-001'],
+      });
+
+      const response = await harness.app.inject({
+        method: 'GET',
+        url: '/dashboards/school/inst-MH-002',
       });
 
       expect(response.statusCode).toBe(403);

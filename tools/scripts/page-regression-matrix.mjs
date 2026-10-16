@@ -31,7 +31,10 @@ const pages = walk(APP_DIR, (f) => f === 'page.tsx')
   .map((file) => {
     const segments = relative(APP_DIR, dirname(file))
       .split(sep)
-      .filter((seg) => seg.length > 0 && !(seg.startsWith('(') && seg.endsWith(')')));
+      .filter((seg) => seg.length > 0 && !(seg.startsWith('(') && seg.endsWith(')')))
+      // Next.js serves `%5F…` folders at `_…` (escapes the private-folder
+      // convention), so match specs against the decoded URL path.
+      .map((seg) => decodeURIComponent(seg));
     const group = relative(APP_DIR, dirname(file)).split(sep)[0] ?? '';
     return { route: segments.length ? `/${segments.join('/')}` : '/', group };
   })

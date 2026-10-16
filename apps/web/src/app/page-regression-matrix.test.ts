@@ -32,6 +32,10 @@ function collectPages(dir: string, acc: Set<string>): Set<string> {
     if (entry !== 'page.tsx') continue;
     const segments = relative(APP_DIR, dirname(full))
       .split(sep)
+      // PRC-L531: `%5F%5Ftests` is a URL-encoded folder whose live route
+      // segment decodes to `__tests`; decode so the matrix matches the real
+      // URL (and the e2e that navigates to `/__tests/error-boundary`).
+      .map((seg) => decodeURIComponent(seg))
       .filter((seg) => seg.length > 0 && !(seg.startsWith('(') && seg.endsWith(')')));
     acc.add(segments.length ? `/${segments.join('/')}` : '/');
   }

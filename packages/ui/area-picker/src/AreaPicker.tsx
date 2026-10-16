@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, useId } from 'react';
 
 import type { AreaPickerProps, AreaNode } from './types';
 
@@ -45,6 +45,17 @@ export function AreaPicker({
   const selectedCacheRef = useRef<Map<string, AreaNode>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // PRC-M454: APG tree keyboard model. The trigger regains focus on close, the
+  // tree exposes a single tab stop (roving tabindex), and the currently
+  // focused treeitem is tracked by id so Arrow/Home/End can move between the
+  // flattened set of *visible* nodes.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const treeItemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  // PRC-M454: unique id for the search input so two pickers on one page do not
+  // collide (previously a hard-coded `area-picker-search`).
+  const reactId = useId();
+  const searchInputId = `area-picker-search-${reactId}`;
 
   const getChildren = useCallback(
     (node: AreaNode): AreaNode[] | undefined => loadedChildren.get(node.id) ?? node.children,
@@ -84,6 +95,34 @@ export function AreaPicker({
     [searchQuery, getChildren],
   );
 
+  // PRC-M454: flatten the currently *visible* tree (respecting search filter,
+  // expansion and maxDepth) into the order a keyboard user traverses it. This
+  // is the model Arrow/Home/End move through.
+  interface VisibleNode {
+    node: AreaNode;
+    depth: number;
+    hasChildren: boolean;
+    isExpanded: boolean;
+  }
+  const visibleNodes = useMemo<VisibleNode[]>(() => {
+    const out: VisibleNode[] = [];
+    const walk = (nodes: AreaNode[], depth: number) => {
+      if (maxDepth !== undefined && depth > maxDepth) return;
+      for (const node of nodes) {
+        if (!matchesSearch(node)) continue;
+        const children = getChildren(node);
+        const hasChildren = (children && children.length > 0) || !!onLoadChildren;
+        const isExpanded = expandedIds.has(node.id);
+        out.push({ node, depth, hasChildren, isExpanded });
+        if (hasChildren && isExpanded && children) {
+          walk(children, depth + 1);
+        }
+      }
+    };
+    walk(areas, 0);
+    return out;
+  }, [areas, matchesSearch, getChildren, onLoadChildren, expandedIds, maxDepth]);
+
   // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -95,16 +134,53 @@ export function AreaPicker({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close on Escape
+  // Close on Escape — PRC-M454: return focus to the trigger button.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isOpen) {
         setIsOpen(false);
+        triggerRef.current?.focus();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
+
+  // PRC-M454: keep a ref to the latest visible nodes so the open-focus effect
+  // can seed the roving focus without taking `visibleNodes` as a dependency
+  // (which would re-run it on every expand/filter change).
+  const visibleNodesRef = useRef(visibleNodes);
+  visibleNodesRef.current = visibleNodes;
+
+  // PRC-M454: on open, seed the roving focus to the first visible node (or the
+  // search box when searchable) so keyboard users land inside the tree.
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveNodeId(null);
+      return;
+    }
+    if (searchable) {
+      searchInputRef.current?.focus();
+    }
+    const first = visibleNodesRef.current[0];
+    if (first) setActiveNodeId((prev) => prev ?? first.node.id);
+  }, [isOpen, searchable]);
+
+  // PRC-M454: move DOM focus to the active treeitem whenever it changes while open.
+  useEffect(() => {
+    if (!isOpen || activeNodeId == null) return;
+    treeItemRefs.current.get(activeNodeId)?.focus();
+  }, [isOpen, activeNodeId]);
+
+  const focusNodeAt = useCallback(
+    (index: number) => {
+      if (visibleNodes.length === 0) return;
+      const clamped = Math.max(0, Math.min(index, visibleNodes.length - 1));
+      const target = visibleNodes[clamped];
+      if (target) setActiveNodeId(target.node.id);
+    },
+    [visibleNodes],
+  );
 
   const toggleExpand = useCallback(
     async (nodeId: string) => {
@@ -170,6 +246,63 @@ export function AreaPicker({
     [multiple, selectedIds, lookupNode, onSelect],
   );
 
+  // PRC-M454: APG tree keyboard interaction. Handles Arrow navigation, Home/End,
+  // Enter/Space selection and Right/Left expand/collapse against `visibleNodes`.
+  const handleTreeKeyDown = useCallback(
+    (event: React.KeyboardEvent, item: VisibleNode) => {
+      const index = visibleNodes.findIndex((v) => v.node.id === item.node.id);
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          focusNodeAt(index + 1);
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          focusNodeAt(index - 1);
+          break;
+        case 'Home':
+          event.preventDefault();
+          focusNodeAt(0);
+          break;
+        case 'End':
+          event.preventDefault();
+          focusNodeAt(visibleNodes.length - 1);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          if (item.hasChildren && !item.isExpanded) {
+            void toggleExpand(item.node.id);
+          } else if (item.hasChildren && item.isExpanded) {
+            focusNodeAt(index + 1);
+          }
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          if (item.hasChildren && item.isExpanded) {
+            void toggleExpand(item.node.id);
+          } else {
+            // Move to parent: the nearest preceding node with a smaller depth.
+            for (let i = index - 1; i >= 0; i -= 1) {
+              const candidate = visibleNodes[i];
+              if (candidate && candidate.depth < item.depth) {
+                focusNodeAt(i);
+                break;
+              }
+            }
+          }
+          break;
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          handleSelect(item.node);
+          break;
+        default:
+          break;
+      }
+    },
+    [visibleNodes, focusNodeAt, toggleExpand, handleSelect],
+  );
+
   const getSelectedLabel = (): string => {
     if (selectedIds.length === 0) return placeholder;
     if (selectedIds.length === 1) {
@@ -194,6 +327,10 @@ export function AreaPicker({
     const isLoading = loadingNodes.has(node.id);
     const loadError = loadErrors.get(node.id);
     const isSelectable = node.selectable !== false;
+    // PRC-M454: roving tabindex — exactly one treeitem is tabbable. The active
+    // node (or the first visible node as a fallback) carries tabIndex 0.
+    const fallbackActiveId = activeNodeId ?? visibleNodes[0]?.node.id;
+    const isActive = node.id === fallbackActiveId;
 
     return (
       <li
@@ -203,6 +340,21 @@ export function AreaPicker({
         aria-selected={isSelected}
         aria-level={depth + 1}
         className="proctira-area-picker__node"
+        tabIndex={isActive ? 0 : -1}
+        ref={(el) => {
+          if (el) treeItemRefs.current.set(node.id, el);
+          else treeItemRefs.current.delete(node.id);
+        }}
+        onKeyDown={(event) => {
+          // keydown bubbles from nested treeitems; only the focused item handles it.
+          if (event.target !== event.currentTarget) return;
+          handleTreeKeyDown(event, { node, depth, hasChildren: !!hasChildren, isExpanded });
+        }}
+        onFocus={(event) => {
+          // onFocus (focusin) bubbles — only claim the roving focus when this
+          // specific treeitem is the focus target, not a descendant treeitem.
+          if (event.target === event.currentTarget) setActiveNodeId(node.id);
+        }}
       >
         <div
           className={`proctira-area-picker__node-content ${isSelected ? 'proctira-area-picker__node-content--selected' : ''}`}
@@ -211,6 +363,7 @@ export function AreaPicker({
           {hasChildren && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => void toggleExpand(node.id)}
               className="proctira-area-picker__expand-btn"
               aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
@@ -228,6 +381,7 @@ export function AreaPicker({
           {!hasChildren && <span className="proctira-area-picker__spacer" aria-hidden="true" />}
           <button
             type="button"
+            tabIndex={-1}
             onClick={() => handleSelect(node)}
             className={`proctira-area-picker__select-btn ${!isSelectable ? 'proctira-area-picker__select-btn--disabled' : ''}`}
             disabled={disabled || !isSelectable}
@@ -277,6 +431,7 @@ export function AreaPicker({
       {/* Trigger button */}
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className="proctira-area-picker__trigger"
         aria-haspopup="tree"
@@ -295,12 +450,12 @@ export function AreaPicker({
         <div className="proctira-area-picker__dropdown" role="presentation">
           {searchable && (
             <div className="proctira-area-picker__search">
-              <label htmlFor="area-picker-search" className="sr-only">
+              <label htmlFor={searchInputId} className="sr-only">
                 Search areas
               </label>
               <input
                 ref={searchInputRef}
-                id="area-picker-search"
+                id={searchInputId}
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

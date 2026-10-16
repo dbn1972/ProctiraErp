@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useMotionPreference } from '@proctira/ui-motion-gate';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+
 import type { NotificationBellProps, Notification } from './types';
 
 /**
@@ -30,6 +31,7 @@ export function NotificationBell({
   maxVisible = 5,
   disabled = false,
   className = '',
+  locale,
 }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,17 +73,24 @@ export function NotificationBell({
 
   const formatTime = (dateStr: string): string => {
     const date = new Date(dateStr);
+    // PRC-L526: guard invalid/garbage timestamps so the UI never renders
+    // "NaNm ago". Fall back to the raw string the caller supplied so the item
+    // still conveys *something* rather than a broken relative label.
+    if (Number.isNaN(date.getTime())) return dateStr;
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    // PRC-L526: use Intl.RelativeTimeFormat so relative labels honour the
+    // caller-supplied (or runtime) locale instead of being hard-coded English.
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    if (diffMins < 1) return rtf.format(0, 'second');
+    if (diffMins < 60) return rtf.format(-diffMins, 'minute');
+    if (diffHours < 24) return rtf.format(-diffHours, 'hour');
+    if (diffDays < 7) return rtf.format(-diffDays, 'day');
+    return date.toLocaleDateString(locale);
   };
 
   const getTypeIcon = (type: Notification['type']): string => {
@@ -94,6 +103,22 @@ export function NotificationBell({
         return '❌';
       case 'success':
         return '✅';
+    }
+  };
+
+  // PRC-L525: emoji icons are decorative (aria-hidden); the type must also be
+  // conveyed as text for assistive tech. This label is folded into each item's
+  // aria-label and rendered as sr-only text next to the icon.
+  const getTypeLabel = (type: Notification['type']): string => {
+    switch (type) {
+      case 'info':
+        return 'Information';
+      case 'warning':
+        return 'Warning';
+      case 'error':
+        return 'Error';
+      case 'success':
+        return 'Success';
     }
   };
 
@@ -126,6 +151,18 @@ export function NotificationBell({
           />
         )}
       </button>
+
+      {/*
+       * PRC-L525: polite live region so screen-reader users are told when
+       * real-time notifications arrive. The pulse dot above is decorative
+       * (aria-hidden); this region carries the equivalent text update and
+       * re-announces whenever the unread count changes.
+       */}
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {hasRealTimeUpdates && effectiveUnreadCount > 0
+          ? `${effectiveUnreadCount} unread notification${effectiveUnreadCount === 1 ? '' : 's'}. New notifications available.`
+          : ''}
+      </span>
 
       {/* Dropdown panel */}
       {isOpen && (
@@ -173,11 +210,12 @@ export function NotificationBell({
                     type="button"
                     onClick={() => handleNotificationClick(notification)}
                     className="proctira-notification-bell__item-btn"
-                    aria-label={`${notification.read ? '' : 'Unread: '}${notification.title}. ${notification.message}. ${formatTime(notification.createdAt)}`}
+                    aria-label={`${notification.read ? '' : 'Unread: '}${getTypeLabel(notification.type)}. ${notification.title}. ${notification.message}. ${formatTime(notification.createdAt)}`}
                   >
                     <span className="proctira-notification-bell__item-icon" aria-hidden="true">
                       {notification.icon ?? getTypeIcon(notification.type)}
                     </span>
+                    <span className="sr-only">{getTypeLabel(notification.type)}</span>
                     <div className="proctira-notification-bell__item-content">
                       <span className="proctira-notification-bell__item-title">
                         {notification.title}
