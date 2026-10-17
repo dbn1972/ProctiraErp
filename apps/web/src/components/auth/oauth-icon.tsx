@@ -1,3 +1,5 @@
+import type { JSX } from 'react';
+
 /**
  * Brand icons for the supported OAuth/OIDC providers.
  * Pulled from the official brand guidelines and inlined as SVG so we don't

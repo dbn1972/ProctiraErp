@@ -24,6 +24,7 @@
  * routes existed. Rendering it here would have published 45 dead links on the one page
  * where a dead link matters most. See `LegalDocumentChrome`.
  */
+import type { JSX } from 'react';
 import PrivacyPolicy from '@/features/legal/PrivacyPolicy';
 
 export default function PrivacyPolicyPage(): JSX.Element {

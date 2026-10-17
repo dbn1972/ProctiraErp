@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { createTenantAction, type CreateTenantState } from '../actions';
 const initialState: CreateTenantState = {};
 
 export function NewTenantForm() {
-  const [state, formAction] = useFormState(createTenantAction, initialState);
+  const [state, formAction] = useActionState(createTenantAction, initialState);
 
   return (
     <form className="grid gap-4 sm:grid-cols-2" action={formAction} noValidate>

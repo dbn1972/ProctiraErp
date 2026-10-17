@@ -31,7 +31,6 @@
  * the current set of selected ids from `selectedIds` so the row's
  * "Added" state stays in sync with the parent's `<RankedPreference>`.
  */
-
 import {
   useCallback,
   useEffect,
@@ -39,6 +38,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type JSX,
   type KeyboardEvent,
 } from 'react';
 

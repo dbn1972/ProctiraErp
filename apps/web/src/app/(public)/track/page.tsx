@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { ApplicationTracking } from './application-tracking';

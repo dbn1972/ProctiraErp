@@ -29,7 +29,6 @@
  * (`schoolSelectionSchema` in `../schemas.ts`); this component refuses to
  * accept more than three entries as a defensive measure.
  */
-
 import {
   DndContext,
   KeyboardSensor,
@@ -47,7 +46,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type JSX,
+  type KeyboardEvent,
+} from 'react';
 
 import type { SchoolPreference } from '../schemas';
 

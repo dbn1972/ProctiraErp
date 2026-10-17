@@ -1,6 +1,7 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { TenantCombobox, type TenantOption } from '@/components/tenant-combobox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -27,7 +28,7 @@ export function BreakGlassRequestForm({
   tenants: TenantOption[];
   initialTenantId?: string;
 }) {
-  const [state, formAction] = useFormState(createBreakGlassAction, initialState);
+  const [state, formAction] = useActionState(createBreakGlassAction, initialState);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>

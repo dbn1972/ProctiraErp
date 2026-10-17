@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useRef, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ const CONFIRM_COPY: Record<string, { title: string; description: string }> = {
 };
 
 export function PluginDecisionForm({ pluginId }: { pluginId: string }) {
-  const [state, formAction] = useFormState(pluginDecisionAction, initialState);
+  const [state, formAction] = useActionState(pluginDecisionAction, initialState);
 
   return (
     <form action={formAction} className="space-y-3" noValidate>

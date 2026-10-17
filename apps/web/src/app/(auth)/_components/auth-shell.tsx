@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { BarChart3, Shield, Sparkles } from 'lucide-react';
 
 import { LanguageSelector } from '@/components/LanguageSelector';

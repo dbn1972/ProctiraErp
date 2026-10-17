@@ -28,6 +28,7 @@
  * descriptor and an `onNavigate(step)` callback. It does not own the
  * state machine — that lives in `useRegistrationWizard`.
  */
+import type { JSX } from 'react';
 
 import { Check } from 'lucide-react';
 import { Fragment, useEffect, useRef } from 'react';

@@ -13,6 +13,7 @@
  * effect on the next request because the backend reads role permissions
  * per-request (no client-side caching on the policy registry).
  */
+import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import {
@@ -582,15 +583,7 @@ function PermissionMatrixView({
   onSave: () => void | Promise<void>;
   onReset: () => void;
 }): JSX.Element {
-  if (!selectedRole) {
-    return (
-      <Alert>
-        <AlertDescription>Select a role to edit its permissions.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  const effectivePermissions = pendingPermissions ?? selectedRole.permissions;
+  // Hooks must run unconditionally before any early return (react-hooks/rules-of-hooks).
   const sortedPermissions = useMemo(
     () =>
       [...permissions].sort((a, b) =>
@@ -600,6 +593,16 @@ function PermissionMatrixView({
       ),
     [permissions],
   );
+
+  if (!selectedRole) {
+    return (
+      <Alert>
+        <AlertDescription>Select a role to edit its permissions.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const effectivePermissions = pendingPermissions ?? selectedRole.permissions;
 
   return (
     <div className="space-y-4">
