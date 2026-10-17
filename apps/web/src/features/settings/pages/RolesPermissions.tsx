@@ -583,15 +583,7 @@ function PermissionMatrixView({
   onSave: () => void | Promise<void>;
   onReset: () => void;
 }): JSX.Element {
-  if (!selectedRole) {
-    return (
-      <Alert>
-        <AlertDescription>Select a role to edit its permissions.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  const effectivePermissions = pendingPermissions ?? selectedRole.permissions;
+  // Hooks must run unconditionally before any early return (react-hooks/rules-of-hooks).
   const sortedPermissions = useMemo(
     () =>
       [...permissions].sort((a, b) =>
@@ -601,6 +593,16 @@ function PermissionMatrixView({
       ),
     [permissions],
   );
+
+  if (!selectedRole) {
+    return (
+      <Alert>
+        <AlertDescription>Select a role to edit its permissions.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const effectivePermissions = pendingPermissions ?? selectedRole.permissions;
 
   return (
     <div className="space-y-4">
