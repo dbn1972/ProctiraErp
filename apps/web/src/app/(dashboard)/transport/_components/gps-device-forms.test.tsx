@@ -29,7 +29,13 @@ describe('GpsDeviceForms device key (PRC-L251)', () => {
     expect(screen.getByLabelText(/device key$/i, { selector: '#dev-key-value' })).toHaveValue(
       'secret-key',
     );
-    expect(screen.getByRole('button', { name: /register device/i })).toBeDisabled();
+    // React 19 keeps useTransition pending until the async action fully settles,
+    // so the register button can still read "Registering…" on the render that
+    // first shows the key panel. Wait for the transition to settle before
+    // asserting the label (the button is disabled throughout either way).
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /register device/i })).toBeDisabled(),
+    );
     expect(panel).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /i have stored it/i }));
     expect(screen.queryByTestId('transport-device-key')).not.toBeInTheDocument();

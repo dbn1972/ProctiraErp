@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Suspense } from 'react';
 
 import { MfaSetupLoader } from './mfa-setup-loader';

@@ -13,6 +13,7 @@
  * effect on the next request because the backend reads role permissions
  * per-request (no client-side caching on the policy registry).
  */
+import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import {

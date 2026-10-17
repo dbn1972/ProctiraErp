@@ -46,6 +46,7 @@
  */
 'use client';
 
+import type { JSX } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';

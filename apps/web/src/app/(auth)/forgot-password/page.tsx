@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { AuthShell } from '../_components/auth-shell';
 import { ForgotPasswordForm } from './forgot-password-form';
 

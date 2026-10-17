@@ -1,4 +1,5 @@
 'use client';
+import type { JSX } from 'react';
 
 /**
  * MarketingFooter — Public site footer (Task 50.1, Requirement 31 AC 2).

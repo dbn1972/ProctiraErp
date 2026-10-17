@@ -8,6 +8,7 @@
  * The signup form links here from its consent copy, so until now a user was asked to
  * accept terms they could not open.
  */
+import type { JSX } from 'react';
 import TermsOfService from '@/features/legal/TermsOfService';
 
 export default function TermsOfServicePage(): JSX.Element {

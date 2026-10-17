@@ -14,6 +14,7 @@
  *
  * Validates: Requirements 21.1, 21.2, 21.3, 21.4
  */
+import type { JSX } from 'react';
 
 import { useCallback, useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';

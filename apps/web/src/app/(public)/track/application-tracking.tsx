@@ -63,7 +63,7 @@ type ViewState =
 export function ApplicationTracking({
   fetcher,
   initialTrackingNumber = '',
-}: ApplicationTrackingProps): JSX.Element {
+}: ApplicationTrackingProps): React.JSX.Element {
   const { t } = useLanguage();
   const inputId = useId();
   const dobId = useId();
@@ -208,7 +208,7 @@ export function ApplicationTracking({
 
 // ─── Result view ───────────────────────────────────────────────────────────
 
-function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element {
+function ResultView({ data }: { data: ApplicationTrackingResult }): React.JSX.Element {
   const { t } = useLanguage();
 
   return (
@@ -263,7 +263,13 @@ function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element 
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -274,7 +280,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value }: { label: string; value: string }): JSX.Element {
+function Field({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
@@ -298,7 +304,7 @@ const STATUS_VARIANTS: Record<string, StatusVariant> = {
   waitlisted: { variant: 'warning', labelKey: 'tracking.statusWaitlisted' },
 };
 
-function StatusBadge({ status }: { status: ApplicationStatus }): JSX.Element {
+function StatusBadge({ status }: { status: ApplicationStatus }): React.JSX.Element {
   const { t } = useLanguage();
   const variant = STATUS_VARIANTS[status];
   const label = variant ? t(variant.labelKey) : t('tracking.statusUnknown', { status });
@@ -317,7 +323,7 @@ function NotFoundView({
 }: {
   trackingNumber: string;
   onReset: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const { t } = useLanguage();
   return (
     <Alert variant="warning" data-testid="tracking-not-found">
@@ -333,7 +339,7 @@ function NotFoundView({
   );
 }
 
-function ErrorView({ onRetry }: { onRetry: () => void }): JSX.Element {
+function ErrorView({ onRetry }: { onRetry: () => void }): React.JSX.Element {
   const { t } = useLanguage();
   return (
     <Alert variant="destructive" data-testid="tracking-error">

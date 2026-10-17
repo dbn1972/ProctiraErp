@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Suspense } from 'react';
 import { LoginForm } from './login-form';
 import { LanguageSelector } from '@/components/LanguageSelector';

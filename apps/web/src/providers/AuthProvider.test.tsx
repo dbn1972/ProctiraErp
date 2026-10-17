@@ -22,7 +22,7 @@ vi.mock('@/lib/auth/session', () => ({
 
 import { AuthProvider, isAuthDemoModeEnabled, useAuth, type AuthUser } from './AuthProvider';
 
-function Probe(): JSX.Element {
+function Probe(): React.JSX.Element {
   const auth = useAuth();
   return (
     <div>

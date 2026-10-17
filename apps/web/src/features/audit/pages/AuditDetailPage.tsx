@@ -9,6 +9,7 @@
  *
  * Validates: Requirements 21.1, 21.2, 21.3, 21.4 (Requirement 33.4 — high-risk diff)
  */
+import type { JSX } from 'react';
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';

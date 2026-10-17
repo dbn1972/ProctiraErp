@@ -1,4 +1,5 @@
 'use client';
+import type { JSX } from 'react';
 /**
  * Minimal chrome for a standalone legal document.
  *
