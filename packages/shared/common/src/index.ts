@@ -67,6 +67,15 @@ export {
 } from './money/cents.js';
 export type { MajorUnitsToCentsOptions } from './money/cents.js';
 
+// Decision D1: canonical currency model (ISO-4217 + integer minor units, default INR,
+// per-COUNTRY resolution seeded India→INR; no per-tenant currency).
+export {
+  DEFAULT_CURRENCY,
+  assertIso4217Code,
+  currencyForCountry,
+  isIso4217Code,
+} from './money/currency.js';
+
 // W1-ARCH-08: fail-closed production provider mode (sandbox opt-in only)
 export {
   readProviderModeEnv,

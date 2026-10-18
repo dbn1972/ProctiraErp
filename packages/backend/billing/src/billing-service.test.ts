@@ -107,6 +107,48 @@ describe('BillingService', () => {
     });
   });
 
+  // PRC-L087 / Decision D1: plan prices carry an ISO-4217 currency, default INR.
+  describe('PRC-L087 plan price currency (Decision D1)', () => {
+    it('defaults the plan currency to INR when none is supplied', async () => {
+      const plan = await service.createPlan(createProPlan());
+      expect(plan.currency).toBe('INR');
+    });
+
+    it('persists an explicit valid ISO-4217 currency', async () => {
+      const plan = await service.createPlan({
+        ...createProPlan(),
+        name: 'Explicit currency',
+        currency: 'EUR',
+      });
+      expect(plan.currency).toBe('EUR');
+    });
+
+    it('rejects an invalid currency code on create', async () => {
+      for (const bad of ['usd', 'US', 'DOLLAR'] as unknown as string[]) {
+        await expect(
+          service.createPlan({ ...createProPlan(), name: `bad-${bad}`, currency: bad }),
+        ).rejects.toThrow(BusinessRuleError);
+      }
+    });
+
+    it('rejects a non-integer / negative monthly price', async () => {
+      await expect(
+        service.createPlan({
+          ...createProPlan(),
+          name: 'Negative monthly',
+          priceMonthly: -1 as unknown as number,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('rejects an invalid currency code on update', async () => {
+      const plan = await service.createPlan(createProPlan());
+      await expect(
+        service.updatePlan(plan.id, { currency: 'usd' as unknown as string }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+  });
+
   // ─── Plan Management ───────────────────────────────────────────────────
 
   describe('Plan Management', () => {

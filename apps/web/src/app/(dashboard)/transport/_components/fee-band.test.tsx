@@ -12,7 +12,10 @@ vi.mock('@/lib/transport/api', async (orig) => ({
   createTransportFeeStructure,
 }));
 
+import { currencyForCountry } from '@proctira/common';
+
 import { createTransportFeeStructureAction } from '../actions';
+import { feeBandSchema } from './fee-band-schema';
 import { FeesPanel } from './fees-panel';
 
 const base = { name: 'Band A', amountCents: 150_000, currency: 'INR' };
@@ -38,6 +41,25 @@ describe('createTransportFeeStructureAction (PRC-L059)', () => {
     });
     expect(result.status).toBe('error');
     expect(createTransportFeeStructure).not.toHaveBeenCalled();
+  });
+
+  // PRC-L059 / Decision D1: fee currency is sourced from the country→currency path.
+  it('resolves the transport fee currency to INR via the shared helper (not a literal)', () => {
+    expect(currencyForCountry('IN')).toBe('INR');
+  });
+
+  it('rejects an invalid (non-ISO-4217) currency code without calling the API', async () => {
+    for (const bad of ['usd', 'US', 'DOLLAR']) {
+      const result = await createTransportFeeStructureAction({ ...base, currency: bad });
+      expect(result.status).toBe('error');
+    }
+    expect(createTransportFeeStructure).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-integer or negative amount in the shared schema', () => {
+    expect(feeBandSchema.safeParse({ name: 'x', amountCents: 10.5 }).success).toBe(false);
+    expect(feeBandSchema.safeParse({ name: 'x', amountCents: -1 }).success).toBe(false);
+    expect(feeBandSchema.safeParse({ name: 'x', amountCents: 150_000 }).success).toBe(true);
   });
 
   it('warns when the created band is not linked to Fees', async () => {
