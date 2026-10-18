@@ -155,13 +155,9 @@ export class RolesService {
       assertWithinPermissionCeiling(actor.actorPermissions, input.permissions, 'createRole');
     }
 
-    const collision = await this.repository.findRoleByName(tenantId, input.name);
-    if (collision) {
-      throw new ConflictError(`Role with name '${input.name}' already exists`);
-    }
-
     const id = uuidv4();
-    const role = await this.repository.createRole({
+    // PRC-L371: atomic conditional insert replaces the check-then-insert race.
+    const role = await this.repository.createRoleIfNameAbsent({
       id,
       tenantId,
       roleId: id,
@@ -170,6 +166,9 @@ export class RolesService {
       builtIn: false,
       permissions: input.permissions.map((p) => ({ ...p })),
     });
+    if (!role) {
+      throw new ConflictError(`Role with name '${input.name}' already exists`);
+    }
 
     await this.emitAudit({
       tenantId,
@@ -370,10 +369,6 @@ export class RolesService {
         { field: 'email', rule: 'format', message: 'email must be a valid address' },
       ]);
     }
-    const existing = await this.repository.findUserByEmail(tenantId, email);
-    if (existing) {
-      throw new ConflictError(`A user with e-mail '${email}' already exists in this tenant`);
-    }
     const dedup = Array.from(new Set(input.roleIds));
     for (const rid of dedup) {
       const role = await this.repository.findRoleById(tenantId, rid);
@@ -383,7 +378,9 @@ export class RolesService {
         ]);
       }
     }
-    const user = await this.repository.upsertUser({
+    // PRC-L371: atomic conditional insert replaces the check-then-insert race —
+    // two concurrent invites for the same e-mail cannot both create a record.
+    const user = await this.repository.insertUserIfEmailAbsent({
       id: uuidv4(),
       tenantId,
       email,
@@ -391,6 +388,9 @@ export class RolesService {
       roleIds: dedup,
       status: 'INVITED',
     });
+    if (!user) {
+      throw new ConflictError(`A user with e-mail '${email}' already exists in this tenant`);
+    }
     await this.emitAudit({
       tenantId,
       entityType: 'user',
