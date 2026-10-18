@@ -47,3 +47,45 @@ Platform/government: `system_admin` (10), `platform_admin` (5), `board_admin`
 Approve extending the realm to the ~30 canonical roles (with synonym
 normalisation), or provide a different authoritative taxonomy? Implementation is
 blocked until this is confirmed, because the realm export is a security artifact.
+
+
+---
+
+## D2 APPROVED (owner): normalize synonyms, then extend realm to ~30 distinct roles
+
+**Authoritative sources found:**
+- Realm export: `infra/keycloak/proctira-realm.json` (6 roles).
+- Central catalogue: `KEYCLOAK_REALM_ROLES` in
+  `packages/backend/auth/src/keycloak/roles.ts` and `DEFAULT_ROLES` in
+  `packages/shared/auth/src/rbac.ts` — both define only the SAME 6 roles.
+- The ~30 domain roles exist only as scattered string literals in per-module
+  RBAC allow-lists, not in the central catalogue — that is the real gap.
+
+**Confirmed synonym rules (evidence-based — do NOT over-collapse):**
+- COLLAPSE `exam_officer`, `exam-officer`, `examinations_officer` → one
+  canonical `examinations_officer` (they are used interchangeably in the same
+  arrays).
+- COLLAPSE `system_admin` → `platform_admin` (never co-occur; same tier). Keep
+  `super-admin`/`admin` as the existing realm roles; `platform_admin` is the
+  platform-operator tier.
+- COLLAPSE `nurse` → `school_nurse` (confirm no distinct meaning).
+- **DO NOT collapse `parent` and `guardian`** — they appear TOGETHER in the same
+  role arrays (`['parent','guardian','student']`), so they are DISTINCT roles.
+  Both must be added as canonical roles.
+- Treat `staff_admin` / `school_admin` and other near-duplicates case-by-case by
+  checking co-occurrence; only collapse pairs that never co-occur AND have no
+  distinct permission set.
+
+**Work (three coordinated changes, one reviewed PR):**
+1. Normalize the confirmed synonym spellings across backend module RBAC literals.
+2. Add the resulting ~30 canonical roles to `KEYCLOAK_REALM_ROLES`,
+   `DEFAULT_ROLES` (with permission definitions matching current usage), and the
+   realm export JSON.
+3. Point the scattered literals at the canonical catalogue where practical.
+
+**Guardrail:** this changes a security artifact (the realm) and RBAC gates. No
+role may gain privileges it does not already effectively have in code. A
+reviewer must verify each canonical role's permission set equals the union of
+what its (collapsed) synonyms currently grant — normalization must be
+privilege-preserving, not privilege-expanding. Confirm the final set against the
+RBAC permission matrix, not just string scans.
