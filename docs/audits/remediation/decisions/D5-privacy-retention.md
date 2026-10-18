@@ -10,6 +10,7 @@ to review and replace before production.
 > DPDP-shaped placeholder the legal team edits. Do not represent it as final.
 
 ## Decision
+
 Ship the drafted DPDP-aligned privacy/terms/retention content below as the
 default, clearly marked as a draft pending legal review, and wire the retention
 rules into config so counsel-supplied values can replace them without code
@@ -19,6 +20,7 @@ are closed by implementing the mechanism against configurable policy (not by
 inventing legal rules).
 
 ## Findings
+
 - PRC-L262 (privacy/terms copy) — closed by adding the drafted content.
 - PRC-M214 (DPDP erasure/anonymisation) — implement erasure/anonymisation
   against a configurable retention policy; default rules below.
@@ -30,6 +32,7 @@ inventing legal rules).
 ## Drafted content (placeholder — legal to finalise)
 
 ### Privacy notice (summary)
+
 - **Who we are / data fiduciary:** the educational institution (tenant) is the
   Data Fiduciary; the platform operator is a Data Processor acting on the
   institution's documented instructions.
@@ -52,21 +55,24 @@ inventing legal rules).
   audit logging.
 
 ### Terms of use (summary)
+
 Acceptable-use, institution-owned data, service-availability, and
 limitation-of-liability sections — `[counsel to supply jurisdiction-specific
 terms]`. The draft must not assert guarantees counsel has not approved.
 
 ### Retention schedule (DEFAULTS — configurable per tenant, counsel to confirm)
-| Data category | Default retention | Notes |
-|---|---|---|
-| Audit logs | 24 months (min 12) | PRC-L256: floor raised from 1 month; configurable, not below 12 months |
-| Student academic records | Duration of enrolment + 7 years | Statutory/record-keeping; confirm per jurisdiction |
-| Fee / payment records | 8 years | Financial record-keeping norm; confirm |
-| Health records | Duration of enrolment + as required by law | Sensitive; confirm |
-| Communication logs | 18 months | Operational |
-| Consent records | Life of relationship + 3 years | DPDP evidence of consent |
+
+| Data category            | Default retention                          | Notes                                                                  |
+| ------------------------ | ------------------------------------------ | ---------------------------------------------------------------------- |
+| Audit logs               | 24 months (min 12)                         | PRC-L256: floor raised from 1 month; configurable, not below 12 months |
+| Student academic records | Duration of enrolment + 7 years            | Statutory/record-keeping; confirm per jurisdiction                     |
+| Fee / payment records    | 8 years                                    | Financial record-keeping norm; confirm                                 |
+| Health records           | Duration of enrolment + as required by law | Sensitive; confirm                                                     |
+| Communication logs       | 18 months                                  | Operational                                                            |
+| Consent records          | Life of relationship + 3 years             | DPDP evidence of consent                                               |
 
 ### Erasure / anonymisation (mechanism, policy-driven)
+
 - On a verified erasure request (and absent a legal hold), personal data is
   either deleted or irreversibly anonymised, except records a law requires be
   retained, which are locked from further processing until their retention
@@ -78,6 +84,7 @@ terms]`. The draft must not assert guarantees counsel has not approved.
   changes.
 
 ## Guardrail
+
 Everything above is a reviewable draft. The implementing PR must render it with
 a visible "draft — pending legal review" marker and must NOT claim legal
 compliance. Counsel's later edits are content/config changes, not code changes.

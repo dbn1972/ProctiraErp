@@ -20,7 +20,7 @@ latest-wave-wins gives the true universe: **758 unique findings**.
 ## Current status (reconciled)
 
 | Disposition  | Count |
-|--------------|-------|
+| ------------ | ----- |
 | FULLY_CLOSED | 180   |
 | PARTIAL      | 207   |
 | OPEN         | 371   |

@@ -26,6 +26,7 @@ Platform/government: `system_admin` (10), `platform_admin` (5), `board_admin`
 `state_director`, `applicant`, plus exam-officer spellings.
 
 ### Known inconsistencies in the code (must be normalised first)
+
 - `exam_officer` / `exam-officer` / `examinations_officer` — 3 spellings, 1 role
 - `nurse` / `school_nurse` — likely 1 role
 - `system_admin` / `platform_admin` vs realm `super-admin` / `admin` — overlap
@@ -34,6 +35,7 @@ Platform/government: `system_admin` (10), `platform_admin` (5), `board_admin`
 **Distinct roles after collapsing synonyms: ~30** (down from the raw 38).
 
 ## Recommendation (for owner to accept/modify)
+
 1. **Normalise synonyms first** — pick one canonical name per role (e.g.
    standardise on `examinations_officer`, `guardian`, `platform_admin`), fix the
    code to use it. This is engineering work, no decision needed beyond the
@@ -44,16 +46,17 @@ Platform/government: `system_admin` (10), `platform_admin` (5), `board_admin`
    the authoritative required set is whatever the permission catalogue needs.
 
 ## Open question for the owner
+
 Approve extending the realm to the ~30 canonical roles (with synonym
 normalisation), or provide a different authoritative taxonomy? Implementation is
 blocked until this is confirmed, because the realm export is a security artifact.
-
 
 ---
 
 ## D2 APPROVED (owner): normalize synonyms, then extend realm to ~30 distinct roles
 
 **Authoritative sources found:**
+
 - Realm export: `infra/keycloak/proctira-realm.json` (6 roles).
 - Central catalogue: `KEYCLOAK_REALM_ROLES` in
   `packages/backend/auth/src/keycloak/roles.ts` and `DEFAULT_ROLES` in
@@ -62,6 +65,7 @@ blocked until this is confirmed, because the realm export is a security artifact
   RBAC allow-lists, not in the central catalogue — that is the real gap.
 
 **Confirmed synonym rules (evidence-based — do NOT over-collapse):**
+
 - COLLAPSE `exam_officer`, `exam-officer`, `examinations_officer` → one
   canonical `examinations_officer` (they are used interchangeably in the same
   arrays).
@@ -77,6 +81,7 @@ blocked until this is confirmed, because the realm export is a security artifact
   distinct permission set.
 
 **Work (three coordinated changes, one reviewed PR):**
+
 1. Normalize the confirmed synonym spellings across backend module RBAC literals.
 2. Add the resulting ~30 canonical roles to `KEYCLOAK_REALM_ROLES`,
    `DEFAULT_ROLES` (with permission definitions matching current usage), and the
