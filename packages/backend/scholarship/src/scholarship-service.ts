@@ -21,6 +21,8 @@ import {
   majorUnitsToCents,
   majorUnitsNumberFromCents,
   assertMajorMatchesCents,
+  DEFAULT_CURRENCY,
+  assertIso4217Code,
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -264,7 +266,8 @@ export class ScholarshipService {
       usedSlots: 0,
       amountPerRecipient: money.amount,
       amountPerRecipientCents: money.amountCents,
-      currency: input.currency ?? 'USD',
+      // PRC-M349 / PRC-M197 / Decision D1: default INR, validate an explicit ISO-4217 code.
+      currency: input.currency ? assertIso4217Code(input.currency) : DEFAULT_CURRENCY,
       disbursementFrequency: (input.disbursementFrequency as DisbursementFrequency) ?? 'one_time',
       eligibility: input.eligibility,
       status: 'draft',
@@ -323,7 +326,8 @@ export class ScholarshipService {
       updateData.amountPerRecipient = money.amount;
       updateData.amountPerRecipientCents = money.amountCents;
     }
-    if (input.currency !== undefined) updateData.currency = input.currency;
+    // PRC-M349 / Decision D1: validate a provided currency before persisting it.
+    if (input.currency !== undefined) updateData.currency = assertIso4217Code(input.currency);
     if (input.disbursementFrequency !== undefined)
       updateData.disbursementFrequency =
         input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];

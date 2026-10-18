@@ -5,7 +5,7 @@
  * Implements the ScholarshipRepository interface with Map-based stores.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { majorUnitsNumberFromCents } from '@proctira/common';
+import { majorUnitsNumberFromCents, DEFAULT_CURRENCY } from '@proctira/common';
 
 import type { ScholarshipTxClient } from './scholarship-fee-outbox.js';
 import type {
@@ -486,7 +486,7 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       const a = this.applications.get(d.applicationId);
       if (!a || a.status !== 'approved' || !matches(a)) continue;
       const program = this.programs.get(a.programId);
-      const currency = program?.currency ?? 'USD';
+      const currency = program?.currency ?? DEFAULT_CURRENCY;
       const k = `${keyFor(a)}\u0000${currency}`;
       const g = disb.get(k) ?? {
         groupValue: keyFor(a),
