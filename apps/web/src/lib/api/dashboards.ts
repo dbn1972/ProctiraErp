@@ -25,24 +25,346 @@
  * hook code reads the same way as the rest of the dashboards.
  */
 
+import type { TimelineItem } from '@proctira/ui-dashboards';
+
 import { BrowserGatewayError, browserGatewayFetch } from './browser-gateway';
-import type {
-  BoardAdminDashboardData,
-  BoardComparisonData,
-  BoardRow,
-  CountryDashboardData,
-  CrossBoardTransferData,
-  DashboardKpi,
-  DistrictRanking,
-  DistrictRow,
-  EnrollmentTrendPoint,
-  ParentStudentDashboardData,
-  RegionRow,
-  SchoolDashboardData,
-  StateDashboardData,
-  StateRow,
-  TeacherDashboardData,
-} from '@/features/dashboards/api/types';
+
+// ─── Dashboard data-shape types ─────────────────────────────────────────────
+//
+// These type definitions were previously sourced from the legacy Vite SPA
+// module `features/dashboards/api/types.ts`, deleted with the rest of the dead
+// SPA feature tree (Decision D6). This client (`lib/api/dashboards.ts`) is the
+// sole remaining consumer and is itself unreachable from the Next.js App Router
+// closure; the types are inlined here so the module keeps type-checking without
+// retaining any `features/dashboards/**` source. Behaviour is unchanged.
+
+export type KpiTrendDirection = 'up' | 'down' | 'flat';
+
+export interface DashboardKpi {
+  id: string;
+  label: string;
+  value: string;
+  delta?: string;
+  direction?: KpiTrendDirection;
+  description?: string;
+}
+
+export interface BoardRow {
+  id: string;
+  name: string;
+  schools: string;
+  students: string;
+  attendance: string;
+  passRate: string;
+  ptr: string;
+}
+
+export interface StateRow {
+  id: string;
+  name: string;
+  schools: string;
+  students: string;
+  attendance: string;
+  passRate: string;
+}
+
+export interface EnrollmentTrendPoint {
+  year: string;
+  cbse: number;
+  state: number;
+  icse: number;
+  ib: number;
+}
+
+export interface CountryDashboardData {
+  kpis: ReadonlyArray<DashboardKpi>;
+  boards: ReadonlyArray<BoardRow>;
+  enrollmentTrend: ReadonlyArray<EnrollmentTrendPoint>;
+  states: ReadonlyArray<StateRow>;
+}
+
+export interface DistrictRanking {
+  district: string;
+  passRate: number;
+}
+
+export interface DistrictRow {
+  id: string;
+  name: string;
+  schools: string;
+  students: string;
+  attendance: string;
+  passRate: string;
+  boardMix: {
+    cbse: number;
+    state: number;
+    icse: number;
+  };
+}
+
+export interface BoardRadarAxis {
+  id: string;
+  label: string;
+}
+
+export interface BoardRadarSeries {
+  id: string;
+  label: string;
+  values: Record<string, number>;
+}
+
+export interface BoardRadarData {
+  axes: ReadonlyArray<BoardRadarAxis>;
+  series: ReadonlyArray<BoardRadarSeries>;
+}
+
+export interface StateDashboardData {
+  stateName: string;
+  stateCode: string;
+  kpis: ReadonlyArray<DashboardKpi>;
+  boards: ReadonlyArray<BoardRow>;
+  districtRanking: ReadonlyArray<DistrictRanking>;
+  boardRadar: BoardRadarData;
+  districts: ReadonlyArray<DistrictRow>;
+}
+
+export interface RegionRow {
+  id: string;
+  name: string;
+  states: string;
+  schools: string;
+  students: string;
+  classXPass: string;
+  classXIIPass: string;
+}
+
+export type AffiliationStatus = 'active' | 'provisional' | 'expiring';
+
+export interface AffiliationCount {
+  status: AffiliationStatus;
+  count: number;
+}
+
+export interface EnrollmentGrowthPoint {
+  year: string;
+  students: number;
+}
+
+export type ActionItemPriority = 'high' | 'medium' | 'low';
+
+export interface BoardActionItem {
+  id: string;
+  title: string;
+  description?: string;
+  priority: ActionItemPriority;
+  dueLabel?: string;
+}
+
+export interface BoardAdminDashboardData {
+  boardName: string;
+  boardCode: string;
+  kpis: ReadonlyArray<DashboardKpi>;
+  regions: ReadonlyArray<RegionRow>;
+  affiliations: ReadonlyArray<AffiliationCount>;
+  enrollmentGrowth: ReadonlyArray<EnrollmentGrowthPoint>;
+  actionItems: ReadonlyArray<BoardActionItem>;
+}
+
+export type BoardComparisonMetricId =
+  | 'schools'
+  | 'students'
+  | 'attendance'
+  | 'passRate'
+  | 'ptr'
+  | 'gpi';
+
+export interface BoardComparisonMetric {
+  id: BoardComparisonMetricId;
+  label: string;
+  unit?: string;
+}
+
+export interface BoardComparisonBoard {
+  id: string;
+  name: string;
+  kpis: Record<BoardComparisonMetricId, string>;
+  radar: Record<BoardComparisonMetricId, number>;
+}
+
+export interface BoardComparisonTrendPoint {
+  year: string;
+  values: Record<string, number>;
+}
+
+export interface BoardComparisonDetailRow {
+  id: string;
+  boardId: string;
+  boardName: string;
+  metricId: BoardComparisonMetricId;
+  metricLabel: string;
+  year: string;
+  value: string;
+}
+
+export interface BoardComparisonData {
+  metrics: ReadonlyArray<BoardComparisonMetric>;
+  boards: ReadonlyArray<BoardComparisonBoard>;
+  trend: ReadonlyArray<BoardComparisonTrendPoint>;
+  detail: ReadonlyArray<BoardComparisonDetailRow>;
+}
+
+export type TransferStateId =
+  | 'initiated'
+  | 'documents_uploaded'
+  | 'equivalency_mapped'
+  | 'source_approved'
+  | 'destination_approved'
+  | 'completed';
+
+export interface TransferState {
+  id: TransferStateId;
+  label: string;
+  description?: string;
+}
+
+export interface TransferInstitutionRef {
+  id: string;
+  name: string;
+  board: string;
+  address?: string;
+}
+
+export type TransferApprovalStatus = 'completed' | 'current' | 'pending' | 'rejected';
+
+export interface TransferApprovalStep {
+  id: string;
+  name: string;
+  approver: string;
+  status: TransferApprovalStatus;
+  updatedAt?: string;
+  note?: string;
+}
+
+export type EquivalencyMappingStatus = 'mapped' | 'bridge' | 'na';
+
+export interface EquivalencyMappingRow {
+  id: string;
+  sourceSubject: string;
+  destinationSubject: string;
+  status: EquivalencyMappingStatus;
+}
+
+export interface TransferDocument {
+  id: string;
+  name: string;
+  uploaded: boolean;
+}
+
+export interface CrossBoardTransferData {
+  transferId: string;
+  studentName: string;
+  studentId: string;
+  transferType: string;
+  reason?: string;
+  requestedAt?: string;
+  source: TransferInstitutionRef;
+  destination: TransferInstitutionRef;
+  states: ReadonlyArray<TransferState>;
+  currentStateId: TransferStateId;
+  completedStateIds: ReadonlyArray<TransferStateId>;
+  approvals: ReadonlyArray<TransferApprovalStep>;
+  equivalency: ReadonlyArray<EquivalencyMappingRow>;
+  documents: ReadonlyArray<TransferDocument>;
+  currentApprover?: string;
+}
+
+export interface SchoolKpis {
+  totalStudents: number;
+  attendanceRate: number;
+  staffOnDuty: number;
+  totalStaff: number;
+  pendingApprovals: number;
+}
+
+export interface SchoolActivityItem {
+  id: string;
+  title: string;
+  occurredAt: string;
+  description?: string;
+}
+
+export interface SchoolPendingTask {
+  id: string;
+  title: string;
+  due?: string;
+  completed: boolean;
+}
+
+export interface SchoolDashboardData {
+  kpis: SchoolKpis;
+  recentActivity: ReadonlyArray<SchoolActivityItem>;
+  pendingTasks: ReadonlyArray<SchoolPendingTask>;
+}
+
+export interface TeacherClass {
+  id: string;
+  name: string;
+  grade: string;
+  studentCount: number;
+}
+
+export interface TeacherAttendancePending {
+  classId: string;
+  className: string;
+  scheduledAt: string;
+}
+
+export interface TeacherAssessmentTask {
+  id: string;
+  title: string;
+  due?: string;
+  completed: boolean;
+  className?: string;
+}
+
+export interface TeacherDashboardData {
+  assignedClasses: ReadonlyArray<TeacherClass>;
+  todaySchedule: ReadonlyArray<TimelineItem>;
+  attendancePending: ReadonlyArray<TeacherAttendancePending>;
+  pendingAssessments: ReadonlyArray<TeacherAssessmentTask>;
+}
+
+export interface ParentAttendanceSummary {
+  ratePercent: number;
+  daysPresent: number;
+  daysAbsent: number;
+  daysLate: number;
+}
+
+export interface ParentAssessmentResult {
+  id: string;
+  subject: string;
+  score: number;
+  grade: string;
+  date: string;
+}
+
+export interface ParentNotification {
+  id: string;
+  sender: string;
+  subject: string;
+  receivedAt: string;
+  unread: boolean;
+}
+
+export interface ParentStudentDashboardData {
+  studentName: string;
+  gradeLabel: string;
+  attendance: ParentAttendanceSummary;
+  recentResults: ReadonlyArray<ParentAssessmentResult>;
+  schedule: ReadonlyArray<TimelineItem>;
+  notifications: ReadonlyArray<ParentNotification>;
+}
 
 // ─── Backend aggregate shapes (mirrors @proctira/backend-dashboards) ────────
 

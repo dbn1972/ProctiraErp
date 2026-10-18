@@ -38,8 +38,8 @@
  * Cross-app destinations are the one legitimate exception and are listed explicitly, so
  * adding one is a deliberate act rather than an accident.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -214,5 +214,158 @@ describe('internal links resolve to a route', () => {
       .map(([path, files]) => `  ${path}\n      ${files.join('\n      ')}`)
       .join('\n');
     expect(dead.size, report ? `Dead internal link target(s):\n${report}` : '').toBe(0);
+  });
+});
+
+/**
+ * Transitive import-closure deadness guard for the legacy Vite SPA (Decision D6).
+ *
+ * The marketing-chrome assertion above pins that the App Router does not *route* the SPA
+ * components. This block proves the stronger property the deletion depends on: the SPA
+ * feature tree and its entrypoints are not *in the production import graph at all*, so a
+ * future edit cannot quietly pull a deleted page back into a live route.
+ *
+ * ## Method (mirrors plan §A)
+ *
+ * Roots = every Next.js App Router entrypoint under `app/**`
+ * (`page|layout|route|template|loading|error|not-found|default|global-error`), **minus**
+ * the deleted `app/App.tsx` Vite root, plus `src/middleware.ts`. Follow every static and
+ * dynamic `import`/`export … from`/`import(…)` specifier transitively across non-test
+ * files, resolving `@/*` to `src/*` and relative specifiers with the standard
+ * `.ts/.tsx/.js/.jsx` + `index.*` resolution. A `features/**` file in the resulting closure
+ * is REACHABLE; one outside it is PROVEN-DEAD.
+ *
+ * The closure must contain exactly the 10 `features/**` files the App Router imports
+ * directly, and nothing else under `features/**`. If a deleted page is reintroduced into a
+ * live import path, it re-enters the closure and this test fails.
+ */
+const KEEP_FEATURE_FILES = [
+  'features/auth/MFASetup.tsx',
+  'features/legal/PrivacyPolicy.tsx',
+  'features/legal/TermsOfService.tsx',
+  'features/settings/pages/NotificationPreferences.tsx',
+  'features/scholarships/pages/ScholarshipApplication.tsx',
+  'features/scholarships/scholarship-browser.ts',
+  'features/scholarships/document-upload.ts',
+  'features/scholarships/disbursement-paid.ts',
+  'features/scholarships/components/application-documents-panel.tsx',
+  'features/scholarships/components/document-upload-slots.tsx',
+].sort();
+
+const APP_ROUTER_ENTRY_NAMES = new Set([
+  'page',
+  'layout',
+  'route',
+  'template',
+  'loading',
+  'error',
+  'not-found',
+  'default',
+  'global-error',
+]);
+
+const MODULE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
+
+function isTestFile(file: string): boolean {
+  return /\.(test|spec)\.[tj]sx?$/.test(file);
+}
+
+/** Resolve an import specifier to a source file inside `src`, or null for bare modules. */
+function resolveSpecifier(spec: string, fromFile: string): string | null {
+  let base: string;
+  if (spec.startsWith('@/')) base = join(WEB_SRC, spec.slice(2));
+  else if (spec.startsWith('./') || spec.startsWith('../'))
+    base = resolve(dirname(fromFile), spec);
+  else return null; // bare package specifier — outside the app source graph
+
+  const candidates = [
+    base,
+    ...MODULE_EXTENSIONS.map((ext) => base + ext),
+    ...MODULE_EXTENSIONS.map((ext) => join(base, `index${ext}`)),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+const SPECIFIER_RE =
+  /(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+function importedSpecifiers(file: string): string[] {
+  const source = readFileSync(file, 'utf8');
+  const out: string[] = [];
+  for (const match of source.matchAll(SPECIFIER_RE)) {
+    const spec = match[1] ?? match[2];
+    if (spec) out.push(spec);
+  }
+  return out;
+}
+
+/** The set of production files reachable from the App Router entrypoints. */
+function appRouterClosure(): Set<string> {
+  const roots: string[] = [];
+  for (const file of walk(APP_DIR)) {
+    if (isTestFile(file)) continue;
+    if (!/\.[tj]sx?$/.test(file)) continue;
+    const name = file.replace(/.*[/\\]/, '').replace(/\.[tj]sx?$/, '');
+    // The deleted Vite SPA root is excluded by name; it no longer exists but the
+    // exclusion keeps the algorithm faithful to plan §A.
+    if (file === join(APP_DIR, 'App.tsx')) continue;
+    if (APP_ROUTER_ENTRY_NAMES.has(name)) roots.push(file);
+  }
+  const middleware = resolveSpecifier('@/middleware', join(WEB_SRC, 'x'));
+  if (middleware) roots.push(middleware);
+
+  const seen = new Set<string>();
+  const stack = [...roots];
+  while (stack.length > 0) {
+    const file = stack.pop()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    if (isTestFile(file)) continue;
+    for (const spec of importedSpecifiers(file)) {
+      const resolved = resolveSpecifier(spec, file);
+      if (resolved && !seen.has(resolved)) stack.push(resolved);
+    }
+  }
+  return seen;
+}
+
+describe('legacy SPA is unreachable', () => {
+  it('has removed the Vite SPA entrypoints', () => {
+    // The two roots of the dead SPA. Their absence is what makes every feature page
+    // unreachable; if either returns, the closure below also fails.
+    expect(existsSync(join(APP_DIR, 'App.tsx'))).toBe(false);
+    expect(existsSync(join(WEB_SRC, 'RootRouter.tsx'))).toBe(false);
+  });
+
+  it('pulls exactly the 10 live feature files into the App Router closure', () => {
+    const closure = appRouterClosure();
+    const reachableFeatures = [...closure]
+      .map((file) => relative(WEB_SRC, file))
+      .filter((rel) => rel.startsWith('features/'))
+      .sort();
+
+    // (c) every KEEP file is reachable, and (b) nothing else under features/** is.
+    expect(reachableFeatures).toEqual(KEEP_FEATURE_FILES);
+  });
+
+  it('keeps every deleted feature path out of the production import graph', () => {
+    const closure = appRouterClosure();
+    const keep = new Set(KEEP_FEATURE_FILES);
+    const leaked = [...closure]
+      .map((file) => relative(WEB_SRC, file))
+      .filter((rel) => rel.startsWith('features/') && !keep.has(rel))
+      .sort();
+
+    expect(
+      leaked,
+      leaked.length > 0
+        ? `A deleted legacy SPA feature file re-entered the live App Router import ` +
+            `closure:\n  ${leaked.join('\n  ')}\n` +
+            `Remove the import into it rather than re-adding the file.`
+        : '',
+    ).toEqual([]);
   });
 });
