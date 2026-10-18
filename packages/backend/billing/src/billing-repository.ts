@@ -32,6 +32,8 @@ export interface PlanEntity {
   quotas: PlanQuota[];
   priceMonthly: number | null;
   priceYearly: number | null;
+  /** PRC-L087 / Decision D1: ISO-4217 currency for the plan prices (default INR). */
+  currency: string;
   trialDays: number;
   sortOrder: number;
   createdAt: Date;

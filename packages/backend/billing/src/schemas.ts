@@ -114,6 +114,14 @@ export const CreatePlanSchema = Type.Object({
   priceYearly: Type.Optional(
     Type.Integer({ minimum: 0, description: 'Yearly price in integer cents (W1-DATA-09)' }),
   ),
+  // PRC-L087 / Decision D1: ISO-4217 currency; defaults to INR when omitted.
+  currency: Type.Optional(
+    Type.String({
+      minLength: 3,
+      maxLength: 3,
+      description: 'ISO-4217 currency code (default INR)',
+    }),
+  ),
   trialDays: Type.Optional(
     Type.Number({ minimum: 0, maximum: 365, default: 0, description: 'Number of trial days' }),
   ),
@@ -139,6 +147,10 @@ export const UpdatePlanSchema = Type.Object({
   ),
   priceYearly: Type.Optional(
     Type.Integer({ minimum: 0, description: 'Yearly price in integer cents (W1-DATA-09)' }),
+  ),
+  // PRC-L087 / Decision D1: ISO-4217 currency; validated when provided.
+  currency: Type.Optional(
+    Type.String({ minLength: 3, maxLength: 3, description: 'ISO-4217 currency code' }),
   ),
   trialDays: Type.Optional(
     Type.Number({ minimum: 0, maximum: 365, description: 'Number of trial days' }),
@@ -307,6 +319,8 @@ export const PlanResponseSchema = Type.Object({
   priceYearly: Type.Union([Type.Integer(), Type.Null()], {
     description: 'Yearly price in integer cents',
   }),
+  // PRC-L087 / Decision D1: ISO-4217 currency the prices are denominated in.
+  currency: Type.String({ description: 'ISO-4217 currency code (default INR)' }),
   trialDays: Type.Number({ description: 'Trial period in days' }),
   sortOrder: Type.Number({ description: 'Display sort order' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),

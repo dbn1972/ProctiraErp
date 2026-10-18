@@ -5,7 +5,7 @@
  * disbursements); this module turns those aggregates into the report shape so
  * the PG and in-memory implementations stay in parity.
  */
-import { majorUnitsNumberFromCents } from '@proctira/common';
+import { majorUnitsNumberFromCents, DEFAULT_CURRENCY } from '@proctira/common';
 
 import type { UtilizationReportData, UtilizationReportFilter } from './scholarship-repository.js';
 
@@ -93,7 +93,7 @@ export function buildUtilizationReport(
     currencyTotals.length === 1
       ? currencyTotals[0]!.currency
       : currencyTotals.length === 0
-        ? 'USD'
+        ? DEFAULT_CURRENCY
         : 'MIXED';
   return {
     totalPrograms,
