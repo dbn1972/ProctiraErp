@@ -51,6 +51,13 @@ function toDoc(entity: RoleEntity): RoleDoc {
 export class PgRolesRepository implements RolesRepository {
   private readonly roles: PgDocumentCollection<RoleDoc>;
   private readonly users: PgDocumentCollection<UserRecord>;
+  /**
+   * PRC-L371: per-tenant uniqueness guards keyed on a derived name/e-mail id.
+   * `insertIfAbsent` on these collections is the atomic conditional write that
+   * lets two concurrent create/invite calls agree on a single winner.
+   */
+  private readonly roleNameGuards: PgDocumentCollection<{ roleId: string }>;
+  private readonly userEmailGuards: PgDocumentCollection<{ userId: string }>;
   private readonly seeded = new Set<string>();
 
   constructor(
@@ -59,31 +66,42 @@ export class PgRolesRepository implements RolesRepository {
   ) {
     this.roles = new PgDocumentCollection<RoleDoc>(pool, 'tenant.roles');
     this.users = new PgDocumentCollection<UserRecord>(pool, 'tenant.users');
+    this.roleNameGuards = new PgDocumentCollection<{ roleId: string }>(pool, 'tenant.role_names');
+    this.userEmailGuards = new PgDocumentCollection<{ userId: string }>(pool, 'tenant.user_emails');
+  }
+
+  private roleNameGuardId(tenantId: string, name: string): string {
+    return `${tenantId}::name::${name.trim().toLowerCase()}`;
+  }
+
+  private userEmailGuardId(tenantId: string, email: string): string {
+    return `${tenantId}::email::${email.trim().toLowerCase()}`;
   }
 
   private async ensureSeeded(tenantId: string): Promise<void> {
     if (this.seeded.has(tenantId)) return;
-    const existing = await this.roles.byTenant(tenantId);
-    if (existing.length === 0) {
-      const now = new Date().toISOString();
-      for (const def of this.seed) {
-        const id = `${tenantId}::${def.roleId}`;
-        await this.roles.put(
+    // PRC-L371: seed each built-in via `insertIfAbsent` keyed on the stable
+    // `${tenantId}::${roleId}` id, so a concurrent first-access cannot
+    // double-seed (the previous byTenant-empty-then-loop-put had a check-then
+    // -insert race). Each insert is an atomic ON CONFLICT DO NOTHING.
+    const now = new Date().toISOString();
+    for (const def of this.seed) {
+      const id = `${tenantId}::${def.roleId}`;
+      await this.roles.insertIfAbsent(
+        id,
+        {
           id,
-          {
-            id,
-            tenantId,
-            roleId: def.roleId,
-            name: def.roleName,
-            description: null,
-            builtIn: true,
-            permissions: def.permissions.map((p) => ({ ...p })),
-            createdAt: now,
-            updatedAt: now,
-          },
           tenantId,
-        );
-      }
+          roleId: def.roleId,
+          name: def.roleName,
+          description: null,
+          builtIn: true,
+          permissions: def.permissions.map((p) => ({ ...p })),
+          createdAt: now,
+          updatedAt: now,
+        },
+        tenantId,
+      );
     }
     this.seeded.add(tenantId);
   }
@@ -116,6 +134,29 @@ export class PgRolesRepository implements RolesRepository {
     return entity;
   }
 
+  /**
+   * PRC-L371: reserve the name atomically via the guard collection's
+   * `INSERT … ON CONFLICT DO NOTHING`. Only the first concurrent caller's id
+   * survives in the guard; a loser sees the winner's id and returns `null`
+   * instead of double-inserting a same-named role.
+   */
+  async createRoleIfNameAbsent(
+    data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<RoleEntity | null> {
+    await this.ensureSeeded(data.tenantId);
+    const guardId = this.roleNameGuardId(data.tenantId, data.name);
+    const winner = await this.roleNameGuards.insertIfAbsent(
+      guardId,
+      { roleId: data.id },
+      data.tenantId,
+    );
+    if (winner.roleId !== data.id) return null;
+    const now = new Date();
+    const entity: RoleEntity = { ...data, createdAt: now, updatedAt: now };
+    await this.roles.put(entity.id, toDoc(entity), entity.tenantId);
+    return entity;
+  }
+
   async updateRole(
     tenantId: string,
     id: string,
@@ -139,6 +180,8 @@ export class PgRolesRepository implements RolesRepository {
     const existing = await this.findRoleById(tenantId, id);
     if (!existing) return false;
     await this.roles.delete(id, { tenantId });
+    // PRC-L371: release the name guard (idempotent) so the name can be reused.
+    await this.roleNameGuards.delete(this.roleNameGuardId(tenantId, existing.name), { tenantId });
     const users = await this.users.byTenant(tenantId);
     for (const user of users) {
       if (user.roleIds.includes(id)) {
@@ -193,6 +236,22 @@ export class PgRolesRepository implements RolesRepository {
   }
 
   async upsertUser(user: UserRecord): Promise<UserRecord> {
+    return this.users.put(user.id, { ...user, roleIds: [...user.roleIds] }, user.tenantId);
+  }
+
+  /**
+   * PRC-L371: reserve the e-mail atomically via the guard collection, then
+   * write the user. A concurrent invite for the same e-mail loses the guard
+   * race and returns `null` rather than creating a second record.
+   */
+  async insertUserIfEmailAbsent(user: UserRecord): Promise<UserRecord | null> {
+    const guardId = this.userEmailGuardId(user.tenantId, user.email);
+    const winner = await this.userEmailGuards.insertIfAbsent(
+      guardId,
+      { userId: user.id },
+      user.tenantId,
+    );
+    if (winner.userId !== user.id) return null;
     return this.users.put(user.id, { ...user, roleIds: [...user.roleIds] }, user.tenantId);
   }
 

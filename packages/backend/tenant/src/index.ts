@@ -124,11 +124,14 @@ export type {
 export { RolesService } from './roles-service.js';
 export type {
   CreateRoleInput as CreateRoleServiceInput,
+  RolesActorContext,
   RolesAuditEvent,
   RolesAuditOperation,
   RolesAuditEmitter,
   UpdateRoleInput as UpdateRoleServiceInput,
 } from './roles-service.js';
+// PRC-L170: delegated-permission ceiling
+export { assertWithinPermissionCeiling, permissionCovers } from './permission-ceiling.js';
 export type {
   PermissionRef,
   RoleEntity,
@@ -163,7 +166,7 @@ export type {
   UserParams,
 } from './roles-schemas.js';
 export { registerRolesRoutes } from './roles-routes.js';
-export type { RolesRoutesOptions } from './roles-routes.js';
+export type { ActorPermissionsResolver, RolesRoutesOptions } from './roles-routes.js';
 
 // G-910 — tenant admin console: durable roles/users + settings
 export { PgRolesRepository } from './pg-roles-repository.js';
