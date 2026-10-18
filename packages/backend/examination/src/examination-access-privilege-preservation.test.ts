@@ -4,13 +4,15 @@
  * Normalization applied to this module:
  *  - exam_officer -> examinations_officer (synonym collapse; examinations_officer was already
  *    present in every officer array, so the canonical name's effective allow-set is unchanged).
- *  - system_admin -> platform_admin add (ADMIN_ROLES now also admits platform_admin; no role
- *    was removed).
+ *
+ * D2 CORRECTION: platform_admin (cross-tenant platform operator) is NOT admitted to this
+ * tenant-scoped academic (examination) surface; the per-tenant system_admin is unchanged.
  *
  * These tests prove, per action, that:
- *  (a) every role admitted before the change is still admitted (no shrink), and
+ *  (a) every role admitted before the change is still admitted (no shrink),
  *  (b) the former synonym `exam_officer` now flows through its canonical `examinations_officer`
- *      so no legitimate officer loses access.
+ *      so no legitimate officer loses access, and
+ *  (c) platform_admin does NOT hold tenant-scoped examination access while system_admin does.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -69,9 +71,9 @@ describe('examination-access privilege preservation (D2)', () => {
     }
   });
 
-  it('adds platform_admin alongside system_admin for every action (additive, no removal)', () => {
-    for (const action of ALL_ACTIONS.filter((a) => a !== 'exam.read.staff')) {
-      expect(hasExaminationAccess(['platform_admin'], action), action).toBe(true);
+  it('does NOT admit platform_admin for any action (tenant isolation); system_admin unchanged', () => {
+    for (const action of ALL_ACTIONS) {
+      expect(hasExaminationAccess(['platform_admin'], action), action).toBe(false);
       expect(hasExaminationAccess(['system_admin'], action), action).toBe(true);
     }
   });

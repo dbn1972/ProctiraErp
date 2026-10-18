@@ -395,8 +395,11 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
 
   // --- Platform / tenant administration -------------------------------------
   {
-    // Gateway-defined: platform console + global wildcard (absorbs system_admin
-    // module usages after the FEAT-001 add-alongside normalization).
+    // Gateway-defined control-plane operator: platform console + global
+    // platform-operations wildcard. platform_admin is DISTINCT from the
+    // per-tenant system_admin and does NOT inherit system_admin's tenant-scoped
+    // student / health / assessment / examination / report data grants
+    // (D2 CORRECTION — preserve tenant isolation).
     roleId: 'platform_admin',
     roleName: 'Platform Administrator',
     permissions: [

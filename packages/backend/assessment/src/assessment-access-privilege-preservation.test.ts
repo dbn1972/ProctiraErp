@@ -4,10 +4,12 @@
  * Normalization applied to this module:
  *  - exam_officer / exam-officer -> examinations_officer in ASSESSMENT_STAFF_ROLES and
  *    REPORT_CARD_OPERATOR_ROLES.
- *  - system_admin -> platform_admin add in ADMIN_ROLES.
  *
- * Proves the canonical name grants exactly what the former synonyms did and that platform_admin
- * is now admitted alongside (never instead of) system_admin.
+ * D2 CORRECTION: platform_admin (cross-tenant platform operator) is NOT admitted to this
+ * tenant-scoped academic (assessment) surface; the per-tenant system_admin is unchanged.
+ *
+ * Proves the canonical name grants exactly what the former synonyms did, and that
+ * platform_admin does NOT hold tenant-scoped assessment access while system_admin still does.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -50,13 +52,15 @@ describe('assessment-access privilege preservation (D2)', () => {
     }
   });
 
-  it('adds platform_admin alongside system_admin (admin + operator, additive)', () => {
-    expect(hasAssessmentAccess(['platform_admin'], 'assessment.write')).toBe(true);
-    expect(isAssessmentAdmin(['platform_admin'])).toBe(true);
-    expect(isReportCardOperator(['platform_admin'])).toBe(true);
-    // system_admin unchanged
+  it('does NOT admit platform_admin (tenant isolation); system_admin unchanged', () => {
+    expect(hasAssessmentAccess(['platform_admin'], 'assessment.write')).toBe(false);
+    expect(hasAssessmentAccess(['platform_admin'], 'assessment.read')).toBe(false);
+    expect(isAssessmentAdmin(['platform_admin'])).toBe(false);
+    expect(isReportCardOperator(['platform_admin'])).toBe(false);
+    // system_admin (per-tenant admin) unchanged
     expect(isAssessmentAdmin(['system_admin'])).toBe(true);
     expect(isReportCardOperator(['system_admin'])).toBe(true);
+    expect(hasAssessmentAccess(['system_admin'], 'assessment.write')).toBe(true);
   });
 
   it('a plain teacher is still NOT a report-card operator (no widening)', () => {

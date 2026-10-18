@@ -18,14 +18,7 @@ export type GradebookAction =
   // tenant user could read all grades/transcripts and download board-export PII.
   | 'grade.read.staff';
 
-const ADMIN_ROLES = [
-  'admin',
-  'super-admin',
-  'system_admin',
-  'platform_admin',
-  'principal',
-  'school_admin',
-] as const;
+const ADMIN_ROLES = ['admin', 'super-admin', 'system_admin', 'principal', 'school_admin'] as const;
 
 const TEACHER_ROLES = ['teacher', 'class_teacher', 'subject_teacher', ...ADMIN_ROLES] as const;
 

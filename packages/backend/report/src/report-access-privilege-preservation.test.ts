@@ -4,10 +4,12 @@
  * Normalization applied to this module:
  *  - exam_officer -> examinations_officer in EXAM_STAFF_ROLES (examinations_officer already
  *    present, so the collapse only removes the dead synonym spelling).
- *  - system_admin -> platform_admin add in ADMIN_ROLES.
+ *
+ * D2 CORRECTION: platform_admin (cross-tenant platform operator) is NOT a report manager on
+ * this tenant-scoped surface; the per-tenant system_admin is unchanged.
  *
  * Proves the exam-report entitlement still admits the canonical examinations_officer and
- * board_officer, and that platform_admin now manages reports alongside system_admin.
+ * board_officer, and that platform_admin does NOT manage tenant reports while system_admin does.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -20,11 +22,12 @@ describe('report-access privilege preservation (D2)', () => {
     expect(isReportStaff(['examinations_officer'])).toBe(true);
   });
 
-  it('adds platform_admin as a report manager alongside system_admin (additive)', () => {
-    expect(isReportManager(['platform_admin'])).toBe(true);
+  it('does NOT admit platform_admin as a report manager (tenant isolation); system_admin unchanged', () => {
+    expect(isReportManager(['platform_admin'])).toBe(false);
+    expect(canAccessReport(['platform_admin'], 'fee_dues')).toBe(false);
+    expect(canAccessReport(['platform_admin'], 'exam_results')).toBe(false);
+    // system_admin (per-tenant admin) unchanged
     expect(isReportManager(['system_admin'])).toBe(true);
-    // managers may read every report
-    expect(canAccessReport(['platform_admin'], 'fee_dues')).toBe(true);
     expect(canAccessReport(['system_admin'], 'fee_dues')).toBe(true);
   });
 

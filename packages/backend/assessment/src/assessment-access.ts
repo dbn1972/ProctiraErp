@@ -12,7 +12,6 @@ const ADMIN_ROLES = [
   'super-admin',
   'super_admin',
   'system_admin',
-  'platform_admin',
   'system-admin',
   'administrator',
   'principal',
