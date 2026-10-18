@@ -40,7 +40,9 @@ export type IconKey =
   | 'scale'
   | 'heart'
   | 'building'
-  | (string & {});
+  // `string & Record<never, never>` preserves literal autocomplete while
+  // satisfying @typescript-eslint/ban-types (no bare `{}`).
+  | (string & Record<never, never>);
 
 /** A feature module descriptor in the federated registry */
 export interface FeatureModule {
