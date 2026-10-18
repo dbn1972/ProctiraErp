@@ -75,6 +75,15 @@ export interface RolesRepository {
   findRoleById(tenantId: string, id: string): Promise<RoleEntity | null>;
   findRoleByName(tenantId: string, name: string): Promise<RoleEntity | null>;
   createRole(data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>): Promise<RoleEntity>;
+  /**
+   * PRC-L371: atomically create a role only when no role with the same name
+   * (case-insensitive) already exists in the tenant. Returns the created role,
+   * or `null` when a same-named role is already present. Replaces the
+   * check-then-insert race in `RolesService.createRole`.
+   */
+  createRoleIfNameAbsent(
+    data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<RoleEntity | null>;
   updateRole(
     tenantId: string,
     id: string,
@@ -92,6 +101,13 @@ export interface RolesRepository {
   findUserByEmail(tenantId: string, email: string): Promise<UserRecord | null>;
   /** Create or replace a user record (G-910 invite / directory sync). */
   upsertUser(user: UserRecord): Promise<UserRecord>;
+  /**
+   * PRC-L371: atomically insert a user only when no user with the same e-mail
+   * (case-insensitive) already exists in the tenant. Returns the created
+   * record, or `null` when the e-mail is already taken. Replaces the
+   * check-then-insert race in `RolesService.inviteUser`.
+   */
+  insertUserIfEmailAbsent(user: UserRecord): Promise<UserRecord | null>;
   setUserRoles(tenantId: string, userId: string, roleIds: string[]): Promise<UserRecord | null>;
   /**
    * PRC-M026: read-modify-write of one user's role list as a single atomic step

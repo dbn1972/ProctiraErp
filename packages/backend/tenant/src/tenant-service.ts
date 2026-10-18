@@ -699,9 +699,15 @@ export class TenantService {
     // Mirror the just-published tokens onto `tenant_settings.theme` so that
     // a client doing a cold boot can fetch the active theme in a single
     // round-trip without joining the version table.
+    //
+    // PRC-L168: re-read the config immediately before the mirror write and
+    // merge only `theme` onto the FRESH config. Building the write from the
+    // stale `tenant.config` captured before the insert would clobber any
+    // concurrent `updateConfig` that landed in between.
+    const fresh = (await this.repository.findTenantById(tenantId)) ?? tenant;
     await this.repository.updateTenant(tenantId, {
       config: {
-        ...tenant.config,
+        ...fresh.config,
         theme: version.tokens,
       },
     });
@@ -764,9 +770,12 @@ export class TenantService {
     });
 
     // Mirror the restored tokens onto the tenant's active config (Task 58.1).
+    // PRC-L168: merge `theme` onto a FRESH read so a concurrent config change
+    // between the initial read and this mirror write is not clobbered.
+    const fresh = (await this.repository.findTenantById(tenantId)) ?? tenant;
     await this.repository.updateTenant(tenantId, {
       config: {
-        ...tenant.config,
+        ...fresh.config,
         theme: rollback.tokens,
       },
     });

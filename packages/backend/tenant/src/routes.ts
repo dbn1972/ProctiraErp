@@ -31,7 +31,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { TenantService } from './tenant-service.js';
 import {
   CreateTenantSchema,
   UpdateTenantSchema,
@@ -50,6 +49,7 @@ import {
   type UpdateConfigInput,
   type AddDomainInput,
 } from './schemas.js';
+import type { TenantService } from './tenant-service.js';
 
 /**
  * Options for registering tenant routes.
@@ -113,19 +113,41 @@ export async function registerTenantRoutes(
       request: FastifyRequest<{ Querystring: TenantListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as TenantListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
-      const sortBy = query.sortBy ?? 'createdAt';
-      const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
+      // PRC-L167: validate the list query before it reaches the service.
+      // Coerce the numeric string query params (mirrors the roles-routes
+      // `GET /tenant/users` pattern) so TenantListQuerySchema can enforce the
+      // page/pageSize bounds and whitelist sortBy/sortOrder. Out-of-range or
+      // non-enum values are rejected with 400 instead of silently coerced.
+      const raw = request.query as Record<string, unknown>;
+      const coerced = {
+        ...raw,
+        ...(raw['page'] != null ? { page: Number(raw['page']) } : {}),
+        ...(raw['pageSize'] != null ? { pageSize: Number(raw['pageSize']) } : {}),
+      };
 
+      const queryResult = validate(TenantListQuerySchema, coerced);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+
+      const query = queryResult.data;
       const result = await tenantService.listTenants(
         {
           status: query.status,
           search: query.search,
           region: query.region,
         },
-        { page, pageSize, sortBy, sortOrder },
+        {
+          page: query.page ?? 1,
+          pageSize: query.pageSize ?? 20,
+          sortBy: query.sortBy ?? 'createdAt',
+          sortOrder: query.sortOrder ?? 'desc',
+        },
       );
 
       return reply.status(200).send({
