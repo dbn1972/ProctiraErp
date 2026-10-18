@@ -49,6 +49,7 @@ export class InMemoryBillingRepository implements BillingRepository {
       quotas: data.quotas ?? existing.quotas,
       priceMonthly: data.priceMonthly !== undefined ? data.priceMonthly : existing.priceMonthly,
       priceYearly: data.priceYearly !== undefined ? data.priceYearly : existing.priceYearly,
+      currency: data.currency ?? existing.currency,
       trialDays: data.trialDays ?? existing.trialDays,
       sortOrder: data.sortOrder ?? existing.sortOrder,
       createdAt: existing.createdAt,
