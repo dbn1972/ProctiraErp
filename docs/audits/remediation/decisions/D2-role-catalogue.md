@@ -94,3 +94,28 @@ reviewer must verify each canonical role's permission set equals the union of
 what its (collapsed) synonyms currently grant — normalization must be
 privilege-preserving, not privilege-expanding. Confirm the final set against the
 RBAC permission matrix, not just string scans.
+
+---
+
+## D2 CORRECTION (owner) — platform_admin ≠ system_admin; preserve tenant isolation
+
+Owner clarified the roles are DISTINCT by scope:
+
+- **platform_admin** = overall PLATFORM / control-plane operator (cross-tenant ops).
+- **system_admin** = per-TENANT administrator (scoped to one tenant).
+
+The first D2 implementation WRONGLY collapsed system_admin -> platform_admin
+(add-only), which granted platform_admin every tenant-scoped permission
+system_admin held — including student PHI, health, assessment, examination and
+report data access. For a platform operator that BREAKS tenant isolation.
+
+**Corrected rule (supersedes the earlier system_admin->platform_admin collapse):**
+
+- Do NOT collapse system_admin into platform_admin. They are distinct canonical roles.
+- platform_admin keeps control-plane / platform-operations permissions but MUST NOT
+  hold tenant-scoped student PHI / health / academic (assessment, examination,
+  report, student) data access by default. Remove platform_admin from those
+  tenant-scoped allow-lists where the batch additively inserted it.
+- system_admin stays exactly as it was (unchanged per-tenant admin).
+- This correction must be applied to PR #633 BEFORE it merges. #633 is not merged,
+  so nothing downstream depends on the wrong grant yet.
