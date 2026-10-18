@@ -23,6 +23,7 @@ import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertWithinPermissionCeiling } from './permission-ceiling.js';
 import type {
   PermissionRef,
   RoleEntity,
@@ -30,6 +31,17 @@ import type {
   UserListFilter,
   UserRecord,
 } from './roles-repository.js';
+
+/**
+ * PRC-L170: optional actor context. When supplied, the service enforces a
+ * permission ceiling so an actor cannot create/assign a role whose permission
+ * set exceeds their own effective permissions. When omitted, behaviour is
+ * unchanged (back-compat for in-process callers that gate at the gateway).
+ */
+export interface RolesActorContext {
+  /** The actor's effective permission set (union of their assigned roles). */
+  actorPermissions: PermissionRef[];
+}
 
 // ─── Audit hook ───────────────────────────────────────────────────────────
 
@@ -132,9 +144,16 @@ export class RolesService {
     return role;
   }
 
-  async createRole(tenantId: string, input: CreateRoleInput): Promise<RoleEntity> {
+  async createRole(
+    tenantId: string,
+    input: CreateRoleInput,
+    actor?: RolesActorContext,
+  ): Promise<RoleEntity> {
     this.validateRoleName(input.name);
     this.validatePermissions(input.permissions);
+    if (actor) {
+      assertWithinPermissionCeiling(actor.actorPermissions, input.permissions, 'createRole');
+    }
 
     const collision = await this.repository.findRoleByName(tenantId, input.name);
     if (collision) {
@@ -177,13 +196,21 @@ export class RolesService {
    * - The new permissions take effect on the next request because the policy
    *   evaluator reads role permissions per-request from the repository.
    */
-  async updateRole(tenantId: string, id: string, input: UpdateRoleInput): Promise<RoleEntity> {
+  async updateRole(
+    tenantId: string,
+    id: string,
+    input: UpdateRoleInput,
+    actor?: RolesActorContext,
+  ): Promise<RoleEntity> {
     const existing = await this.repository.findRoleById(tenantId, id);
     if (!existing) throw new NotFoundError(`Role with id '${id}' not found`);
     if (existing.builtIn) {
       throw new BusinessRuleError(
         `Built-in role '${existing.name}' is read-only and cannot be modified`,
       );
+    }
+    if (actor && input.permissions !== undefined) {
+      assertWithinPermissionCeiling(actor.actorPermissions, input.permissions, 'updateRole');
     }
 
     if (input.name && input.name.trim() !== existing.name) {
@@ -231,8 +258,9 @@ export class RolesService {
     tenantId: string,
     id: string,
     permissions: PermissionRef[],
+    actor?: RolesActorContext,
   ): Promise<RoleEntity> {
-    return this.updateRole(tenantId, id, { permissions });
+    return this.updateRole(tenantId, id, { permissions }, actor);
   }
 
   async deleteRole(tenantId: string, id: string): Promise<void> {
@@ -280,6 +308,7 @@ export class RolesService {
     tenantId: string,
     userId: string,
     roleIds: string[],
+    actor?: RolesActorContext,
   ): Promise<UserRecord> {
     const before = await this.repository.findUserById(tenantId, userId);
     if (!before) throw new NotFoundError(`User with id '${userId}' not found`);
@@ -287,6 +316,9 @@ export class RolesService {
     const previousRoleIds = [...before.roleIds];
 
     const dedup = Array.from(new Set(roleIds));
+    // PRC-L170: collect each assigned role's permissions so the ceiling can be
+    // enforced against the union the assignment would grant the target user.
+    const grantedPermissions: PermissionRef[] = [];
     for (const rid of dedup) {
       const role = await this.repository.findRoleById(tenantId, rid);
       if (!role) {
@@ -298,6 +330,10 @@ export class RolesService {
           },
         ]);
       }
+      grantedPermissions.push(...role.permissions);
+    }
+    if (actor) {
+      assertWithinPermissionCeiling(actor.actorPermissions, grantedPermissions, 'assignRolesToUser');
     }
 
     const updated = await this.repository.setUserRoles(tenantId, userId, dedup);
