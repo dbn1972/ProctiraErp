@@ -31,7 +31,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { TenantService } from './tenant-service.js';
 import {
   CreateTenantSchema,
   UpdateTenantSchema,
@@ -50,6 +49,7 @@ import {
   type UpdateConfigInput,
   type AddDomainInput,
 } from './schemas.js';
+import type { TenantService } from './tenant-service.js';
 
 /**
  * Options for registering tenant routes.
@@ -146,7 +146,7 @@ export async function registerTenantRoutes(
           page: query.page ?? 1,
           pageSize: query.pageSize ?? 20,
           sortBy: query.sortBy ?? 'createdAt',
-          sortOrder: (query.sortOrder ?? 'desc') as 'asc' | 'desc',
+          sortOrder: query.sortOrder ?? 'desc',
         },
       );
 

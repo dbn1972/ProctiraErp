@@ -24,6 +24,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { PermissionRef, RoleEntity, UserRecord } from './roles-repository.js';
 import {
   AssignRolesToUserSchema,
   CreateRoleSchema,
@@ -45,7 +46,6 @@ import {
   type UserParams,
 } from './roles-schemas.js';
 import type { RolesActorContext, RolesService } from './roles-service.js';
-import type { PermissionRef, RoleEntity, UserRecord } from './roles-repository.js';
 
 // ─── Request decoration helpers ───────────────────────────────────────────
 
@@ -94,9 +94,7 @@ function formatUser(user: UserRecord) {
  * `undefined` to opt out (behaviour unchanged). Production deployments wire
  * this to the authenticated JWT's role permissions.
  */
-export type ActorPermissionsResolver = (
-  request: FastifyRequest,
-) => PermissionRef[] | undefined;
+export type ActorPermissionsResolver = (request: FastifyRequest) => PermissionRef[] | undefined;
 
 export interface RolesRoutesOptions {
   rolesService: RolesService;

@@ -27,7 +27,11 @@ const TENANT_B = 'tenant-b';
 const PUBLISHER = '11111111-1111-4111-8111-111111111111';
 
 const SEED: BuiltInRoleSeed[] = [
-  { roleId: 'admin', roleName: 'Administrator', permissions: [{ resource: '*', action: 'manage' }] },
+  {
+    roleId: 'admin',
+    roleName: 'Administrator',
+    permissions: [{ resource: '*', action: 'manage' }],
+  },
 ];
 
 const tenantHeader = (t: string) => ({ 'x-tenant-id': t });
@@ -39,7 +43,14 @@ describe('cross-tenant roles isolation (PRC-L591)', () => {
   beforeEach(async () => {
     repo = new InMemoryRolesRepository(SEED);
     repo.seedUsers(TENANT_A, [
-      { id: 'a-user', tenantId: TENANT_A, email: 'a@a.test', displayName: 'A', roleIds: [], status: 'ACTIVE' },
+      {
+        id: 'a-user',
+        tenantId: TENANT_A,
+        email: 'a@a.test',
+        displayName: 'A',
+        roleIds: [],
+        status: 'ACTIVE',
+      },
     ]);
     const service = new RolesService(repo);
     app = Fastify();
@@ -199,7 +210,12 @@ describe('cross-tenant branding isolation (PRC-L591)', () => {
         await service.createTenant({
           name: slug,
           slug,
-          admin: { firstName: 'A', lastName: 'B', email: `a@${slug}.test`, password: 'password123' },
+          admin: {
+            firstName: 'A',
+            lastName: 'B',
+            email: `a@${slug}.test`,
+            password: 'password123',
+          },
         })
       ).id;
     idA = await mk('brand-a');
@@ -220,7 +236,10 @@ describe('cross-tenant branding isolation (PRC-L591)', () => {
   });
 
   it("A's published branding does not leak into B's active branding", async () => {
-    await service.publishBranding(idA, { tokens: { primaryColor: '#aaaaaa' }, publishedBy: PUBLISHER });
+    await service.publishBranding(idA, {
+      tokens: { primaryColor: '#aaaaaa' },
+      publishedBy: PUBLISHER,
+    });
 
     const bActive = await app.inject({
       method: 'GET',
@@ -233,7 +252,10 @@ describe('cross-tenant branding isolation (PRC-L591)', () => {
 
   it('A cannot roll back to a revision that belongs to B', async () => {
     // B publishes revision 1.
-    await service.publishBranding(idB, { tokens: { primaryColor: '#bbbbbb' }, publishedBy: PUBLISHER });
+    await service.publishBranding(idB, {
+      tokens: { primaryColor: '#bbbbbb' },
+      publishedBy: PUBLISHER,
+    });
 
     // A (no revisions) tries to roll back to "revision 1" — in A's scope there
     // is no revision 1, so it must 404 rather than pick up B's revision.
@@ -251,7 +273,14 @@ describe('role-assignment concurrency (PRC-L591)', () => {
   it('two concurrent role adds for the same user do not lose an update', async () => {
     const repo = new InMemoryRolesRepository(SEED);
     repo.seedUsers(TENANT_A, [
-      { id: 'u', tenantId: TENANT_A, email: 'u@a.test', displayName: 'U', roleIds: [], status: 'ACTIVE' },
+      {
+        id: 'u',
+        tenantId: TENANT_A,
+        email: 'u@a.test',
+        displayName: 'U',
+        roleIds: [],
+        status: 'ACTIVE',
+      },
     ]);
     const service = new RolesService(repo);
     const r1 = await service.createRole(TENANT_A, { name: 'R1', permissions: [] });

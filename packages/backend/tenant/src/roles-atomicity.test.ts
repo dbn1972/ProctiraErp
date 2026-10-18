@@ -23,7 +23,11 @@ import type { RoleEntity, RolesRepository, UserRecord } from './roles-repository
 import { RolesService } from './roles-service.js';
 
 const SEED: BuiltInRoleSeed[] = [
-  { roleId: 'admin', roleName: 'Administrator', permissions: [{ resource: '*', action: 'manage' }] },
+  {
+    roleId: 'admin',
+    roleName: 'Administrator',
+    permissions: [{ resource: '*', action: 'manage' }],
+  },
 ];
 
 const TENANT = 'tenant-a';
@@ -82,7 +86,11 @@ class GatedRepo implements RolesRepository {
   deleteRole(t: string, id: string) {
     return this.inner.deleteRole(t, id);
   }
-  listUsers(t: string, f: Parameters<RolesRepository['listUsers']>[1], p: Parameters<RolesRepository['listUsers']>[2]) {
+  listUsers(
+    t: string,
+    f: Parameters<RolesRepository['listUsers']>[1],
+    p: Parameters<RolesRepository['listUsers']>[2],
+  ) {
     return this.inner.listUsers(t, f, p);
   }
   findUserById(t: string, id: string) {
@@ -121,7 +129,11 @@ describe('RolesService atomicity (PRC-L371)', () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError);
 
     // The directory holds exactly one user with that e-mail.
-    const page = await inner.listUsers(TENANT, { search: 'dup@example.test' }, { page: 1, pageSize: 10 });
+    const page = await inner.listUsers(
+      TENANT,
+      { search: 'dup@example.test' },
+      { page: 1, pageSize: 10 },
+    );
     expect(page.meta.totalItems).toBe(1);
   });
 

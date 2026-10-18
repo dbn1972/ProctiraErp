@@ -332,7 +332,11 @@ export class RolesService {
       grantedPermissions.push(...role.permissions);
     }
     if (actor) {
-      assertWithinPermissionCeiling(actor.actorPermissions, grantedPermissions, 'assignRolesToUser');
+      assertWithinPermissionCeiling(
+        actor.actorPermissions,
+        grantedPermissions,
+        'assignRolesToUser',
+      );
     }
 
     const updated = await this.repository.setUserRoles(tenantId, userId, dedup);

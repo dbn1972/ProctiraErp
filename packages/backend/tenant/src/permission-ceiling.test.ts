@@ -145,12 +145,9 @@ describe('RolesService permission ceiling (PRC-L170)', () => {
       { actorPermissions: USER_MANAGER },
     );
     await expect(
-      service.updateRolePermissions(
-        TENANT,
-        role.id,
-        [{ resource: '*', action: 'manage' }],
-        { actorPermissions: USER_MANAGER },
-      ),
+      service.updateRolePermissions(TENANT, role.id, [{ resource: '*', action: 'manage' }], {
+        actorPermissions: USER_MANAGER,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 

@@ -67,7 +67,11 @@ describe('deleteTenant resilience (PRC-L371)', () => {
 });
 
 const ROLE_SEED: BuiltInRoleSeed[] = [
-  { roleId: 'admin', roleName: 'Administrator', permissions: [{ resource: '*', action: 'manage' }] },
+  {
+    roleId: 'admin',
+    roleName: 'Administrator',
+    permissions: [{ resource: '*', action: 'manage' }],
+  },
 ];
 
 describe('deleteRole resilience (PRC-L371)', () => {
