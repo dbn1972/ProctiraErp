@@ -11,7 +11,7 @@
  * - Permissions are evaluated against the user's JWT payload (AuthUser)
  */
 
-import type { AuthUser, RoleAssignment } from './types.js';
+import type { AuthUser } from './types.js';
 
 /**
  * Supported actions for permission checks.

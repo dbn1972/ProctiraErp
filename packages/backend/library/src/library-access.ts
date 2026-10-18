@@ -49,11 +49,7 @@ export function normalizeLibraryRoles(roles: unknown): string[] {
       if (typeof role === 'string') return role.toLowerCase();
       if (role && typeof role === 'object') {
         const obj = role as Record<string, unknown>;
-        const raw =
-          obj['roleId'] ??
-          obj['roleName'] ??
-          obj['id'] ??
-          '';
+        const raw = obj['roleId'] ?? obj['roleName'] ?? obj['id'] ?? '';
         return String(raw).toLowerCase();
       }
       return '';
@@ -70,11 +66,7 @@ export function hasLibraryAccess(roles: unknown, action: LibraryAction): boolean
 
 export function assertLibraryAccess(roles: unknown, action: LibraryAction): void {
   if (!hasLibraryAccess(roles, action)) {
-    throw new AppError(
-      `Forbidden: role cannot perform library action ${action}`,
-      'FORBIDDEN',
-      403,
-    );
+    throw new AppError(`Forbidden: role cannot perform library action ${action}`, 'FORBIDDEN', 403);
   }
 }
 

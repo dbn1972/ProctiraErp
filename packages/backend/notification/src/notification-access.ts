@@ -56,9 +56,7 @@ export function hasNotificationAccess(
   }
   const normalized = normalizeNotificationRoles(roles);
   if (normalized.length === 0) return false;
-  return normalized.some((role) =>
-    (NOTIFICATION_STAFF_ROLES as readonly string[]).includes(role),
-  );
+  return normalized.some((role) => (NOTIFICATION_STAFF_ROLES as readonly string[]).includes(role));
 }
 
 export function assertNotificationAccess(
