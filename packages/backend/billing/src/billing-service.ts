@@ -12,7 +12,13 @@
  *
  * Charter: Section 10 (Subscription, Entitlements, Feature Control)
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  DEFAULT_CURRENCY,
+  assertIso4217Code,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -128,6 +134,9 @@ export class BillingService {
     assertIntegerCentsPrice('priceMonthly', input.priceMonthly);
     assertIntegerCentsPrice('priceYearly', input.priceYearly);
 
+    // PRC-L087 / Decision D1: default to INR, validate an explicit ISO-4217 code.
+    const currency = input.currency ? assertIso4217Code(input.currency) : DEFAULT_CURRENCY;
+
     const plan: Omit<PlanEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       name: input.name,
@@ -138,6 +147,7 @@ export class BillingService {
       quotas: input.quotas,
       priceMonthly: input.priceMonthly ?? null,
       priceYearly: input.priceYearly ?? null,
+      currency,
       trialDays: input.trialDays ?? 0,
       sortOrder: input.sortOrder ?? 0,
     };
@@ -179,6 +189,8 @@ export class BillingService {
     if (input.quotas !== undefined) updateData.quotas = input.quotas;
     if (input.priceMonthly !== undefined) updateData.priceMonthly = input.priceMonthly;
     if (input.priceYearly !== undefined) updateData.priceYearly = input.priceYearly;
+    // PRC-L087 / Decision D1: validate a provided currency before persisting it.
+    if (input.currency !== undefined) updateData.currency = assertIso4217Code(input.currency);
     if (input.trialDays !== undefined) updateData.trialDays = input.trialDays;
     if (input.sortOrder !== undefined) updateData.sortOrder = input.sortOrder;
     if (input.status !== undefined) updateData.status = input.status;

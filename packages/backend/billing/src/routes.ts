@@ -77,6 +77,7 @@ function formatPlanResponse(entity: PlanEntity) {
     quotas: entity.quotas,
     priceMonthly: entity.priceMonthly,
     priceYearly: entity.priceYearly,
+    currency: entity.currency,
     trialDays: entity.trialDays,
     sortOrder: entity.sortOrder,
     createdAt: entity.createdAt.toISOString(),

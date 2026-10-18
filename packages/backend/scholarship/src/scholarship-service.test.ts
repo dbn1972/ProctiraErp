@@ -100,8 +100,26 @@ describe('ScholarshipService', () => {
       expect(program.amountPerRecipientCents).toBe(500_000);
       expect(program.status).toBe('draft');
       expect(program.eligibility.minGPA).toBe(3.0);
-      expect(program.currency).toBe('USD');
+      // PRC-M349 / PRC-M197 / Decision D1: program currency defaults to INR, not USD.
+      expect(program.currency).toBe('INR');
       expect(program.disbursementFrequency).toBe('one_time');
+    });
+
+    // PRC-M349 / PRC-M197 / Decision D1: INR default + ISO-4217 validation.
+    it('defaults the program currency to INR when none is supplied', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      expect(program.currency).toBe('INR');
+    });
+
+    it('persists an explicit valid ISO-4217 currency on create', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput({ currency: 'EUR' }));
+      expect(program.currency).toBe('EUR');
+    });
+
+    it('rejects an invalid currency code on create', async () => {
+      await expect(
+        service.createProgram(TENANT_ID, makeProgramInput({ currency: 'usd' })),
+      ).rejects.toThrow(BusinessRuleError);
     });
 
     it('should throw ValidationError if start date is after end date', async () => {
