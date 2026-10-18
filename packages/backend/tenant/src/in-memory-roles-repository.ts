@@ -108,6 +108,25 @@ export class InMemoryRolesRepository implements RolesRepository {
     return entity;
   }
 
+  /**
+   * PRC-L371: the uniqueness check and the insert happen in one synchronous
+   * span (no `await` between them), so the JavaScript event loop makes this
+   * atomic — two concurrent callers cannot both observe "name absent".
+   */
+  async createRoleIfNameAbsent(
+    data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<RoleEntity | null> {
+    const map = this.ensureTenant(data.tenantId);
+    const lower = data.name.trim().toLowerCase();
+    for (const role of map.values()) {
+      if (role.name.toLowerCase() === lower) return null;
+    }
+    const now = new Date();
+    const entity: RoleEntity = { ...data, createdAt: now, updatedAt: now };
+    map.set(entity.id, entity);
+    return entity;
+  }
+
   async updateRole(
     tenantId: string,
     id: string,
@@ -207,6 +226,26 @@ export class InMemoryRolesRepository implements RolesRepository {
     if (!map) {
       map = new Map<string, UserRecord>();
       this.usersByTenant.set(user.tenantId, map);
+    }
+    const stored: UserRecord = { ...user, roleIds: [...user.roleIds] };
+    map.set(user.id, stored);
+    return { ...stored, roleIds: [...stored.roleIds] };
+  }
+
+  /**
+   * PRC-L371: synchronous check-and-insert on the existing e-mail — atomic on
+   * the event loop. Returns `null` when the e-mail is already taken so two
+   * concurrent invites cannot both create a record.
+   */
+  async insertUserIfEmailAbsent(user: UserRecord): Promise<UserRecord | null> {
+    let map = this.usersByTenant.get(user.tenantId);
+    if (!map) {
+      map = new Map<string, UserRecord>();
+      this.usersByTenant.set(user.tenantId, map);
+    }
+    const lower = user.email.trim().toLowerCase();
+    for (const existing of map.values()) {
+      if (existing.email.toLowerCase() === lower) return null;
     }
     const stored: UserRecord = { ...user, roleIds: [...user.roleIds] };
     map.set(user.id, stored);

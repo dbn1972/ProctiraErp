@@ -24,6 +24,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type { PermissionRef, RoleEntity, UserRecord } from './roles-repository.js';
 import {
   AssignRolesToUserSchema,
   CreateRoleSchema,
@@ -44,8 +45,7 @@ import {
   type UpdateRolePermissionsInput,
   type UserParams,
 } from './roles-schemas.js';
-import type { RolesService } from './roles-service.js';
-import type { RoleEntity, UserRecord } from './roles-repository.js';
+import type { RolesActorContext, RolesService } from './roles-service.js';
 
 // ─── Request decoration helpers ───────────────────────────────────────────
 
@@ -88,12 +88,25 @@ function formatUser(user: UserRecord) {
 
 // ─── Options ──────────────────────────────────────────────────────────────
 
+/**
+ * PRC-L170: resolve the actor's effective permission set from the request so
+ * the service can enforce the delegated-permission ceiling. Returns
+ * `undefined` to opt out (behaviour unchanged). Production deployments wire
+ * this to the authenticated JWT's role permissions.
+ */
+export type ActorPermissionsResolver = (request: FastifyRequest) => PermissionRef[] | undefined;
+
 export interface RolesRoutesOptions {
   rolesService: RolesService;
   /** Override prefix; default `/tenant`. The gateway mounts `/api/v1` above. */
   prefix?: string;
   /** Override tenant id resolution for tests. */
   getTenantId?: TenantIdResolver;
+  /**
+   * PRC-L170: resolve the actor's effective permissions for the ceiling check.
+   * Defaults to `undefined` (no ceiling — unchanged behaviour).
+   */
+  getActorPermissions?: ActorPermissionsResolver;
 }
 
 // ─── Plugin ───────────────────────────────────────────────────────────────
@@ -102,7 +115,18 @@ export async function registerRolesRoutes(
   fastify: FastifyInstance,
   options: RolesRoutesOptions,
 ): Promise<void> {
-  const { rolesService, prefix = '/tenant', getTenantId = defaultTenantIdResolver } = options;
+  const {
+    rolesService,
+    prefix = '/tenant',
+    getTenantId = defaultTenantIdResolver,
+    getActorPermissions,
+  } = options;
+
+  /** Build the optional actor context for ceiling-enforced mutations. */
+  const actorContextFor = (request: FastifyRequest): RolesActorContext | undefined => {
+    const actorPermissions = getActorPermissions?.(request);
+    return actorPermissions ? { actorPermissions } : undefined;
+  };
 
   // GET /tenant/roles -----------------------------------------------------
 
@@ -151,11 +175,15 @@ export async function registerRolesRoutes(
       }
 
       try {
-        const role = await rolesService.createRole(tenantId, {
-          name: result.data.name,
-          description: result.data.description ?? null,
-          permissions: result.data.permissions,
-        });
+        const role = await rolesService.createRole(
+          tenantId,
+          {
+            name: result.data.name,
+            description: result.data.description ?? null,
+            permissions: result.data.permissions,
+          },
+          actorContextFor(request),
+        );
         return reply.status(201).send(formatRole(role));
       } catch (error) {
         return handleError(error, reply);
@@ -222,7 +250,12 @@ export async function registerRolesRoutes(
       }
 
       try {
-        const role = await rolesService.updateRole(tenantId, params.data.id, body.data);
+        const role = await rolesService.updateRole(
+          tenantId,
+          params.data.id,
+          body.data,
+          actorContextFor(request),
+        );
         return reply.status(200).send(formatRole(role));
       } catch (error) {
         return handleError(error, reply);
@@ -269,6 +302,7 @@ export async function registerRolesRoutes(
           tenantId,
           params.data.id,
           body.data.permissions,
+          actorContextFor(request),
         );
         return reply.status(200).send(formatRole(role));
       } catch (error) {
@@ -457,6 +491,7 @@ export async function registerRolesRoutes(
           tenantId,
           params.data.userId,
           body.data.roleIds,
+          actorContextFor(request),
         );
         return reply.status(200).send(formatUser(user));
       } catch (error) {
