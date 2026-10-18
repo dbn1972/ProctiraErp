@@ -13,7 +13,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
-import { majorUnitsToCents } from '@proctira/common';
+import { majorUnitsToCents, currencyForCountry } from '@proctira/common';
 
 import { createTransportFeeStructureAction } from '../actions';
 import { resolveEntityLabel } from '@/lib/entity-label';
@@ -36,6 +36,9 @@ export function FeesPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
+  // PRC-L059 / Decision D1: resolve the fee currency from the shared country→currency
+  // path (India→INR) instead of a hard-coded literal. Multi-currency is per-country.
+  const feeCurrency = currencyForCountry('IN');
 
   useEffect(() => {
     setHydrated(true);
@@ -85,7 +88,7 @@ export function FeesPanel({
                     ? Number(fd.get('maxDistanceKm'))
                     : undefined,
                   amountCents,
-                  currency: 'INR',
+                  currency: feeCurrency,
                 });
                 if (result.status === 'error') {
                   setError(result.message ?? 'Failed');
