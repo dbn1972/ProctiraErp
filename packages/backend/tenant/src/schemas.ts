@@ -31,45 +31,57 @@ export type TenantStatus = Static<typeof TenantStatusEnum>;
 /**
  * Branding configuration for a tenant.
  */
-export const BrandingConfigSchema = Type.Object({
-  logoUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'URL to tenant logo' })),
-  faviconUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'URL to tenant favicon' })),
-  primaryColor: Type.Optional(
-    Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Primary brand color (hex)' }),
-  ),
-  secondaryColor: Type.Optional(
-    Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Secondary brand color (hex)' }),
-  ),
-  organizationName: Type.Optional(
-    Type.String({ maxLength: 255, description: 'Display name for the organization' }),
-  ),
-});
+export const BrandingConfigSchema = Type.Object(
+  {
+    logoUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'URL to tenant logo' })),
+    faviconUrl: Type.Optional(
+      Type.String({ maxLength: 2048, description: 'URL to tenant favicon' }),
+    ),
+    primaryColor: Type.Optional(
+      Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Primary brand color (hex)' }),
+    ),
+    secondaryColor: Type.Optional(
+      Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Secondary brand color (hex)' }),
+    ),
+    organizationName: Type.Optional(
+      Type.String({ maxLength: 255, description: 'Display name for the organization' }),
+    ),
+  },
+  // PRC-M391: reject unknown nested keys under config.branding.
+  { additionalProperties: false },
+);
 
 export type BrandingConfig = Static<typeof BrandingConfigSchema>;
 
 /**
  * Locale and regional settings for a tenant.
  */
-export const LocaleConfigSchema = Type.Object({
-  defaultLocale: Type.String({
-    minLength: 2,
-    maxLength: 10,
-    description: 'Default locale (e.g., "en", "ar", "fr")',
-  }),
-  supportedLocales: Type.Array(Type.String({ minLength: 2, maxLength: 10 }), {
-    minItems: 1,
-    description: 'Supported locales',
-  }),
-  timezone: Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Default timezone (IANA format, e.g., "Asia/Kolkata")',
-  }),
-  dateFormat: Type.Optional(
-    Type.String({ maxLength: 50, description: 'Date format pattern (e.g., "DD/MM/YYYY")' }),
-  ),
-  numberFormat: Type.Optional(Type.String({ maxLength: 50, description: 'Number format locale' })),
-});
+export const LocaleConfigSchema = Type.Object(
+  {
+    defaultLocale: Type.String({
+      minLength: 2,
+      maxLength: 10,
+      description: 'Default locale (e.g., "en", "ar", "fr")',
+    }),
+    supportedLocales: Type.Array(Type.String({ minLength: 2, maxLength: 10 }), {
+      minItems: 1,
+      description: 'Supported locales',
+    }),
+    timezone: Type.String({
+      minLength: 1,
+      maxLength: 100,
+      description: 'Default timezone (IANA format, e.g., "Asia/Kolkata")',
+    }),
+    dateFormat: Type.Optional(
+      Type.String({ maxLength: 50, description: 'Date format pattern (e.g., "DD/MM/YYYY")' }),
+    ),
+    numberFormat: Type.Optional(
+      Type.String({ maxLength: 50, description: 'Number format locale' }),
+    ),
+  },
+  // PRC-M391: reject unknown nested keys under config.locale.
+  { additionalProperties: false },
+);
 
 export type LocaleConfig = Static<typeof LocaleConfigSchema>;
 
@@ -99,28 +111,37 @@ export type FeatureConfig = Static<typeof FeatureConfigSchema>;
 /**
  * Security settings for a tenant.
  */
-export const SecurityConfigSchema = Type.Object({
-  mfaRequired: Type.Optional(
-    Type.Boolean({ default: false, description: 'Whether MFA is required for all users' }),
-  ),
-  sessionTimeoutMinutes: Type.Optional(
-    Type.Number({
-      minimum: 5,
-      maximum: 1440,
-      default: 480,
-      description: 'Session timeout in minutes',
-    }),
-  ),
-  passwordMinLength: Type.Optional(
-    Type.Number({ minimum: 8, maximum: 128, default: 12, description: 'Minimum password length' }),
-  ),
-  passwordRequireSpecialChar: Type.Optional(
-    Type.Boolean({ default: true, description: 'Require special characters in passwords' }),
-  ),
-  ipWhitelist: Type.Optional(
-    Type.Array(Type.String(), { description: 'Allowed IP addresses/CIDRs' }),
-  ),
-});
+export const SecurityConfigSchema = Type.Object(
+  {
+    mfaRequired: Type.Optional(
+      Type.Boolean({ default: false, description: 'Whether MFA is required for all users' }),
+    ),
+    sessionTimeoutMinutes: Type.Optional(
+      Type.Number({
+        minimum: 5,
+        maximum: 1440,
+        default: 480,
+        description: 'Session timeout in minutes',
+      }),
+    ),
+    passwordMinLength: Type.Optional(
+      Type.Number({
+        minimum: 8,
+        maximum: 128,
+        default: 12,
+        description: 'Minimum password length',
+      }),
+    ),
+    passwordRequireSpecialChar: Type.Optional(
+      Type.Boolean({ default: true, description: 'Require special characters in passwords' }),
+    ),
+    ipWhitelist: Type.Optional(
+      Type.Array(Type.String(), { description: 'Allowed IP addresses/CIDRs' }),
+    ),
+  },
+  // PRC-M391: reject unknown nested keys under config.security.
+  { additionalProperties: false },
+);
 
 export type SecurityConfig = Static<typeof SecurityConfigSchema>;
 
