@@ -274,8 +274,7 @@ function isTestFile(file: string): boolean {
 function resolveSpecifier(spec: string, fromFile: string): string | null {
   let base: string;
   if (spec.startsWith('@/')) base = join(WEB_SRC, spec.slice(2));
-  else if (spec.startsWith('./') || spec.startsWith('../'))
-    base = resolve(dirname(fromFile), spec);
+  else if (spec.startsWith('./') || spec.startsWith('../')) base = resolve(dirname(fromFile), spec);
   else return null; // bare package specifier — outside the app source graph
 
   const candidates = [

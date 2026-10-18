@@ -171,12 +171,7 @@ export interface BoardAdminDashboardData {
 }
 
 export type BoardComparisonMetricId =
-  | 'schools'
-  | 'students'
-  | 'attendance'
-  | 'passRate'
-  | 'ptr'
-  | 'gpi';
+  'schools' | 'students' | 'attendance' | 'passRate' | 'ptr' | 'gpi';
 
 export interface BoardComparisonMetric {
   id: BoardComparisonMetricId;
