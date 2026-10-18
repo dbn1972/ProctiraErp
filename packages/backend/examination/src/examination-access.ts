@@ -23,13 +23,13 @@ const ADMIN_ROLES = [
   'super-admin',
   'super_admin',
   'system_admin',
+  'platform_admin',
   'principal',
   'school_admin',
 ] as const;
 
 const EXAM_OFFICER_ROLES = [
   'examinations_officer',
-  'exam_officer',
   'registrar',
   'board_officer',
   ...ADMIN_ROLES,
@@ -49,7 +49,7 @@ const EXAM_READ_STAFF_ROLES = [
 const ACTION_ROLES: Record<ExaminationAction, readonly string[]> = {
   'exam.create': EXAM_OFFICER_ROLES,
   'exam.update': EXAM_OFFICER_ROLES,
-  'exam.delete': ['examinations_officer', 'exam_officer', 'registrar', ...ADMIN_ROLES],
+  'exam.delete': ['examinations_officer', 'registrar', ...ADMIN_ROLES],
   'exam.publish': EXAM_OFFICER_ROLES,
   'candidate.register': EXAM_OFFICER_ROLES,
   'document.generate': EXAM_OFFICER_ROLES,

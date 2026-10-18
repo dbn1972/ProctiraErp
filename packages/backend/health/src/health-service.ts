@@ -162,15 +162,18 @@ export interface HealthAccessOptions {
 }
 
 /** Roles that are authorized to access health records */
+// D2: platform_admin added alongside system_admin; FLAG for security reviewer -- break-glass widening.
 const HEALTH_AUTHORIZED_ROLES = [
   'health_officer',
   'school_nurse',
   'health_admin',
   'system_admin',
+  'platform_admin',
   'counsellor',
 ];
 
-const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
+// D2: platform_admin added alongside system_admin; FLAG for security reviewer -- break-glass widening.
+const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin', 'platform_admin'] as const;
 
 /**
  * Roles cleared to read the PHI *access log* — the register of who looked at a child's
@@ -185,7 +188,13 @@ const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
  * `canteen_administrator`, `former_health_officer` and `trainee_health_officer`. Every
  * other check in this file already matched whole values; this one was the exception.
  */
-const PHI_ACCESS_LOG_ROLES = ['health_admin', 'health_officer', 'system_admin'] as const;
+// D2: platform_admin added alongside system_admin; FLAG for security reviewer -- break-glass widening.
+const PHI_ACCESS_LOG_ROLES = [
+  'health_admin',
+  'health_officer',
+  'system_admin',
+  'platform_admin',
+] as const;
 
 /**
  * Whole-value, case-insensitive membership — the single comparison every health role

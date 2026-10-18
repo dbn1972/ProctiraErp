@@ -25,7 +25,12 @@ export const HEALTH_BREAK_GLASS_MAX_MINUTES = 240;
 export const HEALTH_BREAK_GLASS_DEFAULT_MINUTES = 60;
 
 /** Roles allowed to approve a health PHI break-glass request. */
-export const HEALTH_BREAK_GLASS_APPROVER_ROLES = ['health_admin', 'system_admin'] as const;
+// D2: platform_admin added as break-glass approver alongside system_admin; FLAG for security reviewer -- break-glass widening.
+export const HEALTH_BREAK_GLASS_APPROVER_ROLES = [
+  'health_admin',
+  'system_admin',
+  'platform_admin',
+] as const;
 
 export type HealthBreakGlassStatus = 'pending' | 'approved' | 'denied' | 'expired' | 'revoked';
 

@@ -66,7 +66,12 @@ export interface DashboardScope {
  * Role IDs that grant the country dashboard.
  * Country admins have no Area_Hierarchy restriction.
  */
-const COUNTRY_ROLE_IDS = new Set(['system_admin', 'super-admin', 'ministry_admin']);
+const COUNTRY_ROLE_IDS = new Set([
+  'system_admin',
+  'platform_admin',
+  'super-admin',
+  'ministry_admin',
+]);
 
 /** Role IDs that grant a state dashboard, scoped to `roleAssignment.areaId`. */
 const STATE_ROLE_IDS = new Set(['state_director', 'state_admin']);

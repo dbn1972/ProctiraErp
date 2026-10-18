@@ -17,6 +17,7 @@ const ADMIN_ROLES = new Set<string>([
   'super-admin',
   'super_admin',
   'system_admin',
+  'platform_admin',
   'system-admin',
   'principal',
   'school_admin',
@@ -39,7 +40,7 @@ const ACADEMIC_STAFF_ROLES = new Set<string>([
   'academic_coordinator',
 ]);
 
-const EXAM_STAFF_ROLES = new Set<string>(['examinations_officer', 'exam_officer', 'board_officer']);
+const EXAM_STAFF_ROLES = new Set<string>(['examinations_officer', 'board_officer']);
 
 const REGISTRAR_ROLES = new Set<string>(['registrar', 'admissions_officer', 'staff_admin']);
 
