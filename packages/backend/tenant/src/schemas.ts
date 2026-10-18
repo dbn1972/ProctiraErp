@@ -249,14 +249,23 @@ export const TenantListQuerySchema = Type.Object({
   search: Type.Optional(Type.String({ description: 'Search by name or slug' })),
   region: Type.Optional(Type.String({ description: 'Filter by region' })),
   sortBy: Type.Optional(
-    Type.String({
-      enum: ['name', 'slug', 'createdAt', 'status'],
-      default: 'createdAt',
-      description: 'Sort field',
-    }),
+    // PRC-L167: a Union of literals is actually enforced by the validator,
+    // unlike `Type.String({ enum })`, so a non-whitelisted sortBy is rejected.
+    Type.Union(
+      [
+        Type.Literal('name'),
+        Type.Literal('slug'),
+        Type.Literal('createdAt'),
+        Type.Literal('status'),
+      ],
+      { default: 'createdAt', description: 'Sort field' },
+    ),
   ),
   sortOrder: Type.Optional(
-    Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' }),
+    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+      default: 'desc',
+      description: 'Sort direction',
+    }),
   ),
 });
 
