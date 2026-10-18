@@ -1,13 +1,14 @@
 /**
  * Federated Feature Module Registry
  *
- * Each feature module registers itself here with metadata describing its
- * route prefix, lazy import, required permissions, and visibility scope.
- * The RootRouter consumes this registry to produce route groups dynamically.
+ * Each feature module registers itself here with navigation metadata
+ * describing its route prefix, required permissions, and visibility scope.
  *
- * This gives module-federation-like decoupling — modules can be added or
- * removed without touching the root router — while keeping a single Vite
- * build for the SPA.
+ * This registry is a pure metadata source for the live Next.js App Router
+ * surfaces (e.g. `CommandPalette.buildPaletteItems`). The legacy Vite SPA
+ * and its `RootRouter`/`lazyImport` consumption were removed under Decision
+ * D6 (legacy SPA removal); the registry intentionally no longer carries any
+ * component import edges.
  */
 
 /** Visibility scope determines which route group a feature belongs to */
@@ -51,8 +52,6 @@ export interface FeatureModule {
   icon: IconKey;
   /** Route prefix relative to its scope group (e.g. 'institutions' under /app) */
   routePrefix: string;
-  /** Lazy import function returning the module's root component */
-  lazyImport: () => Promise<{ default: React.ComponentType }>;
   /** Permissions required to access this feature (empty = no restriction) */
   requiredPermissions: string[];
   /** Which route group this feature belongs to */
@@ -81,7 +80,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Home',
     icon: 'globe',
     routePrefix: '',
-    lazyImport: () => import('./features/marketing/LandingPage'),
     requiredPermissions: [],
     scope: 'public',
     isIndex: true,
@@ -91,7 +89,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'About',
     icon: 'book-open',
     routePrefix: 'about',
-    lazyImport: () => import('./features/marketing/AboutPage'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -100,7 +97,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Features',
     icon: 'megaphone',
     routePrefix: 'features',
-    lazyImport: () => import('./features/marketing/FeaturesPage'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -109,7 +105,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Pricing',
     icon: 'scale',
     routePrefix: 'pricing',
-    lazyImport: () => import('./features/marketing/PricingPage'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -118,7 +113,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Contact',
     icon: 'megaphone',
     routePrefix: 'contact',
-    lazyImport: () => import('./features/marketing/ContactPage'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -127,7 +121,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Demo',
     icon: 'globe',
     routePrefix: 'demo',
-    lazyImport: () => import('./features/marketing/DemoPage'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -136,7 +129,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Privacy Policy',
     icon: 'shield',
     routePrefix: 'legal/privacy',
-    lazyImport: () => import('./features/legal/PrivacyPolicy'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -145,7 +137,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Terms of Service',
     icon: 'scale',
     routePrefix: 'legal/terms',
-    lazyImport: () => import('./features/legal/TermsOfService'),
     requiredPermissions: [],
     scope: 'public',
   },
@@ -154,7 +145,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Registration',
     icon: 'user-plus',
     routePrefix: 'registration',
-    lazyImport: () => import('./features/registration/RegistrationRouter'),
     requiredPermissions: [],
     scope: 'public',
     hasSubRoutes: true,
@@ -166,7 +156,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Sign In',
     icon: 'log-in',
     routePrefix: 'signin',
-    lazyImport: () => import('./features/auth/SignIn'),
     requiredPermissions: [],
     scope: 'auth',
   },
@@ -175,7 +164,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Sign Up',
     icon: 'user-plus',
     routePrefix: 'signup',
-    lazyImport: () => import('./features/auth/SignUp'),
     requiredPermissions: [],
     scope: 'auth',
   },
@@ -184,7 +172,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Forgot Password',
     icon: 'key',
     routePrefix: 'forgot-password',
-    lazyImport: () => import('./features/auth/ForgotPassword'),
     requiredPermissions: [],
     scope: 'auth',
   },
@@ -193,7 +180,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'MFA Setup',
     icon: 'shield',
     routePrefix: 'mfa-setup',
-    lazyImport: () => import('./features/auth/MFASetup'),
     requiredPermissions: [],
     scope: 'auth',
   },
@@ -202,7 +188,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'MFA Verify',
     icon: 'shield',
     routePrefix: 'mfa-verify',
-    lazyImport: () => import('./features/auth/MFAVerify'),
     requiredPermissions: [],
     scope: 'auth',
   },
@@ -213,7 +198,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Dashboard',
     icon: 'layout-dashboard',
     routePrefix: 'dashboard',
-    lazyImport: () => import('./features/dashboards/HomeRouter'),
     requiredPermissions: [],
     scope: 'app',
     hasSubRoutes: true,
@@ -223,7 +207,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Institutions',
     icon: 'school',
     routePrefix: 'institutions',
-    lazyImport: () => import('./features/institutions/InstitutionsRouter'),
     requiredPermissions: ['institution.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -233,7 +216,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Students',
     icon: 'users',
     routePrefix: 'students',
-    lazyImport: () => import('./features/students/StudentsRouter'),
     requiredPermissions: ['student.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -243,7 +225,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Staff',
     icon: 'user-check',
     routePrefix: 'staff',
-    lazyImport: () => import('./features/staff/StaffRouter'),
     requiredPermissions: ['staff.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -253,7 +234,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Attendance',
     icon: 'calendar-check',
     routePrefix: 'attendance',
-    lazyImport: () => import('./features/attendance/AttendanceRouter'),
     requiredPermissions: ['attendance.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -263,7 +243,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Assessment',
     icon: 'clipboard-list',
     routePrefix: 'assessment',
-    lazyImport: () => import('./features/assessment/AssessmentRouter'),
     requiredPermissions: ['assessment.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -273,7 +252,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Examinations',
     icon: 'graduation-cap',
     routePrefix: 'examinations',
-    lazyImport: () => import('./features/examinations/ExaminationsRouter'),
     requiredPermissions: ['examination.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -283,7 +261,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Scholarships',
     icon: 'graduation-cap',
     routePrefix: 'scholarships',
-    lazyImport: () => import('./features/scholarships/ScholarshipsRouter'),
     requiredPermissions: ['scholarship.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -293,7 +270,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Learning',
     icon: 'book-open',
     routePrefix: 'lms',
-    lazyImport: () => import('./features/lms/LmsRouter'),
     requiredPermissions: ['lms.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -303,7 +279,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Health',
     icon: 'heart',
     routePrefix: 'health',
-    lazyImport: () => import('./features/health/HealthRouter'),
     requiredPermissions: ['health.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -313,7 +288,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Workflows',
     icon: 'file-text',
     routePrefix: 'workflows',
-    lazyImport: () => import('./features/workflows/WorkflowsRouter'),
     requiredPermissions: ['workflow.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -323,7 +297,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Data Warehouse',
     icon: 'bar-chart-3',
     routePrefix: 'data-warehouse',
-    lazyImport: () => import('./features/data-warehouse/DataWarehouseRouter'),
     requiredPermissions: ['data-warehouse.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -333,7 +306,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Analytics',
     icon: 'bar-chart-3',
     routePrefix: 'analytics',
-    lazyImport: () => import('./features/analytics/AnalyticsDashboard'),
     requiredPermissions: ['analytics.read'],
     scope: 'app',
   },
@@ -342,7 +314,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'ETL Pipelines',
     icon: 'file-text',
     routePrefix: 'etl',
-    lazyImport: () => import('./features/etl/EtlRouter'),
     requiredPermissions: ['etl.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -352,7 +323,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Reports',
     icon: 'file-bar-chart',
     routePrefix: 'reports',
-    lazyImport: () => import('./features/reports/ReportsRouter'),
     requiredPermissions: ['report.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -362,7 +332,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Settings',
     icon: 'settings',
     routePrefix: 'settings',
-    lazyImport: () => import('./features/settings/SettingsRouter'),
     requiredPermissions: ['settings.read'],
     scope: 'app',
     hasSubRoutes: true,
@@ -372,7 +341,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Help',
     icon: 'help-circle',
     routePrefix: 'help',
-    lazyImport: () => import('./features/help/HelpGuide'),
     requiredPermissions: [],
     scope: 'app',
   },
@@ -388,7 +356,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Dashboard',
     icon: 'layout-dashboard',
     routePrefix: 'dashboard',
-    lazyImport: () => import('./features/mobile/MobileDashboard'),
     requiredPermissions: [],
     scope: 'mobile',
     requiredFeatureFlag: 'legacy_mobile_routes',
@@ -398,7 +365,6 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Attendance',
     icon: 'calendar-check',
     routePrefix: 'attendance',
-    lazyImport: () => import('./features/mobile/MobileAttendance'),
     requiredPermissions: ['attendance.read'],
     scope: 'mobile',
     requiredFeatureFlag: 'legacy_mobile_routes',
@@ -408,24 +374,13 @@ export const featureRegistry: FeatureModule[] = [
     label: 'Student Profile',
     icon: 'users',
     routePrefix: 'student-profile',
-    lazyImport: () => import('./features/mobile/MobileStudentProfile'),
     requiredPermissions: ['student.read'],
     scope: 'mobile',
     requiredFeatureFlag: 'legacy_mobile_routes',
   },
 ];
 
-/** Helper to filter registry by scope */
-export function getModulesByScope(scope: VisibilityScope): FeatureModule[] {
-  return featureRegistry.filter((m) => m.scope === scope);
-}
-
 /** Helper to find a module by ID */
 export function getModuleById(id: string): FeatureModule | undefined {
   return featureRegistry.find((m) => m.id === id);
-}
-
-/** Get all unique feature IDs for chunk naming */
-export function getFeatureChunkIds(): string[] {
-  return featureRegistry.map((m) => m.id);
 }
