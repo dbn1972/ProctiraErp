@@ -33,7 +33,19 @@ import * as fc from 'fast-check';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { featureRegistry, getModulesByScope, type FeatureModule } from '../../featureRegistry';
+import { featureRegistry, type FeatureModule, type VisibilityScope } from '../../featureRegistry';
+
+// ─── Security-owner-review surface ───────────────────────────────────────────
+// This is a LIVE RBAC property test. Its route/permission universe is derived
+// from the `featureRegistry` navigation metadata (scope + requiredPermissions).
+// The legacy Vite SPA's `getModulesByScope` helper was removed under Decision
+// D6, so this test filters the registry inline via `modulesByScope` below. The
+// metadata it reads (scope/requiredPermissions) is unchanged by that removal.
+// Any change to the three-persona, middleware PUBLIC_PATHS, or permission
+// coupling assertions below requires security-owner review.
+function modulesByScope(scope: VisibilityScope): FeatureModule[] {
+  return featureRegistry.filter((m) => m.scope === scope);
+}
 
 // Property-based runs are CPU-heavy; the 5s default flaked on loaded CI runners.
 vi.setConfig({ testTimeout: 30_000 });
@@ -103,7 +115,7 @@ function canAccessRoute(route: FeatureModule, userPermissions: string[]): boolea
  * requiredPermissions).
  */
 function getProtectedRoutes(): FeatureModule[] {
-  return getModulesByScope('app').filter((m) => m.requiredPermissions.length > 0);
+  return modulesByScope('app').filter((m) => m.requiredPermissions.length > 0);
 }
 
 // ─── fast-check Arbitraries ──────────────────────────────────────────────────
@@ -147,8 +159,8 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
     });
 
     it('public and auth scope routes declare NO permissions', () => {
-      const publicRoutes = getModulesByScope('public');
-      const authRoutes = getModulesByScope('auth');
+      const publicRoutes = modulesByScope('public');
+      const authRoutes = modulesByScope('auth');
 
       for (const route of [...publicRoutes, ...authRoutes]) {
         expect(
@@ -163,7 +175,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
     it('no app-scope route prefix appears in the middleware PUBLIC_PATHS', () => {
       const middlewareSrc = readFileSync(resolve(WEB_SRC, 'middleware.ts'), 'utf-8');
 
-      const appRoutes = getModulesByScope('app');
+      const appRoutes = modulesByScope('app');
       for (const route of appRoutes) {
         if (route.routePrefix === '') continue; // index route
         const routePath = `/${route.routePrefix}`;
