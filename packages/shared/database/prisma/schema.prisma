@@ -349,7 +349,6 @@ model Staff {
   @@index([tenantId, lastName, firstName])
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
-  @@index([tenantId, userId])
   @@map("staff")
 }
 
