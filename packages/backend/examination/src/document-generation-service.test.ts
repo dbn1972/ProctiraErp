@@ -533,4 +533,50 @@ describe('DocumentGenerationService', () => {
       ).rejects.toThrow(ValidationError);
     });
   });
+
+  describe('PRC-M510: admit cards before any marks exist', () => {
+    it('resolves the registered student name instead of printing the raw studentId UUID', async () => {
+      const exam = createScheduledExamination();
+      await examinationRepository.create(exam);
+      // No documentRepository.seedCandidates: resolveCandidates falls back to
+      // candidate registrations (G-902 — admit cards straight after
+      // registration, before any examination_candidates row exists).
+      await examinationRepository.createCandidateRegistration({
+        id: 'reg-001',
+        tenantId,
+        examinationId: 'exam-001',
+        studentId: 'student-001',
+        centerId: 'center-001',
+        subjectIds: ['sub-001', 'sub-002'],
+        status: 'REGISTERED',
+        registeredAt: new Date(),
+      });
+      examinationRepository.setStudentName('student-001', 'Asha Verma');
+
+      let seenCandidates: DocumentCandidate[] = [];
+      const spyPdfGenerator = {
+        ...pdfGenerator,
+        async generateAdmitCards(examInfo: unknown, candidates: DocumentCandidate[]) {
+          seenCandidates = candidates;
+          return pdfGenerator.generateAdmitCards(examInfo as never, candidates);
+        },
+      };
+      const spyService = new DocumentGenerationService(
+        examinationRepository,
+        documentRepository,
+        spyPdfGenerator,
+        taskQueue,
+      );
+
+      const job = await spyService.requestGeneration(tenantId, 'exam-001', {
+        documentType: 'admit_card',
+      });
+      const result = await spyService.processJob(tenantId, job.id);
+
+      expect(result.status).toBe('completed');
+      expect(seenCandidates).toHaveLength(1);
+      expect(seenCandidates[0]!.studentName).toBe('Asha Verma');
+      expect(seenCandidates[0]!.studentName).not.toBe('student-001');
+    });
+  });
 });

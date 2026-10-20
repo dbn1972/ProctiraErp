@@ -176,19 +176,26 @@ export class DocumentGenerationService {
     const centerNameById = new Map(examination.centers.map((c) => [c.id, c.name]));
     const subjectNameById = new Map(examination.subjects.map((s) => [s.id, s.name]));
     const wanted = candidateIds && candidateIds.length > 0 ? new Set(candidateIds) : null;
-    return registrations
-      .filter((r) => !wanted || wanted.has(r.id))
-      .map((r) => ({
-        id: r.id,
-        studentId: r.studentId,
-        studentName: r.studentId,
-        rollNumber: r.id.slice(0, 8).toUpperCase(),
-        centerId: r.centerId,
-        centerName: centerNameById.get(r.centerId) ?? r.centerId,
-        subjectIds: r.subjectIds,
-        subjectNames: r.subjectIds.map((id) => subjectNameById.get(id) ?? id),
-        gender: 'other',
-      }));
+    const selected = registrations.filter((r) => !wanted || wanted.has(r.id));
+    // PRC-M510: resolve real display names instead of printing raw student
+    // UUIDs — this fallback runs before any `examination_candidates` row
+    // exists (admit cards straight after registration), so it has no other
+    // name source.
+    const nameByStudentId = await this.examinationRepository.getStudentNames(
+      tenantId,
+      selected.map((r) => r.studentId),
+    );
+    return selected.map((r) => ({
+      id: r.id,
+      studentId: r.studentId,
+      studentName: nameByStudentId.get(r.studentId) ?? r.studentId,
+      rollNumber: r.id.slice(0, 8).toUpperCase(),
+      centerId: r.centerId,
+      centerName: centerNameById.get(r.centerId) ?? r.centerId,
+      subjectIds: r.subjectIds,
+      subjectNames: r.subjectIds.map((id) => subjectNameById.get(id) ?? id),
+      gender: 'other',
+    }));
   }
 
   /**
