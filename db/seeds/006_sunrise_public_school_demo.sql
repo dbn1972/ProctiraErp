@@ -1,6 +1,9 @@
 -- Sunrise Public School — one-tenant screen-review demo.
--- Idempotent (fixed ids, ON CONFLICT DO NOTHING, plus UPDATEs that rename
--- the original Pune school in place). Does not delete rows.
+-- Idempotent via fixed ids, ON CONFLICT DO NOTHING/UPDATE, and UPDATEs that
+-- rename the original Pune school in place. EXCEPTION: section_meetings rows
+-- for the two seeded sections are DELETEd and reinserted on every run, so a
+-- re-apply does not leave stale slot assignments lingering alongside fresh
+-- ones; every other table is append/update-only.
 -- Directory volume (five Delhi schools, generated students/staff/attendance)
 -- is appended after the named screen-review rows. Attendance is five recent
 -- dates including CURRENT_DATE so "Reporting today" is non-zero.
