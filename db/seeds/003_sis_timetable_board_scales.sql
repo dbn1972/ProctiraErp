@@ -81,6 +81,9 @@ BEGIN
     '{"board":"CBSE","source":"003_sis_timetable_board_scales"}'::jsonb
   );
 
+  -- PRC-L555: CBSE's actual 9-point scale splits the lowest band into E1/E2
+  -- (both fail bands, 0 grade points) instead of a single E band, giving 9
+  -- contiguous labeled bands with no gap or overlap across 0-100.
   INSERT INTO grading_scale_bands (id, tenant_id, grading_scale_id, label, min_percent, max_percent, grade_points, sort_order)
   SELECT uuid_generate_v4(), tid, scale_cbse, v.label, v.min_p, v.max_p, v.gp, v.ord
   FROM (VALUES
@@ -91,7 +94,8 @@ BEGIN
     ('C1', 51.00,  60.99,  6.00, 5),
     ('C2', 41.00,  50.99,  5.00, 6),
     ('D',  33.00,  40.99,  4.00, 7),
-    ('E',   0.00,  32.99,  0.00, 8)
+    ('E1', 21.00,  32.99,  0.00, 8),
+    ('E2',  0.00,  20.99,  0.00, 9)
   ) AS v(label, min_p, max_p, gp, ord);
 
   -- ICSE percentage + letter bands
