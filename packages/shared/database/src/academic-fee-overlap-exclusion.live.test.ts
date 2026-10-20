@@ -177,6 +177,121 @@ describe.skipIf(!DATABASE_URL)('PRC-M213 academic/fee overlap EXCLUDE constraint
     }
   });
 
+  it.skipIf(!MIGRATOR_DATABASE_URL)(
+    'RED: pre-248 SELECT-check trigger lets two concurrent overlapping inserts both commit',
+    async () => {
+      const m = migrator!;
+      const tenantId = randomUUID();
+      await ensurePgTestTenant(pool, tenantId);
+
+      // Reinstate 083's original race-prone SELECT-check trigger on
+      // academic_periods by dropping the gist EXCLUDE constraint 248 added
+      // and recreating 083's academic_periods_reject_overlap() function +
+      // trigger verbatim.
+      await m.query(`
+        ALTER TABLE academic_periods DROP CONSTRAINT IF EXISTS academic_periods_no_overlap_excl;
+
+        CREATE OR REPLACE FUNCTION academic_periods_reject_overlap()
+        RETURNS TRIGGER AS $$
+        DECLARE
+          conflict_id UUID;
+        BEGIN
+          IF NEW.deleted_at IS NOT NULL THEN
+            RETURN NEW;
+          END IF;
+          SELECT id INTO conflict_id
+          FROM academic_periods ap
+          WHERE ap.tenant_id = NEW.tenant_id
+            AND ap.code = NEW.code
+            AND ap.deleted_at IS NULL
+            AND ap.id IS DISTINCT FROM NEW.id
+            AND daterange(ap.valid_from, ap.valid_to, '[]') &&
+                daterange(NEW.valid_from, NEW.valid_to, '[]')
+          LIMIT 1;
+          IF conflict_id IS NOT NULL THEN
+            RAISE EXCEPTION
+              'academic_periods version overlap for code % (conflicts with %)', NEW.code, conflict_id
+              USING ERRCODE = 'exclusion_violation';
+          END IF;
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS trg_academic_periods_reject_overlap ON academic_periods;
+        CREATE TRIGGER trg_academic_periods_reject_overlap
+          BEFORE INSERT OR UPDATE OF valid_from, valid_to, deleted_at, code ON academic_periods
+          FOR EACH ROW
+          EXECUTE FUNCTION academic_periods_reject_overlap();
+      `);
+
+      const clientA = await pool.connect();
+      const clientB = await pool.connect();
+      try {
+        await clientA.query('BEGIN');
+        await clientB.query('BEGIN');
+        await clientA.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        await clientB.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+
+        // A inserts and does NOT commit yet. The trigger's own SELECT finds
+        // no conflict (nothing else exists for this code), so it allows the
+        // insert.
+        await clientA.query(
+          `INSERT INTO academic_periods (
+               id, tenant_id, name, code, start_date, end_date, valid_from, valid_to, version
+             ) VALUES ($1, $2, 'A', 'RACE1-RED', '2026-01-01', '2026-06-30', '2026-01-01', '2026-06-30', 1)`,
+          [randomUUID(), tenantId],
+        );
+
+        // B's conflicting INSERT is issued while A's row is still
+        // uncommitted. Unlike the EXCLUDE constraint, the trigger's SELECT
+        // takes no lock and reads only committed data (READ COMMITTED), so
+        // it does not see A's uncommitted row and finds "no conflict" too --
+        // B's INSERT completes immediately instead of blocking. This is the
+        // exact race PRC-M213 closes: both transactions pass the SELECT
+        // check before either commits.
+        await clientB.query(
+          `INSERT INTO academic_periods (
+               id, tenant_id, name, code, start_date, end_date, valid_from, valid_to, version
+             ) VALUES ($1, $2, 'B', 'RACE1-RED', '2026-06-01', '2026-12-31', '2026-06-01', '2026-12-31', 2)`,
+          [randomUUID(), tenantId],
+        );
+
+        // Both transactions commit successfully -- the bug: two mutually
+        // overlapping active versions now coexist.
+        await clientA.query('COMMIT');
+        await clientB.query('COMMIT');
+
+        await clientA.query('BEGIN');
+        await clientA.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        const { rows } = await clientA.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM academic_periods WHERE tenant_id = $1 AND code = 'RACE1-RED'`,
+          [tenantId],
+        );
+        await clientA.query('COMMIT');
+        expect(rows[0]!.count, 'both overlapping inserts committed under the pre-248 trigger').toBe(
+          '2',
+        );
+
+        // Clean up the two overlapping rows this RED probe committed so the
+        // 248 restore's overlap preflight (below) sees zero conflicts.
+        await clientA.query('BEGIN');
+        await clientA.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        await clientA.query(
+          `DELETE FROM academic_periods WHERE tenant_id = $1 AND code = 'RACE1-RED'`,
+          [tenantId],
+        );
+        await clientA.query('COMMIT');
+      } finally {
+        clientA.release();
+        clientB.release();
+        // Restore 248: re-adds the gist EXCLUDE constraint and drops the
+        // SELECT-check trigger/function this RED probe reinstated, so GREEN
+        // tests above and any later run see the fixed state again.
+        await m.query(load248());
+      }
+    },
+  );
+
   it('GREEN: true concurrent interleaving — B inserts a conflicting row before A commits, B blocks then loses', async () => {
     const tenantId = randomUUID();
     await ensurePgTestTenant(pool, tenantId);
