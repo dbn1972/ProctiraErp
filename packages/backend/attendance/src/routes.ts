@@ -153,14 +153,16 @@ export async function registerAttendanceRoutes(
       }
 
       // Use authenticated user ID or fallback
-      const recordedBy =
-        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
+      const user = (request as FastifyRequest & { user?: { sub?: string; roles?: unknown } }).user;
+      const recordedBy = user?.sub ?? 'system';
 
       try {
+        // PRC-M172: pass the actor so a teacher's write is scoped to their assigned class.
         const record = await attendanceService.recordStudentAttendance(
           tenantId,
           result.data,
           recordedBy,
+          user ? { id: user.sub, sub: user.sub, roles: user.roles } : undefined,
         );
         return reply.status(201).send(formatStudentAttendanceResponse(record));
       } catch (error: unknown) {
@@ -201,14 +203,16 @@ export async function registerAttendanceRoutes(
         });
       }
 
-      const recordedBy =
-        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
+      const user = (request as FastifyRequest & { user?: { sub?: string; roles?: unknown } }).user;
+      const recordedBy = user?.sub ?? 'system';
 
       try {
+        // PRC-M172: pass the actor so a teacher's write is scoped to their assigned class.
         const bulkResult = await attendanceService.recordBulkStudentAttendance(
           tenantId,
           result.data,
           recordedBy,
+          user ? { id: user.sub, sub: user.sub, roles: user.roles } : undefined,
         );
         return reply.status(201).send({
           recorded: bulkResult.recorded.map(formatStudentAttendanceResponse),

@@ -319,6 +319,55 @@ describe('Attendance Routes', () => {
     });
   });
 
+  describe('PRC-M172 teacher-to-class ownership (HTTP)', () => {
+    it('returns 403 FORBIDDEN when a teacher writes attendance for a class they are not assigned to', async () => {
+      const assignedClassId = '99999999-9999-4999-8999-999999999999';
+      repository.seedStaffAssignment({
+        tenantId: TENANT_ID,
+        classId: assignedClassId,
+        staffId: 'staff-x',
+        principalId: 'teacher-x',
+      });
+
+      await app.close();
+      app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
+      });
+      app.decorateRequest('user', undefined);
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+          sub: 'teacher-x',
+          roles: ['teacher'],
+        };
+      });
+      // PRC-M172: the in-memory repository implements AttendanceClassMembership directly.
+      const scopedService = new AttendanceService(repository, undefined, {
+        classMembership: repository,
+      });
+      await registerAttendanceRoutes(app, { attendanceService: scopedService });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/student',
+        payload: {
+          studentId: STUDENT_ID,
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID, // teacher-x has no assignment here
+          academicPeriodId: PERIOD_ID,
+          date: '2024-06-01',
+          status: 'PRESENT',
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('FORBIDDEN');
+    });
+  });
+
   describe('POST /attendance/reports/export (PRC-M082)', () => {
     it('returns the computed report with an export timestamp', async () => {
       const response = await app.inject({

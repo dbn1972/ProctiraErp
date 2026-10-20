@@ -50,7 +50,11 @@ import {
   createReportCardTemplateRepository,
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
-import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
+import {
+  attendancePlugin,
+  createAttendanceRepository,
+  isAttendanceClassMembership,
+} from '@proctira/backend-attendance';
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   communicationPlugin,
@@ -1092,8 +1096,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const attendanceTimeZone = createTenantTimeZoneResolver({
         sources: pgTenantTimeZoneSources(),
       });
+      const attendanceRepository = createAttendanceRepository();
       await scope.register(attendancePlugin, {
-        repository: createAttendanceRepository(),
+        repository: attendanceRepository,
+        // PRC-M172: teacher-only roles must own the class (active staff_assignments row,
+        // staff.user_id link) to write its attendance. Without a membership lookup,
+        // production-like envs fail closed (503).
+        classMembership: isAttendanceClassMembership(attendanceRepository)
+          ? attendanceRepository
+          : null,
         punchConfig: {
           resolveTimeZone: (tenantId) => attendanceTimeZone(tenantId),
         },

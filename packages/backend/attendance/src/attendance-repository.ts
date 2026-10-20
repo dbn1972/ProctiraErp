@@ -232,6 +232,27 @@ export interface ThresholdCheckResult {
 }
 
 /**
+ * PRC-M172: teacher-to-class ownership lookup that scopes attendance writes.
+ *
+ * - Teacher binding: the principal is linked to a staff row (`staff.user_id`, 098) that holds
+ *   an active `staff_assignments` row (`status = 'ACTIVE'`, not end-dated) for the `classId`
+ *   (a SIS `classes.id`, not a timetable `sections.id` — attendance does not use sections).
+ */
+export interface AttendanceClassMembership {
+  /** Staff ids linked to any of `principalIds` with an active assignment to `classId` (empty when none). */
+  listTeacherStaffIdsForClass(
+    tenantId: string,
+    classId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]>;
+}
+
+export function isAttendanceClassMembership(value: unknown): value is AttendanceClassMembership {
+  const candidate = value as Partial<AttendanceClassMembership> | null | undefined;
+  return typeof candidate?.listTeacherStaffIdsForClass === 'function';
+}
+
+/**
  * Repository interface for attendance data access.
  */
 export interface AttendanceRepository {
