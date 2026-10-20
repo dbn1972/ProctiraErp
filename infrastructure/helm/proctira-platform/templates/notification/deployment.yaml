@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: notification-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.notificationService.autoscaling.enabled }}
   replicas: {{ .Values.notificationService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: workflow-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.workflowService.autoscaling.enabled }}
   replicas: {{ .Values.workflowService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:
