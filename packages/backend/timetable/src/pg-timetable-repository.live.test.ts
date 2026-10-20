@@ -151,4 +151,474 @@ describe('PgTimetableRepository (live)', () => {
     expect(await repo.getBellSchedule(a.tenantId, schedule.id)).toBeNull();
     expect(await repo.listPeriods(a.tenantId, schedule.id)).toEqual([]);
   });
+
+  /**
+   * PRC-M400: mapMeeting() hardcoded subjectId: null and MEETING_INSERT_SQL never wrote the
+   * column, so a meeting created with a real subjectId silently lost it (round-tripped as null,
+   * not an error) before the db/sql/230 column + repository wiring landed.
+   */
+  it.skipIf(!live)('round-trips a meeting subjectId through create and getMeeting', async () => {
+    const repo = new PgTimetableRepository(pool!);
+    const a = await seedFixture();
+    const now = new Date().toISOString();
+    const subjectId = randomUUID();
+    await withPgTenant(pool!, a.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO subjects (id, tenant_id, code, name)
+         VALUES ($1, $2, 'MATH', 'Mathematics')`,
+        [subjectId, a.tenantId],
+      );
+    });
+    const schedule = await repo.createBellSchedule({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      code: 'SUBJ',
+      name: 'Subject day',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const period = await repo.createPeriod({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const section = await repo.createSection({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      gradeId: null,
+      code: '10-A',
+      name: '10 A',
+      primaryTeacherId: null,
+      defaultRoomId: null,
+      capacity: 30,
+      status: 'DRAFT',
+      publishedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const created = await repo.createMeeting({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      sectionId: section.id,
+      subjectId,
+      staffId: '',
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    expect(created.subjectId).toBe(subjectId);
+    const reread = await repo.getMeeting(a.tenantId, created.id);
+    expect(reread?.subjectId).toBe(subjectId);
+  });
+
+  /**
+   * PRC-M396(b): createMeetingAtomic serializes concurrent writers for the identical
+   * (institution, day, period) slot behind a transaction-scoped advisory lock and re-runs the
+   * clash check inside that same transaction. Before this fix, TimetableService's separate
+   * pre-check + later insert left a race window where two concurrent createMeeting calls for
+   * the identical slot could both pass the check and both insert (two active meetings for the
+   * same teacher/slot). Fires two concurrent inserts for one slot; exactly one must succeed.
+   */
+  it.skipIf(!live)(
+    'createMeetingAtomic lets exactly one of two concurrent same-slot inserts through',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const now = new Date().toISOString();
+      const schedule = await repo.createBellSchedule({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        code: 'RACE',
+        name: 'Race day',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const period = await repo.createPeriod({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        bellScheduleId: schedule.id,
+        name: 'P1',
+        periodOrder: 1,
+        startTime: '08:00',
+        endTime: '08:45',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sectionA = await repo.createSection({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        gradeId: null,
+        code: 'RACE-A',
+        name: 'Race A',
+        primaryTeacherId: null,
+        defaultRoomId: null,
+        capacity: 30,
+        status: 'DRAFT',
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sectionB = await repo.createSection({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        gradeId: null,
+        code: 'RACE-B',
+        name: 'Race B',
+        primaryTeacherId: null,
+        defaultRoomId: null,
+        capacity: 30,
+        status: 'DRAFT',
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = randomUUID();
+      const meetingFor = (sectionId: string): Parameters<typeof repo.createMeetingAtomic>[1] => ({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        sectionId,
+        subjectId: null,
+        staffId,
+        periodId: period.id,
+        roomId: null,
+        dayOfWeek: 1,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const clashCheck = (existing: { staffId: string }[]) => {
+        if (existing.some((m) => m.staffId === staffId)) {
+          throw new Error('staff already booked');
+        }
+      };
+      const results = await Promise.allSettled([
+        repo.createMeetingAtomic(a.tenantId, meetingFor(sectionA.id), clashCheck),
+        repo.createMeetingAtomic(a.tenantId, meetingFor(sectionB.id), clashCheck),
+      ]);
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+    },
+  );
+
+  /**
+   * PRC-L373 item 16: when TimetableServiceOptions.auditPool is wired, recordAudit must also
+   * append a durable row to audit_log_entries (via @proctira/backend-audit), on top of the
+   * existing in-memory push. Zero rows before the mutation, one after, with the real actorId.
+   * Not failing-first required (not a security/tenancy finding per se) but documented as good
+   * practice: assert the pre-state too.
+   */
+  it.skipIf(!live)(
+    'createBellSchedule with auditPool wired durably records the real actorId',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const { TimetableService } = await import('./timetable-service.js');
+      const service = new TimetableService(repo, undefined, { auditPool: pool! });
+      const actorId = randomUUID();
+      const before = await withPgTenant(pool!, a.tenantId, (client) =>
+        client.query(
+          `SELECT count(*)::int AS n FROM audit_log_entries WHERE tenant_id = $1 AND entity_type = 'bell_schedule'`,
+          [a.tenantId],
+        ),
+      );
+      expect(Number((before.rows[0] as { n: number }).n)).toBe(0);
+      const schedule = await service.createBellSchedule(
+        a.tenantId,
+        {
+          institutionId: a.institutionId,
+          academicPeriodId: a.academicPeriodId,
+          name: 'Audited day',
+          code: 'AUD',
+          dayPattern: '1,2,3,4,5',
+          status: 'active',
+        },
+        actorId,
+      );
+      const after = await withPgTenant(pool!, a.tenantId, (client) =>
+        client.query(
+          `SELECT user_id FROM audit_log_entries
+           WHERE tenant_id = $1 AND entity_type = 'bell_schedule' AND entity_id = $2`,
+          [a.tenantId, schedule.id],
+        ),
+      );
+      expect(after.rows).toHaveLength(1);
+      expect((after.rows[0] as { user_id: string }).user_id).toBe(actorId);
+    },
+  );
+
+  /**
+   * PRC-L373 item 17: GET /timetable/audits reads the durable store, tenant-scoped — seeding
+   * two mutations for tenant A and one for tenant B, a tenant-A caller must see exactly tenant
+   * A's 2 rows and never tenant B's.
+   */
+  it.skipIf(!live)(
+    'GET /timetable/audits is tenant-scoped against the durable store',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const b = await seedFixture();
+      const { TimetableService } = await import('./timetable-service.js');
+      const { timetablePlugin } = await import('./timetable-plugin.js');
+      const Fastify = (await import('fastify')).default;
+      const service = new TimetableService(repo, undefined, { auditPool: pool! });
+      await service.createBellSchedule(
+        a.tenantId,
+        {
+          institutionId: a.institutionId,
+          academicPeriodId: a.academicPeriodId,
+          name: 'A1',
+          code: 'A1',
+          dayPattern: '1,2,3,4,5',
+          status: 'active',
+        },
+        'actor-a',
+      );
+      await service.createBellSchedule(
+        a.tenantId,
+        {
+          institutionId: a.institutionId,
+          academicPeriodId: a.academicPeriodId,
+          name: 'A2',
+          code: 'A2',
+          dayPattern: '1,2,3,4,5',
+          status: 'active',
+        },
+        'actor-a',
+      );
+      await service.createBellSchedule(
+        b.tenantId,
+        {
+          institutionId: b.institutionId,
+          academicPeriodId: b.academicPeriodId,
+          name: 'B1',
+          code: 'B1',
+          dayPattern: '1,2,3,4,5',
+          status: 'active',
+        },
+        'actor-b',
+      );
+      const app = Fastify({ logger: false });
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { tenantId?: string }).tenantId = a.tenantId;
+        (request as typeof request & { user: { id: string; roles: string[] } }).user = {
+          id: 'actor-a',
+          roles: ['admin'],
+        };
+      });
+      await app.register(timetablePlugin, { repository: repo, service, prefix: '/timetable' });
+      const res = await app.inject({ method: 'GET', url: '/timetable/audits' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { data: Array<{ tenantId: string }> };
+      expect(body.data).toHaveLength(2);
+      expect(body.data.every((row) => row.tenantId === a.tenantId)).toBe(true);
+      await app.close();
+    },
+  );
+
+  /**
+   * PRC-L503: createSubstitution/listSubstitutions cross-tenant isolation, matching the
+   * existing room/bell-schedule cases' style (seed two tenants, assert invisibility).
+   */
+  it.skipIf(!live)(
+    'createSubstitution/listSubstitutions hide rows across tenants',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const b = await seedFixture();
+      const now = new Date().toISOString();
+      const schedule = await repo.createBellSchedule({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        code: 'SUB',
+        name: 'Sub day',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const period = await repo.createPeriod({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        bellScheduleId: schedule.id,
+        name: 'P1',
+        periodOrder: 1,
+        startTime: '08:00',
+        endTime: '08:45',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const section = await repo.createSection({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        gradeId: null,
+        code: 'SUB-A',
+        name: 'Sub A',
+        primaryTeacherId: null,
+        defaultRoomId: null,
+        capacity: 30,
+        status: 'DRAFT',
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const originalStaffId = randomUUID();
+      const substituteStaffId = randomUUID();
+      const meeting = await repo.createMeeting({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        sectionId: section.id,
+        subjectId: null,
+        staffId: originalStaffId,
+        periodId: period.id,
+        roomId: null,
+        dayOfWeek: 1,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sub = await repo.createSubstitution({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        sectionMeetingId: meeting.id,
+        originalStaffId,
+        substituteStaffId,
+        substitutionDate: '2026-09-07',
+        reason: null,
+        status: 'SCHEDULED',
+        createdAt: now,
+        updatedAt: now,
+      });
+      expect(sub.originalStaffId).toBe(originalStaffId);
+
+      expect((await repo.getSubstitution(a.tenantId, sub.id))?.id).toBe(sub.id);
+      expect(
+        (await repo.listSubstitutions(a.tenantId, { institutionId: a.institutionId })).map(
+          (s) => s.id,
+        ),
+      ).toEqual([sub.id]);
+
+      // Cross-tenant: tenant B sees none of tenant A's substitutions.
+      expect(await repo.getSubstitution(b.tenantId, sub.id)).toBeNull();
+      expect(await repo.listSubstitutions(b.tenantId)).toEqual([]);
+    },
+  );
+
+  /**
+   * PRC-L503: insertClonedTimetable atomicity against live PG — seed two tenants, clone into
+   * one, assert the other tenant's data is never touched/visible (cross-tenant invisibility).
+   */
+  it.skipIf(!live)('insertClonedTimetable writes are tenant-scoped and all-or-nothing', async () => {
+    const repo = new PgTimetableRepository(pool!);
+    const a = await seedFixture();
+    const b = await seedFixture();
+    const now = new Date().toISOString();
+    const schedule = await repo.createBellSchedule({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      code: 'CLN',
+      name: 'Clone day',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const period = await repo.createPeriod({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const targetPeriodId = randomUUID();
+    const clonedSection = {
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: targetPeriodId,
+      gradeId: null,
+      code: 'CLN-A',
+      name: 'Clone A',
+      primaryTeacherId: null,
+      defaultRoomId: null,
+      capacity: 30,
+      status: 'DRAFT' as const,
+      publishedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const clonedMeeting = {
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: targetPeriodId,
+      sectionId: clonedSection.id,
+      subjectId: null,
+      staffId: randomUUID(),
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await repo.insertClonedTimetable(a.tenantId, [clonedSection], [clonedMeeting]);
+    expect(
+      (await repo.listSections(a.tenantId, { academicPeriodId: targetPeriodId })).map((s) => s.id),
+    ).toEqual([clonedSection.id]);
+
+    // Cross-tenant: tenant B cannot see any of tenant A's cloned rows.
+    expect(await repo.listSections(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
+    expect(await repo.listMeetings(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
+
+    // Tenant mismatch guard: insertClonedTimetable rejects a row whose tenantId disagrees.
+    await expect(
+      repo.insertClonedTimetable(
+        b.tenantId,
+        [{ ...clonedSection, id: randomUUID() }],
+        [],
+      ),
+    ).rejects.toThrow(/clone tenant mismatch/);
+  });
 });

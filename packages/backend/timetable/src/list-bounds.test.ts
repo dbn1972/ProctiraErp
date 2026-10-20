@@ -2,7 +2,6 @@
 import Fastify, { type FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
 import { InMemoryTimetableRepository } from './in-memory-repository.js';
-import type { ListMeetingsFilter } from './timetable-repository.js';
 import { timetablePlugin } from './timetable-plugin.js';
 import { TimetableService } from './timetable-service.js';
 
@@ -50,13 +49,22 @@ describe('bounded lists (PRC-M407)', () => {
   });
 
   it('meeting clash check queries by academic period and weekday', async () => {
+    // PRC-M396(b): createMeeting now goes through repo.createMeetingAtomic (the clash check
+    // and the insert share one transaction/lock) instead of a separate repo.listMeetings()
+    // pre-check — assert the atomic call still receives the candidate-relevant scoping
+    // (institution + academic period + weekday), not an unbounded fetch.
     const repo = new InMemoryTimetableRepository();
     const service = new TimetableService(repo);
-    const filters: Array<ListMeetingsFilter | undefined> = [];
-    const original = repo.listMeetings.bind(repo);
-    repo.listMeetings = async (t, f) => {
-      filters.push(f);
-      return original(t, f);
+    const calls: Array<{ institutionId: string; academicPeriodId: string; dayOfWeek: number }> =
+      [];
+    const original = repo.createMeetingAtomic.bind(repo);
+    repo.createMeetingAtomic = async (t, candidate, clashCheck) => {
+      calls.push({
+        institutionId: candidate.institutionId,
+        academicPeriodId: candidate.academicPeriodId,
+        dayOfWeek: candidate.dayOfWeek,
+      });
+      return original(t, candidate, clashCheck);
     };
     await service.createMeeting(TENANT, {
       institutionId: INST,
@@ -69,6 +77,6 @@ describe('bounded lists (PRC-M407)', () => {
       dayOfWeek: 3,
       status: 'active',
     });
-    expect(filters).toContainEqual({ institutionId: INST, academicPeriodId: TERM, dayOfWeek: 3 });
+    expect(calls).toContainEqual({ institutionId: INST, academicPeriodId: TERM, dayOfWeek: 3 });
   });
 });
