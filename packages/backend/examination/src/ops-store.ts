@@ -707,9 +707,13 @@ export class PgExamOpsStore implements ExamOpsStore {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         roomAllocationLockKey(record.tenantId, record.roomId, record.date),
       ]);
+      // PRC-M231: a clash can only occur against the same room on the same
+      // date, so the recheck is scoped to (tenant, room, date) instead of
+      // pulling every session the tenant has ever created — the index added
+      // in db/sql/222 covers this scoped lookup.
       const { rows: existingRows } = await client.query(
-        `SELECT * FROM exam_sessions WHERE tenant_id = $1`,
-        [record.tenantId],
+        `SELECT * FROM exam_sessions WHERE tenant_id = $1 AND room_id = $2 AND session_date = $3::date`,
+        [record.tenantId, record.roomId, record.date],
       );
       const existing = (existingRows as SessionRow[]).map(toSession);
       const conflicts = findRoomClashes(sessionToSlot(record), existing.map(sessionToSlot));
@@ -817,9 +821,13 @@ export class PgExamOpsStore implements ExamOpsStore {
         throw new ConflictError(`Staff '${record.staffId}' is already allocated to this session`);
       }
 
+      // PRC-M231: a staff clash can only occur between sessions on the same
+      // date (sessionsOverlap requires a.date === b.date), so sessionsById
+      // only needs this date's sessions, not every session the tenant has
+      // ever created.
       const { rows: sessionRows } = await client.query(
-        `SELECT * FROM exam_sessions WHERE tenant_id = $1`,
-        [record.tenantId],
+        `SELECT * FROM exam_sessions WHERE tenant_id = $1 AND session_date = $2::date`,
+        [record.tenantId, session.date],
       );
       const examSessions = (sessionRows as SessionRow[]).map(toSession);
       const sessionsById = new Map(examSessions.map((s) => [s.id, sessionToSlot(s)] as const));
