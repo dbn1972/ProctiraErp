@@ -216,6 +216,40 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     });
   }
 
+  /**
+   * PRC-M172 (Charter §32 relocation): resolve `principalIds` -> `staff.user_id` -> active
+   * `staff_assignments` rows for `classId`, as two sequential Prisma-model queries (never
+   * `$queryRaw`/`$queryRawUnsafe`) — this package owns both `staff` and `staff_assignments`,
+   * so there is no cross-service join here, only a cross-table one within this service.
+   */
+  async listActiveStaffIdsForClass(
+    tenantId: string,
+    classId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]> {
+    const ids = [...new Set(principalIds.filter((id) => typeof id === 'string' && id.length > 0))];
+    if (ids.length === 0) return [];
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const staffRows = await tx.staff.findMany({
+        where: { tenantId, userId: { in: ids }, deletedAt: null },
+        select: { id: true },
+      });
+      const staffIds = staffRows.map((row) => row.id);
+      if (staffIds.length === 0) return [];
+      const assignmentRows = await tx.staffAssignment.findMany({
+        where: {
+          tenantId,
+          classId,
+          status: 'ACTIVE',
+          staffId: { in: staffIds },
+          OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+        },
+        select: { staffId: true },
+      });
+      return [...new Set(assignmentRows.map((row) => row.staffId))];
+    });
+  }
+
   async findOverlapping(
     tenantId: string,
     staffId: string,

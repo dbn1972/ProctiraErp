@@ -138,6 +138,19 @@ export interface StaffAssignmentRepository {
   hasActiveAssignmentAt(staffId: string, tenantId: string, institutionId: string): Promise<boolean>;
 
   /**
+   * PRC-M172 (Charter §32 relocation): staff ids linked (`staff.user_id`) to any of
+   * `principalIds` that hold an active (`status = 'ACTIVE'`, not end-dated) `staff_assignments`
+   * row for `classId`. Backs attendance-service's teacher-to-class ownership check — this query
+   * used to run as a raw cross-service SQL join inside the attendance package; it now lives here
+   * since `staff_assignments` and `staff` are owned by this service.
+   */
+  listActiveStaffIdsForClass(
+    tenantId: string,
+    classId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]>;
+
+  /**
    * Find overlapping assignments for the same staff member at the same
    * institution-subject-class combination within a date range.
    * Used to enforce the non-overlap constraint (Requirement 7.2).

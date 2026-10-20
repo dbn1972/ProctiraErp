@@ -22,11 +22,14 @@ export type {
   RosterWithAttendance,
   AttendanceEventPublisher,
   AbsenceThresholdExceededEvent,
+  AttendanceWriteActor,
+  AttendanceServiceOptions,
 } from './attendance-service.js';
 
 // Repository
 export type {
   AttendanceRepository,
+  AttendanceClassMembershipCheck,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   StudentRosterEntry,
@@ -44,9 +47,6 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryAttendanceRepository } from './in-memory-repository.js';
 
-// Cached repository decorator
-export { CachedAttendanceRepository } from './cached-attendance-repository.js';
-
 // Prisma repository (Postgres + RLS) + factory
 export { PrismaAttendanceRepository } from './prisma-attendance-repository.js';
 export { createAttendanceRepository, createAttendanceOpsStore } from './repository-factory.js';
@@ -56,14 +56,6 @@ export { AttendanceOpsService, EARLY_DEPARTURE_PRESENT_WEIGHT } from './ops-serv
 export { registerAttendanceOpsRoutes } from './ops-routes.js';
 export { InMemoryAttendanceOpsStore, hashDeviceApiKey, mintDeviceApiKey } from './ops-store.js';
 export type { AttendanceOpsStore } from './ops-store.js';
-
-// Bulk attendance producer (queue-first pattern)
-export { BulkAttendanceProducer } from './bulk-attendance-producer.js';
-export type {
-  AttendanceRecord,
-  BulkAttendancePayload,
-  BulkAttendanceJobRef,
-} from './bulk-attendance-producer.js';
 
 // Schemas
 export {

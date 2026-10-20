@@ -63,6 +63,17 @@ export function hasAttendanceAccess(roles: unknown, action: AttendanceAction): b
   return normalized.some((role) => allowed.includes(role));
 }
 
+/**
+ * PRC-M172: roles that may write attendance for any class at the institution without being the
+ * class's assigned teacher — mirrors `ATTENDANCE_APPROVE_ROLES` (admin/principal/school_admin
+ * plus registrar/attendance_officer, already institution-wide per the approve action).
+ */
+export function hasInstitutionWideAttendanceWriteRole(roles: unknown): boolean {
+  const normalized = normalizeAttendanceRoles(roles);
+  const allowed: readonly string[] = ATTENDANCE_APPROVE_ROLES;
+  return normalized.some((role) => allowed.includes(role));
+}
+
 export function assertAttendanceAccess(roles: unknown, action: AttendanceAction): void {
   if (!hasAttendanceAccess(roles, action)) {
     throw new AppError(

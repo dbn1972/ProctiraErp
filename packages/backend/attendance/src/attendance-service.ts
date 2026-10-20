@@ -15,16 +15,21 @@
  *         Reject future dates with an error message.
  */
 import {
+  AppError,
   BusinessRuleError,
+  ForbiddenError,
   NotFoundError,
   ValidationError,
   AttendanceStatus,
+  isProductionLike,
 } from '@proctira/common';
 import type { FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { hasInstitutionWideAttendanceWriteRole } from './attendance-access.js';
 import { MAX_ATTENDANCE_RANGE_DAYS } from './attendance-repository.js';
 import type {
+  AttendanceClassMembershipCheck,
   AttendanceRepository,
   AttendanceWriteOp,
   StudentAttendanceEntity,
@@ -116,13 +121,78 @@ export interface AbsenceThresholdExceededEvent {
 }
 
 /**
+ * PRC-M172: the authenticated caller of an attendance write. Routes pass `request.user`; the
+ * class-ownership check runs whenever an actor is supplied. Internal/system callers that pass
+ * no actor (tests, workers) keep the legacy unscoped behaviour.
+ */
+export type AttendanceWriteActor = {
+  id?: string;
+  sub?: string;
+  roles?: unknown;
+};
+
+export interface AttendanceServiceOptions {
+  /**
+   * PRC-M172: teacher-class assignment lookup for attendance writes. An injectable function
+   * (Charter §32 — attendance does not own `staff_assignments`/`staff`, so it cannot query them
+   * itself), mirroring gradebook's `StaffActiveAssignmentCheck` pattern.
+   */
+  classMembership?: AttendanceClassMembershipCheck | null;
+  /** Defaults to `process.env.NODE_ENV`; production-like envs fail closed without membership. */
+  nodeEnv?: string;
+}
+
+/**
  * Service handling attendance business logic.
  */
 export class AttendanceService {
+  private readonly classMembership: AttendanceClassMembershipCheck | null;
+  private readonly nodeEnv: string | undefined;
+
   constructor(
     private readonly repository: AttendanceRepository,
     private readonly eventPublisher?: AttendanceEventPublisher,
-  ) {}
+    options: AttendanceServiceOptions = {},
+  ) {
+    this.classMembership = options.classMembership ?? null;
+    this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /**
+   * PRC-M172: authorise an attendance write against `classId`.
+   *  - Institution-wide roles (admin/principal/registrar/attendance_officer/...) bypass.
+   *  - Otherwise the actor must be linked (`staff.user_id`) to a staff row with an active
+   *    `staff_assignments` row for `classId`; no match -> 403 FORBIDDEN.
+   *  - No membership lookup configured: fail closed (503) in production-like envs, no-op
+   *    otherwise (dev/test convenience, mirrors gradebook's documented behaviour).
+   */
+  private async assertClassWriteScope(
+    tenantId: string,
+    actor: AttendanceWriteActor,
+    classId: string,
+  ): Promise<void> {
+    if (hasInstitutionWideAttendanceWriteRole(actor.roles)) return;
+
+    const membership = this.classMembership;
+    if (!membership) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Attendance class-write scope lookup is not configured; attendance writes are unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return;
+    }
+
+    const principalIds = [actor.id, actor.sub].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0,
+    );
+    const staffIds = principalIds.length ? await membership(tenantId, classId, principalIds) : [];
+    if (staffIds.length === 0) {
+      throw new ForbiddenError('Forbidden: you are not an assigned teacher of this class');
+    }
+  }
 
   /** Update op whose audit row is written only when the status changes (PRC-M168). */
   private auditedUpdateOp(
@@ -159,7 +229,13 @@ export class AttendanceService {
     tenantId: string,
     input: RecordStudentAttendanceInput,
     recordedBy: string,
+    actor?: AttendanceWriteActor,
   ): Promise<StudentAttendanceEntity> {
+    // PRC-M172: teacher must own the class, unless institution-wide or no actor supplied.
+    if (actor) {
+      await this.assertClassWriteScope(tenantId, actor, input.classId);
+    }
+
     // Validate academic period is active
     const period = await this.repository.getAcademicPeriodById(tenantId, input.academicPeriodId);
     if (!period) {
@@ -235,7 +311,13 @@ export class AttendanceService {
     tenantId: string,
     input: RecordBulkStudentAttendanceInput,
     recordedBy: string,
+    actor?: AttendanceWriteActor,
   ): Promise<BulkAttendanceResult> {
+    // PRC-M172: teacher must own the class, unless institution-wide or no actor supplied.
+    if (actor) {
+      await this.assertClassWriteScope(tenantId, actor, input.classId);
+    }
+
     // Validate academic period is active
     const period = await this.repository.getAcademicPeriodById(tenantId, input.academicPeriodId);
     if (!period) {

@@ -115,7 +115,6 @@ export interface AttendanceOpsStore {
 
   createDeviceKey(row: DeviceKeyRecord): Promise<DeviceKeyRecord>;
   findDeviceKeyByHash(tenantId: string, apiKeyHash: string): Promise<DeviceKeyRecord | null>;
-  listDeviceKeys(tenantId: string, institutionId?: string): Promise<DeviceKeyRecord[]>;
 
   findIngestEvent(
     tenantId: string,
@@ -215,14 +214,6 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
     );
     return row ? clone(row) : null;
   }
-  async listDeviceKeys(tenantId: string, institutionId?: string) {
-    return [...this.devices.values()]
-      .filter(
-        (d) => d.tenantId === tenantId && (!institutionId || d.institutionId === institutionId),
-      )
-      .map(clone);
-  }
-
   async findIngestEvent(tenantId: string, deviceId: string, eventId: string) {
     const row = [...this.ingest.values()].find(
       (e) => e.tenantId === tenantId && e.deviceId === deviceId && e.eventId === eventId,
@@ -551,19 +542,6 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
         [tenantId, apiKeyHash],
       );
       return rows[0] ? toDevice(rows[0] as Record<string, unknown>) : null;
-    });
-  }
-
-  async listDeviceKeys(tenantId: string, institutionId?: string) {
-    return this.run(tenantId, async (c) => {
-      const params: unknown[] = [tenantId];
-      let sql = `SELECT * FROM attendance_device_keys WHERE tenant_id = $1`;
-      if (institutionId) {
-        params.push(institutionId);
-        sql += ` AND institution_id = $2`;
-      }
-      const { rows } = await c.query(sql, params);
-      return rows.map((r) => toDevice(r as Record<string, unknown>));
     });
   }
 
