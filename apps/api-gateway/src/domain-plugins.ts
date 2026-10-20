@@ -1097,6 +1097,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         punchConfig: {
           resolveTimeZone: (tenantId) => attendanceTimeZone(tenantId),
         },
+        // PRC-M496: reuse the SAME resolver instance as punchConfig above
+        // for date-validation "today" comparisons, rather than constructing
+        // a second one.
+        timeZone: (tenantId) => attendanceTimeZone(tenantId),
         prefix: '/attendance',
       });
       type HeatmapDay = { date: string; status: string };

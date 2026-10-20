@@ -26,6 +26,7 @@ import {
   ClassRosterQuerySchema,
   AttendancePercentageQuerySchema,
   AbsenceThresholdCheckQuerySchema,
+  isValidIsoDate,
   type RecordStudentAttendanceInput,
   type RecordBulkStudentAttendanceInput,
   type RecordStaffAttendanceInput,
@@ -33,6 +34,35 @@ import {
   type AttendancePercentageQueryInput,
   type AbsenceThresholdCheckQueryInput,
 } from './schemas.js';
+
+/**
+ * PRC-M496 part 2: `DatePattern` matches shape (`YYYY-MM-DD`) but not real
+ * calendar validity — `2026-02-30` passes the regex. This guard runs after
+ * schema validation and 400s any field whose value is shape-valid but not a
+ * real date, instead of letting it reach a silently-rolling-over `Date`
+ * construction downstream.
+ */
+function firstInvalidCalendarDate(
+  data: Record<string, unknown>,
+  fields: readonly string[],
+): string | null {
+  for (const field of fields) {
+    const value = data[field];
+    if (typeof value === 'string' && !isValidIsoDate(value)) {
+      return field;
+    }
+  }
+  return null;
+}
+
+function sendInvalidDateError(reply: FastifyReply, field: string) {
+  return reply.status(400).send({
+    code: 'VALIDATION_ERROR',
+    message: 'Validation failed',
+    statusCode: 400,
+    errors: [{ field, rule: 'format', message: `${field} is not a valid calendar date` }],
+  });
+}
 
 /**
  * Options for registering attendance routes.
@@ -142,6 +172,10 @@ export async function registerAttendanceRoutes(
           errors: result.errors,
         });
       }
+      const badDateField = firstInvalidCalendarDate(result.data, ['date']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
+      }
 
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
@@ -190,6 +224,10 @@ export async function registerAttendanceRoutes(
           statusCode: 400,
           errors: result.errors,
         });
+      }
+      const badDateField = firstInvalidCalendarDate(result.data, ['date']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
       }
 
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -248,6 +286,10 @@ export async function registerAttendanceRoutes(
           errors: result.errors,
         });
       }
+      const badDateField = firstInvalidCalendarDate(result.data, ['date']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
+      }
 
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
@@ -295,6 +337,10 @@ export async function registerAttendanceRoutes(
           statusCode: 400,
           errors: result.errors,
         });
+      }
+      const badDateField = firstInvalidCalendarDate(result.data, ['date']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
       }
 
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -378,6 +424,10 @@ export async function registerAttendanceRoutes(
           errors: result.errors,
         });
       }
+      const badDateField = firstInvalidCalendarDate(result.data, ['startDate', 'endDate']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
+      }
 
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
@@ -423,6 +473,10 @@ export async function registerAttendanceRoutes(
           statusCode: 400,
           errors: result.errors,
         });
+      }
+      const badDateField = firstInvalidCalendarDate(result.data, ['startDate', 'endDate']);
+      if (badDateField) {
+        return sendInvalidDateError(reply, badDateField);
       }
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {

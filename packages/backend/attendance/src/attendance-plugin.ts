@@ -15,6 +15,7 @@ import fp from 'fastify-plugin';
 
 import type { AttendanceRepository } from './attendance-repository.js';
 import { AttendanceService } from './attendance-service.js';
+import type { AttendanceTimeZoneResolver } from './attendance-service.js';
 import { registerAttendanceOpsRoutes } from './ops-routes.js';
 import { AttendanceOpsService } from './ops-service.js';
 import type { AttendanceOpsStore } from './ops-store.js';
@@ -38,6 +39,14 @@ export interface AttendancePluginOptions {
     defaultTimeZone?: string;
     dismissalHour?: number;
   };
+  /**
+   * PRC-M496: institution/tenant IANA timezone for "today" date-validation
+   * comparisons in AttendanceService (validateAttendanceDate,
+   * recordStaffAttendance's future-date check). Defaults to UTC when
+   * omitted. The gateway reuses the SAME resolver instance already
+   * constructed for `punchConfig` rather than building a second one.
+   */
+  timeZone?: string | AttendanceTimeZoneResolver;
   /** Route prefix for attendance (default: '/attendance') */
   prefix?: string;
 }
@@ -57,7 +66,9 @@ export const attendancePlugin = fp(
     const { repository, prefix = '/attendance' } = options;
 
     // Create attendance service instance
-    const attendanceService = new AttendanceService(repository);
+    const attendanceService = new AttendanceService(repository, undefined, {
+      timeZone: options.timeZone,
+    });
     const opsStore = options.opsStore ?? createAttendanceOpsStore();
     const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {});
 
