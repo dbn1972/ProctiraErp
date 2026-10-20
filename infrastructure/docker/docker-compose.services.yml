@@ -20,6 +20,14 @@
 #
 # All configuration is driven by environment variables. Copy .env.example to
 # .env at the monorepo root and override values as needed.
+#
+# PRC-L474: hardened to match the canonical docker-compose.yml's pattern
+# (PRC-M311) — ports bind to BIND_ADDRESS (default 127.0.0.1, not 0.0.0.0),
+# credential-bearing vars require an explicit value (${VAR:?...}), this
+# lab-only file defaults NODE_ENV to development (not production), sandbox
+# providers require explicit opt-in (ALLOW_SANDBOX_PROVIDERS default 0), and
+# every service has a healthcheck + depends_on: condition: service_healthy
+# where it talks to postgres/redis directly.
 # =============================================================================
 
 name: proctira-services
@@ -37,18 +45,24 @@ services:
         SERVICE_PORT: 3020
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3020
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3020:3020'
+      - '${BIND_ADDRESS:-127.0.0.1}:3020:3020'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3020/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -61,15 +75,15 @@ services:
         SERVICE_PORT: 3021
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3021
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_REGION: ${S3_REGION}
@@ -77,7 +91,13 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET: ${S3_BUCKET}
     ports:
-      - '3021:3021'
+      - '${BIND_ADDRESS:-127.0.0.1}:3021:3021'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3021/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -90,18 +110,24 @@ services:
         SERVICE_PORT: 3022
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3022
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3022:3022'
+      - '${BIND_ADDRESS:-127.0.0.1}:3022:3022'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3022/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -114,18 +140,24 @@ services:
         SERVICE_PORT: 3023
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3023
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3023:3023'
+      - '${BIND_ADDRESS:-127.0.0.1}:3023:3023'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3023/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -138,18 +170,24 @@ services:
         SERVICE_PORT: 3024
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3024
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3024:3024'
+      - '${BIND_ADDRESS:-127.0.0.1}:3024:3024'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3024/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -162,18 +200,24 @@ services:
         SERVICE_PORT: 3025
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3025
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3025:3025'
+      - '${BIND_ADDRESS:-127.0.0.1}:3025:3025'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3025/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -186,18 +230,24 @@ services:
         SERVICE_PORT: 3026
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3026
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
     ports:
-      - '3026:3026'
+      - '${BIND_ADDRESS:-127.0.0.1}:3026:3026'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3026/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -210,18 +260,19 @@ services:
         SERVICE_PORT: 3027
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3027
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
-      # W1-ARCH-08: sandbox providers require explicit opt-in under NODE_ENV=production
-      ALLOW_SANDBOX_PROVIDERS: ${ALLOW_SANDBOX_PROVIDERS:-1}
+      # W1-ARCH-08 / PRC-L474: sandbox providers require explicit opt-in,
+      # including in this lab-only compose — default is now 0, not 1.
+      ALLOW_SANDBOX_PROVIDERS: ${ALLOW_SANDBOX_PROVIDERS:-0}
       PROVIDER_MODE: ${PROVIDER_MODE:-sandbox}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -230,7 +281,13 @@ services:
       SMTP_FROM: ${SMTP_FROM:-no-reply@proctira.localhost}
       FCM_PROJECT_ID: ${FCM_PROJECT_ID}
     ports:
-      - '3027:3027'
+      - '${BIND_ADDRESS:-127.0.0.1}:3027:3027'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3027/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -243,15 +300,15 @@ services:
         SERVICE_PORT: 3028
     restart: unless-stopped
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3028
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_REGION: ${S3_REGION}
@@ -259,7 +316,13 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET: ${S3_BUCKET}
     ports:
-      - '3028:3028'
+      - '${BIND_ADDRESS:-127.0.0.1}:3028:3028'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3028/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
