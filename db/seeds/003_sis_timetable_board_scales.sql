@@ -21,6 +21,11 @@ BEGIN
     RETURN;
   END IF;
 
+  -- PRC-L556: bind the tenant GUC before any domain-table write so RLS does
+  -- not silently filter these inserts to zero rows under the non-superuser
+  -- runtime role.
+  PERFORM set_app_tenant_id(tid::text);
+
   SELECT id INTO bid_cbse FROM boards WHERE tenant_id = tid AND code = 'CBSE' AND deleted_at IS NULL;
   SELECT id INTO bid_icse FROM boards WHERE tenant_id = tid AND code = 'ICSE' AND deleted_at IS NULL;
   SELECT id INTO bid_mh   FROM boards WHERE tenant_id = tid AND code = 'MH-STATE' AND deleted_at IS NULL;
@@ -127,6 +132,12 @@ BEGIN
     ('Pass',        35.00,  44.99,  4.00, 4),
     ('Fail',         0.00,  34.99,  0.00, 5)
   ) AS v(label, min_p, max_p, gp, ord);
+
+  -- PRC-L556: fail loudly if RLS silently filtered these writes to zero rows
+  -- instead of reporting success on an empty no-op.
+  IF (SELECT count(*) FROM grading_scales WHERE tenant_id = tid) = 0 THEN
+    RAISE EXCEPTION 'PRC-L556 guard: expected grading_scales rows for tenant % but found 0 (RLS silent no-op?)', tid;
+  END IF;
 
   RAISE NOTICE 'Seeded board_codes + grading_scales for tenant %', tid;
 END $$;
