@@ -11,7 +11,10 @@ import { AppError } from '@proctira/common';
 
 import { AttendanceService } from './attendance-service.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
-import type { AcademicPeriodInfo } from './attendance-repository.js';
+import type {
+  AcademicPeriodInfo,
+  AttendanceClassMembershipCheck,
+} from './attendance-repository.js';
 
 const TENANT_ID = 'tenant-001';
 const INSTITUTION_ID = '11111111-1111-4111-8111-111111111111';
@@ -37,18 +40,50 @@ function createActivePeriod(): AcademicPeriodInfo {
   };
 }
 
+/**
+ * PRC-M172 (Charter §32 relocation): a local stand-in for the injected
+ * `AttendanceClassMembershipCheck`, closed over hand-seeded assignment rows. Production wires
+ * this callback to `@proctira/backend-staff`'s `listActiveStaffIdsForClass`; the test double
+ * here keeps the same `(tenantId, classId, principalIds) => staffIds[]` contract without
+ * depending on the staff package.
+ */
+function fakeClassMembership(
+  assignments: ReadonlyArray<{
+    tenantId: string;
+    classId: string;
+    principalId: string;
+    staffId: string;
+  }>,
+): AttendanceClassMembershipCheck {
+  return async (tenantId, classId, principalIds) => {
+    const wanted = new Set(principalIds);
+    return [
+      ...new Set(
+        assignments
+          .filter(
+            (a) => a.tenantId === tenantId && a.classId === classId && wanted.has(a.principalId),
+          )
+          .map((a) => a.staffId),
+      ),
+    ];
+  };
+}
+
 describe('PRC-M172 teacher-to-class ownership scoping', () => {
   let repository: InMemoryAttendanceRepository;
+  let classMembership: AttendanceClassMembershipCheck;
 
   beforeEach(() => {
     repository = new InMemoryAttendanceRepository();
     repository.addAcademicPeriod(createActivePeriod());
-    repository.seedStaffAssignment({
-      tenantId: TENANT_ID,
-      classId: CLASS_A,
-      staffId: TEACHER_A_STAFF_ID,
-      principalId: TEACHER_A_SUB,
-    });
+    classMembership = fakeClassMembership([
+      {
+        tenantId: TENANT_ID,
+        classId: CLASS_A,
+        principalId: TEACHER_A_SUB,
+        staffId: TEACHER_A_STAFF_ID,
+      },
+    ]);
   });
 
   it('VULNERABLE BASELINE: without class-membership wiring, a teacher can write attendance for a class they are not assigned to', async () => {
@@ -75,7 +110,7 @@ describe('PRC-M172 teacher-to-class ownership scoping', () => {
 
   it('rejects a teacher writing attendance for a class they are NOT assigned to (403 FORBIDDEN)', async () => {
     const service = new AttendanceService(repository, undefined, {
-      classMembership: repository,
+      classMembership,
     });
 
     await expect(
@@ -102,7 +137,7 @@ describe('PRC-M172 teacher-to-class ownership scoping', () => {
 
   it('allows a teacher to write attendance for a class they ARE assigned to', async () => {
     const service = new AttendanceService(repository, undefined, {
-      classMembership: repository,
+      classMembership,
     });
 
     const record = await service.recordStudentAttendance(
@@ -123,7 +158,7 @@ describe('PRC-M172 teacher-to-class ownership scoping', () => {
 
   it('allows an institution-wide role (admin) to write attendance for any class without an assignment', async () => {
     const service = new AttendanceService(repository, undefined, {
-      classMembership: repository,
+      classMembership,
     });
 
     const record = await service.recordStudentAttendance(

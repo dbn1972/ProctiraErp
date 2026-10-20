@@ -10,7 +10,10 @@ import type { FastifyInstance } from 'fastify';
 import { AttendanceService } from './attendance-service.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
 import { registerAttendanceRoutes } from './routes.js';
-import type { AcademicPeriodInfo } from './attendance-repository.js';
+import type {
+  AcademicPeriodInfo,
+  AttendanceClassMembershipCheck,
+} from './attendance-repository.js';
 
 const TENANT_ID = 'tenant-001';
 const INSTITUTION_ID = '11111111-1111-4111-8111-111111111111';
@@ -322,12 +325,17 @@ describe('Attendance Routes', () => {
   describe('PRC-M172 teacher-to-class ownership (HTTP)', () => {
     it('returns 403 FORBIDDEN when a teacher writes attendance for a class they are not assigned to', async () => {
       const assignedClassId = '99999999-9999-4999-8999-999999999999';
-      repository.seedStaffAssignment({
-        tenantId: TENANT_ID,
-        classId: assignedClassId,
-        staffId: 'staff-x',
-        principalId: 'teacher-x',
-      });
+      // PRC-M172 (Charter §32 relocation): a local stand-in for the injected
+      // AttendanceClassMembershipCheck, closed over a hand-seeded assignment. Production wires
+      // this to @proctira/backend-staff's listActiveStaffIdsForClass.
+      const classMembership: AttendanceClassMembershipCheck = async (
+        tenantId,
+        classId,
+        principalIds,
+      ) =>
+        tenantId === TENANT_ID && classId === assignedClassId && principalIds.includes('teacher-x')
+          ? ['staff-x']
+          : [];
 
       await app.close();
       app = Fastify();
@@ -342,9 +350,8 @@ describe('Attendance Routes', () => {
           roles: ['teacher'],
         };
       });
-      // PRC-M172: the in-memory repository implements AttendanceClassMembership directly.
       const scopedService = new AttendanceService(repository, undefined, {
-        classMembership: repository,
+        classMembership,
       });
       await registerAttendanceRoutes(app, { attendanceService: scopedService });
       await app.ready();

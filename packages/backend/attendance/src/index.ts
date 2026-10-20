@@ -29,7 +29,7 @@ export type {
 // Repository
 export type {
   AttendanceRepository,
-  AttendanceClassMembership,
+  AttendanceClassMembershipCheck,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
   StudentRosterEntry,
@@ -43,7 +43,6 @@ export type {
   AbsenceThresholdConfig,
   ThresholdCheckResult,
 } from './attendance-repository.js';
-export { isAttendanceClassMembership } from './attendance-repository.js';
 
 // In-memory repository (for testing)
 export { InMemoryAttendanceRepository } from './in-memory-repository.js';

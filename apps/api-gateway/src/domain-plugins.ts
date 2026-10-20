@@ -50,11 +50,7 @@ import {
   createReportCardTemplateRepository,
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
-import {
-  attendancePlugin,
-  createAttendanceRepository,
-  isAttendanceClassMembership,
-} from '@proctira/backend-attendance';
+import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import {
   communicationPlugin,
@@ -1099,12 +1095,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const attendanceRepository = createAttendanceRepository();
       await scope.register(attendancePlugin, {
         repository: attendanceRepository,
-        // PRC-M172: teacher-only roles must own the class (active staff_assignments row,
-        // staff.user_id link) to write its attendance. Without a membership lookup,
-        // production-like envs fail closed (503).
-        classMembership: isAttendanceClassMembership(attendanceRepository)
-          ? attendanceRepository
-          : null,
+        // PRC-M172 (Charter §32): teacher-only roles must own the class (active
+        // staff_assignments row, staff.user_id link) to write its attendance.
+        // staff_assignments/staff are owned by the staff service, so the lookup is injected
+        // from the shared staff-assignment repository (same pattern as gradebook's
+        // staffHasActiveAssignmentAt) rather than queried from inside attendance. Without a
+        // membership lookup, production-like envs fail closed (503).
+        classMembership: (tenantId, classId, principalIds) =>
+          sharedAssignmentRepository().listActiveStaffIdsForClass(tenantId, classId, principalIds),
         punchConfig: {
           resolveTimeZone: (tenantId) => attendanceTimeZone(tenantId),
         },

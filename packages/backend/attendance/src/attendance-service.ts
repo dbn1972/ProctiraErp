@@ -29,7 +29,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { hasInstitutionWideAttendanceWriteRole } from './attendance-access.js';
 import { MAX_ATTENDANCE_RANGE_DAYS } from './attendance-repository.js';
 import type {
-  AttendanceClassMembership,
+  AttendanceClassMembershipCheck,
   AttendanceRepository,
   AttendanceWriteOp,
   StudentAttendanceEntity,
@@ -132,8 +132,12 @@ export type AttendanceWriteActor = {
 };
 
 export interface AttendanceServiceOptions {
-  /** PRC-M172: teacher-class assignment lookups for attendance writes. */
-  classMembership?: AttendanceClassMembership | null;
+  /**
+   * PRC-M172: teacher-class assignment lookup for attendance writes. An injectable function
+   * (Charter §32 — attendance does not own `staff_assignments`/`staff`, so it cannot query them
+   * itself), mirroring gradebook's `StaffActiveAssignmentCheck` pattern.
+   */
+  classMembership?: AttendanceClassMembershipCheck | null;
   /** Defaults to `process.env.NODE_ENV`; production-like envs fail closed without membership. */
   nodeEnv?: string;
 }
@@ -142,7 +146,7 @@ export interface AttendanceServiceOptions {
  * Service handling attendance business logic.
  */
 export class AttendanceService {
-  private readonly classMembership: AttendanceClassMembership | null;
+  private readonly classMembership: AttendanceClassMembershipCheck | null;
   private readonly nodeEnv: string | undefined;
 
   constructor(
@@ -184,9 +188,7 @@ export class AttendanceService {
     const principalIds = [actor.id, actor.sub].filter(
       (id): id is string => typeof id === 'string' && id.length > 0,
     );
-    const staffIds = principalIds.length
-      ? await membership.listTeacherStaffIdsForClass(tenantId, classId, principalIds)
-      : [];
+    const staffIds = principalIds.length ? await membership(tenantId, classId, principalIds) : [];
     if (staffIds.length === 0) {
       throw new ForbiddenError('Forbidden: you are not an assigned teacher of this class');
     }

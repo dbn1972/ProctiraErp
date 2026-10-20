@@ -13,10 +13,9 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import {
-  isAttendanceClassMembership,
-  type AttendanceClassMembership,
-  type AttendanceRepository,
+import type {
+  AttendanceClassMembershipCheck,
+  AttendanceRepository,
 } from './attendance-repository.js';
 import { AttendanceService } from './attendance-service.js';
 import { registerAttendanceOpsRoutes } from './ops-routes.js';
@@ -45,11 +44,12 @@ export interface AttendancePluginOptions {
   /** Route prefix for attendance (default: '/attendance') */
   prefix?: string;
   /**
-   * PRC-M172: teacher-class assignment lookups for attendance writes. Defaults to the
-   * repository when it implements the port (Pg + in-memory both do). When none is available,
+   * PRC-M172 (Charter §32): teacher-class assignment lookup for attendance writes, injected by
+   * the gateway composition root (`@proctira/backend-staff`'s `listActiveStaffIdsForClass`,
+   * mirroring gradebook's `staffHasActiveAssignmentAt` wiring). When none is available,
    * production-like envs fail closed (503) on attendance writes made with an actor.
    */
-  classMembership?: AttendanceClassMembership | null;
+  classMembership?: AttendanceClassMembershipCheck | null;
 }
 
 // Extend Fastify types
@@ -68,8 +68,7 @@ export const attendancePlugin = fp(
 
     // Create attendance service instance
     const attendanceService = new AttendanceService(repository, undefined, {
-      classMembership:
-        options.classMembership ?? (isAttendanceClassMembership(repository) ? repository : null),
+      classMembership: options.classMembership ?? null,
     });
     const opsStore = options.opsStore ?? createAttendanceOpsStore();
     const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {});

@@ -237,20 +237,17 @@ export interface ThresholdCheckResult {
  * - Teacher binding: the principal is linked to a staff row (`staff.user_id`, 098) that holds
  *   an active `staff_assignments` row (`status = 'ACTIVE'`, not end-dated) for the `classId`
  *   (a SIS `classes.id`, not a timetable `sections.id` — attendance does not use sections).
+ *
+ * Charter §32: `staff_assignments` and `staff` are owned by the `staff` service, so this check
+ * cannot run as a query inside the attendance package. It is an injectable function (the same
+ * pattern as gradebook's `StaffActiveAssignmentCheck`/`staffHasActiveAssignmentAt`), implemented
+ * by `@proctira/backend-staff` and wired in by the gateway composition root.
  */
-export interface AttendanceClassMembership {
-  /** Staff ids linked to any of `principalIds` with an active assignment to `classId` (empty when none). */
-  listTeacherStaffIdsForClass(
-    tenantId: string,
-    classId: string,
-    principalIds: readonly string[],
-  ): Promise<string[]>;
-}
-
-export function isAttendanceClassMembership(value: unknown): value is AttendanceClassMembership {
-  const candidate = value as Partial<AttendanceClassMembership> | null | undefined;
-  return typeof candidate?.listTeacherStaffIdsForClass === 'function';
-}
+export type AttendanceClassMembershipCheck = (
+  tenantId: string,
+  classId: string,
+  principalIds: readonly string[],
+) => Promise<string[]>;
 
 /**
  * Repository interface for attendance data access.

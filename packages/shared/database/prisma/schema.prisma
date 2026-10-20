@@ -333,6 +333,9 @@ model Staff {
   identityNumber String                   @map("identity_number") @db.VarChar(50)
   customData     Json?                    @default("{}") @map("custom_data") @db.JsonB
   searchVector   Unsupported("tsvector")? @map("search_vector")
+  /// Authenticated principal (auth.users document id) linked to this staff member —
+  /// db/sql/098_staff_identity_link.sql. Nullable: most staff have no login.
+  userId         String?                  @map("user_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -346,6 +349,7 @@ model Staff {
   @@index([tenantId, lastName, firstName])
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
+  @@index([tenantId, userId])
   @@map("staff")
 }
 

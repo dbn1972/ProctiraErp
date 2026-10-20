@@ -30,48 +30,8 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   private institutionConfigs: InstitutionAttendanceConfig[] = [];
   private auditEntries: AttendanceAuditEntry[] = [];
   private absenceThresholdConfigs: AbsenceThresholdConfig[] = [];
-  private readonly staffAssignments: Array<{
-    tenantId: string;
-    classId: string;
-    staffId: string;
-    principalId: string;
-    status: 'ACTIVE' | 'INACTIVE';
-  }> = [];
 
   // --- Setup helpers for tests ---
-
-  /** PRC-M172 seed: a staff member's (teacher) active class assignment, keyed by principal id. */
-  seedStaffAssignment(input: {
-    tenantId: string;
-    classId: string;
-    staffId: string;
-    principalId: string;
-    status?: 'ACTIVE' | 'INACTIVE';
-  }): void {
-    this.staffAssignments.push({ ...input, status: input.status ?? 'ACTIVE' });
-  }
-
-  /** PRC-M172: staff ids linked to any of `principalIds` with an active assignment to `classId`. */
-  async listTeacherStaffIdsForClass(
-    tenantId: string,
-    classId: string,
-    principalIds: readonly string[],
-  ): Promise<string[]> {
-    const wanted = new Set(principalIds.filter(Boolean));
-    return [
-      ...new Set(
-        this.staffAssignments
-          .filter(
-            (row) =>
-              row.tenantId === tenantId &&
-              row.classId === classId &&
-              row.status === 'ACTIVE' &&
-              wanted.has(row.principalId),
-          )
-          .map((row) => row.staffId),
-      ),
-    ];
-  }
 
   addRosterEntry(entry: StudentRosterEntry): void {
     this.rosterEntries.push(entry);

@@ -144,34 +144,6 @@ export function actorUuid(subject: string): string {
 export class PrismaAttendanceRepository implements AttendanceRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /**
-   * PRC-M172: staff ids linked (`staff.user_id`) to any of `principalIds` that hold an active
-   * `staff_assignments` row for `classId`. `::text` casts mirror `pg-gradebook-repository.ts`
-   * so a non-UUID principal id cannot throw a cast error instead of returning empty.
-   */
-  async listTeacherStaffIdsForClass(
-    tenantId: string,
-    classId: string,
-    principalIds: readonly string[],
-  ): Promise<string[]> {
-    const ids = [...new Set(principalIds.filter((id) => typeof id === 'string' && id.length > 0))];
-    if (ids.length === 0) return [];
-    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ staff_id: unknown }>>`
-        SELECT DISTINCT sa.staff_id
-          FROM staff_assignments sa
-          JOIN staff st ON st.id = sa.staff_id AND st.tenant_id = sa.tenant_id
-         WHERE sa.tenant_id = ${tenantId}::uuid
-           AND sa.class_id::text = ${classId}
-           AND sa.status = 'ACTIVE'
-           AND (sa.end_date IS NULL OR sa.end_date >= CURRENT_DATE)
-           AND st.user_id IS NOT NULL
-           AND st.user_id::text = ANY(${ids}::text[])
-           AND st.deleted_at IS NULL`;
-      return rows.map((row) => String(row.staff_id));
-    });
-  }
-
   // --- Student attendance ---
 
   async createStudentAttendance(
