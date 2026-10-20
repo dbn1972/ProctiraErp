@@ -37,7 +37,7 @@ Screen / API inventory:
 | ----------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Versioned SQL under `db/sql/` | ☑    | `db/sql/003_sis_timetable_schedule_schema.sql` (rooms, sections, enrollments, meetings, publish enum)                                            |
 | Constraints / indexes / FKs   | ☑    | Unique section code per period; meeting unique (section, period, day); room/teacher day indexes                                                  |
-| Multi-board seed fixtures     | ☑    | `db/seeds/004_sis_master_schedule_demo.sql` on `proctira-multiboard-cert` / CBSE-DEL-01                                                          |
+| Multi-board seed fixtures     | ☑    | `db/seeds/004b_sis_master_schedule_demo.sql` on `proctira-multiboard-cert` / CBSE-DEL-01                                                          |
 | Domain unit/property tests    | ☑    | `clash-detection.test.ts`, `clash-helper.test.ts`, `timetable-service.test.ts` (20 tests)                                                        |
 | Invariants documented         | ☑    | Same room or teacher cannot occupy two active meetings on same day+period; published sections lock meeting/section edits; capacity blocks enroll |
 
