@@ -5,6 +5,11 @@
  * W3-RACE-01: guarded create/replace methods serialise concurrent room,
  * invigilator, and seating allocation (mutex in-memory; advisory lock + txn Pg).
  */
+import {
+  appendAuditEntryOnClient,
+  toCreateAuditLogInput,
+  type AuditOperation,
+} from '@proctira/backend-audit';
 import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
@@ -189,6 +194,19 @@ export interface ExamOpsStore {
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+/**
+ * PRC-M229/PRC-M509: this package's `action` strings (e.g. `session.create`,
+ * `marks.resolve`) -> the durable audit store's 3-state operation, mirroring
+ * timetable-service.ts's `mapActionToOperation`.
+ */
+function mapExamOpsActionToOperation(action: string): AuditOperation {
+  if (action.endsWith('.create') || action.endsWith('.request') || action === 'marks.entry') {
+    return 'CREATE';
+  }
+  if (action.endsWith('.reject')) return 'DELETE';
+  return 'UPDATE';
 }
 
 /** PRC-M238: seats per multi-row INSERT (14 params each, well under the 65535 bind limit). */
@@ -1213,11 +1231,78 @@ export class PgExamOpsStore implements ExamOpsStore {
     });
   }
 
+  /**
+   * PRC-M229/PRC-M509: persists to the shared, hash-chained
+   * `audit_log_entries` table via @proctira/backend-audit — this previously
+   * discarded every exam-ops audit record (`return record;`, no write at
+   * all), so `listAudits` on a fresh PgExamOpsStore always returned [] even
+   * after real mutations. The returned record is unchanged; this method's
+   * contract (`ExamOpsAuditRecord -> ExamOpsAuditRecord`) is unaffected.
+   */
   async appendAudit(record: ExamOpsAuditRecord): Promise<ExamOpsAuditRecord> {
+    await this.run(record.tenantId, (client) =>
+      appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          // ExamOpsService.listAudits() merges this store's rows with its own
+          // in-memory localAudits array by `id` — reusing the caller's id here
+          // (rather than letting toCreateAuditLogInput mint a new uuid) is what
+          // makes that merge dedupe the same audit instead of doubling it.
+          id: record.id,
+          tenantId: record.tenantId,
+          entityType: record.entityType,
+          entityId: record.entityId,
+          operation: mapExamOpsActionToOperation(record.action),
+          userId: record.actorId ?? 'system',
+          userName: record.actorId ?? 'system',
+          ipAddress: 'internal',
+          timestamp: record.at,
+          metadata: {
+            action: record.action,
+            examinationId: record.examinationId,
+            ...record.details,
+          },
+        }),
+      ),
+    );
     return record;
   }
 
-  async listAudits(_tenantId: string, _examinationId: string): Promise<ExamOpsAuditRecord[]> {
-    return [];
+  /** PRC-M229/PRC-M509: reads back what appendAudit wrote (was `return [];`, a permanent no-op). */
+  async listAudits(tenantId: string, examinationId: string): Promise<ExamOpsAuditRecord[]> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM audit_log_entries
+          WHERE tenant_id = $1 AND metadata->>'examinationId' = $2
+          ORDER BY occurred_at ASC`,
+        [tenantId, examinationId],
+      );
+      return (rows as AuditLogEntryRow[]).map((row) => {
+        const metadata = row.metadata ?? {};
+        const { action, examinationId: _examinationId, ...details } = metadata;
+        return {
+          id: row.id,
+          tenantId: row.tenant_id,
+          examinationId,
+          action: typeof action === 'string' ? action : row.operation,
+          entityType: row.entity_type,
+          entityId: row.entity_id,
+          actorId: row.user_id,
+          at: row.occurred_at instanceof Date ? row.occurred_at : new Date(row.occurred_at),
+          details,
+        };
+      });
+    });
   }
 }
+
+type AuditLogEntryRow = {
+  id: string;
+  tenant_id: string;
+  entity_type: string;
+  entity_id: string;
+  operation: string;
+  user_id: string;
+  occurred_at: Date | string;
+  metadata: Record<string, unknown> | null;
+};
