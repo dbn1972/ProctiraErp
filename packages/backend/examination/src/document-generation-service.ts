@@ -20,7 +20,8 @@ import type {
   DocumentType,
   DocumentGenerationJob,
 } from './document-repository.js';
-import type { ExaminationRepository } from './examination-repository.js';
+import type { ExaminationEntity, ExaminationRepository } from './examination-repository.js';
+import type { ExamSessionRecord } from './ops-store.js';
 import type { PdfGenerator, ExaminationInfo } from './pdf-generator.js';
 
 /** Maximum batch size for document generation */
@@ -33,6 +34,16 @@ export const MAX_GENERATION_DURATION_MS = 60_000;
 export interface DocumentGenerationServiceOptions {
   /** Receives duration-budget breaches (MAX_GENERATION_DURATION_MS). */
   logger?: { warn(obj: Record<string, unknown>, msg: string): void };
+  /**
+   * PRC-M232: durable ops-table sessions (exam_sessions, via ExamOpsStore)
+   * for an examination. When this resolves at least one row, the admit-card
+   * path builds examInfo.sessions from these instead of the legacy
+   * examination.sessions JSONB column — the two session sources had drifted
+   * independently (JSONB for admit cards, exam_sessions for clash checks).
+   * Falls back to the JSONB sessions when this is not configured or returns
+   * nothing.
+   */
+  sessionSource?: (tenantId: string, examinationId: string) => Promise<ExamSessionRecord[]>;
 }
 
 /** PRC-M236: one requested generation split into ≤ MAX_BATCH_SIZE chunk jobs. */
@@ -199,6 +210,39 @@ export class DocumentGenerationService {
   }
 
   /**
+   * PRC-M232: prefer durable ops-table sessions (exam_sessions) over the
+   * legacy examination.sessions JSONB column when `sessionSource` is
+   * configured and returns at least one row for this examination; otherwise
+   * fall back to the JSONB sessions unchanged.
+   */
+  private async resolveSessions(
+    tenantId: string,
+    examination: Pick<ExaminationEntity, 'id' | 'sessions' | 'subjects'>,
+  ): Promise<ExaminationInfo['sessions']> {
+    const subjectName = (subjectId: string): string =>
+      examination.subjects.find((sub) => sub.id === subjectId)?.name ?? 'Unknown';
+
+    if (this.options.sessionSource) {
+      const opsSessions = await this.options.sessionSource(tenantId, examination.id);
+      if (opsSessions.length > 0) {
+        return opsSessions.map((s) => ({
+          subjectName: subjectName(s.subjectId),
+          date: s.date,
+          startTime: s.startTime,
+          endTime: s.endTime,
+        }));
+      }
+    }
+
+    return examination.sessions.map((s) => ({
+      subjectName: subjectName(s.subjectId),
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+    }));
+  }
+
+  /**
    * Request document generation for an examination.
    *
    * Creates a job and either processes it immediately (if batch is small)
@@ -361,15 +405,7 @@ export class DocumentGenerationService {
         code: examination.code,
         startDate: examination.startDate,
         endDate: examination.endDate,
-        sessions: examination.sessions.map((s) => {
-          const subject = examination.subjects.find((sub) => sub.id === s.subjectId);
-          return {
-            subjectName: subject?.name ?? 'Unknown',
-            date: s.date,
-            startTime: s.startTime,
-            endTime: s.endTime,
-          };
-        }),
+        sessions: await this.resolveSessions(tenantId, examination),
       };
 
       let pdfBuffer: Buffer;
