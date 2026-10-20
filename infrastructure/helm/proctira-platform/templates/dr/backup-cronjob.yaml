@@ -119,20 +119,31 @@ spec:
                   value: {{ .retainDays | quote }}
                 {{- end }}
                 {{- end }}
-                {{- if .Values.secrets.s3AccessKey }}
+                # PRC-M596: offsite is already required (fail-closed above),
+                # so these keys must always be present in whatever Secret
+                # backs this release — the plaintext values.secrets.s3*
+                # fields are only a non-production convenience, not the sole
+                # trigger. `optional: true` only outside production so a
+                # sandbox/dev release without S3 creds can still render;
+                # production keeps `optional: false` (the default) so a
+                # missing key in existingSecret fails the Job at pod-start
+                # instead of silently running pg-backup.sh without them.
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "proctira.secretName" . }}
                       key: S3_ACCESS_KEY
-                {{- end }}
-                {{- if .Values.secrets.s3SecretKey }}
+                      {{- if ne .Values.global.environment "production" }}
+                      optional: true
+                      {{- end }}
                 - name: AWS_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "proctira.secretName" . }}
                       key: S3_SECRET_KEY
-                {{- end }}
+                      {{- if ne .Values.global.environment "production" }}
+                      optional: true
+                      {{- end }}
                 - name: AWS_DEFAULT_REGION
                   value: {{ .Values.config.s3Region | default "us-east-1" | quote }}
                 {{- end }}
