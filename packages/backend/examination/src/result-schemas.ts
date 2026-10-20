@@ -24,6 +24,22 @@ export const ResultExaminationParamsSchema = Type.Object({
 export type ResultExaminationParams = Static<typeof ResultExaminationParamsSchema>;
 
 /**
+ * PRC-M243: pagination query for the marks / gradeResults GET handlers, which
+ * previously returned the full unpaginated array for every candidate in the
+ * examination. Bounds mirror ExaminationListQuerySchema's page/pageSize.
+ */
+export const ListMarksQuerySchema = Type.Object({
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
+});
+
+export type ListMarksQuery = Static<typeof ListMarksQuerySchema>;
+
+/**
  * Marks entry payload (G-902). `score: null` records an incomplete subject.
  */
 export const RecordMarksSchema = Type.Object({
