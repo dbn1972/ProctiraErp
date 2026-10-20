@@ -155,7 +155,8 @@ function mapMeeting(row: Record<string, unknown>): SectionMeetingEntity {
     institutionId: String(row.institution_id ?? ''),
     academicPeriodId: String(row.academic_period_id ?? ''),
     sectionId: String(row.section_id),
-    subjectId: null,
+    // PRC-M400: round-trip the persisted subject instead of hardcoding null.
+    subjectId: row.subject_id == null ? null : String(row.subject_id),
     staffId: row.teacher_staff_id == null ? '' : String(row.teacher_staff_id),
     periodId: String(row.bell_period_id),
     roomId: row.room_id == null ? null : String(row.room_id),
@@ -275,9 +276,9 @@ function sectionInsertParams(row: SectionEntity): unknown[] {
 
 const MEETING_INSERT_SQL = `INSERT INTO section_meetings (
           id, tenant_id, section_id, bell_period_id, day_of_week,
-          room_id, teacher_staff_id, status, created_at, updated_at
+          room_id, teacher_staff_id, subject_id, status, created_at, updated_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz,$10::timestamptz
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::timestamptz
         ) RETURNING *`;
 
 function meetingInsertParams(row: SectionMeetingEntity): unknown[] {
@@ -289,6 +290,8 @@ function meetingInsertParams(row: SectionMeetingEntity): unknown[] {
     row.dayOfWeek,
     row.roomId,
     row.staffId || null,
+    // PRC-M400: persist the subject instead of silently dropping it.
+    row.subjectId,
     row.status,
     row.createdAt,
     row.updatedAt,
@@ -640,6 +643,55 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
+  /**
+   * PRC-M396(b)/PRC-M550(b): one `withPgTenant` client holds a transaction-scoped advisory
+   * lock keyed on (tenantId, institutionId, dayOfWeek, periodId), re-reads same-slot candidate
+   * meetings on that same client/transaction, runs `clashCheck` against that fresh read, and
+   * only then inserts — closing the window a separate pre-check + later insert leaves open for
+   * two concurrent callers targeting the identical slot.
+   */
+  async createMeetingAtomic(
+    tenantId: string,
+    candidate: SectionMeetingEntity,
+    clashCheck: (existing: SectionMeetingEntity[]) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity> {
+    return withSchemaCheck(() =>
+      withPgTenant(this.pool, tenantId, async (client) => {
+        const lockKey = [
+          tenantId,
+          candidate.institutionId,
+          candidate.dayOfWeek,
+          candidate.periodId,
+        ].join('|');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
+        // PRC-M407: same narrow, candidate-relevant fetch the old pre-check used
+        // (institution + academic period + weekday), now read inside this transaction.
+        const existingResult = await client.query(
+          `${MEETING_SELECT}
+           WHERE sm.tenant_id = $1 AND sm.deleted_at IS NULL
+             AND s.institution_id = $2 AND s.academic_period_id = $3 AND sm.day_of_week = $4`,
+          [tenantId, candidate.institutionId, candidate.academicPeriodId, candidate.dayOfWeek],
+        );
+        const existing = (existingResult.rows as Record<string, unknown>[]).map(mapMeeting);
+        await clashCheck(existing);
+        const inserted = await client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate));
+        const insertedRow = inserted.rows[0] as Record<string, unknown>;
+        const fullResult = await client.query(
+          `${MEETING_SELECT} WHERE sm.tenant_id = $1 AND sm.id = $2 AND sm.deleted_at IS NULL`,
+          [tenantId, String(insertedRow.id)],
+        );
+        const fullRow = fullResult.rows[0] as Record<string, unknown> | undefined;
+        return fullRow
+          ? mapMeeting(fullRow)
+          : mapMeeting({
+              ...insertedRow,
+              institution_id: candidate.institutionId,
+              academic_period_id: candidate.academicPeriodId,
+            });
+      }),
+    );
+  }
+
   async updateMeeting(
     tenantId: string,
     id: string,
@@ -669,6 +721,10 @@ export class PgTimetableRepository implements TimetableRepository {
         next.staffId || null,
         next.status,
         next.updatedAt,
+        // PRC-M400: subject_id is updatable (updateMeeting patch allows it; schema
+        // forbids it via UpdateMeetingSchema's omit, but the repository method itself
+        // must still round-trip whatever the service passes through).
+        next.subjectId,
       ];
       let sql = `UPDATE section_meetings SET
           section_id = $3,
@@ -677,11 +733,12 @@ export class PgTimetableRepository implements TimetableRepository {
           room_id = $6,
           teacher_staff_id = $7,
           status = $8,
-          updated_at = $9::timestamptz
+          updated_at = $9::timestamptz,
+          subject_id = $10
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`;
       if (opts?.expectedUpdatedAt) {
         params.push(opts.expectedUpdatedAt);
-        sql += ` AND updated_at = $10::timestamptz`;
+        sql += ` AND updated_at = $11::timestamptz`;
       }
       const result = await this.query(tenantId, sql, params);
       if ((result.rowCount ?? 0) === 0) {
@@ -795,6 +852,10 @@ export class PgTimetableRepository implements TimetableRepository {
       if (filter?.institutionId) {
         params.push(filter.institutionId);
         clauses.push(`institution_id = $${params.length}`);
+      }
+      if (filter?.status) {
+        params.push(filter.status);
+        clauses.push(`status = $${params.length}`);
       }
       const result = await this.query(
         tenantId,

@@ -153,6 +153,8 @@ export interface ListSectionsFilter extends ListPageFilter {
 
 export interface ListRoomsFilter extends ListPageFilter {
   institutionId?: string;
+  /** PRC-M550(c): generation jobs must only pick 'active' rooms. */
+  status?: 'active' | 'inactive';
 }
 
 export interface EnrollWithinCapacityInput {
@@ -239,6 +241,19 @@ export interface TimetableRepository {
   listMeetings(tenantId: string, filter?: ListMeetingsFilter): Promise<SectionMeetingEntity[]>;
   getMeeting(tenantId: string, id: string): Promise<SectionMeetingEntity | null>;
   createMeeting(row: SectionMeetingEntity): Promise<SectionMeetingEntity>;
+  /**
+   * PRC-M396(b)/PRC-M550(b): atomic check-then-insert. Serializes concurrent writers for the
+   * same (tenantId, institutionId, dayOfWeek, periodId) slot behind a transaction-scoped
+   * advisory lock, re-runs `clashCheck` against the same-transaction read of existing meetings,
+   * and only then inserts — so two concurrent createMeeting calls for an identical slot cannot
+   * both pass the pre-check and both insert (the prior check-then-separate-insert sequence
+   * could). `clashCheck` throws (e.g. TimetableClashError) to abort the transaction.
+   */
+  createMeetingAtomic(
+    tenantId: string,
+    candidate: SectionMeetingEntity,
+    clashCheck: (existing: SectionMeetingEntity[]) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity>;
   /**
    * PRC-M397: insert cloned sections + meetings atomically (all-or-nothing).
    */
