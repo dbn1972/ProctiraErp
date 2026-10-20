@@ -10,20 +10,26 @@ resources:
   - web/deployment.yaml
   - web/service.yaml
   - web/hpa.yaml
+  - web/pdb.yaml
   - registration-portal/deployment.yaml
   - registration-portal/service.yaml
   - registration-portal/hpa.yaml
+  - registration-portal/pdb.yaml
   - public-website/deployment.yaml
   - public-website/service.yaml
   - public-website/hpa.yaml
+  - public-website/pdb.yaml
   - admin-console/deployment.yaml
   - admin-console/service.yaml
+  - admin-console/pdb.yaml
   - developer-portal/deployment.yaml
   - developer-portal/service.yaml
+  - developer-portal/pdb.yaml
   # API Gateway (canonical — in-process domains; W1-OPS-16)
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
   - api-gateway/hpa.yaml
+  - api-gateway/pdb.yaml
   # ETL Worker
   - etl-worker/deployment.yaml
   - etl-worker/service.yaml
