@@ -71,3 +71,45 @@ CREATE POLICY tenant_isolation ON attendance_leave_types
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
 ALTER TABLE attendance_leave_types FORCE ROW LEVEL SECURITY;
+
+-- W1-DATA-06: every uuid tenant_id table must carry a validated FK to
+-- tenants(id). These tables are created empty in this migration, so the
+-- constraints validate against zero rows (additive, non-destructive). Added
+-- NOT VALID then validated with FORCE RLS lifted on tenants so the owner-side
+-- validation scan is not blinded by the tenant_isolation policies (same
+-- pattern as db/sql/131_notification_durable_rules_templates.sql).
+DO $m169_tenant_fk$
+DECLARE
+  t text;
+  tenants_forced boolean;
+  tables text[] := ARRAY[
+    'attendance_institution_config', 'attendance_absence_threshold_config', 'attendance_leave_types'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = format('public.%I', t)::regclass
+        AND conname = format('%s_tenant_fk', t)
+    ) THEN
+      EXECUTE format(
+        'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (tenant_id) REFERENCES tenants (id) NOT VALID',
+        t, format('%s_tenant_fk', t));
+    END IF;
+  END LOOP;
+
+  SELECT relforcerowsecurity INTO tenants_forced
+    FROM pg_class WHERE oid = 'public.tenants'::regclass;
+  IF tenants_forced THEN
+    ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY;
+  END IF;
+
+  FOREACH t IN ARRAY tables LOOP
+    EXECUTE format('ALTER TABLE %I VALIDATE CONSTRAINT %I', t, format('%s_tenant_fk', t));
+  END LOOP;
+
+  IF tenants_forced THEN
+    ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+  END IF;
+END
+$m169_tenant_fk$;
