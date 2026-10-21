@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEV_JWT_SECRET,
+  DEV_OVERLAY_JWT_SECRET,
   assertAuthBootPolicy,
   loadConfig,
   parseTrustedProxyCidrs,
   resolveAccessTokenExpiresIn,
+  resolveCorsOrigins,
   resolveJwtSecret,
   resolvePreviousJwtSecret,
 } from './config.js';
@@ -30,6 +32,14 @@ describe('resolveJwtSecret (G-703)', () => {
     expect(() => resolveJwtSecret('production', 'short-secret')).toThrow(/at least 32/);
   });
 
+  it('throws in production on the dev overlay JWT_SECRET (PRC-L475)', () => {
+    // 51 chars — long enough to pass the length gate alone; must still be
+    // refused as a known placeholder if this exact dev overlay value were
+    // ever applied against a production boot.
+    expect(DEV_OVERLAY_JWT_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(() => resolveJwtSecret('production', DEV_OVERLAY_JWT_SECRET)).toThrow(/placeholder/);
+  });
+
   it('accepts a strong production secret', () => {
     expect(resolveJwtSecret('production', strong)).toBe(strong);
   });
@@ -48,6 +58,35 @@ describe('resolveAccessTokenExpiresIn', () => {
   it('keeps the historical environment variable compatible', () => {
     expect(resolveAccessTokenExpiresIn({ JWT_ACCESS_TOKEN_EXPIRES_IN: '30m' })).toBe('30m');
     expect(resolveAccessTokenExpiresIn({})).toBe('15m');
+  });
+});
+
+describe('resolveCorsOrigins (PRC-M524)', () => {
+  it('falls back to the localhost defaults when unset, in any environment', () => {
+    expect(resolveCorsOrigins('development', undefined)).toEqual([
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ]);
+    expect(resolveCorsOrigins('test', '   ')).toEqual([
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ]);
+    // PRC-M524 residual: a production boot-fail guard here (mirroring
+    // resolveJwtSecret) was deferred — see CANONICAL_LEDGER.csv for why.
+    expect(resolveCorsOrigins('production', undefined)).toEqual([
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ]);
+  });
+
+  it('parses a comma-separated list in any environment', () => {
+    expect(resolveCorsOrigins('development', 'https://a.example,https://b.example')).toEqual([
+      'https://a.example',
+      'https://b.example',
+    ]);
+    expect(resolveCorsOrigins('production', 'https://app.proctira.io')).toEqual([
+      'https://app.proctira.io',
+    ]);
   });
 });
 

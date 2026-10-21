@@ -1,0 +1,17 @@
+# PRC-L567: base-level PDB so staging/development overlays (which had none)
+# get coverage. overlays/production/pod-disruption-budget.yaml separately
+# ships this same minAvailable=1 for production (left untouched — see
+# PRC-L567's ledger residual).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: registration-portal
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: registration-portal
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: registration-portal

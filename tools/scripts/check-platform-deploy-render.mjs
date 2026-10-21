@@ -66,6 +66,14 @@ export const ALLOWED_KINDS = new Set([
   'ConfigMap',
   'ServiceAccount',
   'PersistentVolumeClaim',
+  // PRC-M523: the platform chart now ships a single namespace-scoped
+  // NetworkPolicy restricting ingress/egress to same-namespace-part-of
+  // peers + DNS + the ingress-controller namespace + a 443 egress CIDR.
+  // It targets every pod labeled app.kubernetes.io/part-of: proctira-platform,
+  // so it also covers this workers-only release's etl-worker /
+  // exam-document-worker pods — reviewed and deliberately allowlisted here,
+  // not a silent ride-along.
+  'NetworkPolicy',
 ]);
 
 /** DR CronJobs this release must render (container names). */

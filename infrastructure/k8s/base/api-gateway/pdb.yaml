@@ -1,0 +1,19 @@
+# PRC-L567: base-level PDB so staging/development overlays (which had none)
+# get coverage. minAvailable=1 is a safe floor for the 1-replica dev overlay
+# and the 2-replica staging overlay. overlays/production/pod-disruption-budget.yaml
+# separately raises this service's effective PDB to minAvailable=2 in
+# production (left untouched — see PRC-L567's ledger residual on why the two
+# are not merged into a single patched resource).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway

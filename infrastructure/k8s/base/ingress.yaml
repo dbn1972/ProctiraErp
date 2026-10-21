@@ -15,10 +15,11 @@ metadata:
     # Rate limiting at ingress level
     nginx.ingress.kubernetes.io/limit-rps: '50'
     nginx.ingress.kubernetes.io/limit-burst-multiplier: '5'
-    # Enable CORS
-    nginx.ingress.kubernetes.io/enable-cors: 'true'
-    nginx.ingress.kubernetes.io/cors-allow-methods: 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-    nginx.ingress.kubernetes.io/cors-allow-headers: 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-Tenant-ID,X-Correlation-ID'
+    # PRC-L564: ingress-level CORS removed. enable-cors with no explicit
+    # cors-allow-origin defaults to a wildcard (`*`) origin per ingress-nginx,
+    # which is a second, uncontrolled CORS layer the app's own CORS plugin
+    # (CORS_ORIGINS, PRC-M524) doesn't govern. Application-level CORS is the
+    # correct place for this.
     # Compression negotiation (Task 55.6 / Requirement 39):
     # The web app and api-gateway emit pre-compressed `.br` and `.gz`
     # siblings during build and the upstream (Next.js standalone /

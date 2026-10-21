@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: attendance-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.attendanceService.autoscaling.enabled }}
   replicas: {{ .Values.attendanceService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

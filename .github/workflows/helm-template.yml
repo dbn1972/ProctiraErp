@@ -38,6 +38,10 @@ on:
       - 'tools/scripts/check-no-latest-image-tags.sh'
       - 'tools/scripts/check-worker-secret-scope.mjs'
       - 'tools/scripts/check-worker-secret-scope.test.mjs'
+      - 'tools/scripts/check-hpa-replica-guard.mjs'
+      - 'tools/scripts/check-hpa-replica-guard.test.mjs'
+      - 'tools/scripts/check-dev-secrets-scope.mjs'
+      - 'tools/scripts/check-dev-secrets-scope.test.mjs'
       - 'tools/scripts/deploy-secret-wiring.test.mjs'
       - 'tools/scripts/deploy-platform-helm.sh'
       - 'tools/scripts/check-platform-deploy-render.mjs'
@@ -100,6 +104,10 @@ on:
       - 'tools/scripts/check-no-latest-image-tags.sh'
       - 'tools/scripts/check-worker-secret-scope.mjs'
       - 'tools/scripts/check-worker-secret-scope.test.mjs'
+      - 'tools/scripts/check-hpa-replica-guard.mjs'
+      - 'tools/scripts/check-hpa-replica-guard.test.mjs'
+      - 'tools/scripts/check-dev-secrets-scope.mjs'
+      - 'tools/scripts/check-dev-secrets-scope.test.mjs'
       - 'tools/scripts/deploy-secret-wiring.test.mjs'
       - 'tools/scripts/deploy-platform-helm.sh'
       - 'tools/scripts/check-platform-deploy-render.mjs'
@@ -175,6 +183,14 @@ jobs:
         run: node --test tools/scripts/check-worker-secret-scope.test.mjs
       - name: Fail when a workload envFroms the full secret bundle (NEW-g3_infra_tools-001)
         run: node tools/scripts/check-worker-secret-scope.mjs
+      - name: Unit-test HPA replica guard (PRC-M598)
+        run: node --test tools/scripts/check-hpa-replica-guard.test.mjs
+      - name: Fail when an HPA-targeted Deployment sets replicas unconditionally (PRC-M598)
+        run: node tools/scripts/check-hpa-replica-guard.mjs
+      - name: Unit-test dev secrets scope (PRC-L475)
+        run: node --test tools/scripts/check-dev-secrets-scope.test.mjs
+      - name: Fail when a dev placeholder credential leaks outside overlays/development (PRC-L475)
+        run: node tools/scripts/check-dev-secrets-scope.mjs
       - name: Lint + template charts (deploy path check)
         run: |
           ./tools/scripts/helm-template-check.sh

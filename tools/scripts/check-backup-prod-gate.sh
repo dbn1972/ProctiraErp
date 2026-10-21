@@ -103,6 +103,28 @@ for needle in (
     if needle not in cron:
         errors.append(f"backup-cronjob.yaml missing fail-closed marker: {needle}")
 
+# PRC-M596: AWS creds must always be wired via secretKeyRef (not gated on the
+# plaintext values.secrets.s3AccessKey/s3SecretKey fields, which are empty in
+# every values-*.yaml when existingSecret is used) and must be required
+# (optional: true only outside production) so a missing key in
+# existingSecret fails the Job at pod-start rather than running pg-backup.sh
+# without offsite credentials.
+if "key: S3_ACCESS_KEY" not in cron or "key: S3_SECRET_KEY" not in cron:
+    errors.append(
+        "backup-cronjob.yaml must source AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY via "
+        "secretKeyRef (PRC-M596)"
+    )
+if re.search(r'\.Values\.secrets\.s3AccessKey\s*\}\}\s*\n\s*-\s*name:\s*AWS_ACCESS_KEY_ID', cron):
+    errors.append(
+        "backup-cronjob.yaml must not gate AWS_ACCESS_KEY_ID on the plaintext "
+        "secrets.s3AccessKey value field (PRC-M596)"
+    )
+if not re.search(r'ne\s+\.Values\.global\.environment\s+"production"[\s\S]{0,40}optional:\s*true', cron):
+    errors.append(
+        "backup-cronjob.yaml must only mark the AWS secretKeyRef optional outside "
+        "production (PRC-M596)"
+    )
+
 crypto = (root / "tools/scripts/backup-crypto.sh").read_text(encoding="utf-8")
 for needle in (
     "BACKUP_REQUIRE_OFFSITE",

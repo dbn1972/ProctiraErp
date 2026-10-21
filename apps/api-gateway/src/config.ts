@@ -100,8 +100,19 @@ export function resolveAccessTokenExpiresIn(
 /** Dev-only fallback; refused outright when NODE_ENV=production (G-703). */
 export const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
+/**
+ * PRC-L475: the literal JWT_SECRET committed in
+ * infrastructure/k8s/overlays/development/secrets.yaml. That value is 51
+ * chars — long enough to pass the length gate below — so it would not be
+ * caught if this exact dev overlay were ever applied against a cluster with
+ * NODE_ENV=production forced some other way. Refuse it explicitly, same as
+ * every other known placeholder.
+ */
+export const DEV_OVERLAY_JWT_SECRET = 'dev-only-jwt-secret-not-for-production-0123456789ab';
+
 const WEAK_JWT_SECRETS = new Set([
   DEV_JWT_SECRET,
+  DEV_OVERLAY_JWT_SECRET,
   'CHANGE_ME',
   'CHANGE_ME_IN_PRODUCTION',
   'secret',
@@ -221,15 +232,33 @@ export function assertAuthBootPolicy(input: {
 }
 
 /**
+ * PRC-M524: parse CORS_ORIGINS. A production boot-fail guard (mirroring
+ * resolveJwtSecret's refusal of a silent default) was deferred — see the
+ * CANONICAL_LEDGER.csv PARTIAL residual for PRC-M524: this repo's own
+ * config.test.ts boots the gateway with NODE_ENV=production and no
+ * CORS_ORIGINS set (to isolate an unrelated JWT_SECRET_PREVIOUS assertion),
+ * which is exactly the class of existing-boot-path dependency the batch plan
+ * flagged as a reason to keep this additive-only rather than silently
+ * changing gateway boot behavior.
+ */
+export function resolveCorsOrigins(_env: string, raw: string | undefined): string[] {
+  const trimmed = raw?.trim() ?? '';
+  if (trimmed.length === 0) {
+    return ['http://localhost:3000', 'http://localhost:3001'];
+  }
+  return trimmed
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+/**
  * Load gateway configuration from environment variables.
  */
 export function loadConfig(): GatewayConfig {
   const env = (process.env['NODE_ENV'] || 'development') as GatewayConfig['env'];
 
-  // Parse CORS origins from comma-separated env var
-  const corsOrigins = process.env['CORS_ORIGINS']
-    ? process.env['CORS_ORIGINS'].split(',').map((o) => o.trim())
-    : ['http://localhost:3000', 'http://localhost:3001'];
+  const corsOrigins = resolveCorsOrigins(env, process.env['CORS_ORIGINS']);
 
   // Parse service routes from SERVICE_ROUTES env var (JSON) or use defaults
   let services: Record<string, ServiceRoute> = {};
