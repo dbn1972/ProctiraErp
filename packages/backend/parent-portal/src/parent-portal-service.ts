@@ -948,7 +948,23 @@ export class ParentPortalService {
           `payment-service settlements may mark an invoice paid`,
       );
     }
-    if (resolveProviderDeliveryMode('fees') !== 'sandbox') {
+    // PRC-M532: resolveProviderDeliveryMode itself throws (not just returns 'live')
+    // when a production environment has no explicit PROVIDER_MODE/sandbox opt-in
+    // (W1-ARCH-08's silent-sandbox-in-production guard). That throw must still
+    // fail this path closed as a 422 BusinessRuleError, not an uncaught 500 —
+    // resolveProviderDeliveryMode('fees') !== 'sandbox' alone only catches the
+    // explicit PROVIDER_MODE=live case.
+    let deliveryMode: ReturnType<typeof resolveProviderDeliveryMode>;
+    try {
+      deliveryMode = resolveProviderDeliveryMode('fees');
+    } catch (error) {
+      throw new BusinessRuleError(
+        error instanceof Error
+          ? error.message
+          : 'Sandbox self-service payment is disabled: configure a verified payment provider',
+      );
+    }
+    if (deliveryMode !== 'sandbox') {
       throw new BusinessRuleError(
         'Sandbox self-service payment is disabled: configure a verified payment provider ' +
           '(PROVIDER_MODE=live) so payments settle through the fee ledger',

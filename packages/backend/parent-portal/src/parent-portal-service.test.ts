@@ -491,6 +491,37 @@ describe('ParentPortalService', () => {
         }),
       ).rejects.toThrow(BusinessRuleError);
     });
+
+    // PRC-M532: re-verify the fallback-pay path fails closed under the
+    // production-default branch of resolveProviderDeliveryMode (NODE_ENV=production
+    // with no PROVIDER_MODE set), not just under PROVIDER_MODE=live. The real
+    // gateway (apps/api-gateway/src/domain-plugins.ts 'parent-portal' registration)
+    // always injects feesService, so this fallback is unreachable in production —
+    // this test proves the fallback still fails closed if that assumption ever broke.
+    it('refuses to settle via the sandbox in-memory path under NODE_ENV=production alone', async () => {
+      const prevNodeEnv = process.env['NODE_ENV'];
+      const prevProviderMode = process.env['PROVIDER_MODE'];
+      process.env['NODE_ENV'] = 'production';
+      delete process.env['PROVIDER_MODE'];
+      try {
+        const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+          studentId: STUDENT_ID,
+          title: 'Production default gate',
+          amountCents: 5000,
+        });
+        await expect(
+          service.payInvoice(TENANT_A, PARENT_USER, invoice.id, { method: 'sandbox' }),
+        ).rejects.toThrow(BusinessRuleError);
+        // Invoice must remain open — no forged 'paid' state.
+        const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
+        expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
+      } finally {
+        if (prevNodeEnv === undefined) delete process.env['NODE_ENV'];
+        else process.env['NODE_ENV'] = prevNodeEnv;
+        if (prevProviderMode === undefined) delete process.env['PROVIDER_MODE'];
+        else process.env['PROVIDER_MODE'] = prevProviderMode;
+      }
+    });
   });
 
   describe('household custody authZ (W1-SEC-03)', () => {
