@@ -6,6 +6,9 @@ namespace: proctira-staging
 resources:
   - ../../base
   - external-secret.yaml
+  # PRC-M523: staging previously had no NetworkPolicy at all (only
+  # overlays/production/network-policy.yaml existed).
+  - network-policy.yaml
 
 # W1-OPS-08 — pin all service images via shared image-tag component
 components:
