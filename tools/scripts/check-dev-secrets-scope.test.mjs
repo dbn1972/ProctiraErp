@@ -48,8 +48,7 @@ test('a dev placeholder literal committed outside overlays/development is a viol
 
 test('the same literal inside overlays/development is allowed', () => {
   const base = fixtureRepo({
-    'infrastructure/k8s/overlays/development/secrets.yaml':
-      "S3_ACCESS_KEY: 'minioadmin'\n",
+    'infrastructure/k8s/overlays/development/secrets.yaml': "S3_ACCESS_KEY: 'minioadmin'\n",
   });
   try {
     assert.deepEqual(
